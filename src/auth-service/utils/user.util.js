@@ -62,6 +62,13 @@ function generateNumericToken(length) {
 
   return token;
 }
+
+const normalizeName = (name) => {
+  if (!name || typeof name !== "string") {
+    return "";
+  }
+  return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+};
 async function deleteCollection({ db, collectionPath, batchSize } = {}) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
@@ -4780,18 +4787,17 @@ const createUserModule = {
             let desiredRole;
             // Special handling for the main "airqo" group
             if (group.grp_title.toLowerCase() === "airqo") {
-              // Find all possible admin and default roles for the AirQo group
               const possibleRoles = await RoleModel(tenant)
                 .find({ group_id: groupId })
                 .lean();
-              const superAdminRole = possibleRoles.find((r) =>
-                r.role_code.endsWith("_SUPER_ADMIN")
+              const superAdminRole = possibleRoles.find(
+                (r) => r.role_code?.toUpperCase() === "AIRQO_SUPER_ADMIN"
               );
-              const adminRole = possibleRoles.find((r) =>
-                r.role_code.endsWith("_ADMIN")
+              const adminRole = possibleRoles.find(
+                (r) => r.role_code?.toUpperCase() === "AIRQO_ADMIN"
               );
-              const defaultUserRole = possibleRoles.find((r) =>
-                r.role_code.endsWith("_DEFAULT_USER")
+              const defaultUserRole = possibleRoles.find(
+                (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
               );
 
               // Check which of these roles the user has among their duplicate assignments
@@ -4825,9 +4831,7 @@ const createUserModule = {
             }
             // General handling for all other groups
             else {
-              const orgName = group.grp_title
-                .toUpperCase()
-                .replace(/[^A-Z0-9_]/g, "_");
+              const orgName = normalizeName(group.grp_title);
               const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
               desiredRole = await RoleModel(tenant)
                 .findOne({
@@ -4900,9 +4904,7 @@ const createUserModule = {
               continue;
             }
 
-            const orgName = network.net_name
-              .toUpperCase()
-              .replace(/[^A-Z0-9_]/g, "_");
+            const orgName = normalizeName(network.net_name);
             const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
             const desiredRole = await RoleModel(tenant)
               .findOne({
