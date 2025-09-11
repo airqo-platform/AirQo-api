@@ -4747,10 +4747,35 @@ const createUserModule = {
       let needsUpdate = false;
       let updateOptions = {};
 
-      // --- 1. Consolidate duplicate roles for all groups ---
+      // --- Create mutable copies of the role arrays, preserving ObjectIDs ---
+      const isObjectId = (v) =>
+        v &&
+        (v instanceof mongoose.Types.ObjectId || v._bsontype === "ObjectID");
+      const toObjectId = (v) =>
+        isObjectId(v)
+          ? v
+          : mongoose.Types.ObjectId.isValid(v)
+          ? new mongoose.Types.ObjectId(v)
+          : v;
+      let finalGroupRoles = Array.isArray(user.group_roles)
+        ? user.group_roles.map((a) => ({
+            ...(a?.toObject?.() ?? a),
+            group: toObjectId(a.group),
+            role: toObjectId(a.role),
+          }))
+        : [];
+      let finalNetworkRoles = Array.isArray(user.network_roles)
+        ? user.network_roles.map((a) => ({
+            ...(a?.toObject?.() ?? a),
+            network: toObjectId(a.network),
+            role: toObjectId(a.role),
+          }))
+        : [];
+
+      // --- 1. Consolidate duplicate roles for all GROUPS ---
       if (user.group_roles && user.group_roles.length > 0) {
         const groupsWithRoles = new Map();
-        user.group_roles.forEach((assignment) => {
+        finalGroupRoles.forEach((assignment) => {
           if (assignment && assignment.group) {
             const groupId = assignment.group.toString();
             if (!groupsWithRoles.has(groupId)) {
@@ -4764,7 +4789,6 @@ const createUserModule = {
         const rolesToAdd = [];
 
         for (const [groupId, assignments] of groupsWithRoles.entries()) {
-          // --- NEW: Skip if the user already has exactly one valid role ---
           if (assignments.length === 1 && assignments[0].role) {
             logger.debug(
               `[Role Consolidation] User ${user.email} has one valid role for group ${groupId}. Skipping.`
@@ -4785,7 +4809,6 @@ const createUserModule = {
             }
 
             let desiredRole;
-            // Special handling for the main "airqo" group
             if (group.grp_title.toLowerCase() === "airqo") {
               const possibleRoles = await RoleModel(tenant)
                 .find({ group_id: groupId })
@@ -4800,12 +4823,10 @@ const createUserModule = {
                 (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
               );
 
-              // Check which of these roles the user has among their duplicate assignments
               const userRoleIds = new Set(
                 assignments.map((a) => a.role && a.role.toString())
               );
 
-              // Prioritize SUPER_ADMIN, then ADMIN, then fall back to DEFAULT_USER
               if (
                 superAdminRole &&
                 userRoleIds.has(superAdminRole._id.toString())
@@ -4828,9 +4849,7 @@ const createUserModule = {
                   `[Role Consolidation] Defaulting to AIRQO_DEFAULT_USER role for user ${user.email}.`
                 );
               }
-            }
-            // General handling for all other groups
-            else {
+            } else {
               const orgName = normalizeName(group.grp_title);
               const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
               desiredRole = await RoleModel(tenant)
@@ -4846,10 +4865,18 @@ const createUserModule = {
 
             if (desiredRole) {
               groupsToPull.push(mongoose.Types.ObjectId(groupId));
+              const earliestCreatedAt = new Date(
+                Math.min(
+                  ...assignments.map((a) =>
+                    new Date(a.createdAt || Date.now()).getTime()
+                  )
+                )
+              );
               rolesToAdd.push({
                 group: mongoose.Types.ObjectId(groupId),
                 role: desiredRole._id,
                 userType: "user",
+                createdAt: earliestCreatedAt,
               });
               needsUpdate = true;
             } else {
@@ -4861,7 +4888,9 @@ const createUserModule = {
         }
 
         if (groupsToPull.length > 0) {
+          updateQuery.$pull = updateQuery.$pull || {};
           updateQuery.$pull.group_roles = { group: { $in: groupsToPull } };
+          updateQuery.$addToSet = updateQuery.$addToSet || {};
           updateQuery.$addToSet.group_roles = { $each: rolesToAdd };
         }
       }
@@ -4869,7 +4898,7 @@ const createUserModule = {
       // --- 2. Consolidate duplicate roles for NETWORKS ---
       if (user.network_roles && user.network_roles.length > 0) {
         const networksWithRoles = new Map();
-        user.network_roles.forEach((assignment) => {
+        finalNetworkRoles.forEach((assignment) => {
           if (assignment && assignment.network) {
             const networkId = assignment.network.toString();
             if (!networksWithRoles.has(networkId)) {
@@ -4883,7 +4912,6 @@ const createUserModule = {
         const networkRolesToAdd = [];
 
         for (const [networkId, assignments] of networksWithRoles.entries()) {
-          // --- NEW: Skip if the user already has exactly one valid role ---
           if (assignments.length === 1 && assignments[0].role) {
             logger.debug(
               `[Role Consolidation] User ${user.email} has one valid role for network ${networkId}. Skipping.`
@@ -4915,10 +4943,18 @@ const createUserModule = {
 
             if (desiredRole) {
               networksToPull.push(mongoose.Types.ObjectId(networkId));
+              const earliestCreatedAtNet = new Date(
+                Math.min(
+                  ...assignments.map((a) =>
+                    new Date(a.createdAt || Date.now()).getTime()
+                  )
+                )
+              );
               networkRolesToAdd.push({
                 network: mongoose.Types.ObjectId(networkId),
                 role: desiredRole._id,
                 userType: "user",
+                createdAt: earliestCreatedAtNet,
               });
               needsUpdate = true;
             } else {
@@ -4930,9 +4966,11 @@ const createUserModule = {
         }
 
         if (networksToPull.length > 0) {
+          updateQuery.$pull = updateQuery.$pull || {};
           updateQuery.$pull.network_roles = {
             network: { $in: networksToPull },
           };
+          updateQuery.$addToSet = updateQuery.$addToSet || {};
           updateQuery.$addToSet.network_roles = { $each: networkRolesToAdd };
         }
       }
@@ -4953,6 +4991,7 @@ const createUserModule = {
           .lean();
 
         const airqoGroupAlreadyHandled =
+          updateQuery.$pull &&
           updateQuery.$pull.group_roles &&
           updateQuery.$pull.group_roles.group &&
           updateQuery.$pull.group_roles.group.$in &&
@@ -4969,6 +5008,7 @@ const createUserModule = {
             logger.warn(
               `[Role Fix] User ${user.email} has a null role for AirQo group. Attempting to fix.`
             );
+            updateQuery.$set = updateQuery.$set || {};
             updateQuery.$set["group_roles.$[airqoNull].role"] =
               airqoDefaultRole._id;
             needsUpdate = true;
@@ -4989,6 +5029,7 @@ const createUserModule = {
             logger.info(
               `[Default Role] User ${user.email} belongs to AirQo org but is not in the group. Assigning default role.`
             );
+            updateQuery.$addToSet = updateQuery.$addToSet || {};
             if (!updateQuery.$addToSet.group_roles) {
               updateQuery.$addToSet.group_roles = { $each: [] };
             }
@@ -5017,8 +5058,8 @@ const createUserModule = {
         );
         if (hasDeprecated) {
           const deprecatedCond = { role: { $in: deprecatedRoleIds } };
+          updateQuery.$pull = updateQuery.$pull || {};
           if (updateQuery.$pull.group_roles) {
-            // Combine existing condition (by group) with deprecated removal using $or
             updateQuery.$pull.group_roles = updateQuery.$pull.group_roles.$or
               ? { $or: [...updateQuery.$pull.group_roles.$or, deprecatedCond] }
               : { $or: [updateQuery.$pull.group_roles, deprecatedCond] };
@@ -5033,7 +5074,7 @@ const createUserModule = {
       }
 
       if (user.privilege) {
-        updateQuery.$unset.privilege = "";
+        updateQuery.$unset = { privilege: "" };
         needsUpdate = true;
         logger.info(
           `[Role Cleanup] User ${user.email} has legacy 'privilege' field. Scheduling for removal.`
@@ -5042,12 +5083,13 @@ const createUserModule = {
 
       // --- 4. Execute the update ---
       if (needsUpdate) {
-        if (Object.keys(updateQuery.$set).length === 0) delete updateQuery.$set;
-        if (Object.keys(updateQuery.$pull).length === 0)
+        if (Object.keys(updateQuery.$set || {}).length === 0)
+          delete updateQuery.$set;
+        if (Object.keys(updateQuery.$pull || {}).length === 0)
           delete updateQuery.$pull;
-        if (Object.keys(updateQuery.$unset).length === 0)
+        if (Object.keys(updateQuery.$unset || {}).length === 0)
           delete updateQuery.$unset;
-        if (Object.keys(updateQuery.$addToSet).length === 0)
+        if (Object.keys(updateQuery.$addToSet || {}).length === 0)
           delete updateQuery.$addToSet;
 
         if (Object.keys(updateQuery).length > 0) {

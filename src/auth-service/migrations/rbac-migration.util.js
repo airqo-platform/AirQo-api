@@ -439,7 +439,7 @@ class RBACMigrationUtility {
               // Get group from our pre-fetched map
               const group = groupMap.get(groupRole.group.toString());
               if (group) {
-                const organizationName = group.grp_title.toUpperCase();
+                const organizationName = this.normalizeName(group.grp_title);
                 const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
                 const roleKey = `${groupRole.group}_${this.normalizeName(
                   defaultRoleName
