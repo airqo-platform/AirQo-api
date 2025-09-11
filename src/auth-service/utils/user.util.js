@@ -4780,24 +4780,38 @@ const createUserModule = {
             let desiredRole;
             // Special handling for the main "airqo" group
             if (group.grp_title.toLowerCase() === "airqo") {
-              const adminRole = await RoleModel(tenant)
-                .findOne({ role_code: "AIRQO_ADMIN", group_id: groupId })
+              // Find all possible admin and default roles for the AirQo group
+              const possibleRoles = await RoleModel(tenant)
+                .find({ group_id: groupId })
                 .lean();
-              const defaultUserRole = await RoleModel(tenant)
-                .findOne({
-                  role_code: "AIRQO_DEFAULT_USER",
-                  group_id: groupId,
-                })
-                .lean();
+              const superAdminRole = possibleRoles.find((r) =>
+                r.role_code.endsWith("_SUPER_ADMIN")
+              );
+              const adminRole = possibleRoles.find((r) =>
+                r.role_code.endsWith("_ADMIN")
+              );
+              const defaultUserRole = possibleRoles.find((r) =>
+                r.role_code.endsWith("_DEFAULT_USER")
+              );
 
-              const hasAdminRole =
-                adminRole &&
-                assignments.some(
-                  (a) =>
-                    a.role && a.role.toString() === adminRole._id.toString()
+              // Check which of these roles the user has among their duplicate assignments
+              const userRoleIds = new Set(
+                assignments.map((a) => a.role && a.role.toString())
+              );
+
+              // Prioritize SUPER_ADMIN, then ADMIN, then fall back to DEFAULT_USER
+              if (
+                superAdminRole &&
+                userRoleIds.has(superAdminRole._id.toString())
+              ) {
+                desiredRole = superAdminRole;
+                logger.info(
+                  `[Role Consolidation] Prioritizing SUPER_ADMIN role for user ${user.email}.`
                 );
-
-              if (hasAdminRole) {
+              } else if (
+                adminRole &&
+                userRoleIds.has(adminRole._id.toString())
+              ) {
                 desiredRole = adminRole;
                 logger.info(
                   `[Role Consolidation] Prioritizing AIRQO_ADMIN role for user ${user.email}.`
