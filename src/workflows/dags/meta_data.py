@@ -9,6 +9,7 @@ from dag_docs import (
     extract_store_devices_data_in_temp_store,
     extract_store_sites_data_in_temp_store,
     compute_store_devices_metadata_doc,
+    compute_store_devices_baseline_doc,
 )
 from airqo_etl_utils.constants import (
     MetaDataType,
@@ -214,8 +215,6 @@ def meta_data_update_microservice_sites_meta_data():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def cache_devices_data():
-    import pandas as pd
-
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_devices() -> pd.DataFrame:
         return MetaDataUtils.extract_transform_and_decrypt_metadata(
@@ -244,8 +243,6 @@ def cache_devices_data():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def compute_store_devices_metadata():
-    import pandas as pd
-
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_compute_devices_metadata() -> pd.DataFrame:
         return MetaDataUtils.compute_device_site_metadata(
@@ -277,6 +274,42 @@ def compute_store_devices_metadata():
 
 
 @dag(
+    "AirQo-devices-computed-store-device-baseline-weekly",
+    schedule="0 0 * * *",
+    doc_md=compute_store_devices_baseline_doc,
+    catchup=False,
+    tags=["devices", "weekly", "computed", "metadata", "baselines"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def compute_store_devices_baseline_weekly():
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def extract_compute_devices_baeline() -> pd.DataFrame:
+        return MetaDataUtils.compute_device_site_baseline(
+            DataType.AVERAGED,
+            Frequency.WEEKLY,
+            DeviceCategory.GENERAL,
+            DeviceNetwork.AIRQO,
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def store_computed_metadata(data: pd.DataFrame) -> None:
+        if not data.empty:
+            data, table = DataUtils.format_data_for_bigquery(
+                data,
+                DataType.EXTRAS,
+                DeviceCategory.LOWCOST,
+                Frequency.WEEKLY,
+                device_network=DeviceNetwork.AIRQO,
+                extra_type=MetaDataType.DATAQUALITYCHECKS,
+            )
+            big_query_api = BigQueryApi()
+            big_query_api.load_data(dataframe=data, table=table)
+
+    extracted_devices = extract_compute_devices_baeline()
+    store_computed_metadata(extracted_devices)
+
+
+@dag(
     "AirQo-sites-to-temp-store-pipeline",
     schedule="0 */3 * * *",
     doc_md=extract_store_sites_data_in_temp_store,
@@ -285,8 +318,6 @@ def compute_store_devices_metadata():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def cache_sites_data():
-    import pandas as pd
-
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_sites() -> pd.DataFrame:
         return MetaDataUtils.extract_transform_and_decrypt_metadata(MetaDataType.SITES)

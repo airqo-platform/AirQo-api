@@ -212,3 +212,29 @@ This pipeline computes additional metadata for AirQo devices, such as pollutant 
 - `compute_device_site_metadata` method in `datautils.py` (#sym:compute_device_site_metadata)
 - `compute_store_devices_metadata` DAG in `meta_data.py` (#sym:compute_store_devices_metadata)
 """
+
+compute_store_devices_baseline_doc = """
+### AirQo Devices Computed Baselines
+#### Purpose
+Compute and store baseline statistics for AirQo devices in BigQuery.
+
+This pipeline computes baseline metrics (e.g., quantiles, ECDF bins, mean, standard deviation) for device pollutants over a specified time window (e.g., weekly). It uses historical data to establish baselines for data drift detection, quality checks, and anomaly monitoring. The computed baselines are stored in BigQuery for ongoing analysis and alerting.
+
+#### Notes
+- The computation uses the `compute_device_site_baseline` method to process baselines for each device in parallel using ThreadPoolExecutor.
+- The pipeline is scheduled to run daily at midnight to update baselines regularly.
+- Baselines are computed only if sufficient data is available (e.g., meeting minimum sample counts and coverage thresholds).
+- Exceptions in individual device computations are logged but do not halt the entire pipeline.
+
+#### Data Sources:
+- BigQuery: `averaged_data.hourly_device_measurements` (for historical pollutant data)
+- BigQuery: `data_quality.devices_computed_metadata` (for device details and recent maintenance dates)
+
+#### Data Destinations:
+- BigQuery: `data_quality.measurements_baseline` (staging/production, with fields like quantiles, ecdf_bins, mean, etc.)
+
+#### References:
+- `compute_device_site_baseline` method in `meta_data_utils.py` (#sym:compute_device_site_baseline)
+- `compute_store_devices_baseline` DAG in `meta_data.py` (#sym:compute_store_devices_baseline)
+- Baseline schema in `measurements_baseline.json` (#sym:measurements_baseline.json)
+"""
