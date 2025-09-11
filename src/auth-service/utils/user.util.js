@@ -4817,7 +4817,11 @@ const createUserModule = {
       }
 
       // Logic to fix users with a null role in the AirQo group
-      if (airqoGroupAssignment && !airqoGroupAssignment.role && defaultRole) {
+      if (
+        airqoGroupAssignment &&
+        airqoGroupAssignment.role == null &&
+        defaultRole
+      ) {
         logger.warn(
           `[Role Fix] User ${user.email} is in AirQo group but has a null role. Attempting to fix.`
         );
@@ -4827,7 +4831,7 @@ const createUserModule = {
         needsUpdate = true;
       } else if (
         airqoGroupAssignment &&
-        !airqoGroupAssignment.role &&
+        airqoGroupAssignment.role == null &&
         !defaultRole
       ) {
         logger.error(
@@ -4870,14 +4874,30 @@ const createUserModule = {
           delete updateQuery.$addToSet;
 
         if (Object.keys(updateQuery).length > 0) {
-          await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery, {
-            arrayFilters: [
-              {
-                "airqoNull.group": airqoGroup._id,
-                "airqoNull.role": { $exists: false },
-              },
-            ],
-          });
+          const needsArrayFilters =
+            updateQuery.$set &&
+            Object.prototype.hasOwnProperty.call(
+              updateQuery.$set,
+              "group_roles.$[airqoNull].role"
+            );
+          const updateOptions = needsArrayFilters
+            ? {
+                arrayFilters: [
+                  {
+                    "airqoNull.group": airqoGroup._id,
+                    $or: [
+                      { "airqoNull.role": { $exists: false } },
+                      { "airqoNull.role": null },
+                    ],
+                  },
+                ],
+              }
+            : {};
+          await UserModel(tenant).findByIdAndUpdate(
+            user._id,
+            updateQuery,
+            updateOptions
+          );
         }
       }
     } catch (error) {

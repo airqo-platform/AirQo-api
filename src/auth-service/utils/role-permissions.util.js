@@ -822,11 +822,21 @@ const auditAndSyncExistingRoles = async (tenant) => {
     for (const role of rolesWithPermissions) {
       try {
         // Determine role type from role name
+        // Updated logic: Check both role_name and role_code for a match
         let roleType = null;
         for (const [type, permissions] of Object.entries(
           rolePermissionTemplates
         )) {
-          if (role.role_name.includes(type)) {
+          // Check if role_name or role_code ends with the type (e.g., "_ADMIN")
+          if (
+            (role.role_name && role.role_name.endsWith(`_${type}`)) ||
+            (role.role_code && role.role_code.endsWith(`_${type}`))
+          ) {
+            roleType = type;
+            break;
+          }
+          // Fallback for exact match (e.g., "ADMIN")
+          if (role.role_name === type || role.role_code === type) {
             roleType = type;
             break;
           }
