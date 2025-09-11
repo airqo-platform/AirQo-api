@@ -256,7 +256,10 @@ class RBACMigrationUtility {
    * @param {boolean} dryRun - Whether to actually create roles
    */
   async createGroupDefaultRoles(group, dryRun = false) {
-    const organizationName = this.normalizeName(group.grp_title);
+    const organizationName =
+      this.normalizeName(group.grp_title) ||
+      this.normalizeName(group.organization_slug) ||
+      `GROUP_${group._id.toString().slice(-6).toUpperCase()}`;
 
     const defaultRoles = [
       {
