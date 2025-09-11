@@ -4743,9 +4743,8 @@ const createUserModule = {
 
   ensureDefaultAirqoRole: async (user, tenant) => {
     try {
-      const updateQuery = { $set: {}, $pull: {}, $unset: {}, $addToSet: {} };
       let needsUpdate = false;
-      let updateOptions = {};
+      const updateQuery = {};
 
       // --- Create mutable copies of the role arrays, preserving ObjectIDs ---
       const isObjectId = (v) =>
@@ -4773,276 +4772,129 @@ const createUserModule = {
         : [];
 
       // --- 1. Consolidate duplicate roles for all GROUPS ---
-      if (user.group_roles && user.group_roles.length > 0) {
-        const groupsWithRoles = new Map();
-        finalGroupRoles.forEach((assignment) => {
-          if (assignment && assignment.group) {
-            const groupId = assignment.group.toString();
-            if (!groupsWithRoles.has(groupId)) {
-              groupsWithRoles.set(groupId, []);
-            }
-            groupsWithRoles.get(groupId).push(assignment);
-          }
-        });
-
-        const groupsToPull = [];
-        const rolesToAdd = [];
-
-        for (const [groupId, assignments] of groupsWithRoles.entries()) {
-          if (assignments.length === 1 && assignments[0].role) {
-            logger.debug(
-              `[Role Consolidation] User ${user.email} has one valid role for group ${groupId}. Skipping.`
-            );
-            continue;
-          }
-          if (assignments.length > 1) {
-            logger.warn(
-              `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
-            );
-
-            const group = await GroupModel(tenant).findById(groupId).lean();
-            if (!group) {
-              logger.error(
-                `[Role Consolidation] Group ${groupId} not found. Cannot consolidate.`
-              );
-              continue;
-            }
-
-            let desiredRole;
-            if (group.grp_title.toLowerCase() === "airqo") {
-              const possibleRoles = await RoleModel(tenant)
-                .find({ group_id: groupId })
-                .lean();
-              const superAdminRole = possibleRoles.find(
-                (r) => r.role_code?.toUpperCase() === "AIRQO_SUPER_ADMIN"
-              );
-              const adminRole = possibleRoles.find(
-                (r) => r.role_code?.toUpperCase() === "AIRQO_ADMIN"
-              );
-              const defaultUserRole = possibleRoles.find(
-                (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
-              );
-
-              const userRoleIds = new Set(
-                assignments.map((a) => a.role && a.role.toString())
-              );
-
-              if (
-                superAdminRole &&
-                userRoleIds.has(superAdminRole._id.toString())
-              ) {
-                desiredRole = superAdminRole;
-                logger.info(
-                  `[Role Consolidation] Prioritizing SUPER_ADMIN role for user ${user.email}.`
-                );
-              } else if (
-                adminRole &&
-                userRoleIds.has(adminRole._id.toString())
-              ) {
-                desiredRole = adminRole;
-                logger.info(
-                  `[Role Consolidation] Prioritizing AIRQO_ADMIN role for user ${user.email}.`
-                );
-              } else {
-                desiredRole = defaultUserRole;
-                logger.info(
-                  `[Role Consolidation] Defaulting to AIRQO_DEFAULT_USER role for user ${user.email}.`
-                );
-              }
-            } else {
-              const orgName = normalizeName(group.grp_title);
-              const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
-              desiredRole = await RoleModel(tenant)
-                .findOne({
-                  role_code: defaultMemberRoleCode,
-                  group_id: groupId,
-                })
-                .lean();
-              logger.info(
-                `[Role Consolidation] Defaulting to ${defaultMemberRoleCode} for user ${user.email} in group ${group.grp_title}.`
-              );
-            }
-
-            if (desiredRole) {
-              groupsToPull.push(mongoose.Types.ObjectId(groupId));
-              const earliestCreatedAt = new Date(
-                Math.min(
-                  ...assignments.map((a) =>
-                    new Date(a.createdAt || Date.now()).getTime()
-                  )
-                )
-              );
-              rolesToAdd.push({
-                group: mongoose.Types.ObjectId(groupId),
-                role: desiredRole._id,
-                userType: "user",
-                createdAt: earliestCreatedAt,
-              });
-              needsUpdate = true;
-            } else {
-              logger.error(
-                `[Role Consolidation] Could not find a suitable role to consolidate to for group ${groupId}.`
-              );
-            }
-          }
+      const groupRoleMap = new Map();
+      finalGroupRoles.forEach((assignment) => {
+        if (assignment && assignment.group) {
+          const groupId = assignment.group.toString();
+          if (!groupRoleMap.has(groupId)) groupRoleMap.set(groupId, []);
+          groupRoleMap.get(groupId).push(assignment);
         }
+      });
 
-        if (groupsToPull.length > 0) {
-          updateQuery.$pull = updateQuery.$pull || {};
-          updateQuery.$pull.group_roles = { group: { $in: groupsToPull } };
-          updateQuery.$addToSet = updateQuery.$addToSet || {};
-          updateQuery.$addToSet.group_roles = { $each: rolesToAdd };
+      for (const [groupId, assignments] of groupRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.warn(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
+          );
+          const group = await GroupModel(tenant).findById(groupId).lean();
+          if (!group) continue;
+
+          let desiredRole;
+          if (group.grp_title.toLowerCase() === "airqo") {
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: groupId })
+              .lean();
+            const superAdminRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_SUPER_ADMIN"
+            );
+            const adminRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_ADMIN"
+            );
+            const defaultUserRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
+            );
+            const userRoleIds = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+
+            if (
+              superAdminRole &&
+              userRoleIds.has(superAdminRole._id.toString())
+            ) {
+              desiredRole = superAdminRole;
+            } else if (adminRole && userRoleIds.has(adminRole._id.toString())) {
+              desiredRole = adminRole;
+            } else {
+              desiredRole = defaultUserRole;
+            }
+          } else {
+            const orgName = normalizeName(group.grp_title);
+            const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
+            desiredRole = await RoleModel(tenant)
+              .findOne({ role_code: defaultMemberRoleCode, group_id: groupId })
+              .lean();
+          }
+
+          if (desiredRole) {
+            finalGroupRoles = finalGroupRoles.filter(
+              (a) => a.group.toString() !== groupId
+            );
+            const earliestCreatedAt = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
+            );
+            finalGroupRoles.push({
+              group: mongoose.Types.ObjectId(groupId),
+              role: desiredRole._id,
+              userType: "user",
+              createdAt: earliestCreatedAt,
+            });
+          }
         }
       }
 
       // --- 2. Consolidate duplicate roles for NETWORKS ---
-      if (user.network_roles && user.network_roles.length > 0) {
-        const networksWithRoles = new Map();
-        finalNetworkRoles.forEach((assignment) => {
-          if (assignment && assignment.network) {
-            const networkId = assignment.network.toString();
-            if (!networksWithRoles.has(networkId)) {
-              networksWithRoles.set(networkId, []);
-            }
-            networksWithRoles.get(networkId).push(assignment);
-          }
-        });
-
-        const networksToPull = [];
-        const networkRolesToAdd = [];
-
-        for (const [networkId, assignments] of networksWithRoles.entries()) {
-          if (assignments.length === 1 && assignments[0].role) {
-            logger.debug(
-              `[Role Consolidation] User ${user.email} has one valid role for network ${networkId}. Skipping.`
-            );
-            continue;
-          }
-          if (assignments.length > 1) {
-            logger.warn(
-              `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
-            );
-            const network = await NetworkModel(tenant)
-              .findById(networkId)
-              .lean();
-            if (!network) {
-              logger.error(
-                `[Role Consolidation] Network ${networkId} not found. Cannot consolidate.`
-              );
-              continue;
-            }
-
-            const orgName = normalizeName(network.net_name);
-            const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
-            const desiredRole = await RoleModel(tenant)
-              .findOne({
-                role_code: defaultMemberRoleCode,
-                network_id: networkId,
-              })
-              .lean();
-
-            if (desiredRole) {
-              networksToPull.push(mongoose.Types.ObjectId(networkId));
-              const earliestCreatedAtNet = new Date(
-                Math.min(
-                  ...assignments.map((a) =>
-                    new Date(a.createdAt || Date.now()).getTime()
-                  )
-                )
-              );
-              networkRolesToAdd.push({
-                network: mongoose.Types.ObjectId(networkId),
-                role: desiredRole._id,
-                userType: "user",
-                createdAt: earliestCreatedAtNet,
-              });
-              needsUpdate = true;
-            } else {
-              logger.error(
-                `[Role Consolidation] Could not find a default role for network ${networkId}.`
-              );
-            }
-          }
+      const networkRoleMap = new Map();
+      finalNetworkRoles.forEach((assignment) => {
+        if (assignment && assignment.network) {
+          const networkId = assignment.network.toString();
+          if (!networkRoleMap.has(networkId)) networkRoleMap.set(networkId, []);
+          networkRoleMap.get(networkId).push(assignment);
         }
+      });
 
-        if (networksToPull.length > 0) {
-          updateQuery.$pull = updateQuery.$pull || {};
-          updateQuery.$pull.network_roles = {
-            network: { $in: networksToPull },
-          };
-          updateQuery.$addToSet = updateQuery.$addToSet || {};
-          updateQuery.$addToSet.network_roles = { $each: networkRolesToAdd };
-        }
-      }
-
-      // --- 3. Continue with existing cleanup logic (null roles, deprecated roles, etc.) ---
-      const airqoGroup = await GroupModel(tenant)
-        .findOne({ grp_title: { $regex: /^airqo$/i } })
-        .lean();
-      if (airqoGroup) {
-        const airqoAssignments = (user.group_roles || []).filter(
-          (gr) => gr.group && gr.group.toString() === airqoGroup._id.toString()
-        );
-        const airqoDefaultRole = await RoleModel(tenant)
-          .findOne({
-            role_code: "AIRQO_DEFAULT_USER",
-            group_id: airqoGroup._id,
-          })
-          .lean();
-
-        const airqoGroupAlreadyHandled =
-          updateQuery.$pull &&
-          updateQuery.$pull.group_roles &&
-          updateQuery.$pull.group_roles.group &&
-          updateQuery.$pull.group_roles.group.$in &&
-          updateQuery.$pull.group_roles.group.$in.some(
-            (id) => id.toString() === airqoGroup._id.toString()
+      for (const [networkId, assignments] of networkRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.warn(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
           );
+          const network = await NetworkModel(tenant).findById(networkId).lean();
+          if (!network) continue;
 
-        if (!airqoGroupAlreadyHandled) {
-          if (
-            airqoAssignments.length === 1 &&
-            airqoAssignments[0].role == null &&
-            airqoDefaultRole
-          ) {
-            logger.warn(
-              `[Role Fix] User ${user.email} has a null role for AirQo group. Attempting to fix.`
+          const orgName = normalizeName(network.net_name);
+          const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
+          const desiredRole = await RoleModel(tenant)
+            .findOne({
+              role_code: defaultMemberRoleCode,
+              network_id: networkId,
+            })
+            .lean();
+
+          if (desiredRole) {
+            finalNetworkRoles = finalNetworkRoles.filter(
+              (a) => a.network.toString() !== networkId
             );
-            updateQuery.$set = updateQuery.$set || {};
-            updateQuery.$set["group_roles.$[airqoNull].role"] =
-              airqoDefaultRole._id;
-            needsUpdate = true;
-            updateOptions.arrayFilters = [
-              {
-                "airqoNull.group": airqoGroup._id,
-                $or: [
-                  { "airqoNull.role": { $exists: false } },
-                  { "airqoNull.role": null },
-                ],
-              },
-            ];
-          } else if (
-            airqoAssignments.length === 0 &&
-            (user.organization || "").toLowerCase() === "airqo" &&
-            airqoDefaultRole
-          ) {
-            logger.info(
-              `[Default Role] User ${user.email} belongs to AirQo org but is not in the group. Assigning default role.`
+            const earliestCreatedAtNet = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
             );
-            updateQuery.$addToSet = updateQuery.$addToSet || {};
-            if (!updateQuery.$addToSet.group_roles) {
-              updateQuery.$addToSet.group_roles = { $each: [] };
-            }
-            updateQuery.$addToSet.group_roles.$each.push({
-              group: airqoGroup._id,
-              role: airqoDefaultRole._id,
+            finalNetworkRoles.push({
+              network: mongoose.Types.ObjectId(networkId),
+              role: desiredRole._id,
               userType: "user",
+              createdAt: earliestCreatedAtNet,
             });
-            needsUpdate = true;
           }
         }
       }
 
+      // --- 3. Remove Deprecated Roles ---
       const deprecatedRoleNames = [
         "AIRQO_DEFAULT_PRODUCTION",
         "AIRQO_AIRQO_ADMIN",
@@ -5051,57 +4903,74 @@ const createUserModule = {
         .find({ role_name: { $in: deprecatedRoleNames } })
         .select("_id")
         .lean();
-      const deprecatedRoleIds = deprecatedRoles.map((r) => r._id);
-      if (deprecatedRoleIds.length > 0) {
-        const hasDeprecated = (user.group_roles || []).some(
-          (gr) => gr.role && deprecatedRoleIds.some((id) => id.equals(gr.role))
+      const deprecatedRoleIds = new Set(
+        deprecatedRoles.map((r) => r._id.toString())
+      );
+
+      if (deprecatedRoleIds.size > 0) {
+        finalGroupRoles = finalGroupRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
         );
-        if (hasDeprecated) {
-          const deprecatedCond = { role: { $in: deprecatedRoleIds } };
-          updateQuery.$pull = updateQuery.$pull || {};
-          if (updateQuery.$pull.group_roles) {
-            updateQuery.$pull.group_roles = updateQuery.$pull.group_roles.$or
-              ? { $or: [...updateQuery.$pull.group_roles.$or, deprecatedCond] }
-              : { $or: [updateQuery.$pull.group_roles, deprecatedCond] };
-          } else {
-            updateQuery.$pull.group_roles = deprecatedCond;
+        finalNetworkRoles = finalNetworkRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+        );
+      }
+
+      // --- 4. Add default AirQo role if missing ---
+      const airqoGroup = await GroupModel(tenant)
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
+        .lean();
+      if (airqoGroup) {
+        const hasAirqoRole = finalGroupRoles.some(
+          (a) => a.group.toString() === airqoGroup._id.toString()
+        );
+        if (
+          !hasAirqoRole &&
+          (user.organization || "").toLowerCase() === "airqo"
+        ) {
+          const defaultAirqoRole = await RoleModel(tenant)
+            .findOne({
+              role_code: "AIRQO_DEFAULT_USER",
+              group_id: airqoGroup._id,
+            })
+            .lean();
+          if (defaultAirqoRole) {
+            finalGroupRoles.push({
+              group: airqoGroup._id,
+              role: defaultAirqoRole._id,
+              userType: "user",
+              createdAt: new Date(),
+            });
           }
-          needsUpdate = true;
-          logger.info(
-            `[Role Cleanup] User ${user.email} has deprecated roles. Scheduling for removal.`
-          );
         }
       }
 
+      // --- 5. Compare final arrays with originals to see if an update is needed ---
+      if (
+        JSON.stringify(user.group_roles || []) !==
+          JSON.stringify(finalGroupRoles) ||
+        JSON.stringify(user.network_roles || []) !==
+          JSON.stringify(finalNetworkRoles)
+      ) {
+        updateQuery.$set = {
+          group_roles: finalGroupRoles,
+          network_roles: finalNetworkRoles,
+        };
+        needsUpdate = true;
+      }
+
+      // --- 6. Handle other cleanups ---
       if (user.privilege) {
         updateQuery.$unset = { privilege: "" };
         needsUpdate = true;
-        logger.info(
-          `[Role Cleanup] User ${user.email} has legacy 'privilege' field. Scheduling for removal.`
-        );
       }
 
-      // --- 4. Execute the update ---
+      // --- 7. Execute the update if anything changed ---
       if (needsUpdate) {
-        if (Object.keys(updateQuery.$set || {}).length === 0)
-          delete updateQuery.$set;
-        if (Object.keys(updateQuery.$pull || {}).length === 0)
-          delete updateQuery.$pull;
-        if (Object.keys(updateQuery.$unset || {}).length === 0)
-          delete updateQuery.$unset;
-        if (Object.keys(updateQuery.$addToSet || {}).length === 0)
-          delete updateQuery.$addToSet;
-
-        if (Object.keys(updateQuery).length > 0) {
-          await UserModel(tenant).findByIdAndUpdate(
-            user._id,
-            updateQuery,
-            updateOptions
-          );
-          logger.info(
-            `[Role Consolidation & Cleanup] Successfully updated roles for user ${user.email}.`
-          );
-        }
+        await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery);
+        logger.info(
+          `[Role Cleanup] Successfully consolidated and cleaned roles for user ${user.email}.`
+        );
       }
     } catch (error) {
       logger.error(
