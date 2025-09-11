@@ -129,15 +129,28 @@ const createAccessRequest = {
 
       logObject("requestAccessToGroupByEmail", { tenant, emails, grp_id });
 
-      const inviter = user._doc;
+      // The 'user' object comes from the authenticated JWT (req.user)
+      // It's a plain object, not a Mongoose document, so it doesn't have ._doc
+      const inviter = user;
+
+      if (isEmpty(inviter) || !inviter._id) {
+        next(
+          new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
+            message:
+              "Inviter authentication failed. User details not found in token.",
+          })
+        );
+        return;
+      }
+
       const inviterEmail = inviter.email;
       const inviterId = inviter._id;
 
       const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
-      if (isEmpty(inviterDetails) || isEmpty(inviter)) {
+      if (isEmpty(inviterDetails)) {
         next(
           new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
-            message: "Inviter authentication failed",
+            message: "Inviter details not found in the database.",
           })
         );
         return;
