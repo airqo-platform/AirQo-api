@@ -3,6 +3,7 @@ import pandas as pd
 import json
 from pathlib import Path
 import os
+from datetime import datetime, timedelta, timezone
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
@@ -21,6 +22,7 @@ from .constants import (
     DataSource,
     DataType,
     MetaDataType,
+    ColumnDataType,
 )
 from .message_broker_utils import MessageBrokerUtils
 
@@ -305,6 +307,73 @@ class DataUtils:
             logger.info(f"No data returned from {device.name} for the given date range")
 
     @staticmethod
+    def compute_device_site_metadata(
+        table: str, unique_id: str, entity: Dict[str, Any], column: Dict[str, Any]
+    ) -> pd.DataFrame:
+        """
+        Computes metadata for devices or sites based on the specified parameters.
+
+        This method retrieves and processes metadata for a given device or site, using the provided table, unique identifier, and column.
+        It calculates the metadata within a 30-day window starting from the most recent maintenance or offset date.
+
+        Args:
+            table(str): The BigQuery table to query for metadata.
+            unique_id(str): The unique identifier for the entity (e.g., "device_id" or "site_id").
+            entity(Dict[str, Any]): A dictionary containing entity details, including:
+                - "device_maintenance" (str): The last maintenance date.
+                - "offset_date" (str): The previous offset date.
+                - The unique identifier (e.g., "device_id" or "site_id").
+            column(str): The column to compute metadata for (e.g., pollutant type).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the computed metadata. If the end date is in the future, an empty DataFrame is returned.
+        """
+        device_maintenance = entity.get("device_maintenance", None)
+        if device_maintenance is None or pd.isna(device_maintenance):
+            logger.info("Device maintenance date is missing or invalid.")
+            return pd.DataFrame()
+
+        device_previous_offset = entity.get("offset_date", None)
+        start_date = max(
+            device_maintenance,
+            device_maintenance
+            if np.isnan(device_previous_offset)
+            else device_previous_offset,
+        )
+        entity_id = entity.get(unique_id)
+        extra_id = entity.get("site_id") if unique_id == "device_id" else None
+        end_date = str_to_date(start_date) + timedelta(days=30)
+
+        if end_date > datetime.today():
+            logger.info(f"End date {end_date} cannot be in the future.")
+            return pd.DataFrame()
+
+        end_date = date_to_str(end_date)
+        big_query_api = BigQueryApi()
+
+        data = big_query_api.fetch_max_min_values(
+            table=table,
+            start_date_time=start_date,
+            end_date_time=end_date,
+            unique_id=unique_id,
+            filter=entity_id,
+            pollutant=column,
+        )
+        if not data.empty:
+            data["offset_date"] = end_date
+            data[unique_id] = entity_id
+            if extra_id:
+                data["site_id"] = extra_id
+            data["created"] = datetime.now(timezone.utc)
+            data["maintenance_date"] = device_maintenance
+            data.dropna(
+                inplace=True,
+                how="any",
+                subset=["pollutant", "minimum", "maximum", "average"],
+            )
+        return data
+
+    @staticmethod
     def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
         """Download and load the cached CSV from GCS if available."""
         try:
@@ -569,6 +638,9 @@ class DataUtils:
         if not device_category:
             device_category = DeviceCategory.GENERAL
 
+        if frequency.str in Config.extra_time_grouping:
+            frequency = Frequency.HOURLY
+
         table, _ = DataUtils._get_table(
             datatype, device_category, frequency, device_network
         )
@@ -595,6 +667,36 @@ class DataUtils:
             raw_data = DataValidationUtils.remove_outliers_fix_types(raw_data)
 
         return raw_data
+
+    @staticmethod
+    def extract_most_recent_record(
+        metadata_type: MetaDataType, unique_id: str, offset_column: str
+    ) -> pd.DataFrame:
+        """
+        Extracts the most recent record for a specific metadata type and unique ID.
+
+        Args:
+            metadata_type (MetaDataType): The type of metadata to extract.
+            unique_id (str): The unique ID of the record to extract.
+            offset_column (str): The column to use for offsetting the results.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the most recent record.
+        """
+        big_query_api = BigQueryApi()
+        try:
+            # TODO : Refactor to avoid using hardcoded MetaDataType
+            metadata_table, cols = DataUtils._get_metadata_table(
+                MetaDataType.DATAQUALITYCHECKS, metadata_type
+            )
+        except Exception as e:
+            logger.exception(f"Failed to get metadata table. {e}")
+            return pd.DataFrame()
+
+        data = big_query_api.fetch_most_recent_record(
+            metadata_table, unique_id, offset_column=offset_column, columns=cols
+        )
+        return data
 
     @staticmethod
     def extract_purpleair_data(
@@ -1478,8 +1580,9 @@ class DataUtils:
             data_type (DataType): The type of data (e.g., raw, averaged or processed).
             device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
             frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
-            device_network(DeviceNetwork):
-            extra_type(Any):
+            device_network (DeviceNetwork): The network the device is connected to.
+            metadata_type (Optional[str]): The type of metadata to include (if any).
+            extra_type (Any): Any additional type information.
 
         Returns:
             pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
@@ -1489,11 +1592,23 @@ class DataUtils:
             KeyError: If the combination of data_type, device_category, and frequency is invalid.
             Exception: For unexpected errors during column retrieval or data processing.
         """
-        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
-        data.dropna(subset=["timestamp"], inplace=True)
+        big_query_api = BigQueryApi()
         table, cols = DataUtils._get_table(
             datatype, device_category, frequency, device_network, extra_type
         )
+        timestamp_columns = big_query_api.get_columns(
+            table=table, column_type=[ColumnDataType.TIMESTAMP]
+        )
+        try:
+            for col in timestamp_columns:
+                data[col] = pd.to_datetime(data[col], errors="coerce")
+        except Exception as e:
+            logger.exception(f"Possible table and column mismatch: {e}")
+            raise
+
+        if "timestamp" in data.columns:
+            data.dropna(subset=["timestamp"], inplace=True)
+
         data = DataValidationUtils.fill_missing_columns(data=data, cols=cols)
         data = DataValidationUtils.remove_outliers_fix_types(data)
         return data[cols], table
@@ -1742,7 +1857,7 @@ class DataUtils:
     def _get_table(
         datatype: DataType,
         device_category: DeviceCategory,
-        frequency: Frequency,
+        frequency: Optional[Frequency] = None,
         device_network: Optional[DeviceNetwork] = None,
         extra_type: Optional[Any] = None,
     ) -> Tuple[str, List[str]]:
@@ -1776,11 +1891,56 @@ class DataUtils:
             return table, cols
         except KeyError:
             logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}, {extra_type}"
             )
         except Exception as e:
             logger.exception(
                 f"An unexpected error occurred during column retrieval: {e}"
+            )
+        return None, []
+
+    def _get_metadata_table(
+        metadata_type: MetaDataType,
+        category: Union[DeviceCategory, MetaDataType],
+    ) -> Tuple[Optional[str], List[str]]:
+        """
+        Retrieve the BigQuery metadata table name and its column names based on the given parameters.
+
+        This function determines the appropriate metadata table and its schema for the specified metadata type
+        and category. It queries the BigQuery API to fetch the column names for the table.
+
+        Args:
+            metadata_type (MetaDataType): The type of metadata to retrieve (e.g., DEVICES, SITES).
+            category (Union[DeviceCategory, MetaDataType]): The category or metadata type.
+
+        Returns:
+            Tuple[Optional[str], List[str]]:
+                - The table name (str) if found, otherwise None.
+                - A list of column names (List[str]) if found, otherwise an empty list.
+
+        Raises:
+            KeyError: If the combination of metadata_type and category does not exist in the configuration.
+            Exception: Logs and handles unexpected errors during table or column retrieval.
+
+        Notes:
+            - The `Config.MetaDataStore` dictionary is used to map metadata types and categories to table names.
+            - If the table name is not found or an error occurs, the function returns `None` and an empty list.
+        """
+        bigquery = BigQueryApi()
+        try:
+            datasource = Config.MetaDataStore
+            table = datasource.get(metadata_type)
+            if isinstance(table, dict):
+                table = table.get(category)
+            cols = bigquery.get_columns(table=table)
+            return table, cols
+        except KeyError:
+            logger.exception(
+                f"Invalid combination of metadata_type: {metadata_type} and category: {category}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during table or column retrieval: {e}"
             )
         return None, []
 

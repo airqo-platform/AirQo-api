@@ -1,0 +1,211 @@
+[
+  {
+    "name": "network",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "baseline_resolution",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Frequency of baseline calculation, e.g., 'Hourly', 'Weekly'. Must be a string representing the interval in minutes."
+  },
+  {
+    "name": "device_number",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Unique number that identifies the device."
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Unique string that identifies the device."
+  },
+  {
+    "name": "device_category",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "data_type",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "baseline_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Unique identifier (UUID) for the baseline entry."
+  },
+  {
+    "name": "pollutant",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Pollutant being monitored (e.g., PM2.5, PM10, NO2)."
+  },
+  {
+    "name": "window_start",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "Start timestamp of the baseline calculation window."
+  },
+  {
+    "name": "window_end",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "End timestamp of the baseline calculation window."
+  },
+  {
+    "name": "sample_count",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Number of valid samples collected in the baseline window."
+  },
+  {
+    "name": "sample_coverage_pct",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Percentage of expected samples collected in the baseline window."
+  },
+  {
+    "name": "valid_hours",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Coverage value."
+  },
+  {
+    "name": "quantiles",
+    "type": "RECORD",
+    "mode": "NULLABLE",
+    "description": "Key pollutant quantiles within the baseline window.",
+    "fields": [
+      {
+        "name": "p1",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "1st percentile value"
+      },
+      {
+        "name": "p5",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "5th percentile value"
+      },
+      {
+        "name": "p10",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "10th percentile value"
+      },
+      {
+        "name": "p25",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "25th percentile value"
+      },
+      {
+        "name": "p50",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "50th percentile (median) value"
+      },
+      {
+        "name": "p75",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "75th percentile value"
+      },
+      {
+        "name": "p90",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "90th percentile value"
+      },
+      {
+        "name": "p95",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "95th percentile value"
+      },
+      {
+        "name": "p99",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "99th percentile value"
+      }
+    ]
+  },
+  {
+    "name": "ecdf_bins",
+    "type": "RECORD",
+    "mode": "REPEATED",
+    "description": "Empirical cumulative distribution bins across pollutant values.",
+    "fields": [
+      {
+        "name": "bin_center",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "Center value of the bin"
+      },
+      {
+        "name": "cum_pct",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "Cumulative percentage of samples up to this bin"
+      }
+    ]
+  },
+  {
+    "name": "mean",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Mean value of pollutant measurements within the baseline window."
+  },
+  {
+    "name": "stddev",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Standard deviation of pollutant measurements within the baseline window."
+  },
+  {
+    "name": "minimum",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Minimum pollutant measurement observed in the baseline window."
+  },
+  {
+    "name": "maximum",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Maximum pollutant measurement observed in the baseline window."
+  },
+  {
+    "name": "baseline_version",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Version of the baseline computation logic used (for reproducibility), formatted as semantic versioning (e.g., '1.0.0')."
+  },
+  {
+    "name": "site_minimum",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Minimum pollutant value considered for the site (used for ECDF binning)."
+  },
+  {
+    "name": "site_maximum",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Maximum pollutant value considered for the site (used for ECDF binning)."
+  }
+]

@@ -1,13 +1,9 @@
-import os
 from typing import List, Dict, Any, Generator, Tuple, Optional
-
 import pandas as pd
-
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from urllib.parse import urlencode
-from http.client import HTTPResponse
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
@@ -318,6 +314,9 @@ class DataApi:
                             ),
                             "device_category": device.pop("category", None),
                             "device_manufacturer": network_name,
+                            "device_maintenance": self.__get_device_maintenance_activity(
+                                device
+                            ),
                             **device,
                         }
                         for device in response.get("devices", [])
@@ -328,6 +327,33 @@ class DataApi:
                 continue
 
         return devices
+
+    def __get_device_maintenance_activity(
+        self, device: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        Retrieve the latest maintenance or deployment activity date for a specific device.
+
+        Args:
+            device (Dict[str, Any]): A dictionary representing the device, which includes its latest activities by type.
+
+        Returns:
+            Optional[str]: The date of the latest maintenance or deployment activity as a string, or None if no activities are found.
+
+        Notes:
+            - The method first checks for maintenance activities. If none are found, it falls back to deployment activities.
+            - If no activities are available, the method returns None.
+        """
+        try:
+            activities = device.get("latest_activities_by_type", {}).get("maintenance")
+            if not activities:
+                activities = device.get("latest_activities_by_type", {}).get(
+                    "deployment"
+                )
+            return activities.get("date") if activities else None
+        except Exception as e:
+            logger.exception(f"Failed to fetch maintenance activities: {e}")
+            return None
 
     def get_thingspeak_read_keys(self, devices: pd.DataFrame) -> Dict[int, str]:
         """
@@ -601,11 +627,26 @@ class DataApi:
         ]
 
     def get_favorites(self, user_id: str) -> List:
-        # TODO Check if this is working. {"success":true,"message":"no favorites exist","favorites":[]} for ids passed.
+        """
+        Retrieves the list of favorite places for a user and enriches each with PM (Particulate Matter) measurement values.
+
+        Args:
+            user_id (str): The unique identifier of the user whose favorites are to be retrieved.
+
+        Returns:
+            List[dict]: A list of dictionaries, each representing a favorite place with the following keys:
+                - "place_id" (str): The unique identifier of the place.
+                - "name" (str): The name of the place.
+                - "location" (dict): The geographical details of the place.
+                - "pm_value" (float or None): The PM measurement value for the place, or None if unavailable.
+
+        Notes:
+            - If no favorites exist for the given user ID, an empty list is returned.
+            - The method fetches PM values for each favorite using the `get_site_measurement` method.
+            - Ensure that the `DeviceNetwork.AIRQO.str` is correctly set in the query parameters.
+        """
         query_params = {"network": DeviceNetwork.AIRQO.str}
-
         response = self._request(f"users/favorites/users/{user_id}", query_params)
-
         favorites_with_pm = []
         for favorite in response.get("favorites", []):
             place_id = favorite.get("place_id")
@@ -619,15 +660,29 @@ class DataApi:
                         "pm_value": pm_value,
                     }
                 )
-
         return favorites_with_pm
 
     def get_location_history(self, user_id: str) -> List:
-        # TODO Check if this is working. {"success":true,"message":"no Location Histories exist","location_histories":[]} for ids passed
+        """
+        Retrieves the location history for a user and enriches each location with PM (Particulate Matter) measurement values.
+
+        Args:
+            user_id (str): The unique identifier of the user whose location history is to be retrieved.
+
+        Returns:
+            List[dict]: A list of dictionaries, each representing a location in the user's history with the following keys:
+                - "placeId" (str): The unique identifier of the place.
+                - "name" (str): The name of the location.
+                - "location" (dict): The geographical details of the location.
+                - "pm_value" (float or None): The PM measurement value for the location, or None if unavailable.
+
+        Notes:
+            - If no location history exists for the given user ID, an empty list is returned.
+            - The method fetches PM values for each location using the `get_site_measurement` method.
+            - Ensure that the `DeviceNetwork.AIRQO.str` is correctly set in the query parameters.
+        """
         query_params = {"network": DeviceNetwork.AIRQO.str}
-
         response = self._request(f"users/locationHistory/users/{user_id}", query_params)
-
         locations_with_measurements = []
         for location in response.get("location_histories", []):
             place_id = location.get("place_id")
@@ -641,10 +696,29 @@ class DataApi:
                         "pm_value": pm_value,
                     }
                 )
-
         return locations_with_measurements
 
     def get_search_history(self, user_id: str) -> List:
+        """
+        Retrieves the search history for a given user and enriches it with PM (Particulate Matter)
+        measurement values for each location in the history.
+
+        Args:
+            user_id (str): The unique identifier of the user whose search history is to be retrieved.
+
+        Returns:
+            List[dict]: A list of dictionaries, each representing a location in the user's search history
+            with the following keys:
+                - "placeId" (str): The unique identifier of the place.
+                - "name" (str): The name of the location.
+                - "location" (dict): The geographical details of the location.
+                - "pm_value" (float or None): The PM measurement value for the location, or None if unavailable.
+
+        Notes:
+            - If no search history exists for the given user ID, an empty list is returned.
+            - The method fetches PM values for each location using the `get_site_measurement` method.
+            - Ensure that the `DeviceNetwork.AIRQO.str` is correctly set in the query parameters.
+        """
         # TODO Check if this is working. Currently returns {"success":true,"message":"no Search Histories exist","search_histories":[]} for all ids.
         query_params = {"network": DeviceNetwork.AIRQO.str}
 
@@ -702,12 +776,14 @@ class DataApi:
             logger.exception()
             return None
 
-    def get_grids(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
+    def get_grids(
+        self, network: Optional[DeviceNetwork] = None
+    ) -> List[Dict[str, Any]]:
         """
         Retrieve grids given a network. A grid is a group of sites which are 'usually' in the same geographical boundary.
 
         Args:
-            network (DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to None if not supplied.
+            network(DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to None if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with the grid details.

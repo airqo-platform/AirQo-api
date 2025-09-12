@@ -1,0 +1,57 @@
+[
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "created",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "offset_date",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "recent_maintenance_date",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "pollutant",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "maximum",
+    "type": "FLOAT",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "average",
+    "type": "FLOAT",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "minimum",
+    "type": "FLOAT",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "resolution",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "sample_count",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  }
+]

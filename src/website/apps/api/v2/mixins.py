@@ -9,7 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
-from ..v2.permissions import ReadOnlyOrAuthenticated
+from ..v2.permissions import DefaultAPIPermission
 
 
 class SlugModelViewSetMixin:
@@ -19,9 +19,9 @@ class SlugModelViewSetMixin:
 
     This mixin should be used with ModelViewSet classes.
     """
-    # Permissions: read-only for unauthenticated; auth required for write ops
+    # Permissions: read open, write requires authentication
     # type: ignore[var-annotated]
-    permission_classes = [ReadOnlyOrAuthenticated]
+    permission_classes = [DefaultAPIPermission]
     # Lookup config
     lookup_field: ClassVar[str] = 'slug'
     lookup_url_kwarg: ClassVar[str] = 'slug'

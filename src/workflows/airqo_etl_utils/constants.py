@@ -9,7 +9,7 @@ class DeviceCategory(IntEnum):
     BAM -> Low cost sensors
     GAS -> Gaseous sensors
     WEATHER -> Weather sensors
-    GENERAL -> All the sensors
+    GENERAL -> All the sensors - low cost, gaseous, weather, reference monitors especially for the consolidated data
     """
 
     LOWCOST = 1
@@ -108,6 +108,8 @@ class MetaDataType(IntEnum):
         AIRQLOUDS: (TBD)
         GRIDS: (TBD)
         COHORTS: (TBD)
+        SENSORPOSITIONS: (TBD)
+        DATAQUALITYCHECKS: Data quality checks metadata. Can be device or site specific.
     """
 
     DEVICES = 1
@@ -116,6 +118,7 @@ class MetaDataType(IntEnum):
     GRIDS = 4
     COHORTS = 5
     SENSORPOSITIONS = 6
+    DATAQUALITYCHECKS = 7
 
     def __str__(self) -> str:
         return self.name.lower()

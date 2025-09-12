@@ -73,5 +73,10 @@
     "name": "last_updated",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "device_maintenance",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   }
 ]

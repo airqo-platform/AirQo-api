@@ -5214,21 +5214,21 @@ const createUserModule = {
       const authResponse = {
         // Basic user info
         _id: user._id,
-        userName: user.userName,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        userType: user.userType,
-        verified: user.verified,
-        isActive: user.isActive,
+        userName: user.userName ?? null,
+        email: user.email ?? null,
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        userType: user.userType ?? null,
+        verified: user.verified ?? false,
+        isActive: user.isActive ?? false,
 
         // Legacy fields for backward compatibility
-        organization: user.organization,
-        long_organization: user.long_organization,
-        privilege: user.privilege,
-        country: user.country,
-        profilePicture: user.profilePicture,
-        phoneNumber: user.phoneNumber,
+        organization: user.organization ?? null,
+        long_organization: user.long_organization ?? null,
+        privilege: user.privilege ?? null,
+        country: user.country ?? null,
+        profilePicture: user.profilePicture ?? null,
+        phoneNumber: user.phoneNumber ?? null,
 
         // Enhanced authentication
         token: `JWT ${token}`,
