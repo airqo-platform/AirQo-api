@@ -10,7 +10,7 @@ Special features for event app as per requirements:
 - Universal slug support for privacy-friendly URLs
 """
 from django.utils import timezone
-from typing import Optional
+from typing import Optional, Any
 from django.db.models.query import QuerySet
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from apps.event.models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from ..filters.event import EventFilter, InquiryFilter, ProgramFilter, SessionFilter, PartnerLogoFilter, ResourceFilter
 from ..pagination import StandardPageNumberPagination, StandardCursorPagination
-from ..permissions import DefaultAPIPermission
+from ..permissions import OpenAPIPermission, DefaultAPIPermission
 from ..mixins import SlugModelViewSetMixin, OptimizedQuerySetMixin
 from ..serializers.event import (
     EventListSerializer, EventDetailSerializer,
@@ -55,6 +55,8 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     - <slug|id>/identifiers/ - Get all identifiers for an event
     """
     queryset = Event.objects.all()
+    # Use DefaultAPIPermission to keep write actions (like bulk-identifiers)
+    # restricted to authenticated users while allowing read access to anyone.
     permission_classes = [DefaultAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
@@ -66,11 +68,12 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     ordering_fields = ['start_date', 'end_date',
                        'title', 'order', 'created', 'modified']
     ordering = ['-start_date', 'order']
-    
+
     # Slug configuration
-    slug_filter_fields = ['slug']  # Event uses standard slug field
+    slug_filter_fields = ('slug',)  # Event uses standard slug field
     select_related_fields = []  # No foreign keys to optimize
-    prefetch_related_fields = ['sessions', 'programs', 'resources', 'partner_logos']
+    prefetch_related_fields = ['sessions',
+                               'programs', 'resources', 'partner_logos']
     pagination_class = StandardPageNumberPagination
     # Limit fields retrieved for list action to speed up list serialization
     list_only_fields = [
@@ -84,7 +87,7 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
             return EventListSerializer
         return EventDetailSerializer
 
-    def get_queryset(self) -> QuerySet[Event]:  # type: ignore[override]
+    def get_queryset(self) -> Any:  # type: ignore[override]
         """Optimized queryset with performance improvements"""
         # Base queryset with efficient ordering
         qs = Event.objects.all()

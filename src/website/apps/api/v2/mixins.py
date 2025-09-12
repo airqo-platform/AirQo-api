@@ -9,7 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
-from ..v2.permissions import DefaultAPIPermission
+from .permissions import OpenAPIPermission
 
 
 class SlugModelViewSetMixin:
@@ -19,9 +19,13 @@ class SlugModelViewSetMixin:
 
     This mixin should be used with ModelViewSet classes.
     """
-    # Permissions: read open, write requires authentication
+    # Permissions: default scaffold for v2 endpoints. The v2 permission
+    # skeleton provides `OpenAPIPermission` (fully open) as well as
+    # `DefaultAPIPermission` (read-open, write-requires-auth). This mixin
+    # defaults to the open scaffold so higher-level viewsets can opt-in to
+    # stricter controls as appropriate.
     # type: ignore[var-annotated]
-    permission_classes = [DefaultAPIPermission]
+    permission_classes = [OpenAPIPermission]
     # Lookup config
     lookup_field: ClassVar[str] = 'slug'
     lookup_url_kwarg: ClassVar[str] = 'slug'
@@ -30,10 +34,18 @@ class SlugModelViewSetMixin:
     # Type annotations for attributes that will be provided by ModelViewSet
     kwargs: Dict[str, Any]
 
-    def get_queryset(self) -> QuerySet:  # type: ignore[override]
+    def get_queryset(self) -> Any:  # type: ignore[override]
         """Type-checker stub: actual get_queryset is provided by the ModelViewSet that
         will be combined with this mixin at runtime. Calling super() delegates to the
-        real implementation."""
+        real implementation.
+
+        We return ``Any`` here to avoid strict typing conflicts with Django/DRF stubs
+        (which may declare the base as NotImplemented/NoReturn). Concrete viewsets
+        may return QuerySet objects.
+        """
+        # NOTE (lines ~33-41): this method intentionally delegates to the
+        # concrete viewset's implementation. Keep the return type loose (Any)
+        # to avoid mypy/DRF-stub conflicts when mixins are composed at runtime.
         return super().get_queryset()  # type: ignore
 
     def get_object(self) -> Any:
@@ -228,8 +240,9 @@ class OptimizedQuerySetMixin:
     select_related_fields: Optional[List[str]] = None
     prefetch_related_fields: Optional[List[str]] = None
 
-    def get_queryset(self) -> QuerySet:
-        """Override to apply optimizations"""
+    def get_queryset(self) -> Any:
+        """Override to apply optimizations. Return type is intentionally loose (Any)
+        to avoid type-checker incompatibilities with DRF stubs."""
         queryset = super().get_queryset()  # type: ignore
 
         # Apply select_related for foreign keys if defined

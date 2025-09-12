@@ -7,13 +7,13 @@ from apps.board.models import BoardMember
 from ..serializers.board import BoardMemberListSerializer, BoardMemberDetailSerializer
 from ..filters.board import BoardMemberFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import DefaultAPIPermission
+from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 
 
 class BoardMemberViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = BoardMember.objects.all()
-    permission_classes = [DefaultAPIPermission]
+    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = BoardMemberFilterSet
