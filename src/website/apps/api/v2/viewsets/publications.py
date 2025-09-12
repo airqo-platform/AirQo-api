@@ -7,7 +7,7 @@ from rest_framework import viewsets, filters
 from apps.publications.models import Publication
 from ..filters.publications import PublicationFilter
 from ..pagination import StandardPageNumberPagination
-from ..permissions import DefaultAPIPermission
+from ..permissions import OpenAPIPermission
 from ..serializers.publications import PublicationListSerializer, PublicationDetailSerializer
 from ..mixins import SlugModelViewSetMixin, OptimizedQuerySetMixin
 
@@ -23,7 +23,7 @@ class PublicationViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets
     - Backward compatibility with ID-based URLs
     """
     queryset = Publication.objects.all()
-    permission_classes = [DefaultAPIPermission]
+    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
@@ -37,7 +37,7 @@ class PublicationViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets
     pagination_class = StandardPageNumberPagination
 
     # Slug configuration
-    slug_filter_fields = ['slug']  # Publication uses standard slug field
+    slug_filter_fields = ('slug',)  # Publication uses standard slug field
 
     # Optimization settings
     select_related_fields = []  # No foreign keys to optimize
