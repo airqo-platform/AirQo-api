@@ -179,10 +179,17 @@ class MetaDataUtils:
         Raises:
             ValueError: If no data is found for the specified parameters.
         """
-        start, end = frequency_to_dates(Frequency.WEEKLY)
+        if start_date is None or end_date is None:
+            start_date, end_date = frequency_to_dates(Frequency.WEEKLY)
+
         device_metadata = DataUtils.extract_most_recent_record(
             MetaDataType.DEVICES, "device_id", "offset_date"
         )
+
+        if device_metadata.empty:
+            logger.warning("No device metadata returned")
+            return pd.DataFrame()
+
         devices = {
             "device_id": [
                 device_id
@@ -226,9 +233,7 @@ class MetaDataUtils:
                     if result:
                         results.extend(result)
                 except Exception as e:
-                    logger.exception(
-                        f"Exception in baseline computation for device : {e}"
-                    )
+                    logger.exception(f"Exception in baseline computation: {e}")
 
         return pd.DataFrame(results)
 

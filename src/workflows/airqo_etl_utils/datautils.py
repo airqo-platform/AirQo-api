@@ -684,11 +684,15 @@ class DataUtils:
             pd.DataFrame: A DataFrame containing the most recent record.
         """
         big_query_api = BigQueryApi()
-        # TODO : Refactor to avoid using hardcoded MetaDataType
-        metadata_table, cols = DataUtils._get_metadata_table(
-            MetaDataType.DATAQUALITYCHECKS, metadata_type
-        )
-        print(f"Fetching most recent record from {metadata_table} for {unique_id}")
+        try:
+            # TODO : Refactor to avoid using hardcoded MetaDataType
+            metadata_table, cols = DataUtils._get_metadata_table(
+                MetaDataType.DATAQUALITYCHECKS, metadata_type
+            )
+        except Exception as e:
+            logger.exception(f"Failed to get metadata table. {e}")
+            return pd.DataFrame()
+
         data = big_query_api.fetch_most_recent_record(
             metadata_table, unique_id, offset_column=offset_column, columns=cols
         )
