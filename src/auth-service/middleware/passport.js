@@ -1542,13 +1542,17 @@ const enhancedJWTAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    logger.error(`Enhanced JWT Auth Error: ${error.message}`);
+    // The token decoding utility (atf.service) now handles logging based on error type.
+    // We just need to construct the correct HTTP response.
     // Provide a more specific error message based on the JWT error type
     let errorMessage = "Invalid or expired token";
-    if (error.name === "JsonWebTokenError") {
-      errorMessage = `Invalid token: ${error.message}`;
-    } else if (error.name === "TokenExpiredError") {
+    if (error.name === "TokenExpiredError") {
       errorMessage = "Token has expired";
+    } else if (error.name === "JsonWebTokenError") {
+      errorMessage = `Invalid token: ${error.message}`;
+    } else {
+      // Only log other, unexpected errors at this level.
+      logger.error(`Enhanced JWT Auth Error: ${error.message}`);
     }
     return next(
       new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
