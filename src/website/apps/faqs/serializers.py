@@ -51,14 +51,16 @@ class FAQSerializer(serializers.ModelSerializer):
             ]
             allowed_attributes = {
                 '*': ['class'],
-                'a': ['href', 'title', 'target'],
+                'a': ['href', 'title'],
             }
 
             clean_html = bleach.clean(
                 html_content,
                 tags=allowed_tags,
                 attributes=allowed_attributes,
+                protocols={'http', 'https', 'mailto', 'tel'},
                 strip=True,
+                strip_comments=True,
             )
             return clean_html
 

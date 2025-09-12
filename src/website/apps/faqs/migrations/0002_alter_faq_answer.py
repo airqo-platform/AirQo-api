@@ -10,17 +10,30 @@ def transform_text_to_quill(apps, schema_editor):
     Converts plain text to Quill Delta format: {"ops": [{"insert": "text\n"}]}
     """
     FAQ = apps.get_model('faqs', 'FAQ')
-    for faq in FAQ.objects.all():
+    # Use iterator() to avoid loading all rows into memory at once
+    for faq in FAQ.objects.all().iterator():
         text = faq.answer or ""
-        # Check if it's already JSON (skip if so)
+        parsed = None
+        # Try to parse existing content as JSON and detect Quill Delta shape
         try:
-            json.loads(text)
-            continue  # Already looks like JSON, skip transformation
+            parsed = json.loads(text)
+            # Check for Quill Delta shape: dict with 'ops' key that's a list
+            if isinstance(parsed, dict) and isinstance(parsed.get('ops'), list):
+                ops = parsed.get('ops') or []
+                # Optionally verify each op is a dict containing an 'insert' key
+                ops_ok = True
+                for op in ops:
+                    if not (isinstance(op, dict) and 'insert' in op):
+                        ops_ok = False
+                        break
+                if ops_ok:
+                    continue  # Already a Quill Delta, skip transformation
+            # Any other JSON shape should be treated as non-Quill and re-wrapped
         except (json.JSONDecodeError, TypeError):
-            pass
+            parsed = None
 
-        # Convert plain text to Quill Delta JSON
-        if text.strip():
+        # Convert plain text or non-Delta JSON to Quill Delta JSON
+        if text and text.strip():
             delta = {"ops": [{"insert": text + "\n"}]}
         else:
             delta = {"ops": []}
