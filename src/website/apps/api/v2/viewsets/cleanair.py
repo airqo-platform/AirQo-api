@@ -13,6 +13,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.http import Http404
 
 from apps.cleanair.models import CleanAirResource, ForumEvent
 from ..serializers.cleanair import (
@@ -175,6 +176,11 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     - /{id}/increment_views/ - Increment view count
     """
     queryset = ForumEvent.objects.all()
+    # Use unique_title (slug) for lookups in v2 to support URLs like
+    # /website/api/v2/forum-events/clean-air-forum-2024/
+    lookup_field = 'unique_title'
+    # Allow typical slug characters (letters, numbers, hyphen, underscore, dot)
+    lookup_value_regex = r"[-a-zA-Z0-9_\.]+"
     permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -239,6 +245,25 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(is_deleted=False)
 
         return queryset
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Support retrieving by `unique_title` slug and a special `latest` slug
+        to return the most recent ForumEvent. Fall back to raising 404 if
+        the slug does not match any record.
+        """
+        slug = kwargs.get(self.lookup_field)
+        if slug == 'latest':
+            # Return the latest forum event based on start_date then id
+            instance = self.get_queryset().order_by('-start_date', '-id').first()
+            if not instance:
+                raise Http404("No forum event found.")
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data)
+
+        # For normal slugs, delegate to the default implementation which will
+        # filter by the configured `lookup_field` (unique_title)
+        return super().retrieve(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
