@@ -30,10 +30,15 @@ class SlugModelViewSetMixin:
     # Type annotations for attributes that will be provided by ModelViewSet
     kwargs: Dict[str, Any]
 
-    def get_queryset(self) -> QuerySet:  # type: ignore[override]
+    def get_queryset(self) -> Any:  # type: ignore[override]
         """Type-checker stub: actual get_queryset is provided by the ModelViewSet that
         will be combined with this mixin at runtime. Calling super() delegates to the
-        real implementation."""
+        real implementation.
+
+        We return ``Any`` here to avoid strict typing conflicts with Django/DRF stubs
+        (which may declare the base as NotImplemented/NoReturn). Concrete viewsets
+        may return QuerySet objects.
+        """
         return super().get_queryset()  # type: ignore
 
     def get_object(self) -> Any:
@@ -228,8 +233,9 @@ class OptimizedQuerySetMixin:
     select_related_fields: Optional[List[str]] = None
     prefetch_related_fields: Optional[List[str]] = None
 
-    def get_queryset(self) -> QuerySet:
-        """Override to apply optimizations"""
+    def get_queryset(self) -> Any:
+        """Override to apply optimizations. Return type is intentionally loose (Any)
+        to avoid type-checker incompatibilities with DRF stubs."""
         queryset = super().get_queryset()  # type: ignore
 
         # Apply select_related for foreign keys if defined

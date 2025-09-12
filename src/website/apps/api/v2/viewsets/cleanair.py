@@ -21,7 +21,7 @@ from ..serializers.cleanair import (
 )
 from ..filters.cleanair import CleanAirResourceFilterSet, ForumEventFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import DefaultAPIPermission
+from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 
 
@@ -47,7 +47,7 @@ class CleanAirResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelView
     - /{id}/increment_views/ - Increment view count (if implemented)
     """
     queryset = CleanAirResource.objects.all()
-    permission_classes = [DefaultAPIPermission]
+    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = CleanAirResourceFilterSet
@@ -175,7 +175,7 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     - /{id}/increment_views/ - Increment view count
     """
     queryset = ForumEvent.objects.all()
-    permission_classes = [DefaultAPIPermission]
+    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ForumEventFilterSet

@@ -9,7 +9,7 @@ from apps.impact.models import ImpactNumber
 from ..serializers.impact import ImpactNumberListSerializer, ImpactNumberDetailSerializer
 from ..filters.impact import ImpactNumberFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import DefaultAPIPermission
+from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 
 
@@ -27,7 +27,7 @@ class ImpactNumberViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet)
     - Dynamic field selection via ?fields= and ?omit=
     """
     queryset = ImpactNumber.objects.all()
-    permission_classes = [DefaultAPIPermission]
+    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ImpactNumberFilterSet
