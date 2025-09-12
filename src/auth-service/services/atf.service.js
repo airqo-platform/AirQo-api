@@ -284,17 +284,17 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
       // Replicate the old token structure precisely for backward compatibility
       const tokenPayload = {
         _id: user._id,
-        firstName: user.firstName || null,
-        lastName: user.lastName || null,
-        userName: user.userName || null,
-        email: user.email || null,
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        userName: user.userName ?? null,
+        email: user.email ?? null,
         nrp: 1,
-        organization: user.organization || null,
-        long_organization: user.long_organization || null,
-        privilege: user.privilege || null,
-        country: user.country || null,
-        profilePicture: user.profilePicture || null,
-        phoneNumber: user.phoneNumber || null,
+        organization: user.organization ?? null,
+        long_organization: user.long_organization ?? null,
+        privilege: user.privilege ?? null,
+        country: user.country ?? null,
+        profilePicture: user.profilePicture ?? null,
+        phoneNumber: user.phoneNumber ?? null,
         createdAt: user.createdAt
           ? moment(user.createdAt).format("YYYY-MM-DD HH:mm:ss")
           : null,
@@ -305,12 +305,11 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
         lastLogin: user.lastLogin ? user.lastLogin.toISOString() : null,
       };
 
-      const { jwtOptions = { expiresIn: options.expiresIn || "24h" } } =
-        options || {};
-      // Strip expiration-related inputs and ignore external algorithm to prevent mismatches.
+      const { jwtOptions = {} } = options || {};
+      // --- FIX: Explicitly remove expiration fields to create a non-expiring token ---
       const {
-        // expiresIn,
-        // exp,
+        expiresIn,
+        exp,
         algorithm: _ignoredAlg,
         ...cleanJwtOptions
       } = jwtOptions;

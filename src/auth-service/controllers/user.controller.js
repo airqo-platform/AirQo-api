@@ -407,14 +407,23 @@ const userController = {
 
         if (enhancedLoginResult.success) {
           const { data } = enhancedLoginResult;
-          // Format the response to match the simple legacy format
+          // --- FIX: Reconstruct the response to be fully backward-compatible ---
+          // This includes all the user profile fields the mobile app and other clients likely expect.
           const userResponse = {
             _id: data._id,
-            userName: data.userName,
             token: data.token,
             email: data.email,
             firstName: data.firstName,
             lastName: data.lastName,
+            userName: data.userName,
+            privilege: data.privilege,
+            organization: data.organization,
+            long_organization: data.long_organization,
+            profilePicture: data.profilePicture,
+            country: data.country,
+            phoneNumber: data.phoneNumber,
+            verified: data.verified,
+            isActive: data.isActive,
           };
           return res.status(httpStatus.OK).json(userResponse);
         } else {
