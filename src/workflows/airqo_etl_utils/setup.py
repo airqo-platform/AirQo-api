@@ -41,6 +41,7 @@ setup(
         "cdsapi>=0.7.4",
         "cfgrib",
         "xarray==2025.6.0",
+        "python-dateutil",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",
