@@ -915,10 +915,14 @@ class RBACService {
 
       return roles.some((role) => {
         const normalizedRole = String(role).trim().toUpperCase();
-        return userRoles.some(
-          (userRole) =>
-            userRole && String(userRole).trim().toUpperCase() === normalizedRole
-        );
+        return userRoles.some((userRole) => {
+          if (!userRole) return false;
+          const normalizedUserRole = String(userRole).trim().toUpperCase();
+          return (
+            normalizedUserRole === normalizedRole ||
+            normalizedUserRole.endsWith(`_${normalizedRole}`)
+          );
+        });
       });
     } catch (error) {
       logger.error(`Error checking user role: ${error.message}`);
@@ -929,13 +933,18 @@ class RBACService {
   async isSuperAdminInContext(userId, contextId, contextType) {
     try {
       // A super admin in a specific context would have a role named like 'ORG_SUPER_ADMIN'
-      // or a role that has the 'SUPER_ADMIN' permission.
-      // Let's check for a role named 'SUPER_ADMIN' within the context.
-      return await this.hasRole(
+      const userRoles = await this.getUserRolesInContext(
         userId,
-        ["SUPER_ADMIN"],
         contextId,
         contextType
+      );
+      if (!userRoles || userRoles.length === 0) {
+        return false;
+      }
+      // Check if any of the user's roles for this context end with _SUPER_ADMIN
+      return userRoles.some(
+        (roleName) =>
+          roleName && roleName.toUpperCase().endsWith("_SUPER_ADMIN")
       );
     } catch (error) {
       logger.error(

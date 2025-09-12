@@ -428,7 +428,6 @@ router.get(
 // Get organization by slug (for branded login page)
 router.get(
   "/organizations/:org_slug",
-  rateLimiter.brandedLogin,
   userValidations.getOrganizationBySlug,
   userController.getOrganizationBySlug
 );
