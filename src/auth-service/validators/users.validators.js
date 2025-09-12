@@ -661,6 +661,7 @@ const updateUser = [
       .optional()
       .isMongoId()
       .withMessage("each network should be an object ID"),
+    ...createInterestValidation(),
   ],
 ];
 
@@ -694,6 +695,7 @@ const updateUserById = [
       .isMongoId()
       .withMessage("each network should be an object ID"),
   ],
+  ...createInterestValidation(),
 ];
 
 const deleteUser = [
