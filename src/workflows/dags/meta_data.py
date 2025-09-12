@@ -292,7 +292,7 @@ def compute_store_devices_baseline_weekly():
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def store_computed_metadata(data: pd.DataFrame) -> None:
+    def store_computed_baseline_data(data: pd.DataFrame) -> None:
         if not data.empty:
             data, table = DataUtils.format_data_for_bigquery(
                 data,
@@ -306,7 +306,7 @@ def compute_store_devices_baseline_weekly():
             big_query_api.load_data(dataframe=data, table=table)
 
     extracted_devices = extract_compute_devices_baeline()
-    store_computed_metadata(extracted_devices)
+    store_computed_baseline_data(extracted_devices)
 
 
 @dag(
@@ -341,4 +341,5 @@ update_big_query_airqlouds_sites_and_devices()
 update_big_query_grids_cohorts_sites_and_devices()
 meta_data_update_microservice_sites_meta_data()
 cache_sites_data()
+compute_store_devices_metadata()
 compute_store_devices_baseline_weekly()
