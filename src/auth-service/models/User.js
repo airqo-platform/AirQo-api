@@ -1,29 +1,19 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const validator = require("validator");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const ThemeSchema = require("@models/ThemeSchema");
+const PermissionModel = require("@models/Permission");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
-const validUserTypes = [
-  "user",
-  "guest",
-  "member",
-  "admin",
-  "super_admin",
-  "viewer",
-  "contributor",
-  "moderator",
-];
 const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
@@ -294,8 +284,8 @@ const UserSchema = new Schema(
     isActive: { type: Boolean, default: false },
     loginCount: { type: Number, default: 0 },
     duration: { type: Date, default: oneMonthFromNow },
-    network_roles: [networkRoleSchema], // or flexibleNetworkRoleSchema or openNetworkRoleSchema
-    group_roles: [groupRoleSchema], // or flexibleGroupRoleSchema or openGroupRoleSchema
+    network_roles: [flexibleNetworkRoleSchema], // networkRoleSchema or flexibleNetworkRoleSchema or openNetworkRoleSchema
+    group_roles: [flexibleGroupRoleSchema], // groupRoleSchema or flexibleGroupRoleSchema or openGroupRoleSchema
 
     permissions: [
       {
@@ -356,6 +346,11 @@ const UserSchema = new Schema(
     },
     google_id: { type: String, trim: true },
     timezone: { type: String, trim: true },
+    preferredTokenStrategy: {
+      type: String,
+      enum: Object.values(constants.TOKEN_STRATEGIES),
+      default: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
+    },
     subscriptionStatus: {
       type: String,
       enum: ["inactive", "active", "past_due", "cancelled"],
@@ -381,11 +376,9 @@ const UserSchema = new Schema(
       type: Date,
     },
     currentPlanDetails: {
-      type: {
-        priceId: String,
-        currency: String,
-        billingCycle: String, // 'monthly', 'annual', etc.
-      },
+      priceId: String,
+      currency: String,
+      billingCycle: String, // 'monthly', 'annual', etc.
     },
     // Add after the existing fields, before the timestamps
     interests: {
@@ -414,12 +407,14 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
+const VALID_USER_TYPES = constants.VALID_USER_TYPES;
+
 UserSchema.path("network_roles.userType").validate(function (value) {
-  return validUserTypes.includes(value);
+  return VALID_USER_TYPES.includes(value);
 }, "Invalid userType value");
 
 UserSchema.path("group_roles.userType").validate(function (value) {
-  return validUserTypes.includes(value);
+  return VALID_USER_TYPES.includes(value);
 }, "Invalid userType value");
 
 UserSchema.pre("save", async function (next) {
@@ -489,15 +484,49 @@ UserSchema.pre("save", async function (next) {
         ];
       }
 
-      if (!this.group_roles || this.group_roles.length === 0) {
-        this.group_roles = [
-          {
-            group: tenantSettings.defaultGroup,
-            userType: "guest",
-            createdAt: new Date(),
-            role: tenantSettings.defaultGroupRole,
-          },
-        ];
+      // If user is part of airqo org (e.g., from mobile app), ensure they have the default airqo role
+      if (
+        this.organization &&
+        this.organization.toLowerCase() === "airqo" &&
+        (!this.group_roles || this.group_roles.length === 0)
+      ) {
+        const GroupModel = require("@models/Group");
+        const RoleModel = require("@models/Role");
+        const airqoGroup = await GroupModel(tenant).findOne({
+          grp_title: { $regex: /^airqo$/i },
+        });
+        if (airqoGroup) {
+          const defaultAirqoRole = await RoleModel(tenant).findOne({
+            role_code: "AIRQO_DEFAULT_USER",
+            group_id: airqoGroup._id,
+          });
+          this.group_roles.push({
+            group: airqoGroup._id,
+            role: defaultAirqoRole ? defaultAirqoRole._id : null,
+            userType: "user",
+          });
+        }
+      }
+
+      // 6. Set default permissions for new users
+      const defaultPermissions = await PermissionModel(tenant)
+        .find({
+          permission: { $in: constants.DEFAULTS.DEFAULT_USER },
+        })
+        .select("_id")
+        .lean();
+
+      if (defaultPermissions.length > 0) {
+        const permissionIds = defaultPermissions.map((p) => p._id);
+        const existingPermissionIds = new Set(
+          (this.permissions || []).map((p) => p.toString())
+        );
+
+        permissionIds.forEach((id) => {
+          existingPermissionIds.add(id.toString());
+        });
+
+        this.permissions = Array.from(existingPermissionIds);
       }
 
       // 5. Remove duplicates (simple deduplication)
@@ -634,6 +663,10 @@ UserSchema.statics = {
             logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
           }
         }
+      } else if (err instanceof HttpError) {
+        message = err.message;
+        status = err.statusCode;
+        response = err.errors || { message: err.message };
       } else if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -1518,54 +1551,26 @@ UserSchema.methods = {
       isActive: this.isActive,
       interests: this.interests,
       interestsDescription: this.interestsDescription,
+      preferredTokenStrategy: this.preferredTokenStrategy,
       loginCount: this.loginCount,
       timezone: this.timezone,
     };
   },
 };
 
-UserSchema.methods.createToken = async function () {
+UserSchema.methods.createToken = async function (
+  // Use the new default strategy. Can be overridden by passing a different strategy.
+  strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
+  options = {}
+) {
   try {
-    const filter = { _id: this._id };
-    const userWithDerivedAttributes = await UserModel("airqo").list({ filter });
-    if (
-      userWithDerivedAttributes.success &&
-      userWithDerivedAttributes.success === false
-    ) {
-      logger.error(
-        `Internal Server Error -- ${JSON.stringify(userWithDerivedAttributes)}`
-      );
-      return userWithDerivedAttributes;
-    } else {
-      const user = userWithDerivedAttributes.data[0];
-      const oneDayExpiry = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
-      const oneHourExpiry = Math.floor(Date.now() / 1000) + 60 * 60;
-      logObject("user", user);
-      return jwt.sign(
-        {
-          _id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          userName: user.userName,
-          email: user.email,
-          organization: user.organization,
-          long_organization: user.long_organization,
-          privilege: user.privilege,
-          role: user.role,
-          country: user.country,
-          profilePicture: user.profilePicture,
-          phoneNumber: user.phoneNumber,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          rateLimit: user.rateLimit,
-          lastLogin: user.lastLogin,
-          // exp: oneHourExpiry,
-        },
-        constants.JWT_SECRET
-      );
-    }
+    // Lazy require to prevent circular dependency issues at startup
+    const { AbstractTokenFactory } = require("@services/atf.service");
+    const tokenFactory = new AbstractTokenFactory(this.tenant || "airqo");
+    return await tokenFactory.createToken(this, strategy, options);
   } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
+    logger.error(`Error in createToken for user ${this._id}: ${error.message}`);
+    throw error; // Re-throw to be handled by caller
   }
 };
 

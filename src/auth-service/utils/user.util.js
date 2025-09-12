@@ -3,10 +3,11 @@ const SubscriptionModel = require("@models/Subscription");
 const VerifyTokenModel = require("@models/VerifyToken");
 const AccessRequestModel = require("@models/AccessRequest");
 const RoleModel = require("@models/Role");
+const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const bcrypt = require("bcrypt");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
@@ -28,6 +29,7 @@ const {
   redisDelAsync,
   redisSetWithTTLAsync,
 } = require("@config/redis");
+const { tokenConfig } = require("@config/tokenStrategyConfig");
 
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
@@ -40,11 +42,8 @@ const {
   generateDateFormatWithoutHrs,
 } = require("@utils/common");
 
-const EnhancedRBACService = require("@services/enhancedRBAC.service");
-const {
-  EnhancedTokenFactory,
-  TOKEN_STRATEGIES,
-} = require("@services/enhancedTokenFactory.service");
+const RBACService = require("@services/rbac.service");
+const { AbstractTokenFactory } = require("@services/atf.service");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -63,6 +62,13 @@ function generateNumericToken(length) {
 
   return token;
 }
+
+const normalizeName = (name) => {
+  if (!name || typeof name !== "string") {
+    return "";
+  }
+  return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+};
 async function deleteCollection({ db, collectionPath, batchSize } = {}) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
@@ -4731,15 +4737,338 @@ const createUserModule = {
     }
   },
   /**
+   * Ensures a user has the default AirQo role.
+   * This is a non-blocking operation, intended to be called in a fire-and-forget manner.
+   */
+
+  ensureDefaultAirqoRole: async (user, tenant) => {
+    try {
+      let needsUpdate = false;
+      const updateQuery = {};
+
+      // --- Create mutable copies of the role arrays, preserving ObjectIDs ---
+      const isObjectId = (v) =>
+        v &&
+        (v instanceof mongoose.Types.ObjectId || v._bsontype === "ObjectID");
+      const toObjectId = (v) =>
+        isObjectId(v)
+          ? v
+          : mongoose.Types.ObjectId.isValid(v)
+          ? new mongoose.Types.ObjectId(v)
+          : v;
+      let finalGroupRoles = Array.isArray(user.group_roles)
+        ? user.group_roles.map((a) => ({
+            ...(a?.toObject?.() ?? a),
+            group: toObjectId(a.group),
+            role: toObjectId(a.role),
+          }))
+        : [];
+      let finalNetworkRoles = Array.isArray(user.network_roles)
+        ? user.network_roles.map((a) => ({
+            ...(a?.toObject?.() ?? a),
+            network: toObjectId(a.network),
+            role: toObjectId(a.role),
+          }))
+        : [];
+
+      // --- 1. Consolidate duplicate roles for all GROUPS ---
+      const groupRoleMap = new Map();
+      finalGroupRoles.forEach((assignment) => {
+        if (assignment && assignment.group) {
+          const groupId = assignment.group.toString();
+          if (!groupRoleMap.has(groupId)) groupRoleMap.set(groupId, []);
+          groupRoleMap.get(groupId).push(assignment);
+        }
+      });
+
+      for (const [groupId, assignments] of groupRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.warn(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
+          );
+          const group = await GroupModel(tenant).findById(groupId).lean();
+          if (!group) continue;
+
+          let desiredRole;
+          if (group.grp_title.toLowerCase() === "airqo") {
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: groupId })
+              .lean();
+            const superAdminRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_SUPER_ADMIN"
+            );
+            const adminRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_ADMIN"
+            );
+            const defaultUserRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
+            );
+            const userRoleIds = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+
+            if (
+              superAdminRole &&
+              userRoleIds.has(superAdminRole._id.toString())
+            ) {
+              desiredRole = superAdminRole;
+            } else if (adminRole && userRoleIds.has(adminRole._id.toString())) {
+              desiredRole = adminRole;
+            } else {
+              desiredRole = defaultUserRole;
+            }
+          } else {
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: mongoose.Types.ObjectId(groupId) })
+              .lean();
+            const present = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+            const prefer = (suffix) =>
+              possibleRoles.find(
+                (r) =>
+                  r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+              );
+            desiredRole =
+              prefer("_SUPER_ADMIN") ||
+              prefer("_ADMIN") ||
+              prefer("_MANAGER") ||
+              prefer("_DEFAULT_MEMBER");
+
+            if (!desiredRole) {
+              const orgName = normalizeName(group.grp_title);
+              const defaultMember = possibleRoles.find(
+                (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+              );
+              desiredRole =
+                defaultMember ||
+                possibleRoles.find((r) => present.has(r._id.toString()));
+            }
+          }
+
+          if (desiredRole) {
+            finalGroupRoles = finalGroupRoles.filter(
+              (a) => a.group.toString() !== groupId
+            );
+            const earliestCreatedAt = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
+            );
+            finalGroupRoles.push({
+              group: mongoose.Types.ObjectId(groupId),
+              role: desiredRole._id,
+              userType: "user",
+              createdAt: earliestCreatedAt,
+            });
+          }
+        }
+      }
+
+      // --- 2. Consolidate duplicate roles for NETWORKS ---
+      const networkRoleMap = new Map();
+      finalNetworkRoles.forEach((assignment) => {
+        if (assignment && assignment.network) {
+          const networkId = assignment.network.toString();
+          if (!networkRoleMap.has(networkId)) networkRoleMap.set(networkId, []);
+          networkRoleMap.get(networkId).push(assignment);
+        }
+      });
+
+      for (const [networkId, assignments] of networkRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.warn(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
+          );
+          const network = await NetworkModel(tenant).findById(networkId).lean();
+          if (!network) continue;
+
+          const possibleRoles = await RoleModel(tenant)
+            .find({ network_id: mongoose.Types.ObjectId(networkId) })
+            .lean();
+          const present = new Set(
+            assignments.map((a) => a.role && a.role.toString())
+          );
+          const prefer = (suffix) =>
+            possibleRoles.find(
+              (r) =>
+                r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+            );
+          let desiredRole =
+            prefer("_SUPER_ADMIN") ||
+            prefer("_ADMIN") ||
+            prefer("_MANAGER") ||
+            prefer("_DEFAULT_MEMBER");
+
+          if (!desiredRole) {
+            const orgName = normalizeName(network.net_name);
+            const defaultMember = possibleRoles.find(
+              (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+            );
+            desiredRole =
+              defaultMember ||
+              possibleRoles.find((r) => present.has(r._id.toString()));
+          }
+
+          if (desiredRole) {
+            finalNetworkRoles = finalNetworkRoles.filter(
+              (a) => a.network.toString() !== networkId
+            );
+            const earliestCreatedAtNet = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
+            );
+            finalNetworkRoles.push({
+              network: mongoose.Types.ObjectId(networkId),
+              role: desiredRole._id,
+              userType: "user",
+              createdAt: earliestCreatedAtNet,
+            });
+          }
+        }
+      }
+
+      // --- 3. Remove Deprecated Roles ---
+      const deprecatedRoleNames = [
+        "AIRQO_DEFAULT_PRODUCTION",
+        "AIRQO_AIRQO_ADMIN",
+      ];
+      const deprecatedRoles = await RoleModel(tenant)
+        .find({ role_name: { $in: deprecatedRoleNames } })
+        .select("_id")
+        .lean();
+      const deprecatedRoleIds = new Set(
+        deprecatedRoles.map((r) => r._id.toString())
+      );
+
+      if (deprecatedRoleIds.size > 0) {
+        finalGroupRoles = finalGroupRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+        );
+        finalNetworkRoles = finalNetworkRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+        );
+      }
+
+      // --- 4. Add default AirQo role if missing ---
+      const airqoGroup = await GroupModel(tenant)
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
+        .lean();
+      if (airqoGroup) {
+        const hasAirqoRole = finalGroupRoles.some(
+          (a) => a.group.toString() === airqoGroup._id.toString()
+        );
+        if (
+          !hasAirqoRole &&
+          (user.organization || "").toLowerCase() === "airqo"
+        ) {
+          const defaultAirqoRole = await RoleModel(tenant)
+            .findOne({
+              role_code: "AIRQO_DEFAULT_USER",
+              group_id: airqoGroup._id,
+            })
+            .lean();
+          if (defaultAirqoRole) {
+            finalGroupRoles.push({
+              group: airqoGroup._id,
+              role: defaultAirqoRole._id,
+              userType: "user",
+              createdAt: new Date(),
+            });
+          }
+        }
+      }
+
+      // --- 5. Compare final arrays with originals to see if an update is needed ---
+      const canonicalize = (arr, type) =>
+        (arr || [])
+          .map((a) => ({
+            ctx:
+              type === "group"
+                ? a.group?.toString?.()
+                : a.network?.toString?.(),
+            role: a.role?.toString?.(),
+            userType: a.userType || "user",
+          }))
+          .filter((x) => x.ctx && x.role)
+          .sort(
+            (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
+          );
+
+      const originalGroupCanon = canonicalize(user.group_roles, "group");
+      const finalGroupCanon = canonicalize(finalGroupRoles, "group");
+      const originalNetCanon = canonicalize(user.network_roles, "network");
+      const finalNetCanon = canonicalize(finalNetworkRoles, "network");
+
+      if (
+        JSON.stringify(originalGroupCanon) !==
+          JSON.stringify(finalGroupCanon) ||
+        JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
+      ) {
+        // keep DB arrays deterministically ordered as well
+        finalGroupRoles = finalGroupRoles.sort(
+          (a, b) =>
+            a.group.toString().localeCompare(b.group.toString()) ||
+            a.role.toString().localeCompare(b.role.toString())
+        );
+        finalNetworkRoles = finalNetworkRoles.sort(
+          (a, b) =>
+            a.network.toString().localeCompare(b.network.toString()) ||
+            a.role.toString().localeCompare(b.role.toString())
+        );
+        updateQuery.$set = {
+          group_roles: finalGroupRoles,
+          network_roles: finalNetworkRoles,
+        };
+        needsUpdate = true;
+      }
+
+      // --- 6. Handle other cleanups ---
+      if (user.privilege) {
+        updateQuery.$unset = { privilege: "" };
+        needsUpdate = true;
+      }
+
+      // --- 7. Execute the update if anything changed ---
+      if (needsUpdate) {
+        await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery);
+        logger.info(
+          `[Role Cleanup] Successfully consolidated and cleaned roles for user ${user.email}.`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `[Role Cleanup] Error during role cleanup for ${user.email}: ${error.message}`
+      );
+    }
+  },
+
+  /**
+   * Determines the effective token strategy for a user.
+   * Priority: Request override > User preference > System default.
+   */
+  _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
+    return tokenConfig.getStrategyForUser(
+      user._id,
+      preferredStrategyFromRequest ||
+        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
+      user.organization
+    );
+  },
+  /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
   loginWithEnhancedTokens: async (request, next) => {
     try {
-      const { email, password, tenant, preferredStrategy, includeDebugInfo } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { email, password, preferredStrategy, includeDebugInfo } = body;
+      const { tenant } = query;
 
       console.log("🔐 ENHANCED LOGIN:", {
         email,
@@ -4769,10 +5098,10 @@ const createUserModule = {
       if (!user) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            email: "No account found with this email address",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }
@@ -4782,10 +5111,10 @@ const createUserModule = {
       if (!isPasswordValid) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            password: "Incorrect password",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }
@@ -4812,7 +5141,7 @@ const createUserModule = {
       }
 
       // Initialize RBAC service
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       // Get comprehensive permission data
       console.log("🔍 Getting comprehensive permissions for user:", user._id);
@@ -4829,15 +5158,15 @@ const createUserModule = {
       });
 
       // Determine token strategy
-      const strategy =
-        preferredStrategy ||
-        user.preferredTokenStrategy ||
-        TOKEN_STRATEGIES.STANDARD;
+      const strategy = createUserModule._getEffectiveTokenStrategy(
+        user,
+        preferredStrategy
+      );
 
       console.log("🎯 Using token strategy:", strategy);
 
       // Initialize token factory
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
 
       const populatedUser = await createUserModule._populateUserDataManually(
         user,
@@ -4859,26 +5188,27 @@ const createUserModule = {
       }
 
       // Update login statistics
-      const currentDate = new Date();
-      try {
-        await UserModel(dbTenant).findOneAndUpdate(
-          { _id: user._id },
-          {
-            $set: { lastLogin: currentDate, isActive: true },
-            $inc: { loginCount: 1 },
-            ...(user.analyticsVersion !== 3 && user.verified === false
-              ? { $set: { verified: true } }
-              : {}),
-          },
-          {
-            new: true,
-            upsert: false,
-            runValidators: true,
-          }
-        );
-      } catch (updateError) {
-        logger.error(`Login stats update error: ${updateError.message}`);
-      }
+      (async () => {
+        try {
+          const currentDate = new Date();
+          await UserModel(dbTenant).findOneAndUpdate(
+            { _id: user._id },
+            {
+              $set: { lastLogin: currentDate, isActive: true },
+              $inc: { loginCount: 1 },
+              ...(user.analyticsVersion !== 3 && user.verified === false
+                ? { $set: { verified: true } }
+                : {}),
+            },
+            { new: true, upsert: false, runValidators: true }
+          );
+          await createUserModule.ensureDefaultAirqoRole(user, dbTenant);
+        } catch (updateError) {
+          logger.error(
+            `Login stats/roles update error: ${updateError.message}`
+          );
+        }
+      })();
 
       // Build comprehensive auth response
       const authResponse = {
@@ -4929,7 +5259,7 @@ const createUserModule = {
             : null,
 
         // Login metadata
-        lastLogin: currentDate,
+        lastLogin: new Date(),
         loginCount: (user.loginCount || 0) + 1,
 
         // Token metadata
@@ -4956,7 +5286,7 @@ const createUserModule = {
                 ),
               },
               tokenCompressionRatio:
-                strategy !== TOKEN_STRATEGIES.LEGACY
+                strategy !== constants.TOKEN_STRATEGIES.LEGACY
                   ? (
                       (1 - Buffer.byteLength(token, "utf8") / 2000) *
                       100
@@ -5141,48 +5471,59 @@ const createUserModule = {
       if (userObj.group_roles?.length > 0) {
         userObj.group_roles = userObj.group_roles.map((groupRole) => ({
           ...groupRole,
-          group: groupsMap.get(groupRole.group.toString()) || groupRole.group,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(groupRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return groupRole.role;
-              })()
-            : groupRole.role,
+          group: groupRole.group
+            ? groupsMap.get(groupRole.group.toString()) || groupRole.group
+            : null,
+          role:
+            RoleModel && groupRole.role
+              ? (() => {
+                  const role = rolesMap.get(groupRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return groupRole.role;
+                })()
+              : groupRole.role,
         }));
       }
 
       if (userObj.network_roles?.length > 0) {
         userObj.network_roles = userObj.network_roles.map((networkRole) => ({
           ...networkRole,
-          network:
-            networksMap.get(networkRole.network.toString()) ||
-            networkRole.network,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(networkRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return networkRole.role;
-              })()
-            : networkRole.role,
+          network: networkRole.network
+            ? networksMap.get(networkRole.network.toString()) ||
+              networkRole.network
+            : null,
+          role:
+            RoleModel && networkRole.role
+              ? (() => {
+                  const role = rolesMap.get(networkRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return networkRole.role;
+                })()
+              : networkRole.role,
         }));
       }
 
@@ -5204,22 +5545,14 @@ const createUserModule = {
    */
   generateOptimizedToken: async (request, next) => {
     try {
-      const { userId, tenant, strategy, options } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
-
-      if (!userId) {
-        return {
-          success: false,
-          message: "User ID is required",
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy, options } = body;
+      const { tenant } = query;
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const tokenStrategy = strategy || TOKEN_STRATEGIES.STANDARD;
+      const tokenStrategy =
+        strategy || constants.TOKEN_STRATEGIES.ULTRA_COMPRESSED;
 
       const user = await UserModel(dbTenant).findById(userId).lean();
 
@@ -5237,7 +5570,7 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
       const token = await tokenFactory.createToken(
         populatedUser,
         tokenStrategy,
@@ -5273,11 +5606,10 @@ const createUserModule = {
    */
   refreshUserPermissions: async (request, next) => {
     try {
-      const { userId, tenant, strategy } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5290,7 +5622,7 @@ const createUserModule = {
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
 
       // Clear cache for this user
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
       rbacService.clearUserCache(userId);
 
       // Get fresh permissions
@@ -5311,7 +5643,7 @@ const createUserModule = {
           const populatedUser =
             await createUserModule._populateUserDataManually(user, dbTenant);
 
-          const tokenFactory = new EnhancedTokenFactory(dbTenant);
+          const tokenFactory = new AbstractTokenFactory(dbTenant);
           newToken = await tokenFactory.createToken(populatedUser, strategy);
           tokenInfo = {
             token: `JWT ${newToken}`,
@@ -5348,11 +5680,10 @@ const createUserModule = {
    */
   analyzeTokenStrategies: async (request, next) => {
     try {
-      const { userId, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5380,8 +5711,9 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
-      const strategies = Object.values(TOKEN_STRATEGIES);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
+      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES
+      const strategies = Object.values(constants.TOKEN_STRATEGIES);
       const results = {};
       let baselineSize = 0;
 
@@ -5390,7 +5722,8 @@ const createUserModule = {
           const token = await tokenFactory.createToken(populatedUser, strategy);
           const size = Buffer.byteLength(token, "utf8");
 
-          if (strategy === TOKEN_STRATEGIES.LEGACY) {
+          // Fix: Use constants.TOKEN_STRATEGIES.LEGACY
+          if (strategy === constants.TOKEN_STRATEGIES.LEGACY) {
             baselineSize = size;
           }
 
@@ -5446,11 +5779,10 @@ const createUserModule = {
    */
   getUserContextPermissions: async (request, next) => {
     try {
-      const { userId, contextId, contextType, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, contextId, contextType } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5461,7 +5793,7 @@ const createUserModule = {
       }
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       let permissions;
       if (contextId && contextType) {
@@ -5506,11 +5838,10 @@ const createUserModule = {
    */
   updateTokenStrategy: async (request, next) => {
     try {
-      const { userId, strategy, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId || !strategy) {
         return {
@@ -5520,15 +5851,16 @@ const createUserModule = {
         };
       }
 
-      if (!Object.values(TOKEN_STRATEGIES).includes(strategy)) {
+      // Fix: Use constants.TOKEN_STRATEGIES instead ofconstants.TOKEN_STRATEGIES from ATF service
+      if (!Object.values(constants.TOKEN_STRATEGIES).includes(strategy)) {
         return {
           success: false,
           message: "Invalid token strategy",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            strategy: `Must be one of: ${Object.values(TOKEN_STRATEGIES).join(
-              ", "
-            )}`,
+            strategy: `Must be one of: ${Object.values(
+              constants.TOKEN_STRATEGIES
+            ).join(", ")}`,
           },
         };
       }
@@ -5585,8 +5917,9 @@ const createUserModule = {
     const recommended =
       strategies.find(
         ([strategy, _]) =>
-          strategy === TOKEN_STRATEGIES.COMPRESSED ||
-          strategy === TOKEN_STRATEGIES.HASH_BASED
+          // Fix: Use constants.TOKEN_STRATEGIES
+          strategy === constants.TOKEN_STRATEGIES.COMPRESSED ||
+          strategy === constants.TOKEN_STRATEGIES.HASH_BASED
       ) || smallest;
 
     return {
@@ -5914,4 +6247,8 @@ const createUserModule = {
   },
 };
 
-module.exports = { ...createUserModule, generateNumericToken };
+module.exports = {
+  ...createUserModule,
+  generateNumericToken,
+  ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
+};

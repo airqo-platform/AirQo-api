@@ -9,6 +9,7 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = require("mongoose").Types.ObjectId;
+const mongoose = require("mongoose");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
@@ -140,50 +141,55 @@ const admin = {
         };
       }
 
-      const hasExistingRole = existingUser.group_roles?.some(
-        (gr) => gr.role && gr.role.toString() === superAdminRole._id.toString()
-      );
-
-      if (hasExistingRole) {
-        return {
-          success: true,
-          message: "User already has SUPER_ADMIN role",
-          status: httpStatus.OK,
-          data: {
-            user_id: targetUserId,
-            role_assigned: superAdminRole.role_name,
-            role_id: superAdminRole._id,
-            group: airqoGroup.grp_title,
-            group_id: airqoGroup._id,
-            tenant: tenant,
-            status: "already_assigned",
-            timestamp: new Date().toISOString(),
-          },
-        };
-      }
-
+      // Atomically update the user's roles for the AirQo group.
+      // This operation ensures the user ends up with just the SUPER_ADMIN role for this group,
+      // replacing any other role they might have had for the AirQo group.
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         targetUserId,
-        {
-          $addToSet: {
-            group_roles: {
-              group: airqoGroup._id,
-              role: superAdminRole._id,
-              userType: "admin",
-              createdAt: new Date(),
+        [
+          {
+            $set: {
+              group_roles: {
+                $concatArrays: [
+                  // 1. Filter out any existing role for the airqoGroup
+                  {
+                    $filter: {
+                      input: { $ifNull: ["$group_roles", []] },
+                      as: "role",
+                      cond: { $ne: ["$$role.group", airqoGroup._id] },
+                    },
+                  },
+                  // 2. Add the new SUPER_ADMIN role
+                  [
+                    {
+                      group: airqoGroup._id,
+                      role: superAdminRole._id,
+                      userType: "admin",
+                      createdAt: new Date(),
+                    },
+                  ],
+                ],
+              },
             },
           },
-        },
+        ],
         { new: true }
       );
 
+      if (!updatedUser) {
+        throw new HttpError("User update failed", 500, {
+          message: "Failed to assign SUPER_ADMIN role.",
+        });
+      }
+
+      // Clear the user's permissions cache to reflect the changes immediately
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       rbacService.clearUserCache(targetUserId);
 
       return {
         success: true,
-        message: "User successfully assigned SUPER_ADMIN role",
+        message: "User role successfully updated to SUPER_ADMIN",
         status: httpStatus.OK,
         data: {
           user_id: targetUserId,
@@ -192,7 +198,7 @@ const admin = {
           group: airqoGroup.grp_title,
           group_id: airqoGroup._id,
           tenant: tenant,
-          status: "newly_assigned",
+          status: "role_updated",
           timestamp: new Date().toISOString(),
           next_steps: [
             "User now has super admin access",
@@ -1172,6 +1178,116 @@ const admin = {
     }
   },
 
+  dropIndex: async (request, next) => {
+    try {
+      const { collectionName, indexName, secret, confirm } = request.body;
+      const { tenant } = request.query;
+
+      if (!validateSetupSecret(secret)) {
+        return {
+          success: false,
+          message: "Invalid setup secret",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Authentication failed" },
+        };
+      }
+
+      if (!collectionName || !indexName) {
+        return {
+          success: false,
+          message:
+            "collectionName and indexName are required in the request body",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (
+        typeof collectionName !== "string" ||
+        typeof indexName !== "string" ||
+        !collectionName.trim() ||
+        !indexName.trim()
+      ) {
+        return {
+          success: false,
+          message: "collectionName and indexName must be non-empty strings",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (process.env.NODE_ENV === "production" && confirm !== "DROP_INDEX") {
+        return {
+          success: false,
+          message:
+            "Destructive operation requires confirm=DROP_INDEX in production",
+          status: httpStatus.FORBIDDEN,
+        };
+      }
+
+      // Get the tenant-specific database connection from an existing model
+      const tenantDbConnection = UserModel(tenant).db;
+      if (!tenantDbConnection) {
+        throw new Error(
+          `Could not get database connection for tenant: ${tenant}`
+        );
+      }
+      const db = tenantDbConnection.db;
+      const collections = await db.listCollections().toArray();
+      const collectionExists = collections.some(
+        (c) => c.name === collectionName
+      );
+
+      if (!collectionExists) {
+        return {
+          success: false,
+          message: `Collection '${collectionName}' not found.`,
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const collection = db.collection(collectionName);
+      const indexExists = await collection.indexExists(indexName);
+
+      if (!indexExists) {
+        const allIndexes = await collection.indexes();
+        return {
+          success: false,
+          message: `Index '${indexName}' does not exist on collection '${collectionName}'.`,
+          status: httpStatus.NOT_FOUND,
+          data: { availableIndexes: allIndexes.map((i) => i.name) },
+        };
+      }
+
+      logger.warn(
+        `[DB INDEX DROP] tenant=${tenant} collection=${collectionName} index=${indexName} actor=${
+          request.user?.email || request.user?._id
+        }`
+      );
+      const result = await collection.dropIndex(indexName);
+
+      if (result) {
+        return {
+          success: true,
+          message: `Successfully dropped index '${indexName}' from collection '${collectionName}'.`,
+          status: httpStatus.OK,
+        };
+      } else {
+        throw new Error(
+          "Index drop operation failed to return a success status."
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Error dropping index: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   getDocs: async (request, next) => {
     try {
       const docsData = {

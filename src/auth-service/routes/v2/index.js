@@ -408,7 +408,7 @@ if (routeStatus.failed.length > 0) {
     );
   }
 } else {
-  logInfo("🎉 All authentication routes loaded successfully!");
+  logInfo("🎉 All v2 authentication routes loaded successfully!");
 }
 
 // Log the actual endpoint mappings for clarity

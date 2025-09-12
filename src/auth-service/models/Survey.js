@@ -1,5 +1,5 @@
 //src/auth-service/models/Survey.js
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");

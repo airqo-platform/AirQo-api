@@ -3,7 +3,7 @@ from sqlmodel import Session, select, func, and_
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from app.deps import get_db
-from app.models import Device, DeviceRead, DeviceCreate, DeviceUpdate, DeviceReading
+from app.models import Device, DeviceRead, DeviceCreate, DeviceUpdate, DeviceReading, Site
 from app.models.location import Location
 from app.crud import device as device_crud
 import logging
@@ -130,10 +130,24 @@ async def get_devices(
     if not devices:
         return []
     
-    # Collect all device keys for batch queries
+    # Collect all device keys and site_ids for batch queries
     device_keys = [device.device_key for device in devices]
+    site_ids = list(set([device.site_id for device in devices if device.site_id]))  # Use set to remove duplicates
     
-    # Batch query for latest locations
+    # Initialize empty maps
+    site_map = {}
+    location_map = {}
+    reading_map = {}
+    
+    # Only query if we have data to query for
+    if site_ids:
+        # Batch query for site information from dim_site
+        sites = db.exec(
+            select(Site).where(Site.site_id.in_(site_ids))
+        ).all()
+        site_map = {site.site_id: site for site in sites}
+    
+    # Batch query for latest locations (kept for backwards compatibility if needed)
     location_subquery = (
         select(
             Location.device_key,
@@ -186,6 +200,7 @@ async def get_devices(
     # Format response
     device_list = []
     for device in devices:
+        site = site_map.get(device.site_id) if device.site_id else None
         location = location_map.get(device.device_key)
         latest_reading = reading_map.get(device.device_key)
         
@@ -193,6 +208,7 @@ async def get_devices(
             "device_key": device.device_key,
             "device_id": device.device_id,
             "device_name": device.device_name,
+            "site_id": device.site_id,
             "network": device.network,
             "category": device.category,
             "is_active": device.is_active,
@@ -206,6 +222,15 @@ async def get_devices(
             "last_updated": device.last_updated.isoformat() if device.last_updated else None,
             "created_at": device.created_at.isoformat() if device.created_at else None,
             "updated_at": device.updated_at.isoformat() if device.updated_at else None,
+            "site_location": {
+                "site_name": site.site_name,
+                "city": site.city,
+                "district": site.district,
+                "country": site.country,
+                "latitude": site.latitude,
+                "longitude": site.longitude,
+                "site_category": site.site_category
+            } if site else None,
             "location": {
                 "latitude": location.latitude,
                 "longitude": location.longitude,
@@ -505,4 +530,311 @@ async def get_offline_devices(
             }
             for d in offline_devices
         ]
+    }
+
+
+
+@router.get("/maintenance/upcoming")
+async def get_upcoming_maintenance_devices(
+    *,
+    db: Session = Depends(get_db),
+    days: int = Query(30, ge=1, le=365, description="Days ahead to check for upcoming maintenance")
+):
+    current_time = datetime.now(timezone.utc)
+    cutoff_time = current_time + timedelta(days=days)
+    
+    # Get devices with upcoming maintenance
+    devices = db.exec(
+        select(Device)
+        .where(
+            (Device.next_maintenance != None) & 
+            (Device.next_maintenance >= current_time) &
+            (Device.next_maintenance <= cutoff_time)
+        )
+        .order_by(Device.next_maintenance)
+    ).all()
+    
+    device_keys = [device.device_key for device in devices]
+    
+    # Batch query for latest readings to get site names
+    reading_subquery = (
+        select(
+            DeviceReading.device_key,
+            func.max(DeviceReading.created_at).label("max_created_at")
+        )
+        .where(DeviceReading.device_key.in_(device_keys))
+        .group_by(DeviceReading.device_key)
+        .subquery()
+    )
+    
+    readings_query = (
+        select(DeviceReading)
+        .join(
+            reading_subquery,
+            and_(
+                DeviceReading.device_key == reading_subquery.c.device_key,
+                DeviceReading.created_at == reading_subquery.c.max_created_at
+            )
+        )
+    )
+    readings = db.exec(readings_query).all()
+    reading_map = {reading.device_key: reading for reading in readings}
+    
+    result_devices = []
+    for device in devices:
+        reading = reading_map.get(device.device_key)
+        days_until_due = (device.next_maintenance - current_time).days
+        
+        result_devices.append({
+            "device_id": device.device_id,
+            "device_key": device.device_key,
+            "device_name": device.device_name,
+            "network": device.network,
+            "category": device.category,
+            "status": device.status,
+            "is_active": device.is_active,
+            "is_online": device.is_online,
+            "next_maintenance": device.next_maintenance.isoformat(),
+            "days_until_due": days_until_due,
+            "site_name": reading.site_name if reading else None
+        })
+    
+    return {
+        "threshold_days": days,
+        "count": len(result_devices),
+        "devices": result_devices
+    }
+
+
+@router.get("/maintenance/overdue")
+async def get_overdue_maintenance_devices(
+    *,
+    db: Session = Depends(get_db)
+):
+    current_time = datetime.now(timezone.utc)
+    
+    # Get devices with overdue maintenance
+    devices = db.exec(
+        select(Device)
+        .where(
+            (Device.next_maintenance != None) & 
+            (Device.next_maintenance < current_time)
+        )
+        .order_by(Device.next_maintenance)
+    ).all()
+    
+    device_keys = [device.device_key for device in devices]
+    
+    # Batch query for latest readings to get site names
+    reading_subquery = (
+        select(
+            DeviceReading.device_key,
+            func.max(DeviceReading.created_at).label("max_created_at")
+        )
+        .where(DeviceReading.device_key.in_(device_keys))
+        .group_by(DeviceReading.device_key)
+        .subquery()
+    )
+    
+    readings_query = (
+        select(DeviceReading)
+        .join(
+            reading_subquery,
+            and_(
+                DeviceReading.device_key == reading_subquery.c.device_key,
+                DeviceReading.created_at == reading_subquery.c.max_created_at
+            )
+        )
+    )
+    readings = db.exec(readings_query).all()
+    reading_map = {reading.device_key: reading for reading in readings}
+    
+    result_devices = []
+    for device in devices:
+        reading = reading_map.get(device.device_key)
+        days_overdue = (current_time - device.next_maintenance).days
+        
+        result_devices.append({
+            "device_id": device.device_id,
+            "device_key": device.device_key,
+            "device_name": device.device_name,
+            "network": device.network,
+            "category": device.category,
+            "status": device.status,
+            "is_active": device.is_active,
+            "is_online": device.is_online,
+            "next_maintenance": device.next_maintenance.isoformat(),
+            "days_overdue": days_overdue,
+            "site_name": reading.site_name if reading else None
+        })
+    
+    return {
+        "count": len(result_devices),
+        "devices": result_devices
+    }
+
+
+@router.get("/reliability/metrics")
+async def get_reliability_metrics(
+    *,
+    db: Session = Depends(get_db),
+    days: int = Query(30, ge=1, le=365, description="Days to analyze"),
+    top_n: int = Query(10, ge=1, le=50, description="Number of devices with longest downtime to return")
+):
+    """
+    Get device reliability metrics including average uptime, downtime, MTBF, and devices with longest downtime
+    """
+    current_time = datetime.now(timezone.utc)
+    start_time = current_time - timedelta(days=days)
+    
+    # Get all devices
+    devices = db.exec(select(Device)).all()
+    
+    if not devices:
+        return {
+            "period": {"days": days, "start": start_time.isoformat(), "end": current_time.isoformat()},
+            "metrics": {
+                "average_uptime_percentage": 0,
+                "average_downtime_hours": 0,
+                "mtbf_hours": 0,
+                "total_devices": 0
+            },
+            "devices_with_longest_downtime": []
+        }
+    
+    device_metrics = []
+    total_uptime_percentage = 0
+    total_downtime_hours = 0
+    total_failures = 0
+    
+    for device in devices:
+        # Get device status history from DeviceStatus table
+        from app.models import DeviceStatus
+        
+        status_history = db.exec(
+            select(DeviceStatus)
+            .where(DeviceStatus.device_key == device.device_key)
+            .where(DeviceStatus.timestamp >= start_time)
+            .where(DeviceStatus.timestamp <= current_time)
+            .order_by(DeviceStatus.timestamp)
+        ).all()
+        
+        if not status_history:
+            # If no status history, check last_updated to estimate downtime
+            if device.last_updated and device.last_updated < start_time:
+                # Device has been offline since before the analysis period
+                downtime_hours = (current_time - start_time).total_seconds() / 3600
+                uptime_percentage = 0
+            elif device.is_online:
+                # Currently online, assume full uptime
+                downtime_hours = 0
+                uptime_percentage = 100
+            else:
+                # Currently offline, calculate based on last_updated
+                if device.last_updated:
+                    downtime_start = max(device.last_updated, start_time)
+                    downtime_hours = (current_time - downtime_start).total_seconds() / 3600
+                    uptime_percentage = max(0, 100 - (downtime_hours / (days * 24) * 100))
+                else:
+                    downtime_hours = days * 24
+                    uptime_percentage = 0
+        else:
+            # Calculate from status history
+            online_time = 0
+            offline_time = 0
+            failures = 0
+            last_status = None
+            
+            for i, status in enumerate(status_history):
+                if last_status is not None:
+                    time_diff = (status.timestamp - last_status.timestamp).total_seconds()
+                    if last_status.is_online:
+                        online_time += time_diff
+                    else:
+                        offline_time += time_diff
+                    
+                    # Count transitions from online to offline as failures
+                    if last_status.is_online and not status.is_online:
+                        failures += 1
+                
+                last_status = status
+            
+            # Handle time from last status to current time
+            if last_status:
+                time_diff = (current_time - last_status.timestamp).total_seconds()
+                if last_status.is_online:
+                    online_time += time_diff
+                else:
+                    offline_time += time_diff
+            
+            total_time = online_time + offline_time
+            uptime_percentage = (online_time / total_time * 100) if total_time > 0 else 0
+            downtime_hours = offline_time / 3600
+            total_failures += failures
+        
+        device_metrics.append({
+            "device_id": device.device_id,
+            "device_name": device.device_name,
+            "device_key": device.device_key,
+            "network": device.network,
+            "site_id": device.site_id,
+            "status": device.status,
+            "is_online": device.is_online,
+            "uptime_percentage": round(uptime_percentage, 2),
+            "downtime_hours": round(downtime_hours, 2),
+            "last_seen": device.last_updated.isoformat() if device.last_updated else None
+        })
+        
+        total_uptime_percentage += uptime_percentage
+        total_downtime_hours += downtime_hours
+    
+    # Calculate averages
+    num_devices = len(devices)
+    average_uptime = total_uptime_percentage / num_devices if num_devices > 0 else 0
+    average_downtime = total_downtime_hours / num_devices if num_devices > 0 else 0
+    
+    # Calculate MTBF (Mean Time Between Failures)
+    # MTBF = Total Operating Time / Number of Failures
+    total_operating_hours = days * 24 * num_devices
+    mtbf = total_operating_hours / total_failures if total_failures > 0 else total_operating_hours
+    
+    # Sort devices by downtime (longest first)
+    device_metrics.sort(key=lambda x: x["downtime_hours"], reverse=True)
+    
+    # Get site names for top devices with longest downtime
+    top_devices = device_metrics[:top_n]
+    for device_data in top_devices:
+        if device_data["site_id"]:
+            from app.models import Site
+            site = db.exec(
+                select(Site).where(Site.site_id == device_data["site_id"])
+            ).first()
+            if site:
+                device_data["site_name"] = site.site_name
+                device_data["district"] = site.district
+                device_data["city"] = site.city
+            else:
+                device_data["site_name"] = None
+                device_data["district"] = None
+                device_data["city"] = None
+        else:
+            device_data["site_name"] = None
+            device_data["district"] = None
+            device_data["city"] = None
+    
+    return {
+        "period": {
+            "days": days,
+            "start": start_time.isoformat(),
+            "end": current_time.isoformat()
+        },
+        "metrics": {
+            "average_uptime_percentage": round(average_uptime, 2),
+            "average_downtime_hours": round(average_downtime, 2),
+            "mtbf_hours": round(mtbf, 2),
+            "total_devices": num_devices,
+            "total_failures": total_failures
+        },
+        "devices_with_longest_downtime": top_devices,
+        "timestamp": current_time.isoformat()
     }

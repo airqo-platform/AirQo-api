@@ -25,7 +25,7 @@ def validate_image(file):
             f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}."
         )
 
-    max_size = 8 * 1024 * 1024  # 8 MB
+    max_size = 25 * 1024 * 1024  # 25 MB
     if file.size > max_size:
         raise ValidationError(
             f"Image size must not exceed {max_size / (1024 * 1024)} MB."
@@ -54,7 +54,7 @@ def validate_file(file):
             f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}."
         )
 
-    max_size = 10 * 1024 * 1024  # 10 MB
+    max_size = 25 * 1024 * 1024  # 25 MB
     if file.size > max_size:
         raise ValidationError(
             f"File size must not exceed {max_size / (1024 * 1024)} MB."

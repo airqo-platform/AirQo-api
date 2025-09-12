@@ -2,13 +2,17 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.templatetags.static import static as static_url
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.views.generic.base import RedirectView
 
-# Swagger Imports
+# Swagger/OpenAPI Imports
 from rest_framework import permissions
+from rest_framework.permissions import IsAuthenticated
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 # Import for custom error handlers
 from core import views as core_views
@@ -20,28 +24,36 @@ def healthcheck(request):
     return JsonResponse({"status": "ok"})
 
 
-# Swagger schema view
+# Swagger schema view for v2 API only
 api_info = openapi.Info(
-    title="AirQo API",
-    default_version='v1',
-    description="API documentation for AirQo Project",
+    title="AirQo Website API v2",
+    default_version='v2',
+    description="Enhanced API documentation for AirQo Website - providing access to air quality data, events, team information, publications, and more. This documentation covers v2 endpoints only with improved performance and features.",
     terms_of_service="https://www.airqo.net/legal/terms-of-service/",
     contact=openapi.Contact(email="support@airqo.net"),
     license=openapi.License(name="BSD License"),
 )
 
-# Public schema view for JSON and YAML (no authentication required)
+# V2-focused schema view (public access for JSON/YAML)
 public_schema_view = get_schema_view(
     api_info,
     public=True,
     permission_classes=(permissions.AllowAny,),
+    # Use the main API urlpatterns so the generated schema includes v1 and v2
+    patterns=[
+        path('website/api/', include('apps.api.urls')),
+    ],
 )
 
-# Protected schema view for Swagger and ReDoc (requires authentication)
+# V2-focused schema view (requires authentication for UI)
 protected_schema_view = get_schema_view(
     api_info,
     public=False,
-    permission_classes=(permissions.IsAuthenticated,),
+    # Require authentication for the protected UI views
+    permission_classes=(IsAuthenticated,),
+    patterns=[
+        path('website/api/', include('apps.api.urls')),
+    ],
 )
 
 urlpatterns = [
@@ -50,6 +62,15 @@ urlpatterns = [
 
     # Admin panel
     path('website/admin/', admin.site.urls),
+
+    # Favicon - redirect /favicon.ico to a project-provided static asset (301)
+    # Use the Django static helper to build the correct asset path and
+    # make the redirect permanent so browsers cache it.
+    path(
+        'favicon.ico',
+        RedirectView.as_view(url=static_url('favicon.ico'), permanent=True),
+        name='favicon'
+    ),
 
     # API routes from custom apps with specific prefixes
     path('website/', include('apps.press.urls')),
@@ -60,26 +81,39 @@ urlpatterns = [
     path('website/', include('apps.publications.urls')),
     path('website/', include('apps.team.urls')),
     path('website/', include('apps.board.urls')),
-    path('website/', include('apps.faqs.urls')),
+    # Fixed: added faq/ prefix
+    path('website/faq/', include('apps.faqs.urls')),
     path('website/', include('apps.externalteams.urls')),
     path('website/', include('apps.partners.urls')),
     path('website/', include('apps.cleanair.urls')),
     path('website/', include('apps.africancities.urls')),
 
-    # Swagger URLs
+    # API endpoints (v1 & v2)
+    path('website/api/', include('apps.api.urls')),
+
+    # OpenAPI 3.0 Schema and Documentation (drf-spectacular) - V2 Only
+    # Protect documentation endpoints: require Django login so unauthenticated
+    # requests are redirected to the login page.
+    path('website/api/schema/',
+         login_required(SpectacularAPIView.as_view()), name='schema'),
+
+    # Legacy Swagger URLs (drf-yasg) - expose under /website/api/swagger/
     re_path(
-        r'^swagger(?P<format>\.json|\.yaml)$',
-        public_schema_view.without_ui(cache_timeout=0),
+        r'^website/api/swagger(?P<format>\.json|\.yaml)$',
+        # JSON/YAML schema should also require login and redirect to Django login
+        login_required(public_schema_view.without_ui(cache_timeout=0)),
         name='schema-json'
     ),
     path(
-        'website/swagger/',
+        'website/api/swagger/',
+        # Require login to view the Swagger UI; unauthenticated users will be
+        # redirected to the Django login page.
         login_required(protected_schema_view.with_ui(
             'swagger', cache_timeout=0)),
         name='schema-swagger-ui'
     ),
     path(
-        'website/redoc/',
+        'website/api/swagger/redoc/',
         login_required(protected_schema_view.with_ui(
             'redoc', cache_timeout=0)),
         name='schema-redoc'
@@ -88,6 +122,23 @@ urlpatterns = [
     # Healthcheck route
     path('website/healthcheck/', healthcheck, name='healthcheck'),
 ]
+
+# Spectacular UI views - protect in production
+if settings.DEBUG:
+    urlpatterns += [
+        path('website/api/docs/',
+             SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+        path('website/api/redoc/',
+             SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    ]
+else:
+    # In production protect the UI docs behind the admin login (redirect)
+    urlpatterns += [
+        path('website/api/docs/', login_required(
+            SpectacularSwaggerView.as_view(url_name='schema')), name='swagger-ui'),
+        path('website/api/redoc/',
+             login_required(SpectacularRedocView.as_view(url_name='schema')), name='redoc'),
+    ]
 
 # Serve media files during development
 if settings.DEBUG:

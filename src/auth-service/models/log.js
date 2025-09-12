@@ -1,4 +1,4 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getTenantDB, getModelByTenant } = require("@config/database");
@@ -19,21 +19,18 @@ const logSchema = new mongoose.Schema(
     level: { type: String, required: true },
     message: { type: String, required: true },
     meta: {
-      type: {
-        service: String,
-        version: String,
-        requestId: String,
-        userId: String,
-        username: String,
-        token: String,
-        email: String,
-        timestamp: String,
-        clientIp: String,
-        hostName: String,
-        endpoint: String,
-        clientOriginalIp: String,
-      },
-      default: {},
+      service: String,
+      version: String,
+      requestId: String,
+      userId: String,
+      username: String,
+      token: String,
+      email: String,
+      timestamp: String,
+      clientIp: String,
+      hostName: String,
+      endpoint: String,
+      clientOriginalIp: String,
     },
   },
   {

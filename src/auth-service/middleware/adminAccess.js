@@ -1,14 +1,32 @@
-// middleware/enhancedAdminAccess.js
+// middleware/adminAccess.js
 const httpStatus = require("http-status");
 const RoleModel = require("@models/Role");
 const GroupModel = require("@models/Group");
+const PermissionModel = require("@models/Permission");
 const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const RBACService = require("@services/rbac.service");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- enhanced-admin-access`
+  `${constants.ENVIRONMENT} -- admin-access`
 );
+
+const __rbacInstances = new Map();
+const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
+  if (!__rbacInstances.has(tenant)) {
+    const inst = new RBACService(tenant);
+    // Unref the timer so it doesn't hold the event loop open
+    if (
+      inst.cleanupInterval &&
+      typeof inst.cleanupInterval.unref === "function"
+    ) {
+      inst.cleanupInterval.unref();
+    }
+    __rbacInstances.set(tenant, inst);
+  }
+  return __rbacInstances.get(tenant);
+};
 
 /**
  * Enhanced admin access middleware that replaces the old adminCheck
@@ -16,7 +34,7 @@ const logger = require("log4js").getLogger(
  * @param {Object} options - Configuration options
  * @returns {Function} Express middleware
  */
-const enhancedAdminCheck = (options = {}) => {
+const adminCheck = (options = {}) => {
   const {
     contextType = "group", // 'group' or 'network'
     idParam = "grp_id", // Parameter name for context ID
@@ -63,14 +81,27 @@ const enhancedAdminCheck = (options = {}) => {
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
+
+      // Always allow the system-wide super admin
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
+      if (isSystemSuperAdmin) return next();
 
       // Find the target group/network
       let targetContext;
       if (contextType === "group") {
-        const lookupField = useGroupTitle ? "grp_title" : "_id";
-        const lookupQuery = { [lookupField]: contextId };
-        targetContext = await GroupModel(tenant).findOne(lookupQuery);
+        let lookupQuery = {};
+        if (useGroupTitle) {
+          lookupQuery["grp_title"] = contextId;
+        } else if (mongoose.Types.ObjectId.isValid(contextId)) {
+          lookupQuery["_id"] = contextId;
+        } else {
+          lookupQuery["$or"] = [
+            { grp_slug: contextId },
+            { organization_slug: contextId },
+          ];
+        }
+        targetContext = await GroupModel(tenant).findOne(lookupQuery).lean();
       } else {
         // Add network lookup logic here when NetworkModel is available
         return next(
@@ -131,8 +162,8 @@ const enhancedAdminCheck = (options = {}) => {
       let accessReason = "";
 
       if (requireSuperAdmin && isSuperAdminInContext) {
-        accessGranted = true;
-        accessReason = "Super admin in context";
+        accessGranted = true; // This now refers to the org-specific super admin
+        accessReason = "Organization super admin";
       } else if (
         !requireSuperAdmin &&
         (hasAllowedRole || hasRequiredPermissions)
@@ -144,7 +175,7 @@ const enhancedAdminCheck = (options = {}) => {
       }
 
       if (!accessGranted) {
-        const userPermissions = await rbacService.getUserPermissionsInContext(
+        const userRolesInContext = await rbacService.getUserRolesInContext(
           user._id,
           targetContext._id,
           contextType
@@ -153,13 +184,13 @@ const enhancedAdminCheck = (options = {}) => {
         logger.warn(
           `Admin access denied for user ${user.email} (ID: ${
             user._id
-          }) in ${contextType} ${contextId}: Required ${
+          }) in ${contextType} ${targetContext._id}: Required ${
             requireSuperAdmin
-              ? "SUPER_ADMIN role"
+              ? "organization SUPER_ADMIN role"
               : `roles: ${allowedRoles.join(
                   ", "
                 )} or permissions: ${requiredPermissions.join(", ")}`
-          }, but user has permissions: ${userPermissions.join(", ") || "none"}`
+          }, but user has roles: [${userRolesInContext.join(", ") || "none"}]`
         );
 
         return next(
@@ -167,12 +198,8 @@ const enhancedAdminCheck = (options = {}) => {
             message: `This action requires ${
               requireSuperAdmin ? "super administrator" : "administrator"
             } privileges in this ${contextType}`,
-            required: {
-              roles: allowedRoles,
-              permissions: requiredPermissions,
-              requireSuperAdmin,
-            },
-            userPermissions,
+            required: { roles: allowedRoles, permissions: requiredPermissions },
+            userRoles: userRolesInContext,
           })
         );
       }
@@ -223,7 +250,7 @@ const enhancedAdminCheck = (options = {}) => {
  * @returns {Function} Express middleware
  */
 const requireGroupAdmin = (options = {}) => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
@@ -244,7 +271,7 @@ const requireGroupAccess = (
   requiredPermissions = ["GROUP_VIEW"],
   options = {}
 ) => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
@@ -261,7 +288,7 @@ const requireGroupAccess = (
  * @returns {Function} Express middleware
  */
 const requireGroupUserManagement = (groupIdParam = "grp_id") => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
@@ -276,7 +303,7 @@ const requireGroupUserManagement = (groupIdParam = "grp_id") => {
  * @returns {Function} Express middleware
  */
 const requireGroupSettings = (groupIdParam = "grp_id") => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
@@ -296,7 +323,7 @@ const legacyAdminCheck = async (req, res, next) => {
       req.path.includes("/organization-requests") ||
       req.originalUrl.includes("/organization-requests")
     ) {
-      return enhancedAdminCheck({
+      return adminCheck({
         contextType: "group",
         idParam: "grp_id",
         useGroupTitle: true,
@@ -327,7 +354,7 @@ const legacyAdminCheck = async (req, res, next) => {
       req.body.useGroupTitle === true ||
       !groupSlug.match(/^[0-9a-fA-F]{24}$/); // If it's not a valid ObjectId, assume it's a title
 
-    return enhancedAdminCheck({
+    return adminCheck({
       contextType: "group",
       idParam: "grp_id",
       useGroupTitle,
@@ -360,25 +387,45 @@ const requireSystemAdmin = () => {
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
-      // Check if user has system-wide super admin role
-      const hasSystemAdminRole = await rbacService.hasRole(user._id, [
-        "SUPER_ADMIN",
-        "SYSTEM_ADMIN",
-      ]);
+      // Check if user has system-wide admin permissions
+      const requiredPermissions = [
+        constants.SUPER_ADMIN,
+        constants.SYSTEM_ADMIN,
+      ];
+      const hasPermission = await rbacService.hasPermission(
+        user._id,
+        requiredPermissions
+      );
 
-      if (!hasSystemAdminRole) {
+      if (!hasPermission) {
+        const userPermissionsRaw = await rbacService.getUserPermissions(
+          user._id
+        );
+        const userPermissions = Array.isArray(userPermissionsRaw)
+          ? userPermissionsRaw
+          : [];
         logger.warn(
-          `System admin access denied for user ${user.email} (ID: ${user._id}): No system admin role`
+          `System admin access denied for user ${user.email} (ID: ${
+            user._id
+          }): Required ANY of ${requiredPermissions.join(
+            " OR "
+          )}, but user has ${
+            userPermissions.length ? userPermissions.join(", ") : "none"
+          }`
         );
 
         return next(
           new HttpError(
-            "Access denied: System admin access required",
+            `Access denied. Required permissions: [${requiredPermissions.join(
+              " or "
+            )}]`,
             httpStatus.FORBIDDEN,
             {
               message: "You don't have system administrator access",
+              required: requiredPermissions,
+              userPermissions: userPermissions,
             }
           )
         );
@@ -411,7 +458,7 @@ const debugAdminAccess = () => {
       const user = req.user;
       if (user && user._id) {
         const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-        const rbacService = new RBACService(tenant);
+        const rbacService = getRBACService(tenant);
 
         const debugInfo = await rbacService.debugUserPermissions(user._id);
 
@@ -444,7 +491,7 @@ const debugAdminAccess = () => {
 };
 
 module.exports = {
-  enhancedAdminCheck,
+  adminCheck,
   requireGroupAdmin,
   requireGroupAccess,
   requireGroupUserManagement,

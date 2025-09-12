@@ -4,7 +4,7 @@ const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -33,13 +33,8 @@ const findGroupAssignmentIndex = (user, grp_id) => {
 };
 
 // Improved getSuperAdminPermissions function
-const assignPermissionsToRole = async (tenant, role_id, next) => {
-  const superAdminPermissions = getSuperAdminPermissions(tenant);
-  const permissionIds = await getPermissionIds(
-    tenant,
-    superAdminPermissions,
-    next
-  );
+const assignPermissionsToRole = async (tenant, role_id, permissions, next) => {
+  const permissionIds = await getPermissionIds(tenant, permissions, next);
 
   try {
     await RoleModel(tenant).findByIdAndUpdate(role_id, {
@@ -53,23 +48,6 @@ const assignPermissionsToRole = async (tenant, role_id, next) => {
       { message: errorMessage }
     );
   }
-};
-
-const getSuperAdminPermissions = (tenant) => {
-  const superAdminPermissions = (
-    process.env[`SUPER_ADMIN_PERMISSIONS_${tenant.toUpperCase()}`] ||
-    process.env.SUPER_ADMIN_PERMISSIONS
-  )
-    ?.split(",")
-    .map((p) => p.trim())
-    .filter((p) => p); // Filter out empty strings
-
-  if (!superAdminPermissions || superAdminPermissions.length === 0) {
-    throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-      message: "SUPER_ADMIN_PERMISSIONS environment variable is not set",
-    });
-  }
-  return superAdminPermissions;
 };
 
 const getPermissionIds = async (tenant, permissions, next) => {
@@ -230,7 +208,21 @@ const groupUtil = {
               joined: {
                 $dateToString: {
                   format: "%Y-%m-%d",
-                  date: { $ifNull: ["$group_roles.createdAt", "$_id"] },
+                  // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+                  date: {
+                    $ifNull: [
+                      {
+                        $cond: {
+                          if: {
+                            $eq: [{ $type: "$group_roles.createdAt" }, "date"],
+                          },
+                          then: "$group_roles.createdAt",
+                          else: null,
+                        },
+                      },
+                      { $ifNull: ["$createdAt", { $toDate: "$_id" }] },
+                    ],
+                  },
                 },
               },
             },
@@ -861,8 +853,8 @@ const groupUtil = {
       const requestForRole = {
         query: { tenant },
         body: {
-          role_code: "SUPER_ADMIN",
-          role_name: "SUPER_ADMIN",
+          role_code: "ADMIN",
+          role_name: "ADMIN",
           group_id: grp_id,
         },
       };
@@ -893,7 +885,12 @@ const groupUtil = {
 
       try {
         // Attempt to assign permissions; error handling within this function
-        await assignPermissionsToRole(tenant, role_id, next);
+        await assignPermissionsToRole(
+          tenant,
+          role_id,
+          constants.DEFAULTS.DEFAULT_ADMIN,
+          next
+        );
 
         const updatedUser = await UserModel(tenant).findByIdAndUpdate(
           user._id,
@@ -1199,33 +1196,6 @@ const groupUtil = {
           })
         );
         return;
-      }
-
-      // Get user to check current assignments
-      const user = await UserModel(tenant).findById(user_id).lean();
-      if (!user) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not found",
-          })
-        );
-        return;
-      }
-
-      // Check if already assigned (with safe access)
-      const userGroupRoles = user.group_roles || [];
-      const isAlreadyAssigned = userGroupRoles.some(
-        (role) =>
-          role && role.group && role.group.toString() === grp_id.toString()
-      );
-
-      if (isAlreadyAssigned) {
-        return {
-          success: true,
-          message: "User is already assigned to this group",
-          data: user,
-          status: httpStatus.OK,
-        };
       }
 
       // Get default group role with error handling
@@ -2258,13 +2228,13 @@ const groupUtil = {
   getManagerPermissions: async (tenant) => {
     try {
       const managerPermissionNames = [
-        "GROUP_MANAGEMENT",
-        "USER_MANAGEMENT",
-        "ROLE_ASSIGNMENT",
-        "GROUP_SETTINGS",
-        "VIEW_ANALYTICS",
-        "MEMBER_INVITES",
-        "CONTENT_MODERATION",
+        constants.GROUP_MANAGEMENT,
+        constants.USER_MANAGEMENT,
+        constants.ROLE_ASSIGNMENT,
+        constants.GROUP_SETTINGS,
+        constants.ANALYTICS_VIEW,
+        constants.MEMBER_INVITE,
+        constants.CONTENT_MODERATION,
       ];
 
       const permissions = await PermissionModel(tenant)

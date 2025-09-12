@@ -1,8 +1,6 @@
 # serializers.py
 
-from django.conf import settings
 from rest_framework import serializers
-from cloudinary.utils import cloudinary_url
 from .models import (
     CleanAirResource, ForumEvent, Engagement, Partner, Program,
     Session, Support, Person, Objective, ForumResource,
@@ -135,9 +133,26 @@ class SectionSerializer(serializers.ModelSerializer):
 
 
 class ForumEventTitleSerializer(serializers.ModelSerializer):
+    background_image_url = serializers.SerializerMethodField()
+
+    def get_background_image_url(self, obj):
+        if obj.background_image:
+            return obj.background_image.url
+        return ""
+
     class Meta:
         model = ForumEvent
-        fields = ['id', 'title', 'unique_title']
+        fields = [
+            'id',
+            'title',
+            'unique_title',
+            'background_image_url',
+            'start_date',
+            'end_date',
+            'start_time',
+            'end_time',
+            'location_name',
+        ]
 
 
 class ForumEventSerializer(serializers.ModelSerializer):

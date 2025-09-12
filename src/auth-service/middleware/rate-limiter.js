@@ -232,6 +232,14 @@ const registrationLimiter = createDynamicLimiter({
     "Too many registration attempts from this IP. Please try again in 1 hour.",
 });
 
+const loginLimiter = createDynamicLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 requests per window
+  prefix: "login_attempts",
+  message:
+    "Too many login attempts from this IP. Please try again in 15 minutes.",
+});
+
 // Additional specialized limiters
 const passwordResetLimiter = createDynamicLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -354,6 +362,7 @@ const gracefulShutdown = async () => {
 // Export all limiters and utilities
 module.exports = {
   // Main rate limiters
+  login: conditionalRateLimiter(loginLimiter),
   brandedLogin: conditionalRateLimiter(brandedLoginLimiter),
   registration: conditionalRateLimiter(registrationLimiter),
   passwordReset: conditionalRateLimiter(passwordResetLimiter),

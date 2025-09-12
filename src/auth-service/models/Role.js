@@ -1,7 +1,7 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
@@ -21,7 +21,6 @@ const RoleSchema = new mongoose.Schema(
     role_name: {
       type: String,
       required: [true, "name is required"],
-      unique: true,
     },
     role_description: {
       type: String,
@@ -34,7 +33,6 @@ const RoleSchema = new mongoose.Schema(
     role_code: {
       type: String,
       trim: true,
-      unique: true,
     },
     network_id: {
       type: ObjectId,
@@ -66,13 +64,36 @@ RoleSchema.pre("update", function (next) {
   return next();
 });
 
-RoleSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
+// Uniqueness when network scoped
 RoleSchema.index(
-  { role_name: 1, role_code: 1, network_id: 1 },
-  { unique: true }
+  { role_name: 1, network_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
+  }
 );
-RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
-RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
+RoleSchema.index(
+  { role_code: 1, network_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
+  }
+);
+// Uniqueness when group scoped
+RoleSchema.index(
+  { role_name: 1, group_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { group_id: { $exists: true, $ne: null } },
+  }
+);
+RoleSchema.index(
+  { role_code: 1, group_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { group_id: { $exists: true, $ne: null } },
+  }
+);
 
 RoleSchema.statics = {
   async register(args, next) {

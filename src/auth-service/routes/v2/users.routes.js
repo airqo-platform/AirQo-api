@@ -3,10 +3,8 @@ const express = require("express");
 const router = express.Router();
 const userController = require("@controllers/user.controller");
 const userValidations = require("@validators/users.validators");
-const { validate } = require("@validators/common");
+const { validate, headers, pagination } = require("@validators/common");
 const {
-  setJWTAuth,
-  authJWT,
   setLocalAuth,
   setGoogleAuth,
   authGoogleCallback,
@@ -14,13 +12,13 @@ const {
   authLocal,
   authGuest,
   authGoogle,
+  enhancedJWTAuth,
 } = require("@middleware/passport");
 const rateLimiter = require("@middleware/rate-limiter");
 const captchaMiddleware = require("@middleware/captcha");
 const analyticsMiddleware = require("@middleware/analytics");
 
 const {
-  enhancedAuth,
   requirePermissions,
   requireAllPermissions,
   requireGroupPermissions,
@@ -28,17 +26,7 @@ const {
   requireGroupMembership,
   requireNetworkMembership,
   debugPermissions,
-} = require("@middleware/enhancedPermissionAuth");
-
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
+} = require("@middleware/permissionAuth");
 
 router.use(headers);
 router.use(userValidations.pagination);
@@ -57,7 +45,12 @@ router.use(userValidations.pagination);
  * @body {boolean} [includeDebugInfo] - Include debug information (dev only)
  * @query {string} [tenant] - Tenant identifier
  */
-router.post("/login-enhanced", validate, userController.loginEnhanced);
+router.post(
+  "/login-enhanced",
+  userValidations.loginEnhanced,
+  validate,
+  userController.loginEnhanced
+);
 
 /**
  * @route POST /api/v2/users/login-legacy-compatible
@@ -66,8 +59,8 @@ router.post("/login-enhanced", validate, userController.loginEnhanced);
  */
 router.post(
   "/login-legacy-compatible",
-  setLocalAuth,
-  authLocal,
+  userValidations.loginLegacyCompatible,
+  validate,
   userController.loginLegacyCompatible
 );
 
@@ -80,7 +73,7 @@ router.post(
  */
 router.post(
   "/admin/cleanup",
-  enhancedAuth,
+  enhancedJWTAuth,
   requirePermissions(["SYSTEM_ADMIN"]),
   userValidations.userCleanup,
   userController.cleanup
@@ -100,8 +93,9 @@ router.post(
  */
 router.post(
   "/generate-token",
-  enhancedAuth,
-  // requirePermissions(["USER_MANAGE", "TOKEN_GENERATE"]),
+  enhancedJWTAuth,
+  userValidations.generateToken,
+  requirePermissions(["TOKEN_GENERATE"]),
   validate,
   userController.generateOptimizedToken
 );
@@ -115,7 +109,8 @@ router.post(
  */
 router.post(
   "/refresh-permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
+  userValidations.refreshPermissions,
   validate,
   userController.refreshPermissions
 );
@@ -128,8 +123,9 @@ router.post(
  */
 router.get(
   "/analyze-tokens/:userId",
-  enhancedAuth,
-  // requirePermissions(["ADMIN_FULL_ACCESS", "TOKEN_ANALYZE"]),
+  enhancedJWTAuth,
+  userValidations.analyzeTokenStrategies,
+  requirePermissions(["SYSTEM_ADMIN"]),
   validate,
   userController.analyzeTokenStrategies
 );
@@ -143,7 +139,8 @@ router.get(
  */
 router.put(
   "/token-strategy",
-  enhancedAuth,
+  enhancedJWTAuth,
+  userValidations.updateTokenStrategy,
   validate,
   userController.updateTokenStrategy
 );
@@ -162,7 +159,8 @@ router.put(
  */
 router.get(
   "/context-permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
+  userValidations.getContextPermissions,
   validate,
   userController.getContextPermissions
 );
@@ -174,7 +172,7 @@ router.get(
  */
 router.get(
   "/profile/enhanced",
-  enhancedAuth,
+  enhancedJWTAuth,
   userController.getEnhancedProfile
 );
 
@@ -189,125 +187,12 @@ router.get(
  */
 router.get(
   "/groups/:grp_id/permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requireGroupMembership("grp_id"),
   (req, res) => {
     req.query.contextId = req.params.grp_id;
     req.query.contextType = "group";
     userController.getContextPermissions(req, res);
-  }
-);
-
-/**
- * @route GET /api/v2/users/groups/:grp_id/members
- * @desc Get all members of a specific group with their roles
- * @access Private - Group members with USER_VIEW permission
- */
-router.get(
-  "/groups/:grp_id/members",
-  enhancedAuth,
-  // requireGroupPermissions(["USER_VIEW"], "grp_id"),
-  async (req, res) => {
-    try {
-      const UserModel = require("@models/User");
-      const groupId = req.params.grp_id;
-      const tenant = req.query.tenant || "airqo";
-
-      // Get basic user data without populate
-      const users = await UserModel(tenant)
-        .find({ "group_roles.group": groupId })
-        .select("-password -resetPasswordToken -resetPasswordExpires")
-        .lean();
-
-      if (users.length === 0) {
-        return res.json({
-          success: true,
-          message: "No group members found",
-          data: {
-            groupId,
-            members: [],
-            totalMembers: 0,
-          },
-        });
-      }
-
-      // Manually populate group_roles.group and group_roles.role
-      const processedUsers = [];
-
-      for (const user of users) {
-        const processedUser = { ...user };
-
-        if (user.group_roles && user.group_roles.length > 0) {
-          // Get unique group and role IDs for this user
-          const groupIds = [...new Set(user.group_roles.map((gr) => gr.group))];
-          const roleIds = [
-            ...new Set(user.group_roles.map((gr) => gr.role).filter(Boolean)),
-          ];
-
-          // Fetch groups
-          let groups = [];
-          try {
-            const GroupModel = require("@models/Group");
-            groups = await GroupModel(tenant)
-              .find({ _id: { $in: groupIds } })
-              .select("grp_title grp_status")
-              .lean();
-          } catch (error) {
-            console.warn(`Could not fetch groups: ${error.message}`);
-          }
-
-          // Fetch roles
-          let roles = [];
-          try {
-            const RoleModel = require("@models/Role");
-            roles = await RoleModel(tenant)
-              .find({ _id: { $in: roleIds } })
-              .select("role_name role_permissions")
-              .lean();
-          } catch (error) {
-            console.warn(`Could not fetch roles: ${error.message}`);
-          }
-
-          // Map populated data back to group_roles
-          processedUser.group_roles = user.group_roles.map((groupRole) => ({
-            ...groupRole,
-            group:
-              groups.find(
-                (g) => g._id.toString() === groupRole.group.toString()
-              ) || groupRole.group,
-            role:
-              roles.find(
-                (r) => r._id.toString() === groupRole.role?.toString()
-              ) || groupRole.role,
-          }));
-        }
-
-        processedUsers.push(processedUser);
-      }
-
-      res.json({
-        success: true,
-        message: "Group members retrieved successfully",
-        data: {
-          groupId,
-          members: processedUsers.map((user) => ({
-            ...user,
-            groupRole: user.group_roles.find(
-              (gr) =>
-                gr.group._id?.toString() === groupId ||
-                gr.group.toString() === groupId
-            ),
-          })),
-          totalMembers: processedUsers.length,
-        },
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Failed to retrieve group members",
-        error: error.message,
-      });
-    }
   }
 );
 
@@ -322,7 +207,7 @@ router.get(
  */
 router.get(
   "/networks/:network_id/permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requireNetworkMembership("network_id"),
   (req, res) => {
     req.query.contextId = req.params.network_id;
@@ -338,7 +223,7 @@ router.get(
  */
 router.get(
   "/networks/:network_id/members",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requireNetworkPermissions(["USER_VIEW"], "network_id"),
   async (req, res) => {
     try {
@@ -459,16 +344,17 @@ router.get(
  */
 router.get(
   "/debug/permissions/:userId",
-  enhancedAuth,
-  // requirePermissions(["ADMIN_FULL_ACCESS"]),
+  enhancedJWTAuth,
+  userValidations.debugPermissions,
+  requirePermissions(["SYSTEM_ADMIN"]),
   debugPermissions(),
   async (req, res) => {
     try {
-      const EnhancedRBACService = require("@services/enhancedRBAC.service");
+      const RBACService = require("@services/rbac.service");
       const userId = req.params.userId;
       const tenant = req.query.tenant || "airqo";
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = new RBACService(tenant);
       const debugInfo = await rbacService.debugUserPermissions(userId);
 
       res.json({
@@ -493,8 +379,8 @@ router.get(
  */
 router.get(
   "/admin/token-analytics",
-  enhancedAuth,
-  // requirePermissions(["ADMIN_FULL_ACCESS"]),
+  enhancedJWTAuth,
+  requirePermissions(["SYSTEM_ADMIN"]),
   async (req, res) => {
     try {
       const { tokenConfig } = require("@config/tokenStrategyConfig");
@@ -542,7 +428,6 @@ router.get(
 // Get organization by slug (for branded login page)
 router.get(
   "/organizations/:org_slug",
-  rateLimiter.brandedLogin,
   userValidations.getOrganizationBySlug,
   userController.getOrganizationBySlug
 );
@@ -590,8 +475,7 @@ router.post(
 router.get(
   "/logout",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.logout
 );
 
@@ -650,8 +534,7 @@ router.post(
 router.post(
   "/emailReport",
   userValidations.emailReport,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.emailReport
 );
 
@@ -661,13 +544,12 @@ router.post(
   userController.verifyFirebaseCustomToken
 );
 
-router.post("/verify", setJWTAuth, authJWT, userController.verify);
+router.post("/verify", enhancedJWTAuth, userController.verify);
 
 router.get(
   "/combined",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listUsersAndAccessRequests
 );
 
@@ -686,13 +568,7 @@ router.get(
 
 router.get("/auth/google", setGoogleAuth, authGoogle, userController.login);
 
-router.get(
-  "/",
-  userValidations.tenant,
-  setJWTAuth,
-  authJWT,
-  userController.list
-);
+router.get("/", userValidations.tenant, enhancedJWTAuth, userController.list);
 
 router.post(
   "/registerUser",
@@ -705,15 +581,13 @@ router.post("/", userValidations.createUser, userController.create);
 router.put(
   "/updatePasswordViaEmail",
   userValidations.updatePasswordViaEmail,
-  setJWTAuth,
   userController.updateForgottenPassword
 );
 
 router.put(
   "/updatePassword",
   userValidations.updatePassword,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.updateKnownPassword
 );
 
@@ -754,16 +628,14 @@ router.put("/:user_id", userValidations.updateUserById, userController.update);
 router.delete(
   "/",
   userValidations.deleteUser,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.delete
 );
 
 router.delete(
   "/:user_id",
   userValidations.deleteUserById,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.delete
 );
 
@@ -788,32 +660,28 @@ router.post(
 router.get(
   "/stats",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listStatistics
 );
 
 router.get(
   "/cache",
   userValidations.cache,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listCache
 );
 
 router.get(
   "/logs",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listLogs
 );
 
 router.get(
   "/user-stats",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.getUserStats
 );
 
@@ -838,8 +706,7 @@ router.post(
 router.get(
   "/:user_id",
   userValidations.getUser,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.list
 );
 
@@ -863,20 +730,6 @@ router.use("*", (req, res) => {
       "GET /groups/:grp_id/permissions",
       "GET /networks/:network_id/permissions",
     ],
-  });
-});
-
-// Global error handler for this router
-router.use((error, req, res, next) => {
-  console.error("User Routes Error:", error);
-
-  res.status(error.status || 500).json({
-    success: false,
-    message: error.message || "Internal server error in user routes",
-    ...(process.env.NODE_ENV === "development" && {
-      stack: error.stack,
-      details: error.details || {},
-    }),
   });
 });
 
