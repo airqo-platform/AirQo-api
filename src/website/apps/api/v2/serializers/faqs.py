@@ -12,6 +12,8 @@ class FAQListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerialize
     """
     # Sanitize HTML content in the answer field
     answer = SanitizedHTMLField(read_only=True)
+    # Explicit rendered HTML convenience field
+    answer_html = SanitizedHTMLField(source='answer', read_only=True)
 
     class Meta:
         model = FAQ
@@ -19,6 +21,7 @@ class FAQListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerialize
             'id',
             'question',
             'answer',
+            'answer_html',
             'is_active',
             'created_at',
             'updated_at',
@@ -32,6 +35,8 @@ class FAQDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
     """
     # Sanitize HTML content in the answer field
     answer = SanitizedHTMLField(read_only=True)
+    # Explicit rendered HTML convenience field
+    answer_html = SanitizedHTMLField(source='answer', read_only=True)
 
     class Meta:
         model = FAQ
@@ -39,6 +44,7 @@ class FAQDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
             'id',
             'question',
             'answer',
+            'answer_html',
             'is_active',
             'created_at',
             'updated_at',
