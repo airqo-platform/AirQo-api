@@ -115,10 +115,15 @@ class AbstractTokenFactory {
       };
     } catch (error) {
       // Log the specific JWT error for better debugging
-      if (error.name === "JsonWebTokenError") {
-        logger.error(`JWT Error: ${error.message}`);
+      if (error.name === "TokenExpiredError") {
+        // This is an expected event, log as DEBUG to reduce noise in production.
+        logger.debug(`Expired token received: ${error.message}`);
+      } else if (error.name === "JsonWebTokenError") {
+        // This is a malformed token, which is a client-side error. Log as WARN.
+        logger.warn(`Invalid JWT format: ${error.message}`);
       } else {
-        logger.error(`Error decoding token: ${error.message}`);
+        // This is an unexpected server-side error during decoding.
+        logger.error(`Unexpected error decoding token: ${error.message}`);
       }
       throw error;
     }

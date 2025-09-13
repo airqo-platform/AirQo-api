@@ -609,14 +609,11 @@ const userController = {
       const { email } = req.body;
       const tenant = req.query.tenant;
       const token = userUtil.generateNumericToken(5);
-      const result = await userUtil.initiatePasswordReset(
-        {
-          email,
-          token,
-          tenant,
-        },
-        next
-      );
+      const result = await userUtil.initiatePasswordReset({
+        email,
+        token,
+        tenant,
+      });
 
       res
         .status(httpStatus.OK)
