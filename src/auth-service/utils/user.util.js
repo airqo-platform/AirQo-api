@@ -5314,15 +5314,41 @@ const createUserModule = {
         dbTenant
       );
 
+      // --- START of new logic ---
+
+      // Define a transition period cutoff date.
+      // All first-time modern logins will receive a 30-day token until this date.
+      const transitionCutoffDate = new Date(
+        constants.TOKEN_TRANSITION_CUTOFF_DATE
+      );
+      const isWithinTransitionPeriod = new Date() < transitionCutoffDate;
+
+      // This flag is used to mark that a user has logged in at least once with the new system.
+      const isFirstModernLogin =
+        populatedUser.preferredTokenStrategy !==
+        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
+
+      // A 30-day token is issued for ANY login that occurs within the transition period.
+      // This ensures all clients (especially older mobile apps) have a long-lived token
+      // to allow time for updates, regardless of whether it's a first-time or subsequent login.
+      const issue30DayToken = isWithinTransitionPeriod;
+
+      logger.info(`Token generation policy for ${user.email}:`, {
+        isWithinTransitionPeriod,
+        issue30DayToken,
+      });
+
       // Generate enhanced token
-      const isFirstLogin =
-        !populatedUser.lastLogin && (populatedUser.loginCount || 0) === 0;
       const token = await tokenFactory.createToken(populatedUser, strategy, {
-        ...(isFirstLogin ? {} : { expiresIn: "24h" }), // let ATF apply initial-token policy (30d when isInitialToken)
-        isInitialToken: isFirstLogin,
+        // The `isInitialToken` flag in atf.service triggers the 30-day expiration.
+        isInitialToken: issue30DayToken,
+        // Explicitly set expiresIn for clarity. atf.service will prioritize `isInitialToken`.
+        expiresIn: issue30DayToken ? "30d" : "24h",
         includePermissions:
           strategy !== constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       });
+
+      // --- END of new logic ---
 
       if (!token) {
         return {
@@ -5341,6 +5367,11 @@ const createUserModule = {
             {
               $set: { lastLogin: currentDate, isActive: true },
               $inc: { loginCount: 1 },
+              // After the first modern login (from any client), update their strategy preference.
+              // This is a one-time operation to mark the user as migrated.
+              ...(isFirstModernLogin && {
+                preferredTokenStrategy: strategy,
+              }),
               ...(user.analyticsVersion !== 3 && user.verified === false
                 ? { $set: { verified: true } }
                 : {}),
