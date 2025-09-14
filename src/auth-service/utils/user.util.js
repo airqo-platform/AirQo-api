@@ -3824,25 +3824,6 @@ const createUserModule = {
       // 1. Create a sanitized copy of the body for the database update.
       const sanitizedUpdate = { ...body };
 
-      // Comprehensive sanitization for 'interests' field
-      if ("interests" in sanitizedUpdate) {
-        const interestsValue = sanitizedUpdate.interests;
-        if (typeof interestsValue === "string") {
-          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
-          sanitizedUpdate.interests = interestsValue.trim()
-            ? [interestsValue.trim()]
-            : [];
-        } else if (Array.isArray(interestsValue)) {
-          // If it's an array, ensure all elements are strings and filter out any empty ones.
-          sanitizedUpdate.interests = interestsValue
-            .map((item) => (item ? String(item).trim() : ""))
-            .filter(Boolean);
-        } else {
-          // If it's null, undefined, or another type, remove it from the update payload.
-          delete sanitizedUpdate.interests;
-        }
-      }
-
       // Drop any keys with undefined values to prevent them from being written to the DB
       Object.keys(sanitizedUpdate).forEach((key) => {
         if (sanitizedUpdate[key] === undefined) {
@@ -5161,12 +5142,11 @@ const createUserModule = {
    * Priority: Request override > User preference > System default.
    */
   _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
-    return tokenConfig.getStrategyForUser(
-      user._id,
-      preferredStrategyFromRequest ||
-        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
-      user.organization
-    );
+    // FIX: Enforce a single, secure, and small token strategy for all logins
+    // to prevent oversized tokens and subsequent 502 gateway errors.
+    // This is the primary fix for the login issues.
+    logger.info(`Forcing token strategy: NO_ROLES_AND_PERMISSIONS`);
+    return constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
   },
   /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
@@ -5284,6 +5264,7 @@ const createUserModule = {
       // Generate enhanced token
       const token = await tokenFactory.createToken(populatedUser, strategy, {
         expiresIn: "24h",
+        isInitialToken: true, // Issue a longer-lived token on first login
         includePermissions: true,
       });
 

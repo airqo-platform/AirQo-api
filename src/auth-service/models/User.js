@@ -954,7 +954,7 @@ UserSchema.statics = {
           my_networks: { $first: "$my_networks" },
           my_groups: { $first: "$my_groups" },
           createdAt: { $first: "$createdAt" },
-          updatedAt: { $first: "$createdAt" },
+          updatedAt: { $first: "$updatedAt" },
           networks: {
             $addToSet: {
               net_name: { $arrayElemAt: ["$network.net_name", 0] },
