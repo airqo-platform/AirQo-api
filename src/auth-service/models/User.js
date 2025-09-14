@@ -913,6 +913,8 @@ UserSchema.statics = {
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
           phoneNumber: { $first: "$phoneNumber" },
+          interests: { $first: "$interests" },
+          interestsDescription: { $first: "$interestsDescription" },
           group_roles: { $first: "$group_roles" },
           network_roles: { $first: "$network_roles" },
           clients: { $first: "$clients" },
