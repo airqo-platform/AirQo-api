@@ -2,7 +2,7 @@ import logging
 from django.db import models
 from django.contrib.auth import get_user_model
 from django_quill.fields import QuillField
-from utils.models import BaseModel
+from utils.models import BaseModel, SlugBaseModel
 from cloudinary.models import CloudinaryField
 from cloudinary.uploader import destroy
 
@@ -10,7 +10,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class Event(BaseModel):
+class Event(SlugBaseModel):
     title = models.CharField(max_length=100)
     title_subtext = models.CharField(max_length=90)
     start_date = models.DateField()
@@ -18,6 +18,12 @@ class Event(BaseModel):
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
     registration_link = models.URLField(null=True, blank=True)
+
+    # Slug configuration
+    SLUG_SOURCE_FIELD = 'title'
+    SLUG_USE_DATE = True
+    SLUG_USE_LOCATION = True
+    SLUG_MAX_LENGTH = 80
 
     class WebsiteCategory(models.TextChoices):
         AIRQO = "airqo", "AirQo"
@@ -84,7 +90,7 @@ class Event(BaseModel):
     event_details = QuillField(default="No details available yet.")
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(SlugBaseModel.Meta):
         ordering = ["order", "-start_date"]
 
     def __str__(self):
@@ -119,8 +125,9 @@ class Event(BaseModel):
                 logger.error(
                     f"Error deleting background_image from Cloudinary: {e}")
 
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Event: ID={self.pk}, Title={self.title}")
+        return result
 
 
 class Inquiry(BaseModel):
@@ -136,7 +143,7 @@ class Inquiry(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -155,8 +162,9 @@ class Inquiry(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+        return result
 
 
 class Program(BaseModel):
@@ -171,7 +179,7 @@ class Program(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -188,8 +196,9 @@ class Program(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Program: ID={self.pk}, Date={self.date}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Program: ID={self.pk}, Date={self.date}")
+        return result
 
 
 class Session(BaseModel):
@@ -207,7 +216,7 @@ class Session(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -226,9 +235,10 @@ class Session(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Session: ID={self.pk}, Title={self.session_title}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(
             f"Deleted Session: ID={self.pk}, Title={self.session_title}")
+        return result
 
 
 class PartnerLogo(BaseModel):
@@ -250,7 +260,7 @@ class PartnerLogo(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -276,8 +286,9 @@ class PartnerLogo(BaseModel):
             except Exception as e:
                 logger.error(
                     f"Error deleting partner_logo from Cloudinary: {e}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted PartnerLogo: ID={self.pk}, Name={self.name}")
+        return result
 
 
 class Resource(BaseModel):
@@ -300,7 +311,7 @@ class Resource(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -325,5 +336,6 @@ class Resource(BaseModel):
                     f"Deleted resource from Cloudinary: {self.resource.public_id}")
             except Exception as e:
                 logger.error(f"Error deleting resource from Cloudinary: {e}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Resource: ID={self.pk}, Title={self.title}")
+        return result

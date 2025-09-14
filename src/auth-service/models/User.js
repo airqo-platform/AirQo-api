@@ -1,13 +1,14 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const validator = require("validator");
 const bcrypt = require("bcrypt");
 const constants = require("@config/constants");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const ThemeSchema = require("@models/ThemeSchema");
+const PermissionModel = require("@models/Permission");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
@@ -348,7 +349,7 @@ const UserSchema = new Schema(
     preferredTokenStrategy: {
       type: String,
       enum: Object.values(constants.TOKEN_STRATEGIES),
-      default: constants.TOKEN_STRATEGIES.LEGACY,
+      default: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
     },
     subscriptionStatus: {
       type: String,
@@ -375,11 +376,9 @@ const UserSchema = new Schema(
       type: Date,
     },
     currentPlanDetails: {
-      type: {
-        priceId: String,
-        currency: String,
-        billingCycle: String, // 'monthly', 'annual', etc.
-      },
+      priceId: String,
+      currency: String,
+      billingCycle: String, // 'monthly', 'annual', etc.
     },
     // Add after the existing fields, before the timestamps
     interests: {
@@ -485,35 +484,51 @@ UserSchema.pre("save", async function (next) {
         ];
       }
 
-      if (!this.group_roles || this.group_roles.length === 0) {
-        this.group_roles = [
-          {
-            group: tenantSettings.defaultGroup,
-            userType: "guest",
-            createdAt: new Date(),
-            role: tenantSettings.defaultGroupRole,
-          },
-        ];
+      // If user is part of airqo org (e.g., from mobile app), ensure they have the default airqo role
+      if (
+        this.organization &&
+        this.organization.toLowerCase() === "airqo" &&
+        (!this.group_roles || this.group_roles.length === 0)
+      ) {
+        const GroupModel = require("@models/Group");
+        const RoleModel = require("@models/Role");
+        const airqoGroup = await GroupModel(tenant).findOne({
+          grp_title: { $regex: /^airqo$/i },
+        });
+        if (airqoGroup) {
+          const defaultAirqoRole = await RoleModel(tenant).findOne({
+            role_code: "AIRQO_DEFAULT_USER",
+            group_id: airqoGroup._id,
+          });
+          this.group_roles.push({
+            group: airqoGroup._id,
+            role: defaultAirqoRole ? defaultAirqoRole._id : null,
+            userType: "user",
+          });
+        }
       }
 
       // 6. Set default permissions for new users
-      const permissions = await PermissionModel(tenant)
-        .find({ permission: { $in: constants.DEFAULTS.DEFAULT_USER } })
+      const defaultPermissions = await PermissionModel(tenant)
+        .find({
+          permission: { $in: constants.DEFAULTS.DEFAULT_USER },
+        })
         .select("_id")
         .lean();
 
-      if (permissions.length > 0) {
-        const permissionIds = permissions.map((p) => p._id);
-        // Use Set to ensure uniqueness and avoid adding duplicates
-        const existingPermissionIds = this.permissions.map((p) => p.toString());
-        const combinedPermissions = [
-          ...new Set([
-            ...existingPermissionIds,
-            ...permissionIds.map((p) => p.toString()),
-          ]),
-        ];
-        this.permissions = combinedPermissions.map((p) => ObjectId(p));
+      if (defaultPermissions.length > 0) {
+        const permissionIds = defaultPermissions.map((p) => p._id);
+        const existingPermissionIds = new Set(
+          (this.permissions || []).map((p) => p.toString())
+        );
+
+        permissionIds.forEach((id) => {
+          existingPermissionIds.add(id.toString());
+        });
+
+        this.permissions = Array.from(existingPermissionIds);
       }
+
       // 5. Remove duplicates (simple deduplication)
       if (this.network_roles && this.network_roles.length > 0) {
         const uniqueNetworks = new Map();
@@ -648,6 +663,10 @@ UserSchema.statics = {
             logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
           }
         }
+      } else if (err instanceof HttpError) {
+        message = err.message;
+        status = err.statusCode;
+        response = err.errors || { message: err.message };
       } else if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -1540,8 +1559,8 @@ UserSchema.methods = {
 };
 
 UserSchema.methods.createToken = async function (
-  // TODO: remove this legacy method and use the ATF service directly
-  strategy = constants.TOKEN_STRATEGIES.LEGACY,
+  // Use the new default strategy. Can be overridden by passing a different strategy.
+  strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
   options = {}
 ) {
   try {

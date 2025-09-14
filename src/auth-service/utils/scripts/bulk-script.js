@@ -1,6 +1,6 @@
 const axios = require("axios");
 const isEmpty = require("is-empty");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 function separateItemsByUserId(items) {

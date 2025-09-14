@@ -1,19 +1,26 @@
 import pandas as pd
+import os
 import ast
 from typing import Optional, Callable, List, Dict, Any
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from airqo_etl_utils.data_api import DataApi
+from .data_api import DataApi
+from .date import frequency_to_dates
 from .bigquery_api import BigQueryApi
-from .constants import DeviceNetwork
 from .datautils import DataUtils
 from .data_validator import DataValidationUtils
+from .airqo_data_drift_compute import AirQoDataDriftCompute
 from .weather_data_utils import WeatherDataUtils
-from .constants import MetaDataType
+from .constants import MetaDataType, DataType, DeviceCategory, Frequency, DeviceNetwork
+from .config import configuration as Config
 
 import logging
 
 logger = logging.getLogger("airflow.task")
+
+cpu_count = os.cpu_count() or 2
+max_workers = min(20, cpu_count * 10)
 
 
 class MetaDataUtils:
@@ -47,6 +54,7 @@ class MetaDataUtils:
                 "device_category",
                 "mountType",
                 "mobility",
+                "device_maintenance",
             ]
         ]
         devices.rename(
@@ -61,6 +69,173 @@ class MetaDataUtils:
         devices["last_updated"] = datetime.now(timezone.utc)
 
         return devices
+
+    @staticmethod
+    def compute_device_site_metadata(
+        data_type: DataType,
+        device_category: DeviceCategory,
+        metadata_type: MetaDataType,
+        frequency: Frequency,
+    ) -> pd.DataFrame:
+        """
+        Computes additional metadata for devices or sites based on the specified parameters.
+
+        This function retrieves metadata for devices or sites, merges it with recent readings,
+        and computes additional metadata using a thread pool for parallel processing.
+
+        Args:
+            data_type (DataType): The type of data to process (e.g., air quality, weather).
+            device_category (DeviceCategory): The category of the device (e.g., LOWCOST, GENERAL).
+            metadata_type (MetaDataType): The type of metadata to compute (e.g., DEVICES, SITES).
+            frequency (Frequency): The frequency of the data (e.g., hourly, daily).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the computed metadata.
+        """
+        big_query_api = BigQueryApi()
+        exclude_column = "site_id" if metadata_type == MetaDataType.DEVICES else None
+        device_category_ = (
+            DeviceCategory.GENERAL
+            if device_category == DeviceCategory.LOWCOST
+            else None
+        )
+
+        metadata_method = {
+            MetaDataType.DEVICES: MetaDataUtils.extract_devices,
+            MetaDataType.SITES: MetaDataUtils.extract_sites,
+        }
+        unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
+
+        # Retrieve metadata table and columns
+        metadata_table, cols = DataUtils._get_metadata_table(
+            MetaDataType.DATAQUALITYCHECKS, metadata_type
+        )
+        entities = metadata_method.get(metadata_type)()
+        entities = entities[(entities.network == "airqo") & (entities.deployed == True)]
+
+        # Fetch recent readings and merge with entities
+        recent_readings = big_query_api.fetch_most_recent_record(
+            metadata_table, unique_id, offset_column="offset_date", columns=cols
+        )
+        if exclude_column:
+            recent_readings.drop(columns=[exclude_column], inplace=True)
+        entities = pd.merge(entities, recent_readings, how="left", on=unique_id)
+
+        # Compute additional metadata
+        computed_data = []
+        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency)
+        pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
+            data_type.str, None
+        )
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    DataUtils.compute_device_site_metadata,
+                    data_table,
+                    unique_id,
+                    entity,
+                    pollutants,
+                )
+                for _, entity in entities.iterrows()
+            ]
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    computed_data.append(result)
+
+        computed_data = (
+            pd.concat(computed_data, ignore_index=True)
+            if computed_data
+            else pd.DataFrame()
+        )
+        if not computed_data.empty:
+            computed_data["resolution"] = frequency.str
+        return computed_data
+
+    @staticmethod
+    def compute_device_site_baseline(
+        data_type: DataType,
+        frequency: Frequency,
+        device_category: DeviceCategory,
+        device_network: DeviceNetwork,
+        start_date: Optional[str],
+        end_date: Optional[str],
+    ) -> pd.DataFrame:
+        """
+        Computes baseline statistics for devices or sites based on the specified parameters.
+        This function retrieves data for devices or sites, and computes baseline statistics
+        using a thread pool for parallel processing.
+        Args:
+            data_type (DataType): The type of data to process (e.g., air quality, weather).
+            device_category (DeviceCategory): The category of the device (e.g., LOWCOST, GENERAL).
+            device_network (DeviceNetwork): The network of the device (e.g., AIRQO, OTHER).
+            frequency (Frequency): The frequency of the data (e.g., HOURLY, DAILY, WEEKLY).
+            start_date (str): The start date for the baseline computation in ISO 8601 format.
+            end_date (str): The end date for the baseline computation in ISO 8601 format.
+        Returns:
+            pd.DataFrame: A DataFrame containing the computed baseline statistics. If no data is found, returns an empty DataFrame.
+        Raises:
+            ValueError: If no data is found for the specified parameters.
+        """
+        if start_date is None or end_date is None:
+            start_date, end_date = frequency_to_dates(Frequency.WEEKLY)
+
+        device_metadata = DataUtils.extract_most_recent_record(
+            MetaDataType.DEVICES, "device_id", "offset_date"
+        )
+
+        if device_metadata.empty:
+            logger.warning("No device metadata returned")
+            return pd.DataFrame()
+
+        devices = {
+            "device_id": [
+                device_id
+                for device_id in device_metadata["device_id"].unique()
+                if device_id
+            ]
+        }
+
+        data = DataUtils.extract_data_from_bigquery(
+            data_type,
+            start_date,
+            end_date,
+            frequency,
+            device_category,
+            device_network,
+            data_filter=devices,
+        )
+
+        # TODO: Come up with a structure for pollutants for multi-sensor devices. Currently, only one pollutant is considered.
+        # pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(data_type.str, None)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    AirQoDataDriftCompute.compute_baseline,
+                    data_type,
+                    data.loc[data.device_id == device_data["device_id"]],
+                    device_data,
+                    [device_data["pollutant"]],
+                    frequency,
+                    start_date,
+                    end_date,
+                    device_data["minimum"],
+                    device_data["maximum"],
+                )
+                for _, device_data in device_metadata.iterrows()
+            ]
+            results = []
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        results.extend(result)
+                except Exception as e:
+                    logger.exception(f"Exception in baseline computation: {e}")
+
+        return pd.DataFrame(results)
 
     @staticmethod
     def extract_airqlouds_from_api(
@@ -350,17 +525,39 @@ class MetaDataUtils:
 
     @staticmethod
     def refresh_airqlouds(network: DeviceNetwork) -> None:
+        """
+        Refreshes all AirQlouds for the specified device network.
+
+        This method retrieves all AirQlouds associated with the given network and triggers a refresh
+        operation for each AirQloud using the DataApi.
+
+        Args:
+            network (DeviceNetwork): The device network for which to refresh AirQlouds.
+
+        Returns:
+            None
+        """
         data_api = DataApi()
         airqlouds = data_api.get_airqlouds(network=network)
-
         for airqloud in airqlouds:
             data_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
 
     @staticmethod
     def refresh_grids(network: DeviceNetwork) -> None:
+        """
+        Refreshes all grids for the specified device network.
+
+        This method retrieves all grids associated with the given network and triggers a refresh
+        operation for each grid using the DataApi.
+
+        Args:
+            network (DeviceNetwork): The device network for which to refresh grids.
+
+        Returns:
+            None
+        """
         data_api = DataApi()
         grids = data_api.get_grids(network=network)
-
         for grid in grids:
             data_api.refresh_grid(grid_id=grid.get("id"))
 

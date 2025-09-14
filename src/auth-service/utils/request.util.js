@@ -7,7 +7,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { mailer, generateFilter } = require("@utils/common");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`
@@ -129,15 +129,36 @@ const createAccessRequest = {
 
       logObject("requestAccessToGroupByEmail", { tenant, emails, grp_id });
 
-      const inviter = user._doc;
+      // The 'user' object comes from the authenticated JWT (req.user)
+      // It's a plain object, not a Mongoose document, so it doesn't have ._doc
+      const inviter = user;
+
+      if (isEmpty(inviter) || !inviter._id) {
+        next(
+          new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
+            message:
+              "Inviter authentication failed. User details not found in token.",
+          })
+        );
+        return;
+      }
+
       const inviterEmail = inviter.email;
       const inviterId = inviter._id;
 
-      const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
-      if (isEmpty(inviterDetails) || isEmpty(inviter)) {
+      if (!ObjectId.isValid(inviterId)) {
         next(
           new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
-            message: "Inviter authentication failed",
+            message: "Invalid inviter id in token.",
+          })
+        );
+        return;
+      }
+      const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
+      if (isEmpty(inviterDetails)) {
+        next(
+          new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
+            message: "Inviter details not found in the database.",
           })
         );
         return;

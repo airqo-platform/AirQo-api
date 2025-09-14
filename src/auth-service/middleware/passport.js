@@ -28,16 +28,29 @@ const logger = log4js.getLogger(
 
 const setLocalOptions = (req, res, next) => {
   try {
-    const userName = req.body.userName;
+    const rawUserName = req.body && req.body.userName;
+    const userName =
+      typeof rawUserName === "string" ? rawUserName.trim() : rawUserName;
+    if (typeof userName === "string") {
+      // normalize for downstream consumers
+      req.body.userName = userName;
+    }
 
-    if (Validator.isEmpty(userName)) {
+    // The validator library expects a string.
+    // We check for existence first, then validate.
+    if (
+      !userName ||
+      typeof userName !== "string" ||
+      Validator.isEmpty(userName)
+    ) {
       throw new HttpError(
-        "the userName field is missing",
+        "the userName field is missing or empty",
         httpStatus.BAD_REQUEST
       );
     }
 
     const authenticationFields = {};
+    // Use the trimmed value for validation
     if (Validator.isEmail(userName)) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
@@ -89,23 +102,37 @@ const jwtOpts = {
  * @returns
  */
 const useLocalStrategy = (tenant, req, res, next) => {
-  let localOptions = setLocalOptions(req, res, next);
-  logObject("the localOptions", localOptions);
-  if (localOptions.success === true) {
-    logText("success state is true");
-    let { usernameField } = localOptions.authenticationFields;
-    logElement("the username field", usernameField);
-    if (usernameField === "email") {
-      req.body.email = req.body.userName;
-      logText("we are using email");
-      return useEmailWithLocalStrategy(tenant, req, res, next);
-    } else if (usernameField === "userName") {
-      logText("we are using username");
-      return useUsernameWithLocalStrategy(tenant, req, res, next);
+  try {
+    const localOptions = setLocalOptions(req, res, next);
+    logObject("the localOptions", localOptions);
+
+    // If setLocalOptions calls next(error), it returns undefined.
+    // The error is already passed to the express error handler, so we just stop.
+    if (!localOptions) {
+      return;
     }
-  } else if (localOptions.success === false) {
-    logText("success state is false");
-    return localOptions;
+
+    if (localOptions.success === true) {
+      logText("success state is true");
+      const { usernameField } = localOptions.authenticationFields;
+      logElement("the username field", usernameField);
+      if (usernameField === "email") {
+        req.body.email = String(req.body.userName).trim();
+        logText("we are using email");
+        return useEmailWithLocalStrategy(tenant, req, res, next);
+      } else if (usernameField === "userName") {
+        logText("we are using username");
+        req.body.userName = String(req.body.userName).trim();
+        return useUsernameWithLocalStrategy(tenant, req, res, next);
+      }
+    }
+  } catch (error) {
+    logger.error(`Critical error in useLocalStrategy: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 const useEmailWithLocalStrategy = (tenant, req, res, next) =>
@@ -296,6 +323,8 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         } catch (error) {
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
+        // Ensure user's default role is correctly assigned before proceeding
+        await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -508,6 +537,9 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
 
+        // Ensure user's default role is correctly assigned before proceeding
+        await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
+
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -576,6 +608,12 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               );
             }
           }
+
+          // Role check and fix
+          await createUserUtil.ensureDefaultAirqoRole(
+            user,
+            tenant.toLowerCase()
+          );
 
           winstonLogger.info(
             `successful login through ${service ? service : "unknown"} service`,
@@ -1223,6 +1261,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
       }
 
+      // Ensure user's default role is correctly assigned before proceeding
+      await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
+
       winstonLogger.info(userAction, {
         username: user.userName,
         email: user.email,
@@ -1297,7 +1338,10 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
  * @param {*} next
  */
 const setLocalStrategy = (tenant, req, res, next) => {
-  passport.use("user-local", useLocalStrategy(tenant, req, res, next));
+  const strategy = useLocalStrategy(tenant, req, res, next);
+  if (strategy) {
+    passport.use("user-local", strategy);
+  }
 };
 
 const setGoogleStrategy = (tenant, req, res, next) => {
@@ -1433,17 +1477,34 @@ function authJWT(req, res, next) {
 
 const enhancedJWTAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization || "";
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message: "No valid authorization token provided",
+          message: "Authorization header is missing",
+        })
+      );
+    }
+
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match || !match[2]) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message:
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
         })
       );
     }
 
     const token = match[2].trim();
+    if (!token) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Token is missing from Authorization header",
+        })
+      );
+    }
+
     const tenantRaw =
       req.query.tenant ||
       req.body.tenant ||
@@ -1455,6 +1516,14 @@ const enhancedJWTAuth = async (req, res, next) => {
     const decodedUser = await tokenFactory.decodeToken(token);
 
     const userId = decodedUser.userId || decodedUser.id || decodedUser._id;
+    if (!userId) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Invalid token: User identifier not found in token payload",
+        })
+      );
+    }
+
     const user = await UserModel(tenant).findById(userId).lean();
 
     if (!user) {
@@ -1473,10 +1542,21 @@ const enhancedJWTAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    logger.error(`Enhanced JWT Auth Error: ${error.message}`);
+    // The token decoding utility (atf.service) now handles logging based on error type.
+    // We just need to construct the correct HTTP response.
+    // Provide a more specific error message based on the JWT error type
+    let errorMessage = "Invalid or expired token";
+    if (error.name === "TokenExpiredError") {
+      errorMessage = "Token has expired";
+    } else if (error.name === "JsonWebTokenError") {
+      errorMessage = `Invalid token: ${error.message}`;
+    } else {
+      // Only log other, unexpected errors at this level.
+      logger.error(`Enhanced JWT Auth Error: ${error.message}`);
+    }
     return next(
       new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-        message: "Invalid or expired token",
+        message: errorMessage,
       })
     );
   }

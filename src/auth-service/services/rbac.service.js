@@ -494,90 +494,48 @@ class RBACService {
   isSuperAdmin(user) {
     if (!user) return false;
 
-    console.log("🔍 Enhanced RBAC: Checking super admin status:", {
-      privilege: user.privilege,
-      userType: user.userType,
-      organization: user.organization,
-    });
-
-    // Check various super admin indicators
-    if (user.privilege === "super_admin" || user.privilege === "super-admin") {
-      console.log("✅ Enhanced RBAC: Super admin via privilege");
+    // Check direct privilege/userType with strict matching
+    const priv = String(user.privilege || "")
+      .trim()
+      .toUpperCase();
+    if (priv === "SUPER_ADMIN" || priv.endsWith("_SUPER_ADMIN")) {
+      return true;
+    }
+    const ut = String(user.userType || "")
+      .trim()
+      .toUpperCase();
+    if (ut === "SUPER_ADMIN" || ut.endsWith("_SUPER_ADMIN")) {
       return true;
     }
 
-    if (user.userType === "admin" || user.userType === "super_admin") {
-      console.log("✅ Enhanced RBAC: Super admin via userType");
-      return true;
-    }
-
-    // Check if user has super admin role in groups or networks
+    // Check group roles for names like 'AIRQO_SUPER_ADMIN'
     if (user.group_roles && user.group_roles.length > 0) {
-      console.log(
-        "🔍 Enhanced RBAC: Checking group roles for super admin:",
-        user.group_roles.length
-      );
-      const hasSuperAdminGroupRole = user.group_roles.some((gr, index) => {
-        if (!gr) {
-          console.log(
-            `⚠️ Enhanced RBAC: Group role ${index} is null/undefined`
-          );
-          return false;
-        }
-
-        console.log(`🔍 Enhanced RBAC: Group role ${index}:`, {
-          userType: gr.userType,
-          role_name: gr.role?.role_name,
-          role_id: gr.role?._id,
-        });
-
-        // Check userType
-        if (gr.userType === "super_admin") {
-          console.log("✅ Enhanced RBAC: Super admin via group userType");
-          return true;
-        }
-
-        // Check role name
-        if (gr.role && typeof gr.role.role_name === "string") {
+      const hasSuperAdminGroupRole = user.group_roles.some((gr) => {
+        if (gr && gr.role && typeof gr.role.role_name === "string") {
           const rn = gr.role.role_name.trim().toUpperCase();
-          if (rn === "SUPER_ADMIN") {
-            console.log(
-              "✅ Enhanced RBAC: Super admin via group role name:",
-              gr.role.role_name
-            );
+          if (rn === "SUPER_ADMIN" || rn.endsWith("_SUPER_ADMIN")) {
             return true;
           }
         }
-
         return false;
       });
       if (hasSuperAdminGroupRole) {
-        console.log("✅ Enhanced RBAC: Super admin via group role");
         return true;
       }
     }
 
+    // Check network roles for names like 'NETWORK_SUPER_ADMIN'
     if (user.network_roles && user.network_roles.length > 0) {
       const hasSuperAdminNetworkRole = user.network_roles.some((nr) => {
-        if (!nr) return false;
-
-        // Check userType
-        if (nr.userType === "super_admin") return true;
-
-        // Check role name
-        if (
-          nr.role &&
-          nr.role.role_name &&
-          typeof nr.role.role_name === "string" &&
-          nr.role.role_name.toLowerCase().includes("super")
-        ) {
-          return true;
+        if (nr && nr.role && typeof nr.role.role_name === "string") {
+          const rn = nr.role.role_name.trim().toUpperCase();
+          if (rn === "SUPER_ADMIN" || rn.endsWith("_SUPER_ADMIN")) {
+            return true;
+          }
         }
-
         return false;
       });
       if (hasSuperAdminNetworkRole) {
-        console.log("✅ Enhanced RBAC: Super admin via network role");
         return true;
       }
     }
@@ -957,10 +915,14 @@ class RBACService {
 
       return roles.some((role) => {
         const normalizedRole = String(role).trim().toUpperCase();
-        return userRoles.some(
-          (userRole) =>
-            userRole && String(userRole).trim().toUpperCase() === normalizedRole
-        );
+        return userRoles.some((userRole) => {
+          if (!userRole) return false;
+          const normalizedUserRole = String(userRole).trim().toUpperCase();
+          return (
+            normalizedUserRole === normalizedRole ||
+            normalizedUserRole.endsWith(`_${normalizedRole}`)
+          );
+        });
       });
     } catch (error) {
       logger.error(`Error checking user role: ${error.message}`);
@@ -971,17 +933,63 @@ class RBACService {
   async isSuperAdminInContext(userId, contextId, contextType) {
     try {
       // A super admin in a specific context would have a role named like 'ORG_SUPER_ADMIN'
-      // or a role that has the 'SUPER_ADMIN' permission.
-      // Let's check for a role named 'SUPER_ADMIN' within the context.
-      return await this.hasRole(
+      const userRoles = await this.getUserRolesInContext(
         userId,
-        ["SUPER_ADMIN"],
         contextId,
         contextType
+      );
+      if (!userRoles || userRoles.length === 0) {
+        return false;
+      }
+      // Check if any of the user's roles for this context end with _SUPER_ADMIN
+      return userRoles.some(
+        (roleName) =>
+          roleName && roleName.toUpperCase().endsWith("_SUPER_ADMIN")
       );
     } catch (error) {
       logger.error(
         `Error checking super admin status in context: ${error.message}`
+      );
+      return false;
+    }
+  }
+
+  async isSystemSuperAdmin(userId) {
+    try {
+      const user = await this.getUserModel().findById(userId).lean();
+      if (!user) return false;
+
+      // A system super admin is defined as a user having the AIRQO_SUPER_ADMIN role
+      // within the main "airqo" group.
+
+      if (!user.group_roles || user.group_roles.length === 0) {
+        return false;
+      }
+
+      // Find the AirQo group ID
+      const airqoGroup = await this.getGroupModel()
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
+        .select("_id")
+        .lean();
+
+      if (!airqoGroup) return false;
+
+      // Check if the user has the AIRQO_SUPER_ADMIN role in that specific group
+      const airqoSuperAdminRole = await this.getRoleModel()
+        .findOne({ role_code: "AIRQO_SUPER_ADMIN", group_id: airqoGroup._id })
+        .select("_id")
+        .lean();
+
+      if (!airqoSuperAdminRole) return false;
+
+      return user.group_roles.some(
+        (gr) =>
+          gr.group.toString() === airqoGroup._id.toString() &&
+          gr.role.toString() === airqoSuperAdminRole._id.toString()
+      );
+    } catch (error) {
+      logger.error(
+        `Error checking system super admin status: ${error.message}`
       );
       return false;
     }
@@ -1066,6 +1074,33 @@ class RBACService {
       logger.error(
         `Error getting user permissions in context: ${error.message}`
       );
+      return [];
+    }
+  }
+
+  async getUserRolesInContext(userId, contextId, contextType) {
+    try {
+      const contextData = await this.getUserPermissionsByContext(userId);
+      let roles = [];
+
+      if (contextType === "group") {
+        const membership = contextData.groupMemberships.find(
+          (m) => m.group.id === contextId.toString()
+        );
+        if (membership && membership.role) {
+          roles.push(membership.role.name);
+        }
+      } else if (contextType === "network") {
+        const membership = contextData.networkMemberships.find(
+          (m) => m.network.id === contextId.toString()
+        );
+        if (membership && membership.role) {
+          roles.push(membership.role.name);
+        }
+      }
+      return roles;
+    } catch (error) {
+      logger.error(`Error getting user roles in context: ${error.message}`);
       return [];
     }
   }

@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional, Dict, Any
+from dateutil.relativedelta import relativedelta
 
 import logging
+
+from .constants import Frequency
 
 logger = logging.getLogger("airflow.task")
 
@@ -180,3 +183,35 @@ def date_to_str_hours(date: datetime):
     Converts datetime to a string
     """
     return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
+
+
+def frequency_to_dates(frequency: Frequency) -> Tuple[str, str]:
+    """
+    Converts frequency to start and end dates and returns the previous or current valid hour/day/week/month based on the frequency.
+    Valid meaning that if the current time is 10:15 and frequency is Frequency.HOURLY, it should return 09:00 to 10:00
+    Args:
+    Returns:
+        Tuple[str, str]: A tuple containing the start and end dates as strings in ISO 8601 format with a trailing "Z" indicating UTC.
+    Raises:
+        ValueError: If the frequency is not recognized.
+    """
+    now = datetime.now(timezone.utc)
+    match frequency:
+        case Frequency.HOURLY:
+            end_date = now.replace(minute=0, second=0, microsecond=0)
+            start_date = end_date - timedelta(hours=1)
+        case Frequency.DAILY:
+            end_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = end_date - timedelta(days=1)
+        case Frequency.WEEKLY:
+            end_date = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) - timedelta(days=now.weekday())
+            start_date = end_date - timedelta(weeks=1)
+        case Frequency.MONTHLY:
+            end_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            start_date = end_date - relativedelta(months=1)
+        case _:
+            raise ValueError("Unrecognized frequency")
+
+    return date_to_str(start_date), date_to_str(end_date)

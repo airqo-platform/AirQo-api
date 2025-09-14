@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const { Schema } = mongoose;
 const validator = require("validator");
 const uniqueValidator = require("mongoose-unique-validator");

@@ -4,7 +4,7 @@ const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -1196,33 +1196,6 @@ const groupUtil = {
           })
         );
         return;
-      }
-
-      // Get user to check current assignments
-      const user = await UserModel(tenant).findById(user_id).lean();
-      if (!user) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not found",
-          })
-        );
-        return;
-      }
-
-      // Check if already assigned (with safe access)
-      const userGroupRoles = user.group_roles || [];
-      const isAlreadyAssigned = userGroupRoles.some(
-        (role) =>
-          role && role.group && role.group.toString() === grp_id.toString()
-      );
-
-      if (isAlreadyAssigned) {
-        return {
-          success: true,
-          message: "User is already assigned to this group",
-          data: user,
-          status: httpStatus.OK,
-        };
       }
 
       // Get default group role with error handling

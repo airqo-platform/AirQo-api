@@ -1,11 +1,11 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- unknown-ip-model`);
 const { getModelByTenant } = require("@config/database");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const { logObject } = require("@utils/shared");
 const {
   createSuccessResponse,

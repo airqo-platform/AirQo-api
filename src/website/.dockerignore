@@ -1,0 +1,85 @@
+# Git
+.git
+.gitignore
+README.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.pytest_cache
+htmlcov
+.cache
+.ruff_cache
+
+# Node modules
+node_modules
+npm-debug.log*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Local development
+.env.local
+.env.development
+.env.test
+.env.production
+*.local
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Build
+dist
+build
+
+# Virtual environment
+.venv
+venv/
+ENV/
+env/
+
+# Database
+*.sqlite3
+*.db
+
+# Static files and media (should be served by web server in production)
+staticfiles/
+media/
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Temporary files
+tmp/
+temp/

@@ -200,8 +200,14 @@ class BigQueryApi:
             integers=integer_columns,
             timestamps=date_time_columns,
         )
+        # Ensure this does not raise an exception for complex data types i.e objects like lists and dicts
+        # TODO : Handle complex data types properly
+        try:
+            dataframe.drop_duplicates(keep="first", inplace=True)
+        except Exception as e:
+            logger.exception(f"Error formatting complex data types: {e}")
 
-        return dataframe.drop_duplicates(keep="first")
+        return dataframe
 
     def get_columns(
         self,
@@ -765,6 +771,123 @@ class BigQueryApi:
         query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
 
         return query
+
+    def fetch_max_min_values(
+        self,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        unique_id: str,
+        filter: str,
+        pollutant: Dict[str, str],
+    ) -> pd.DataFrame:
+        """
+        Fetches the maximum, minimum, average, and sample count of specified pollutant columns
+        from a BigQuery table within a given time range, filtered by a unique identifier.
+
+        Args:
+            table (str): The name of the BigQuery table to query.
+            start_date_time (str): The start datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            end_date_time (str): The end datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            unique_id (str): The column name representing the unique identifier for filtering.
+            filter (str): The value to filter the unique identifier by.
+            pollutant (Dict[str, str]): A dictionary of pollutant column names to compute statistics for.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the maximum, minimum, average, and sample count
+                          for the specified pollutant columns.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+            Exception: For any other errors during query execution.
+        """
+        query_parts = []
+        pollutants_list = []
+        for _, value in pollutant.items():
+            if isinstance(value, list):
+                for v in value:
+                    query_parts.append(
+                        f"COUNT({v}) AS sample_count_{v}, "
+                        f"MAX({v}) AS maximum_{v}, "
+                        f"MIN({v}) AS minimum_{v}, "
+                        f"AVG({v}) AS average_{v}"
+                    )
+                    pollutants_list.append(v)
+
+        query = (
+            "SELECT " + ", ".join(query_parts) + f" FROM `{table}` "
+            f"WHERE timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
+            f"AND {unique_id} = '{filter}'"
+        )
+        try:
+            raw_df = self.client.query(query=query).result().to_dataframe()
+        except Exception as e:
+            logger.exception(f"Error fetching max/min values from BigQuery: {e}")
+            raise
+
+        # Reshape the result to have columns: minimum, maximum, pollutant
+        # This is O(P) where P is the number of pollutants, and is optimal for small P.
+        # For large P, consider generating the SQL to return the desired format directly.
+        result_rows = []
+        for key in pollutants_list:
+            if not raw_df.empty:
+                result_rows.append(
+                    {
+                        "pollutant": key,
+                        "minimum": raw_df[f"minimum_{key}"].iloc[0]
+                        if f"minimum_{key}" in raw_df
+                        else None,
+                        "maximum": raw_df[f"maximum_{key}"].iloc[0]
+                        if f"maximum_{key}" in raw_df
+                        else None,
+                        "average": raw_df[f"average_{key}"].iloc[0]
+                        if f"average_{key}" in raw_df
+                        else None,
+                        "sample_count": raw_df[f"sample_count_{key}"].iloc[0]
+                        if f"sample_count_{key}" in raw_df
+                        else None,
+                    }
+                )
+        result_df = pd.DataFrame(
+            result_rows,
+            columns=["pollutant", "minimum", "maximum", "average", "sample_count"],
+        )
+        return result_df
+
+    def fetch_most_recent_record(
+        self,
+        table: str,
+        unique_id: str,
+        offset_column: Optional[str] = "timestamp",
+        columns: Optional[List[str]] = None,
+    ) -> pd.DataFrame:
+        """
+        Fetches the most recent record for each unique identifier from a specified BigQuery table.
+
+        Args:
+            table (str): The name of the BigQuery table to query.
+            unique_id (str): The column name representing the unique identifier for partitioning.
+            offset_column (str): The column name used to determine the most recent record (e.g., a timestamp column).
+            columns (Optional[List[str]]): A list of column names to include in the query. If None, selects all columns.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the most recent record for each unique identifier.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+        """
+
+        selected_columns = ", ".join(columns) if columns else "*"
+        query = f"""
+        SELECT {selected_columns}
+        FROM `{table}`
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY {unique_id} ORDER BY {offset_column} DESC) = 1;
+        """
+        try:
+            return self.client.query(query=query).result().to_dataframe()
+        except Exception as e:
+            logger.exception(f"Error fetching most recent record from BigQuery: {e}")
+            raise
 
     def fetch_raw_readings(self) -> pd.DataFrame:
         """

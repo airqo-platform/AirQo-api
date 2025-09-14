@@ -3,10 +3,11 @@ const SubscriptionModel = require("@models/Subscription");
 const VerifyTokenModel = require("@models/VerifyToken");
 const AccessRequestModel = require("@models/AccessRequest");
 const RoleModel = require("@models/Role");
+const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const bcrypt = require("bcrypt");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
@@ -28,6 +29,7 @@ const {
   redisDelAsync,
   redisSetWithTTLAsync,
 } = require("@config/redis");
+const { tokenConfig } = require("@config/tokenStrategyConfig");
 
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
@@ -60,6 +62,13 @@ function generateNumericToken(length) {
 
   return token;
 }
+
+const normalizeName = (name) => {
+  if (!name || typeof name !== "string") {
+    return "";
+  }
+  return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+};
 async function deleteCollection({ db, collectionPath, batchSize } = {}) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
@@ -3874,7 +3883,7 @@ const createUserModule = {
       );
     }
   },
-  initiatePasswordReset: async ({ email, token, tenant }, next) => {
+  initiatePasswordReset: async ({ email, token, tenant }) => {
     try {
       const update = {
         resetPasswordToken: token,
@@ -3885,11 +3894,9 @@ const createUserModule = {
         .select("firstName lastName email");
 
       if (isEmpty(responseFromModifyUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.INTERNAL_SERVER_ERROR, {
-            message: "user does not exist, please crosscheck",
-          })
-        );
+        throw new HttpError("User not found", httpStatus.NOT_FOUND, {
+          message: "user does not exist, please crosscheck",
+        });
       }
 
       await mailer.sendPasswordResetEmail({ email, token, tenant });
@@ -3899,13 +3906,16 @@ const createUserModule = {
         message: "Password reset email sent successfully",
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Unable to initiate password reset",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      logger.error(
+        `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`
+      );
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      throw new HttpError(
+        "Unable to initiate password reset",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
     }
   },
@@ -4760,54 +4770,307 @@ const createUserModule = {
    * Ensures a user has the default AirQo role.
    * This is a non-blocking operation, intended to be called in a fire-and-forget manner.
    */
+
   ensureDefaultAirqoRole: async (user, tenant) => {
     try {
+      let needsUpdate = false;
+      const updateQuery = {};
+
+      // --- Create mutable copies of the role arrays, preserving ObjectIDs ---
+      const isObjectId = (v) =>
+        v &&
+        (v instanceof mongoose.Types.ObjectId || v._bsontype === "ObjectID");
+      const toObjectId = (v) =>
+        isObjectId(v)
+          ? v
+          : mongoose.Types.ObjectId.isValid(v)
+          ? new mongoose.Types.ObjectId(v)
+          : v;
+      let finalGroupRoles = Array.isArray(user.group_roles)
+        ? user.group_roles.map((a) => ({
+            ...(a?.toObject?.() ?? a),
+            group: toObjectId(a.group),
+            role: toObjectId(a.role),
+          }))
+        : [];
+      let finalNetworkRoles = Array.isArray(user.network_roles)
+        ? user.network_roles.map((a) => ({
+            ...(a?.toObject?.() ?? a),
+            network: toObjectId(a.network),
+            role: toObjectId(a.role),
+          }))
+        : [];
+
+      // --- 1. Consolidate duplicate roles for all GROUPS ---
+      const groupRoleMap = new Map();
+      finalGroupRoles.forEach((assignment) => {
+        if (assignment && assignment.group) {
+          const groupId = assignment.group.toString();
+          if (!groupRoleMap.has(groupId)) groupRoleMap.set(groupId, []);
+          groupRoleMap.get(groupId).push(assignment);
+        }
+      });
+
+      for (const [groupId, assignments] of groupRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.warn(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
+          );
+          const group = await GroupModel(tenant).findById(groupId).lean();
+          if (!group) continue;
+
+          let desiredRole;
+          if (group.grp_title.toLowerCase() === "airqo") {
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: groupId })
+              .lean();
+            const superAdminRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_SUPER_ADMIN"
+            );
+            const adminRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_ADMIN"
+            );
+            const defaultUserRole = possibleRoles.find(
+              (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
+            );
+            const userRoleIds = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+
+            if (
+              superAdminRole &&
+              userRoleIds.has(superAdminRole._id.toString())
+            ) {
+              desiredRole = superAdminRole;
+            } else if (adminRole && userRoleIds.has(adminRole._id.toString())) {
+              desiredRole = adminRole;
+            } else {
+              desiredRole = defaultUserRole;
+            }
+          } else {
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: mongoose.Types.ObjectId(groupId) })
+              .lean();
+            const present = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+            const prefer = (suffix) =>
+              possibleRoles.find(
+                (r) =>
+                  r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+              );
+            desiredRole =
+              prefer("_SUPER_ADMIN") ||
+              prefer("_ADMIN") ||
+              prefer("_MANAGER") ||
+              prefer("_DEFAULT_MEMBER");
+
+            if (!desiredRole) {
+              const orgName = normalizeName(group.grp_title);
+              const defaultMember = possibleRoles.find(
+                (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+              );
+              desiredRole =
+                defaultMember ||
+                possibleRoles.find((r) => present.has(r._id.toString()));
+            }
+          }
+
+          if (desiredRole) {
+            finalGroupRoles = finalGroupRoles.filter(
+              (a) => a.group.toString() !== groupId
+            );
+            const earliestCreatedAt = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
+            );
+            finalGroupRoles.push({
+              group: mongoose.Types.ObjectId(groupId),
+              role: desiredRole._id,
+              userType: "user",
+              createdAt: earliestCreatedAt,
+            });
+          }
+        }
+      }
+
+      // --- 2. Consolidate duplicate roles for NETWORKS ---
+      const networkRoleMap = new Map();
+      finalNetworkRoles.forEach((assignment) => {
+        if (assignment && assignment.network) {
+          const networkId = assignment.network.toString();
+          if (!networkRoleMap.has(networkId)) networkRoleMap.set(networkId, []);
+          networkRoleMap.get(networkId).push(assignment);
+        }
+      });
+
+      for (const [networkId, assignments] of networkRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.warn(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
+          );
+          const network = await NetworkModel(tenant).findById(networkId).lean();
+          if (!network) continue;
+
+          const possibleRoles = await RoleModel(tenant)
+            .find({ network_id: mongoose.Types.ObjectId(networkId) })
+            .lean();
+          const present = new Set(
+            assignments.map((a) => a.role && a.role.toString())
+          );
+          const prefer = (suffix) =>
+            possibleRoles.find(
+              (r) =>
+                r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+            );
+          let desiredRole =
+            prefer("_SUPER_ADMIN") ||
+            prefer("_ADMIN") ||
+            prefer("_MANAGER") ||
+            prefer("_DEFAULT_MEMBER");
+
+          if (!desiredRole) {
+            const orgName = normalizeName(network.net_name);
+            const defaultMember = possibleRoles.find(
+              (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+            );
+            desiredRole =
+              defaultMember ||
+              possibleRoles.find((r) => present.has(r._id.toString()));
+          }
+
+          if (desiredRole) {
+            finalNetworkRoles = finalNetworkRoles.filter(
+              (a) => a.network.toString() !== networkId
+            );
+            const earliestCreatedAtNet = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
+            );
+            finalNetworkRoles.push({
+              network: mongoose.Types.ObjectId(networkId),
+              role: desiredRole._id,
+              userType: "user",
+              createdAt: earliestCreatedAtNet,
+            });
+          }
+        }
+      }
+
+      // --- 3. Remove Deprecated Roles ---
+      const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
+      const deprecatedRoles = await RoleModel(tenant)
+        .find({ role_name: { $in: deprecatedRoleNames } })
+        .select("_id")
+        .lean();
+      const deprecatedRoleIds = new Set(
+        deprecatedRoles.map((r) => r._id.toString())
+      );
+
+      if (deprecatedRoleIds.size > 0) {
+        finalGroupRoles = finalGroupRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+        );
+        finalNetworkRoles = finalNetworkRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+        );
+      }
+
+      // --- 4. Add default AirQo role if missing ---
       const airqoGroup = await GroupModel(tenant)
         .findOne({ grp_title: { $regex: /^airqo$/i } })
         .lean();
-      if (!airqoGroup) {
-        logger.warn(
-          `[Default Role] AirQo group not found for tenant ${tenant}.`
+      if (airqoGroup) {
+        const hasAirqoRole = finalGroupRoles.some(
+          (a) => a.group.toString() === airqoGroup._id.toString()
         );
-        return;
-      }
-
-      const defaultRole = await RoleModel(tenant)
-        .findOne({ role_code: "AIRQO_DEFAULT_USER" })
-        .lean();
-      if (!defaultRole) {
-        logger.warn(
-          `[Default Role] AIRQO_DEFAULT_USER role not found for tenant ${tenant}.`
-        );
-        return;
-      }
-
-      const roles = Array.isArray(user.group_roles) ? user.group_roles : [];
-      const userHasDefaultRole = roles.some(
-        (gr) =>
-          gr.role &&
-          gr.group &&
-          gr.role.toString() === defaultRole._id.toString() &&
-          gr.group.toString() === airqoGroup._id.toString()
-      );
-
-      if (!userHasDefaultRole) {
-        await UserModel(tenant).findByIdAndUpdate(user._id, {
-          $addToSet: {
-            group_roles: {
+        if (
+          !hasAirqoRole &&
+          (user.organization || "").toLowerCase() === "airqo"
+        ) {
+          const defaultAirqoRole = await RoleModel(tenant)
+            .findOne({
+              role_code: "AIRQO_DEFAULT_USER",
+              group_id: airqoGroup._id,
+            })
+            .lean();
+          if (defaultAirqoRole) {
+            finalGroupRoles.push({
               group: airqoGroup._id,
-              role: defaultRole._id,
+              role: defaultAirqoRole._id,
               userType: "user",
-            },
-          },
-        });
+              createdAt: new Date(),
+            });
+          }
+        }
+      }
+
+      // --- 5. Compare final arrays with originals to see if an update is needed ---
+      const canonicalize = (arr, type) =>
+        (arr || [])
+          .map((a) => ({
+            ctx:
+              type === "group"
+                ? a.group?.toString?.()
+                : a.network?.toString?.(),
+            role: a.role?.toString?.(),
+            userType: a.userType || "user",
+          }))
+          .filter((x) => x.ctx && x.role)
+          .sort(
+            (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
+          );
+
+      const originalGroupCanon = canonicalize(user.group_roles, "group");
+      const finalGroupCanon = canonicalize(finalGroupRoles, "group");
+      const originalNetCanon = canonicalize(user.network_roles, "network");
+      const finalNetCanon = canonicalize(finalNetworkRoles, "network");
+
+      if (
+        JSON.stringify(originalGroupCanon) !==
+          JSON.stringify(finalGroupCanon) ||
+        JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
+      ) {
+        // keep DB arrays deterministically ordered as well
+        finalGroupRoles = finalGroupRoles.sort(
+          (a, b) =>
+            a.group.toString().localeCompare(b.group.toString()) ||
+            a.role.toString().localeCompare(b.role.toString())
+        );
+        finalNetworkRoles = finalNetworkRoles.sort(
+          (a, b) =>
+            a.network.toString().localeCompare(b.network.toString()) ||
+            a.role.toString().localeCompare(b.role.toString())
+        );
+        updateQuery.$set = {
+          group_roles: finalGroupRoles,
+          network_roles: finalNetworkRoles,
+        };
+        needsUpdate = true;
+      }
+
+      // --- 6. Handle other cleanups ---
+      if (user.privilege) {
+        updateQuery.$unset = { privilege: "" };
+        needsUpdate = true;
+      }
+
+      // --- 7. Execute the update if anything changed ---
+      if (needsUpdate) {
+        await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery);
         logger.info(
-          `[Default Role] Assigned AIRQO_DEFAULT_USER role to user ${user.email}`
+          `[Role Cleanup] Successfully consolidated and cleaned roles for user ${user.email}.`
         );
       }
     } catch (error) {
       logger.error(
-        `[Default Role] Error ensuring default AirQo role for ${user.email}: ${error.message}`
+        `[Role Cleanup] Error during role cleanup for ${user.email}: ${error.message}`
       );
     }
   },
@@ -4817,10 +5080,11 @@ const createUserModule = {
    * Priority: Request override > User preference > System default.
    */
   _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
-    return (
+    return tokenConfig.getStrategyForUser(
+      user._id,
       preferredStrategyFromRequest ||
-      user.preferredTokenStrategy ||
-      constants.TOKEN_STRATEGIES.LEGACY
+        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
+      user.organization
     );
   },
   /**
@@ -4977,21 +5241,21 @@ const createUserModule = {
       const authResponse = {
         // Basic user info
         _id: user._id,
-        userName: user.userName,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        userType: user.userType,
-        verified: user.verified,
-        isActive: user.isActive,
+        userName: user.userName ?? null,
+        email: user.email ?? null,
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        userType: user.userType ?? null,
+        verified: user.verified ?? false,
+        isActive: user.isActive ?? false,
 
         // Legacy fields for backward compatibility
-        organization: user.organization,
-        long_organization: user.long_organization,
-        privilege: user.privilege,
-        country: user.country,
-        profilePicture: user.profilePicture,
-        phoneNumber: user.phoneNumber,
+        organization: user.organization ?? null,
+        long_organization: user.long_organization ?? null,
+        privilege: user.privilege ?? null,
+        country: user.country ?? null,
+        profilePicture: user.profilePicture ?? null,
+        phoneNumber: user.phoneNumber ?? null,
 
         // Enhanced authentication
         token: `JWT ${token}`,

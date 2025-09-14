@@ -11,99 +11,6 @@ const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
 require("@config/firebase-admin");
-const rolePermissionsUtil = require("@utils/role-permissions.util");
-const initializeRBAC = async () => {
-  try {
-    console.log("🚀 Initializing default permissions and roles...");
-
-    // Check if initialization has already been done
-    const PermissionModel = require("@models/Permission");
-    const RoleModel = require("@models/Role");
-
-    const [existingPermissionsCount, existingRolesCount] = await Promise.all([
-      PermissionModel("airqo").countDocuments(),
-      RoleModel("airqo").countDocuments({
-        role_name: { $regex: /^AIRQO_/ },
-      }),
-    ]);
-
-    // Enhanced super admin check
-    let superAdminExists = false;
-    try {
-      const superAdminRole = await RoleModel("airqo")
-        .findOne({
-          $or: [
-            { role_code: "AIRQO_SUPER_ADMIN" },
-            { role_name: "AIRQO_SUPER_ADMIN" },
-          ],
-        })
-        .lean();
-      superAdminExists = !!superAdminRole;
-    } catch (superAdminCheckError) {
-      console.error(
-        "❌ Error checking super admin role:",
-        superAdminCheckError.message
-      );
-    }
-
-    if (existingPermissionsCount > 0 || existingRolesCount > 0) {
-      console.log(
-        `⏭️  RBAC system already initialized (${existingPermissionsCount} permissions, ${existingRolesCount} AirQo roles found)`
-      );
-      if (!superAdminExists) {
-        console.log("⚠️  Super admin role missing, ensuring it exists...");
-        await rolePermissionsUtil.ensureSuperAdminRole("airqo");
-      }
-      console.log(
-        "🔄 Running incremental RBAC setup to add any new permissions/roles..."
-      );
-    }
-
-    const result = await rolePermissionsUtil.setupDefaultPermissions("airqo");
-
-    if (result.success) {
-      console.log("✅ RBAC initialization completed successfully");
-      console.log(`📊 Setup summary:`, {
-        permissions_created: result.data.permissions_created,
-        permissions_updated: result.data.permissions_updated,
-        permissions_total: result.data.permissions_total,
-        system_roles_created: result.data.roles_created,
-        system_roles_updated: result.data.roles_updated,
-        system_roles_up_to_date: result.data.roles_up_to_date,
-        organization_roles_audited: result.data.organization_roles_audited,
-        roles_failed: result.data.roles_failed,
-        super_admin_exists: result.data.airqo_super_admin_exists,
-        super_admin_role_id: result.data.airqo_super_admin_role_id,
-      });
-
-      if (result.data.role_errors && result.data.role_errors.length > 0) {
-        console.warn("⚠️  Some role creation issues occurred:");
-        result.data.role_errors.forEach((error) => {
-          console.warn(`   - ${error.role_name}: ${error.error}`);
-        });
-      }
-    } else {
-      console.warn("⚠️  RBAC setup completed with warnings:", result.message);
-    }
-  } catch (error) {
-    console.error(
-      "❌ Error initializing default permissions and roles:",
-      error.message
-    );
-    console.error("❌ Error stack:", error.stack);
-  }
-};
-
-mongoose.connection.on("connected", () => {
-  console.log("✅ MongoDB connected, proceeding with initializations...");
-  initializeRBAC().catch((err) => {
-    console.error("❌ RBAC initialization failed on connection:", err.message);
-  });
-});
-
-mongoose.connection.on("error", (err) => {
-  console.error("❌ MongoDB connection error:", err);
-});
 
 const morgan = require("morgan");
 const compression = require("compression");
@@ -270,29 +177,21 @@ app.use(function (err, req, res, next) {
   const status = err.status || err.statusCode || 500;
   // Log server errors as activities for authenticated users
   if (status >= 500 && req.user) {
-    try {
-      const { logActivity } = require("@utils/common");
-      Promise.resolve(
-        logActivity({
-          email: req.user.email || "system",
-          userName: req.user.userName || "system",
-          tenant: req.query.tenant || req.headers.tenant || "airqo",
-          user_id: req.user._id,
-          action: "server_error",
-          description: `Server error: ${err.message}`,
-          payload: {
-            stack: err.stack,
-            endpoint: req.originalUrl,
-            method: req.method,
-            statusCode: status,
-          },
-        })
-      ).catch((e) =>
-        logger.error(`Failed to log server error activity: ${e.message}`)
-      );
-    } catch (logError) {
-      logger.error(`Failed to log server error activity: ${logError.message}`);
-    }
+    // The logActivity function was causing errors, replaced with direct logging.
+    logger.error("Server error activity", {
+      email: req.user.email || "system",
+      userName: req.user.userName || "system",
+      tenant: req.query.tenant || req.headers.tenant || "airqo",
+      user_id: req.user._id,
+      action: "server_error",
+      description: `Server error: ${err.message}`,
+      payload: {
+        stack: err.stack,
+        endpoint: req.originalUrl,
+        method: req.method,
+        statusCode: status,
+      },
+    });
   }
 
   if (!res.headersSent) {

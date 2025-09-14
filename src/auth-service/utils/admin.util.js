@@ -9,8 +9,8 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = require("mongoose").Types.ObjectId;
-const log4js = require("log4js");
 const mongoose = require("mongoose");
+const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
 const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
@@ -141,58 +141,55 @@ const admin = {
         };
       }
 
-      const hasExistingRole = existingUser.group_roles?.some(
-        (gr) => gr.role && gr.role.toString() === superAdminRole._id.toString()
-      );
-
-      if (hasExistingRole) {
-        // Even if the user has the role, let's ensure the role itself is up-to-date with all permissions.
-        // The call to ensureSuperAdminRole should handle the sync.
-        // We just need to clear the user's cache to reflect any changes.
-        const RBACService = require("@services/rbac.service");
-        const rbacService = new RBACService(tenant);
-        rbacService.clearUserCache(targetUserId);
-
-        return {
-          success: true,
-          message:
-            "User already has SUPER_ADMIN role. Permissions have been refreshed.",
-          status: httpStatus.OK,
-          data: {
-            user_id: targetUserId,
-            role_assigned: superAdminRole.role_name,
-            role_id: superAdminRole._id,
-            group: airqoGroup.grp_title,
-            group_id: airqoGroup._id,
-            tenant: tenant,
-            status: "already_assigned_and_refreshed",
-            timestamp: new Date().toISOString(),
-          },
-        };
-      }
-
+      // Atomically update the user's roles for the AirQo group.
+      // This operation ensures the user ends up with just the SUPER_ADMIN role for this group,
+      // replacing any other role they might have had for the AirQo group.
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         targetUserId,
-        {
-          $addToSet: {
-            group_roles: {
-              group: airqoGroup._id,
-              role: superAdminRole._id,
-              userType: "admin",
-              createdAt: new Date(),
+        [
+          {
+            $set: {
+              group_roles: {
+                $concatArrays: [
+                  // 1. Filter out any existing role for the airqoGroup
+                  {
+                    $filter: {
+                      input: { $ifNull: ["$group_roles", []] },
+                      as: "role",
+                      cond: { $ne: ["$$role.group", airqoGroup._id] },
+                    },
+                  },
+                  // 2. Add the new SUPER_ADMIN role
+                  [
+                    {
+                      group: airqoGroup._id,
+                      role: superAdminRole._id,
+                      userType: "admin",
+                      createdAt: new Date(),
+                    },
+                  ],
+                ],
+              },
             },
           },
-        },
+        ],
         { new: true }
       );
 
+      if (!updatedUser) {
+        throw new HttpError("User update failed", 500, {
+          message: "Failed to assign SUPER_ADMIN role.",
+        });
+      }
+
+      // Clear the user's permissions cache to reflect the changes immediately
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       rbacService.clearUserCache(targetUserId);
 
       return {
         success: true,
-        message: "User successfully assigned SUPER_ADMIN role",
+        message: "User role successfully updated to SUPER_ADMIN",
         status: httpStatus.OK,
         data: {
           user_id: targetUserId,
@@ -201,7 +198,7 @@ const admin = {
           group: airqoGroup.grp_title,
           group_id: airqoGroup._id,
           tenant: tenant,
-          status: "newly_assigned",
+          status: "role_updated",
           timestamp: new Date().toISOString(),
           next_steps: [
             "User now has super admin access",
