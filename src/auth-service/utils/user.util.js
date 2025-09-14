@@ -3854,7 +3854,7 @@ const createUserModule = {
       );
     }
   },
-  initiatePasswordReset: async ({ email, token, tenant }, next) => {
+  initiatePasswordReset: async ({ email, token, tenant }) => {
     try {
       const update = {
         resetPasswordToken: token,
@@ -3865,11 +3865,9 @@ const createUserModule = {
         .select("firstName lastName email");
 
       if (isEmpty(responseFromModifyUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.INTERNAL_SERVER_ERROR, {
-            message: "user does not exist, please crosscheck",
-          })
-        );
+        throw new HttpError("User not found", httpStatus.NOT_FOUND, {
+          message: "user does not exist, please crosscheck",
+        });
       }
 
       await mailer.sendPasswordResetEmail({ email, token, tenant });
@@ -3879,13 +3877,16 @@ const createUserModule = {
         message: "Password reset email sent successfully",
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Unable to initiate password reset",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      logger.error(
+        `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`
+      );
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      throw new HttpError(
+        "Unable to initiate password reset",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
     }
   },
@@ -4934,10 +4935,7 @@ const createUserModule = {
       }
 
       // --- 3. Remove Deprecated Roles ---
-      const deprecatedRoleNames = [
-        "AIRQO_DEFAULT_PRODUCTION",
-        "AIRQO_AIRQO_ADMIN",
-      ];
+      const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
       const deprecatedRoles = await RoleModel(tenant)
         .find({ role_name: { $in: deprecatedRoleNames } })
         .select("_id")
