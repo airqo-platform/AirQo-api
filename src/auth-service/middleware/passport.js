@@ -135,6 +135,7 @@ const useLocalStrategy = (tenant, req, res, next) => {
     );
   }
 };
+
 const useEmailWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithEmailOptions,
@@ -304,13 +305,16 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             .findOneAndUpdate(
               { _id: user._id },
               {
-                $set: { lastLogin: currentDate, isActive: true },
+                $set: {
+                  lastLogin: currentDate,
+                  isActive: true,
+                  ...(user.analyticsVersion !== 3 &&
+                  user.analyticsVersion !== 4 &&
+                  user.verified === false
+                    ? { verified: true }
+                    : {}),
+                },
                 $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 &&
-                user.analyticsVersion !== 4 &&
-                user.verified === false
-                  ? { $set: { verified: true } }
-                  : {}),
               },
               {
                 new: true,
@@ -348,6 +352,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithUsernameOptions,
@@ -519,13 +524,16 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             .findOneAndUpdate(
               { _id: user._id },
               {
-                $set: { lastLogin: currentDate, isActive: true },
+                $set: {
+                  lastLogin: currentDate,
+                  isActive: true,
+                  ...(user.analyticsVersion !== 3 &&
+                  user.analyticsVersion !== 4 &&
+                  user.verified === false
+                    ? { verified: true }
+                    : {}),
+                },
                 $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 &&
-                user.analyticsVersion !== 4 &&
-                user.verified === false
-                  ? { $set: { verified: true } }
-                  : {}),
               },
               {
                 new: true,
@@ -549,7 +557,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           {
             username: user.userName,
             email: user.email,
-            service: service ? service : "none",
+            service: service ? service : "unknown",
           }
         );
         return done(null, user);
@@ -564,6 +572,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useGoogleStrategy = (tenant, req, res, next) =>
   new GoogleStrategy(
     {
@@ -670,13 +679,16 @@ const useGoogleStrategy = (tenant, req, res, next) =>
                 .findOneAndUpdate(
                   { _id: user._id },
                   {
-                    $set: { lastLogin: currentDate, isActive: true },
+                    $set: {
+                      lastLogin: currentDate,
+                      isActive: true,
+                      ...(user.analyticsVersion !== 3 &&
+                      user.analyticsVersion !== 4 &&
+                      user.verified === false
+                        ? { verified: true }
+                        : {}),
+                    },
                     $inc: { loginCount: 1 },
-                    ...(user.analyticsVersion !== 3 &&
-                    user.analyticsVersion !== 4 &&
-                    user.verified === false
-                      ? { $set: { verified: true } }
-                      : {}),
                   },
                   {
                     new: true,
@@ -711,6 +723,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
@@ -1247,13 +1260,16 @@ const useJWTStrategy = (tenant, req, res, next) =>
           .findOneAndUpdate(
             { _id: user._id },
             {
-              $set: { lastLogin: currentDate, isActive: true },
+              $set: {
+                lastLogin: currentDate,
+                isActive: true,
+                ...(user.analyticsVersion !== 3 &&
+                user.analyticsVersion !== 4 &&
+                user.verified === false
+                  ? { verified: true }
+                  : {}),
+              },
               $inc: { loginCount: 1 },
-              ...(user.analyticsVersion !== 3 &&
-              user.analyticsVersion !== 4 &&
-              user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
             },
             {
               new: true,
@@ -1288,6 +1304,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
       return done(e, false);
     }
   });
+
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
