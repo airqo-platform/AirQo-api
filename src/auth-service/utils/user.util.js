@@ -3824,25 +3824,6 @@ const createUserModule = {
       // 1. Create a sanitized copy of the body for the database update.
       const sanitizedUpdate = { ...body };
 
-      // Comprehensive sanitization for 'interests' field
-      if ("interests" in sanitizedUpdate) {
-        const interestsValue = sanitizedUpdate.interests;
-        if (typeof interestsValue === "string") {
-          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
-          sanitizedUpdate.interests = interestsValue.trim()
-            ? [interestsValue.trim()]
-            : [];
-        } else if (Array.isArray(interestsValue)) {
-          // If it's an array, ensure all elements are strings and filter out any empty ones.
-          sanitizedUpdate.interests = interestsValue
-            .map((item) => (item ? String(item).trim() : ""))
-            .filter(Boolean);
-        } else {
-          // If it's null, undefined, or another type, remove it from the update payload.
-          delete sanitizedUpdate.interests;
-        }
-      }
-
       // Drop any keys with undefined values to prevent them from being written to the DB
       Object.keys(sanitizedUpdate).forEach((key) => {
         if (sanitizedUpdate[key] === undefined) {
@@ -5161,12 +5142,64 @@ const createUserModule = {
    * Priority: Request override > User preference > System default.
    */
   _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
-    return tokenConfig.getStrategyForUser(
-      user._id,
+    // This function determines the safest and most effective token strategy for a user login.
+    // It prioritizes security and stability by preventing the generation of oversized tokens
+    // that can cause gateway errors (502 Bad Gateway).
+
+    const { tokenConfig } = require("@config/tokenStrategyConfig");
+
+    // Define strategies that are known to be large and should be avoided for login tokens.
+    const DISALLOWED_STRATEGIES = new Set([
+      constants.TOKEN_STRATEGIES.LEGACY,
+      constants.TOKEN_STRATEGIES.STANDARD,
+    ]);
+
+    const SAFE_FALLBACK_STRATEGY =
+      constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
+
+    // Determine the initial desired strategy based on priority:
+    // 1. Strategy passed in the current request body.
+    // 2. User's saved preference in their profile.
+    // 3. System-wide default strategy.
+    let desiredStrategy =
       preferredStrategyFromRequest ||
-        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
-      user.organization
+      user.preferredTokenStrategy ||
+      tokenConfig.defaultStrategy;
+
+    // If a global override is active (e.g., for emergency mitigation), it takes highest priority.
+    if (constants.FORCE_SAFE_TOKEN_STRATEGY === true) {
+      if (desiredStrategy !== SAFE_FALLBACK_STRATEGY) {
+        logger.warn(
+          `FORCE_SAFE_TOKEN_STRATEGY is active. Overriding requested strategy '${desiredStrategy}' with '${SAFE_FALLBACK_STRATEGY}' for user ${user.email}.`
+        );
+      }
+      logger.info(
+        `Using forced safe token strategy: ${SAFE_FALLBACK_STRATEGY}`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Validate if the desired strategy is a known, valid strategy.
+    if (!Object.values(constants.TOKEN_STRATEGIES).includes(desiredStrategy)) {
+      logger.warn(
+        `Invalid token strategy '${desiredStrategy}' requested for user ${user.email}. Falling back to '${SAFE_FALLBACK_STRATEGY}'.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Prevent the use of disallowed large strategies for login.
+    if (DISALLOWED_STRATEGIES.has(desiredStrategy)) {
+      logger.warn(
+        `Disallowed large token strategy '${desiredStrategy}' was requested for user ${user.email}. Overriding with '${SAFE_FALLBACK_STRATEGY}' to prevent potential login issues.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // If the strategy is valid and allowed, use it.
+    logger.info(
+      `Using effective token strategy '${desiredStrategy}' for user ${user.email}.`
     );
+    return desiredStrategy;
   },
   /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
@@ -5281,11 +5314,54 @@ const createUserModule = {
         dbTenant
       );
 
+      // --- START of new logic ---
+
+      // Define a transition period cutoff date from constants, with fallbacks.
+      let transitionCutoffDate = new Date(
+        constants.AUTH?.TOKEN_TRANSITION_CUTOFF_DATE ||
+          process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
+          "2025-10-15T00:00:00Z"
+      );
+
+      // Validate the date to prevent errors from invalid configuration.
+      if (Number.isNaN(transitionCutoffDate.getTime())) {
+        logger.error(
+          "Invalid TOKEN_TRANSITION_CUTOFF_DATE. Falling back to standard 24h expiration."
+        );
+        transitionCutoffDate = new Date(0); // A date in the past.
+      }
+
+      const now = new Date();
+      const isWithinTransitionPeriod = now < transitionCutoffDate;
+      let effectiveExpiresIn = "24h";
+
+      // During the transition period, all tokens will have a dynamic expiry
+      // to ensure they last until the cutoff date, giving clients time to update.
+      if (isWithinTransitionPeriod) {
+        const remainingMilliseconds =
+          transitionCutoffDate.getTime() - now.getTime();
+        // Calculate remaining days, rounding up to ensure it covers the full day.
+        const remainingDays = Math.ceil(
+          remainingMilliseconds / (1000 * 60 * 60 * 24)
+        );
+        // The token should last for the remaining transition period, but not less than 24 hours.
+        effectiveExpiresIn = `${Math.max(1, remainingDays)}d`;
+      }
+
+      logger.info(`Token generation policy for ${user.email}:`, {
+        isWithinTransitionPeriod,
+        expiresIn: effectiveExpiresIn,
+        transitionCutoff: transitionCutoffDate.toISOString(),
+      });
+
       // Generate enhanced token
       const token = await tokenFactory.createToken(populatedUser, strategy, {
-        expiresIn: "24h",
-        includePermissions: true,
+        expiresIn: effectiveExpiresIn,
+        includePermissions:
+          strategy !== constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       });
+
+      // --- END of new logic ---
 
       if (!token) {
         return {
@@ -5302,11 +5378,21 @@ const createUserModule = {
           await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
             {
-              $set: { lastLogin: currentDate, isActive: true },
+              $set: {
+                lastLogin: currentDate,
+                isActive: true,
+                // One-time migration for users on legacy or unset strategies.
+                // This marks them as having logged in with the new system.
+                ...((!user.preferredTokenStrategy ||
+                  user.preferredTokenStrategy ===
+                    constants.TOKEN_STRATEGIES.LEGACY ||
+                  user.preferredTokenStrategy ===
+                    constants.TOKEN_STRATEGIES.STANDARD) && {
+                  preferredTokenStrategy: strategy,
+                  tokenStrategyMigratedAt: new Date(),
+                }),
+              },
               $inc: { loginCount: 1 },
-              ...(user.analyticsVersion !== 3 && user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
             },
             { new: true, upsert: false, runValidators: true }
           );
