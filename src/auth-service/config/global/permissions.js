@@ -307,12 +307,12 @@ const DEFAULT_MEMBER_PERMISSIONS = [
   PERMISSIONS.SITE_VIEW,
 ];
 
-// Deprecated roles that should be cleaned up
-const DEPRECATED_ROLE_NAMES = [
+// Deprecated roles that should be cleaned up (must match Role.role_name exactly)
+const DEPRECATED_ROLE_NAMES = Object.freeze([
   "AIRQO_DEFAULT_PRODUCTION",
   "AIRQO_AIRQO_ADMIN",
   "AIRQO_DEFAULT_STAGING",
-];
+]);
 
 // Step 3: Assemble the final export object
 const permissionsExport = {
