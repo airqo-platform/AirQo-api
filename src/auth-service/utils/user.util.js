@@ -5142,11 +5142,64 @@ const createUserModule = {
    * Priority: Request override > User preference > System default.
    */
   _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
-    // FIX: Enforce a single, secure, and small token strategy for all logins
-    // to prevent oversized tokens and subsequent 502 gateway errors.
-    // This is the primary fix for the login issues.
-    logger.info(`Forcing token strategy: NO_ROLES_AND_PERMISSIONS`);
-    return constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
+    // This function determines the safest and most effective token strategy for a user login.
+    // It prioritizes security and stability by preventing the generation of oversized tokens
+    // that can cause gateway errors (502 Bad Gateway).
+
+    const { tokenConfig } = require("@config/tokenStrategyConfig");
+
+    // Define strategies that are known to be large and should be avoided for login tokens.
+    const DISALLOWED_STRATEGIES = new Set([
+      constants.TOKEN_STRATEGIES.LEGACY,
+      constants.TOKEN_STRATEGIES.STANDARD,
+    ]);
+
+    const SAFE_FALLBACK_STRATEGY =
+      constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
+
+    // Determine the initial desired strategy based on priority:
+    // 1. Strategy passed in the current request body.
+    // 2. User's saved preference in their profile.
+    // 3. System-wide default strategy.
+    let desiredStrategy =
+      preferredStrategyFromRequest ||
+      user.preferredTokenStrategy ||
+      tokenConfig.defaultStrategy;
+
+    // If a global override is active (e.g., for emergency mitigation), it takes highest priority.
+    if (constants.FORCE_SAFE_TOKEN_STRATEGY === true) {
+      if (desiredStrategy !== SAFE_FALLBACK_STRATEGY) {
+        logger.warn(
+          `FORCE_SAFE_TOKEN_STRATEGY is active. Overriding requested strategy '${desiredStrategy}' with '${SAFE_FALLBACK_STRATEGY}' for user ${user.email}.`
+        );
+      }
+      logger.info(
+        `Using forced safe token strategy: ${SAFE_FALLBACK_STRATEGY}`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Validate if the desired strategy is a known, valid strategy.
+    if (!Object.values(constants.TOKEN_STRATEGIES).includes(desiredStrategy)) {
+      logger.warn(
+        `Invalid token strategy '${desiredStrategy}' requested for user ${user.email}. Falling back to '${SAFE_FALLBACK_STRATEGY}'.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Prevent the use of disallowed large strategies for login.
+    if (DISALLOWED_STRATEGIES.has(desiredStrategy)) {
+      logger.warn(
+        `Disallowed large token strategy '${desiredStrategy}' was requested for user ${user.email}. Overriding with '${SAFE_FALLBACK_STRATEGY}' to prevent potential login issues.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // If the strategy is valid and allowed, use it.
+    logger.info(
+      `Using effective token strategy '${desiredStrategy}' for user ${user.email}.`
+    );
+    return desiredStrategy;
   },
   /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
