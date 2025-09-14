@@ -7,6 +7,12 @@ const ObjectId = mongoose.Types.ObjectId;
 const createInterestValidation = () => [
   body("interests")
     .optional()
+    .customSanitizer((value) => {
+      if (value === "") {
+        return [];
+      }
+      return value;
+    })
     .isArray()
     .withMessage("interests should be an array")
     .custom((value) => {
@@ -661,6 +667,7 @@ const updateUser = [
       .optional()
       .isMongoId()
       .withMessage("each network should be an object ID"),
+    ...createInterestValidation(),
   ],
 ];
 
@@ -694,6 +701,7 @@ const updateUserById = [
       .isMongoId()
       .withMessage("each network should be an object ID"),
   ],
+  ...createInterestValidation(),
 ];
 
 const deleteUser = [

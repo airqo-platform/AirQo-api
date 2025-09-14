@@ -113,7 +113,8 @@ function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
 
 const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
   try {
-    const user = await UserModel(tenant.toLowerCase()).findById(userId);
+    const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+    const user = await UserModel(dbTenant).findById(userId);
 
     if (isEmpty(user)) {
       next(
@@ -123,7 +124,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       );
     }
 
-    const updatedGroup = await GroupModel(tenant).updateMany(
+    const updatedGroup = await GroupModel(dbTenant).updateMany(
       { grp_manager: userId },
       {
         $set: {
@@ -143,7 +144,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       );
     }
 
-    const updatedNetwork = await NetworkModel(tenant).updateMany(
+    const updatedNetwork = await NetworkModel(dbTenant).updateMany(
       { net_manager: userId },
       {
         $set: {
@@ -178,6 +179,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
     );
   }
 };
+
 const generateCacheID = (request, next) => {
   const {
     privilege,
@@ -632,31 +634,76 @@ const createUserModule = {
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
-      const { tenant } = {
-        ...body,
-        ...query,
-        ...params,
-      };
-      const update = body;
+      const { tenant } = { ...body, ...query, ...params };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      if (!isEmpty(update.password)) {
-        delete update.password;
-      }
-      if (!isEmpty(update._id)) {
-        delete update._id;
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
       }
 
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
+      // Fields that should never be updated via this endpoint.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
+
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
+      // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(tenant.toLowerCase())
-        .find(filter)
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
         .lean()
         .select("email firstName lastName");
-      const responseFromModifyUser = await UserModel(
-        tenant.toLowerCase()
-      ).modify(
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      // 3. Perform the database modification.
+      const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
-          update,
+          update: { $set: sanitizedUpdate },
         },
         next
       );
@@ -664,7 +711,12 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
-        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        // 4. Prepare the payload for the email notification.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        const apiResponseData = responseFromModifyUser.data.toJSON
+          ? responseFromModifyUser.data.toJSON()
+          : responseFromModifyUser.data;
 
         if (
           constants.ENVIRONMENT &&
@@ -673,27 +725,32 @@ const createUserModule = {
           return {
             success: true,
             message: responseFromModifyUser.message,
-            data: responseFromModifyUser.data,
+            data: apiResponseData,
           };
         } else {
-          const email = user[0].email;
-          const firstName = user[0].firstName;
-          const lastName = user[0].lastName;
+          const { email, firstName, lastName } = user;
 
           const responseFromSendEmail = await mailer.update(
-            { email, firstName, lastName, updatedUserDetails },
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
             next
           );
-          if (responseFromSendEmail) {
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: responseFromModifyUser.message,
-                data: responseFromModifyUser.data,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
-            }
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
           } else {
             logger.error("mailer.update did not return a response");
             return next(
@@ -705,7 +762,7 @@ const createUserModule = {
             );
           }
         }
-      } else if (responseFromModifyUser.success === false) {
+      } else {
         return responseFromModifyUser;
       }
     } catch (error) {
@@ -720,6 +777,7 @@ const createUserModule = {
       );
     }
   },
+
   lookUpFirebaseUser: async (request, next) => {
     try {
       const { body } = request;
@@ -1522,6 +1580,7 @@ const createUserModule = {
   delete: async (request, next) => {
     try {
       const { tenant } = request.query;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
       const filter = generateFilter.users(request, next);
       const userId = filter._id;
       const responseFromCascadeDeletion = await cascadeUserDeletion(
@@ -1532,9 +1591,7 @@ const createUserModule = {
         responseFromCascadeDeletion &&
         responseFromCascadeDeletion.success === true
       ) {
-        const responseFromRemoveUser = await UserModel(
-          tenant.toLowerCase()
-        ).remove(
+        const responseFromRemoveUser = await UserModel(dbTenant).remove(
           {
             filter,
           },
@@ -1599,6 +1656,7 @@ const createUserModule = {
         ...request.query,
         ...request.params,
       };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       // ✅ STEP 1: Enhanced input validation
       if (!email || !firstName || !password) {
@@ -1652,7 +1710,7 @@ const createUserModule = {
 
       try {
         // ✅ STEP 3: Check for existing user with enhanced feedback
-        const existingUser = await UserModel(tenant)
+        const existingUser = await UserModel(dbTenant)
           .findOne({
             email: normalizedEmail,
           })
@@ -1741,7 +1799,7 @@ const createUserModule = {
         };
 
         // ✅ STEP 5: Create user with enhanced error handling
-        const newUserResponse = await UserModel(tenant).register(
+        const newUserResponse = await UserModel(dbTenant).register(
           userData,
           next,
           {
@@ -1763,9 +1821,10 @@ const createUserModule = {
             expires: new Date(Date.now() + tokenExpiry * 1000),
           };
 
-          const verifyTokenResponse = await VerifyTokenModel(
-            tenant.toLowerCase()
-          ).register(tokenCreationBody, next);
+          const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+            tokenCreationBody,
+            next
+          );
 
           if (verifyTokenResponse && verifyTokenResponse.success === false) {
             logger.error(
@@ -1780,7 +1839,7 @@ const createUserModule = {
 
             // Consider rolling back user creation
             try {
-              await UserModel(tenant).findByIdAndDelete(userId);
+              await UserModel(dbTenant).findByIdAndDelete(userId);
               logger.info(
                 `Rolled back user creation due to token failure: ${userId}`
               );
@@ -1913,6 +1972,7 @@ const createUserModule = {
   verificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       if (!email) {
         return {
@@ -1964,7 +2024,7 @@ const createUserModule = {
       }, 300000); // 5 minute rate limit
 
       // ✅ STEP 2: Enhanced user lookup with verification status check
-      const user = await UserModel(tenant)
+      const user = await UserModel(dbTenant)
         .findOne({ email: normalizedEmail })
         .select(
           "_id email firstName lastName verified createdAt lastLogin analyticsVersion"
@@ -2026,13 +2086,13 @@ const createUserModule = {
       // ✅ STEP 5: Create verification token with cleanup of old tokens
       try {
         // Clean up any existing tokens for this user first
-        await VerifyTokenModel(tenant.toLowerCase()).deleteMany({
+        await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
           expires: { $lt: new Date() }, // Delete expired tokens
         });
 
         const responseFromCreateToken = await VerifyTokenModel(
-          tenant.toLowerCase()
+          dbTenant
         ).register(tokenCreationBody, next);
 
         if (!responseFromCreateToken) {
@@ -2163,9 +2223,11 @@ const createUserModule = {
       };
     }
   },
+
   mobileVerificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       if (!email) {
         return {
@@ -2215,7 +2277,7 @@ const createUserModule = {
       }, 180000); // 3 minute rate limit for mobile
 
       // ✅ STEP 2: Enhanced user lookup
-      const user = await UserModel(tenant)
+      const user = await UserModel(dbTenant)
         .findOne({ email: normalizedEmail })
         .select(
           "_id email firstName lastName verified analyticsVersion createdAt"
@@ -2269,14 +2331,14 @@ const createUserModule = {
       // ✅ STEP 5: Create token with cleanup
       try {
         // Clean up old mobile tokens first
-        await VerifyTokenModel(tenant.toLowerCase()).deleteMany({
+        await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
           token: { $regex: /^\d{5}$/ }, // Delete old 5-digit tokens
           expires: { $lt: new Date() },
         });
 
         const responseFromCreateToken = await VerifyTokenModel(
-          tenant.toLowerCase()
+          dbTenant
         ).register(tokenCreationBody, next);
 
         if (responseFromCreateToken.success === false) {
@@ -2383,6 +2445,7 @@ const createUserModule = {
       };
     }
   },
+
   verifyMobileEmail: async (request, next) => {
     try {
       const {
@@ -3046,6 +3109,7 @@ const createUserModule = {
         ...request.query,
         ...request.params,
       };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       // ✅ STEP 1: Create registration lock to prevent race conditions
       const lockKey = `reg-${email.toLowerCase()}-${tenant}`;
@@ -3080,7 +3144,7 @@ const createUserModule = {
 
       try {
         // ✅ STEP 2: Check for existing user with enhanced logging
-        const existingUser = await UserModel(tenant)
+        const existingUser = await UserModel(dbTenant)
           .findOne({
             email: email.toLowerCase(),
           })
@@ -3180,7 +3244,7 @@ const createUserModule = {
           userBody
         );
 
-        const responseFromCreateUser = await UserModel(tenant).register(
+        const responseFromCreateUser = await UserModel(dbTenant).register(
           newRequest,
           next,
           { sendDuplicateEmail: true }
@@ -3215,7 +3279,7 @@ const createUserModule = {
           };
 
           const responseFromCreateToken = await VerifyTokenModel(
-            tenant.toLowerCase()
+            dbTenant
           ).register(tokenCreationBody, next);
 
           if (responseFromCreateToken.success === false) {
@@ -3294,6 +3358,7 @@ const createUserModule = {
       };
     }
   },
+
   // Enhanced register function in user.util.js
   register: async (request, next) => {
     try {
@@ -3750,100 +3815,142 @@ const createUserModule = {
       );
     }
   },
-  updateKnownPassword: async (request, next) => {
+  update: async (request, next) => {
     try {
-      const { query, body } = request;
-      const { password, old_password, tenant } = { ...body, ...query };
+      const { query, body, params } = request;
+      const { tenant } = { ...body, ...query, ...params };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
+      }
+
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
+      // Fields that should never be updated via this endpoint.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
+
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
+      // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(tenant).find(filter).lean();
-      logObject("the user details with lean(", user);
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
+        .lean()
+        .select("email firstName lastName");
 
-      if (isEmpty(user)) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
       }
 
-      if (isEmpty(user[0].password)) {
-        logger.error(` ${user[0].email} --- unable to do password lookup`);
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "unable to do password lookup",
-            }
-          )
-        );
-      }
-
-      const responseFromBcrypt = await bcrypt.compare(
-        old_password,
-        user[0].password
-      );
-
-      if (responseFromBcrypt === false) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
-      }
-
-      const update = {
-        password: password,
-      };
-      const responseFromUpdateUser = await UserModel(
-        tenant.toLowerCase()
-      ).modify(
+      // 3. Perform the database modification.
+      const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
-          update,
+          update: { $set: sanitizedUpdate },
         },
         next
       );
 
-      if (responseFromUpdateUser.success === true) {
-        const { email, firstName, lastName } = user[0];
-        const responseFromSendEmail = await mailer.updateKnownPassword(
-          {
-            email,
-            firstName,
-            lastName,
-          },
-          next
-        );
+      logObject("responseFromModifyUser", responseFromModifyUser);
 
-        if (responseFromSendEmail) {
-          if (responseFromSendEmail.success === true) {
-            return responseFromUpdateUser;
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
+      if (responseFromModifyUser.success === true) {
+        // 4. Prepare the payload for the email notification.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        const apiResponseData = responseFromModifyUser.data.toJSON
+          ? responseFromModifyUser.data.toJSON()
+          : responseFromModifyUser.data;
+
+        if (
+          constants.ENVIRONMENT &&
+          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
+        ) {
+          return {
+            success: true,
+            message: responseFromModifyUser.message,
+            data: apiResponseData,
+          };
         } else {
-          logger.error("mailer.updateKnownPassword did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send update password email" }
-            )
+          const { email, firstName, lastName } = user;
+
+          const responseFromSendEmail = await mailer.update(
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
+            next
           );
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
+          } else {
+            logger.error("mailer.update did not return a response");
+            return next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "Failed to send update email" }
+              )
+            );
+          }
         }
-      } else if (responseFromUpdateUser.success === false) {
-        return responseFromUpdateUser;
+      } else {
+        return responseFromModifyUser;
       }
     } catch (error) {
+      logObject("the util error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -3854,6 +3961,7 @@ const createUserModule = {
       );
     }
   },
+
   initiatePasswordReset: async ({ email, token, tenant }) => {
     try {
       const update = {
@@ -3988,7 +4096,8 @@ const createUserModule = {
     next
   ) => {
     try {
-      const responseFromListUser = await UserModel(tenant.toLowerCase()).list(
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+      const responseFromListUser = await UserModel(dbTenant).list(
         {
           filter,
         },
@@ -4027,6 +4136,7 @@ const createUserModule = {
       );
     }
   },
+
   subscribeToNewsLetter: async (request, next) => {
     try {
       const {
