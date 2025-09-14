@@ -640,19 +640,39 @@ const createUserModule = {
       // 1. Create a sanitized copy of the body for the database update.
       const sanitizedUpdate = { ...body };
 
-      // Sanitize the 'interests' field.
-      if ("interests" in sanitizedUpdate && sanitizedUpdate.interests === "") {
-        sanitizedUpdate.interests = [];
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
       }
 
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
       // Fields that should never be updated via this endpoint.
-      // These are either immutable or managed by other dedicated endpoints.
       delete sanitizedUpdate.password;
       delete sanitizedUpdate._id;
-      delete sanitizedUpdate.user_id; // Often passed in body, but filter is used
-      delete sanitizedUpdate.id; // Alias for _id
-      delete sanitizedUpdate.email; // Email should not be changed here
-      delete sanitizedUpdate.userName; // Username should not be changed here
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
 
       if (Object.keys(sanitizedUpdate).length === 0) {
         return {
@@ -666,7 +686,7 @@ const createUserModule = {
       // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
       const user = await UserModel(dbTenant)
-        .findOne(filter) // findOne is more appropriate here
+        .findOne(filter)
         .lean()
         .select("email firstName lastName");
 
@@ -692,10 +712,8 @@ const createUserModule = {
 
       if (responseFromModifyUser.success === true) {
         // 4. Prepare the payload for the email notification.
-        // This uses the same sanitized data sent to the DB, ensuring consistency.
         const emailUpdatePayload = { ...sanitizedUpdate };
 
-        // The API response will contain the full, updated user object.
         const apiResponseData = responseFromModifyUser.data.toJSON
           ? responseFromModifyUser.data.toJSON()
           : responseFromModifyUser.data;
@@ -745,7 +763,6 @@ const createUserModule = {
           }
         }
       } else {
-        // Pass the structured error from modify directly to the controller
         return responseFromModifyUser;
       }
     } catch (error) {
@@ -3798,99 +3815,142 @@ const createUserModule = {
       );
     }
   },
-  updateKnownPassword: async (request, next) => {
+  update: async (request, next) => {
     try {
-      const { query, body } = request;
-      const { password, old_password, tenant } = { ...body, ...query };
+      const { query, body, params } = request;
+      const { tenant } = { ...body, ...query, ...params };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
+      }
+
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
+      // Fields that should never be updated via this endpoint.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
+
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
+      // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(dbTenant).find(filter).lean();
-      logObject("the user details with lean(", user);
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
+        .lean()
+        .select("email firstName lastName");
 
-      if (isEmpty(user)) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
       }
 
-      if (isEmpty(user[0].password)) {
-        logger.error(` ${user[0].email} --- unable to do password lookup`);
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "unable to do password lookup",
-            }
-          )
-        );
-      }
-
-      const responseFromBcrypt = await bcrypt.compare(
-        old_password,
-        user[0].password
-      );
-
-      if (responseFromBcrypt === false) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
-      }
-
-      const update = {
-        password: password,
-      };
-      const responseFromUpdateUser = await UserModel(dbTenant).modify(
+      // 3. Perform the database modification.
+      const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
-          update,
+          update: { $set: sanitizedUpdate },
         },
         next
       );
 
-      if (responseFromUpdateUser.success === true) {
-        const { email, firstName, lastName } = user[0];
-        const responseFromSendEmail = await mailer.updateKnownPassword(
-          {
-            email,
-            firstName,
-            lastName,
-          },
-          next
-        );
+      logObject("responseFromModifyUser", responseFromModifyUser);
 
-        if (responseFromSendEmail) {
-          if (responseFromSendEmail.success === true) {
-            return responseFromUpdateUser;
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
+      if (responseFromModifyUser.success === true) {
+        // 4. Prepare the payload for the email notification.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        const apiResponseData = responseFromModifyUser.data.toJSON
+          ? responseFromModifyUser.data.toJSON()
+          : responseFromModifyUser.data;
+
+        if (
+          constants.ENVIRONMENT &&
+          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
+        ) {
+          return {
+            success: true,
+            message: responseFromModifyUser.message,
+            data: apiResponseData,
+          };
         } else {
-          logger.error("mailer.updateKnownPassword did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send update password email" }
-            )
+          const { email, firstName, lastName } = user;
+
+          const responseFromSendEmail = await mailer.update(
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
+            next
           );
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
+          } else {
+            logger.error("mailer.update did not return a response");
+            return next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "Failed to send update email" }
+              )
+            );
+          }
         }
-      } else if (responseFromUpdateUser.success === false) {
-        return responseFromUpdateUser;
+      } else {
+        return responseFromModifyUser;
       }
     } catch (error) {
+      logObject("the util error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
