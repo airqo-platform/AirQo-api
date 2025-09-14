@@ -329,6 +329,7 @@ const permissionsExport = {
   DEFAULT_NETWORK_MEMBER_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
   DEPRECATED_ROLE_NAMES,
+  // do not mix AUTH constants into the flat "permissions" bag
 };
 
 module.exports = {

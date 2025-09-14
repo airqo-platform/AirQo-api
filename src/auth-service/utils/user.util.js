@@ -5316,13 +5316,15 @@ const createUserModule = {
 
       // --- START of new logic ---
 
-      // Define a transition period cutoff date from constants.
-      const transitionCutoffDate = new Date(
-        constants.AUTH.TOKEN_TRANSITION_CUTOFF_DATE || "2025-10-15T00:00:00Z"
+      // Define a transition period cutoff date from constants, with fallbacks.
+      let transitionCutoffDate = new Date(
+        constants.AUTH?.TOKEN_TRANSITION_CUTOFF_DATE ||
+          process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
+          "2025-10-15T00:00:00Z"
       );
 
       // Validate the date to prevent errors from invalid configuration.
-      if (isNaN(transitionCutoffDate.getTime())) {
+      if (Number.isNaN(transitionCutoffDate.getTime())) {
         logger.error(
           "Invalid TOKEN_TRANSITION_CUTOFF_DATE. Falling back to standard 24h expiration."
         );

@@ -836,8 +836,8 @@ UserSchema.statics = {
         .addFields({
           createdAt: {
             $dateToString: {
-              format: "%Y-%m-%d %H:%M:%S",
-              date: "$_id",
+              format: "%Y-%m-%dT%H:%M:%S.%LZ",
+              date: "$createdAt",
             },
           },
         })
@@ -957,7 +957,14 @@ UserSchema.statics = {
           my_networks: { $first: "$my_networks" },
           my_groups: { $first: "$my_groups" },
           createdAt: { $first: "$createdAt" },
-          updatedAt: { $first: "$updatedAt" },
+          updatedAt: {
+            $first: {
+              $dateToString: {
+                format: "%Y-%m-%dT%H:%M:%S.%LZ",
+                date: "$updatedAt",
+              },
+            },
+          },
           networks: {
             $addToSet: {
               net_name: { $arrayElemAt: ["$network.net_name", 0] },
@@ -1024,6 +1031,7 @@ UserSchema.statics = {
       return;
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the user modification function........");
