@@ -168,79 +168,27 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
-        } else if (user.analyticsVersion === 3 && user.verified === false) {
-          const tenantValue = tenant || "airqo";
-          const verificationRequest = {
-            tenant: tenantValue,
-            email: user.email,
-          };
+        }
+
+        // Centralized verification check
+        const verificationResult = createUserUtil._handleVerification(user);
+        if (!verificationResult.shouldProceed) {
           try {
-            const verificationEmailResponse =
+            if (verificationResult.requiresV3Reminder) {
               await createUserUtil.verificationReminder(
-                verificationRequest,
+                { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
-            if (
-              !verificationEmailResponse ||
-              verificationEmailResponse.success === false
-            ) {
-              logger.error(
-                `Internal Server Error --- ${stringify(
-                  verificationEmailResponse || "No Response"
-                )}`
+            } else if (verificationResult.requiresV4Reminder) {
+              await createUserUtil.mobileVerificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
+                next
               );
             }
           } catch (error) {
             logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN
-            )
-          );
-          return;
-        } else if (user.analyticsVersion === 4 && !user.verified) {
-          await createUserUtil
-            .mobileVerificationReminder({ tenant, email: user.email }, next)
-            .then((verificationResponse) => {
-              if (
-                !verificationResponse ||
-                verificationResponse.success === false
-              ) {
-                logger.error(
-                  `Verification reminder failed: ${
-                    verificationResponse
-                      ? verificationResponse.message
-                      : "No response"
-                  }`
-                );
-              }
-            })
-            .catch((err) => {
-              logger.error(
-                `Error sending verification reminder: ${err.message}`
-              );
-            });
-
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN,
-              {
-                message:
-                  "account not verified, verification email has been sent to your email",
-              }
-            )
-          );
+          next(new HttpError(verificationResult.message, httpStatus.FORBIDDEN));
           return;
         }
         req.auth.success = true;
@@ -298,30 +246,18 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             );
           }
         })();
-        const currentDate = new Date();
 
         try {
+          const updatePayload = createUserUtil._constructLoginUpdate(
+            user,
+            verificationResult
+          );
           await UserModel(tenant.toLowerCase())
-            .findOneAndUpdate(
-              { _id: user._id },
-              {
-                $set: {
-                  lastLogin: currentDate,
-                  isActive: true,
-                  ...(user.analyticsVersion !== 3 &&
-                  user.analyticsVersion !== 4 &&
-                  user.verified === false
-                    ? { verified: true }
-                    : {}),
-                },
-                $inc: { loginCount: 1 },
-              },
-              {
-                new: true,
-                upsert: false,
-                runValidators: true,
-              }
-            )
+            .findOneAndUpdate({ _id: user._id }, updatePayload, {
+              new: true,
+              upsert: false,
+              runValidators: true,
+            })
             .then(() => {})
             .catch((error) => {
               logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -387,79 +323,27 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
-        } else if (user.analyticsVersion === 3 && user.verified === false) {
+        }
+
+        // Centralized verification check
+        const verificationResult = createUserUtil._handleVerification(user);
+        if (!verificationResult.shouldProceed) {
           try {
-            const tenantValue = tenant || "airqo";
-            const verificationRequest = {
-              tenant: tenantValue,
-              email: user.email,
-            };
-            const verificationEmailResponse =
+            if (verificationResult.requiresV3Reminder) {
               await createUserUtil.verificationReminder(
-                verificationRequest,
+                { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
-            if (
-              !verificationEmailResponse ||
-              verificationEmailResponse.success === false
-            ) {
-              logger.error(
-                `Internal Server Error --- ${stringify(
-                  verificationEmailResponse || "No Response"
-                )}`
+            } else if (verificationResult.requiresV4Reminder) {
+              await createUserUtil.mobileVerificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
+                next
               );
             }
           } catch (error) {
             logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN
-            )
-          );
-          return;
-        } else if (user.analyticsVersion === 4 && !user.verified) {
-          createUserUtil
-            .mobileVerificationReminder({ tenant, email: user.email }, next)
-            .then((verificationResponse) => {
-              if (
-                !verificationResponse ||
-                verificationResponse.success === false
-              ) {
-                logger.error(
-                  `Verification reminder failed: ${
-                    verificationResponse
-                      ? verificationResponse.message
-                      : "No response"
-                  }`
-                );
-              }
-            })
-            .catch((err) => {
-              logger.error(
-                `Error sending verification reminder: ${err.message}`
-              );
-            });
-
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN,
-              {
-                message:
-                  "account not verified, verification email has been sent to your email",
-              }
-            )
-          );
+          next(new HttpError(verificationResult.message, httpStatus.FORBIDDEN));
           return;
         }
         req.auth.success = true;
@@ -517,30 +401,17 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           }
         })();
 
-        const currentDate = new Date();
-
         try {
+          const updatePayload = createUserUtil._constructLoginUpdate(
+            user,
+            verificationResult
+          );
           await UserModel(tenant.toLowerCase())
-            .findOneAndUpdate(
-              { _id: user._id },
-              {
-                $set: {
-                  lastLogin: currentDate,
-                  isActive: true,
-                  ...(user.analyticsVersion !== 3 &&
-                  user.analyticsVersion !== 4 &&
-                  user.verified === false
-                    ? { verified: true }
-                    : {}),
-                },
-                $inc: { loginCount: 1 },
-              },
-              {
-                new: true,
-                upsert: false,
-                runValidators: true,
-              }
-            )
+            .findOneAndUpdate({ _id: user._id }, updatePayload, {
+              new: true,
+              upsert: false,
+              runValidators: true,
+            })
             .then(() => {})
             .catch((error) => {
               logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -673,29 +544,18 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
-            const currentDate = new Date();
             try {
+              const verificationResult = { shouldAutoVerify: true }; // New user, auto-verify
+              const updatePayload = createUserUtil._constructLoginUpdate(
+                user,
+                verificationResult
+              );
               await UserModel(tenant.toLowerCase())
-                .findOneAndUpdate(
-                  { _id: user._id },
-                  {
-                    $set: {
-                      lastLogin: currentDate,
-                      isActive: true,
-                      ...(user.analyticsVersion !== 3 &&
-                      user.analyticsVersion !== 4 &&
-                      user.verified === false
-                        ? { verified: true }
-                        : {}),
-                    },
-                    $inc: { loginCount: 1 },
-                  },
-                  {
-                    new: true,
-                    upsert: false,
-                    runValidators: true,
-                  }
-                )
+                .findOneAndUpdate({ _id: user._id }, updatePayload, {
+                  new: true,
+                  upsert: false,
+                  runValidators: true,
+                })
                 .then(() => {})
                 .catch((error) => {
                   logger.error(
@@ -1253,30 +1113,18 @@ const useJWTStrategy = (tenant, req, res, next) =>
         }
       });
 
-      const currentDate = new Date();
-
       try {
+        const verificationResult = { shouldAutoVerify: true }; // Already authenticated, just update stats
+        const updatePayload = createUserUtil._constructLoginUpdate(
+          user,
+          verificationResult
+        );
         await UserModel(tenant.toLowerCase())
-          .findOneAndUpdate(
-            { _id: user._id },
-            {
-              $set: {
-                lastLogin: currentDate,
-                isActive: true,
-                ...(user.analyticsVersion !== 3 &&
-                user.analyticsVersion !== 4 &&
-                user.verified === false
-                  ? { verified: true }
-                  : {}),
-              },
-              $inc: { loginCount: 1 },
-            },
-            {
-              new: true,
-              upsert: false,
-              runValidators: true,
-            }
-          )
+          .findOneAndUpdate({ _id: user._id }, updatePayload, {
+            new: true,
+            upsert: false,
+            runValidators: true,
+          })
           .then(() => {})
           .catch((error) => {
             logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);

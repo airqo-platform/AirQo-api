@@ -5202,6 +5202,75 @@ const createUserModule = {
     return desiredStrategy;
   },
   /**
+   * Centralized handler for user verification status.
+   * @param {object} user - The user object to check.
+   * @returns {object} A status object indicating the verification state.
+   */
+  _handleVerification: (user) => {
+    if (!user) {
+      return { shouldProceed: false, message: "User not found" };
+    }
+    if (user.verified) {
+      return { shouldProceed: true };
+    }
+
+    if (user.analyticsVersion === 3) {
+      return {
+        shouldProceed: false,
+        requiresV3Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    if (user.analyticsVersion === 4) {
+      return {
+        shouldProceed: false,
+        requiresV4Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    // For other versions (e.g., 2 or undefined), we auto-verify.
+    return { shouldProceed: true, shouldAutoVerify: true };
+  },
+
+  /**
+   * Constructs the standard update payload for a user upon successful login.
+   * @param {object} user - The user object.
+   * @param {object} verificationResult - The result from _handleVerification.
+   * @param {string} [strategy=null] - The token strategy for migration purposes.
+   * @returns {object} The MongoDB update object.
+   */
+  _constructLoginUpdate: (user, verificationResult, strategy = null) => {
+    const currentDate = new Date();
+    const updatePayload = {
+      $set: {
+        lastLogin: currentDate,
+        isActive: true,
+      },
+      $inc: { loginCount: 1 },
+    };
+
+    if (verificationResult && verificationResult.shouldAutoVerify) {
+      updatePayload.$set.verified = true;
+    }
+
+    // Handle one-time token strategy migration (only for enhanced login)
+    if (
+      strategy &&
+      (!user.preferredTokenStrategy ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.LEGACY ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.STANDARD)
+    ) {
+      updatePayload.$set.preferredTokenStrategy = strategy;
+      updatePayload.$set.tokenStrategyMigratedAt = new Date();
+    }
+
+    return updatePayload;
+  },
+  /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
   loginWithEnhancedTokens: async (request, next) => {
@@ -5260,24 +5329,16 @@ const createUserModule = {
         };
       }
 
-      // Check verification status
-      if (!user.verified) {
+      // Centralized verification check
+      const verificationResult = createUserModule._handleVerification(user);
+      if (!verificationResult.shouldProceed) {
         return {
           success: false,
-          message: "Please verify your email address first",
+          message: verificationResult.message,
           status: httpStatus.FORBIDDEN,
           errors: {
             verification: "Email not verified",
           },
-        };
-      }
-
-      // Check account status
-      if (user.analyticsVersion === 3 && user.verified === false) {
-        return {
-          success: false,
-          message: "Account not verified, please check your email",
-          status: httpStatus.FORBIDDEN,
         };
       }
 
@@ -5374,31 +5435,14 @@ const createUserModule = {
       // Update login statistics
       (async () => {
         try {
-          const currentDate = new Date();
+          const updatePayload = createUserModule._constructLoginUpdate(
+            user,
+            verificationResult,
+            strategy
+          );
           await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
-            {
-              $set: {
-                lastLogin: currentDate,
-                isActive: true,
-                // One-time migration for users on legacy or unset strategies.
-                // This marks them as having logged in with the new system.
-                ...((!user.preferredTokenStrategy ||
-                  user.preferredTokenStrategy ===
-                    constants.TOKEN_STRATEGIES.LEGACY ||
-                  user.preferredTokenStrategy ===
-                    constants.TOKEN_STRATEGIES.STANDARD) && {
-                  preferredTokenStrategy: strategy,
-                  tokenStrategyMigratedAt: new Date(),
-                }),
-                ...(user.analyticsVersion !== 3 &&
-                user.analyticsVersion !== 4 &&
-                user.verified === false
-                  ? { verified: true }
-                  : {}),
-              },
-              $inc: { loginCount: 1 },
-            },
+            updatePayload,
             { new: true, upsert: false, runValidators: true }
           );
           await createUserModule.ensureDefaultAirqoRole(user, dbTenant);
