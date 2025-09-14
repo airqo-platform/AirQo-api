@@ -5391,9 +5391,6 @@ const createUserModule = {
                   preferredTokenStrategy: strategy,
                   tokenStrategyMigratedAt: new Date(),
                 }),
-                ...(user.analyticsVersion !== 3 && user.verified === false
-                  ? { verified: true }
-                  : {}),
               },
               $inc: { loginCount: 1 },
             },
