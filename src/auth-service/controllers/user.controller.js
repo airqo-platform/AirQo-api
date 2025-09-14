@@ -422,6 +422,8 @@ const userController = {
             profilePicture: data.profilePicture,
             country: data.country,
             phoneNumber: data.phoneNumber,
+            interests: data.interests,
+            interestsDescription: data.interestsDescription,
             verified: data.verified,
             isActive: data.isActive,
           };

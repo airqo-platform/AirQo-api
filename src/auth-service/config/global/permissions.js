@@ -314,7 +314,13 @@ const DEPRECATED_ROLE_NAMES = Object.freeze([
   "AIRQO_DEFAULT_STAGING",
 ]);
 
-// Step 3: Assemble the final export object
+// Step 3: Define system-wide constants related to authentication
+const AUTH_CONSTANTS = {
+  // Date until which initial logins will receive a 30-day token to support mobile app transition.
+  TOKEN_TRANSITION_CUTOFF_DATE: "2025-10-15T00:00:00Z",
+};
+
+// Step 4: Assemble the final export object
 const permissionsExport = {
   ...PERMISSIONS,
   ALL: ALL_PERMISSIONS,
@@ -323,6 +329,7 @@ const permissionsExport = {
   DEFAULT_NETWORK_MEMBER_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
   DEPRECATED_ROLE_NAMES,
+  // do not mix AUTH constants into the flat "permissions" bag
 };
 
 module.exports = {
@@ -338,4 +345,5 @@ module.exports = {
   },
   // New flat export
   ...permissionsExport,
+  AUTH: AUTH_CONSTANTS,
 };

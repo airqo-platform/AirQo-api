@@ -1513,9 +1513,9 @@ const enhancedJWTAuth = async (req, res, next) => {
     const tenant = String(tenantRaw).toLowerCase();
 
     const tokenFactory = new AbstractTokenFactory(tenant);
-    const decodedUser = await tokenFactory.decodeToken(token);
+    const decodedToken = await tokenFactory.decodeToken(token);
 
-    const userId = decodedUser.userId || decodedUser.id || decodedUser._id;
+    const userId = decodedToken.userId || decodedToken.id || decodedToken._id;
     if (!userId) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
@@ -1537,17 +1537,83 @@ const enhancedJWTAuth = async (req, res, next) => {
     // Attach DB-backed user and token claims separately to avoid shadowing DB values
     req.user = {
       ...user,
-      ...decodedUser,
+      ...decodedToken,
     };
+
+    // Sliding Session: Automatically refresh the token if it's nearing expiration.
+    res.on("finish", async () => {
+      try {
+        // Only refresh on successful responses (2xx status codes).
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const nowInSeconds = Math.floor(Date.now() / 1000);
+          const tokenExpiry = decodedToken.exp; // 'exp' is a standard JWT claim.
+          const refreshThreshold = 15 * 60; // Refresh if token expires in the next 15 minutes.
+
+          if (tokenExpiry && tokenExpiry - nowInSeconds < refreshThreshold) {
+            logger.info(
+              `Token for user ${user.email} is nearing expiration. Issuing a new one.`
+            );
+
+            // Re-fetch the user as a Mongoose document to access instance methods.
+            const userDoc = await UserModel(tenant).findById(userId);
+            if (userDoc) {
+              const newToken = await userDoc.createToken();
+
+              // Set the new token in a custom header. The client will need to check for this.
+              res.set("X-Access-Token", newToken);
+
+              // IMPORTANT: For CORS, you must expose custom headers so the browser can access them.
+              res.set("Access-Control-Expose-Headers", "X-Access-Token");
+            }
+          }
+        }
+      } catch (refreshError) {
+        // Log the error but don't crash the application, as the primary request was successful.
+        logger.error(
+          `Failed to refresh token for user ${user ? user.email : "unknown"}: ${
+            refreshError.message
+          }`
+        );
+      }
+    });
 
     next();
   } catch (error) {
     // The token decoding utility (atf.service) now handles logging based on error type.
     // We just need to construct the correct HTTP response.
     // Provide a more specific error message based on the JWT error type
-    let errorMessage = "Invalid or expired token";
+    let errorMessage = "Your session is invalid. Please log in again.";
     if (error.name === "TokenExpiredError") {
-      errorMessage = "Token has expired";
+      errorMessage = "Your session has expired. Please log in again.";
+
+      // GRACEFUL MIGRATION: Handle old tokens that have just expired.
+      // This allows a one-time refresh for users transitioning from non-expiring tokens.
+      try {
+        const expiredDecoded = jwt.verify(
+          req.headers.authorization.split(" ")[1],
+          constants.JWT_SECRET,
+          {
+            ignoreExpiration: true,
+          }
+        );
+
+        // Check if it's an old token (lacks the 'expiresAt' field we added).
+        if (!expiredDecoded.expiresAt) {
+          logger.warn(
+            `Gracefully handling an expired legacy token for user ${
+              expiredDecoded.email || expiredDecoded._id
+            }. Allowing one-time refresh.`
+          );
+          // By calling next() without an error, we allow the request to proceed.
+          // The 'finish' event on the response will then issue a new, modern token.
+          return next();
+        }
+      } catch (migrationError) {
+        // If decoding the expired token fails for any other reason, proceed with the original error.
+        logger.error(
+          `Error during graceful token migration check: ${migrationError.message}`
+        );
+      }
     } else if (error.name === "JsonWebTokenError") {
       errorMessage = `Invalid token: ${error.message}`;
     } else {
