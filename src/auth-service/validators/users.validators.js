@@ -8,8 +8,27 @@ const createInterestValidation = () => [
   body("interests")
     .optional()
     .customSanitizer((value) => {
+      // Sanitize incoming interest values to match backend expectations.
+      // This handles cases where the frontend sends display-friendly values.
       if (value === "") {
         return [];
+      }
+      if (Array.isArray(value)) {
+        const interestMap = {
+          "Health Professional": "health",
+          "Software Developer": "software developer",
+          "Community Champion": "community champion",
+          "Environmental Scientist": "environmental",
+          Student: "student",
+          "Policy Maker": "policy maker",
+          Researcher: "researcher",
+          "Air Quality Partner": "air quality partner",
+        };
+        // Map known frontend values to backend values, and lowercase any others as a fallback.
+        return value.map(
+          (interest) =>
+            interestMap[interest] || String(interest || "").toLowerCase()
+        );
       }
       return value;
     })
