@@ -4935,10 +4935,7 @@ const createUserModule = {
       }
 
       // --- 3. Remove Deprecated Roles ---
-      const deprecatedRoleNames = [
-        "AIRQO_DEFAULT_PRODUCTION",
-        "AIRQO_AIRQO_ADMIN",
-      ];
+      const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
       const deprecatedRoles = await RoleModel(tenant)
         .find({ role_name: { $in: deprecatedRoleNames } })
         .select("_id")
