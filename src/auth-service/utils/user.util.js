@@ -124,7 +124,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       );
     }
 
-    const updatedGroup = await GroupModel(tenant).updateMany(
+    const updatedGroup = await GroupModel(dbTenant).updateMany(
       { grp_manager: userId },
       {
         $set: {
@@ -144,7 +144,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       );
     }
 
-    const updatedNetwork = await NetworkModel(tenant).updateMany(
+    const updatedNetwork = await NetworkModel(dbTenant).updateMany(
       { net_manager: userId },
       {
         $set: {
@@ -654,6 +654,15 @@ const createUserModule = {
       delete sanitizedUpdate.email; // Email should not be changed here
       delete sanitizedUpdate.userName; // Username should not be changed here
 
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
       // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
       const user = await UserModel(dbTenant)
@@ -674,7 +683,7 @@ const createUserModule = {
       const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
-          update: sanitizedUpdate,
+          update: { $set: sanitizedUpdate },
         },
         next
       );

@@ -1022,9 +1022,23 @@ UserSchema.statics = {
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the user modification function........");
-      const options = { new: true, runValidators: true };
+      const options = {
+        new: true,
+        runValidators: true,
+        context: "query",
+        sanitizeFilter: true,
+      };
 
-      const updatedUser = await this.findOneAndUpdate(filter, update, options);
+      const updateDoc =
+        update && Object.keys(update).some((k) => k.startsWith("$"))
+          ? update
+          : { $set: update };
+
+      const updatedUser = await this.findOneAndUpdate(
+        filter,
+        updateDoc,
+        options
+      );
 
       if (!isEmpty(updatedUser)) {
         return {
