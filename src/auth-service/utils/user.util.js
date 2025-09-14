@@ -5315,10 +5315,13 @@ const createUserModule = {
       );
 
       // Generate enhanced token
+      const isFirstLogin =
+        !populatedUser.lastLogin && (populatedUser.loginCount || 0) === 0;
       const token = await tokenFactory.createToken(populatedUser, strategy, {
-        expiresIn: "24h",
-        isInitialToken: true, // Issue a longer-lived token on first login
-        includePermissions: true,
+        ...(isFirstLogin ? {} : { expiresIn: "24h" }), // let ATF apply initial-token policy (30d when isInitialToken)
+        isInitialToken: isFirstLogin,
+        includePermissions:
+          strategy !== constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       });
 
       if (!token) {
