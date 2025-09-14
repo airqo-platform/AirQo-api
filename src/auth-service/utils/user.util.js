@@ -5378,21 +5378,24 @@ const createUserModule = {
           await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
             {
-              $set: { lastLogin: currentDate, isActive: true },
+              $set: {
+                lastLogin: currentDate,
+                isActive: true,
+                // One-time migration for users on legacy or unset strategies.
+                // This marks them as having logged in with the new system.
+                ...((!user.preferredTokenStrategy ||
+                  user.preferredTokenStrategy ===
+                    constants.TOKEN_STRATEGIES.LEGACY ||
+                  user.preferredTokenStrategy ===
+                    constants.TOKEN_STRATEGIES.STANDARD) && {
+                  preferredTokenStrategy: strategy,
+                  tokenStrategyMigratedAt: new Date(),
+                }),
+                ...(user.analyticsVersion !== 3 && user.verified === false
+                  ? { verified: true }
+                  : {}),
+              },
               $inc: { loginCount: 1 },
-              // One-time migration for users on legacy or unset strategies.
-              // This marks them as having logged in with the new system.
-              ...((!user.preferredTokenStrategy ||
-                user.preferredTokenStrategy ===
-                  constants.TOKEN_STRATEGIES.LEGACY ||
-                user.preferredTokenStrategy ===
-                  constants.TOKEN_STRATEGIES.STANDARD) && {
-                preferredTokenStrategy: strategy,
-                tokenStrategyMigratedAt: new Date(),
-              }),
-              ...(user.analyticsVersion !== 3 && user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
             },
             { new: true, upsert: false, runValidators: true }
           );
