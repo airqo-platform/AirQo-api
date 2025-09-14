@@ -7,6 +7,12 @@ const ObjectId = mongoose.Types.ObjectId;
 const createInterestValidation = () => [
   body("interests")
     .optional()
+    .customSanitizer((value) => {
+      if (value === "") {
+        return [];
+      }
+      return value;
+    })
     .isArray()
     .withMessage("interests should be an array")
     .custom((value) => {
