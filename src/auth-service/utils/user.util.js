@@ -5337,6 +5337,8 @@ const createUserModule = {
         country: user.country ?? null,
         profilePicture: user.profilePicture ?? null,
         phoneNumber: user.phoneNumber ?? null,
+        interests: user.interests ?? [],
+        interestsDescription: user.interestsDescription ?? null,
 
         // Enhanced authentication
         token: `JWT ${token}`,

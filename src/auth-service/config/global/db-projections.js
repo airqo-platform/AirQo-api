@@ -272,11 +272,9 @@ const dbProjections = {
     email: 1,
     verified: 1,
     analyticsVersion: 1,
-    country: 1,
     privilege: 1,
     long_organization: 1,
     organization: 1,
-    country: 1,
     website: 1,
     category: 1,
     jobTitle: 1,
@@ -284,6 +282,7 @@ const dbProjections = {
     description: 1,
     profilePicture: 1,
     phoneNumber: 1,
+    timezone: 1,
     networks: {
       $cond: {
         if: {
