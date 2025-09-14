@@ -306,7 +306,9 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
               {
                 $set: { lastLogin: currentDate, isActive: true },
                 $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 && user.verified === false
+                ...(user.analyticsVersion !== 3 &&
+                user.analyticsVersion !== 4 &&
+                user.verified === false
                   ? { $set: { verified: true } }
                   : {}),
               },
@@ -519,7 +521,9 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
               {
                 $set: { lastLogin: currentDate, isActive: true },
                 $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 && user.verified === false
+                ...(user.analyticsVersion !== 3 &&
+                user.analyticsVersion !== 4 &&
+                user.verified === false
                   ? { $set: { verified: true } }
                   : {}),
               },
@@ -668,7 +672,9 @@ const useGoogleStrategy = (tenant, req, res, next) =>
                   {
                     $set: { lastLogin: currentDate, isActive: true },
                     $inc: { loginCount: 1 },
-                    ...(user.analyticsVersion !== 3 && user.verified === false
+                    ...(user.analyticsVersion !== 3 &&
+                    user.analyticsVersion !== 4 &&
+                    user.verified === false
                       ? { $set: { verified: true } }
                       : {}),
                   },
@@ -1243,7 +1249,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
             {
               $set: { lastLogin: currentDate, isActive: true },
               $inc: { loginCount: 1 },
-              ...(user.analyticsVersion !== 3 && user.verified === false
+              ...(user.analyticsVersion !== 3 &&
+              user.analyticsVersion !== 4 &&
+              user.verified === false
                 ? { $set: { verified: true } }
                 : {}),
             },
