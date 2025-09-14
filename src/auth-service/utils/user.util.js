@@ -5316,34 +5316,45 @@ const createUserModule = {
 
       // --- START of new logic ---
 
-      // Define a transition period cutoff date.
-      // All first-time modern logins will receive a 30-day token until this date.
+      // Define a transition period cutoff date from constants.
       const transitionCutoffDate = new Date(
-        constants.TOKEN_TRANSITION_CUTOFF_DATE
+        constants.AUTH.TOKEN_TRANSITION_CUTOFF_DATE || "2025-10-15T00:00:00Z"
       );
-      const isWithinTransitionPeriod = new Date() < transitionCutoffDate;
 
-      // This flag is used to mark that a user has logged in at least once with the new system.
-      const isFirstModernLogin =
-        populatedUser.preferredTokenStrategy !==
-        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
+      // Validate the date to prevent errors from invalid configuration.
+      if (isNaN(transitionCutoffDate.getTime())) {
+        logger.error(
+          "Invalid TOKEN_TRANSITION_CUTOFF_DATE. Falling back to standard 24h expiration."
+        );
+        transitionCutoffDate = new Date(0); // A date in the past.
+      }
 
-      // A 30-day token is issued for ANY login that occurs within the transition period.
-      // This ensures all clients (especially older mobile apps) have a long-lived token
-      // to allow time for updates, regardless of whether it's a first-time or subsequent login.
-      const issue30DayToken = isWithinTransitionPeriod;
+      const now = new Date();
+      const isWithinTransitionPeriod = now < transitionCutoffDate;
+      let effectiveExpiresIn = "24h";
+
+      // During the transition period, all tokens will have a dynamic expiry
+      // to ensure they last until the cutoff date, giving clients time to update.
+      if (isWithinTransitionPeriod) {
+        const remainingMilliseconds =
+          transitionCutoffDate.getTime() - now.getTime();
+        // Calculate remaining days, rounding up to ensure it covers the full day.
+        const remainingDays = Math.ceil(
+          remainingMilliseconds / (1000 * 60 * 60 * 24)
+        );
+        // The token should last for the remaining transition period, but not less than 24 hours.
+        effectiveExpiresIn = `${Math.max(1, remainingDays)}d`;
+      }
 
       logger.info(`Token generation policy for ${user.email}:`, {
         isWithinTransitionPeriod,
-        issue30DayToken,
+        expiresIn: effectiveExpiresIn,
+        transitionCutoff: transitionCutoffDate.toISOString(),
       });
 
       // Generate enhanced token
       const token = await tokenFactory.createToken(populatedUser, strategy, {
-        // The `isInitialToken` flag in atf.service triggers the 30-day expiration.
-        isInitialToken: issue30DayToken,
-        // Explicitly set expiresIn for clarity. atf.service will prioritize `isInitialToken`.
-        expiresIn: issue30DayToken ? "30d" : "24h",
+        expiresIn: effectiveExpiresIn,
         includePermissions:
           strategy !== constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       });
@@ -5367,10 +5378,15 @@ const createUserModule = {
             {
               $set: { lastLogin: currentDate, isActive: true },
               $inc: { loginCount: 1 },
-              // After the first modern login (from any client), update their strategy preference.
-              // This is a one-time operation to mark the user as migrated.
-              ...(isFirstModernLogin && {
+              // One-time migration for users on legacy or unset strategies.
+              // This marks them as having logged in with the new system.
+              ...((!user.preferredTokenStrategy ||
+                user.preferredTokenStrategy ===
+                  constants.TOKEN_STRATEGIES.LEGACY ||
+                user.preferredTokenStrategy ===
+                  constants.TOKEN_STRATEGIES.STANDARD) && {
                 preferredTokenStrategy: strategy,
+                tokenStrategyMigratedAt: new Date(),
               }),
               ...(user.analyticsVersion !== 3 && user.verified === false
                 ? { $set: { verified: true } }

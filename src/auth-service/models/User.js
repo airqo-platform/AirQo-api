@@ -351,6 +351,9 @@ const UserSchema = new Schema(
       enum: Object.values(constants.TOKEN_STRATEGIES),
       default: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
     },
+    tokenStrategyMigratedAt: {
+      type: Date,
+    },
     subscriptionStatus: {
       type: String,
       enum: ["inactive", "active", "past_due", "cancelled"],

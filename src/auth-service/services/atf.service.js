@@ -192,8 +192,7 @@ class TokenStrategy {
 class LegacyTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -253,8 +252,7 @@ class LegacyTokenStrategy extends TokenStrategy {
 class StandardTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -317,8 +315,7 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
       // Allow a longer initial token for mobile app transition.
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
 
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
@@ -389,8 +386,7 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
 class UltraCompressedTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options = {}) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -444,8 +440,7 @@ class UltraCompressedTokenStrategy extends TokenStrategy {
 class CompressedTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -513,8 +508,7 @@ class HashBasedTokenStrategy extends TokenStrategy {
 
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -561,8 +555,7 @@ class HashBasedTokenStrategy extends TokenStrategy {
 class RoleOnlyTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -609,8 +602,7 @@ class OptimizedHashTokenStrategy extends TokenStrategy {
 
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -666,8 +658,7 @@ class OptimizedHashTokenStrategy extends TokenStrategy {
 class BitFlagsTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -719,8 +710,7 @@ class BitFlagsTokenStrategy extends TokenStrategy {
 class OptimizedRoleOnlyTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
@@ -882,8 +872,7 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
 
   async generateToken(user, tenant, options) {
     try {
-      const isInitialToken = options.isInitialToken || false;
-      const expiresIn = isInitialToken ? "30d" : options.expiresIn || "24h";
+      const expiresIn = options.expiresIn || "24h";
       const expirationTime =
         Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
       const expiresAtISO = new Date(expirationTime * 1000).toISOString();
