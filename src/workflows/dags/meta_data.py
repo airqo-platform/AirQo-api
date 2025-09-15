@@ -300,7 +300,7 @@ def compute_store_devices_metadata_monthly():
                 data,
                 DataType.EXTRAS,
                 DeviceCategory.LOWCOST,
-                Frequency.HOURLY,
+                Frequency.MONTHLY,
                 device_network=DeviceNetwork.AIRQO,
                 extra_type=MetaDataType.DEVICES,
             )
@@ -316,7 +316,7 @@ def compute_store_devices_metadata_monthly():
 
 @dag(
     "AirQo-devices-computed-store-device-baseline-weekly",
-    schedule="0 0 * * *",
+    schedule="0 2 * * *",
     doc_md=compute_store_devices_baseline_doc,
     catchup=False,
     tags=["devices", "weekly", "computed", "metadata", "baselines"],
@@ -340,6 +340,42 @@ def compute_store_devices_baseline_weekly():
                 DataType.EXTRAS,
                 DeviceCategory.LOWCOST,
                 Frequency.WEEKLY,
+                device_network=DeviceNetwork.AIRQO,
+                extra_type=MetaDataType.DATAQUALITYCHECKS,
+            )
+            big_query_api = BigQueryApi()
+            big_query_api.load_data(dataframe=data, table=table)
+
+    extracted_devices = extract_compute_devices_baeline()
+    store_computed_baseline_data(extracted_devices)
+
+
+@dag(
+    "AirQo-devices-computed-store-device-baseline-monthly",
+    schedule="30 2 * * *",
+    doc_md=compute_store_devices_baseline_doc,
+    catchup=False,
+    tags=["devices", "monthly", "computed", "metadata", "baselines"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def compute_store_devices_baseline_monthly():
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def extract_compute_devices_baeline() -> pd.DataFrame:
+        return MetaDataUtils.compute_device_site_baseline(
+            DataType.AVERAGED,
+            Frequency.MONTHLY,
+            DeviceCategory.GENERAL,
+            DeviceNetwork.AIRQO,
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def store_computed_baseline_data(data: pd.DataFrame) -> None:
+        if not data.empty:
+            data, table = DataUtils.format_data_for_bigquery(
+                data,
+                DataType.EXTRAS,
+                DeviceCategory.LOWCOST,
+                Frequency.MONTHLY,
                 device_network=DeviceNetwork.AIRQO,
                 extra_type=MetaDataType.DATAQUALITYCHECKS,
             )
