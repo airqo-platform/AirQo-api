@@ -324,6 +324,29 @@ const deviceSchema = new mongoose.Schema(
       successPercentage: { type: Number, default: 0 },
       failurePercentage: { type: Number, default: 0 },
     },
+    // Precomputed activity fields for performance
+    cached_activities_by_type: {
+      type: Object,
+      default: {},
+    },
+    cached_latest_activities_by_type: {
+      type: Object,
+      default: {},
+    },
+    cached_total_activities: {
+      type: Number,
+      default: 0,
+    },
+    cached_latest_deployment_activity: {
+      type: Object,
+    },
+    cached_latest_maintenance_activity: {
+      type: Object,
+    },
+    cached_latest_recall_activity: {
+      type: Object,
+    },
+    activities_cache_updated_at: { type: Date },
   },
   {
     timestamps: true,
