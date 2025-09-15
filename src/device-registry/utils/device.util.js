@@ -1,5 +1,6 @@
 "use strict";
 const DeviceModel = require("@models/Device");
+const ActivityModel = require("@models/Activity");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { isValidObjectId } = require("mongoose");
@@ -59,6 +60,7 @@ const deviceUtil = {
         detailLevel = "full", // 'minimal', 'summary', 'full'
       } = req.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const activitiesColl = ActivityModel(tenant).collection.name;
 
       // Determine projection based on detail level
       let projection = {};
@@ -199,7 +201,7 @@ const deviceUtil = {
             // Fall back to real-time aggregation (expensive)
             pipeline.push({
               $lookup: {
-                from: "activities",
+                from: activitiesColl,
                 let: { deviceName: "$name", deviceId: "$_id" },
                 pipeline: [
                   {
@@ -208,6 +210,12 @@ const deviceUtil = {
                         $or: [
                           { $eq: ["$device", "$$deviceName"] },
                           { $eq: ["$device_id", "$$deviceId"] },
+                          {
+                            $eq: [
+                              { $toString: "$device_id" },
+                              { $toString: "$$deviceId" },
+                            ],
+                          },
                         ],
                       },
                     },
@@ -313,6 +321,7 @@ const deviceUtil = {
           device.latest_recall_activity
         );
       }
+
       // Process activities only if not using cache and activities are included
       if (
         detailLevel === "full" &&
@@ -926,6 +935,7 @@ const deviceUtil = {
         detailLevel = "summary",
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const activitiesColl = ActivityModel(tenant).collection.name;
       const MAX_LIMIT =
         Number(constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES) || 1000;
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
@@ -1082,7 +1092,7 @@ const deviceUtil = {
           // Real-time activity aggregation (expensive)
           pipeline.push({
             $lookup: {
-              from: "activities",
+              from: activitiesColl,
               let: { deviceName: "$name", deviceId: "$_id" },
               pipeline: [
                 {
@@ -1091,6 +1101,12 @@ const deviceUtil = {
                       $or: [
                         { $eq: ["$device", "$$deviceName"] },
                         { $eq: ["$device_id", "$$deviceId"] },
+                        {
+                          $eq: [
+                            { $toString: "$device_id" },
+                            { $toString: "$$deviceId" },
+                          ],
+                        },
                       ],
                     },
                   },

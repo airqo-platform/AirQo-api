@@ -1,5 +1,8 @@
 const SiteModel = require("@models/Site");
 const ActivityModel = require("@models/Activity");
+const DeviceModel = require("@models/Device");
+const GridModel = require("@models/Grid");
+const AirQloudModel = require("@models/Airqloud");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
@@ -44,6 +47,10 @@ const createSite = {
         detailLevel = "full", // 'minimal', 'summary', 'full'
       } = req.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const devicesColl = DeviceModel(tenant).collection.name;
+      const gridsColl = GridModel(tenant).collection.name;
+      const airqloudsColl = AirQloudModel(tenant).collection.name;
+      const activitiesColl = ActivityModel(tenant).collection.name;
 
       // Determine projection based on detail level
       let projection = {};
@@ -91,7 +98,7 @@ const createSite = {
           pipeline.push(
             {
               $lookup: {
-                from: "devices",
+                from: devicesColl,
                 localField: "_id",
                 foreignField: "site_id",
                 as: "devices",
@@ -111,7 +118,7 @@ const createSite = {
             },
             {
               $lookup: {
-                from: "grids",
+                from: gridsColl,
                 localField: "grids",
                 foreignField: "_id",
                 as: "grids",
@@ -119,7 +126,7 @@ const createSite = {
             },
             {
               $lookup: {
-                from: "airqlouds",
+                from: airqloudsColl,
                 localField: "airqlouds",
                 foreignField: "_id",
                 as: "airqlouds",
@@ -163,10 +170,24 @@ const createSite = {
           } else {
             pipeline.push({
               $lookup: {
-                from: "activities",
+                from: activitiesColl,
                 let: { siteId: "$_id" },
                 pipeline: [
-                  { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+                  {
+                    $match: {
+                      $expr: {
+                        $or: [
+                          { $eq: ["$site_id", "$$siteId"] },
+                          {
+                            $eq: [
+                              { $toString: "$site_id" },
+                              { $toString: "$$siteId" },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  },
                   { $sort: { createdAt: -1 } },
                   {
                     $project: {
@@ -276,6 +297,7 @@ const createSite = {
           site.site_creation_activity
         );
       }
+
       // Process activities only if not using cache and activities are included
       if (
         detailLevel === "full" &&
@@ -1297,6 +1319,10 @@ const createSite = {
         detailLevel = "summary",
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const devicesColl = DeviceModel(tenant).collection.name;
+      const gridsColl = GridModel(tenant).collection.name;
+      const airqloudsColl = AirQloudModel(tenant).collection.name;
+      const activitiesColl = ActivityModel(tenant).collection.name;
       const MAX_LIMIT =
         Number(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES) || 1000;
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
@@ -1354,7 +1380,7 @@ const createSite = {
         pipeline.push(
           {
             $lookup: {
-              from: "devices",
+              from: devicesColl,
               localField: "_id",
               foreignField: "site_id",
               as: "devices",
@@ -1362,7 +1388,7 @@ const createSite = {
           },
           {
             $lookup: {
-              from: "grids",
+              from: gridsColl,
               localField: "grids",
               foreignField: "_id",
               as: "grids",
@@ -1370,7 +1396,7 @@ const createSite = {
           },
           {
             $lookup: {
-              from: "airqlouds",
+              from: airqloudsColl,
               localField: "airqlouds",
               foreignField: "_id",
               as: "airqlouds",
@@ -1399,10 +1425,24 @@ const createSite = {
           // Real-time aggregation (expensive)
           pipeline.push({
             $lookup: {
-              from: "activities",
+              from: activitiesColl,
               let: { siteId: "$_id" },
               pipeline: [
-                { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+                {
+                  $match: {
+                    $expr: {
+                      $or: [
+                        { $eq: ["$site_id", "$$siteId"] },
+                        {
+                          $eq: [
+                            { $toString: "$site_id" },
+                            { $toString: "$$siteId" },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
                 { $sort: { createdAt: -1 } },
                 {
                   $project: {

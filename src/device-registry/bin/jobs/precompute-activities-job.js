@@ -35,7 +35,21 @@ class ActivityPrecomputeProcessor {
             from: activitiesColl,
             let: { siteId: "$_id" },
             pipeline: [
-              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      {
+                        $eq: [
+                          { $toString: "$site_id" },
+                          { $toString: "$$siteId" },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
               { $sort: { createdAt: -1 } },
               {
                 $group: {
