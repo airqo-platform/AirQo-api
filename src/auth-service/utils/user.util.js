@@ -5526,7 +5526,7 @@ const createUserModule = {
       // --- START of new logic ---
 
       // Define a transition period cutoff date from constants, with fallbacks.
-      const transitionCutoffDate = new Date(
+      let transitionCutoffDate = new Date(
         (constants.AUTH && constants.AUTH.TOKEN_TRANSITION_CUTOFF_DATE) ||
           process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
           "2025-10-15T00:00:00Z"
@@ -5543,7 +5543,7 @@ const createUserModule = {
       const now = new Date();
       const isWithinTransitionPeriod = now < transitionCutoffDate;
       // Set the default token expiration. This will be used after the transition period ends.
-      const effectiveExpiresIn =
+      let effectiveExpiresIn =
         (constants.AUTH && constants.AUTH.DEFAULT_TOKEN_EXPIRATION) || "24h";
 
       /**
