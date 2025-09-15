@@ -226,6 +226,56 @@ const createSite = {
 
       const site = sitePipeline[0];
 
+      const sanitizeActivity = (a) =>
+        a
+          ? (({
+              _id,
+              activityType,
+              maintenanceType,
+              recallType,
+              date,
+              description,
+              nextMaintenance,
+              createdAt,
+              device_id,
+              device,
+              site_id,
+            }) => ({
+              _id,
+              activityType,
+              maintenanceType,
+              recallType,
+              date,
+              description,
+              nextMaintenance,
+              createdAt,
+              device_id,
+              device,
+              site_id,
+            }))(a)
+          : null;
+
+      if (useCache === "true" && detailLevel === "full") {
+        if (site.latest_activities_by_type) {
+          Object.keys(site.latest_activities_by_type).forEach((k) => {
+            site.latest_activities_by_type[k] = sanitizeActivity(
+              site.latest_activities_by_type[k]
+            );
+          });
+        }
+        site.latest_deployment_activity = sanitizeActivity(
+          site.latest_deployment_activity
+        );
+        site.latest_maintenance_activity = sanitizeActivity(
+          site.latest_maintenance_activity
+        );
+        site.latest_recall_activity = sanitizeActivity(
+          site.latest_recall_activity
+        );
+        site.site_creation_activity = sanitizeActivity(
+          site.site_creation_activity
+        );
+      }
       // Process activities only if not using cache and activities are included
       if (
         detailLevel === "full" &&
@@ -250,16 +300,20 @@ const createSite = {
 
         site.activities_by_type = activitiesByType;
         site.latest_activities_by_type = latestActivitiesByType;
-        site.latest_deployment_activity =
-          latestActivitiesByType.deployment || null;
-        site.latest_maintenance_activity =
-          latestActivitiesByType.maintenance || null;
-        site.latest_recall_activity =
+        site.latest_deployment_activity = sanitizeActivity(
+          latestActivitiesByType.deployment || null
+        );
+        site.latest_maintenance_activity = sanitizeActivity(
+          latestActivitiesByType.maintenance || null
+        );
+        site.latest_recall_activity = sanitizeActivity(
           latestActivitiesByType.recall ||
-          latestActivitiesByType.recallment ||
-          null;
-        site.site_creation_activity =
-          latestActivitiesByType["site-creation"] || null;
+            latestActivitiesByType.recallment ||
+            null
+        );
+        site.site_creation_activity = sanitizeActivity(
+          latestActivitiesByType["site-creation"] || null
+        );
 
         const deviceActivitySummary = site.devices.map((device) => {
           const deviceActivities = site.activities.filter(
@@ -1346,8 +1400,27 @@ const createSite = {
           pipeline.push({
             $lookup: {
               from: "activities",
-              localField: "_id",
-              foreignField: "site_id",
+              let: { siteId: "$_id" },
+              pipeline: [
+                { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+                { $sort: { createdAt: -1 } },
+                {
+                  $project: {
+                    _id: 1,
+                    activityType: 1,
+                    maintenanceType: 1,
+                    recallType: 1,
+                    date: 1,
+                    description: 1,
+                    nextMaintenance: 1,
+                    createdAt: 1,
+                    device_id: 1,
+                    device: 1,
+                    site_id: 1,
+                  },
+                },
+                { $limit: 500 },
+              ],
               as: "activities",
             },
           });

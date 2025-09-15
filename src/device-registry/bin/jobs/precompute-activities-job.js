@@ -73,7 +73,8 @@ class ActivityPrecomputeProcessor {
       const cursor = SiteModel(tenant)
         .aggregate(pipeline)
         .allowDiskUse(true)
-        .cursor({ batchSize: BATCH_SIZE });
+        .cursor({ batchSize: BATCH_SIZE })
+        .exec();
 
       let batch = [];
       for await (const site of cursor) {
@@ -110,13 +111,31 @@ class ActivityPrecomputeProcessor {
 
         if (summary.latest) {
           const {
-            groups,
-            activity_codes,
-            updatedAt,
-            __v,
-            ...cleanActivity
+            _id,
+            activityType,
+            maintenanceType,
+            recallType,
+            date,
+            description,
+            nextMaintenance,
+            createdAt,
+            device_id,
+            device,
+            site_id,
           } = summary.latest;
-          latestActivitiesByType[type] = cleanActivity;
+          latestActivitiesByType[type] = {
+            _id,
+            activityType,
+            maintenanceType,
+            recallType,
+            date,
+            description,
+            nextMaintenance,
+            createdAt,
+            device_id,
+            device,
+            site_id,
+          };
         }
       });
 
@@ -221,7 +240,8 @@ class ActivityPrecomputeProcessor {
       const cursor = DeviceModel(tenant)
         .aggregate(pipeline)
         .allowDiskUse(true)
-        .cursor({ batchSize: BATCH_SIZE });
+        .cursor({ batchSize: BATCH_SIZE })
+        .exec();
 
       let batch = [];
       for await (const device of cursor) {
@@ -257,13 +277,31 @@ class ActivityPrecomputeProcessor {
 
         if (summary.latest) {
           const {
-            groups,
-            activity_codes,
-            updatedAt,
-            __v,
-            ...cleanActivity
+            _id,
+            activityType,
+            maintenanceType,
+            recallType,
+            date,
+            description,
+            nextMaintenance,
+            createdAt,
+            device_id,
+            device,
+            site_id,
           } = summary.latest;
-          latestActivitiesByType[type] = cleanActivity;
+          latestActivitiesByType[type] = {
+            _id,
+            activityType,
+            maintenanceType,
+            recallType,
+            date,
+            description,
+            nextMaintenance,
+            createdAt,
+            device_id,
+            device,
+            site_id,
+          };
         }
       });
 

@@ -51,13 +51,14 @@ const deviceUtil = {
     try {
       const { id } = req.params;
       const {
-        tenant,
+        tenant: rawTenant,
         maxActivities = 500,
         includeActivities = "true",
         includeRelations = "true",
         useCache = "true",
         detailLevel = "full", // 'minimal', 'summary', 'full'
       } = req.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
 
       // Determine projection based on detail level
       let projection = {};
@@ -257,9 +258,7 @@ const deviceUtil = {
         });
       }
 
-      const devicePipeline = await DeviceModel(tenant.toLowerCase()).aggregate(
-        pipeline
-      );
+      const devicePipeline = await DeviceModel(tenant).aggregate(pipeline);
 
       if (!devicePipeline || devicePipeline.length === 0) {
         throw new HttpError("Device not found", httpStatus.NOT_FOUND);
@@ -267,6 +266,53 @@ const deviceUtil = {
 
       const device = devicePipeline[0];
 
+      const sanitizeActivity = (a) =>
+        a
+          ? (({
+              _id,
+              activityType,
+              maintenanceType,
+              recallType,
+              date,
+              description,
+              nextMaintenance,
+              createdAt,
+              device_id,
+              device,
+              site_id,
+            }) => ({
+              _id,
+              activityType,
+              maintenanceType,
+              recallType,
+              date,
+              description,
+              nextMaintenance,
+              createdAt,
+              device_id,
+              device,
+              site_id,
+            }))(a)
+          : null;
+
+      if (useCache === "true" && detailLevel === "full") {
+        if (device.latest_activities_by_type) {
+          Object.keys(device.latest_activities_by_type).forEach((k) => {
+            device.latest_activities_by_type[k] = sanitizeActivity(
+              device.latest_activities_by_type[k]
+            );
+          });
+        }
+        device.latest_deployment_activity = sanitizeActivity(
+          device.latest_deployment_activity
+        );
+        device.latest_maintenance_activity = sanitizeActivity(
+          device.latest_maintenance_activity
+        );
+        device.latest_recall_activity = sanitizeActivity(
+          device.latest_recall_activity
+        );
+      }
       // Process activities only if not using cache and activities are included
       if (
         detailLevel === "full" &&
