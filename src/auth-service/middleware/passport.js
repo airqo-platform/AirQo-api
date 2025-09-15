@@ -1517,8 +1517,23 @@ const enhancedJWTAuth = async (req, res, next) => {
           // Attach user and decoded token to request
           req.user = { ...user, ...expiredDecoded };
 
-          // By calling next() without an error, we allow the request to proceed.
-          // The 'finish' event on the response will then issue a new, modern token.
+          // Add sliding refresh on this path as well
+          res.on("finish", async () => {
+            try {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                const userDoc = await UserModel(tenant).findById(userId);
+                if (userDoc) {
+                  const newToken = await userDoc.createToken();
+                  res.set("X-Access-Token", newToken);
+                  res.set("Access-Control-Expose-Headers", "X-Access-Token");
+                }
+              }
+            } catch (refreshError) {
+              logger.error(
+                `Failed to refresh legacy token for ${user.email}: ${refreshError.message}`
+              );
+            }
+          });
           return next();
         }
       } catch (migrationError) {
