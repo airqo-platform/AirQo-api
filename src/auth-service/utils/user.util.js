@@ -5527,7 +5527,7 @@ const createUserModule = {
 
       // Define a transition period cutoff date from constants, with fallbacks.
       let transitionCutoffDate = new Date(
-        constants.AUTH?.TOKEN_TRANSITION_CUTOFF_DATE ||
+        (constants.AUTH && constants.AUTH.TOKEN_TRANSITION_CUTOFF_DATE) ||
           process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
           "2025-10-15T00:00:00Z"
       );
@@ -5542,14 +5542,20 @@ const createUserModule = {
 
       const now = new Date();
       const isWithinTransitionPeriod = now < transitionCutoffDate;
-      let effectiveExpiresIn = "24h";
+      // Set the default token expiration. This will be used after the transition period ends.
+      let effectiveExpiresIn =
+        (constants.AUTH && constants.AUTH.DEFAULT_TOKEN_EXPIRATION) || "24h";
 
-      // During the transition period, all tokens will have a dynamic expiry
-      // to ensure they last until the cutoff date, giving clients time to update.
+      /**
+       * Token Expiration Logic:
+       * 1. If we are WITHIN the transition period (before the cutoff date),
+       *    calculate a dynamic expiry to last until the cutoff date. This gives
+       *    all clients, especially mobile apps, a grace period to update.
+       * 2. If we are AFTER the transition period, use the standard default expiration (e.g., "24h").
+       */
       if (isWithinTransitionPeriod) {
         const remainingMilliseconds =
           transitionCutoffDate.getTime() - now.getTime();
-        // Calculate remaining days, rounding up to ensure it covers the full day.
         const remainingDays = Math.ceil(
           remainingMilliseconds / (1000 * 60 * 60 * 24)
         );
