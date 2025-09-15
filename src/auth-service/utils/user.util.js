@@ -274,6 +274,134 @@ const getCache = async (request, next) => {
 };
 
 const createUserModule = {
+  _getEnhancedProfile: async ({ userId, tenant }, next) => {
+    try {
+      // Get user permissions context
+      const permissionsRequest = {
+        body: { userId },
+        query: { tenant },
+      };
+
+      const permissionsResult =
+        await createUserModule.getUserContextPermissions(
+          permissionsRequest,
+          next
+        );
+
+      if (!permissionsResult.success) {
+        logger.error("Failed to get user permissions for profile", {
+          userId,
+          tenant,
+          error: permissionsResult.message,
+        });
+        return permissionsResult;
+      }
+
+      // Get basic user data
+      const basicUser = await UserModel(tenant)
+        .findById(userId)
+        .select("-password -resetPasswordToken -resetPasswordExpires")
+        .lean();
+
+      if (!basicUser) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User profile not found" },
+        };
+      }
+
+      // Manually populate group_roles.group if they exist
+      let populatedUser = { ...basicUser };
+
+      if (basicUser.group_roles && basicUser.group_roles.length > 0) {
+        try {
+          const GroupModel = require("@models/Group");
+          const groupIds = basicUser.group_roles.map((gr) => gr.group);
+
+          const groups = await GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean();
+
+          populatedUser.group_roles = basicUser.group_roles.map(
+            (groupRole) => ({
+              ...groupRole,
+              group:
+                groups.find(
+                  (g) => g._id.toString() === groupRole.group.toString()
+                ) || groupRole.group,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate group roles: ${error.message}`);
+          populatedUser.group_roles = basicUser.group_roles;
+        }
+      }
+
+      // Manually populate network_roles.network if they exist
+      if (basicUser.network_roles && basicUser.network_roles.length > 0) {
+        try {
+          const NetworkModel = require("@models/Network");
+          const networkIds = basicUser.network_roles.map((nr) => nr.network);
+
+          const networks = await NetworkModel(tenant)
+            .find({ _id: { $in: networkIds } })
+            .select("net_name net_status net_acronym")
+            .lean();
+
+          populatedUser.network_roles = basicUser.network_roles.map(
+            (networkRole) => ({
+              ...networkRole,
+              network:
+                networks.find(
+                  (n) => n._id.toString() === networkRole.network.toString()
+                ) || networkRole.network,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate network roles: ${error.message}`);
+          populatedUser.network_roles = basicUser.network_roles;
+        }
+      }
+
+      const user = populatedUser;
+
+      const enhancedProfile = {
+        ...user,
+        ...permissionsResult.data.permissions,
+        profileLastUpdated: new Date().toISOString(),
+        hasEnhancedPermissions: true,
+        contextSummary: {
+          totalPermissions:
+            permissionsResult.data.permissions?.allPermissions?.length || 0,
+          groupMemberships:
+            permissionsResult.data.permissions?.groupMemberships?.length || 0,
+          networkMemberships:
+            permissionsResult.data.permissions?.networkMemberships?.length || 0,
+          isSuperAdmin:
+            permissionsResult.data.permissions?.isSuperAdmin || false,
+        },
+      };
+
+      return {
+        success: true,
+        message: "Enhanced profile retrieved successfully",
+        data: enhancedProfile,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 _getEnhancedProfile util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve enhanced profile" },
+      };
+    }
+  },
+
   listLogs: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
