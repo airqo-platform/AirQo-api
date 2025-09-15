@@ -1434,41 +1434,36 @@ const enhancedJWTAuth = async (req, res, next) => {
     };
 
     // Sliding Session: Automatically refresh the token if it's nearing expiration.
-    res.on("finish", async () => {
-      try {
-        // Only refresh on successful responses (2xx status codes).
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          const nowInSeconds = Math.floor(Date.now() / 1000);
-          const tokenExpiry = decodedToken.exp; // 'exp' is a standard JWT claim.
-          const refreshThreshold = 15 * 60; // Refresh if token expires in the next 15 minutes.
+    try {
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      const tokenExpiry = decodedToken.exp; // 'exp' is a standard JWT claim.
+      const refreshThreshold = 15 * 60; // Refresh if token expires in the next 15 minutes.
 
-          if (tokenExpiry && tokenExpiry - nowInSeconds < refreshThreshold) {
-            logger.info(
-              `Token for user ${user.email} is nearing expiration. Issuing a new one.`
-            );
-
-            // Re-fetch the user as a Mongoose document to access instance methods.
-            const userDoc = await UserModel(tenant).findById(userId);
-            if (userDoc) {
-              const newToken = await userDoc.createToken();
-
-              // Set the new token in a custom header. The client will need to check for this.
-              res.set("X-Access-Token", newToken);
-
-              // IMPORTANT: For CORS, you must expose custom headers so the browser can access them.
-              res.set("Access-Control-Expose-Headers", "X-Access-Token");
-            }
-          }
-        }
-      } catch (refreshError) {
-        // Log the error but don't crash the application, as the primary request was successful.
-        logger.error(
-          `Failed to refresh token for user ${user ? user.email : "unknown"}: ${
-            refreshError.message
-          }`
+      if (tokenExpiry && tokenExpiry - nowInSeconds < refreshThreshold) {
+        logger.info(
+          `Token for user ${user.email} is nearing expiration. Issuing a new one.`
         );
+
+        // Re-fetch the user as a Mongoose document to access instance methods.
+        const userDoc = await UserModel(tenant).findById(userId);
+        if (userDoc) {
+          const newToken = await userDoc.createToken();
+
+          // Set the new token in a custom header. The client will need to check for this.
+          res.set("X-Access-Token", newToken);
+
+          // IMPORTANT: For CORS, you must expose custom headers so the browser can access them.
+          res.set("Access-Control-Expose-Headers", "X-Access-Token");
+        }
       }
-    });
+    } catch (refreshError) {
+      // Log the error but don't crash the application, as the primary request was successful.
+      logger.error(
+        `Failed to refresh token for user ${user ? user.email : "unknown"}: ${
+          refreshError.message
+        }`
+      );
+    }
 
     next();
   } catch (error) {
@@ -1518,22 +1513,21 @@ const enhancedJWTAuth = async (req, res, next) => {
           req.user = { ...user, ...expiredDecoded };
 
           // Add sliding refresh on this path as well
-          res.on("finish", async () => {
-            try {
-              if (res.statusCode >= 200 && res.statusCode < 300) {
-                const userDoc = await UserModel(tenant).findById(userId);
-                if (userDoc) {
-                  const newToken = await userDoc.createToken();
-                  res.set("X-Access-Token", newToken);
-                  res.set("Access-Control-Expose-Headers", "X-Access-Token");
-                }
-              }
-            } catch (refreshError) {
-              logger.error(
-                `Failed to refresh legacy token for ${user.email}: ${refreshError.message}`
+          try {
+            const userDoc = await UserModel(tenant).findById(userId);
+            if (userDoc) {
+              const newToken = await userDoc.createToken();
+              res.set("X-Access-Token", newToken);
+              res.set("Access-Control-Expose-Headers", "X-Access-Token");
+              logger.info(
+                `Successfully generated and set refresh token header for legacy user ${user.email}`
               );
             }
-          });
+          } catch (refreshError) {
+            logger.error(
+              `Failed to refresh legacy token for ${user.email}: ${refreshError.message}`
+            );
+          }
           return next();
         }
       } catch (migrationError) {

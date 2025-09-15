@@ -1362,157 +1362,47 @@ const userController = {
 
       const { tenant } = request.query;
 
-      console.log("👤 Enhanced profile requested:", {
-        userId,
-        tenant,
-      });
-
-      // Get user permissions context
-      const permissionsRequest = {
-        body: { userId }, // Use body instead of params for getUserContextPermissions
-        query: { tenant },
-      };
-
-      const permissionsResult = await userUtil.getUserContextPermissions(
-        permissionsRequest,
+      const result = await userUtil._getEnhancedProfile(
+        { userId, tenant },
         next
       );
-
-      if (!permissionsResult.success) {
-        logger.error("Failed to get user permissions for profile", {
-          userId,
-          tenant,
-          error: permissionsResult.message,
-        });
-        return sendResponse(res, permissionsResult);
-      }
-
-      const UserModel = require("@models/User");
-
-      // First get the basic user data
-      const basicUser = await UserModel(tenant)
-        .findById(userId)
-        .select("-password -resetPasswordToken -resetPasswordExpires")
-        .lean();
-
-      if (!basicUser) {
-        logger.warn("User not found for enhanced profile", { userId, tenant });
-        return next(
-          new HttpError("User not found", httpStatus.NOT_FOUND, {
-            user: "User profile not found",
-          })
-        );
-      }
-
-      // Manually populate group_roles.group if they exist
-      let populatedUser = { ...basicUser };
-
-      if (basicUser.group_roles && basicUser.group_roles.length > 0) {
-        try {
-          const GroupModel = require("@models/Group");
-          const groupIds = basicUser.group_roles.map((gr) => gr.group);
-
-          const groups = await GroupModel(tenant)
-            .find({ _id: { $in: groupIds } })
-            .select("grp_title grp_status organization_slug")
-            .lean();
-
-          // Map groups back to group_roles
-          populatedUser.group_roles = basicUser.group_roles.map(
-            (groupRole) => ({
-              ...groupRole,
-              group:
-                groups.find(
-                  (g) => g._id.toString() === groupRole.group.toString()
-                ) || groupRole.group,
-            })
-          );
-        } catch (error) {
-          logger.warn(`Could not populate group roles: ${error.message}`);
-          populatedUser.group_roles = basicUser.group_roles;
-        }
-      }
-
-      // Manually populate network_roles.network if they exist
-      if (basicUser.network_roles && basicUser.network_roles.length > 0) {
-        try {
-          const NetworkModel = require("@models/Network");
-          const networkIds = basicUser.network_roles.map((nr) => nr.network);
-
-          const networks = await NetworkModel(tenant)
-            .find({ _id: { $in: networkIds } })
-            .select("net_name net_status net_acronym")
-            .lean();
-
-          // Map networks back to network_roles
-          populatedUser.network_roles = basicUser.network_roles.map(
-            (networkRole) => ({
-              ...networkRole,
-              network:
-                networks.find(
-                  (n) => n._id.toString() === networkRole.network.toString()
-                ) || networkRole.network,
-            })
-          );
-        } catch (error) {
-          // If Network model doesn't exist or fails, keep original network_roles
-          logger.warn(`Could not populate network roles: ${error.message}`);
-          populatedUser.network_roles = basicUser.network_roles;
-        }
-      }
-
-      const user = populatedUser;
-
-      const enhancedProfile = {
-        // Basic user info
-        ...user,
-
-        // Enhanced permissions and roles
-        ...permissionsResult.data.permissions,
-
-        // Profile metadata
-        profileLastUpdated: new Date().toISOString(),
-        hasEnhancedPermissions: true,
-
-        // Context summary
-        contextSummary: {
-          totalPermissions:
-            permissionsResult.data.permissions?.allPermissions?.length || 0,
-          groupMemberships:
-            permissionsResult.data.permissions?.groupMemberships?.length || 0,
-          networkMemberships:
-            permissionsResult.data.permissions?.networkMemberships?.length || 0,
-          isSuperAdmin:
-            permissionsResult.data.permissions?.isSuperAdmin || false,
-        },
-      };
-
-      const result = {
-        success: true,
-        message: "Enhanced profile retrieved successfully",
-        data: enhancedProfile,
-        status: httpStatus.OK,
-      };
 
       return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Enhanced profile controller error: ${error.message}`);
-      console.error("❌ Enhanced profile error details:", {
-        error: error.message,
-        stack: error.stack?.substring(0, 500),
-        userId: req.user?._id,
-        hasAuth: !!req.headers.authorization,
-      });
+      handleError(error, next);
+    }
+  },
 
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: "Failed to retrieve enhanced profile",
-          }
-        )
+  getEnhancedProfileForUser: async (req, res, next) => {
+    try {
+      logger.info("Enhanced profile for specific user endpoint called");
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const { user_id } = request.params;
+
+      if (!user_id) {
+        return next(
+          new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
+            message: "Please provide a user_id in the URL path.",
+          })
+        );
+      }
+
+      const { tenant } = request.query;
+
+      const result = await userUtil._getEnhancedProfile(
+        { userId: user_id, tenant },
+        next
       );
+
+      return sendResponse(res, result);
+    } catch (error) {
+      logger.error(
+        `🐛 Enhanced profile for user controller error: ${error.message}`
+      );
+      handleError(error, next);
     }
   },
 
