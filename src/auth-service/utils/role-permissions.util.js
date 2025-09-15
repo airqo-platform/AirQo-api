@@ -2353,25 +2353,31 @@ const rolePermissionUtil = {
         );
       }
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
-        { _id: userObject._id },
-        {
-          $pull: {
-            [isNetworkRole ? "network_roles" : "group_roles"]: {
-              [isNetworkRole ? "network" : "group"]: associatedId,
-            },
-          },
-          $addToSet: {
-            [isNetworkRole ? "network_roles" : "group_roles"]: {
-              ...(isNetworkRole
-                ? { network: associatedId }
-                : { group: associatedId }),
-              role: role_id,
-              userType: user_type || "guest",
-              createdAt: new Date(),
-            },
+      // Atomically remove any existing role for this context before adding the new one
+      await UserModel(tenant).findByIdAndUpdate(userObject._id, {
+        $pull: {
+          [isNetworkRole ? "network_roles" : "group_roles"]: {
+            [isNetworkRole ? "network" : "group"]: associatedId,
           },
         },
+      });
+
+      const updateQuery = {
+        $addToSet: {
+          [isNetworkRole ? "network_roles" : "group_roles"]: {
+            ...(isNetworkRole
+              ? { network: associatedId }
+              : { group: associatedId }),
+            role: role_id,
+            userType: user_type || "guest",
+            createdAt: new Date(),
+          },
+        },
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: userObject._id },
+        updateQuery,
         { new: true, runValidators: true }
       );
 

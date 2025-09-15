@@ -642,17 +642,14 @@ const userController = {
         : req.query.tenant;
 
       const result = await userUtil.resetPassword(
-        {
-          token,
-          password,
-          tenant,
-        },
+        { token, password, tenant },
         next
       );
-
-      res
-        .status(httpStatus.OK)
-        .json({ success: true, message: result.message });
+      if (result) {
+        res
+          .status(httpStatus.OK)
+          .json({ success: true, message: result.message });
+      }
     } catch (error) {
       logObject("error in controller", error);
       handleError(error, next);

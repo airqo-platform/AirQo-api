@@ -4875,7 +4875,7 @@ const createUserModule = {
 
       for (const [groupId, assignments] of groupRoleMap.entries()) {
         if (assignments.length > 1) {
-          logger.warn(
+          logger.info(
             `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
           );
           const group = await GroupModel(tenant).findById(groupId).lean();
@@ -4940,7 +4940,7 @@ const createUserModule = {
 
           if (desiredRole) {
             finalGroupRoles = finalGroupRoles.filter(
-              (a) => a.group.toString() !== groupId
+              (a) => !a.group || a.group.toString() !== groupId
             );
             const earliestCreatedAt = new Date(
               Math.min(
@@ -4971,7 +4971,7 @@ const createUserModule = {
 
       for (const [networkId, assignments] of networkRoleMap.entries()) {
         if (assignments.length > 1) {
-          logger.warn(
+          logger.info(
             `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
           );
           const network = await NetworkModel(tenant).findById(networkId).lean();
@@ -5006,7 +5006,7 @@ const createUserModule = {
 
           if (desiredRole) {
             finalNetworkRoles = finalNetworkRoles.filter(
-              (a) => a.network.toString() !== networkId
+              (a) => !a.network || a.network.toString() !== networkId
             );
             const earliestCreatedAtNet = new Date(
               Math.min(
@@ -5050,7 +5050,7 @@ const createUserModule = {
         .lean();
       if (airqoGroup) {
         const hasAirqoRole = finalGroupRoles.some(
-          (a) => a.group.toString() === airqoGroup._id.toString()
+          (a) => a.group && a.group.toString() === airqoGroup._id.toString()
         );
         if (
           !hasAirqoRole &&

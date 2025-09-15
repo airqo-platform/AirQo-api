@@ -1497,6 +1497,26 @@ const enhancedJWTAuth = async (req, res, next) => {
               expiredDecoded.email || expiredDecoded._id
             }. Allowing one-time refresh.`
           );
+          // FIX: We must still attach the user to the request for subsequent middleware.
+          const userId =
+            expiredDecoded.userId || expiredDecoded.id || expiredDecoded._id;
+          if (!userId) {
+            // if no user id, then we can't proceed.
+            throw new Error("Legacy token has no user identifier.");
+          }
+          const tenant = String(
+            req.query.tenant ||
+              req.body.tenant ||
+              constants.DEFAULT_TENANT ||
+              "airqo"
+          ).toLowerCase();
+          const user = await UserModel(tenant).findById(userId).lean();
+          if (!user) {
+            throw new Error("User from legacy token no longer exists.");
+          }
+          // Attach user and decoded token to request
+          req.user = { ...user, ...expiredDecoded };
+
           // By calling next() without an error, we allow the request to proceed.
           // The 'finish' event on the response will then issue a new, modern token.
           return next();
