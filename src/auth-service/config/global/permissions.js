@@ -318,6 +318,8 @@ const DEPRECATED_ROLE_NAMES = Object.freeze([
 const AUTH_CONSTANTS = {
   // Date until which initial logins will receive a 30-day token to support mobile app transition.
   TOKEN_TRANSITION_CUTOFF_DATE: "2025-10-15T00:00:00Z",
+  // Default token expiration period after the transition cutoff date.
+  DEFAULT_TOKEN_EXPIRATION: "24h",
 };
 
 // Step 4: Assemble the final export object
