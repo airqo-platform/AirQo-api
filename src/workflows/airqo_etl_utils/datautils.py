@@ -365,7 +365,7 @@ class DataUtils:
             if extra_id:
                 data["site_id"] = extra_id
             data["created"] = datetime.now(timezone.utc)
-            data["maintenance_date"] = device_maintenance
+            data["recent_maintenance_date"] = device_maintenance
             data.dropna(
                 inplace=True,
                 how="any",
