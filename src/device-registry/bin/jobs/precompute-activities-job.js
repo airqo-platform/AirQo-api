@@ -70,10 +70,20 @@ class ActivityPrecomputeProcessor {
         },
       ];
 
-      const sites = await SiteModel(tenant).aggregate(pipeline);
+      const cursor = SiteModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true)
+        .cursor({ batchSize: BATCH_SIZE });
 
-      for (let i = 0; i < sites.length; i += BATCH_SIZE) {
-        const batch = sites.slice(i, i + BATCH_SIZE);
+      let batch = [];
+      for await (const site of cursor) {
+        batch.push(site);
+        if (batch.length >= BATCH_SIZE) {
+          await this.processSiteBatch(tenant, batch);
+          batch = [];
+        }
+      }
+      if (batch.length) {
         await this.processSiteBatch(tenant, batch);
       }
 
@@ -176,6 +186,12 @@ class ActivityPrecomputeProcessor {
                     $or: [
                       { $eq: ["$device", "$$deviceName"] },
                       { $eq: ["$device_id", "$$deviceId"] },
+                      {
+                        $eq: [
+                          { $toString: "$device_id" },
+                          { $toString: "$$deviceId" },
+                        ],
+                      },
                     ],
                   },
                 },
@@ -202,10 +218,20 @@ class ActivityPrecomputeProcessor {
         },
       ];
 
-      const devices = await DeviceModel(tenant).aggregate(pipeline);
+      const cursor = DeviceModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true)
+        .cursor({ batchSize: BATCH_SIZE });
 
-      for (let i = 0; i < devices.length; i += BATCH_SIZE) {
-        const batch = devices.slice(i, i + BATCH_SIZE);
+      let batch = [];
+      for await (const device of cursor) {
+        batch.push(device);
+        if (batch.length >= BATCH_SIZE) {
+          await this.processDeviceBatch(tenant, batch);
+          batch = [];
+        }
+      }
+      if (batch.length) {
         await this.processDeviceBatch(tenant, batch);
       }
 
@@ -335,8 +361,13 @@ async function precomputeActivitiesAndMetrics() {
   try {
     logText("Starting activities precomputation job");
 
-    // Process for each tenant (add more as needed)
-    const tenants = ["airqo"]; // Add other tenants as needed
+    // Process for each tenant
+    const tenants =
+      (process.env.PRECOMPUTE_TENANTS &&
+        process.env.PRECOMPUTE_TENANTS.split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)) ||
+      (constants.SUPPORTED_TENANTS || ["airqo"]);
 
     for (const tenant of tenants) {
       logText(`Processing tenant: ${tenant}`);
@@ -365,9 +396,21 @@ async function precomputeActivitiesAndMetrics() {
 
 // Create and register the job
 const startJob = () => {
+  let running = false;
   const cronJobInstance = cron.schedule(
     JOB_SCHEDULE,
-    precomputeActivitiesAndMetrics,
+    async () => {
+      if (running) {
+        logger.warn(`${JOB_NAME} skipped: previous run still in progress`);
+        return;
+      }
+      running = true;
+      try {
+        await precomputeActivitiesAndMetrics();
+      } finally {
+        running = false;
+      }
+    },
     {
       scheduled: true,
       timezone: TIMEZONE,

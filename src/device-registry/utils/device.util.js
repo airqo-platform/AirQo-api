@@ -880,6 +880,13 @@ const deviceUtil = {
         detailLevel = "summary",
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const MAX_LIMIT =
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
+      );
       const filter = generateFilter.devices(request, next);
 
       if (!isEmpty(path)) {
@@ -1070,8 +1077,8 @@ const deviceUtil = {
       // Common sorting and pagination
       pipeline.push(
         { $sort: { createdAt: -1 } },
-        { $skip: skip || 0 },
-        { $limit: limit || 1000 }
+        { $skip: _skip },
+        { $limit: _limit }
       );
 
       const response = await DeviceModel(tenant)

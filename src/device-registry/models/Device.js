@@ -357,6 +357,8 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
+deviceSchema.index({ site_id: 1 });
+
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
     (value, index, self) => self.indexOf(value) !== index
