@@ -92,7 +92,7 @@ require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
-if (process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== "false") {
+if (constants.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== "false") {
   try {
     require("@bin/jobs/precompute-activities-job");
   } catch (err) {
