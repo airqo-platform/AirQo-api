@@ -5232,8 +5232,9 @@ const createUserModule = {
       };
     }
 
-    // For other versions (e.g., 2 or undefined), we auto-verify.
-    return { shouldProceed: true, shouldAutoVerify: true };
+    // For other versions (e.g., 2 or undefined), allow login to proceed,
+    // but do NOT auto-verify here. Call-sites must decide explicitly.
+    return { shouldProceed: true };
   },
 
   /**
@@ -5243,7 +5244,11 @@ const createUserModule = {
    * @param {string} [strategy=null] - The token strategy for migration purposes.
    * @returns {object} The MongoDB update object.
    */
-  _constructLoginUpdate: (user, verificationResult, strategy = null) => {
+  _constructLoginUpdate: (
+    user,
+    strategy = null,
+    { autoVerify = false } = {}
+  ) => {
     const currentDate = new Date();
     const updatePayload = {
       $set: {
@@ -5253,7 +5258,7 @@ const createUserModule = {
       $inc: { loginCount: 1 },
     };
 
-    if (verificationResult && verificationResult.shouldAutoVerify) {
+    if (autoVerify && user.verified !== true) {
       updatePayload.$set.verified = true;
     }
 
@@ -5332,6 +5337,21 @@ const createUserModule = {
       // Centralized verification check
       const verificationResult = createUserModule._handleVerification(user);
       if (!verificationResult.shouldProceed) {
+        try {
+          if (verificationResult.requiresV3Reminder) {
+            await createUserModule.verificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          } else if (verificationResult.requiresV4Reminder) {
+            await createUserModule.mobileVerificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          }
+        } catch (reminderErr) {
+          logger.warn(`Verification reminder failed: ${reminderErr.message}`);
+        }
         return {
           success: false,
           message: verificationResult.message,
@@ -5435,10 +5455,18 @@ const createUserModule = {
       // Update login statistics
       (async () => {
         try {
+          // Decide if auto-verification should happen.
+          // This preserves the original business logic for legacy users.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
           const updatePayload = createUserModule._constructLoginUpdate(
             user,
-            verificationResult,
-            strategy
+            strategy,
+            { autoVerify: shouldAutoVerify }
           );
           await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
@@ -5478,17 +5506,19 @@ const createUserModule = {
         // Enhanced authentication
         token: `JWT ${token}`,
 
-        // Comprehensive permissions
-        permissions: loginPermissions.allPermissions,
-        systemPermissions: loginPermissions.systemPermissions,
-        groupPermissions: loginPermissions.groupPermissions,
-        networkPermissions: loginPermissions.networkPermissions,
+        // --- REMOVED FOR SCALABILITY ---
+        // The following large data fields are removed to prevent oversized login responses
+        // which can cause 502 Bad Gateway errors. Clients should fetch this data
+        // via dedicated endpoints (e.g., /api/v2/users/profile/enhanced) after login.
+        //
+        // permissions: loginPermissions.allPermissions,
+        // systemPermissions: loginPermissions.systemPermissions,
+        // groupPermissions: loginPermissions.groupPermissions,
+        // networkPermissions: loginPermissions.networkPermissions,
+        // groupMemberships: loginPermissions.groupMemberships,
+        // networkMemberships: loginPermissions.networkMemberships,
 
-        // Enhanced memberships with detailed info
-        groupMemberships: loginPermissions.groupMemberships,
-        networkMemberships: loginPermissions.networkMemberships,
-
-        // User flags
+        // User flags (small and useful for initial UI setup)
         isSuperAdmin: loginPermissions.isSuperAdmin,
         hasGroupAccess: loginPermissions.groupMemberships.length > 0,
         hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
@@ -5544,9 +5574,9 @@ const createUserModule = {
 
       console.log("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: authResponse.permissions.length,
-        groupMemberships: authResponse.groupMemberships.length,
-        networkMemberships: authResponse.networkMemberships.length,
+        permissionsCount: authResponse.permissions?.length || 0, // Safely access length
+        groupMemberships: authResponse.groupMemberships?.length || 0,
+        networkMemberships: authResponse.networkMemberships?.length || 0,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });

@@ -248,9 +248,19 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         })();
 
         try {
+          // Decide if auto-verification should happen.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
           const updatePayload = createUserUtil._constructLoginUpdate(
             user,
-            verificationResult
+            null,
+            {
+              autoVerify: shouldAutoVerify,
+            }
           );
           await UserModel(tenant.toLowerCase())
             .findOneAndUpdate({ _id: user._id }, updatePayload, {
@@ -402,9 +412,19 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         })();
 
         try {
+          // Decide if auto-verification should happen.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
           const updatePayload = createUserUtil._constructLoginUpdate(
             user,
-            verificationResult
+            null,
+            {
+              autoVerify: shouldAutoVerify,
+            }
           );
           await UserModel(tenant.toLowerCase())
             .findOneAndUpdate({ _id: user._id }, updatePayload, {
@@ -545,10 +565,11 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
             try {
-              const verificationResult = { shouldAutoVerify: true }; // New user, auto-verify
+              // New user from Google should be auto-verified.
               const updatePayload = createUserUtil._constructLoginUpdate(
                 user,
-                verificationResult
+                null,
+                { autoVerify: true }
               );
               await UserModel(tenant.toLowerCase())
                 .findOneAndUpdate({ _id: user._id }, updatePayload, {
@@ -1114,11 +1135,10 @@ const useJWTStrategy = (tenant, req, res, next) =>
       });
 
       try {
-        const verificationResult = { shouldAutoVerify: true }; // Already authenticated, just update stats
-        const updatePayload = createUserUtil._constructLoginUpdate(
-          user,
-          verificationResult
-        );
+        // Only update login stats; do not flip verification state here.
+        const updatePayload = createUserUtil._constructLoginUpdate(user, null, {
+          autoVerify: false,
+        });
         await UserModel(tenant.toLowerCase())
           .findOneAndUpdate({ _id: user._id }, updatePayload, {
             new: true,
