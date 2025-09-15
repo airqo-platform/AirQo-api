@@ -5202,6 +5202,80 @@ const createUserModule = {
     return desiredStrategy;
   },
   /**
+   * Centralized handler for user verification status.
+   * @param {object} user - The user object to check.
+   * @returns {object} A status object indicating the verification state.
+   */
+  _handleVerification: (user) => {
+    if (!user) {
+      return { shouldProceed: false, message: "User not found" };
+    }
+    if (user.verified) {
+      return { shouldProceed: true };
+    }
+
+    if (user.analyticsVersion === 3) {
+      return {
+        shouldProceed: false,
+        requiresV3Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    if (user.analyticsVersion === 4) {
+      return {
+        shouldProceed: false,
+        requiresV4Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    // For other versions (e.g., 2 or undefined), allow login to proceed,
+    // but do NOT auto-verify here. Call-sites must decide explicitly.
+    return { shouldProceed: true };
+  },
+
+  /**
+   * Constructs the standard update payload for a user upon successful login.
+   * @param {object} user - The user object.
+   * @param {object} verificationResult - The result from _handleVerification.
+   * @param {string} [strategy=null] - The token strategy for migration purposes.
+   * @returns {object} The MongoDB update object.
+   */
+  _constructLoginUpdate: (
+    user,
+    strategy = null,
+    { autoVerify = false } = {}
+  ) => {
+    const currentDate = new Date();
+    const updatePayload = {
+      $set: {
+        lastLogin: currentDate,
+        isActive: true,
+      },
+      $inc: { loginCount: 1 },
+    };
+
+    if (autoVerify && user.verified !== true) {
+      updatePayload.$set.verified = true;
+    }
+
+    // Handle one-time token strategy migration (only for enhanced login)
+    if (
+      strategy &&
+      (!user.preferredTokenStrategy ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.LEGACY ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.STANDARD)
+    ) {
+      updatePayload.$set.preferredTokenStrategy = strategy;
+      updatePayload.$set.tokenStrategyMigratedAt = new Date();
+    }
+
+    return updatePayload;
+  },
+  /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
   loginWithEnhancedTokens: async (request, next) => {
@@ -5260,24 +5334,31 @@ const createUserModule = {
         };
       }
 
-      // Check verification status
-      if (!user.verified) {
+      // Centralized verification check
+      const verificationResult = createUserModule._handleVerification(user);
+      if (!verificationResult.shouldProceed) {
+        try {
+          if (verificationResult.requiresV3Reminder) {
+            await createUserModule.verificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          } else if (verificationResult.requiresV4Reminder) {
+            await createUserModule.mobileVerificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          }
+        } catch (reminderErr) {
+          logger.warn(`Verification reminder failed: ${reminderErr.message}`);
+        }
         return {
           success: false,
-          message: "Please verify your email address first",
+          message: verificationResult.message,
           status: httpStatus.FORBIDDEN,
           errors: {
             verification: "Email not verified",
           },
-        };
-      }
-
-      // Check account status
-      if (user.analyticsVersion === 3 && user.verified === false) {
-        return {
-          success: false,
-          message: "Account not verified, please check your email",
-          status: httpStatus.FORBIDDEN,
         };
       }
 
@@ -5374,26 +5455,22 @@ const createUserModule = {
       // Update login statistics
       (async () => {
         try {
-          const currentDate = new Date();
+          // Decide if auto-verification should happen.
+          // This preserves the original business logic for legacy users.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
+          const updatePayload = createUserModule._constructLoginUpdate(
+            user,
+            strategy,
+            { autoVerify: shouldAutoVerify }
+          );
           await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
-            {
-              $set: {
-                lastLogin: currentDate,
-                isActive: true,
-                // One-time migration for users on legacy or unset strategies.
-                // This marks them as having logged in with the new system.
-                ...((!user.preferredTokenStrategy ||
-                  user.preferredTokenStrategy ===
-                    constants.TOKEN_STRATEGIES.LEGACY ||
-                  user.preferredTokenStrategy ===
-                    constants.TOKEN_STRATEGIES.STANDARD) && {
-                  preferredTokenStrategy: strategy,
-                  tokenStrategyMigratedAt: new Date(),
-                }),
-              },
-              $inc: { loginCount: 1 },
-            },
+            updatePayload,
             { new: true, upsert: false, runValidators: true }
           );
           await createUserModule.ensureDefaultAirqoRole(user, dbTenant);
@@ -5429,17 +5506,19 @@ const createUserModule = {
         // Enhanced authentication
         token: `JWT ${token}`,
 
-        // Comprehensive permissions
-        permissions: loginPermissions.allPermissions,
-        systemPermissions: loginPermissions.systemPermissions,
-        groupPermissions: loginPermissions.groupPermissions,
-        networkPermissions: loginPermissions.networkPermissions,
+        // --- REMOVED FOR SCALABILITY ---
+        // The following large data fields are removed to prevent oversized login responses
+        // which can cause 502 Bad Gateway errors. Clients should fetch this data
+        // via dedicated endpoints (e.g., /api/v2/users/profile/enhanced) after login.
+        //
+        // permissions: loginPermissions.allPermissions,
+        // systemPermissions: loginPermissions.systemPermissions,
+        // groupPermissions: loginPermissions.groupPermissions,
+        // networkPermissions: loginPermissions.networkPermissions,
+        // groupMemberships: loginPermissions.groupMemberships,
+        // networkMemberships: loginPermissions.networkMemberships,
 
-        // Enhanced memberships with detailed info
-        groupMemberships: loginPermissions.groupMemberships,
-        networkMemberships: loginPermissions.networkMemberships,
-
-        // User flags
+        // User flags (small and useful for initial UI setup)
         isSuperAdmin: loginPermissions.isSuperAdmin,
         hasGroupAccess: loginPermissions.groupMemberships.length > 0,
         hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
@@ -5495,9 +5574,9 @@ const createUserModule = {
 
       console.log("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: authResponse.permissions.length,
-        groupMemberships: authResponse.groupMemberships.length,
-        networkMemberships: authResponse.networkMemberships.length,
+        permissionsCount: authResponse.permissions?.length || 0, // Safely access length
+        groupMemberships: authResponse.groupMemberships?.length || 0,
+        networkMemberships: authResponse.networkMemberships?.length || 0,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });
