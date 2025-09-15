@@ -35,7 +35,12 @@
     "mode": "REQUIRED"
   },
   {
-    "name": "resolution",
+    "name": "data_resolution",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "baseline_type",
     "type": "STRING",
     "mode": "REQUIRED"
   },

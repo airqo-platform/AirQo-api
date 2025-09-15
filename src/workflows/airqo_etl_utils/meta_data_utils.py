@@ -164,11 +164,11 @@ class MetaDataUtils:
     @staticmethod
     def compute_device_site_baseline(
         data_type: DataType,
-        frequency: Frequency,
         device_category: DeviceCategory,
         device_network: DeviceNetwork,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        frequency: Optional[Frequency] = Frequency.WEEKLY,
     ) -> pd.DataFrame:
         """
         Computes baseline statistics for devices or sites based on the specified parameters.
@@ -178,16 +178,16 @@ class MetaDataUtils:
             data_type (DataType): The type of data to process (e.g., air quality, weather).
             device_category (DeviceCategory): The category of the device (e.g., LOWCOST, GENERAL).
             device_network (DeviceNetwork): The network of the device (e.g., AIRQO, OTHER).
-            frequency (Frequency): The frequency of the data (e.g., HOURLY, DAILY, WEEKLY).
             start_date (str): The start date for the baseline computation in ISO 8601 format.
             end_date (str): The end date for the baseline computation in ISO 8601 format.
+            frequency (Frequency): The frequency of the data (e.g., HOURLY, DAILY, WEEKLY).
         Returns:
             pd.DataFrame: A DataFrame containing the computed baseline statistics. If no data is found, returns an empty DataFrame.
         Raises:
             ValueError: If no data is found for the specified parameters.
         """
         if start_date is None or end_date is None:
-            start_date, end_date = frequency_to_dates(Frequency.WEEKLY)
+            start_date, end_date = frequency_to_dates(frequency)
 
         device_metadata = DataUtils.extract_most_recent_record(
             MetaDataType.DEVICES, "device_id", "offset_date"
@@ -225,11 +225,11 @@ class MetaDataUtils:
                     data.loc[data.device_id == device_data["device_id"]],
                     device_data,
                     [device_data["pollutant"]],
-                    frequency,
-                    start_date,
-                    end_date,
-                    device_data["minimum"],
-                    device_data["maximum"],
+                    resolution=frequency,
+                    window_start=start_date,
+                    window_end=end_date,
+                    region_min=device_data["minimum"],
+                    region_max=device_data["maximum"],
                 )
                 for _, device_data in device_metadata.iterrows()
             ]

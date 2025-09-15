@@ -1888,12 +1888,15 @@ class DataUtils:
             Exception: Logs and handles unexpected errors during retrieval.
         """
         bigquery = BigQueryApi()
+        frequency_: Frequency = frequency
+        if frequency_ in Config.extra_time_grouping:
+            frequency_ = Frequency.HOURLY
         try:
             datasource = Config.DataSource
             if datatype == DataType.EXTRAS:
                 table = datasource.get(datatype).get(device_network).get(extra_type)
             else:
-                table = datasource.get(datatype).get(device_category).get(frequency)
+                table = datasource.get(datatype).get(device_category).get(frequency_)
             cols = bigquery.get_columns(table=table)
             return table, cols
         except KeyError:
