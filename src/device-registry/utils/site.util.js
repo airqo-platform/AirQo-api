@@ -27,19 +27,23 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+const mongoose = require("mongoose");
+const { isValidObjectId } = mongoose;
+const ObjectId = mongoose.Types.ObjectId;
 
 const createSite = {
   getSiteById: async (req, next) => {
     try {
       const { id } = req.params;
       const {
-        tenant,
+        tenant: rawTenant,
         maxActivities = 500,
         includeActivities = "true",
         includeRelations = "true",
         useCache = "true",
         detailLevel = "full", // 'minimal', 'summary', 'full'
       } = req.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
 
       // Determine projection based on detail level
       let projection = {};
@@ -71,7 +75,10 @@ const createSite = {
       }
 
       // Build aggregation pipeline
-      let pipeline = [{ $match: { _id: id } }];
+      if (!isValidObjectId(id)) {
+        throw new HttpError("Invalid site id", httpStatus.BAD_REQUEST);
+      }
+      let pipeline = [{ $match: { _id: new ObjectId(id) } }];
 
       // Add projection early if specified
       if (Object.keys(projection).length > 0) {
@@ -1230,11 +1237,12 @@ const createSite = {
       const {
         skip,
         limit,
-        tenant,
+        tenant: rawTenant,
         path,
         useCache = "true",
         detailLevel = "summary",
       } = request.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const filter = generateFilter.sites(request, next);
       if (!isEmpty(path)) {
         filter.path = path;

@@ -93,6 +93,9 @@ const deviceUtil = {
       }
 
       // Build aggregation pipeline
+      if (!isValidObjectId(id)) {
+        throw new HttpError("Invalid device id", httpStatus.BAD_REQUEST);
+      }
       let pipeline = [{ $match: { _id: new ObjectId(id) } }];
 
       // Add projection early if specified
@@ -869,13 +872,14 @@ const deviceUtil = {
   list: async (request, next) => {
     try {
       const {
-        tenant,
+        tenant: rawTenant,
         path,
         limit,
         skip,
         useCache = "true",
         detailLevel = "summary",
       } = request.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const filter = generateFilter.devices(request, next);
 
       if (!isEmpty(path)) {

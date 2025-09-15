@@ -26,11 +26,13 @@ class ActivityPrecomputeProcessor {
     try {
       logText("Starting site activities precomputation...");
 
+      const activitiesColl = ActivityModel(tenant).collection.name;
+      const devicesColl = DeviceModel(tenant).collection.name;
       // Get all sites with their activity summaries
       const pipeline = [
         {
           $lookup: {
-            from: "activities",
+            from: activitiesColl,
             let: { siteId: "$_id" },
             pipeline: [
               { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
@@ -49,10 +51,12 @@ class ActivityPrecomputeProcessor {
         },
         {
           $lookup: {
-            from: "devices",
+            from: devicesColl,
             localField: "_id",
             foreignField: "site_id",
-            pipeline: [{ $project: { _id: 1, name: 1 } }],
+            pipeline: [
+              { $project: { _id: 1, name: 1, cached_total_activities: 1 } },
+            ],
             as: "devices",
           },
         },
@@ -110,7 +114,7 @@ class ActivityPrecomputeProcessor {
       const deviceActivitySummary = site.devices.map((device) => ({
         device_id: device._id,
         device_name: device.name,
-        activity_count: 0, // Will be computed separately if needed
+        activity_count: device.cached_total_activities || 0,
       }));
 
       // Backward compatibility fields
@@ -159,10 +163,11 @@ class ActivityPrecomputeProcessor {
     try {
       logText("Starting device activities precomputation...");
 
+      const activitiesColl = ActivityModel(tenant).collection.name;
       const pipeline = [
         {
           $lookup: {
-            from: "activities",
+            from: activitiesColl,
             let: { deviceName: "$name", deviceId: "$_id" },
             pipeline: [
               {
@@ -278,28 +283,35 @@ class ActivityPrecomputeProcessor {
       const [siteCleanup, deviceCleanup] = await Promise.all([
         SiteModel(tenant).updateMany(
           {
-            activities_cache_updated_at: { $lt: staleThreshold },
-            activities_cache_updated_at: { $exists: true },
+            activities_cache_updated_at: { $exists: true, $lt: staleThreshold },
           },
           {
             $unset: {
               cached_activities_by_type: 1,
               cached_latest_activities_by_type: 1,
               cached_total_activities: 1,
+              cached_device_activity_summary: 1,
+              cached_latest_deployment_activity: 1,
+              cached_latest_maintenance_activity: 1,
+              cached_latest_recall_activity: 1,
+              cached_site_creation_activity: 1,
+              cached_total_devices: 1,
               activities_cache_updated_at: 1,
             },
           }
         ),
         DeviceModel(tenant).updateMany(
           {
-            activities_cache_updated_at: { $lt: staleThreshold },
-            activities_cache_updated_at: { $exists: true },
+            activities_cache_updated_at: { $exists: true, $lt: staleThreshold },
           },
           {
             $unset: {
               cached_activities_by_type: 1,
               cached_latest_activities_by_type: 1,
               cached_total_activities: 1,
+              cached_latest_deployment_activity: 1,
+              cached_latest_maintenance_activity: 1,
+              cached_latest_recall_activity: 1,
               activities_cache_updated_at: 1,
             },
           }
