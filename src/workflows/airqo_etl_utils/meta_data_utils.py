@@ -129,7 +129,7 @@ class MetaDataUtils:
 
         # Compute additional metadata
         computed_data = []
-        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency)
+        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency_)
         pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
             data_type.str, None
         )

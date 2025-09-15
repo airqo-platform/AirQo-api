@@ -2353,25 +2353,31 @@ const rolePermissionUtil = {
         );
       }
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
-        { _id: userObject._id },
-        {
-          $pull: {
-            [isNetworkRole ? "network_roles" : "group_roles"]: {
-              [isNetworkRole ? "network" : "group"]: associatedId,
-            },
-          },
-          $addToSet: {
-            [isNetworkRole ? "network_roles" : "group_roles"]: {
-              ...(isNetworkRole
-                ? { network: associatedId }
-                : { group: associatedId }),
-              role: role_id,
-              userType: user_type || "guest",
-              createdAt: new Date(),
-            },
+      // Atomically remove any existing role for this context before adding the new one
+      await UserModel(tenant).findByIdAndUpdate(userObject._id, {
+        $pull: {
+          [isNetworkRole ? "network_roles" : "group_roles"]: {
+            [isNetworkRole ? "network" : "group"]: associatedId,
           },
         },
+      });
+
+      const updateQuery = {
+        $addToSet: {
+          [isNetworkRole ? "network_roles" : "group_roles"]: {
+            ...(isNetworkRole
+              ? { network: associatedId }
+              : { group: associatedId }),
+            role: role_id,
+            userType: user_type || "guest",
+            createdAt: new Date(),
+          },
+        },
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: userObject._id },
+        updateQuery,
         { new: true, runValidators: true }
       );
 
@@ -4088,6 +4094,23 @@ const rolePermissionUtil = {
         );
       }
 
+      // --- START OF FIX ---
+      // Run data cleanup before proceeding to ensure data integrity.
+      // This will consolidate any duplicate role assignments for the same group/network.
+      const userForCleanup = await UserModel(actualTenant).findById(userId);
+      if (!userForCleanup) {
+        return next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${userId} not found`,
+          })
+        );
+      }
+      await rolePermissionUtil.ensureDefaultAirqoRole(
+        userForCleanup,
+        actualTenant
+      );
+      // --- END OF FIX ---
+
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
         actualTenant
@@ -4262,6 +4285,15 @@ const rolePermissionUtil = {
           })
         );
       }
+
+      // Atomically remove any existing role for this context before adding the new one
+      await UserModel(actualTenant).findByIdAndUpdate(userObject._id, {
+        $pull: {
+          [isNetworkRole ? "network_roles" : "group_roles"]: {
+            [isNetworkRole ? "network" : "group"]: associatedId,
+          },
+        },
+      });
 
       const updateQuery = {
         $addToSet: {
