@@ -376,6 +376,40 @@ const siteSchema = new Schema(
       successPercentage: { type: Number, default: 0 },
       failurePercentage: { type: Number, default: 0 },
     },
+    // Precomputed activity fields for performance
+    cached_activities_by_type: {
+      type: Object,
+      default: {},
+    },
+    cached_latest_activities_by_type: {
+      type: Object,
+      default: {},
+    },
+    cached_total_activities: {
+      type: Number,
+      default: 0,
+    },
+    cached_device_activity_summary: {
+      type: Array,
+      default: [],
+    },
+    cached_latest_deployment_activity: {
+      type: Object,
+    },
+    cached_latest_maintenance_activity: {
+      type: Object,
+    },
+    cached_latest_recall_activity: {
+      type: Object,
+    },
+    cached_site_creation_activity: {
+      type: Object,
+    },
+    cached_total_devices: {
+      type: Number,
+      default: 0,
+    },
+    activities_cache_updated_at: { type: Date },
   },
   {
     timestamps: true,
