@@ -308,7 +308,11 @@ class DataUtils:
 
     @staticmethod
     def compute_device_site_metadata(
-        table: str, unique_id: str, entity: Dict[str, Any], column: Dict[str, Any]
+        table: str,
+        unique_id: str,
+        entity: Dict[str, Any],
+        column: Dict[str, Any],
+        frequency: Optional[Frequency] = Frequency.WEEKLY,
     ) -> pd.DataFrame:
         """
         Computes metadata for devices or sites based on the specified parameters.
@@ -324,9 +328,12 @@ class DataUtils:
                 - "offset_date" (str): The previous offset date.
                 - The unique identifier (e.g., "device_id" or "site_id").
             column(str): The column to compute metadata for (e.g., pollutant type).
+            frequency(Optional[Frequency], default=Frequency.WEEKLY): The frequency for metadata computation. Defaults to weekly.
 
         Returns:
             pd.DataFrame: A DataFrame containing the computed metadata. If the end date is in the future, an empty DataFrame is returned.
+
+        Note: Supported frequencies are: weekly, monthly, yearly. For other frequencies, this method may return empty or incorrect data.
         """
         device_maintenance = entity.get("device_maintenance", None)
         if device_maintenance is None or pd.isna(device_maintenance):
@@ -342,7 +349,7 @@ class DataUtils:
         )
         entity_id = entity.get(unique_id)
         extra_id = entity.get("site_id") if unique_id == "device_id" else None
-        end_date = str_to_date(start_date) + timedelta(days=30)
+        end_date = str_to_date(start_date) + timedelta(days=frequency.value)
 
         if end_date > datetime.today():
             logger.info(f"End date {end_date} cannot be in the future.")
@@ -1881,12 +1888,15 @@ class DataUtils:
             Exception: Logs and handles unexpected errors during retrieval.
         """
         bigquery = BigQueryApi()
+        frequency_: Frequency = frequency
+        if frequency_ in Config.extra_time_grouping:
+            frequency_ = Frequency.HOURLY
         try:
             datasource = Config.DataSource
             if datatype == DataType.EXTRAS:
                 table = datasource.get(datatype).get(device_network).get(extra_type)
             else:
-                table = datasource.get(datatype).get(device_category).get(frequency)
+                table = datasource.get(datatype).get(device_category).get(frequency_)
             cols = bigquery.get_columns(table=table)
             return table, cols
         except KeyError:

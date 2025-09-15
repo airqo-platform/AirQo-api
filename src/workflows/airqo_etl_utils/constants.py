@@ -151,10 +151,10 @@ class Frequency(IntEnum):
     RAW_LOW_COST = 1
     HOURLY = 2
     DAILY = 3
-    WEEKLY = 4
-    MONTHLY = 5
-    YEARLY = 6
-    HISTORICAL = 7
+    WEEKLY = 7  # 7 days in a week //Don't change value
+    MONTHLY = 30  # 30 days in a month //Don't change value
+    YEARLY = 365  # 365 days in a year //Don't change value
+    HISTORICAL = 4
     NONE = 8
 
     def __str__(self) -> str:
