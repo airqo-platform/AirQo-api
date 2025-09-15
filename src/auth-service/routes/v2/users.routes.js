@@ -704,6 +704,13 @@ router.post(
 );
 
 router.get(
+  "/:user_id/profile/enhanced",
+  enhancedJWTAuth,
+  // requirePermissions(["USER_VIEW"]),
+  userController.getEnhancedProfileForUser
+);
+
+router.get(
   "/:user_id",
   userValidations.getUser,
   enhancedJWTAuth,
