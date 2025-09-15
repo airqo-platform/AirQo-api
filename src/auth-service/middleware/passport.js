@@ -1497,8 +1497,43 @@ const enhancedJWTAuth = async (req, res, next) => {
               expiredDecoded.email || expiredDecoded._id
             }. Allowing one-time refresh.`
           );
-          // By calling next() without an error, we allow the request to proceed.
-          // The 'finish' event on the response will then issue a new, modern token.
+          // FIX: We must still attach the user to the request for subsequent middleware.
+          const userId =
+            expiredDecoded.userId || expiredDecoded.id || expiredDecoded._id;
+          if (!userId) {
+            // if no user id, then we can't proceed.
+            throw new Error("Legacy token has no user identifier.");
+          }
+          const tenant = String(
+            req.query.tenant ||
+              req.body.tenant ||
+              constants.DEFAULT_TENANT ||
+              "airqo"
+          ).toLowerCase();
+          const user = await UserModel(tenant).findById(userId).lean();
+          if (!user) {
+            throw new Error("User from legacy token no longer exists.");
+          }
+          // Attach user and decoded token to request
+          req.user = { ...user, ...expiredDecoded };
+
+          // Add sliding refresh on this path as well
+          res.on("finish", async () => {
+            try {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                const userDoc = await UserModel(tenant).findById(userId);
+                if (userDoc) {
+                  const newToken = await userDoc.createToken();
+                  res.set("X-Access-Token", newToken);
+                  res.set("Access-Control-Expose-Headers", "X-Access-Token");
+                }
+              }
+            } catch (refreshError) {
+              logger.error(
+                `Failed to refresh legacy token for ${user.email}: ${refreshError.message}`
+              );
+            }
+          });
           return next();
         }
       } catch (migrationError) {
