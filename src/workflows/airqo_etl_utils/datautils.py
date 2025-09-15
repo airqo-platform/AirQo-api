@@ -365,6 +365,7 @@ class DataUtils:
             unique_id=unique_id,
             filter=entity_id,
             pollutant=column,
+            frequency=frequency,
         )
         if not data.empty:
             data["offset_date"] = end_date
@@ -644,9 +645,6 @@ class DataUtils:
 
         if not device_category:
             device_category = DeviceCategory.GENERAL
-
-        if frequency.str in Config.extra_time_grouping:
-            frequency = Frequency.HOURLY
 
         table, _ = DataUtils._get_table(
             datatype, device_category, frequency, device_network

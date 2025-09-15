@@ -260,7 +260,7 @@ def compute_store_devices_metadata():
                 data,
                 DataType.EXTRAS,
                 DeviceCategory.LOWCOST,
-                Frequency.HOURLY,
+                Frequency.WEEKLY,
                 device_network=DeviceNetwork.AIRQO,
                 extra_type=MetaDataType.DEVICES,
             )
@@ -276,7 +276,7 @@ def compute_store_devices_metadata():
 
 @dag(
     "AirQo-devices-computed-metadata-monthly",
-    schedule="0 1 * * *",
+    schedule="30 0 * * *",
     doc_md=compute_store_devices_metadata_doc,
     catchup=False,
     tags=["devices", "computed", "metadata", "monthly"],

@@ -14,6 +14,7 @@ from .constants import (
     DeviceNetwork,
     QueryType,
     MetaDataType,
+    Frequency,
 )
 from .date import date_to_str
 from .utils import Utils
@@ -780,18 +781,20 @@ class BigQueryApi:
         unique_id: str,
         filter: str,
         pollutant: Dict[str, str],
+        frequency: Optional[Frequency] = Frequency.WEEKLY,
     ) -> pd.DataFrame:
         """
         Fetches the maximum, minimum, average, and sample count of specified pollutant columns
         from a BigQuery table within a given time range, filtered by a unique identifier.
 
         Args:
-            table (str): The name of the BigQuery table to query.
-            start_date_time (str): The start datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
-            end_date_time (str): The end datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
-            unique_id (str): The column name representing the unique identifier for filtering.
-            filter (str): The value to filter the unique identifier by.
-            pollutant (Dict[str, str]): A dictionary of pollutant column names to compute statistics for.
+            table(str): The name of the BigQuery table to query.
+            start_date_time(str): The start datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            end_date_time(str): The end datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            unique_id(str): The column name representing the unique identifier for filtering.
+            filter(str): The value to filter the unique identifier by.
+            pollutant(Dict[str, str]): A dictionary of pollutant column names to compute statistics for.
+            frequency(Frequency, optional): The frequency type for filtering (e.g., DAILY, WEEKLY).
 
         Returns:
             pd.DataFrame: A DataFrame containing the maximum, minimum, average, and sample count
@@ -817,7 +820,8 @@ class BigQueryApi:
         query = (
             "SELECT " + ", ".join(query_parts) + f" FROM `{table}` "
             f"WHERE timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
-            f"AND {unique_id} = '{filter}'"
+            f"AND {unique_id} = '{filter}' "
+            f"AND baseline_type = '{frequency.str}'"
         )
         try:
             raw_df = self.client.query(query=query).result().to_dataframe()

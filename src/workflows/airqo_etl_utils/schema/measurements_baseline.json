@@ -18,7 +18,13 @@
     "name": "baseline_resolution",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "Frequency of baseline calculation, e.g., 'Hourly', 'Weekly'. Must be a string representing the interval in minutes."
+    "description": "Frequency of baseline calculation, e.g. 'Hourly', 'Weekly'. Must be a string representing the interval in minutes."
+  },
+  {
+    "name": "baseline_type",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Type of baseline calculation, e.g. 'Daily', 'Weekly', 'Monthly'."
   },
   {
     "name": "device_number",

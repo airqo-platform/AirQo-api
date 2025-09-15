@@ -129,7 +129,7 @@ class MetaDataUtils:
 
         # Compute additional metadata
         computed_data = []
-        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency_)
+        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency)
         pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
             data_type.str, None
         )
@@ -158,7 +158,8 @@ class MetaDataUtils:
             else pd.DataFrame()
         )
         if not computed_data.empty:
-            computed_data["resolution"] = frequency.str
+            computed_data["data_resolution"] = frequency_.str
+            computed_data["baseline_type"] = frequency.str
         return computed_data
 
     @staticmethod
@@ -186,12 +187,16 @@ class MetaDataUtils:
         Raises:
             ValueError: If no data is found for the specified parameters.
         """
+        frequency_: Frequency = frequency
         if start_date is None or end_date is None:
             start_date, end_date = frequency_to_dates(frequency)
 
         device_metadata = DataUtils.extract_most_recent_record(
             MetaDataType.DEVICES, "device_id", "offset_date"
         )
+
+        if frequency.str in Config.extra_time_grouping:
+            frequency_ = Frequency.HOURLY
 
         if device_metadata.empty:
             logger.warning("No device metadata returned")
@@ -225,7 +230,8 @@ class MetaDataUtils:
                     data.loc[data.device_id == device_data["device_id"]],
                     device_data,
                     [device_data["pollutant"]],
-                    resolution=frequency,
+                    data_resolution=frequency_,
+                    baseline_type=frequency,
                     window_start=start_date,
                     window_end=end_date,
                     region_min=device_data["minimum"],
