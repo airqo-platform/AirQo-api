@@ -84,7 +84,8 @@ class AirQoDataDriftCompute:
             data(pd.DataFrame): DataFrame with device air quality measurements.
             device(Dict[str, Any]): Device dictionary with device metadata.
             pollutants(List[str]): List of pollutant names.
-            resolution(Frequency): Frequency of the data (e.g., RAW, HOURLY, WEEKLY, MONTHLY).
+            data_resolution(Frequency): Frequency of the data (e.g., RAW, HOURLY).
+            baseline_type(Frequency): Type of baseline (e.g., WEEKLY, MONTHLY).
             window_start(datetime): Start of baseline window.
             window_end(datetime): End of baseline window.
             region_min(float, optional): Region-wide minimum value. Defaults to 0.
@@ -111,7 +112,7 @@ class AirQoDataDriftCompute:
         device_number = data.iloc[0]["device_number"]
         device_category = data.iloc[0]["device_category"]
         sample_count: int = data.shape[0]
-        expected_samples: int = cls.calculate_expected_sample_count(resolution)
+        expected_samples: int = cls.calculate_expected_sample_count(data_resolution)
         sample_coverage_pct: float = (
             (sample_count / expected_samples) * 100 if expected_samples > 0 else 0.0
         )

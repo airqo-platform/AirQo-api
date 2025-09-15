@@ -109,7 +109,8 @@ class TestAirQoDataDriftCompute:
             data=mock_df_raw,
             device=device,
             pollutants=pollutants,
-            resolution=Frequency.WEEKLY,
+            data_resolution=Frequency.HOURLY,
+            baseline_type=Frequency.WEEKLY,
             window_start=baseline_params["window_start"],
             window_end=baseline_params["window_end"],
             region_min=baseline_params.get("site_minimum", 0),
@@ -313,7 +314,8 @@ class TestAirQoDataDriftCompute:
                 data=small_data,
                 device=device,
                 pollutants=pollutants,
-                resolution=Frequency.WEEKLY,
+                data_resolution=Frequency.HOURLY,
+                baseline_type=Frequency.WEEKLY,
                 window_start=baseline_params["window_start"],
                 window_end=baseline_params["window_end"],
             )
@@ -339,7 +341,8 @@ class TestAirQoDataDriftCompute:
                 data=mock_df_raw,
                 device=device,
                 pollutants=pollutants,
-                resolution=Frequency.WEEKLY,
+                data_resolution=Frequency.HOURLY,
+                baseline_type=Frequency.WEEKLY,
                 window_start=baseline_params["window_start"],
                 window_end=baseline_params["window_end"],
             )
@@ -362,7 +365,8 @@ class TestAirQoDataDriftCompute:
             data=mock_df_raw,
             device=device_pass,
             pollutants=pollutants,
-            resolution=Frequency.WEEKLY,
+            data_resolution=Frequency.HOURLY,
+            baseline_type=Frequency.WEEKLY,
             window_start=baseline_params["window_start"],
             window_end=baseline_params["window_end"],
         )
@@ -384,7 +388,8 @@ class TestAirQoDataDriftCompute:
                 data=mock_df_raw,
                 device=device_fail,
                 pollutants=pollutants,
-                resolution=Frequency.WEEKLY,
+                data_resolution=Frequency.HOURLY,
+                baseline_type=Frequency.WEEKLY,
                 window_start=baseline_params["window_start"],
                 window_end=baseline_params["window_end"],
             )
@@ -403,7 +408,8 @@ class TestAirQoDataDriftCompute:
             data=pd.DataFrame(),  # Empty data
             device=device,
             pollutants=pollutants,
-            resolution=Frequency.WEEKLY,
+            data_resolution=Frequency.WEEKLY,
+            baseline_type=Frequency.WEEKLY,
             window_start=datetime(2025, 1, 1),
             window_end=datetime(2025, 1, 8),
         )

@@ -65,8 +65,8 @@ class MetaDataUtils:
             },
             inplace=True,
         )
-        devices["device_id"] = devices["name"]
-        devices["last_updated"] = datetime.now(timezone.utc)
+        devices.loc[:, "device_id"] = devices["name"]
+        devices.loc[:, "last_updated"] = datetime.now(timezone.utc)
 
         return devices
 
