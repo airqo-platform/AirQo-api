@@ -92,7 +92,13 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the computed metadata.
         """
-        big_query_api = BigQueryApi()
+        big_query_api: BigQueryApi = BigQueryApi()
+        frequency_: Frequency = frequency
+        # Adjust frequency for extra time grouping scenarios
+        if frequency.str in Config.extra_time_grouping:
+            # Use hourly for better data granularity
+            frequency_ = Frequency.HOURLY
+
         exclude_column = "site_id" if metadata_type == MetaDataType.DEVICES else None
         device_category_ = (
             DeviceCategory.GENERAL
@@ -123,7 +129,7 @@ class MetaDataUtils:
 
         # Compute additional metadata
         computed_data = []
-        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency)
+        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency_)
         pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
             data_type.str, None
         )
@@ -136,6 +142,7 @@ class MetaDataUtils:
                     unique_id,
                     entity,
                     pollutants,
+                    frequency,
                 )
                 for _, entity in entities.iterrows()
             ]
@@ -160,8 +167,8 @@ class MetaDataUtils:
         frequency: Frequency,
         device_category: DeviceCategory,
         device_network: DeviceNetwork,
-        start_date: Optional[str],
-        end_date: Optional[str],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Computes baseline statistics for devices or sites based on the specified parameters.
