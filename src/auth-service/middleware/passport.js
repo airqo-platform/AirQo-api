@@ -135,6 +135,7 @@ const useLocalStrategy = (tenant, req, res, next) => {
     );
   }
 };
+
 const useEmailWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithEmailOptions,
@@ -167,79 +168,27 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
-        } else if (user.analyticsVersion === 3 && user.verified === false) {
-          const tenantValue = tenant || "airqo";
-          const verificationRequest = {
-            tenant: tenantValue,
-            email: user.email,
-          };
+        }
+
+        // Centralized verification check
+        const verificationResult = createUserUtil._handleVerification(user);
+        if (!verificationResult.shouldProceed) {
           try {
-            const verificationEmailResponse =
+            if (verificationResult.requiresV3Reminder) {
               await createUserUtil.verificationReminder(
-                verificationRequest,
+                { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
-            if (
-              !verificationEmailResponse ||
-              verificationEmailResponse.success === false
-            ) {
-              logger.error(
-                `Internal Server Error --- ${stringify(
-                  verificationEmailResponse || "No Response"
-                )}`
+            } else if (verificationResult.requiresV4Reminder) {
+              await createUserUtil.mobileVerificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
+                next
               );
             }
           } catch (error) {
             logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN
-            )
-          );
-          return;
-        } else if (user.analyticsVersion === 4 && !user.verified) {
-          await createUserUtil
-            .mobileVerificationReminder({ tenant, email: user.email }, next)
-            .then((verificationResponse) => {
-              if (
-                !verificationResponse ||
-                verificationResponse.success === false
-              ) {
-                logger.error(
-                  `Verification reminder failed: ${
-                    verificationResponse
-                      ? verificationResponse.message
-                      : "No response"
-                  }`
-                );
-              }
-            })
-            .catch((err) => {
-              logger.error(
-                `Error sending verification reminder: ${err.message}`
-              );
-            });
-
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN,
-              {
-                message:
-                  "account not verified, verification email has been sent to your email",
-              }
-            )
-          );
+          next(new HttpError(verificationResult.message, httpStatus.FORBIDDEN));
           return;
         }
         req.auth.success = true;
@@ -297,25 +246,28 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             );
           }
         })();
-        const currentDate = new Date();
 
         try {
+          // Decide if auto-verification should happen.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
+          const updatePayload = createUserUtil._constructLoginUpdate(
+            user,
+            null,
+            {
+              autoVerify: shouldAutoVerify,
+            }
+          );
           await UserModel(tenant.toLowerCase())
-            .findOneAndUpdate(
-              { _id: user._id },
-              {
-                $set: { lastLogin: currentDate, isActive: true },
-                $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 && user.verified === false
-                  ? { $set: { verified: true } }
-                  : {}),
-              },
-              {
-                new: true,
-                upsert: false,
-                runValidators: true,
-              }
-            )
+            .findOneAndUpdate({ _id: user._id }, updatePayload, {
+              new: true,
+              upsert: false,
+              runValidators: true,
+            })
             .then(() => {})
             .catch((error) => {
               logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -346,6 +298,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithUsernameOptions,
@@ -380,79 +333,27 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
-        } else if (user.analyticsVersion === 3 && user.verified === false) {
+        }
+
+        // Centralized verification check
+        const verificationResult = createUserUtil._handleVerification(user);
+        if (!verificationResult.shouldProceed) {
           try {
-            const tenantValue = tenant || "airqo";
-            const verificationRequest = {
-              tenant: tenantValue,
-              email: user.email,
-            };
-            const verificationEmailResponse =
+            if (verificationResult.requiresV3Reminder) {
               await createUserUtil.verificationReminder(
-                verificationRequest,
+                { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
-            if (
-              !verificationEmailResponse ||
-              verificationEmailResponse.success === false
-            ) {
-              logger.error(
-                `Internal Server Error --- ${stringify(
-                  verificationEmailResponse || "No Response"
-                )}`
+            } else if (verificationResult.requiresV4Reminder) {
+              await createUserUtil.mobileVerificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
+                next
               );
             }
           } catch (error) {
             logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN
-            )
-          );
-          return;
-        } else if (user.analyticsVersion === 4 && !user.verified) {
-          createUserUtil
-            .mobileVerificationReminder({ tenant, email: user.email }, next)
-            .then((verificationResponse) => {
-              if (
-                !verificationResponse ||
-                verificationResponse.success === false
-              ) {
-                logger.error(
-                  `Verification reminder failed: ${
-                    verificationResponse
-                      ? verificationResponse.message
-                      : "No response"
-                  }`
-                );
-              }
-            })
-            .catch((err) => {
-              logger.error(
-                `Error sending verification reminder: ${err.message}`
-              );
-            });
-
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN,
-              {
-                message:
-                  "account not verified, verification email has been sent to your email",
-              }
-            )
-          );
+          next(new HttpError(verificationResult.message, httpStatus.FORBIDDEN));
           return;
         }
         req.auth.success = true;
@@ -510,25 +411,27 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           }
         })();
 
-        const currentDate = new Date();
-
         try {
+          // Decide if auto-verification should happen.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
+          const updatePayload = createUserUtil._constructLoginUpdate(
+            user,
+            null,
+            {
+              autoVerify: shouldAutoVerify,
+            }
+          );
           await UserModel(tenant.toLowerCase())
-            .findOneAndUpdate(
-              { _id: user._id },
-              {
-                $set: { lastLogin: currentDate, isActive: true },
-                $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 && user.verified === false
-                  ? { $set: { verified: true } }
-                  : {}),
-              },
-              {
-                new: true,
-                upsert: false,
-                runValidators: true,
-              }
-            )
+            .findOneAndUpdate({ _id: user._id }, updatePayload, {
+              new: true,
+              upsert: false,
+              runValidators: true,
+            })
             .then(() => {})
             .catch((error) => {
               logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -545,7 +448,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           {
             username: user.userName,
             email: user.email,
-            service: service ? service : "none",
+            service: service ? service : "unknown",
           }
         );
         return done(null, user);
@@ -560,6 +463,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useGoogleStrategy = (tenant, req, res, next) =>
   new GoogleStrategy(
     {
@@ -660,24 +564,19 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
-            const currentDate = new Date();
             try {
+              // New user from Google should be auto-verified.
+              const updatePayload = createUserUtil._constructLoginUpdate(
+                user,
+                null,
+                { autoVerify: true }
+              );
               await UserModel(tenant.toLowerCase())
-                .findOneAndUpdate(
-                  { _id: user._id },
-                  {
-                    $set: { lastLogin: currentDate, isActive: true },
-                    $inc: { loginCount: 1 },
-                    ...(user.analyticsVersion !== 3 && user.verified === false
-                      ? { $set: { verified: true } }
-                      : {}),
-                  },
-                  {
-                    new: true,
-                    upsert: false,
-                    runValidators: true,
-                  }
-                )
+                .findOneAndUpdate({ _id: user._id }, updatePayload, {
+                  new: true,
+                  upsert: false,
+                  runValidators: true,
+                })
                 .then(() => {})
                 .catch((error) => {
                   logger.error(
@@ -705,6 +604,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
@@ -1234,25 +1134,17 @@ const useJWTStrategy = (tenant, req, res, next) =>
         }
       });
 
-      const currentDate = new Date();
-
       try {
+        // Only update login stats; do not flip verification state here.
+        const updatePayload = createUserUtil._constructLoginUpdate(user, null, {
+          autoVerify: false,
+        });
         await UserModel(tenant.toLowerCase())
-          .findOneAndUpdate(
-            { _id: user._id },
-            {
-              $set: { lastLogin: currentDate, isActive: true },
-              $inc: { loginCount: 1 },
-              ...(user.analyticsVersion !== 3 && user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
-            },
-            {
-              new: true,
-              upsert: false,
-              runValidators: true,
-            }
-          )
+          .findOneAndUpdate({ _id: user._id }, updatePayload, {
+            new: true,
+            upsert: false,
+            runValidators: true,
+          })
           .then(() => {})
           .catch((error) => {
             logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -1280,6 +1172,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
       return done(e, false);
     }
   });
+
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
@@ -1513,9 +1406,9 @@ const enhancedJWTAuth = async (req, res, next) => {
     const tenant = String(tenantRaw).toLowerCase();
 
     const tokenFactory = new AbstractTokenFactory(tenant);
-    const decodedUser = await tokenFactory.decodeToken(token);
+    const decodedToken = await tokenFactory.decodeToken(token);
 
-    const userId = decodedUser.userId || decodedUser.id || decodedUser._id;
+    const userId = decodedToken.userId || decodedToken.id || decodedToken._id;
     if (!userId) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
@@ -1537,18 +1430,88 @@ const enhancedJWTAuth = async (req, res, next) => {
     // Attach DB-backed user and token claims separately to avoid shadowing DB values
     req.user = {
       ...user,
-      ...decodedUser,
+      ...decodedToken,
     };
+
+    // Sliding Session: Automatically refresh the token if it's nearing expiration.
+    res.on("finish", async () => {
+      try {
+        // Only refresh on successful responses (2xx status codes).
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const nowInSeconds = Math.floor(Date.now() / 1000);
+          const tokenExpiry = decodedToken.exp; // 'exp' is a standard JWT claim.
+          const refreshThreshold = 15 * 60; // Refresh if token expires in the next 15 minutes.
+
+          if (tokenExpiry && tokenExpiry - nowInSeconds < refreshThreshold) {
+            logger.info(
+              `Token for user ${user.email} is nearing expiration. Issuing a new one.`
+            );
+
+            // Re-fetch the user as a Mongoose document to access instance methods.
+            const userDoc = await UserModel(tenant).findById(userId);
+            if (userDoc) {
+              const newToken = await userDoc.createToken();
+
+              // Set the new token in a custom header. The client will need to check for this.
+              res.set("X-Access-Token", newToken);
+
+              // IMPORTANT: For CORS, you must expose custom headers so the browser can access them.
+              res.set("Access-Control-Expose-Headers", "X-Access-Token");
+            }
+          }
+        }
+      } catch (refreshError) {
+        // Log the error but don't crash the application, as the primary request was successful.
+        logger.error(
+          `Failed to refresh token for user ${user ? user.email : "unknown"}: ${
+            refreshError.message
+          }`
+        );
+      }
+    });
 
     next();
   } catch (error) {
-    logger.error(`Enhanced JWT Auth Error: ${error.message}`);
+    // The token decoding utility (atf.service) now handles logging based on error type.
+    // We just need to construct the correct HTTP response.
     // Provide a more specific error message based on the JWT error type
-    let errorMessage = "Invalid or expired token";
-    if (error.name === "JsonWebTokenError") {
+    let errorMessage = "Your session is invalid. Please log in again.";
+    if (error.name === "TokenExpiredError") {
+      errorMessage = "Your session has expired. Please log in again.";
+
+      // GRACEFUL MIGRATION: Handle old tokens that have just expired.
+      // This allows a one-time refresh for users transitioning from non-expiring tokens.
+      try {
+        const expiredDecoded = jwt.verify(
+          req.headers.authorization.split(" ")[1],
+          constants.JWT_SECRET,
+          {
+            ignoreExpiration: true,
+          }
+        );
+
+        // Check if it's an old token (lacks the 'expiresAt' field we added).
+        if (!expiredDecoded.expiresAt) {
+          logger.warn(
+            `Gracefully handling an expired legacy token for user ${
+              expiredDecoded.email || expiredDecoded._id
+            }. Allowing one-time refresh.`
+          );
+          // By calling next() without an error, we allow the request to proceed.
+          // The 'finish' event on the response will then issue a new, modern token.
+          return next();
+        }
+      } catch (migrationError) {
+        // If decoding the expired token fails for any other reason, proceed with the original error.
+        logger.error(
+          `Error during graceful token migration check: ${migrationError.message}`
+        );
+      }
+    } else if (error.name === "JsonWebTokenError") {
       errorMessage = `Invalid token: ${error.message}`;
-    } else if (error.name === "TokenExpiredError") {
-      errorMessage = "Token has expired";
+    } else {
+      // Only log other, unexpected errors at this level.
+      logger.error(`Enhanced JWT Auth Error: ${error.message}`);
     }
     return next(
       new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {

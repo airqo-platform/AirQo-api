@@ -351,6 +351,9 @@ const UserSchema = new Schema(
       enum: Object.values(constants.TOKEN_STRATEGIES),
       default: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
     },
+    tokenStrategyMigratedAt: {
+      type: Date,
+    },
     subscriptionStatus: {
       type: String,
       enum: ["inactive", "active", "past_due", "cancelled"],
@@ -833,8 +836,8 @@ UserSchema.statics = {
         .addFields({
           createdAt: {
             $dateToString: {
-              format: "%Y-%m-%d %H:%M:%S",
-              date: "$_id",
+              format: "%Y-%m-%dT%H:%M:%S.%LZ",
+              date: "$createdAt",
             },
           },
         })
@@ -913,6 +916,8 @@ UserSchema.statics = {
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
           phoneNumber: { $first: "$phoneNumber" },
+          interests: { $first: "$interests" },
+          interestsDescription: { $first: "$interestsDescription" },
           group_roles: { $first: "$group_roles" },
           network_roles: { $first: "$network_roles" },
           clients: { $first: "$clients" },
@@ -952,7 +957,14 @@ UserSchema.statics = {
           my_networks: { $first: "$my_networks" },
           my_groups: { $first: "$my_groups" },
           createdAt: { $first: "$createdAt" },
-          updatedAt: { $first: "$createdAt" },
+          updatedAt: {
+            $first: {
+              $dateToString: {
+                format: "%Y-%m-%dT%H:%M:%S.%LZ",
+                date: "$updatedAt",
+              },
+            },
+          },
           networks: {
             $addToSet: {
               net_name: { $arrayElemAt: ["$network.net_name", 0] },
@@ -1019,53 +1031,68 @@ UserSchema.statics = {
       return;
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the user modification function........");
-      const options = { new: true };
-      const fieldNames = Object.keys(update);
-      const fieldsString = fieldNames.join(" ");
+      const options = {
+        new: true,
+        runValidators: true,
+        context: "query",
+        sanitizeFilter: true,
+      };
 
-      // Find and update user
+      const updateDoc =
+        update && Object.keys(update).some((k) => k.startsWith("$"))
+          ? update
+          : { $set: update };
+
       const updatedUser = await this.findOneAndUpdate(
         filter,
-        update,
+        updateDoc,
         options
-      ).select(fieldsString);
+      );
 
-      // Handle update result
       if (!isEmpty(updatedUser)) {
-        const { _id, ...userData } = updatedUser._doc;
         return {
           success: true,
           message: "successfully modified the user",
-          data: userData,
+          data: updatedUser,
           status: httpStatus.OK,
         };
+      } else {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found with the provided filter" },
+        };
       }
-
-      // User not found
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "user does not exist, please crosscheck",
-        })
-      );
-      return;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      if (error instanceof HttpError) {
-        return next(error);
+      let response = {
+        success: false,
+        message: "Update operation failed",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+      if (error.code === 11000) {
+        response.status = httpStatus.CONFLICT;
+        response.message = "Data conflict";
+        response.errors.message =
+          "A user with the provided details already exists.";
+      } else if (error.name === "ValidationError") {
+        response.status = httpStatus.BAD_REQUEST;
+        response.message = "Validation errors";
+        response.errors = {};
+        for (const field in error.errors) {
+          response.errors[field] = error.errors[field].message;
+        }
       }
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      return response;
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {

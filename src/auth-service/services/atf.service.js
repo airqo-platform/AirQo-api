@@ -115,10 +115,15 @@ class AbstractTokenFactory {
       };
     } catch (error) {
       // Log the specific JWT error for better debugging
-      if (error.name === "JsonWebTokenError") {
-        logger.error(`JWT Error: ${error.message}`);
+      if (error.name === "TokenExpiredError") {
+        // This is an expected event, log as DEBUG to reduce noise in production.
+        logger.debug(`Expired token received: ${error.message}`);
+      } else if (error.name === "JsonWebTokenError") {
+        // This is a malformed token, which is a client-side error. Log as WARN.
+        logger.warn(`Invalid JWT format: ${error.message}`);
       } else {
-        logger.error(`Error decoding token: ${error.message}`);
+        // This is an unexpected server-side error during decoding.
+        logger.error(`Unexpected error decoding token: ${error.message}`);
       }
       throw error;
     }
@@ -165,11 +170,33 @@ class TokenStrategy {
   async decodeToken(decoded, tenant) {
     throw new Error("decodeToken method must be implemented");
   }
+
+  parseExpiry(expiresIn) {
+    if (typeof expiresIn === "number") {
+      return expiresIn;
+    }
+    if (typeof expiresIn === "string") {
+      const match = expiresIn.match(/^(\d+)([smhd])$/);
+      if (!match) return 24 * 60 * 60; // Default 24h
+      const value = parseInt(match[1], 10);
+      const unit = match[2];
+      if (unit === "s") return value;
+      if (unit === "m") return value * 60;
+      if (unit === "h") return value * 60 * 60;
+      if (unit === "d") return value * 24 * 60 * 60;
+    }
+    return 24 * 60 * 60; // Default 24h
+  }
 }
 
 class LegacyTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
+
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
 
@@ -196,10 +223,11 @@ class LegacyTokenStrategy extends TokenStrategy {
         organization: user.organization,
         long_organization: user.long_organization,
         privilege: user.privilege,
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
 
@@ -224,6 +252,10 @@ class LegacyTokenStrategy extends TokenStrategy {
 class StandardTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
 
@@ -252,10 +284,11 @@ class StandardTokenStrategy extends TokenStrategy {
         networkMemberships: permissionData.networkMemberships,
         allPermissions: [...new Set(allPermissions)],
         isSuperAdmin: permissionData.isSuperAdmin,
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
 
@@ -281,45 +314,55 @@ class StandardTokenStrategy extends TokenStrategy {
 class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      // Allow a longer initial token for mobile app transition.
+      const expiresIn = options.expiresIn || "24h";
+
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
+
       // Replicate the old token structure precisely for backward compatibility
       const tokenPayload = {
         _id: user._id,
-        firstName: user.firstName || null,
-        lastName: user.lastName || null,
-        userName: user.userName || null,
-        email: user.email || null,
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        userName: user.userName ?? null,
+        email: user.email ?? null,
         nrp: 1,
-        organization: user.organization || null,
-        long_organization: user.long_organization || null,
-        privilege: user.privilege || null,
-        country: user.country || null,
-        profilePicture: user.profilePicture || null,
-        phoneNumber: user.phoneNumber || null,
+        organization: user.organization ?? null,
+        long_organization: user.long_organization ?? null,
+        privilege: user.privilege ?? null,
+        country: user.country ?? null,
+        profilePicture: user.profilePicture ?? null,
+        phoneNumber: user.phoneNumber ?? null,
         createdAt: user.createdAt
-          ? moment(user.createdAt).format("YYYY-MM-DD HH:mm:ss")
+          ? new Date(user.createdAt).toISOString() // Standard ISO 8601 format
           : null,
         updatedAt: user.updatedAt
-          ? moment(user.updatedAt).format("YYYY-MM-DD HH:mm:ss")
+          ? new Date(user.updatedAt).toISOString() // Standard ISO 8601 format
           : null,
         rateLimit: user.rateLimit ?? null,
-        lastLogin: user.lastLogin ? user.lastLogin.toISOString() : null,
+        lastLogin: user.lastLogin
+          ? new Date(user.lastLogin).toISOString()
+          : null, // Standard ISO 8601 format
+        expiresAt: expiresAtISO, // Backward-compatible expiration field
       };
 
-      const { jwtOptions = { expiresIn: options.expiresIn || "24h" } } =
-        options || {};
-      // Strip expiration-related inputs and ignore external algorithm to prevent mismatches.
-      const {
-        // expiresIn,
-        // exp,
-        algorithm: _ignoredAlg,
-        ...cleanJwtOptions
-      } = jwtOptions;
       const jwtSignOptions = {
-        ...cleanJwtOptions,
-        algorithm: "HS256", // keep in sync with decodeToken() verification
+        expiresIn: expiresIn,
+        algorithm: "HS256",
+        ...(options.jwtOptions || {}),
       };
 
-      return jwt.sign(tokenPayload, constants.JWT_SECRET, jwtSignOptions);
+      // Ensure algorithm is not duplicated if present in jwtOptions
+      if (jwtSignOptions.algorithm) {
+        delete jwtSignOptions.algorithm;
+      }
+
+      return jwt.sign(tokenPayload, constants.JWT_SECRET, {
+        algorithm: "HS256",
+        ...jwtSignOptions,
+      });
     } catch (error) {
       logger.error(
         `Error generating NoRolesAndPermissions token: ${error.message}`
@@ -343,6 +386,10 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
 class UltraCompressedTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options = {}) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       // This strategy creates a very small token containing only the user ID.
       // All user data and permissions will be fetched from the database upon decoding.
       // This is ideal for scenarios where token size is critical, but it introduces
@@ -350,10 +397,11 @@ class UltraCompressedTokenStrategy extends TokenStrategy {
       const tokenPayload = {
         id: user._id,
         uc: 1, // Ultra Compressed marker
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
 
@@ -392,6 +440,10 @@ class UltraCompressedTokenStrategy extends TokenStrategy {
 class CompressedTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       const permissionData = await rbacService.getUserPermissionsForLogin(
@@ -413,10 +465,11 @@ class CompressedTokenStrategy extends TokenStrategy {
         sa: permissionData.isSuperAdmin,
         fn: user.firstName,
         ln: user.lastName,
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
       return jwt.sign(payload, constants.JWT_SECRET, jwtOptions);
@@ -455,6 +508,10 @@ class HashBasedTokenStrategy extends TokenStrategy {
 
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       const permissionData = await rbacService.getUserPermissionsForLogin(
@@ -467,10 +524,11 @@ class HashBasedTokenStrategy extends TokenStrategy {
       const payload = {
         _id: user._id,
         ph: permissionHash,
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
       return jwt.sign(payload, constants.JWT_SECRET, jwtOptions);
@@ -497,12 +555,17 @@ class HashBasedTokenStrategy extends TokenStrategy {
 class RoleOnlyTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const payload = {
         _id: user._id,
         rs: Date.now(), // Role snapshot timestamp
+        expiresAt: expiresAtISO,
       };
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
       return jwt.sign(payload, constants.JWT_SECRET, jwtOptions);
@@ -539,6 +602,10 @@ class OptimizedHashTokenStrategy extends TokenStrategy {
 
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       const permissionData = await rbacService.getUserPermissionsForLogin(
@@ -560,10 +627,11 @@ class OptimizedHashTokenStrategy extends TokenStrategy {
       const payload = {
         id: user._id,
         oh: hash,
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
       return jwt.sign(payload, constants.JWT_SECRET, jwtOptions);
@@ -590,6 +658,10 @@ class OptimizedHashTokenStrategy extends TokenStrategy {
 class BitFlagsTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       const permissionData = await rbacService.getUserPermissionsForLogin(
@@ -601,10 +673,11 @@ class BitFlagsTokenStrategy extends TokenStrategy {
         spf: JSON.stringify(permissionData.systemPermissions),
         gpf: JSON.stringify(permissionData.groupPermissions),
         npf: JSON.stringify(permissionData.networkPermissions),
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
       return jwt.sign(payload, constants.JWT_SECRET, jwtOptions);
@@ -637,12 +710,17 @@ class BitFlagsTokenStrategy extends TokenStrategy {
 class OptimizedRoleOnlyTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const payload = {
         id: user._id,
         os: 1, // Optimized strategy marker
+        expiresAt: expiresAtISO,
       };
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
       return jwt.sign(payload, constants.JWT_SECRET, jwtOptions);
@@ -794,6 +872,10 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
 
   async generateToken(user, tenant, options) {
     try {
+      const expiresIn = options.expiresIn || "24h";
+      const expirationTime =
+        Math.floor(Date.now() / 1000) + this.parseExpiry(expiresIn);
+      const expiresAtISO = new Date(expirationTime * 1000).toISOString();
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       const permissionData = await rbacService.getUserPermissionsForLogin(
@@ -821,10 +903,11 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
         sf: systemFlags,
         gf: groupFlags,
         nf: networkFlags,
+        expiresAt: expiresAtISO,
       };
 
       const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
+        expiresIn: expiresIn,
         ...options.jwtOptions,
       };
       return jwt.sign(payload, constants.JWT_SECRET, jwtOptions);

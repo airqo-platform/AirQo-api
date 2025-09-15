@@ -113,7 +113,8 @@ function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
 
 const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
   try {
-    const user = await UserModel(tenant.toLowerCase()).findById(userId);
+    const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+    const user = await UserModel(dbTenant).findById(userId);
 
     if (isEmpty(user)) {
       next(
@@ -123,7 +124,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       );
     }
 
-    const updatedGroup = await GroupModel(tenant).updateMany(
+    const updatedGroup = await GroupModel(dbTenant).updateMany(
       { grp_manager: userId },
       {
         $set: {
@@ -143,7 +144,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       );
     }
 
-    const updatedNetwork = await NetworkModel(tenant).updateMany(
+    const updatedNetwork = await NetworkModel(dbTenant).updateMany(
       { net_manager: userId },
       {
         $set: {
@@ -178,6 +179,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
     );
   }
 };
+
 const generateCacheID = (request, next) => {
   const {
     privilege,
@@ -632,31 +634,76 @@ const createUserModule = {
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
-      const { tenant } = {
-        ...body,
-        ...query,
-        ...params,
-      };
-      const update = body;
+      const { tenant } = { ...body, ...query, ...params };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      if (!isEmpty(update.password)) {
-        delete update.password;
-      }
-      if (!isEmpty(update._id)) {
-        delete update._id;
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
       }
 
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
+      // Fields that should never be updated via this endpoint.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
+
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
+      // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(tenant.toLowerCase())
-        .find(filter)
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
         .lean()
         .select("email firstName lastName");
-      const responseFromModifyUser = await UserModel(
-        tenant.toLowerCase()
-      ).modify(
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      // 3. Perform the database modification.
+      const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
-          update,
+          update: { $set: sanitizedUpdate },
         },
         next
       );
@@ -664,7 +711,12 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
-        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        // 4. Prepare the payload for the email notification.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        const apiResponseData = responseFromModifyUser.data.toJSON
+          ? responseFromModifyUser.data.toJSON()
+          : responseFromModifyUser.data;
 
         if (
           constants.ENVIRONMENT &&
@@ -673,27 +725,32 @@ const createUserModule = {
           return {
             success: true,
             message: responseFromModifyUser.message,
-            data: responseFromModifyUser.data,
+            data: apiResponseData,
           };
         } else {
-          const email = user[0].email;
-          const firstName = user[0].firstName;
-          const lastName = user[0].lastName;
+          const { email, firstName, lastName } = user;
 
           const responseFromSendEmail = await mailer.update(
-            { email, firstName, lastName, updatedUserDetails },
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
             next
           );
-          if (responseFromSendEmail) {
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: responseFromModifyUser.message,
-                data: responseFromModifyUser.data,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
-            }
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
           } else {
             logger.error("mailer.update did not return a response");
             return next(
@@ -705,7 +762,7 @@ const createUserModule = {
             );
           }
         }
-      } else if (responseFromModifyUser.success === false) {
+      } else {
         return responseFromModifyUser;
       }
     } catch (error) {
@@ -720,6 +777,7 @@ const createUserModule = {
       );
     }
   },
+
   lookUpFirebaseUser: async (request, next) => {
     try {
       const { body } = request;
@@ -1522,6 +1580,7 @@ const createUserModule = {
   delete: async (request, next) => {
     try {
       const { tenant } = request.query;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
       const filter = generateFilter.users(request, next);
       const userId = filter._id;
       const responseFromCascadeDeletion = await cascadeUserDeletion(
@@ -1532,9 +1591,7 @@ const createUserModule = {
         responseFromCascadeDeletion &&
         responseFromCascadeDeletion.success === true
       ) {
-        const responseFromRemoveUser = await UserModel(
-          tenant.toLowerCase()
-        ).remove(
+        const responseFromRemoveUser = await UserModel(dbTenant).remove(
           {
             filter,
           },
@@ -1599,6 +1656,7 @@ const createUserModule = {
         ...request.query,
         ...request.params,
       };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       // ✅ STEP 1: Enhanced input validation
       if (!email || !firstName || !password) {
@@ -1652,7 +1710,7 @@ const createUserModule = {
 
       try {
         // ✅ STEP 3: Check for existing user with enhanced feedback
-        const existingUser = await UserModel(tenant)
+        const existingUser = await UserModel(dbTenant)
           .findOne({
             email: normalizedEmail,
           })
@@ -1741,7 +1799,7 @@ const createUserModule = {
         };
 
         // ✅ STEP 5: Create user with enhanced error handling
-        const newUserResponse = await UserModel(tenant).register(
+        const newUserResponse = await UserModel(dbTenant).register(
           userData,
           next,
           {
@@ -1763,9 +1821,10 @@ const createUserModule = {
             expires: new Date(Date.now() + tokenExpiry * 1000),
           };
 
-          const verifyTokenResponse = await VerifyTokenModel(
-            tenant.toLowerCase()
-          ).register(tokenCreationBody, next);
+          const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+            tokenCreationBody,
+            next
+          );
 
           if (verifyTokenResponse && verifyTokenResponse.success === false) {
             logger.error(
@@ -1780,7 +1839,7 @@ const createUserModule = {
 
             // Consider rolling back user creation
             try {
-              await UserModel(tenant).findByIdAndDelete(userId);
+              await UserModel(dbTenant).findByIdAndDelete(userId);
               logger.info(
                 `Rolled back user creation due to token failure: ${userId}`
               );
@@ -1913,6 +1972,7 @@ const createUserModule = {
   verificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       if (!email) {
         return {
@@ -1964,7 +2024,7 @@ const createUserModule = {
       }, 300000); // 5 minute rate limit
 
       // ✅ STEP 2: Enhanced user lookup with verification status check
-      const user = await UserModel(tenant)
+      const user = await UserModel(dbTenant)
         .findOne({ email: normalizedEmail })
         .select(
           "_id email firstName lastName verified createdAt lastLogin analyticsVersion"
@@ -2026,13 +2086,13 @@ const createUserModule = {
       // ✅ STEP 5: Create verification token with cleanup of old tokens
       try {
         // Clean up any existing tokens for this user first
-        await VerifyTokenModel(tenant.toLowerCase()).deleteMany({
+        await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
           expires: { $lt: new Date() }, // Delete expired tokens
         });
 
         const responseFromCreateToken = await VerifyTokenModel(
-          tenant.toLowerCase()
+          dbTenant
         ).register(tokenCreationBody, next);
 
         if (!responseFromCreateToken) {
@@ -2163,9 +2223,11 @@ const createUserModule = {
       };
     }
   },
+
   mobileVerificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       if (!email) {
         return {
@@ -2215,7 +2277,7 @@ const createUserModule = {
       }, 180000); // 3 minute rate limit for mobile
 
       // ✅ STEP 2: Enhanced user lookup
-      const user = await UserModel(tenant)
+      const user = await UserModel(dbTenant)
         .findOne({ email: normalizedEmail })
         .select(
           "_id email firstName lastName verified analyticsVersion createdAt"
@@ -2269,14 +2331,14 @@ const createUserModule = {
       // ✅ STEP 5: Create token with cleanup
       try {
         // Clean up old mobile tokens first
-        await VerifyTokenModel(tenant.toLowerCase()).deleteMany({
+        await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
           token: { $regex: /^\d{5}$/ }, // Delete old 5-digit tokens
           expires: { $lt: new Date() },
         });
 
         const responseFromCreateToken = await VerifyTokenModel(
-          tenant.toLowerCase()
+          dbTenant
         ).register(tokenCreationBody, next);
 
         if (responseFromCreateToken.success === false) {
@@ -2383,6 +2445,7 @@ const createUserModule = {
       };
     }
   },
+
   verifyMobileEmail: async (request, next) => {
     try {
       const {
@@ -3046,6 +3109,7 @@ const createUserModule = {
         ...request.query,
         ...request.params,
       };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       // ✅ STEP 1: Create registration lock to prevent race conditions
       const lockKey = `reg-${email.toLowerCase()}-${tenant}`;
@@ -3080,7 +3144,7 @@ const createUserModule = {
 
       try {
         // ✅ STEP 2: Check for existing user with enhanced logging
-        const existingUser = await UserModel(tenant)
+        const existingUser = await UserModel(dbTenant)
           .findOne({
             email: email.toLowerCase(),
           })
@@ -3180,7 +3244,7 @@ const createUserModule = {
           userBody
         );
 
-        const responseFromCreateUser = await UserModel(tenant).register(
+        const responseFromCreateUser = await UserModel(dbTenant).register(
           newRequest,
           next,
           { sendDuplicateEmail: true }
@@ -3215,7 +3279,7 @@ const createUserModule = {
           };
 
           const responseFromCreateToken = await VerifyTokenModel(
-            tenant.toLowerCase()
+            dbTenant
           ).register(tokenCreationBody, next);
 
           if (responseFromCreateToken.success === false) {
@@ -3294,6 +3358,7 @@ const createUserModule = {
       };
     }
   },
+
   // Enhanced register function in user.util.js
   register: async (request, next) => {
     try {
@@ -3750,100 +3815,123 @@ const createUserModule = {
       );
     }
   },
-  updateKnownPassword: async (request, next) => {
+  update: async (request, next) => {
     try {
-      const { query, body } = request;
-      const { password, old_password, tenant } = { ...body, ...query };
+      const { query, body, params } = request;
+      const { tenant } = { ...body, ...query, ...params };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
+      // Fields that should never be updated via this endpoint.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
+
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
+      // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(tenant).find(filter).lean();
-      logObject("the user details with lean(", user);
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
+        .lean()
+        .select("email firstName lastName");
 
-      if (isEmpty(user)) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
       }
 
-      if (isEmpty(user[0].password)) {
-        logger.error(` ${user[0].email} --- unable to do password lookup`);
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "unable to do password lookup",
-            }
-          )
-        );
-      }
-
-      const responseFromBcrypt = await bcrypt.compare(
-        old_password,
-        user[0].password
-      );
-
-      if (responseFromBcrypt === false) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
-      }
-
-      const update = {
-        password: password,
-      };
-      const responseFromUpdateUser = await UserModel(
-        tenant.toLowerCase()
-      ).modify(
+      // 3. Perform the database modification.
+      const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
-          update,
+          update: { $set: sanitizedUpdate },
         },
         next
       );
 
-      if (responseFromUpdateUser.success === true) {
-        const { email, firstName, lastName } = user[0];
-        const responseFromSendEmail = await mailer.updateKnownPassword(
-          {
-            email,
-            firstName,
-            lastName,
-          },
-          next
-        );
+      logObject("responseFromModifyUser", responseFromModifyUser);
 
-        if (responseFromSendEmail) {
-          if (responseFromSendEmail.success === true) {
-            return responseFromUpdateUser;
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
+      if (responseFromModifyUser.success === true) {
+        // 4. Prepare the payload for the email notification.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        const apiResponseData = responseFromModifyUser.data.toJSON
+          ? responseFromModifyUser.data.toJSON()
+          : responseFromModifyUser.data;
+
+        if (
+          constants.ENVIRONMENT &&
+          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
+        ) {
+          return {
+            success: true,
+            message: responseFromModifyUser.message,
+            data: apiResponseData,
+          };
         } else {
-          logger.error("mailer.updateKnownPassword did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send update password email" }
-            )
+          const { email, firstName, lastName } = user;
+
+          const responseFromSendEmail = await mailer.update(
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
+            next
           );
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
+          } else {
+            logger.error("mailer.update did not return a response");
+            return next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "Failed to send update email" }
+              )
+            );
+          }
         }
-      } else if (responseFromUpdateUser.success === false) {
-        return responseFromUpdateUser;
+      } else {
+        return responseFromModifyUser;
       }
     } catch (error) {
+      logObject("the util error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -3854,7 +3942,8 @@ const createUserModule = {
       );
     }
   },
-  initiatePasswordReset: async ({ email, token, tenant }, next) => {
+
+  initiatePasswordReset: async ({ email, token, tenant }) => {
     try {
       const update = {
         resetPasswordToken: token,
@@ -3865,11 +3954,9 @@ const createUserModule = {
         .select("firstName lastName email");
 
       if (isEmpty(responseFromModifyUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.INTERNAL_SERVER_ERROR, {
-            message: "user does not exist, please crosscheck",
-          })
-        );
+        throw new HttpError("User not found", httpStatus.NOT_FOUND, {
+          message: "user does not exist, please crosscheck",
+        });
       }
 
       await mailer.sendPasswordResetEmail({ email, token, tenant });
@@ -3879,13 +3966,16 @@ const createUserModule = {
         message: "Password reset email sent successfully",
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Unable to initiate password reset",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      logger.error(
+        `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`
+      );
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      throw new HttpError(
+        "Unable to initiate password reset",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
     }
   },
@@ -3987,7 +4077,8 @@ const createUserModule = {
     next
   ) => {
     try {
-      const responseFromListUser = await UserModel(tenant.toLowerCase()).list(
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+      const responseFromListUser = await UserModel(dbTenant).list(
         {
           filter,
         },
@@ -4026,6 +4117,7 @@ const createUserModule = {
       );
     }
   },
+
   subscribeToNewsLetter: async (request, next) => {
     try {
       const {
@@ -4934,10 +5026,7 @@ const createUserModule = {
       }
 
       // --- 3. Remove Deprecated Roles ---
-      const deprecatedRoleNames = [
-        "AIRQO_DEFAULT_PRODUCTION",
-        "AIRQO_AIRQO_ADMIN",
-      ];
+      const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
       const deprecatedRoles = await RoleModel(tenant)
         .find({ role_name: { $in: deprecatedRoleNames } })
         .select("_id")
@@ -5053,12 +5142,138 @@ const createUserModule = {
    * Priority: Request override > User preference > System default.
    */
   _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
-    return tokenConfig.getStrategyForUser(
-      user._id,
+    // This function determines the safest and most effective token strategy for a user login.
+    // It prioritizes security and stability by preventing the generation of oversized tokens
+    // that can cause gateway errors (502 Bad Gateway).
+
+    const { tokenConfig } = require("@config/tokenStrategyConfig");
+
+    // Define strategies that are known to be large and should be avoided for login tokens.
+    const DISALLOWED_STRATEGIES = new Set([
+      constants.TOKEN_STRATEGIES.LEGACY,
+      constants.TOKEN_STRATEGIES.STANDARD,
+    ]);
+
+    const SAFE_FALLBACK_STRATEGY =
+      constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
+
+    // Determine the initial desired strategy based on priority:
+    // 1. Strategy passed in the current request body.
+    // 2. User's saved preference in their profile.
+    // 3. System-wide default strategy.
+    let desiredStrategy =
       preferredStrategyFromRequest ||
-        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
-      user.organization
+      user.preferredTokenStrategy ||
+      tokenConfig.defaultStrategy;
+
+    // If a global override is active (e.g., for emergency mitigation), it takes highest priority.
+    if (constants.FORCE_SAFE_TOKEN_STRATEGY === true) {
+      if (desiredStrategy !== SAFE_FALLBACK_STRATEGY) {
+        logger.warn(
+          `FORCE_SAFE_TOKEN_STRATEGY is active. Overriding requested strategy '${desiredStrategy}' with '${SAFE_FALLBACK_STRATEGY}' for user ${user.email}.`
+        );
+      }
+      logger.info(
+        `Using forced safe token strategy: ${SAFE_FALLBACK_STRATEGY}`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Validate if the desired strategy is a known, valid strategy.
+    if (!Object.values(constants.TOKEN_STRATEGIES).includes(desiredStrategy)) {
+      logger.warn(
+        `Invalid token strategy '${desiredStrategy}' requested for user ${user.email}. Falling back to '${SAFE_FALLBACK_STRATEGY}'.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Prevent the use of disallowed large strategies for login.
+    if (DISALLOWED_STRATEGIES.has(desiredStrategy)) {
+      logger.warn(
+        `Disallowed large token strategy '${desiredStrategy}' was requested for user ${user.email}. Overriding with '${SAFE_FALLBACK_STRATEGY}' to prevent potential login issues.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // If the strategy is valid and allowed, use it.
+    logger.info(
+      `Using effective token strategy '${desiredStrategy}' for user ${user.email}.`
     );
+    return desiredStrategy;
+  },
+  /**
+   * Centralized handler for user verification status.
+   * @param {object} user - The user object to check.
+   * @returns {object} A status object indicating the verification state.
+   */
+  _handleVerification: (user) => {
+    if (!user) {
+      return { shouldProceed: false, message: "User not found" };
+    }
+    if (user.verified) {
+      return { shouldProceed: true };
+    }
+
+    if (user.analyticsVersion === 3) {
+      return {
+        shouldProceed: false,
+        requiresV3Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    if (user.analyticsVersion === 4) {
+      return {
+        shouldProceed: false,
+        requiresV4Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    // For other versions (e.g., 2 or undefined), allow login to proceed,
+    // but do NOT auto-verify here. Call-sites must decide explicitly.
+    return { shouldProceed: true };
+  },
+
+  /**
+   * Constructs the standard update payload for a user upon successful login.
+   * @param {object} user - The user object.
+   * @param {object} verificationResult - The result from _handleVerification.
+   * @param {string} [strategy=null] - The token strategy for migration purposes.
+   * @returns {object} The MongoDB update object.
+   */
+  _constructLoginUpdate: (
+    user,
+    strategy = null,
+    { autoVerify = false } = {}
+  ) => {
+    const currentDate = new Date();
+    const updatePayload = {
+      $set: {
+        lastLogin: currentDate,
+        isActive: true,
+      },
+      $inc: { loginCount: 1 },
+    };
+
+    if (autoVerify && user.verified !== true) {
+      updatePayload.$set.verified = true;
+    }
+
+    // Handle one-time token strategy migration (only for enhanced login)
+    if (
+      strategy &&
+      (!user.preferredTokenStrategy ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.LEGACY ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.STANDARD)
+    ) {
+      updatePayload.$set.preferredTokenStrategy = strategy;
+      updatePayload.$set.tokenStrategyMigratedAt = new Date();
+    }
+
+    return updatePayload;
   },
   /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
@@ -5119,24 +5334,31 @@ const createUserModule = {
         };
       }
 
-      // Check verification status
-      if (!user.verified) {
+      // Centralized verification check
+      const verificationResult = createUserModule._handleVerification(user);
+      if (!verificationResult.shouldProceed) {
+        try {
+          if (verificationResult.requiresV3Reminder) {
+            await createUserModule.verificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          } else if (verificationResult.requiresV4Reminder) {
+            await createUserModule.mobileVerificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          }
+        } catch (reminderErr) {
+          logger.warn(`Verification reminder failed: ${reminderErr.message}`);
+        }
         return {
           success: false,
-          message: "Please verify your email address first",
+          message: verificationResult.message,
           status: httpStatus.FORBIDDEN,
           errors: {
             verification: "Email not verified",
           },
-        };
-      }
-
-      // Check account status
-      if (user.analyticsVersion === 3 && user.verified === false) {
-        return {
-          success: false,
-          message: "Account not verified, please check your email",
-          status: httpStatus.FORBIDDEN,
         };
       }
 
@@ -5173,11 +5395,54 @@ const createUserModule = {
         dbTenant
       );
 
+      // --- START of new logic ---
+
+      // Define a transition period cutoff date from constants, with fallbacks.
+      let transitionCutoffDate = new Date(
+        constants.AUTH?.TOKEN_TRANSITION_CUTOFF_DATE ||
+          process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
+          "2025-10-15T00:00:00Z"
+      );
+
+      // Validate the date to prevent errors from invalid configuration.
+      if (Number.isNaN(transitionCutoffDate.getTime())) {
+        logger.error(
+          "Invalid TOKEN_TRANSITION_CUTOFF_DATE. Falling back to standard 24h expiration."
+        );
+        transitionCutoffDate = new Date(0); // A date in the past.
+      }
+
+      const now = new Date();
+      const isWithinTransitionPeriod = now < transitionCutoffDate;
+      let effectiveExpiresIn = "24h";
+
+      // During the transition period, all tokens will have a dynamic expiry
+      // to ensure they last until the cutoff date, giving clients time to update.
+      if (isWithinTransitionPeriod) {
+        const remainingMilliseconds =
+          transitionCutoffDate.getTime() - now.getTime();
+        // Calculate remaining days, rounding up to ensure it covers the full day.
+        const remainingDays = Math.ceil(
+          remainingMilliseconds / (1000 * 60 * 60 * 24)
+        );
+        // The token should last for the remaining transition period, but not less than 24 hours.
+        effectiveExpiresIn = `${Math.max(1, remainingDays)}d`;
+      }
+
+      logger.info(`Token generation policy for ${user.email}:`, {
+        isWithinTransitionPeriod,
+        expiresIn: effectiveExpiresIn,
+        transitionCutoff: transitionCutoffDate.toISOString(),
+      });
+
       // Generate enhanced token
       const token = await tokenFactory.createToken(populatedUser, strategy, {
-        expiresIn: "24h",
-        includePermissions: true,
+        expiresIn: effectiveExpiresIn,
+        includePermissions:
+          strategy !== constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       });
+
+      // --- END of new logic ---
 
       if (!token) {
         return {
@@ -5190,16 +5455,22 @@ const createUserModule = {
       // Update login statistics
       (async () => {
         try {
-          const currentDate = new Date();
+          // Decide if auto-verification should happen.
+          // This preserves the original business logic for legacy users.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
+          const updatePayload = createUserModule._constructLoginUpdate(
+            user,
+            strategy,
+            { autoVerify: shouldAutoVerify }
+          );
           await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
-            {
-              $set: { lastLogin: currentDate, isActive: true },
-              $inc: { loginCount: 1 },
-              ...(user.analyticsVersion !== 3 && user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
-            },
+            updatePayload,
             { new: true, upsert: false, runValidators: true }
           );
           await createUserModule.ensureDefaultAirqoRole(user, dbTenant);
@@ -5214,36 +5485,40 @@ const createUserModule = {
       const authResponse = {
         // Basic user info
         _id: user._id,
-        userName: user.userName,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        userType: user.userType,
-        verified: user.verified,
-        isActive: user.isActive,
+        userName: user.userName ?? null,
+        email: user.email ?? null,
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        userType: user.userType ?? null,
+        verified: user.verified ?? false,
+        isActive: user.isActive ?? false,
 
         // Legacy fields for backward compatibility
-        organization: user.organization,
-        long_organization: user.long_organization,
-        privilege: user.privilege,
-        country: user.country,
-        profilePicture: user.profilePicture,
-        phoneNumber: user.phoneNumber,
+        organization: user.organization ?? null,
+        long_organization: user.long_organization ?? null,
+        privilege: user.privilege ?? null,
+        country: user.country ?? null,
+        profilePicture: user.profilePicture ?? null,
+        phoneNumber: user.phoneNumber ?? null,
+        interests: user.interests ?? [],
+        interestsDescription: user.interestsDescription ?? null,
 
         // Enhanced authentication
         token: `JWT ${token}`,
 
-        // Comprehensive permissions
-        permissions: loginPermissions.allPermissions,
-        systemPermissions: loginPermissions.systemPermissions,
-        groupPermissions: loginPermissions.groupPermissions,
-        networkPermissions: loginPermissions.networkPermissions,
+        // --- REMOVED FOR SCALABILITY ---
+        // The following large data fields are removed to prevent oversized login responses
+        // which can cause 502 Bad Gateway errors. Clients should fetch this data
+        // via dedicated endpoints (e.g., /api/v2/users/profile/enhanced) after login.
+        //
+        // permissions: loginPermissions.allPermissions,
+        // systemPermissions: loginPermissions.systemPermissions,
+        // groupPermissions: loginPermissions.groupPermissions,
+        // networkPermissions: loginPermissions.networkPermissions,
+        // groupMemberships: loginPermissions.groupMemberships,
+        // networkMemberships: loginPermissions.networkMemberships,
 
-        // Enhanced memberships with detailed info
-        groupMemberships: loginPermissions.groupMemberships,
-        networkMemberships: loginPermissions.networkMemberships,
-
-        // User flags
+        // User flags (small and useful for initial UI setup)
         isSuperAdmin: loginPermissions.isSuperAdmin,
         hasGroupAccess: loginPermissions.groupMemberships.length > 0,
         hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
@@ -5299,9 +5574,9 @@ const createUserModule = {
 
       console.log("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: authResponse.permissions.length,
-        groupMemberships: authResponse.groupMemberships.length,
-        networkMemberships: authResponse.networkMemberships.length,
+        permissionsCount: authResponse.permissions?.length || 0, // Safely access length
+        groupMemberships: authResponse.groupMemberships?.length || 0,
+        networkMemberships: authResponse.networkMemberships?.length || 0,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });

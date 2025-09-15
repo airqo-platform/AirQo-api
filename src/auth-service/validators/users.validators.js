@@ -7,6 +7,39 @@ const ObjectId = mongoose.Types.ObjectId;
 const createInterestValidation = () => [
   body("interests")
     .optional()
+    .customSanitizer((value) => {
+      let interests = value;
+      if (interests === null || interests === undefined || interests === "") {
+        return [];
+      }
+      if (typeof interests === "string") {
+        interests = interests.trim() ? [interests.trim()] : [];
+      }
+
+      if (!Array.isArray(interests)) {
+        // Let the .isArray() validator catch it if it's not a convertible type
+        return interests;
+      }
+
+      const interestMap = {
+        "Health Professional": "health",
+        "Software Developer": "software developer",
+        "Community Champion": "community champion",
+        "Environmental Scientist": "environmental",
+        Student: "student",
+        "Policy Maker": "policy maker",
+        Researcher: "researcher",
+        "Air Quality Partner": "air quality partner",
+      };
+
+      return interests
+        .map((interest) => {
+          if (typeof interest !== "string") return "";
+          const trimmedInterest = interest.trim();
+          return interestMap[trimmedInterest] || trimmedInterest.toLowerCase();
+        })
+        .filter(Boolean);
+    })
     .isArray()
     .withMessage("interests should be an array")
     .custom((value) => {
@@ -661,6 +694,7 @@ const updateUser = [
       .optional()
       .isMongoId()
       .withMessage("each network should be an object ID"),
+    ...createInterestValidation(),
   ],
 ];
 
@@ -694,6 +728,7 @@ const updateUserById = [
       .isMongoId()
       .withMessage("each network should be an object ID"),
   ],
+  ...createInterestValidation(),
 ];
 
 const deleteUser = [
