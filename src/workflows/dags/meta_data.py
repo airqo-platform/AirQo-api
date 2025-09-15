@@ -239,7 +239,7 @@ def cache_devices_data():
     schedule="0 0 * * *",
     doc_md=compute_store_devices_metadata_doc,
     catchup=False,
-    tags=["devices", "computed", "metadata"],
+    tags=["devices", "computed", "metadata", "weekly"],
     default_args=AirflowUtils.dag_default_configs(),
 )
 def compute_store_devices_metadata():
@@ -249,12 +249,53 @@ def compute_store_devices_metadata():
             DataType.AVERAGED,
             DeviceCategory.LOWCOST,
             MetaDataType.DEVICES,
-            Frequency.HOURLY,
+            Frequency.WEEKLY,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_computed_metadata(data: pd.DataFrame) -> None:
         if not data.empty:
+            # The frequency here is hourly because that is the frequency of the source data
+            data, table = DataUtils.format_data_for_bigquery(
+                data,
+                DataType.EXTRAS,
+                DeviceCategory.LOWCOST,
+                Frequency.HOURLY,
+                device_network=DeviceNetwork.AIRQO,
+                extra_type=MetaDataType.DEVICES,
+            )
+            big_query_api = BigQueryApi()
+            big_query_api.load_data(
+                dataframe=data,
+                table=table,
+            )
+
+    extracted_devices = extract_compute_devices_metadata()
+    store_computed_metadata(extracted_devices)
+
+
+@dag(
+    "AirQo-devices-computed-metadata-monthly",
+    schedule="0 1 * * *",
+    doc_md=compute_store_devices_metadata_doc,
+    catchup=False,
+    tags=["devices", "computed", "metadata", "monthly"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def compute_store_devices_metadata_monthly():
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def extract_compute_devices_metadata() -> pd.DataFrame:
+        return MetaDataUtils.compute_device_site_metadata(
+            DataType.AVERAGED,
+            DeviceCategory.LOWCOST,
+            MetaDataType.DEVICES,
+            Frequency.MONTHLY,
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def store_computed_metadata(data: pd.DataFrame) -> None:
+        if not data.empty:
+            # The frequency here is hourly because that is the frequency of the source data
             data, table = DataUtils.format_data_for_bigquery(
                 data,
                 DataType.EXTRAS,
@@ -343,3 +384,4 @@ meta_data_update_microservice_sites_meta_data()
 cache_sites_data()
 compute_store_devices_metadata()
 compute_store_devices_baseline_weekly()
+compute_store_devices_metadata_monthly()
