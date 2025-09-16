@@ -6,6 +6,8 @@ const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
+  PRECOMPUTE_ACTIVITIES_JOB_ENABLED:
+    process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== "false",
   API_TOKEN: process.env.DEV_API_TOKEN,
   API_BASE_URL: process.env.DEV_API_BASE_URL,
   DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,

@@ -1015,6 +1015,23 @@ const getUser = [
   ],
 ];
 
+const getEnhancedProfileForUser = [
+  validateTenant,
+  [
+    param("user_id")
+      .exists()
+      .withMessage("the user ID param is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+];
+
 const resetPasswordRequest = [
   body("email")
     .exists()
@@ -1303,6 +1320,7 @@ module.exports = {
   unSubscribeFromNotifications,
   notificationStatus,
   getUser,
+  getEnhancedProfileForUser,
   resetPasswordRequest,
   resetPassword,
   verifyMobileEmail,

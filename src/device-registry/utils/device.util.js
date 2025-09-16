@@ -1,5 +1,6 @@
 "use strict";
 const DeviceModel = require("@models/Device");
+const ActivityModel = require("@models/Activity");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { isValidObjectId } = require("mongoose");
@@ -50,98 +51,222 @@ const deviceUtil = {
   getDeviceById: async (req, next) => {
     try {
       const { id } = req.params;
-      const { tenant, maxActivities = 500 } = req.query; // Make limit configurable
+      const {
+        tenant: rawTenant,
+        maxActivities = 500,
+        includeActivities = "true",
+        includeRelations = "true",
+        useCache = "true",
+        detailLevel = "full", // 'minimal', 'summary', 'full'
+      } = req.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const activitiesColl = ActivityModel(tenant).collection.name;
 
-      // Use aggregation pipeline to include activities
-      const devicePipeline = await DeviceModel(tenant.toLowerCase()).aggregate([
-        {
-          $match: { _id: id },
-        },
-        // Lookup sites
-        {
-          $lookup: {
-            from: "sites",
-            localField: "site_id",
-            foreignField: "_id",
-            as: "site",
-          },
-        },
-        // Lookup hosts
-        {
-          $lookup: {
-            from: "hosts",
-            localField: "host_id",
-            foreignField: "_id",
-            as: "host",
-          },
-        },
-        // Lookup cohorts
-        {
-          $lookup: {
-            from: "cohorts",
-            localField: "cohorts",
-            foreignField: "_id",
-            as: "cohorts",
-          },
-        },
-        // Lookup grids
-        {
-          $lookup: {
-            from: "grids",
-            localField: "grid_id",
-            foreignField: "_id",
-            as: "assigned_grid",
-          },
-        },
-        // Lookup all activities for this device with field projection and optional limit
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name", deviceId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $or: [
-                      { $eq: ["$device", "$$deviceName"] },
-                      { $eq: ["$device_id", "$$deviceId"] },
-                    ],
+      // Determine projection based on detail level
+      let projection = {};
+      if (detailLevel === "minimal") {
+        projection = {
+          _id: 1,
+          name: 1,
+          long_name: 1,
+          status: 1,
+          isActive: 1,
+          network: 1,
+          category: 1,
+          createdAt: 1,
+        };
+      } else if (detailLevel === "summary") {
+        projection = {
+          _id: 1,
+          name: 1,
+          long_name: 1,
+          status: 1,
+          isActive: 1,
+          network: 1,
+          category: 1,
+          deployment_date: 1,
+          latitude: 1,
+          longitude: 1,
+          mountType: 1,
+          powerType: 1,
+          createdAt: 1,
+          cached_total_activities: 1,
+          cached_activities_by_type: 1,
+        };
+      }
+
+      // Build aggregation pipeline
+      if (!isValidObjectId(id)) {
+        throw new HttpError("Invalid device id", httpStatus.BAD_REQUEST);
+      }
+      let pipeline = [{ $match: { _id: new ObjectId(id) } }];
+
+      // Add projection early if specified
+      if (Object.keys(projection).length > 0) {
+        pipeline.push({ $project: projection });
+      }
+
+      // Conditional lookups based on detail level and parameters
+      if (detailLevel === "full") {
+        if (includeRelations === "true") {
+          pipeline.push(
+            {
+              $lookup: {
+                from: "sites",
+                localField: "site_id",
+                foreignField: "_id",
+                as: "site",
+                pipeline: [
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      latitude: 1,
+                      longitude: 1,
+                      district: 1,
+                      country: 1,
+                      network: 1,
+                    },
                   },
+                ],
+              },
+            },
+            {
+              $lookup: {
+                from: "hosts",
+                localField: "host_id",
+                foreignField: "_id",
+                as: "host",
+              },
+            },
+            {
+              $lookup: {
+                from: "cohorts",
+                localField: "cohorts",
+                foreignField: "_id",
+                as: "cohorts",
+              },
+            },
+            {
+              $lookup: {
+                from: "grids",
+                localField: "grid_id",
+                foreignField: "_id",
+                as: "assigned_grid",
+                pipeline: [
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      admin_level: 1,
+                      long_name: 1,
+                    },
+                  },
+                ],
+              },
+            }
+          );
+        }
+
+        // Handle activities based on cache preference
+        if (includeActivities === "true") {
+          if (useCache === "true") {
+            // Use precomputed cache when available
+            pipeline.push({
+              $addFields: {
+                activities_by_type: {
+                  $ifNull: ["$cached_activities_by_type", {}],
+                },
+                latest_activities_by_type: {
+                  $ifNull: ["$cached_latest_activities_by_type", {}],
+                },
+                total_activities: {
+                  $ifNull: ["$cached_total_activities", 0],
+                },
+                latest_deployment_activity:
+                  "$cached_latest_deployment_activity",
+                latest_maintenance_activity:
+                  "$cached_latest_maintenance_activity",
+                latest_recall_activity: "$cached_latest_recall_activity",
+                activities_from_cache: {
+                  $cond: [
+                    { $gt: [{ $ifNull: ["$cached_total_activities", 0] }, 0] },
+                    true,
+                    false,
+                  ],
                 },
               },
-              { $sort: { createdAt: -1 } },
-              // Project only essential fields to reduce payload size
-              {
-                $project: {
-                  _id: 1,
-                  activityType: 1,
-                  date: 1,
-                  description: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
-                  device: 1,
-                  device_id: 1,
-                  site_id: 1,
-                },
+            });
+          } else {
+            // Fall back to real-time aggregation (expensive)
+            pipeline.push({
+              $lookup: {
+                from: activitiesColl,
+                let: { deviceName: "$name", deviceId: "$_id" },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                          {
+                            $eq: [
+                              { $toString: "$device_id" },
+                              { $toString: "$$deviceId" },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                  { $sort: { createdAt: -1 } },
+                  {
+                    $project: {
+                      _id: 1,
+                      activityType: 1,
+                      date: 1,
+                      description: 1,
+                      maintenanceType: 1,
+                      recallType: 1,
+                      nextMaintenance: 1,
+                      createdAt: 1,
+                      tags: 1,
+                      device: 1,
+                      device_id: 1,
+                      site_id: 1,
+                    },
+                  },
+                  ...(maxActivities
+                    ? [{ $limit: parseInt(maxActivities) }]
+                    : []),
+                ],
+                as: "activities",
               },
-              // Optionally limit number of activities returned
-              ...(maxActivities ? [{ $limit: parseInt(maxActivities) }] : []),
-            ],
-            as: "activities",
-          },
-        },
-        // Add simple computed fields only
-        {
+            });
+          }
+        }
+
+        // Add computed fields
+        pipeline.push({
           $addFields: {
             total_activities: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+              $cond: [
+                {
+                  $and: [
+                    { $isArray: "$activities" },
+                    { $ne: [includeActivities, "false"] },
+                  ],
+                },
+                { $size: "$activities" },
+                { $ifNull: ["$cached_total_activities", 0] },
+              ],
             },
           },
-        },
-      ]);
+        });
+      }
+
+      const devicePipeline = await DeviceModel(tenant).aggregate(pipeline);
 
       if (!devicePipeline || devicePipeline.length === 0) {
         throw new HttpError("Device not found", httpStatus.NOT_FOUND);
@@ -149,18 +274,68 @@ const deviceUtil = {
 
       const device = devicePipeline[0];
 
-      if (device.activities && device.activities.length > 0) {
-        // Group activities by type and get latest for each type
+      const sanitizeActivity = (a) =>
+        a
+          ? (({
+              _id,
+              activityType,
+              maintenanceType,
+              recallType,
+              date,
+              description,
+              nextMaintenance,
+              createdAt,
+              device_id,
+              device,
+              site_id,
+            }) => ({
+              _id,
+              activityType,
+              maintenanceType,
+              recallType,
+              date,
+              description,
+              nextMaintenance,
+              createdAt,
+              device_id,
+              device,
+              site_id,
+            }))(a)
+          : null;
+
+      if (useCache === "true" && detailLevel === "full") {
+        if (device.latest_activities_by_type) {
+          Object.keys(device.latest_activities_by_type).forEach((k) => {
+            device.latest_activities_by_type[k] = sanitizeActivity(
+              device.latest_activities_by_type[k]
+            );
+          });
+        }
+        device.latest_deployment_activity = sanitizeActivity(
+          device.latest_deployment_activity
+        );
+        device.latest_maintenance_activity = sanitizeActivity(
+          device.latest_maintenance_activity
+        );
+        device.latest_recall_activity = sanitizeActivity(
+          device.latest_recall_activity
+        );
+      }
+
+      // Process activities only if not using cache and activities are included
+      if (
+        detailLevel === "full" &&
+        includeActivities === "true" &&
+        useCache === "false" &&
+        device.activities
+      ) {
         const activitiesByType = {};
         const latestActivitiesByType = {};
 
         device.activities.forEach((activity) => {
           const type = activity.activityType || "unknown";
-
-          // Count activities by type
           activitiesByType[type] = (activitiesByType[type] || 0) + 1;
 
-          // Track latest activity by type
           if (
             !latestActivitiesByType[type] ||
             new Date(activity.createdAt) >
@@ -172,8 +347,6 @@ const deviceUtil = {
 
         device.activities_by_type = activitiesByType;
         device.latest_activities_by_type = latestActivitiesByType;
-
-        // Maintain backward compatibility
         device.latest_deployment_activity =
           latestActivitiesByType.deployment || null;
         device.latest_maintenance_activity =
@@ -183,8 +356,7 @@ const deviceUtil = {
           latestActivitiesByType.recallment ||
           null;
 
-        // Since we already projected essential fields, we can simplify this filtering
-        // Just remove any remaining unwanted fields that might have slipped through
+        // Filter activities for response
         device.activities = device.activities.map((activity) => {
           const {
             groups,
@@ -202,93 +374,14 @@ const deviceUtil = {
           } = activity;
           return filteredActivity;
         });
-
-        // Filter latest activities by type
-        Object.keys(device.latest_activities_by_type).forEach(
-          (activityType) => {
-            const activity = device.latest_activities_by_type[activityType];
-            const {
-              groups,
-              activity_codes,
-              updatedAt,
-              __v,
-              firstName,
-              lastName,
-              email,
-              userName,
-              user_id,
-              host_id,
-              network,
-              ...filtered
-            } = activity;
-            device.latest_activities_by_type[activityType] = filtered;
-          }
-        );
-
-        // Filter backward compatibility fields
-        if (device.latest_deployment_activity) {
-          const {
-            groups,
-            activity_codes,
-            updatedAt,
-            __v,
-            firstName,
-            lastName,
-            email,
-            userName,
-            user_id,
-            host_id,
-            network,
-            ...filtered
-          } = device.latest_deployment_activity;
-          device.latest_deployment_activity = filtered;
-        }
-
-        if (device.latest_maintenance_activity) {
-          const {
-            groups,
-            activity_codes,
-            updatedAt,
-            __v,
-            firstName,
-            lastName,
-            email,
-            userName,
-            user_id,
-            host_id,
-            network,
-            ...filtered
-          } = device.latest_maintenance_activity;
-          device.latest_maintenance_activity = filtered;
-        }
-
-        if (device.latest_recall_activity) {
-          const {
-            groups,
-            activity_codes,
-            updatedAt,
-            __v,
-            firstName,
-            lastName,
-            email,
-            userName,
-            user_id,
-            host_id,
-            network,
-            ...filtered
-          } = device.latest_recall_activity;
-          device.latest_recall_activity = filtered;
-        }
-      } else {
-        device.activities_by_type = {};
-        device.latest_activities_by_type = {};
-        device.latest_deployment_activity = null;
-        device.latest_maintenance_activity = null;
-        device.latest_recall_activity = null;
       }
 
-      // Filter assigned_grid to show only required fields
-      if (device.assigned_grid && device.assigned_grid.length > 0) {
+      // Process assigned_grid for full detail level
+      if (
+        detailLevel === "full" &&
+        device.assigned_grid &&
+        device.assigned_grid.length > 0
+      ) {
         const grid = device.assigned_grid[0];
         device.assigned_grid = {
           _id: grid._id,
@@ -296,8 +389,15 @@ const deviceUtil = {
           admin_level: grid.admin_level,
           long_name: grid.long_name,
         };
-      } else {
+      } else if (detailLevel === "full") {
         device.assigned_grid = null;
+      }
+
+      // Set default values for missing cache data
+      if (detailLevel !== "minimal") {
+        if (!device.activities_by_type) device.activities_by_type = {};
+        if (!device.latest_activities_by_type)
+          device.latest_activities_by_type = {};
       }
 
       return {
@@ -305,6 +405,12 @@ const deviceUtil = {
         message: "Device details with activities fetched successfully",
         data: device,
         status: httpStatus.OK,
+        meta: {
+          detailLevel,
+          usedCache: useCache === "true" && !!device.activities_from_cache,
+          includeActivities: includeActivities === "true",
+          includeRelations: includeRelations === "true",
+        },
       };
     } catch (error) {
       if (error instanceof HttpError) {
@@ -820,20 +926,293 @@ const deviceUtil = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, path, limit, skip } = request.query;
-      const filter = generateFilter.devices(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
-      const responseFromListDevice = await DeviceModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
-        next
+      const {
+        tenant: rawTenant,
+        limit,
+        skip,
+        useCache = "true",
+        detailLevel = "full",
+      } = request.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const activitiesColl = ActivityModel(tenant).collection.name;
+      const MAX_LIMIT =
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
-      return responseFromListDevice;
+      const filter = generateFilter.devices(request, next);
+
+      let pipeline = [];
+
+      // Base match
+      pipeline.push({ $match: filter });
+
+      if (detailLevel === "minimal") {
+        // Minimal data for performance-critical scenarios
+        pipeline.push({
+          $project: {
+            _id: 1,
+            name: 1,
+            long_name: 1,
+            status: 1,
+            isActive: 1,
+            network: 1,
+            category: 1,
+            device_number: 1,
+            createdAt: 1,
+            cached_total_activities: 1,
+          },
+        });
+      } else if (detailLevel === "summary") {
+        // Summary with essential relations and cached data
+        pipeline.push(
+          {
+            $lookup: {
+              from: "sites",
+              localField: "site_id",
+              foreignField: "_id",
+              as: "site",
+              pipeline: [
+                { $project: { _id: 1, name: 1, district: 1, country: 1 } },
+              ],
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "grid_id",
+              foreignField: "_id",
+              as: "assigned_grid",
+              pipeline: [{ $project: { _id: 1, name: 1, admin_level: 1 } }],
+            },
+          },
+          {
+            $addFields: {
+              total_activities: { $ifNull: ["$cached_total_activities", 0] },
+              activities_by_type: {
+                $ifNull: ["$cached_activities_by_type", {}],
+              },
+              latest_deployment_activity: "$cached_latest_deployment_activity",
+              latest_maintenance_activity:
+                "$cached_latest_maintenance_activity",
+              latest_recall_activity: "$cached_latest_recall_activity",
+            },
+          },
+          {
+            $project: {
+              // Exclude heavy fields for summary
+              cohorts: 0,
+              pictures: 0,
+              device_codes: 0,
+              onlineStatusAccuracy: 0,
+              mobility_metadata: 0,
+            },
+          }
+        );
+      } else {
+        // Full detail level (existing complex aggregation)
+        const maxActivities = parseInt(request.query.maxActivities) || 500;
+
+        pipeline.push(
+          {
+            $lookup: {
+              from: "sites",
+              localField: "site_id",
+              foreignField: "_id",
+              as: "site",
+            },
+          },
+          {
+            $unwind: {
+              path: "$site",
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+          {
+            $lookup: {
+              from: "hosts",
+              localField: "host_id",
+              foreignField: "_id",
+              as: "host",
+            },
+          },
+          {
+            $lookup: {
+              from: "sites",
+              localField: "previous_sites",
+              foreignField: "_id",
+              as: "previous_sites",
+            },
+          },
+          {
+            $lookup: {
+              from: "cohorts",
+              localField: "cohorts",
+              foreignField: "_id",
+              as: "cohorts",
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "site.grids",
+              foreignField: "_id",
+              as: "grids",
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "grid_id",
+              foreignField: "_id",
+              as: "assigned_grid",
+            },
+          }
+        );
+
+        if (useCache === "true") {
+          // Use cached activity data
+          pipeline.push({
+            $addFields: {
+              total_activities: { $ifNull: ["$cached_total_activities", 0] },
+              activities_by_type: {
+                $ifNull: ["$cached_activities_by_type", {}],
+              },
+              latest_activities_by_type: {
+                $ifNull: ["$cached_latest_activities_by_type", {}],
+              },
+              latest_deployment_activity: "$cached_latest_deployment_activity",
+              latest_maintenance_activity:
+                "$cached_latest_maintenance_activity",
+              latest_recall_activity: "$cached_latest_recall_activity",
+            },
+          });
+        } else {
+          // Real-time activity aggregation (expensive)
+          pipeline.push({
+            $lookup: {
+              from: activitiesColl,
+              let: { deviceName: "$name", deviceId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $or: [
+                        { $eq: ["$device", "$$deviceName"] },
+                        { $eq: ["$device_id", "$$deviceId"] },
+                        {
+                          $eq: [
+                            { $toString: "$device_id" },
+                            { $toString: "$$deviceId" },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+                { $sort: { createdAt: -1 } },
+                {
+                  $project: {
+                    _id: 1,
+                    site_id: 1,
+                    device_id: 1,
+                    device: 1,
+                    activityType: 1,
+                    maintenanceType: 1,
+                    recallType: 1,
+                    date: 1,
+                    description: 1,
+                    nextMaintenance: 1,
+                    createdAt: 1,
+                    tags: 1,
+                  },
+                },
+                { $limit: maxActivities },
+              ],
+              as: "activities",
+            },
+          });
+        }
+      }
+
+      // Common sorting and pagination
+      pipeline.push(
+        { $sort: { createdAt: -1 } },
+        { $skip: _skip },
+        { $limit: _limit }
+      );
+
+      const response = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      // Process activities for non-cached full detail requests
+      if (
+        !isEmpty(response) &&
+        detailLevel === "full" &&
+        useCache === "false"
+      ) {
+        response.forEach((device) => {
+          if (device.activities && device.activities.length > 0) {
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            device.activities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = activity;
+              }
+            });
+
+            device.activities_by_type = activitiesByType;
+            device.latest_activities_by_type = latestActivitiesByType;
+            device.latest_deployment_activity =
+              latestActivitiesByType.deployment || null;
+            device.latest_maintenance_activity =
+              latestActivitiesByType.maintenance || null;
+            device.latest_recall_activity =
+              latestActivitiesByType.recall ||
+              latestActivitiesByType.recallment ||
+              null;
+          } else {
+            device.activities_by_type = {};
+            device.latest_activities_by_type = {};
+          }
+
+          // Process assigned_grid
+          if (device.assigned_grid && device.assigned_grid.length > 0) {
+            const grid = device.assigned_grid[0];
+            device.assigned_grid = {
+              _id: grid._id,
+              name: grid.name,
+              admin_level: grid.admin_level,
+              long_name: grid.long_name,
+            };
+          } else {
+            device.assigned_grid = null;
+          }
+        });
+      }
+
+      return {
+        success: true,
+        message: "successfully retrieved the device details",
+        data: response,
+        status: httpStatus.OK,
+        meta: {
+          detailLevel,
+          usedCache: useCache === "true",
+          totalResults: response.length,
+        },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -845,6 +1224,7 @@ const deviceUtil = {
       );
     }
   },
+
   clear: (request, next) => {
     return {
       success: false,
