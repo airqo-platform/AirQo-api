@@ -274,6 +274,18 @@ const getCache = async (request, next) => {
 };
 
 const createUserModule = {
+  _validatePassword: (password) => {
+    if (!password || !constants.PASSWORD_REGEX.test(password)) {
+      return {
+        isValid: false,
+        error: new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+          message:
+            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one number.",
+        }),
+      };
+    }
+    return { isValid: true };
+  },
   _getEnhancedProfile: async ({ userId, tenant }, next) => {
     try {
       // Get user permissions context
@@ -3869,6 +3881,13 @@ const createUserModule = {
     try {
       const { resetPasswordToken, password } = request.body;
       const { tenant } = request.query;
+
+      // 1. Manually validate the new password
+      const validationResult = createUserModule._validatePassword(password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
       const timeZone = moment.tz.guess();
       const filter = {
         resetPasswordToken,
@@ -3887,7 +3906,7 @@ const createUserModule = {
         );
       }
 
-      // Use findOneAndUpdate to avoid .save() validation issues on hashed passwords
+      // 2. Use findOneAndUpdate WITHOUT runValidators
       const updatedUser = await UserModel(
         tenant.toLowerCase()
       ).findOneAndUpdate(
@@ -3899,11 +3918,10 @@ const createUserModule = {
             resetPasswordExpires: null,
           },
         },
-        { new: true, runValidators: true, context: "query" }
+        { new: true, context: "query" } // No runValidators
       );
 
       if (!updatedUser) {
-        // This case is already handled by the findOne check, but it's good practice
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Password reset token is invalid or has expired.",
@@ -3936,15 +3954,6 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      if (error.name === "ValidationError") {
-        const errors = {};
-        for (const field in error.errors) {
-          errors[field] = error.errors[field].message;
-        }
-        return next(
-          new HttpError("Validation errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
       next(
         new HttpError(
           "Internal Server Error",
@@ -3978,6 +3987,12 @@ const createUserModule = {
         );
       }
 
+      // 1. Manually validate the new password
+      const validationResult = createUserModule._validatePassword(new_password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
       const user = await UserModel(dbTenant).findById(userId);
 
       if (!user) {
@@ -4006,12 +4021,30 @@ const createUserModule = {
         );
       }
 
-      // Set the new password and save. The pre-save hook will hash it.
-      user.password = new_password;
-      // Clear any residual reset tokens (defensive)
-      user.resetPasswordToken = null;
-      user.resetPasswordExpires = null;
-      await user.save();
+      // 2. Use findOneAndUpdate to avoid .save() validation issues
+      const updatedUser = await UserModel(dbTenant).findByIdAndUpdate(
+        userId,
+        {
+          $set: {
+            password: new_password, // pre-hook will hash this
+            resetPasswordToken: null,
+            resetPasswordExpires: null,
+          },
+        },
+        { new: true, context: "query" } // No runValidators
+      );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Failed to update password",
+            }
+          )
+        );
+      }
 
       return {
         success: true,
@@ -4031,6 +4064,7 @@ const createUserModule = {
       );
     }
   },
+
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
@@ -4211,6 +4245,12 @@ const createUserModule = {
 
   resetPassword: async ({ token, password, tenant }, next) => {
     try {
+      // 1. Manually validate the new password
+      const validationResult = createUserModule._validatePassword(password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
       const resetPasswordToken = token;
       const timeZone = moment.tz.guess();
       const filter = {
@@ -4230,6 +4270,7 @@ const createUserModule = {
         );
       }
 
+      // 2. Use findOneAndUpdate WITHOUT runValidators
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         filter,
         {
@@ -4239,7 +4280,7 @@ const createUserModule = {
             resetPasswordExpires: null,
           },
         },
-        { new: true, runValidators: true, context: "query" }
+        { new: true, context: "query" } // No runValidators
       );
 
       if (!updatedUser) {
@@ -4277,16 +4318,6 @@ const createUserModule = {
     } catch (error) {
       logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      // Handle validation errors from findOneAndUpdate
-      if (error.name === "ValidationError") {
-        const errors = {};
-        for (const field in error.errors) {
-          errors[field] = error.errors[field].message;
-        }
-        return next(
-          new HttpError("Validation errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
       next(
         new HttpError(
           "Internal Server Error",
