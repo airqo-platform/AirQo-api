@@ -3943,6 +3943,62 @@ const createUserModule = {
       );
     }
   },
+  updateKnownPassword: async (request, next) => {
+    try {
+      const { old_password, password: new_password } = request.body;
+      const { tenant } = request.query;
+      const { _id: userId } = request.user;
+
+      if (!old_password || !new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "old_password and new password are required",
+          })
+        );
+      }
+
+      const user = await UserModel(tenant.toLowerCase()).findById(userId);
+
+      if (!user) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if the old password is correct
+      const isPasswordValid = await user.authenticateUser(old_password);
+      if (!isPasswordValid) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Invalid old password",
+          })
+        );
+      }
+
+      // Set the new password and save. The pre-save hook will hash it.
+      user.password = new_password;
+      await user.save();
+
+      return {
+        success: true,
+        message: "Password updated successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
