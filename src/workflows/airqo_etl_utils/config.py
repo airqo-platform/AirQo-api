@@ -546,7 +546,7 @@ class Config:
         "lowcost": {
             "raw": {
                 "pm2_5": ["s1_pm2_5", "s2_pm2_5"],
-                "pm10": ["s1_pm10", "s2_pm10"],
+                # "pm10": ["s1_pm10", "s2_pm10"],
             },
             "averaged": {
                 "pm2_5": ["pm2_5_calibrated_value"],
@@ -555,7 +555,7 @@ class Config:
         "mobile": {
             "raw": {
                 "pm2_5": ["s1_pm2_5", "s2_pm2_5"],
-                "pm10": ["s1_pm10", "s2_pm10"],
+                # "pm10": ["s1_pm10", "s2_pm10"],
             }
         },
     }
