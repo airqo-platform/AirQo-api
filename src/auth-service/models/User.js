@@ -796,218 +796,247 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
-      const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
-      );
-
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
-      logObject("the filter being used", filter);
       const totalCount = await this.countDocuments(filter).exec();
 
-      const response = await this.aggregate()
-        .match(filter)
-        .lookup({
-          from: "permissions",
-          localField: "permissions",
-          foreignField: "_id",
-          as: "permissions",
-        })
-        .lookup({
-          from: "clients",
-          localField: "_id",
-          foreignField: "user_id",
-          as: "clients",
-        })
-        .lookup({
-          from: "networks",
-          localField: "_id",
-          foreignField: "net_manager",
-          as: "my_networks",
-        })
-        .lookup({
-          from: "groups",
-          localField: "_id",
-          foreignField: "grp_manager",
-          as: "my_groups",
-        })
-        .addFields({
-          createdAt: {
-            $dateToString: {
-              format: "%Y-%m-%dT%H:%M:%S.%LZ",
-              date: "$createdAt",
-            },
-          },
-        })
-        .unwind({
-          path: "$network_roles",
-          preserveNullAndEmptyArrays: true,
-        })
-        .unwind({
-          path: "$group_roles",
-          preserveNullAndEmptyArrays: true,
-        })
-        .lookup({
-          from: "networks",
-          localField: "network_roles.network",
-          foreignField: "_id",
-          as: "network",
-        })
-        .lookup({
-          from: "groups",
-          localField: "group_roles.group",
-          foreignField: "_id",
-          as: "group",
-        })
-        .lookup({
-          from: "roles",
-          localField: "network_roles.role",
-          foreignField: "_id",
-          as: "network_role",
-        })
-        .lookup({
-          from: "roles",
-          localField: "group_roles.role",
-          foreignField: "_id",
-          as: "group_role",
-        })
-        .unwind({
-          path: "$network_role",
-          preserveNullAndEmptyArrays: true,
-        })
-        .unwind({
-          path: "$group_role",
-          preserveNullAndEmptyArrays: true,
-        })
-        .lookup({
-          from: "permissions",
-          localField: "network_role.role_permissions",
-          foreignField: "_id",
-          as: "network_role_permissions",
-        })
-        .lookup({
-          from: "permissions",
-          localField: "group_role.role_permissions",
-          foreignField: "_id",
-          as: "group_role_permissions",
-        })
-        .group({
-          _id: "$_id",
-          firstName: { $first: "$firstName" },
-          lastName: { $first: "$lastName" },
-          lastLogin: { $first: "$lastLogin" },
-          timezone: { $first: "$timezone" },
-          isActive: { $first: "$isActive" },
-          loginCount: { $first: "$loginCount" },
-          userName: { $first: "$userName" },
-          email: { $first: "$email" },
-          verified: { $first: "$verified" },
-          analyticsVersion: { $first: "$analyticsVersion" },
-          country: { $first: "$country" },
-          privilege: { $first: "$privilege" },
-          website: { $first: "$website" },
-          category: { $first: "$category" },
-          organization: { $first: "$organization" },
-          long_organization: { $first: "$long_organization" },
-          rateLimit: { $first: "$rateLimit" },
-          jobTitle: { $first: "$jobTitle" },
-          description: { $first: "$description" },
-          profilePicture: { $first: "$profilePicture" },
-          phoneNumber: { $first: "$phoneNumber" },
-          interests: { $first: "$interests" },
-          interestsDescription: { $first: "$interestsDescription" },
-          group_roles: { $first: "$group_roles" },
-          network_roles: { $first: "$network_roles" },
-          clients: { $first: "$clients" },
-          groups: {
-            $addToSet: {
-              grp_title: { $arrayElemAt: ["$group.grp_title", 0] },
-              organization_slug: {
-                $arrayElemAt: ["$group.organization_slug", 0],
-              },
-              grp_profile_picture: {
-                $arrayElemAt: ["$group.grp_profile_picture", 0],
-              },
-              _id: { $arrayElemAt: ["$group._id", 0] },
-              createdAt: { $arrayElemAt: ["$group.createdAt", 0] },
-              status: { $arrayElemAt: ["$group.grp_status", 0] },
-              role: {
-                $cond: {
-                  if: { $ifNull: ["$group_role", false] },
-                  then: {
-                    _id: "$group_role._id",
-                    role_name: "$group_role.role_name",
-                    role_permissions: "$group_role_permissions",
-                  },
-                  else: null,
-                },
-              },
-              userType: {
-                $cond: {
-                  if: { $eq: [{ $type: "$group_roles.userType" }, "missing"] },
-                  then: "user",
-                  else: "$group_roles.userType",
-                },
-              },
-            },
-          },
-          permissions: { $first: "$permissions" },
-          my_networks: { $first: "$my_networks" },
-          my_groups: { $first: "$my_groups" },
-          createdAt: { $first: "$createdAt" },
-          updatedAt: {
-            $first: {
-              $dateToString: {
-                format: "%Y-%m-%dT%H:%M:%S.%LZ",
-                date: "$updatedAt",
-              },
-            },
-          },
-          networks: {
-            $addToSet: {
-              net_name: { $arrayElemAt: ["$network.net_name", 0] },
-              _id: { $arrayElemAt: ["$network._id", 0] },
-              role: {
-                $cond: {
-                  if: { $ifNull: ["$network_role", false] },
-                  then: {
-                    _id: "$network_role._id",
-                    role_name: "$network_role.role_name",
-                    role_permissions: "$network_role_permissions",
-                  },
-                  else: null,
-                },
-              },
-              userType: {
-                $cond: {
-                  if: {
-                    $eq: [{ $type: "$network_roles.userType" }, "missing"],
-                  },
-                  then: "user",
-                  else: "$network_roles.userType",
-                },
-              },
-            },
-          },
-        })
-        .project(inclusionProjection)
-        .project(exclusionProjection)
+      // 1. Fetch base user documents
+      const users = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip ? parseInt(skip) : 0)
         .limit(limit ? parseInt(limit) : parseInt(constants.DEFAULT_LIMIT))
-        .allowDiskUse(true);
+        .lean(); // Use lean for performance
 
-      if (!isEmpty(response)) {
+      if (isEmpty(users)) {
+        return {
+          success: true,
+          message: "no users exist for this search",
+          data: [],
+          totalCount: 0,
+          status: httpStatus.OK,
+        };
+      }
+
+      // 2. Collect all unique IDs for related documents
+      const userIds = users.map((u) => u._id);
+      const permissionIds = [
+        ...new Set(users.flatMap((u) => u.permissions || [])),
+      ];
+      const groupRoleIds = [
+        ...new Set(
+          users.flatMap(
+            (u) => u.group_roles?.map((gr) => gr.role).filter(Boolean) || []
+          )
+        ),
+      ];
+      const networkRoleIds = [
+        ...new Set(
+          users.flatMap(
+            (u) => u.network_roles?.map((nr) => nr.role).filter(Boolean) || []
+          )
+        ),
+      ];
+      const allRoleIds = [...new Set([...groupRoleIds, ...networkRoleIds])];
+      const groupIds = [
+        ...new Set(
+          users.flatMap(
+            (u) => u.group_roles?.map((gr) => gr.group).filter(Boolean) || []
+          )
+        ),
+      ];
+      const networkIds = [
+        ...new Set(
+          users.flatMap(
+            (u) =>
+              u.network_roles?.map((nr) => nr.network).filter(Boolean) || []
+          )
+        ),
+      ];
+
+      // 3. Fetch all related documents in parallel
+      const { getModelByTenant } = require("@config/database");
+      const GroupModel = require("@models/Group");
+      const NetworkModel = require("@models/Network");
+      const RoleModel = require("@models/Role");
+      const ClientSchema = new mongoose.Schema({}, { strict: false });
+      const ClientModel = getModelByTenant(
+        this.db.name,
+        "client",
+        ClientSchema
+      );
+
+      const [
+        permissions,
+        rolesWithoutPermissions,
+        groups,
+        networks,
+        clients,
+        my_networks,
+        my_groups,
+      ] = await Promise.all([
+        PermissionModel(this.db.name)
+          .find({ _id: { $in: permissionIds } })
+          .lean(),
+        RoleModel(this.db.name)
+          .find({ _id: { $in: allRoleIds } })
+          .lean(),
+        GroupModel(this.db.name)
+          .find({ _id: { $in: groupIds } })
+          .select(
+            "grp_title organization_slug grp_profile_picture createdAt grp_status"
+          )
+          .lean(),
+        NetworkModel(this.db.name)
+          .find({ _id: { $in: networkIds } })
+          .select("net_name")
+          .lean(),
+        ClientModel.find({ user_id: { $in: userIds } }).lean(),
+        NetworkModel(this.db.name)
+          .find({ net_manager: { $in: userIds } })
+          .lean(),
+        GroupModel(this.db.name)
+          .find({ grp_manager: { $in: userIds } })
+          .lean(),
+      ]);
+
+      // 3.5 Manually populate role_permissions
+      const allRolePermissionIds = [
+        ...new Set(
+          rolesWithoutPermissions.flatMap((r) => r.role_permissions || [])
+        ),
+      ];
+      const rolePermissions = await PermissionModel(this.db.name)
+        .find({ _id: { $in: allRolePermissionIds } })
+        .select("permission")
+        .lean();
+      const rolePermissionsMap = new Map(
+        rolePermissions.map((p) => [p._id.toString(), p])
+      );
+
+      const roles = rolesWithoutPermissions.map((role) => {
+        const populatedRole = { ...role };
+        if (populatedRole.role_permissions) {
+          populatedRole.role_permissions = populatedRole.role_permissions
+            .map((id) => rolePermissionsMap.get(id.toString()))
+            .filter(Boolean);
+        }
+        return populatedRole;
+      });
+
+      // 4. Create lookup maps for efficient population
+      const permissionsMap = new Map(
+        permissions.map((p) => [p._id.toString(), p])
+      );
+      const rolesMap = new Map(roles.map((r) => [r._id.toString(), r]));
+      const groupsMap = new Map(groups.map((g) => [g._id.toString(), g]));
+      const networksMap = new Map(networks.map((n) => [n._id.toString(), n]));
+      const clientsMap = new Map();
+      clients.forEach((c) => {
+        const userId = c.user_id.toString();
+        if (!clientsMap.has(userId)) clientsMap.set(userId, []);
+        clientsMap.get(userId).push(c);
+      });
+      const myNetworksMap = new Map();
+      my_networks.forEach((n) => {
+        const managerId = n.net_manager.toString();
+        if (!myNetworksMap.has(managerId)) myNetworksMap.set(managerId, []);
+        myNetworksMap.get(managerId).push(n);
+      });
+      const myGroupsMap = new Map();
+      my_groups.forEach((g) => {
+        const managerId = g.grp_manager.toString();
+        if (!myGroupsMap.has(managerId)) myGroupsMap.set(managerId, []);
+        myGroupsMap.get(managerId).push(g);
+      });
+
+      // 5. Manually populate the user documents
+      const populatedUsers = users.map((user) => {
+        const populatedUser = { ...user };
+        const userIdStr = populatedUser._id.toString();
+
+        populatedUser.permissions = (populatedUser.permissions || [])
+          .map((id) => permissionsMap.get(id.toString()))
+          .filter(Boolean);
+
+        populatedUser.groups = (populatedUser.group_roles || [])
+          .map((gr) => {
+            const group = groupsMap.get(gr.group?.toString());
+            const role = rolesMap.get(gr.role?.toString());
+            if (!group || !role) return null;
+            return {
+              _id: group._id,
+              grp_title: group.grp_title,
+              organization_slug: group.organization_slug,
+              grp_profile_picture: group.grp_profile_picture,
+              createdAt: group.createdAt,
+              status: group.grp_status, // Backward compatibility for field name
+              role: {
+                _id: role._id,
+                role_name: role.role_name,
+                role_permissions: role.role_permissions,
+              },
+              userType: gr.userType || "user",
+            };
+          })
+          .filter(Boolean);
+
+        populatedUser.networks = (populatedUser.network_roles || [])
+          .map((nr) => {
+            const network = networksMap.get(nr.network?.toString());
+            const role = rolesMap.get(nr.role?.toString());
+            if (!network || !role) return null;
+            return {
+              _id: network._id,
+              net_name: network.net_name,
+              role: {
+                _id: role._id,
+                role_name: role.role_name,
+                role_permissions: role.role_permissions,
+              },
+              userType: nr.userType || "user",
+            };
+          })
+          .filter(Boolean);
+
+        populatedUser.clients = clientsMap.get(userIdStr) || [];
+        populatedUser.my_networks = myNetworksMap.get(userIdStr) || [];
+        populatedUser.my_groups = myGroupsMap.get(userIdStr) || [];
+
+        // Clean up old fields to match original projection
+        delete populatedUser.group_roles;
+        delete populatedUser.network_roles;
+        delete populatedUser.password; // Ensure password is not returned
+
+        // Format date fields to match previous output
+        const ts = populatedUser._id.getTimestamp();
+        populatedUser.createdAt = `${ts.getFullYear()}-${String(
+          ts.getMonth() + 1
+        ).padStart(2, "0")}-${String(ts.getDate()).padStart(2, "0")} ${String(
+          ts.getHours()
+        ).padStart(2, "0")}:${String(ts.getMinutes()).padStart(
+          2,
+          "0"
+        )}:${String(ts.getSeconds()).padStart(2, "0")}`;
+
+        if (populatedUser.updatedAt) {
+          populatedUser.updatedAt = new Date(
+            populatedUser.updatedAt
+          ).toISOString();
+        }
+
+        return populatedUser;
+      });
+
+      if (!isEmpty(populatedUsers)) {
         return {
           success: true,
           message: "successfully retrieved the user details",
-          data: response,
+          data: populatedUsers,
           totalCount,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(response)) {
+      } else {
         return {
           success: true,
           message: "no users exist",
@@ -1019,16 +1048,13 @@ UserSchema.statics = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       if (error instanceof HttpError) {
-        return next(error);
+        throw error;
       }
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
-      return;
     }
   },
 

@@ -846,49 +846,39 @@ const createUserModule = {
           ? responseFromModifyUser.data.toJSON()
           : responseFromModifyUser.data;
 
-        if (
-          constants.ENVIRONMENT &&
-          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-        ) {
+        const { email, firstName, lastName } = user;
+
+        // Await the mailer response to maintain backward compatibility.
+        const responseFromSendEmail = await mailer.update(
+          {
+            email,
+            firstName,
+            lastName,
+            updatedUserDetails: emailUpdatePayload,
+          },
+          next
+        );
+
+        if (responseFromSendEmail && responseFromSendEmail.success === true) {
           return {
             success: true,
             message: responseFromModifyUser.message,
             data: apiResponseData,
           };
+        } else if (
+          responseFromSendEmail &&
+          responseFromSendEmail.success === false
+        ) {
+          return responseFromSendEmail;
         } else {
-          const { email, firstName, lastName } = user;
-
-          const responseFromSendEmail = await mailer.update(
-            {
-              email,
-              firstName,
-              lastName,
-              updatedUserDetails: emailUpdatePayload,
-            },
-            next
+          logger.error("mailer.update did not return a response");
+          return next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Failed to send update email" }
+            )
           );
-
-          if (responseFromSendEmail && responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: responseFromModifyUser.message,
-              data: apiResponseData,
-            };
-          } else if (
-            responseFromSendEmail &&
-            responseFromSendEmail.success === false
-          ) {
-            return responseFromSendEmail;
-          } else {
-            logger.error("mailer.update did not return a response");
-            return next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send update email" }
-              )
-            );
-          }
         }
       } else {
         return responseFromModifyUser;
@@ -4103,19 +4093,12 @@ const createUserModule = {
           ? responseFromModifyUser.data.toJSON()
           : responseFromModifyUser.data;
 
-        if (
-          constants.ENVIRONMENT &&
-          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-        ) {
-          return {
-            success: true,
-            message: responseFromModifyUser.message,
-            data: apiResponseData,
-          };
-        } else {
-          const { email, firstName, lastName } = user;
+        const { email, firstName, lastName } = user;
 
-          const responseFromSendEmail = await mailer.update(
+        // Asynchronously send email without blocking the response.
+        // The mailer utility should handle environment-specific logic (e.g., using a mock mailer in dev).
+        mailer
+          .update(
             {
               email,
               firstName,
@@ -4123,30 +4106,18 @@ const createUserModule = {
               updatedUserDetails: emailUpdatePayload,
             },
             next
-          );
-
-          if (responseFromSendEmail && responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: responseFromModifyUser.message,
-              data: apiResponseData,
-            };
-          } else if (
-            responseFromSendEmail &&
-            responseFromSendEmail.success === false
-          ) {
-            return responseFromSendEmail;
-          } else {
-            logger.error("mailer.update did not return a response");
-            return next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send update email" }
-              )
+          )
+          .catch((error) => {
+            logger.error(
+              `Failed to send profile update email to ${email}: ${error.message}`
             );
-          }
-        }
+          });
+
+        return {
+          success: true,
+          message: responseFromModifyUser.message,
+          data: apiResponseData,
+        };
       } else {
         return responseFromModifyUser;
       }
