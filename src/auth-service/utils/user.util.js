@@ -5052,24 +5052,10 @@ const createUserModule = {
           : mongoose.Types.ObjectId.isValid(v)
           ? new mongoose.Types.ObjectId(v)
           : v;
-      let finalGroupRoles = Array.isArray(user.group_roles)
-        ? user.group_roles.map((a) => ({
-            ...(a?.toObject?.() ?? a),
-            group: toObjectId(a.group),
-            role: toObjectId(a.role),
-          }))
-        : [];
-      let finalNetworkRoles = Array.isArray(user.network_roles)
-        ? user.network_roles.map((a) => ({
-            ...(a?.toObject?.() ?? a),
-            network: toObjectId(a.network),
-            role: toObjectId(a.role),
-          }))
-        : [];
 
-      // --- 1. Consolidate duplicate roles for all GROUPS ---
+      // --- 1. Consolidate duplicate roles for all GROUPS (Safer Implementation) ---
       const groupRoleMap = new Map();
-      finalGroupRoles.forEach((assignment) => {
+      (user.group_roles || []).forEach((assignment) => {
         if (assignment && assignment.group) {
           const groupId = assignment.group.toString();
           if (!groupRoleMap.has(groupId)) groupRoleMap.set(groupId, []);
@@ -5077,13 +5063,18 @@ const createUserModule = {
         }
       });
 
+      const consolidatedGroupRoles = [];
       for (const [groupId, assignments] of groupRoleMap.entries()) {
         if (assignments.length > 1) {
           logger.info(
             `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
           );
           const group = await GroupModel(tenant).findById(groupId).lean();
-          if (!group) continue;
+          if (!group) {
+            // If group doesn't exist, keep the assignments to be filtered later
+            consolidatedGroupRoles.push(...assignments);
+            continue;
+          }
 
           let desiredRole;
           if (group.grp_title.toLowerCase() === "airqo") {
@@ -5091,13 +5082,16 @@ const createUserModule = {
               .find({ group_id: groupId })
               .lean();
             const superAdminRole = possibleRoles.find(
-              (r) => r.role_code?.toUpperCase() === "AIRQO_SUPER_ADMIN"
+              (r) =>
+                r.role_code && r.role_code.toUpperCase() === "AIRQO_SUPER_ADMIN"
             );
             const adminRole = possibleRoles.find(
-              (r) => r.role_code?.toUpperCase() === "AIRQO_ADMIN"
+              (r) => r.role_code && r.role_code.toUpperCase() === "AIRQO_ADMIN"
             );
             const defaultUserRole = possibleRoles.find(
-              (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
+              (r) =>
+                r.role_code &&
+                r.role_code.toUpperCase() === "AIRQO_DEFAULT_USER"
             );
             const userRoleIds = new Set(
               assignments.map((a) => a.role && a.role.toString())
@@ -5123,7 +5117,9 @@ const createUserModule = {
             const prefer = (suffix) =>
               possibleRoles.find(
                 (r) =>
-                  r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+                  r.role_code &&
+                  r.role_code.endsWith(suffix) &&
+                  present.has(r._id.toString())
               );
             desiredRole =
               prefer("_SUPER_ADMIN") ||
@@ -5143,9 +5139,6 @@ const createUserModule = {
           }
 
           if (desiredRole) {
-            finalGroupRoles = finalGroupRoles.filter(
-              (a) => !a.group || a.group.toString() !== groupId
-            );
             const earliestCreatedAt = new Date(
               Math.min(
                 ...assignments.map((a) =>
@@ -5153,19 +5146,26 @@ const createUserModule = {
                 )
               )
             );
-            finalGroupRoles.push({
+            consolidatedGroupRoles.push({
               group: mongoose.Types.ObjectId(groupId),
               role: desiredRole._id,
               userType: "user",
               createdAt: earliestCreatedAt,
             });
+          } else {
+            // Fallback: if no desired role is found, keep the first one to prevent data loss
+            consolidatedGroupRoles.push(assignments[0]);
           }
+        } else {
+          // Only one role for this group, keep it.
+          consolidatedGroupRoles.push(assignments[0]);
         }
       }
+      let finalGroupRoles = consolidatedGroupRoles;
 
       // --- 2. Consolidate duplicate roles for NETWORKS ---
       const networkRoleMap = new Map();
-      finalNetworkRoles.forEach((assignment) => {
+      (user.network_roles || []).forEach((assignment) => {
         if (assignment && assignment.network) {
           const networkId = assignment.network.toString();
           if (!networkRoleMap.has(networkId)) networkRoleMap.set(networkId, []);
@@ -5173,13 +5173,17 @@ const createUserModule = {
         }
       });
 
+      const consolidatedNetworkRoles = [];
       for (const [networkId, assignments] of networkRoleMap.entries()) {
         if (assignments.length > 1) {
           logger.info(
             `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
           );
           const network = await NetworkModel(tenant).findById(networkId).lean();
-          if (!network) continue;
+          if (!network) {
+            consolidatedNetworkRoles.push(...assignments);
+            continue;
+          }
 
           const possibleRoles = await RoleModel(tenant)
             .find({ network_id: mongoose.Types.ObjectId(networkId) })
@@ -5190,7 +5194,9 @@ const createUserModule = {
           const prefer = (suffix) =>
             possibleRoles.find(
               (r) =>
-                r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+                r.role_code &&
+                r.role_code.endsWith(suffix) &&
+                present.has(r._id.toString())
             );
           let desiredRole =
             prefer("_SUPER_ADMIN") ||
@@ -5209,9 +5215,6 @@ const createUserModule = {
           }
 
           if (desiredRole) {
-            finalNetworkRoles = finalNetworkRoles.filter(
-              (a) => !a.network || a.network.toString() !== networkId
-            );
             const earliestCreatedAtNet = new Date(
               Math.min(
                 ...assignments.map((a) =>
@@ -5219,15 +5222,20 @@ const createUserModule = {
                 )
               )
             );
-            finalNetworkRoles.push({
+            consolidatedNetworkRoles.push({
               network: mongoose.Types.ObjectId(networkId),
               role: desiredRole._id,
               userType: "user",
               createdAt: earliestCreatedAtNet,
             });
+          } else {
+            consolidatedNetworkRoles.push(assignments[0]);
           }
+        } else {
+          consolidatedNetworkRoles.push(assignments[0]);
         }
       }
+      let finalNetworkRoles = consolidatedNetworkRoles;
 
       // --- 3. Remove Deprecated Roles ---
       const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
