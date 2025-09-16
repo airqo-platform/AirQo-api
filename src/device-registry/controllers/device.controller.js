@@ -650,7 +650,7 @@ const deviceController = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      request.query.path = "summary";
+      request.query.detailLevel = "summary";
       const result = await createDeviceUtil.list(request, next);
 
       if (isEmpty(result) || res.headersSent) {

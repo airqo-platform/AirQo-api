@@ -1314,9 +1314,8 @@ const createSite = {
         skip,
         limit,
         tenant: rawTenant,
-        path,
         useCache = "true",
-        detailLevel = "summary",
+        detailLevel = "full",
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const devicesColl = DeviceModel(tenant).collection.name;
@@ -1331,9 +1330,6 @@ const createSite = {
         Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
       const filter = generateFilter.sites(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
 
       let pipeline = [];
 
@@ -1532,6 +1528,7 @@ const createSite = {
       );
     }
   },
+
   listAirQoActive: async (request, next) => {
     try {
       const { skip, limit, tenant } = request.query;
