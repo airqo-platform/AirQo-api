@@ -210,32 +210,11 @@ async function throttledLog(logType, message, forceLog = false) {
 
     if (shouldAllow) {
       logger.info(message);
-
-      // Get remaining count and show appropriate message
-      const remaining = await logThrottleManager.getRemainingLogsForToday(
-        logType
-      );
-      if (remaining === 0) {
-        logger.info(
-          `📝 Daily limit reached for ${logType} logs. Next ${logType} logs will be suppressed until tomorrow.`
-        );
-      } else if (remaining === 1) {
-        logger.info(`📝 One more ${logType} log remaining for today.`);
-      }
     } else {
-      // Log throttling is working - don't spam debug logs
-      const hourKey = moment()
-        .tz(TIMEZONE)
-        .format("YYYY-MM-DD-HH");
-      if (
-        !throttledLog.lastThrottleNotification ||
-        throttledLog.lastThrottleNotification !== hourKey
-      ) {
-        logger.debug(
-          `Log throttled: ${logType} - Daily limit (${LOG_THROTTLE_CONFIG.maxLogsPerDay}) reached.`
-        );
-        throttledLog.lastThrottleNotification = hourKey;
-      }
+      // Log throttling is working. A debug log is sufficient to avoid noise.
+      logger.debug(
+        `Log throttled for ${logType}: Daily limit of ${LOG_THROTTLE_CONFIG.maxLogsPerDay} reached.`
+      );
     }
   } catch (error) {
     // On error, log the message anyway (fail open)
