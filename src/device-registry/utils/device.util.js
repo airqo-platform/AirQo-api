@@ -928,11 +928,10 @@ const deviceUtil = {
     try {
       const {
         tenant: rawTenant,
-        path,
         limit,
         skip,
         useCache = "true",
-        detailLevel = "summary",
+        detailLevel = "full",
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const activitiesColl = ActivityModel(tenant).collection.name;
@@ -944,10 +943,6 @@ const deviceUtil = {
         Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
       const filter = generateFilter.devices(request, next);
-
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
 
       let pipeline = [];
 
@@ -1027,6 +1022,12 @@ const deviceUtil = {
               localField: "site_id",
               foreignField: "_id",
               as: "site",
+            },
+          },
+          {
+            $unwind: {
+              path: "$site",
+              preserveNullAndEmptyArrays: true,
             },
           },
           {
@@ -1223,6 +1224,7 @@ const deviceUtil = {
       );
     }
   },
+
   clear: (request, next) => {
     return {
       success: false,
