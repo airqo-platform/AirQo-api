@@ -7,6 +7,7 @@ const logger = log4js.getLogger(
 const { mailer, stringify, emailTemplates } = require("@utils/common");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
+const net = require("net");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const UserModel = require("@models/User");
@@ -23,6 +24,11 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
+
+let cachedBlacklistedRanges = [];
+let cacheLastUpdated = null;
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+let rangesFetchInFlight = null;
 
 const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
@@ -125,97 +131,82 @@ const operationForNewMobileAppUser = async (messageData) => {
   }
 };
 
+const getBlacklistedRanges = async () => {
+  const now = Date.now();
+  // Serve from cache if still fresh (even when empty).
+  if (cacheLastUpdated && now - cacheLastUpdated < CACHE_TTL) {
+    return cachedBlacklistedRanges;
+  }
+  // If a refresh is already running, await it.
+  if (rangesFetchInFlight) {
+    return rangesFetchInFlight;
+  }
+  // Singleflight refresh
+  rangesFetchInFlight = (async () => {
+    let allRanges = [];
+    let pageNumber = 1;
+    const limit = 1000;
+    try {
+      while (true) {
+        const ranges = await BlacklistedIPRangeModel("airqo")
+          .find()
+          .sort({ _id: 1 })
+          .select("range -_id")
+          .lean()
+          .skip((pageNumber - 1) * limit)
+          .limit(limit);
+        if (ranges.length === 0) {
+          break;
+        }
+        allRanges = allRanges.concat(ranges.map((r) => r.range));
+        pageNumber++;
+      }
+      cachedBlacklistedRanges = allRanges;
+      cacheLastUpdated = Date.now();
+      logger.info(
+        `Blacklisted IP ranges cache updated with ${allRanges.length} ranges.`
+      );
+      return cachedBlacklistedRanges;
+    } catch (error) {
+      logger.error(
+        `Failed to fetch blacklisted IP ranges from DB: ${error.message}`
+      );
+      return cachedBlacklistedRanges || [];
+    } finally {
+      rangesFetchInFlight = null;
+    }
+  })();
+  return rangesFetchInFlight;
+};
+
 const operationForBlacklistedIPs = async (messageData) => {
   try {
     // Parse the message
     const { ip } = JSON.parse(messageData);
-
-    let pageNumber = 1;
-    let blacklistedRanges = [];
-    let ipsToBlacklist = [];
-
-    // Keep fetching and checking until we have gone through all records
-    while (true) {
-      // Fetch the next page of blacklisted ranges
-      blacklistedRanges = await Promise.all([
-        BlacklistedIPRangeModel("airqo")
-          .find()
-          .skip((pageNumber - 1) * 1000)
-          .limit(1000),
-      ]);
-
-      if (blacklistedRanges.length === 0 || blacklistedRanges[0].length === 0) {
-        // If no more ranges, break the loop
-        break;
-      }
-
-      // Iterate over each range
-      for (const range of blacklistedRanges[0]) {
-        // Check if the IP falls within the range
-        if (rangeCheck(ip, range.range)) {
-          // If the IP falls within the range, add it to the list of IPs to blacklist
-          ipsToBlacklist.push(ip);
-          logger.info(`💪💪 IP ${ip} has been queued for blacklisting...`);
-          break;
-        }
-      }
-
-      pageNumber++;
+    if (typeof ip !== "string" || !net.isIP(ip)) {
+      logger.warn("Skipping blacklisting: invalid or missing IP.");
+      return;
     }
 
-    // if (ipsToBlacklist.length > 0) {
-    //   await BlacklistedIPModel("airqo").insertMany(
-    //     ipsToBlacklist.map((ip) => ({ ip }))
-    //   );
-    // }
+    // Get ranges from cache or DB
+    const blacklistedRanges = await getBlacklistedRanges();
 
-    if (ipsToBlacklist.length > 0) {
-      //prepare for batch operations....
-      const batchSize = 20;
-      const batches = [];
-      for (let i = 0; i < ipsToBlacklist.length; i += batchSize) {
-        batches.push(ipsToBlacklist.slice(i, i + batchSize));
-      }
+    const ipIsBlacklisted =
+      blacklistedRanges.length > 0 && rangeCheck(ip, blacklistedRanges);
 
-      for (const batch of batches) {
-        for (const ip of batch) {
-          const doc = { ip: ip };
-          await asyncRetry(
-            async (bail) => {
-              try {
-                const res = await BlacklistedIPModel("airqo").updateOne(
-                  doc,
-                  doc,
-                  {
-                    upsert: true,
-                  }
-                );
-                logObject("res", res);
-                // logObject("Number of documents updated", res.modifiedCount);
-              } catch (error) {
-                if (error.name === "MongoError" && error.code !== 11000) {
-                  logger.error(
-                    `🐛🐛 MongoError -- operationForBlacklistedIPs -- ${jsonify(
-                      error
-                    )}`
-                  );
-                  throw error; // Retry the operation
-                } else if (error.code === 11000) {
-                  // Ignore duplicate key errors
-                  console.warn(
-                    `Duplicate key error for document: ${jsonify(doc)}`
-                  );
-                }
-              }
-            },
-            {
-              retries: 5, // Number of retry attempts
-              minTimeout: 1000, // Initial delay between retries (in milliseconds)
-              factor: 2, // Exponential factor for increasing delay between retries
-            }
-          );
-        }
-      }
+    if (ipIsBlacklisted) {
+      logger.info("💪💪 IP is in a blacklisted range. Blacklisting...");
+      const filter = { ip };
+      const update = { $setOnInsert: { ip } };
+      await asyncRetry(
+        async () => {
+          await BlacklistedIPModel("airqo").updateOne(filter, update, {
+            upsert: true,
+            setDefaultsOnInsert: true,
+          });
+        },
+        { retries: 5, minTimeout: 250, factor: 2 }
+      );
     }
   } catch (error) {
     logger.error(
