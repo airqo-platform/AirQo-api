@@ -5258,20 +5258,25 @@ const createUserModule = {
       }
 
       // --- 5. Compare final arrays with originals to see if an update is needed ---
-      const canonicalize = (arr, type) =>
-        (arr || [])
-          .map((a) => ({
-            ctx:
-              type === "group"
-                ? a.group?.toString?.()
-                : a.network?.toString?.(),
-            role: a.role?.toString?.(),
-            userType: a.userType || "user",
-          }))
-          .filter((x) => x.ctx && x.role)
+      const canonicalize = (arr, type) => {
+        if (!Array.isArray(arr)) {
+          return [];
+        }
+        return arr
+          .map((a) => {
+            if (!a) return null;
+            const ctxId = type === "group" ? a.group : a.network;
+            return {
+              ctx: ctxId ? ctxId.toString() : null,
+              role: a.role ? a.role.toString() : null,
+              userType: a.userType || "user",
+            };
+          })
+          .filter((x) => x && x.ctx && x.role)
           .sort(
             (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
           );
+      };
 
       const originalGroupCanon = canonicalize(user.group_roles, "group");
       const finalGroupCanon = canonicalize(finalGroupRoles, "group");
@@ -5284,16 +5289,20 @@ const createUserModule = {
         JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
       ) {
         // keep DB arrays deterministically ordered as well
-        finalGroupRoles = finalGroupRoles.sort(
-          (a, b) =>
-            a.group.toString().localeCompare(b.group.toString()) ||
-            a.role.toString().localeCompare(b.role.toString())
-        );
-        finalNetworkRoles = finalNetworkRoles.sort(
-          (a, b) =>
-            a.network.toString().localeCompare(b.network.toString()) ||
-            a.role.toString().localeCompare(b.role.toString())
-        );
+        finalGroupRoles = finalGroupRoles
+          .filter((r) => r && r.group && r.role)
+          .sort(
+            (a, b) =>
+              a.group.toString().localeCompare(b.group.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
+        finalNetworkRoles = finalNetworkRoles
+          .filter((r) => r && r.network && r.role)
+          .sort(
+            (a, b) =>
+              a.network.toString().localeCompare(b.network.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
         updateQuery.$set = {
           group_roles: finalGroupRoles,
           network_roles: finalNetworkRoles,
@@ -5316,7 +5325,9 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(
-        `[Role Cleanup] Error during role cleanup for ${user.email}: ${error.message}`
+        `[Role Cleanup] Error during role cleanup for ${
+          user ? user.email : "unknown user"
+        }: ${error.message}`
       );
     }
   },
