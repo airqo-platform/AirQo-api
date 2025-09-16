@@ -3943,6 +3943,82 @@ const createUserModule = {
       );
     }
   },
+  updateKnownPassword: async (request, next) => {
+    try {
+      const { old_password, password: new_password } = request.body || {};
+      const { tenant } = request.query || {};
+      const userId = request.user?._id;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      if (!old_password || !new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "old_password and new password are required",
+          })
+        );
+      }
+
+      if (!userId) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+
+      const user = await UserModel(dbTenant).findById(userId);
+
+      if (!user) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if the old password is correct
+      const isPasswordValid = await user.authenticateUser(old_password);
+      if (!isPasswordValid) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Invalid old password",
+          })
+        );
+      }
+
+      if (old_password === new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "New password must be different from old password",
+          })
+        );
+      }
+
+      // Set the new password and save. The pre-save hook will hash it.
+      user.password = new_password;
+      // Clear any residual reset tokens (defensive)
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
+      await user.save();
+
+      return {
+        success: true,
+        message: "Password updated successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
@@ -5202,20 +5278,25 @@ const createUserModule = {
       }
 
       // --- 5. Compare final arrays with originals to see if an update is needed ---
-      const canonicalize = (arr, type) =>
-        (arr || [])
-          .map((a) => ({
-            ctx:
-              type === "group"
-                ? a.group?.toString?.()
-                : a.network?.toString?.(),
-            role: a.role?.toString?.(),
-            userType: a.userType || "user",
-          }))
-          .filter((x) => x.ctx && x.role)
+      const canonicalize = (arr, type) => {
+        if (!Array.isArray(arr)) {
+          return [];
+        }
+        return arr
+          .map((a) => {
+            if (!a) return null;
+            const ctxId = type === "group" ? a.group : a.network;
+            return {
+              ctx: ctxId ? ctxId.toString() : null,
+              role: a.role ? a.role.toString() : null,
+              userType: a.userType || "user",
+            };
+          })
+          .filter((x) => x && x.ctx && x.role)
           .sort(
             (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
           );
+      };
 
       const originalGroupCanon = canonicalize(user.group_roles, "group");
       const finalGroupCanon = canonicalize(finalGroupRoles, "group");
@@ -5228,16 +5309,20 @@ const createUserModule = {
         JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
       ) {
         // keep DB arrays deterministically ordered as well
-        finalGroupRoles = finalGroupRoles.sort(
-          (a, b) =>
-            a.group.toString().localeCompare(b.group.toString()) ||
-            a.role.toString().localeCompare(b.role.toString())
-        );
-        finalNetworkRoles = finalNetworkRoles.sort(
-          (a, b) =>
-            a.network.toString().localeCompare(b.network.toString()) ||
-            a.role.toString().localeCompare(b.role.toString())
-        );
+        finalGroupRoles = finalGroupRoles
+          .filter((r) => r && r.group && r.role)
+          .sort(
+            (a, b) =>
+              a.group.toString().localeCompare(b.group.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
+        finalNetworkRoles = finalNetworkRoles
+          .filter((r) => r && r.network && r.role)
+          .sort(
+            (a, b) =>
+              a.network.toString().localeCompare(b.network.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
         updateQuery.$set = {
           group_roles: finalGroupRoles,
           network_roles: finalNetworkRoles,
@@ -5260,7 +5345,9 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(
-        `[Role Cleanup] Error during role cleanup for ${user.email}: ${error.message}`
+        `[Role Cleanup] Error during role cleanup for ${
+          user ? user.email : "unknown user"
+        }: ${error.message}`
       );
     }
   },

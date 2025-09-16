@@ -2231,6 +2231,7 @@ const groupUtil = {
         constants.GROUP_MANAGEMENT,
         constants.USER_MANAGEMENT,
         constants.ROLE_ASSIGNMENT,
+        constants.GROUP_USER_ASSIGN,
         constants.GROUP_SETTINGS,
         constants.ANALYTICS_VIEW,
         constants.MEMBER_INVITE,
