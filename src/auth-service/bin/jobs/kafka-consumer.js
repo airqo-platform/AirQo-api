@@ -26,8 +26,9 @@ const {
 } = require("@utils/shared");
 
 let cachedBlacklistedRanges = [];
-let cacheLastUpdated = 0;
+let cacheLastUpdated = null;
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+let rangesFetchInFlight = null;
 
 const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
@@ -132,46 +133,50 @@ const operationForNewMobileAppUser = async (messageData) => {
 
 const getBlacklistedRanges = async () => {
   const now = Date.now();
-  if (
-    now - cacheLastUpdated < CACHE_TTL &&
-    cachedBlacklistedRanges.length > 0
-  ) {
+  // Serve from cache if still fresh (even when empty).
+  if (cacheLastUpdated && now - cacheLastUpdated < CACHE_TTL) {
     return cachedBlacklistedRanges;
   }
-
-  let allRanges = [];
-  let pageNumber = 1;
-  const limit = 1000;
-
-  try {
-    while (true) {
-      const ranges = await BlacklistedIPRangeModel("airqo")
-        .find()
-        .select("range -_id")
-        .lean()
-        .skip((pageNumber - 1) * limit)
-        .limit(limit);
-
-      if (ranges.length === 0) {
-        break;
+  // If a refresh is already running, await it.
+  if (rangesFetchInFlight) {
+    return rangesFetchInFlight;
+  }
+  // Singleflight refresh
+  rangesFetchInFlight = (async () => {
+    let allRanges = [];
+    let pageNumber = 1;
+    const limit = 1000;
+    try {
+      while (true) {
+        const ranges = await BlacklistedIPRangeModel("airqo")
+          .find()
+          .sort({ _id: 1 })
+          .select("range -_id")
+          .lean()
+          .skip((pageNumber - 1) * limit)
+          .limit(limit);
+        if (ranges.length === 0) {
+          break;
+        }
+        allRanges = allRanges.concat(ranges.map((r) => r.range));
+        pageNumber++;
       }
-      allRanges = allRanges.concat(ranges.map((r) => r.range));
-      pageNumber++;
+      cachedBlacklistedRanges = allRanges;
+      cacheLastUpdated = Date.now();
+      logger.info(
+        `Blacklisted IP ranges cache updated with ${allRanges.length} ranges.`
+      );
+      return cachedBlacklistedRanges;
+    } catch (error) {
+      logger.error(
+        `Failed to fetch blacklisted IP ranges from DB: ${error.message}`
+      );
+      return cachedBlacklistedRanges || [];
+    } finally {
+      rangesFetchInFlight = null;
     }
-
-    cachedBlacklistedRanges = allRanges;
-    cacheLastUpdated = now;
-    logger.info(
-      `Blacklisted IP ranges cache updated with ${allRanges.length} ranges.`
-    );
-    return cachedBlacklistedRanges;
-  } catch (error) {
-    logger.error(
-      `Failed to fetch blacklisted IP ranges from DB: ${error.message}`
-    );
-    // Return stale cache if available, otherwise empty
-    return cachedBlacklistedRanges || [];
-  }
+  })();
+  return rangesFetchInFlight;
 };
 
 const operationForBlacklistedIPs = async (messageData) => {
@@ -191,11 +196,13 @@ const operationForBlacklistedIPs = async (messageData) => {
 
     if (ipIsBlacklisted) {
       logger.info("💪💪 IP is in a blacklisted range. Blacklisting...");
-      const doc = { ip: ip };
+      const filter = { ip };
+      const update = { $setOnInsert: { ip } };
       await asyncRetry(
         async () => {
-          await BlacklistedIPModel("airqo").updateOne(doc, doc, {
+          await BlacklistedIPModel("airqo").updateOne(filter, update, {
             upsert: true,
+            setDefaultsOnInsert: true,
           });
         },
         { retries: 5, minTimeout: 250, factor: 2 }
