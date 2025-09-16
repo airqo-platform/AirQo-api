@@ -163,8 +163,8 @@ class AirQoDataDriftCompute:
 
         baseline_id = str(uuid.uuid4())
         # The baseline_id can be unique but multi-pollutant in this case considers a device having two sensors measuring the same thing and not actually two different pollutants.
-        # Logic can be modified to handle multiple/different pollutants later.
-        # When this is done, consider updating and or automating the baseline version changes to enable tracking
+        # TODO: Logic can be modified to handle multiple/different pollutants later.
+        # TODO: When this is done, consider updating and or automating the baseline version changes to enable tracking
         baseline_rows: List[Dict[str, Any]] = []
         for pollutant in pollutants:
             baseline_row = {
