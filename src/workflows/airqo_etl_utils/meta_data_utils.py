@@ -209,7 +209,10 @@ class MetaDataUtils:
         )
 
         device_metadata = DataUtils.extract_most_recent_metadata_record(
-            MetaDataType.DEVICES, "device_id", "next_offset_date", pollutant=pollutants_
+            MetaDataType.DEVICES,
+            "device_id",
+            "next_offset_date",
+            pollutant={"pollutant": pollutants_},
         )
 
         if frequency.str in Config.extra_time_grouping:
