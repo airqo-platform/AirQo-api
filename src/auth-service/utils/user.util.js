@@ -3945,9 +3945,10 @@ const createUserModule = {
   },
   updateKnownPassword: async (request, next) => {
     try {
-      const { old_password, password: new_password } = request.body;
-      const { tenant } = request.query;
-      const { _id: userId } = request.user;
+      const { old_password, password: new_password } = request.body || {};
+      const { tenant } = request.query || {};
+      const userId = request.user?._id;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       if (!old_password || !new_password) {
         return next(
@@ -3957,7 +3958,15 @@ const createUserModule = {
         );
       }
 
-      const user = await UserModel(tenant.toLowerCase()).findById(userId);
+      if (!userId) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+
+      const user = await UserModel(dbTenant).findById(userId);
 
       if (!user) {
         return next(
@@ -3977,8 +3986,19 @@ const createUserModule = {
         );
       }
 
+      if (old_password === new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "New password must be different from old password",
+          })
+        );
+      }
+
       // Set the new password and save. The pre-save hook will hash it.
       user.password = new_password;
+      // Clear any residual reset tokens (defensive)
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
       await user.save();
 
       return {
