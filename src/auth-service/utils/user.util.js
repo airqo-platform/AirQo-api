@@ -3886,39 +3886,28 @@ const createUserModule = {
 
       if (updatedUser) {
         const { email, firstName, lastName } = updatedUser;
-        const responseFromSendEmail = await mailer.updateForgottenPassword(
-          {
-            email,
-            firstName,
-            lastName,
-          },
-          next
-        );
+        // Asynchronously send email without blocking the response.
+        mailer
+          .updateForgottenPassword(
+            {
+              email,
+              firstName,
+              lastName,
+            },
+            next
+          )
+          .catch((error) => {
+            logger.error(
+              `Failed to send password reset confirmation email to ${email}: ${error.message}`
+            );
+          });
 
-        if (responseFromSendEmail && responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "Password has been reset successfully",
-            data: updatedUser.toJSON(),
-            status: httpStatus.OK,
-          };
-        } else if (
-          responseFromSendEmail &&
-          responseFromSendEmail.success === false
-        ) {
-          return responseFromSendEmail;
-        } else {
-          logger.error(
-            "mailer.updateForgottenPassword did not return a response"
-          );
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send password update confirmation email" }
-            )
-          );
-        }
+        return {
+          success: true,
+          message: "Password has been reset successfully",
+          data: updatedUser.toJSON(),
+          status: httpStatus.OK,
+        };
       } else {
         return next(
           new HttpError(
@@ -4034,6 +4023,25 @@ const createUserModule = {
       // 1. Create a sanitized copy of the body for the database update.
       const sanitizedUpdate = { ...body };
 
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
+      }
+
       // Drop any keys with undefined values to prevent them from being written to the DB
       Object.keys(sanitizedUpdate).forEach((key) => {
         if (sanitizedUpdate[key] === undefined) {
@@ -4096,7 +4104,6 @@ const createUserModule = {
         const { email, firstName, lastName } = user;
 
         // Asynchronously send email without blocking the response.
-        // The mailer utility should handle environment-specific logic (e.g., using a mock mailer in dev).
         mailer
           .update(
             {
@@ -4198,39 +4205,30 @@ const createUserModule = {
       // This will trigger the 'save' middleware, including validators
       const updatedUser = await user.save();
 
-      const { email, firstName, lastName } = updatedUser;
-
-      const responseFromSendEmail = await mailer.updateForgottenPassword(
-        {
-          email,
-          firstName,
-          lastName,
-        },
-        next
-      );
-
-      if (responseFromSendEmail) {
-        if (responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "Password reset successful",
-            data: updatedUser.toJSON(), // Return sanitized user data
-            status: httpStatus.OK,
-          };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
-        }
-      } else {
-        logger.error(
-          "mailer.updateForgottenPassword did not return a response"
-        );
-        return next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Failed to send update password email" }
+      if (updatedUser) {
+        const { email, firstName, lastName } = updatedUser;
+        // Asynchronously send email without blocking the response.
+        mailer
+          .updateForgottenPassword(
+            {
+              email,
+              firstName,
+              lastName,
+            },
+            next
           )
-        );
+          .catch((error) => {
+            logger.error(
+              `Failed to send password reset confirmation email to ${email}: ${error.message}`
+            );
+          });
+
+        return {
+          success: true,
+          message: "Password reset successful",
+          data: updatedUser.toJSON(),
+          status: httpStatus.OK,
+        };
       }
     } catch (error) {
       logObject("error", error);
@@ -4254,6 +4252,7 @@ const createUserModule = {
       );
     }
   },
+
   generateResetToken: (next) => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
