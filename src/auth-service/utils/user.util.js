@@ -4165,40 +4165,44 @@ const createUserModule = {
 
   initiatePasswordReset: async ({ email, token, tenant }) => {
     try {
-      const update = {
-        resetPasswordToken: token,
-        resetPasswordExpires: Date.now() + 3600000,
-      };
-      const responseFromModifyUser = await UserModel(tenant)
-        .findOneAndUpdate({ email }, update, { new: true })
-        .select("firstName lastName email");
+      // Find the user by email first.
+      const user = await UserModel(tenant).findOne({ email });
 
-      if (isEmpty(responseFromModifyUser)) {
-        throw new HttpError("User not found", httpStatus.NOT_FOUND, {
-          message: "user does not exist, please crosscheck",
-        });
+      // If a user is found, update their document and send the email.
+      if (user) {
+        user.resetPasswordToken = token;
+        user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+        await user.save();
+
+        // Send the password reset email.
+        await mailer.sendPasswordResetEmail({ email, token, tenant });
       }
 
-      await mailer.sendPasswordResetEmail({ email, token, tenant });
-
+      // Always return a success message to prevent user enumeration.
+      // This is a security best practice.
       return {
         success: true,
-        message: "Password reset email sent successfully",
+        message:
+          "If an account with that email exists, you will receive a password reset code shortly.",
       };
     } catch (error) {
+      // Log the actual error for debugging, but don't expose details to the client.
       logger.error(
         `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`
       );
-      if (error instanceof HttpError) {
-        throw error;
-      }
+      // Re-throw a generic error to be handled by the controller.
+      // This prevents leaking implementation details.
       throw new HttpError(
         "Unable to initiate password reset",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        {
+          message:
+            "An internal error occurred during the password reset process.",
+        }
       );
     }
   },
+
   resetPassword: async ({ token, password, tenant }, next) => {
     try {
       const resetPasswordToken = token;
