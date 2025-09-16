@@ -119,6 +119,9 @@ class DataUtils:
         if device_network:
             devices = devices.loc[devices.network == device_network.str]
 
+        # Rename columns some columns to match expected names.
+        devices.rename(columns={"mountType": "mount_type"}, inplace=True)
+
         return devices
 
     def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict:
@@ -224,10 +227,11 @@ class DataUtils:
         devices, keys = DataUtils.get_devices(device_category, device_network)
 
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
-        if is_mobile_category and "assigned_grid" in devices.columns:
+        if is_mobile_category:
             # Device registry metadata has multiple devices tagged as mobile and yet aren't
-            # devices = devices[devices["mobility"] == True]
-            devices = devices[devices["assigned_grid"].apply(has_valid_dict)]
+            devices = devices[
+                (devices["mobility"] == True) & (devices["mount_type"] == "vehicle")
+            ]
 
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
