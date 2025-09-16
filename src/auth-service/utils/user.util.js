@@ -3909,7 +3909,7 @@ const createUserModule = {
           return {
             success: true,
             message: "Password has been reset successfully",
-            data: updatedUser,
+            data: updatedUser.toJSON(),
             status: httpStatus.OK,
           };
         } else if (
