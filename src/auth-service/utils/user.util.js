@@ -274,6 +274,134 @@ const getCache = async (request, next) => {
 };
 
 const createUserModule = {
+  _getEnhancedProfile: async ({ userId, tenant }, next) => {
+    try {
+      // Get user permissions context
+      const permissionsRequest = {
+        body: { userId },
+        query: { tenant },
+      };
+
+      const permissionsResult =
+        await createUserModule.getUserContextPermissions(
+          permissionsRequest,
+          next
+        );
+
+      if (!permissionsResult.success) {
+        logger.error("Failed to get user permissions for profile", {
+          userId,
+          tenant,
+          error: permissionsResult.message,
+        });
+        return permissionsResult;
+      }
+
+      // Get basic user data
+      const basicUser = await UserModel(tenant)
+        .findById(userId)
+        .select("-password -resetPasswordToken -resetPasswordExpires")
+        .lean();
+
+      if (!basicUser) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User profile not found" },
+        };
+      }
+
+      // Manually populate group_roles.group if they exist
+      let populatedUser = { ...basicUser };
+
+      if (basicUser.group_roles && basicUser.group_roles.length > 0) {
+        try {
+          const GroupModel = require("@models/Group");
+          const groupIds = basicUser.group_roles.map((gr) => gr.group);
+
+          const groups = await GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean();
+
+          populatedUser.group_roles = basicUser.group_roles.map(
+            (groupRole) => ({
+              ...groupRole,
+              group:
+                groups.find(
+                  (g) => g._id.toString() === groupRole.group.toString()
+                ) || groupRole.group,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate group roles: ${error.message}`);
+          populatedUser.group_roles = basicUser.group_roles;
+        }
+      }
+
+      // Manually populate network_roles.network if they exist
+      if (basicUser.network_roles && basicUser.network_roles.length > 0) {
+        try {
+          const NetworkModel = require("@models/Network");
+          const networkIds = basicUser.network_roles.map((nr) => nr.network);
+
+          const networks = await NetworkModel(tenant)
+            .find({ _id: { $in: networkIds } })
+            .select("net_name net_status net_acronym")
+            .lean();
+
+          populatedUser.network_roles = basicUser.network_roles.map(
+            (networkRole) => ({
+              ...networkRole,
+              network:
+                networks.find(
+                  (n) => n._id.toString() === networkRole.network.toString()
+                ) || networkRole.network,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate network roles: ${error.message}`);
+          populatedUser.network_roles = basicUser.network_roles;
+        }
+      }
+
+      const user = populatedUser;
+
+      const enhancedProfile = {
+        ...user,
+        ...permissionsResult.data.permissions,
+        profileLastUpdated: new Date().toISOString(),
+        hasEnhancedPermissions: true,
+        contextSummary: {
+          totalPermissions:
+            permissionsResult.data.permissions?.allPermissions?.length || 0,
+          groupMemberships:
+            permissionsResult.data.permissions?.groupMemberships?.length || 0,
+          networkMemberships:
+            permissionsResult.data.permissions?.networkMemberships?.length || 0,
+          isSuperAdmin:
+            permissionsResult.data.permissions?.isSuperAdmin || false,
+        },
+      };
+
+      return {
+        success: true,
+        message: "Enhanced profile retrieved successfully",
+        data: enhancedProfile,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 _getEnhancedProfile util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve enhanced profile" },
+      };
+    }
+  },
+
   listLogs: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
@@ -3815,6 +3943,82 @@ const createUserModule = {
       );
     }
   },
+  updateKnownPassword: async (request, next) => {
+    try {
+      const { old_password, password: new_password } = request.body || {};
+      const { tenant } = request.query || {};
+      const userId = request.user?._id;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      if (!old_password || !new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "old_password and new password are required",
+          })
+        );
+      }
+
+      if (!userId) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+
+      const user = await UserModel(dbTenant).findById(userId);
+
+      if (!user) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if the old password is correct
+      const isPasswordValid = await user.authenticateUser(old_password);
+      if (!isPasswordValid) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Invalid old password",
+          })
+        );
+      }
+
+      if (old_password === new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "New password must be different from old password",
+          })
+        );
+      }
+
+      // Set the new password and save. The pre-save hook will hash it.
+      user.password = new_password;
+      // Clear any residual reset tokens (defensive)
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
+      await user.save();
+
+      return {
+        success: true,
+        message: "Password updated successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
@@ -4848,24 +5052,10 @@ const createUserModule = {
           : mongoose.Types.ObjectId.isValid(v)
           ? new mongoose.Types.ObjectId(v)
           : v;
-      let finalGroupRoles = Array.isArray(user.group_roles)
-        ? user.group_roles.map((a) => ({
-            ...(a?.toObject?.() ?? a),
-            group: toObjectId(a.group),
-            role: toObjectId(a.role),
-          }))
-        : [];
-      let finalNetworkRoles = Array.isArray(user.network_roles)
-        ? user.network_roles.map((a) => ({
-            ...(a?.toObject?.() ?? a),
-            network: toObjectId(a.network),
-            role: toObjectId(a.role),
-          }))
-        : [];
 
-      // --- 1. Consolidate duplicate roles for all GROUPS ---
+      // --- 1. Consolidate duplicate roles for all GROUPS (Safer Implementation) ---
       const groupRoleMap = new Map();
-      finalGroupRoles.forEach((assignment) => {
+      (user.group_roles || []).forEach((assignment) => {
         if (assignment && assignment.group) {
           const groupId = assignment.group.toString();
           if (!groupRoleMap.has(groupId)) groupRoleMap.set(groupId, []);
@@ -4873,13 +5063,18 @@ const createUserModule = {
         }
       });
 
+      const consolidatedGroupRoles = [];
       for (const [groupId, assignments] of groupRoleMap.entries()) {
         if (assignments.length > 1) {
           logger.info(
             `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
           );
           const group = await GroupModel(tenant).findById(groupId).lean();
-          if (!group) continue;
+          if (!group) {
+            // If group doesn't exist, keep the assignments to be filtered later
+            consolidatedGroupRoles.push(...assignments);
+            continue;
+          }
 
           let desiredRole;
           if (group.grp_title.toLowerCase() === "airqo") {
@@ -4887,13 +5082,16 @@ const createUserModule = {
               .find({ group_id: groupId })
               .lean();
             const superAdminRole = possibleRoles.find(
-              (r) => r.role_code?.toUpperCase() === "AIRQO_SUPER_ADMIN"
+              (r) =>
+                r.role_code && r.role_code.toUpperCase() === "AIRQO_SUPER_ADMIN"
             );
             const adminRole = possibleRoles.find(
-              (r) => r.role_code?.toUpperCase() === "AIRQO_ADMIN"
+              (r) => r.role_code && r.role_code.toUpperCase() === "AIRQO_ADMIN"
             );
             const defaultUserRole = possibleRoles.find(
-              (r) => r.role_code?.toUpperCase() === "AIRQO_DEFAULT_USER"
+              (r) =>
+                r.role_code &&
+                r.role_code.toUpperCase() === "AIRQO_DEFAULT_USER"
             );
             const userRoleIds = new Set(
               assignments.map((a) => a.role && a.role.toString())
@@ -4919,7 +5117,9 @@ const createUserModule = {
             const prefer = (suffix) =>
               possibleRoles.find(
                 (r) =>
-                  r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+                  r.role_code &&
+                  r.role_code.endsWith(suffix) &&
+                  present.has(r._id.toString())
               );
             desiredRole =
               prefer("_SUPER_ADMIN") ||
@@ -4939,9 +5139,6 @@ const createUserModule = {
           }
 
           if (desiredRole) {
-            finalGroupRoles = finalGroupRoles.filter(
-              (a) => !a.group || a.group.toString() !== groupId
-            );
             const earliestCreatedAt = new Date(
               Math.min(
                 ...assignments.map((a) =>
@@ -4949,19 +5146,26 @@ const createUserModule = {
                 )
               )
             );
-            finalGroupRoles.push({
+            consolidatedGroupRoles.push({
               group: mongoose.Types.ObjectId(groupId),
               role: desiredRole._id,
               userType: "user",
               createdAt: earliestCreatedAt,
             });
+          } else {
+            // Fallback: if no desired role is found, keep the first one to prevent data loss
+            consolidatedGroupRoles.push(assignments[0]);
           }
+        } else {
+          // Only one role for this group, keep it.
+          consolidatedGroupRoles.push(assignments[0]);
         }
       }
+      let finalGroupRoles = consolidatedGroupRoles;
 
       // --- 2. Consolidate duplicate roles for NETWORKS ---
       const networkRoleMap = new Map();
-      finalNetworkRoles.forEach((assignment) => {
+      (user.network_roles || []).forEach((assignment) => {
         if (assignment && assignment.network) {
           const networkId = assignment.network.toString();
           if (!networkRoleMap.has(networkId)) networkRoleMap.set(networkId, []);
@@ -4969,13 +5173,17 @@ const createUserModule = {
         }
       });
 
+      const consolidatedNetworkRoles = [];
       for (const [networkId, assignments] of networkRoleMap.entries()) {
         if (assignments.length > 1) {
           logger.info(
             `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
           );
           const network = await NetworkModel(tenant).findById(networkId).lean();
-          if (!network) continue;
+          if (!network) {
+            consolidatedNetworkRoles.push(...assignments);
+            continue;
+          }
 
           const possibleRoles = await RoleModel(tenant)
             .find({ network_id: mongoose.Types.ObjectId(networkId) })
@@ -4986,7 +5194,9 @@ const createUserModule = {
           const prefer = (suffix) =>
             possibleRoles.find(
               (r) =>
-                r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+                r.role_code &&
+                r.role_code.endsWith(suffix) &&
+                present.has(r._id.toString())
             );
           let desiredRole =
             prefer("_SUPER_ADMIN") ||
@@ -5005,9 +5215,6 @@ const createUserModule = {
           }
 
           if (desiredRole) {
-            finalNetworkRoles = finalNetworkRoles.filter(
-              (a) => !a.network || a.network.toString() !== networkId
-            );
             const earliestCreatedAtNet = new Date(
               Math.min(
                 ...assignments.map((a) =>
@@ -5015,15 +5222,20 @@ const createUserModule = {
                 )
               )
             );
-            finalNetworkRoles.push({
+            consolidatedNetworkRoles.push({
               network: mongoose.Types.ObjectId(networkId),
               role: desiredRole._id,
               userType: "user",
               createdAt: earliestCreatedAtNet,
             });
+          } else {
+            consolidatedNetworkRoles.push(assignments[0]);
           }
+        } else {
+          consolidatedNetworkRoles.push(assignments[0]);
         }
       }
+      let finalNetworkRoles = consolidatedNetworkRoles;
 
       // --- 3. Remove Deprecated Roles ---
       const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
@@ -5074,20 +5286,25 @@ const createUserModule = {
       }
 
       // --- 5. Compare final arrays with originals to see if an update is needed ---
-      const canonicalize = (arr, type) =>
-        (arr || [])
-          .map((a) => ({
-            ctx:
-              type === "group"
-                ? a.group?.toString?.()
-                : a.network?.toString?.(),
-            role: a.role?.toString?.(),
-            userType: a.userType || "user",
-          }))
-          .filter((x) => x.ctx && x.role)
+      const canonicalize = (arr, type) => {
+        if (!Array.isArray(arr)) {
+          return [];
+        }
+        return arr
+          .map((a) => {
+            if (!a) return null;
+            const ctxId = type === "group" ? a.group : a.network;
+            return {
+              ctx: ctxId ? ctxId.toString() : null,
+              role: a.role ? a.role.toString() : null,
+              userType: a.userType || "user",
+            };
+          })
+          .filter((x) => x && x.ctx && x.role)
           .sort(
             (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
           );
+      };
 
       const originalGroupCanon = canonicalize(user.group_roles, "group");
       const finalGroupCanon = canonicalize(finalGroupRoles, "group");
@@ -5100,16 +5317,20 @@ const createUserModule = {
         JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
       ) {
         // keep DB arrays deterministically ordered as well
-        finalGroupRoles = finalGroupRoles.sort(
-          (a, b) =>
-            a.group.toString().localeCompare(b.group.toString()) ||
-            a.role.toString().localeCompare(b.role.toString())
-        );
-        finalNetworkRoles = finalNetworkRoles.sort(
-          (a, b) =>
-            a.network.toString().localeCompare(b.network.toString()) ||
-            a.role.toString().localeCompare(b.role.toString())
-        );
+        finalGroupRoles = finalGroupRoles
+          .filter((r) => r && r.group && r.role)
+          .sort(
+            (a, b) =>
+              a.group.toString().localeCompare(b.group.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
+        finalNetworkRoles = finalNetworkRoles
+          .filter((r) => r && r.network && r.role)
+          .sort(
+            (a, b) =>
+              a.network.toString().localeCompare(b.network.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
         updateQuery.$set = {
           group_roles: finalGroupRoles,
           network_roles: finalNetworkRoles,
@@ -5132,7 +5353,9 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(
-        `[Role Cleanup] Error during role cleanup for ${user.email}: ${error.message}`
+        `[Role Cleanup] Error during role cleanup for ${
+          user ? user.email : "unknown user"
+        }: ${error.message}`
       );
     }
   },
@@ -5399,7 +5622,7 @@ const createUserModule = {
 
       // Define a transition period cutoff date from constants, with fallbacks.
       let transitionCutoffDate = new Date(
-        constants.AUTH?.TOKEN_TRANSITION_CUTOFF_DATE ||
+        (constants.AUTH && constants.AUTH.TOKEN_TRANSITION_CUTOFF_DATE) ||
           process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
           "2025-10-15T00:00:00Z"
       );
@@ -5414,14 +5637,20 @@ const createUserModule = {
 
       const now = new Date();
       const isWithinTransitionPeriod = now < transitionCutoffDate;
-      let effectiveExpiresIn = "24h";
+      // Set the default token expiration. This will be used after the transition period ends.
+      let effectiveExpiresIn =
+        (constants.AUTH && constants.AUTH.DEFAULT_TOKEN_EXPIRATION) || "24h";
 
-      // During the transition period, all tokens will have a dynamic expiry
-      // to ensure they last until the cutoff date, giving clients time to update.
+      /**
+       * Token Expiration Logic:
+       * 1. If we are WITHIN the transition period (before the cutoff date),
+       *    calculate a dynamic expiry to last until the cutoff date. This gives
+       *    all clients, especially mobile apps, a grace period to update.
+       * 2. If we are AFTER the transition period, use the standard default expiration (e.g., "24h").
+       */
       if (isWithinTransitionPeriod) {
         const remainingMilliseconds =
           transitionCutoffDate.getTime() - now.getTime();
-        // Calculate remaining days, rounding up to ensure it covers the full day.
         const remainingDays = Math.ceil(
           remainingMilliseconds / (1000 * 60 * 60 * 24)
         );

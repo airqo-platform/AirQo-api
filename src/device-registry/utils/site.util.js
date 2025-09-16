@@ -1314,8 +1314,8 @@ const createSite = {
         skip,
         limit,
         tenant: rawTenant,
-        useCache = "true", // default to true for performance
-        detailLevel = "full", // default to full for backward compatibility
+        useCache = "true",
+        detailLevel = "full",
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const devicesColl = DeviceModel(tenant).collection.name;
@@ -1528,6 +1528,7 @@ const createSite = {
       );
     }
   },
+
   listAirQoActive: async (request, next) => {
     try {
       const { skip, limit, tenant } = request.query;

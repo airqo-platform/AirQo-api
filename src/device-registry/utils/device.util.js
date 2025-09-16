@@ -1224,6 +1224,7 @@ const deviceUtil = {
       );
     }
   },
+
   clear: (request, next) => {
     return {
       success: false,
