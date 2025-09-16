@@ -48,7 +48,6 @@ function validateProfilePicture(profilePicture) {
   return true;
 }
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
-
 const networkRoleSchema = new Schema({
   network: {
     type: Schema.Types.ObjectId,
@@ -272,7 +271,7 @@ const UserSchema = new Schema(
       minlength: [6, "Password is required"],
       validate: {
         validator(password) {
-          return passwordReg.test(password);
+          return constants.PASSWORD_REGEX.test(password);
         },
         message: "{VALUE} is not a valid password, please check documentation!",
       },
