@@ -880,15 +880,22 @@ class BigQueryApi:
             google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
         where_clause: str = ""
+        query_params: list = []
         filter, filter_val = next(iter(filter.items()))
         if filter:
             if isinstance(filter_val, str):
-                where_clause = f"WHERE {filter} = '{filter_val}'"
+                where_clause = f"WHERE {filter} = @filter_value"
+                query_params.append(
+                    bigquery.ArrayQueryParameter("filter_value", "STRING", filter_val)
+                )
             elif isinstance(filter_val, list):
                 for val in filter_val:
                     if not isinstance(val, str):
                         raise ValueError("Filter values must be strings.")
-                    where_clause += f"WHERE {filter} = '{val}' OR "
+                    where_clause += f"WHERE {filter} = @filter_value OR "
+                    query_params.append(
+                        bigquery.ArrayQueryParameter("filter_value", "STRING", val)
+                    )
                 where_clause = where_clause.rstrip(" OR ")
 
         selected_columns = ", ".join(columns) if columns else "*"
@@ -901,11 +908,6 @@ class BigQueryApi:
         """
 
         try:
-            query_params = []
-            if filter and isinstance(filter_val, list):
-                query_params.append(
-                    bigquery.ArrayQueryParameter("filter_value", "STRING", filter_val)
-                )
             job_config = bigquery.QueryJobConfig(query_parameters=query_params)
             return (
                 self.client.query(query=query, job_config=job_config)
