@@ -268,6 +268,7 @@ class RBACMigrationUtility {
         role_description: `Super Administrator for ${group.grp_title}`,
         permissions: [
           "GROUP_MANAGEMENT",
+          "GROUP_USER_ASSIGN",
           "USER_MANAGEMENT",
           "ROLE_ASSIGNMENT",
           "SETTINGS_EDIT",
@@ -282,6 +283,7 @@ class RBACMigrationUtility {
         role_description: `Group Administrator for ${group.grp_title}`,
         permissions: [
           "GROUP_EDIT",
+          "GROUP_USER_ASSIGN",
           "USER_MANAGEMENT",
           "MEMBER_VIEW",
           "MEMBER_INVITE",
@@ -298,6 +300,7 @@ class RBACMigrationUtility {
         permissions: [
           "GROUP_VIEW",
           "MEMBER_VIEW",
+          "GROUP_USER_ASSIGN",
           "MEMBER_INVITE",
           "DASHBOARD_VIEW",
           "ANALYTICS_VIEW",
