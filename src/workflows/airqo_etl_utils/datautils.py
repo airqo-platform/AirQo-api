@@ -10,7 +10,7 @@ import ast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs, drop_rows_with_bad_data, has_valid_dict
+from .commons import download_file_from_gcs, drop_rows_with_bad_data
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
@@ -64,6 +64,8 @@ class DataUtils:
         Raises:
             RuntimeError: If devices data cannot be obtained from either the cache or the API.
         """
+        # TODO: Add bigquery as a source of devices as a 3rd option and also centralize any device cleaning logic
+        # There might be some repeated devices data cleaning/column renaming/normalization logic in other places
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
         keys: Dict = {}
@@ -118,9 +120,6 @@ class DataUtils:
 
         if device_network:
             devices = devices.loc[devices.network == device_network.str]
-
-        # Rename columns some columns to match expected names.
-        devices.rename(columns={"mountType": "mount_type"}, inplace=True)
 
         return devices
 
@@ -311,7 +310,7 @@ class DataUtils:
             logger.info(f"No data returned from {device.name} for the given date range")
 
     @staticmethod
-    def compute_device_site_metadata(
+    def compute_device_site_metadata_per_device(
         table: str,
         unique_id: str,
         entity: Dict[str, Any],
@@ -329,7 +328,7 @@ class DataUtils:
             unique_id(str): The unique identifier for the entity (e.g., "device_id" or "site_id").
             entity(Dict[str, Any]): A dictionary containing entity details, including:
                 - "device_maintenance" (str): The last maintenance date.
-                - "offset_date" (str): The previous offset date.
+                - "next_offset_date" (str): The previous offset date.
                 - The unique identifier (e.g., "device_id" or "site_id").
             column(str): The column to compute metadata for (e.g., pollutant type).
             frequency(Optional[Frequency], default=Frequency.WEEKLY): The frequency for metadata computation. Defaults to weekly.
@@ -344,7 +343,7 @@ class DataUtils:
             logger.info("Device maintenance date is missing or invalid.")
             return pd.DataFrame()
 
-        device_previous_offset = entity.get("offset_date", None)
+        device_previous_offset = entity.get("next_offset_date", None)
         start_date = max(
             device_maintenance,
             device_maintenance
@@ -354,7 +353,6 @@ class DataUtils:
         entity_id = entity.get(unique_id)
         extra_id = entity.get("site_id") if unique_id == "device_id" else None
         end_date = str_to_date(start_date) + timedelta(days=frequency.value)
-
         if end_date > datetime.today():
             logger.info(f"End date {end_date} cannot be in the future.")
             return pd.DataFrame()
@@ -369,19 +367,20 @@ class DataUtils:
             unique_id=unique_id,
             filter=entity_id,
             pollutant=column,
-            frequency=frequency,
         )
         if not data.empty:
-            data["offset_date"] = end_date
+            data["next_offset_date"] = end_date
             data[unique_id] = entity_id
             if extra_id:
                 data["site_id"] = extra_id
             data["created"] = datetime.now(timezone.utc)
-            data["recent_maintenance_date"] = device_maintenance
+            data["recent_maintenance_date"] = date_to_str(
+                str_to_date(device_maintenance)
+            )
             data.dropna(
                 inplace=True,
                 how="any",
-                subset=["pollutant", "minimum", "maximum", "average"],
+                subset=["pollutant", "minimum", "maximum", "average", "site_id"],
             )
         return data
 
@@ -678,8 +677,11 @@ class DataUtils:
         return raw_data
 
     @staticmethod
-    def extract_most_recent_record(
-        metadata_type: MetaDataType, unique_id: str, offset_column: str
+    def extract_most_recent_metadata_record(
+        metadata_type: MetaDataType,
+        unique_id: str,
+        offset_column: str,
+        filter: Dict[str, Any] = None,
     ) -> pd.DataFrame:
         """
         Extracts the most recent record for a specific metadata type and unique ID.
@@ -703,7 +705,11 @@ class DataUtils:
             return pd.DataFrame()
 
         data = big_query_api.fetch_most_recent_record(
-            metadata_table, unique_id, offset_column=offset_column, columns=cols
+            metadata_table,
+            unique_id,
+            offset_column=offset_column,
+            columns=cols,
+            filter=filter,
         )
         return data
 
@@ -1614,7 +1620,6 @@ class DataUtils:
         except Exception as e:
             logger.exception(f"Possible table and column mismatch: {e}")
             raise
-
         if "timestamp" in data.columns:
             data.dropna(subset=["timestamp"], inplace=True)
 
@@ -1910,6 +1915,25 @@ class DataUtils:
                 f"An unexpected error occurred during column retrieval: {e}"
             )
         return None, []
+
+    def get_columns(table: str) -> List[str]:
+        """
+        Retrieves the column names for a specified BigQuery table.
+
+        Args:
+            table (str): The name of the BigQuery table.
+        Returns:
+            List[str]: A list of column names for the specified table. If the table does not exist or an error occurs, returns an empty list.
+        """
+        bigquery = BigQueryApi()
+        try:
+            cols = bigquery.get_columns(table=table)
+            return cols
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during column retrieval: {e}"
+            )
+        return []
 
     def _get_metadata_table(
         metadata_type: MetaDataType,
