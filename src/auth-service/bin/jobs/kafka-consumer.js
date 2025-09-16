@@ -24,6 +24,10 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 
+let cachedBlacklistedRanges = [];
+let cacheLastUpdated = 0;
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
 const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
 }).unknown(true);
@@ -125,97 +129,74 @@ const operationForNewMobileAppUser = async (messageData) => {
   }
 };
 
+const getBlacklistedRanges = async () => {
+  const now = Date.now();
+  if (
+    now - cacheLastUpdated < CACHE_TTL &&
+    cachedBlacklistedRanges.length > 0
+  ) {
+    return cachedBlacklistedRanges;
+  }
+
+  let allRanges = [];
+  let pageNumber = 1;
+  const limit = 1000;
+
+  try {
+    while (true) {
+      const ranges = await BlacklistedIPRangeModel("airqo")
+        .find()
+        .select("range")
+        .lean()
+        .skip((pageNumber - 1) * limit)
+        .limit(limit);
+
+      if (ranges.length === 0) {
+        break;
+      }
+      allRanges = allRanges.concat(ranges);
+      pageNumber++;
+    }
+
+    cachedBlacklistedRanges = allRanges;
+    cacheLastUpdated = now;
+    logger.info(
+      `Blacklisted IP ranges cache updated with ${allRanges.length} ranges.`
+    );
+    return cachedBlacklistedRanges;
+  } catch (error) {
+    logger.error(
+      `Failed to fetch blacklisted IP ranges from DB: ${error.message}`
+    );
+    // Return stale cache if available, otherwise empty
+    return cachedBlacklistedRanges || [];
+  }
+};
+
 const operationForBlacklistedIPs = async (messageData) => {
   try {
     // Parse the message
     const { ip } = JSON.parse(messageData);
 
-    let pageNumber = 1;
-    let blacklistedRanges = [];
-    let ipsToBlacklist = [];
+    // Get ranges from cache or DB
+    const blacklistedRanges = await getBlacklistedRanges();
 
-    // Keep fetching and checking until we have gone through all records
-    while (true) {
-      // Fetch the next page of blacklisted ranges
-      blacklistedRanges = await Promise.all([
-        BlacklistedIPRangeModel("airqo")
-          .find()
-          .skip((pageNumber - 1) * 1000)
-          .limit(1000),
-      ]);
-
-      if (blacklistedRanges.length === 0 || blacklistedRanges[0].length === 0) {
-        // If no more ranges, break the loop
+    let ipIsBlacklisted = false;
+    for (const range of blacklistedRanges) {
+      if (rangeCheck(ip, range.range)) {
+        ipIsBlacklisted = true;
         break;
       }
-
-      // Iterate over each range
-      for (const range of blacklistedRanges[0]) {
-        // Check if the IP falls within the range
-        if (rangeCheck(ip, range.range)) {
-          // If the IP falls within the range, add it to the list of IPs to blacklist
-          ipsToBlacklist.push(ip);
-          logger.info(`💪💪 IP ${ip} has been queued for blacklisting...`);
-          break;
-        }
-      }
-
-      pageNumber++;
     }
 
-    // if (ipsToBlacklist.length > 0) {
-    //   await BlacklistedIPModel("airqo").insertMany(
-    //     ipsToBlacklist.map((ip) => ({ ip }))
-    //   );
-    // }
-
-    if (ipsToBlacklist.length > 0) {
-      //prepare for batch operations....
-      const batchSize = 20;
-      const batches = [];
-      for (let i = 0; i < ipsToBlacklist.length; i += batchSize) {
-        batches.push(ipsToBlacklist.slice(i, i + batchSize));
-      }
-
-      for (const batch of batches) {
-        for (const ip of batch) {
-          const doc = { ip: ip };
-          await asyncRetry(
-            async (bail) => {
-              try {
-                const res = await BlacklistedIPModel("airqo").updateOne(
-                  doc,
-                  doc,
-                  {
-                    upsert: true,
-                  }
-                );
-                logObject("res", res);
-                // logObject("Number of documents updated", res.modifiedCount);
-              } catch (error) {
-                if (error.name === "MongoError" && error.code !== 11000) {
-                  logger.error(
-                    `🐛🐛 MongoError -- operationForBlacklistedIPs -- ${jsonify(
-                      error
-                    )}`
-                  );
-                  throw error; // Retry the operation
-                } else if (error.code === 11000) {
-                  // Ignore duplicate key errors
-                  console.warn(
-                    `Duplicate key error for document: ${jsonify(doc)}`
-                  );
-                }
-              }
-            },
-            {
-              retries: 5, // Number of retry attempts
-              minTimeout: 1000, // Initial delay between retries (in milliseconds)
-              factor: 2, // Exponential factor for increasing delay between retries
-            }
-          );
-        }
-      }
+    if (ipIsBlacklisted) {
+      logger.info(`💪💪 IP ${ip} is in a blacklisted range. Blacklisting...`);
+      const doc = { ip: ip };
+      await asyncRetry(async () => {
+        await BlacklistedIPModel("airqo").updateOne(doc, doc, {
+          upsert: true,
+        });
+      });
     }
   } catch (error) {
     logger.error(
