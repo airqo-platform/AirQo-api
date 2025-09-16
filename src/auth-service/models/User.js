@@ -1431,34 +1431,25 @@ UserSchema.statics.assignUserToGroup = async function (
   userType = "user"
 ) {
   try {
-    // Check if user exists first
     const user = await this.findById(userId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // First remove any existing role for this group
-    await this.findByIdAndUpdate(userId, {
-      $pull: {
-        group_roles: { group: groupId },
-      },
+    // Filter out any existing assignment for this group to ensure atomicity
+    user.group_roles = user.group_roles.filter(
+      (gr) => gr.group.toString() !== groupId.toString()
+    );
+
+    // Add the new role
+    user.group_roles.push({
+      group: groupId,
+      role: roleId,
+      userType: userType,
+      createdAt: new Date(),
     });
 
-    // Then add the new role
-    const updatedUser = await this.findByIdAndUpdate(
-      userId,
-      {
-        $addToSet: {
-          group_roles: {
-            group: groupId,
-            role: roleId,
-            userType: userType,
-            createdAt: new Date(),
-          },
-        },
-      },
-      { new: true }
-    );
+    const updatedUser = await user.save();
 
     return {
       success: true,
@@ -1482,34 +1473,25 @@ UserSchema.statics.assignUserToNetwork = async function (
   userType = "user"
 ) {
   try {
-    // Check if user exists first
     const user = await this.findById(userId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // First remove any existing role for this network
-    await this.findByIdAndUpdate(userId, {
-      $pull: {
-        network_roles: { network: networkId },
-      },
+    // Filter out any existing assignment for this network to ensure atomicity
+    user.network_roles = user.network_roles.filter(
+      (nr) => nr.network.toString() !== networkId.toString()
+    );
+
+    // Add the new role
+    user.network_roles.push({
+      network: networkId,
+      role: roleId,
+      userType: userType,
+      createdAt: new Date(),
     });
 
-    // Then add the new role
-    const updatedUser = await this.findByIdAndUpdate(
-      userId,
-      {
-        $addToSet: {
-          network_roles: {
-            network: networkId,
-            role: roleId,
-            userType: userType,
-            createdAt: new Date(),
-          },
-        },
-      },
-      { new: true }
-    );
+    const updatedUser = await user.save();
 
     return {
       success: true,
