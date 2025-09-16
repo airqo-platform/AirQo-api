@@ -7,6 +7,7 @@ const logger = log4js.getLogger(
 const { mailer, stringify, emailTemplates } = require("@utils/common");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
+const net = require("net");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const UserModel = require("@models/User");
@@ -146,7 +147,7 @@ const getBlacklistedRanges = async () => {
     while (true) {
       const ranges = await BlacklistedIPRangeModel("airqo")
         .find()
-        .select("range")
+        .select("range -_id")
         .lean()
         .skip((pageNumber - 1) * limit)
         .limit(limit);
@@ -154,7 +155,7 @@ const getBlacklistedRanges = async () => {
       if (ranges.length === 0) {
         break;
       }
-      allRanges = allRanges.concat(ranges);
+      allRanges = allRanges.concat(ranges.map((r) => r.range));
       pageNumber++;
     }
 
@@ -177,26 +178,28 @@ const operationForBlacklistedIPs = async (messageData) => {
   try {
     // Parse the message
     const { ip } = JSON.parse(messageData);
+    if (typeof ip !== "string" || !net.isIP(ip)) {
+      logger.warn("Skipping blacklisting: invalid or missing IP.");
+      return;
+    }
 
     // Get ranges from cache or DB
     const blacklistedRanges = await getBlacklistedRanges();
 
-    let ipIsBlacklisted = false;
-    for (const range of blacklistedRanges) {
-      if (rangeCheck(ip, range.range)) {
-        ipIsBlacklisted = true;
-        break;
-      }
-    }
+    const ipIsBlacklisted =
+      blacklistedRanges.length > 0 && rangeCheck(ip, blacklistedRanges);
 
     if (ipIsBlacklisted) {
-      logger.info(`💪💪 IP ${ip} is in a blacklisted range. Blacklisting...`);
+      logger.info("💪💪 IP is in a blacklisted range. Blacklisting...");
       const doc = { ip: ip };
-      await asyncRetry(async () => {
-        await BlacklistedIPModel("airqo").updateOne(doc, doc, {
-          upsert: true,
-        });
-      });
+      await asyncRetry(
+        async () => {
+          await BlacklistedIPModel("airqo").updateOne(doc, doc, {
+            upsert: true,
+          });
+        },
+        { retries: 5, minTimeout: 250, factor: 2 }
+      );
     }
   } catch (error) {
     logger.error(
