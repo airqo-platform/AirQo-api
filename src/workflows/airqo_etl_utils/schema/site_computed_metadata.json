@@ -10,7 +10,7 @@
     "mode": "REQUIRED"
   },
   {
-    "name": "offset_date",
+    "name": "next_offset_date",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"
   },

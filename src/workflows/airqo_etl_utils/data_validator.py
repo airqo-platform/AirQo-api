@@ -2,7 +2,7 @@ from itertools import chain
 import logging
 import numpy as np
 import pandas as pd
-from typing import Optional, List, Any
+from typing import Optional, List
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
 from .config import configuration as Config
@@ -112,7 +112,10 @@ class DataValidationUtils:
         Returns:
             pd.DataFrame: A DataFrame with outliers removed or corrected and data formatted to their respective types (float, integer, timestamp).
         """
+        # TODO: Clean up and remove direct use of BigQueryApi in this method to enhance modularity and testability.
+        # Consider passing necessary metadata as parameters instead.
         big_query_api = BigQueryApi()
+
         column_types = {
             ColumnDataType.FLOAT: big_query_api.get_columns(
                 table="all", column_type=[ColumnDataType.FLOAT]

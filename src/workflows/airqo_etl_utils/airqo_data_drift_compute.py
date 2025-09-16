@@ -68,7 +68,8 @@ class AirQoDataDriftCompute:
         data: pd.DataFrame,
         device: Dict[str, Any],
         pollutants: List[str],
-        resolution: Frequency,
+        data_resolution: Frequency,
+        baseline_type: Frequency,
         window_start: datetime,
         window_end: datetime,
         region_min: Optional[float] = 0,
@@ -83,7 +84,8 @@ class AirQoDataDriftCompute:
             data(pd.DataFrame): DataFrame with device air quality measurements.
             device(Dict[str, Any]): Device dictionary with device metadata.
             pollutants(List[str]): List of pollutant names.
-            resolution(Frequency): Frequency of the data (e.g., RAW, HOURLY, WEEKLY, MONTHLY).
+            data_resolution(Frequency): Frequency of the data (e.g., RAW, HOURLY).
+            baseline_type(Frequency): Type of baseline (e.g., WEEKLY, MONTHLY).
             window_start(datetime): Start of baseline window.
             window_end(datetime): End of baseline window.
             region_min(float, optional): Region-wide minimum value. Defaults to 0.
@@ -110,7 +112,7 @@ class AirQoDataDriftCompute:
         device_number = data.iloc[0]["device_number"]
         device_category = data.iloc[0]["device_category"]
         sample_count: int = data.shape[0]
-        expected_samples: int = cls.calculate_expected_sample_count(resolution)
+        expected_samples: int = cls.calculate_expected_sample_count(data_resolution)
         sample_coverage_pct: float = (
             (sample_count / expected_samples) * 100 if expected_samples > 0 else 0.0
         )
@@ -161,8 +163,8 @@ class AirQoDataDriftCompute:
 
         baseline_id = str(uuid.uuid4())
         # The baseline_id can be unique but multi-pollutant in this case considers a device having two sensors measuring the same thing and not actually two different pollutants.
-        # Logic can be modified to handle multiple/different pollutants later.
-        # When this is done, consider updating and or automating the baseline version changes to enable tracking
+        # TODO: Logic can be modified to handle multiple/different pollutants later.
+        # TODO: When this is done, consider updating and or automating the baseline version changes to enable tracking
         baseline_rows: List[Dict[str, Any]] = []
         for pollutant in pollutants:
             baseline_row = {
@@ -171,7 +173,8 @@ class AirQoDataDriftCompute:
                 "device_id": device["device_id"],
                 "site_id": device["site_id"],
                 "data_type": data_type.str,
-                "baseline_resolution": resolution.str,
+                "baseline_resolution": data_resolution.str,
+                "baseline_type": baseline_type.str,
                 "device_number": device_number,
                 "device_category": device_category,
                 "baseline_id": baseline_id,

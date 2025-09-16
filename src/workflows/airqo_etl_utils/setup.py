@@ -22,6 +22,7 @@ setup(
         "python-dotenv",
         "google-cloud-bigquery",
         "google-cloud-storage",
+        "google-cloud-bigquery-storage",
         "firebase-admin",
         "lightgbm~=4.1.0",
         "mlflow",

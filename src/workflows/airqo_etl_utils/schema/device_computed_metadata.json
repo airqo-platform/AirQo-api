@@ -15,9 +15,10 @@
     "mode": "REQUIRED"
   },
   {
-    "name": "offset_date",
+    "name": "next_offset_date",
     "type": "TIMESTAMP",
-    "mode": "REQUIRED"
+    "mode": "REQUIRED",
+    "description": "The next offset_date for the particular entry to avoid overlap of the period for which the statistics are computed."
   },
   {
     "name": "recent_maintenance_date",
