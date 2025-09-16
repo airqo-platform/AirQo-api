@@ -9,6 +9,7 @@ const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const ThemeSchema = require("@models/ThemeSchema");
 const PermissionModel = require("@models/Permission");
+const ClientModel = require("@models/Client");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
@@ -859,12 +860,6 @@ UserSchema.statics = {
       const GroupModel = require("@models/Group");
       const NetworkModel = require("@models/Network");
       const RoleModel = require("@models/Role");
-      const ClientSchema = new mongoose.Schema({}, { strict: false });
-      const ClientModel = getModelByTenant(
-        this.db.name,
-        "client",
-        ClientSchema
-      );
 
       const [
         permissions,
@@ -891,7 +886,9 @@ UserSchema.statics = {
           .find({ _id: { $in: networkIds } })
           .select("net_name")
           .lean(),
-        ClientModel.find({ user_id: { $in: userIds } }).lean(),
+        ClientModel(this.db.name)
+          .find({ user_id: { $in: userIds } })
+          .lean(),
         NetworkModel(this.db.name)
           .find({ net_manager: { $in: userIds } })
           .lean(),
@@ -1009,15 +1006,17 @@ UserSchema.statics = {
         delete populatedUser.password; // Ensure password is not returned
 
         // Format date fields to match previous output
-        const ts = populatedUser._id.getTimestamp();
-        populatedUser.createdAt = `${ts.getFullYear()}-${String(
-          ts.getMonth() + 1
-        ).padStart(2, "0")}-${String(ts.getDate()).padStart(2, "0")} ${String(
-          ts.getHours()
-        ).padStart(2, "0")}:${String(ts.getMinutes()).padStart(
-          2,
-          "0"
-        )}:${String(ts.getSeconds()).padStart(2, "0")}`;
+        if (populatedUser.createdAt) {
+          const ts = new Date(populatedUser.createdAt);
+          populatedUser.createdAt = `${ts.getFullYear()}-${String(
+            ts.getMonth() + 1
+          ).padStart(2, "0")}-${String(ts.getDate()).padStart(2, "0")} ${String(
+            ts.getHours()
+          ).padStart(2, "0")}:${String(ts.getMinutes()).padStart(
+            2,
+            "0"
+          )}:${String(ts.getSeconds()).padStart(2, "0")}`;
+        }
 
         if (populatedUser.updatedAt) {
           populatedUser.updatedAt = new Date(
