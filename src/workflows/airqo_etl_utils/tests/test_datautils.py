@@ -417,13 +417,13 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
             "device_id": "test_device",
             "site_id": "test_site",
             "device_maintenance": "2023-01-01T00:00:00Z",
-            "offset_date": np.nan,
+            "next_offset_date": np.nan,
         }
-        result = DataUtils.compute_device_site_metadata(
+        result = DataUtils.compute_device_site_metadata_per_device(
             table="test_table",
             unique_id="device_id",
             entity=entity,
-            column={"pm2_5": ["pm2_5"], "pm10": ["pm10"]},
+            column={"pollutant": ["pm2_5"]},
         )
 
         self.assertIsInstance(result, pd.DataFrame)
@@ -431,9 +431,8 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
         self.assertIn("pollutant", result.columns)
         self.assertIn("minimum", result.columns)
         self.assertIn("maximum", result.columns)
-        self.assertIn("offset_date", result.columns)
+        self.assertIn("next_offset_date", result.columns)
         self.assertEqual(result.iloc[0]["pollutant"], "pm2_5")
-        self.assertEqual(result.iloc[1]["pollutant"], "pm10")
 
     @patch("airqo_etl_utils.datautils.BigQueryApi")
     def test_compute_device_site_metadata_empty_data(self, MockBigQueryApi):
@@ -445,13 +444,13 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
             "device_id": "test_device",
             "site_id": "test_site",
             "device_maintenance": "2023-01-01T00:00:00Z",
-            "offset_date": np.nan,
+            "next_offset_date": np.nan,
         }
-        result = DataUtils.compute_device_site_metadata(
+        result = DataUtils.compute_device_site_metadata_per_device(
             table="test_table",
             unique_id="device_id",
             entity=entity,
-            column={"pm2_5": ["pm2_5"]},
+            column={"polluttant": ["pm2_5"]},
         )
 
         self.assertIsInstance(result, pd.DataFrame)
@@ -466,22 +465,24 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
         entity = {
             "device_id": "test_device",
             "site_id": "test_site",
-            "device_maintenance": (
+            "recent_maintenance_date": (
                 datetime.now(timezone.utc) - pd.Timedelta(days=10)
             ).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "offset_date": np.nan,
+            "next_offset_date": np.nan,
         }
-        result = DataUtils.compute_device_site_metadata(
+        result = DataUtils.compute_device_site_metadata_per_device(
             table="test_table",
             unique_id="device_id",
             entity=entity,
-            column={"pm2_5": ["pm2_5"]},
+            column={"pollutant": ["pm2_5"]},
         )
 
         self.assertIsInstance(result, pd.DataFrame)
         self.assertTrue(result.empty)
 
-    @patch("airqo_etl_utils.datautils.DataUtils.compute_device_site_metadata")
+    @patch(
+        "airqo_etl_utils.datautils.DataUtils.compute_device_site_metadata_per_device"
+    )
     def test_compute_device_site_metadata_invalid_entity(self, mock_compute_metadata):
         """Test with invalid entity data (missing required fields)."""
         entity = {
@@ -490,11 +491,11 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
         }
         mock_compute_metadata.return_value = pd.DataFrame()
 
-        result = DataUtils.compute_device_site_metadata(
+        result = DataUtils.compute_device_site_metadata_per_device(
             table="test_table",
             unique_id="device_id",
             entity=entity,
-            column={"pm2_5": ["pm2_5"]},
+            column={"pollutant": ["pm2_5"]},
         )
 
         self.assertIsInstance(result, pd.DataFrame)
@@ -503,7 +504,7 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
             table="test_table",
             unique_id="device_id",
             entity=entity,
-            column={"pm2_5": ["pm2_5"]},
+            column={"pollutant": ["pm2_5"]},
         )
 
         class TestExtractMostRecentRecord(unittest.TestCase):
