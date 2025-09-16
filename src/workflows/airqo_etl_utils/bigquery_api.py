@@ -14,6 +14,7 @@ from .constants import (
     DeviceNetwork,
     QueryType,
     MetaDataType,
+    Frequency,
 )
 from .date import date_to_str
 from .utils import Utils
@@ -191,7 +192,8 @@ class BigQueryApi:
             if integer_columns
             else self.get_columns(table=table, column_type=[ColumnDataType.INTEGER])
         )
-
+        # Importing here to avoid circular import issues
+        # TODO: Refactor to avoid circular imports
         from .data_validator import DataValidationUtils
 
         dataframe = DataValidationUtils.format_data_types(
@@ -291,7 +293,6 @@ class BigQueryApi:
         job_config = bigquery.LoadJobConfig(
             write_disposition=job_action.get_name(),
         )
-
         job = self.client.load_table_from_dataframe(
             dataframe, table, job_config=job_config
         )
@@ -786,12 +787,12 @@ class BigQueryApi:
         from a BigQuery table within a given time range, filtered by a unique identifier.
 
         Args:
-            table (str): The name of the BigQuery table to query.
-            start_date_time (str): The start datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
-            end_date_time (str): The end datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
-            unique_id (str): The column name representing the unique identifier for filtering.
-            filter (str): The value to filter the unique identifier by.
-            pollutant (Dict[str, str]): A dictionary of pollutant column names to compute statistics for.
+            table(str): The name of the BigQuery table to query.
+            start_date_time(str): The start datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            end_date_time(str): The end datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            unique_id(str): The column name representing the unique identifier for filtering.
+            filter(str): The value to filter the unique identifier by.
+            pollutant(Dict[str, str]): A dictionary of pollutant column names to compute statistics for.
 
         Returns:
             pd.DataFrame: A DataFrame containing the maximum, minimum, average, and sample count
@@ -817,7 +818,7 @@ class BigQueryApi:
         query = (
             "SELECT " + ", ".join(query_parts) + f" FROM `{table}` "
             f"WHERE timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
-            f"AND {unique_id} = '{filter}'"
+            f"AND {unique_id} = '{filter}' "
         )
         try:
             raw_df = self.client.query(query=query).result().to_dataframe()
@@ -860,6 +861,7 @@ class BigQueryApi:
         unique_id: str,
         offset_column: Optional[str] = "timestamp",
         columns: Optional[List[str]] = None,
+        filter: Optional[Dict[str, Any]] = None,
     ) -> pd.DataFrame:
         """
         Fetches the most recent record for each unique identifier from a specified BigQuery table.
@@ -869,6 +871,7 @@ class BigQueryApi:
             unique_id (str): The column name representing the unique identifier for partitioning.
             offset_column (str): The column name used to determine the most recent record (e.g., a timestamp column).
             columns (Optional[List[str]]): A list of column names to include in the query. If None, selects all columns.
+            filter (Optional[Dict[str, Any]]): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value.
 
         Returns:
             pd.DataFrame: A DataFrame containing the most recent record for each unique identifier.
@@ -876,15 +879,41 @@ class BigQueryApi:
         Raises:
             google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
+        where_clause: str = ""
+        query_params: list = []
+        filter, filter_val = next(iter(filter.items()))
+        if filter:
+            if isinstance(filter_val, str):
+                where_clause = f"WHERE {filter} = @filter_value"
+                query_params.append(
+                    bigquery.ArrayQueryParameter("filter_value", "STRING", filter_val)
+                )
+            elif isinstance(filter_val, list):
+                for val in filter_val:
+                    if not isinstance(val, str):
+                        raise ValueError("Filter values must be strings.")
+                    where_clause += f"WHERE {filter} = @filter_value OR "
+                    query_params.append(
+                        bigquery.ArrayQueryParameter("filter_value", "STRING", val)
+                    )
+                where_clause = where_clause.rstrip(" OR ")
 
         selected_columns = ", ".join(columns) if columns else "*"
+
         query = f"""
         SELECT {selected_columns}
         FROM `{table}`
+        {where_clause}
         QUALIFY ROW_NUMBER() OVER (PARTITION BY {unique_id} ORDER BY {offset_column} DESC) = 1;
         """
+
         try:
-            return self.client.query(query=query).result().to_dataframe()
+            job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+            return (
+                self.client.query(query=query, job_config=job_config)
+                .result()
+                .to_dataframe()
+            )
         except Exception as e:
             logger.exception(f"Error fetching most recent record from BigQuery: {e}")
             raise

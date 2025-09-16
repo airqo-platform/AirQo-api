@@ -65,8 +65,8 @@ class MetaDataUtils:
             },
             inplace=True,
         )
-        devices["device_id"] = devices["name"]
-        devices["last_updated"] = datetime.now(timezone.utc)
+        devices.loc[:, "device_id"] = devices["name"]
+        devices.loc[:, "last_updated"] = datetime.now(timezone.utc)
 
         return devices
 
@@ -92,7 +92,6 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the computed metadata.
         """
-        big_query_api: BigQueryApi = BigQueryApi()
         frequency_: Frequency = frequency
         # Adjust frequency for extra time grouping scenarios
         if frequency.str in Config.extra_time_grouping:
@@ -105,6 +104,10 @@ class MetaDataUtils:
             if device_category == DeviceCategory.LOWCOST
             else None
         )
+        # Uses the device category passed to the function to get pollutants
+        pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
+            data_type.str, None
+        )
 
         metadata_method = {
             MetaDataType.DEVICES: MetaDataUtils.extract_devices,
@@ -112,32 +115,36 @@ class MetaDataUtils:
         }
         unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
 
-        # Retrieve metadata table and columns
-        metadata_table, cols = DataUtils._get_metadata_table(
-            MetaDataType.DATAQUALITYCHECKS, metadata_type
-        )
         entities = metadata_method.get(metadata_type)()
         entities = entities[(entities.network == "airqo") & (entities.deployed == True)]
 
         # Fetch recent readings and merge with entities
-        recent_readings = big_query_api.fetch_most_recent_record(
-            metadata_table, unique_id, offset_column="offset_date", columns=cols
+        pollutants_ = (
+            [p for _, pollutant in pollutants.items() for p in pollutant]
+            if pollutants
+            else None
         )
+        recent_readings = DataUtils.extract_most_recent_metadata_record(
+            MetaDataType.DEVICES,
+            "device_id",
+            "next_offset_date",
+            filter={"pollutant": pollutants_},
+        )
+
         if exclude_column:
-            recent_readings.drop(columns=[exclude_column], inplace=True)
+            recent_readings.drop(
+                columns=[exclude_column], inplace=True, errors="ignore"
+            )
         entities = pd.merge(entities, recent_readings, how="left", on=unique_id)
 
         # Compute additional metadata
         computed_data = []
         data_table, _ = DataUtils._get_table(data_type, device_category_, frequency_)
-        pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
-            data_type.str, None
-        )
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
-                    DataUtils.compute_device_site_metadata,
+                    DataUtils.compute_device_site_metadata_per_device,
                     data_table,
                     unique_id,
                     entity,
@@ -158,7 +165,8 @@ class MetaDataUtils:
             else pd.DataFrame()
         )
         if not computed_data.empty:
-            computed_data["resolution"] = frequency.str
+            computed_data["data_resolution"] = frequency_.str
+            computed_data["baseline_type"] = frequency.str
         return computed_data
 
     @staticmethod
@@ -186,12 +194,29 @@ class MetaDataUtils:
         Raises:
             ValueError: If no data is found for the specified parameters.
         """
+        frequency_: Frequency = frequency
         if start_date is None or end_date is None:
             start_date, end_date = frequency_to_dates(frequency)
 
-        device_metadata = DataUtils.extract_most_recent_record(
-            MetaDataType.DEVICES, "device_id", "offset_date"
+        # Uses the device category passed to the function to get pollutants
+        pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
+            data_type.str, None
         )
+        pollutants_ = (
+            [p for _, pollutant in pollutants.items() for p in pollutant]
+            if pollutants
+            else None
+        )
+
+        device_metadata = DataUtils.extract_most_recent_metadata_record(
+            MetaDataType.DEVICES,
+            "device_id",
+            "next_offset_date",
+            pollutant={"pollutant": pollutants_},
+        )
+
+        if frequency.str in Config.extra_time_grouping:
+            frequency_ = Frequency.HOURLY
 
         if device_metadata.empty:
             logger.warning("No device metadata returned")
@@ -225,7 +250,8 @@ class MetaDataUtils:
                     data.loc[data.device_id == device_data["device_id"]],
                     device_data,
                     [device_data["pollutant"]],
-                    resolution=frequency,
+                    data_resolution=frequency_,
+                    baseline_type=frequency,
                     window_start=start_date,
                     window_end=end_date,
                     region_min=device_data["minimum"],

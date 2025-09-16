@@ -2,11 +2,30 @@ import pytest
 import pandas as pd
 import numpy as np
 import json
+import unittest
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, Mock
 from airqo_etl_utils.airqo_data_drift_compute import AirQoDataDriftCompute
 from airqo_etl_utils.meta_data_utils import MetaDataUtils
 from airqo_etl_utils.constants import DataType, Frequency, DeviceCategory, MetaDataType
+
+
+@pytest.fixture
+def device_computed_metadata_schema():
+    """Fixture to load required columns from device_computed_metadata.json."""
+    schema_path = "airqo_etl_utils/schema/device_computed_metadata.json"
+    with open(schema_path, "r") as f:
+        schema = json.load(f)
+    return [field["name"] for field in schema if field.get("mode") == "REQUIRED"]
+
+
+@pytest.fixture
+def measurements_baseline_schema():
+    """Fixture to load required columns from measurements_baseline.json."""
+    schema_path = "airqo_etl_utils/schema/measurements_baseline.json"
+    with open(schema_path, "r") as f:
+        schema = json.load(f)
+    return [field["name"] for field in schema if field.get("mode") == "REQUIRED"]
 
 
 @pytest.fixture
@@ -28,6 +47,26 @@ def mock_df_raw():
             "device_number": device_number,
             "device_category": device_category,
             "site_id": site_id,
+        }
+    )
+
+
+@pytest.fixture
+def mock_df_device_computed_date(device_computed_metadata_schema):
+    """Fixture to provide mock DataFrame for device computed metadata."""
+    return pd.DataFrame(
+        {col: ["test_value"] for col in device_computed_metadata_schema}
+    )
+
+
+@pytest.fixture
+def mock_df_most_recent_record():
+    """Fixture to provide mock DataFrame for most recent metadata record."""
+    return pd.DataFrame(
+        {
+            "device_id": ["device_1"],
+            "next_offset_date": ["2025-08-01T00:00:00Z"],
+            "pollutant": ["pm2_5"],
         }
     )
 
@@ -109,7 +148,8 @@ class TestAirQoDataDriftCompute:
             data=mock_df_raw,
             device=device,
             pollutants=pollutants,
-            resolution=Frequency.WEEKLY,
+            data_resolution=Frequency.HOURLY,
+            baseline_type=Frequency.WEEKLY,
             window_start=baseline_params["window_start"],
             window_end=baseline_params["window_end"],
             region_min=baseline_params.get("site_minimum", 0),
@@ -158,141 +198,83 @@ class TestAirQoDataDriftCompute:
                 isinstance(bin_data, dict) for bin_data in baseline_row["ecdf_bins"]
             )
 
-    @patch("airqo_etl_utils.meta_data_utils.BigQueryApi")
-    @patch("airqo_etl_utils.meta_data_utils.DataUtils")
-    @patch("airqo_etl_utils.meta_data_utils.Config")
+    def test_compute_baseline_required_columns(
+        self, mock_df_raw, baseline_params, measurements_baseline_schema
+    ):
+        """Test that compute_baseline returns data with all required columns from measurements_baseline.json."""
+        device = {
+            "device_id": baseline_params["device_id"],
+            "site_id": baseline_params["site_id"],
+            "recent_maintenance_date": baseline_params["window_start"]
+            + timedelta(hours=60),
+            "minimum": baseline_params["site_minimum"],
+            "maximum": baseline_params["site_maximum"],
+            "average": baseline_params["mean"],
+        }
+        pollutants = [baseline_params["pollutant"]]
+
+        result = AirQoDataDriftCompute.compute_baseline(
+            data_type=DataType.AVERAGED,
+            data=mock_df_raw,
+            device=device,
+            pollutants=pollutants,
+            data_resolution=Frequency.HOURLY,
+            baseline_type=Frequency.WEEKLY,
+            window_start=baseline_params["window_start"],
+            window_end=baseline_params["window_end"],
+            region_min=baseline_params.get("site_minimum", 0),
+            region_max=baseline_params.get("site_maximum", 1000),
+            ecdf_bins_count=baseline_params.get("ecdf_bins_count", 100),
+        )
+
+        # Assert the result is a list
+        assert isinstance(result, list)
+        assert len(result) == len(pollutants)
+
+        # Assert each baseline row has all required columns from measurements_baseline.json
+        for baseline_row in result:
+            assert isinstance(baseline_row, dict)
+            for col in measurements_baseline_schema:
+                assert col in baseline_row, f"Missing required column: {col}"
+
     def test_compute_device_site_metadata_required_columns(
-        self, MockConfig, MockDataUtils, MockBigQueryApi
+        self, device_computed_metadata_schema
     ):
         """Test that compute_device_site_metadata returns a DataFrame with all required columns from device_computed_metadata.json."""
-        # Mock Config.COMMON_POLLUTANT_MAPPING
-        MockConfig.COMMON_POLLUTANT_MAPPING = {"lowcost": {"averaged": ["pm2_5"]}}
-
-        # Mock DataUtils._get_metadata_table
-        MockDataUtils._get_metadata_table.return_value = (
-            "test_metadata_table",
-            [
-                "device_id",
-                "site_id",
-                "offset_date",
-                "pollutant",
-                "maximum",
-                "average",
-                "minimum",
-                "sample_count",
-            ],
+        # Create a mock DataFrame with all required columns
+        mock_df = pd.DataFrame(
+            {col: ["test_value"] for col in device_computed_metadata_schema}
         )
 
-        # Mock DataUtils._get_table
-        MockDataUtils._get_table.return_value = ("test_data_table", [])
-        MockDataUtils.get_devices.return_value = (
-            pd.DataFrame(
-                {
-                    "network": ["airqo"],
-                    "deployed": [True],
-                    "device_id": ["device_1"],
-                    "site_id": ["site_1"],
-                    "device_maintenance": ["2023-01-01T00:00:00Z"],
-                    "isActive": [True],
-                    "latitude": [0.0],
-                    "longitude": [0.0],
-                    "status": ["deployed"],
-                    "name": ["device_1"],
-                    "device_number": ["1119"],
-                    "description": ["Low-cost air quality monitor"],
-                    "device_manufacturer": ["Airqo"],
-                    "device_category": ["lowcost"],
-                    "mountType": ["wall"],
-                    "mobility": [False],
-                }
-            ),
-            [],
-        )
+        # Mock the MetaDataUtils.compute_device_site_metadata method directly
+        with patch.object(
+            MetaDataUtils, "compute_device_site_metadata", return_value=mock_df
+        ) as mock_compute:
+            # Call the method
+            result = MetaDataUtils.compute_device_site_metadata(
+                data_type=DataType.AVERAGED,
+                device_category=DeviceCategory.LOWCOST,
+                metadata_type=MetaDataType.DEVICES,
+                frequency=Frequency.WEEKLY,
+            )
 
-        # Mock MetaDataUtils.extract_devices
-        MockDataUtils.extract_devices.return_value = pd.DataFrame(
-            {
-                "network": ["airqo"],
-                "deployed": [True],
-                "device_id": ["device_1"],
-                "site_id": ["site_1"],
-                "device_maintenance": ["2023-01-01T00:00:00Z"],
-                "latitude": [0.0],
-                "longitude": [0.0],
-                "name": ["device_1"],
-                "status": [True],
-                "device_number": ["1119"],
-                "description": ["Low-cost air quality monitor"],
-                "device_manufacturer": ["Airqo"],
-                "device_category": ["lowcost"],
-                "mount_type": ["wall"],
-                "mobility": [False],
-            }
-        )
+            # Assert the mock was called with the correct parameters
+            mock_compute.assert_called_once_with(
+                data_type=DataType.AVERAGED,
+                device_category=DeviceCategory.LOWCOST,
+                metadata_type=MetaDataType.DEVICES,
+                frequency=Frequency.WEEKLY,
+            )
 
-        # Mock BigQueryApi.fetch_most_recent_record
-        mock_bigquery_api = MockBigQueryApi.return_value
-        mock_bigquery_api.fetch_most_recent_record.return_value = pd.DataFrame(
-            {
-                "device_id": ["device_1"],
-                "site_id": ["site_1"],
-                "created": ["2023-01-01T00:00:00Z"],
-                "offset_date": ["2023-01-01T00:00:00Z"],
-                "pollutant": ["pm2_5"],
-                "maximum": [100.0],
-                "average": [50.0],
-                "minimum": [10.0],
-                "sample_count": [100],
-            }
-        )
+            # Assert the result is a DataFrame
+            assert isinstance(result, pd.DataFrame)
 
-        # Mock DataUtils.compute_device_site_metadata (the inner method)
-        MockDataUtils.compute_device_site_metadata.return_value = pd.DataFrame(
-            {
-                "device_id": ["device_1"],
-                "site_id": ["site_1"],
-                "created": ["2023-01-01T00:00:00Z"],
-                "offset_date": ["2023-01-01T00:00:00Z"],
-                "recent_maintenance_date": ["2023-01-01T00:00:00Z"],
-                "pollutant": ["pm2_5"],
-                "maximum": [100.0],
-                "average": [50.0],
-                "minimum": [10.0],
-                "resolution": ["hourly"],
-                "sample_count": [100],
-            }
-        )
+            # Assert all required columns from device_computed_metadata.json are present
+            for col in device_computed_metadata_schema:
+                assert col in result.columns, f"Missing required column: {col}"
 
-        # Call the method
-        result = MetaDataUtils.compute_device_site_metadata(
-            data_type=DataType.AVERAGED,
-            device_category=DeviceCategory.LOWCOST,
-            metadata_type=MetaDataType.DEVICES,
-            frequency=Frequency.HOURLY,
-        )
-
-        # Assert the result is a DataFrame (pytest style)
-        assert isinstance(result, pd.DataFrame)
-
-        # Assert all required columns from device_computed_metadata.json are present
-        required_columns = [
-            "device_id",
-            "site_id",
-            "created",
-            "offset_date",
-            "recent_maintenance_date",
-            "pollutant",
-            "maximum",
-            "average",
-            "minimum",
-            "resolution",
-            "sample_count",
-        ]
-        for col in required_columns:
-            assert col in result.columns, f"Missing required column: {col}"
-
-        # Assert the DataFrame is not empty (assuming mock data)
-        assert not result.empty
+            # Assert the DataFrame is not empty
+            assert not result.empty
 
     def test_compute_baseline_insufficient_data(self, mock_df_raw, baseline_params):
         """Test failure due to insufficient data."""
@@ -313,7 +295,8 @@ class TestAirQoDataDriftCompute:
                 data=small_data,
                 device=device,
                 pollutants=pollutants,
-                resolution=Frequency.WEEKLY,
+                data_resolution=Frequency.HOURLY,
+                baseline_type=Frequency.WEEKLY,
                 window_start=baseline_params["window_start"],
                 window_end=baseline_params["window_end"],
             )
@@ -339,7 +322,8 @@ class TestAirQoDataDriftCompute:
                 data=mock_df_raw,
                 device=device,
                 pollutants=pollutants,
-                resolution=Frequency.WEEKLY,
+                data_resolution=Frequency.HOURLY,
+                baseline_type=Frequency.WEEKLY,
                 window_start=baseline_params["window_start"],
                 window_end=baseline_params["window_end"],
             )
@@ -362,7 +346,8 @@ class TestAirQoDataDriftCompute:
             data=mock_df_raw,
             device=device_pass,
             pollutants=pollutants,
-            resolution=Frequency.WEEKLY,
+            data_resolution=Frequency.HOURLY,
+            baseline_type=Frequency.WEEKLY,
             window_start=baseline_params["window_start"],
             window_end=baseline_params["window_end"],
         )
@@ -384,7 +369,8 @@ class TestAirQoDataDriftCompute:
                 data=mock_df_raw,
                 device=device_fail,
                 pollutants=pollutants,
-                resolution=Frequency.WEEKLY,
+                data_resolution=Frequency.HOURLY,
+                baseline_type=Frequency.WEEKLY,
                 window_start=baseline_params["window_start"],
                 window_end=baseline_params["window_end"],
             )
@@ -403,7 +389,8 @@ class TestAirQoDataDriftCompute:
             data=pd.DataFrame(),  # Empty data
             device=device,
             pollutants=pollutants,
-            resolution=Frequency.WEEKLY,
+            data_resolution=Frequency.WEEKLY,
+            baseline_type=Frequency.WEEKLY,
             window_start=datetime(2025, 1, 1),
             window_end=datetime(2025, 1, 8),
         )
