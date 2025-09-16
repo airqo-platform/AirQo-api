@@ -3887,57 +3887,53 @@ const createUserModule = {
         );
       }
 
-      // Set the new password. The pre-save hook will hash it.
-      user.password = password;
-      user.resetPasswordToken = null;
-      user.resetPasswordExpires = null;
+      // Use findOneAndUpdate to avoid .save() validation issues on hashed passwords
+      const updatedUser = await UserModel(
+        tenant.toLowerCase()
+      ).findOneAndUpdate(
+        filter,
+        {
+          $set: {
+            password: password, // pre-hook will hash this
+            resetPasswordToken: null,
+            resetPasswordExpires: null,
+          },
+        },
+        { new: true, runValidators: true, context: "query" }
+      );
 
-      const updatedUser = await user.save();
+      if (!updatedUser) {
+        // This case is already handled by the findOne check, but it's good practice
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Password reset token is invalid or has expired.",
+          })
+        );
+      }
 
-      if (updatedUser) {
-        const { email, firstName, lastName } = updatedUser;
-        const responseFromSendEmail = await mailer.updateForgottenPassword(
+      const { email, firstName, lastName } = updatedUser;
+      // Asynchronously send email without blocking the response.
+      mailer
+        .updateForgottenPassword(
           {
             email,
             firstName,
             lastName,
           },
           next
-        );
-
-        if (responseFromSendEmail && responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "Password has been reset successfully",
-            data: updatedUser.toJSON(),
-            status: httpStatus.OK,
-          };
-        } else if (
-          responseFromSendEmail &&
-          responseFromSendEmail.success === false
-        ) {
-          return responseFromSendEmail;
-        } else {
+        )
+        .catch((error) => {
           logger.error(
-            "mailer.updateForgottenPassword did not return a response"
+            `Failed to send password reset confirmation email to ${email}: ${error.message}`
           );
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send password update confirmation email" }
-            )
-          );
-        }
-      } else {
-        return next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Failed to update user password" }
-          )
-        );
-      }
+        });
+
+      return {
+        success: true,
+        message: "Password has been reset successfully",
+        data: updatedUser.toJSON(),
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       if (error.name === "ValidationError") {
@@ -4167,38 +4163,52 @@ const createUserModule = {
     try {
       const update = {
         resetPasswordToken: token,
-        resetPasswordExpires: Date.now() + 3600000,
+        resetPasswordExpires: Date.now() + 3600000, // 1 hour
       };
-      const responseFromModifyUser = await UserModel(tenant)
-        .findOneAndUpdate({ email }, update, { new: true })
-        .select("firstName lastName email");
 
-      if (isEmpty(responseFromModifyUser)) {
-        throw new HttpError("User not found", httpStatus.NOT_FOUND, {
-          message: "user does not exist, please crosscheck",
+      // Use findOneAndUpdate to atomically update the document
+      // This avoids running schema validators on the entire document
+      const updatedUser = await UserModel(tenant)
+        .findOneAndUpdate({ email }, update, { new: true })
+        .lean();
+
+      // If a user was found and updated, send the email.
+      if (updatedUser) {
+        await mailer.sendPasswordResetEmail({
+          email: updatedUser.email,
+          token,
+          tenant,
         });
+      } else {
+        // Log that the user was not found, but do not throw an error to the client.
+        logger.warn(
+          `Password reset requested for non-existent email: ${email} in tenant: ${tenant}`
+        );
       }
 
-      await mailer.sendPasswordResetEmail({ email, token, tenant });
-
+      // Always return a success message to prevent user enumeration.
       return {
         success: true,
-        message: "Password reset email sent successfully",
+        message:
+          "If an account with that email exists, you will receive a password reset code shortly.",
       };
     } catch (error) {
+      // This will catch database errors or mailer errors.
       logger.error(
         `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`
       );
-      if (error instanceof HttpError) {
-        throw error;
-      }
+      // Re-throw a generic error to be handled by the controller.
       throw new HttpError(
         "Unable to initiate password reset",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        {
+          message:
+            "An internal error occurred during the password reset process.",
+        }
       );
     }
   },
+
   resetPassword: async ({ token, password, tenant }, next) => {
     try {
       const resetPasswordToken = token;
@@ -4210,8 +4220,8 @@ const createUserModule = {
         },
       };
 
-      const user = await UserModel(tenant).findOne(filter);
-      if (!user) {
+      const userExists = await UserModel(tenant).findOne(filter).lean();
+      if (!userExists) {
         return next(
           new HttpError(
             "Password reset token is invalid or has expired.",
@@ -4219,52 +4229,55 @@ const createUserModule = {
           )
         );
       }
-      // Set the new password. The pre-save hook will hash it.
-      user.password = password;
-      user.resetPasswordToken = null;
-      user.resetPasswordExpires = null;
 
-      // This will trigger the 'save' middleware, including validators
-      const updatedUser = await user.save();
-
-      const { email, firstName, lastName } = updatedUser;
-
-      const responseFromSendEmail = await mailer.updateForgottenPassword(
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        filter,
         {
-          email,
-          firstName,
-          lastName,
+          $set: {
+            password: password, // pre-hook will hash this
+            resetPasswordToken: null,
+            resetPasswordExpires: null,
+          },
         },
-        next
+        { new: true, runValidators: true, context: "query" }
       );
 
-      if (responseFromSendEmail) {
-        if (responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "Password reset successful",
-            data: updatedUser.toJSON(), // Return sanitized user data
-            status: httpStatus.OK,
-          };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
-        }
-      } else {
-        logger.error(
-          "mailer.updateForgottenPassword did not return a response"
-        );
+      if (!updatedUser) {
         return next(
           new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Failed to send update password email" }
+            "Password reset token is invalid or has expired.",
+            httpStatus.BAD_REQUEST
           )
         );
       }
+
+      const { email, firstName, lastName } = updatedUser;
+      // Asynchronously send email without blocking the response.
+      mailer
+        .updateForgottenPassword(
+          {
+            email,
+            firstName,
+            lastName,
+          },
+          next
+        )
+        .catch((error) => {
+          logger.error(
+            `Failed to send password reset confirmation email to ${email}: ${error.message}`
+          );
+        });
+
+      return {
+        success: true,
+        message: "Password reset successful",
+        data: updatedUser.toJSON(),
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      // Handle validation errors from user.save()
+      // Handle validation errors from findOneAndUpdate
       if (error.name === "ValidationError") {
         const errors = {};
         for (const field in error.errors) {
@@ -4283,6 +4296,7 @@ const createUserModule = {
       );
     }
   },
+
   generateResetToken: (next) => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
