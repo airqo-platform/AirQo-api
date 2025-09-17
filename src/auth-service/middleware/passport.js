@@ -1509,8 +1509,10 @@ const enhancedJWTAuth = async (req, res, next) => {
           if (!userDoc) {
             throw new Error("User from legacy token no longer exists.");
           }
-          // Attach user and decoded token to request
-          req.user = { ...userDoc.toObject(), ...expiredDecoded };
+
+          // Keep DB as source of truth; expose legacy claims separately if needed
+          req.user = userDoc.toObject();
+          req.tokenClaims = expiredDecoded;
 
           // Add sliding refresh on this path as well
           try {
