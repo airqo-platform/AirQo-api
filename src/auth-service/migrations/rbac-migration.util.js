@@ -175,6 +175,13 @@ class RBACMigrationUtility {
   }
 
   async _createOrganizationDefaultRoles(organization, orgType, dryRun = false) {
+    const PERMISSION_DEFINITIONS = constants.PERMISSION_DEFINITIONS || [];
+    const allPermissionNames = PERMISSION_DEFINITIONS.map((p) => p.name);
+    const devicePerms = allPermissionNames.filter((p) =>
+      p.startsWith("DEVICE_")
+    );
+    const sitePerms = allPermissionNames.filter((p) => p.startsWith("SITE_"));
+
     const isGroup = orgType === "group";
     const orgId = organization._id;
     const orgTitle = isGroup ? organization.grp_title : organization.net_name;
@@ -214,16 +221,14 @@ class RBACMigrationUtility {
           constants.MEMBER_INVITE,
           constants.MEMBER_REMOVE,
           constants.SETTINGS_VIEW,
-          constants.GROUP_SETTINGS,
+          ...(isGroup && constants.GROUP_SETTINGS
+            ? [constants.GROUP_SETTINGS]
+            : []),
           constants.ROLE_VIEW,
           // DEVICE
-          ...Object.values(constants).filter(
-            (p) => typeof p === "string" && p.startsWith("DEVICE_")
-          ),
+          ...devicePerms,
           // SITE
-          ...Object.values(constants).filter(
-            (p) => typeof p === "string" && p.startsWith("SITE_")
-          ),
+          ...sitePerms,
           // ANALYTICS
           constants.DASHBOARD_VIEW,
           constants.ANALYTICS_VIEW,
