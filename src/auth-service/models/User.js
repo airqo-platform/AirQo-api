@@ -1031,7 +1031,7 @@ UserSchema.statics = {
     }
   },
 
-  async modify({ filter = {}, update = {} } = {}, next) {
+  async modify({ filter = {}, update = {} } = {}) {
     try {
       logText("the user modification function........");
       const options = {
@@ -1092,7 +1092,7 @@ UserSchema.statics = {
     }
   },
 
-  async remove({ filter = {} } = {}, next) {
+  async remove({ filter = {} } = {}) {
     try {
       const options = {
         projection: {
@@ -1113,27 +1113,21 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Provided User does not exist, please crosscheck",
-          })
-        );
-        return;
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "Provided User does not exist, please crosscheck",
+        });
       }
     } catch (error) {
       logObject("the models error", error);
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       if (error instanceof HttpError) {
-        return next(error);
+        throw error;
       }
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
-      return;
     }
   },
 };
