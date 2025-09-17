@@ -886,7 +886,7 @@ class BigQueryApi:
             if isinstance(filter_val, str):
                 where_clause = f"WHERE {filter} = @filter_value"
                 query_params.append(
-                    bigquery.ArrayQueryParameter("filter_value", "STRING", filter_val)
+                    bigquery.ScalarQueryParameter("filter_value", "STRING", filter_val)
                 )
             elif isinstance(filter_val, list):
                 for val in filter_val:
@@ -894,7 +894,7 @@ class BigQueryApi:
                         raise ValueError("Filter values must be strings.")
                     where_clause += f"WHERE {filter} = @filter_value OR "
                     query_params.append(
-                        bigquery.ArrayQueryParameter("filter_value", "STRING", val)
+                        bigquery.ScalarQueryParameter("filter_value", "STRING", val)
                     )
                 where_clause = where_clause.rstrip(" OR ")
 
