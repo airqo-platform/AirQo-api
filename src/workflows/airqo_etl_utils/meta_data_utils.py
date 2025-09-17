@@ -212,7 +212,7 @@ class MetaDataUtils:
             MetaDataType.DEVICES,
             "device_id",
             "next_offset_date",
-            pollutant={"pollutant": pollutants_},
+            filter={"pollutant": pollutants_},
         )
 
         if frequency.str in Config.extra_time_grouping:
