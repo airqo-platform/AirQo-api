@@ -4,6 +4,7 @@ const router = express.Router();
 const userController = require("@controllers/user.controller");
 const userValidations = require("@validators/users.validators");
 const { validate, headers, pagination } = require("@validators/common");
+const constants = require("@config/constants");
 const {
   setLocalAuth,
   setGoogleAuth,
@@ -188,7 +189,7 @@ router.get(
 router.get(
   "/groups/:grp_id/permissions",
   enhancedJWTAuth,
-  // requireGroupMembership("grp_id"),
+  requireGroupMembership("grp_id"),
   (req, res) => {
     req.query.contextId = req.params.grp_id;
     req.query.contextType = "group";
@@ -208,7 +209,7 @@ router.get(
 router.get(
   "/networks/:network_id/permissions",
   enhancedJWTAuth,
-  // requireNetworkMembership("network_id"),
+  requireNetworkMembership("network_id"),
   (req, res) => {
     req.query.contextId = req.params.network_id;
     req.query.contextType = "network";
@@ -224,7 +225,7 @@ router.get(
 router.get(
   "/networks/:network_id/members",
   enhancedJWTAuth,
-  // requireNetworkPermissions(["USER_VIEW"], "network_id"),
+  requireNetworkPermissions([constants.MEMBER_VIEW], "network_id"),
   async (req, res) => {
     try {
       const UserModel = require("@models/User");
@@ -623,12 +624,19 @@ router.post(
 
 router.put("/", userValidations.updateUser, userController.update);
 
-router.put("/:user_id", userValidations.updateUserById, userController.update);
+router.put(
+  "/:user_id",
+  enhancedJWTAuth,
+  requirePermissions([constants.USER_EDIT]),
+  userValidations.updateUserById,
+  userController.update
+);
 
 router.delete(
   "/",
   userValidations.deleteUser,
   enhancedJWTAuth,
+  requirePermissions([constants.USER_DELETE]),
   userController.delete
 );
 
@@ -636,6 +644,7 @@ router.delete(
   "/:user_id",
   userValidations.deleteUserById,
   enhancedJWTAuth,
+  requirePermissions([constants.USER_DELETE]),
   userController.delete
 );
 
@@ -661,6 +670,7 @@ router.get(
   "/stats",
   userValidations.tenant,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listStatistics
 );
 
@@ -668,6 +678,7 @@ router.get(
   "/cache",
   userValidations.cache,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listCache
 );
 
@@ -675,6 +686,7 @@ router.get(
   "/logs",
   userValidations.tenant,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listLogs
 );
 
@@ -682,6 +694,7 @@ router.get(
   "/user-stats",
   userValidations.tenant,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   userController.getUserStats
 );
 
@@ -708,7 +721,7 @@ router.get(
   enhancedJWTAuth,
   userValidations.getEnhancedProfileForUser,
   validate,
-  // requirePermissions(["USER_VIEW"]), // Kept commented out as per previous state
+  requirePermissions([constants.USER_VIEW]),
   userController.getEnhancedProfileForUser
 );
 
@@ -716,6 +729,7 @@ router.get(
   "/:user_id",
   userValidations.getUser,
   enhancedJWTAuth,
+  requirePermissions([constants.USER_VIEW]),
   userController.list
 );
 

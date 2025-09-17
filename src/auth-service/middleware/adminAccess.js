@@ -255,7 +255,7 @@ const requireGroupAdmin = (options = {}) => {
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
     requireSuperAdmin: true,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
     requiredPermissions: ["GROUP_MANAGEMENT", "USER_MANAGEMENT"],
     ...options,
   });
@@ -276,7 +276,7 @@ const requireGroupAccess = (
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
     requireSuperAdmin: false,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN", "GROUP_MANAGER"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "MANAGER"],
     requiredPermissions,
     ...options,
   });
@@ -292,8 +292,8 @@ const requireGroupUserManagement = (groupIdParam = "grp_id") => {
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN"],
-    requiredPermissions: ["USER_MANAGEMENT", "GROUP_USER_ASSIGN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+    requiredPermissions: [constants.USER_MANAGEMENT, constants.ORG_USER_ASSIGN],
   });
 };
 
@@ -307,8 +307,8 @@ const requireGroupSettings = (groupIdParam = "grp_id") => {
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN"],
-    requiredPermissions: ["GROUP_SETTINGS", "GROUP_MANAGEMENT"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+    requiredPermissions: [constants.GROUP_SETTINGS, constants.GROUP_MANAGEMENT],
   });
 };
 
