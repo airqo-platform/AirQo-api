@@ -52,7 +52,7 @@ class MetaDataUtils:
                 "description",
                 "device_manufacturer",
                 "device_category",
-                "mountType",
+                "mount_type",
                 "mobility",
                 "device_maintenance",
             ]
@@ -61,7 +61,6 @@ class MetaDataUtils:
             columns={
                 "isActive": "active",
                 "status": "deployed",
-                "mountType": "mount_type",
             },
             inplace=True,
         )
