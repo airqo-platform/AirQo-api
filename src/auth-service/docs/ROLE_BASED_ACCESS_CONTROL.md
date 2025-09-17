@@ -265,6 +265,22 @@ Gradually replace your routes with the new middleware patterns. See the updated 
 
 ## Permission Naming Conventions
 
+### Role Naming
+
+Roles are automatically prefixed with a normalized version of the organization's name. This ensures that roles are unique to each organization. The format is:
+
+**`ORGANIZATIONNAME_ROLETYPE`**
+
+For example:
+
+- An "Admin" role in the "AirQo" organization becomes `AIRQO_ADMIN`.
+- A "Manager" role in the "KCCA" organization becomes `KCCA_MANAGER`.
+- A "Super Admin" role in the "My New Org" organization becomes `MY_NEW_ORG_SUPER_ADMIN`.
+
+When using middleware like `requireGroupAdminAccess`, you only need to specify the base role type (e.g., `ADMIN`), and the system will automatically check for the correctly prefixed role within the group's context.
+
+### Permission Naming
+
 Follow these conventions for consistent permission naming:
 
 ```javascript

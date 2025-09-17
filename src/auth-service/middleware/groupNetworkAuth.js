@@ -72,7 +72,7 @@ const requireGroupManagerAccess = (groupIdParam = "grp_id") => {
       // Check if user has manager-level roles
       const hasManagerRole = await rbacService.hasRole(
         user._id,
-        ["SUPER_ADMIN", "GROUP_ADMIN", "GROUP_MANAGER"],
+        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
         groupId,
         "group"
       );
@@ -161,7 +161,7 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
       // Also check for organization-specific admin roles
       const isGroupAdmin = await rbacService.hasRole(
         user._id,
-        ["SUPER_ADMIN", "GROUP_ADMIN"],
+        ["SUPER_ADMIN", "ADMIN"],
         groupId,
         "group"
       );
@@ -305,7 +305,7 @@ const requireGroupMemberManagementAccess = (groupIdParam = "grp_id") => {
       // Check if user has appropriate management roles
       const hasManagementRole = await rbacService.hasRole(
         user._id,
-        ["SUPER_ADMIN", "GROUP_ADMIN", "GROUP_MANAGER"],
+        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
         groupId,
         "group"
       );

@@ -283,8 +283,8 @@ class RBACMigrationUtility {
         ],
       },
       {
-        role_name: `${organizationName}_GROUP_ADMIN`,
-        role_code: `${organizationName}_GROUP_ADMIN`,
+        role_name: `${organizationName}_ADMIN`,
+        role_code: `${organizationName}_ADMIN`,
         role_description: `Group Administrator for ${group.grp_title}`,
         permissions: [
           "GROUP_EDIT",
@@ -299,8 +299,8 @@ class RBACMigrationUtility {
         ],
       },
       {
-        role_name: `${organizationName}_GROUP_MANAGER`,
-        role_code: `${organizationName}_GROUP_MANAGER`,
+        role_name: `${organizationName}_MANAGER`,
+        role_code: `${organizationName}_MANAGER`,
         role_description: `Group Manager for ${group.grp_title}`,
         permissions: [
           "GROUP_VIEW",

@@ -255,7 +255,7 @@ const requireGroupAdmin = (options = {}) => {
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
     requireSuperAdmin: true,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
     requiredPermissions: ["GROUP_MANAGEMENT", "USER_MANAGEMENT"],
     ...options,
   });
@@ -276,7 +276,7 @@ const requireGroupAccess = (
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
     requireSuperAdmin: false,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN", "GROUP_MANAGER"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "MANAGER"],
     requiredPermissions,
     ...options,
   });
