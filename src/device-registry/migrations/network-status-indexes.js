@@ -7,7 +7,8 @@ const logger = log4js.getLogger(
 const MigrationTrackerModel = require("@models/MigrationTracker");
 const {
   getRawTenantDB, // Use the new function
-  connectToMongoDB,
+  queryMongoDB,
+  commandMongoDB,
 } = require("@config/database");
 
 const MIGRATION_NAME = "network-status-indexes-v1";
@@ -143,16 +144,37 @@ module.exports = {
 // This is a special case for when the script is run directly via CLI
 // It will NOT interfere with the application when imported as a module
 if (require.main === module) {
-  // Initialize database connections using the existing mechanism
-  connectToMongoDB();
-
   const run = async () => {
     try {
       await executeMigration();
+      logger.info("Migration completed successfully.");
     } catch (error) {
-      logger.error(`🐛🐛 Migration failed: ${error.message}`);
+      logger.error(`🐛🐛 Migration failed with error: ${error.message}`);
+    } finally {
+      logger.info("Closing database connections and exiting script.");
+      try {
+        await Promise.all([commandMongoDB.close(), queryMongoDB.close()]);
+        logger.info("Database connections closed.");
+      } catch (closeError) {
+        logger.error(`Error closing connections: ${closeError.message}`);
+      }
+      process.exit(0);
     }
   };
 
-  run();
+  // Wait for the database connection to be ready before running the migration
+  if (queryMongoDB.readyState === 1) {
+    logger.info("MongoDB connection is ready. Running migration...");
+    run();
+  } else {
+    logger.info("Waiting for MongoDB connection to be ready...");
+    queryMongoDB.on("open", () => {
+      logger.info("MongoDB connection opened. Running migration...");
+      run();
+    });
+    queryMongoDB.on("error", (err) => {
+      logger.error(`MongoDB connection error: ${err.message}. Exiting.`);
+      process.exit(1);
+    });
+  }
 }
