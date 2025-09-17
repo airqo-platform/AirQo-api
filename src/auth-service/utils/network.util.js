@@ -393,6 +393,18 @@ const createNetwork = {
         );
       }
 
+      // Fetch the default role for this network
+      const defaultNetworkRole =
+        await rolePermissionsUtil.getDefaultNetworkRole(tenant, net_id);
+
+      if (!defaultNetworkRole || !defaultNetworkRole._id) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Default Role not found for network ID ${net_id}`,
+          })
+        );
+      }
+      const defaultRoleId = defaultNetworkRole._id;
       const notAssignedUsers = [];
       let assignedUsers = 0;
       const bulkOperations = [];
@@ -425,7 +437,11 @@ const createNetwork = {
               filter: { _id: user_id },
               update: {
                 $addToSet: {
-                  network_roles: { network: net_id },
+                  network_roles: {
+                    network: net_id,
+                    role: defaultRoleId,
+                    userType: "user",
+                  },
                 },
               },
             },
@@ -724,41 +740,40 @@ const createNetwork = {
       const { net_id, user_id } = request.params;
       const { tenant } = request.query;
 
-      const network = await NetworkModel(tenant).findById(net_id);
-      if (!network) {
-        next(
+      const [networkExists, user] = await Promise.all([
+        NetworkModel(tenant).exists({ _id: net_id }),
+        UserModel(tenant).findById(user_id).select("network_roles").lean(),
+      ]);
+
+      if (!networkExists) {
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Network not found",
           })
         );
       }
 
-      let user = await UserModel(tenant).findById(user_id);
       if (!user) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User not found",
           })
         );
       }
 
-      const networkAssignmentIndex = findNetworkAssignmentIndex(user, net_id);
+      const isAssigned = isUserAssignedToNetwork(user, net_id);
 
-      if (networkAssignmentIndex === -1) {
-        next(
+      if (!isAssigned) {
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Network ${net_id.toString()} is not assigned to the user`,
+            message: `User is not assigned to this network`,
           })
         );
       }
 
-      // Remove the network assignment from the user's network_roles array
-      user.network_roles.splice(networkAssignmentIndex, 1);
-
-      // Update the user with the modified network_roles array
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { network_roles: user.network_roles },
+        { $pull: { network_roles: { network: net_id } } },
         { new: true }
       );
 

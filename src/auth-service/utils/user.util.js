@@ -67,7 +67,12 @@ const normalizeName = (name) => {
   if (!name || typeof name !== "string") {
     return "";
   }
-  return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  return name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_\s-]/g, "") // Keep underscores, spaces, hyphens
+    .replace(/[\s-]+/g, "_") // Replace spaces and hyphens with a single underscore
+    .replace(/_+/g, "_"); // Collapse multiple underscores into one
 };
 async function deleteCollection({ db, collectionPath, batchSize } = {}) {
   const collectionRef = db.collection(collectionPath);
@@ -114,7 +119,7 @@ function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
 const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
   try {
     const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
-    const user = await UserModel(dbTenant).findById(userId);
+    const user = await UserModel(dbTenant).findById(userId).lean();
 
     if (isEmpty(user)) {
       throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
@@ -3895,17 +3900,6 @@ const createUserModule = {
         },
       };
 
-      const user = await UserModel(tenant.toLowerCase()).findOne(filter);
-
-      if (!user) {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Password reset token is invalid or has expired.",
-          })
-        );
-      }
-
-      // 2. Use findOneAndUpdate WITHOUT runValidators
       const updatedUser = await UserModel(
         tenant.toLowerCase()
       ).findOneAndUpdate(
@@ -3921,13 +3915,14 @@ const createUserModule = {
       );
 
       if (!updatedUser) {
+        // This check now covers both existence and expiration
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Password reset token is invalid or has expired.",
           })
         );
       }
-
+      // 2. Use findOneAndUpdate WITHOUT runValidators
       const { email, firstName, lastName } = updatedUser;
       // Asynchronously send email without blocking the response.
       mailer
@@ -4259,17 +4254,6 @@ const createUserModule = {
         },
       };
 
-      const userExists = await UserModel(tenant).findOne(filter).lean();
-      if (!userExists) {
-        return next(
-          new HttpError(
-            "Password reset token is invalid or has expired.",
-            httpStatus.BAD_REQUEST
-          )
-        );
-      }
-
-      // 2. Use findOneAndUpdate WITHOUT runValidators
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         filter,
         {
@@ -4283,6 +4267,7 @@ const createUserModule = {
       );
 
       if (!updatedUser) {
+        // This check now covers both existence and expiration
         return next(
           new HttpError(
             "Password reset token is invalid or has expired.",
@@ -4290,7 +4275,7 @@ const createUserModule = {
           )
         );
       }
-
+      // 2. Use findOneAndUpdate WITHOUT runValidators
       const { email, firstName, lastName } = updatedUser;
       // Asynchronously send email without blocking the response.
       mailer

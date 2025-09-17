@@ -214,6 +214,20 @@ const connectToMongoDB = () => {
         migrateTokenStrategiesToDefault().catch((err) => {
           logger.error(`Startup migration failed: ${err.message}`);
         });
+
+        // Run legacy role name migration in the background
+        const {
+          runLegacyRoleMigration,
+        } = require("@migrations/rename-legacy-roles");
+        console.log("🚀 Kicking off legacy role name migration on startup...");
+        const tenants = constants.TENANTS || ["airqo"];
+        Promise.all(tenants.map((t) => runLegacyRoleMigration(t))).catch(
+          (err) => {
+            logger.error(
+              `Background migration 'runLegacyRoleMigration' failed: ${err.message}`
+            );
+          }
+        );
       } catch (err) {
         logger.fatal(
           "❌ RBAC initialization failed on connection:",

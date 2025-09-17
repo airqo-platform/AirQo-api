@@ -4,120 +4,33 @@
 
 This RBAC system provides comprehensive role and permission management for applications with multi-tenant, multi-organization structures. It supports both Groups and Networks as organizational contexts, allowing users to have different roles and permissions in each.
 
-## Key Features
-
-- **Context-Aware Permissions**: Users can have different permissions in different Groups/Networks
-- **Flexible Role Assignment**: Support for multiple roles across different organizational contexts
-- **Caching System**: Built-in caching for performance optimization
-- **Backward Compatibility**: Maintains compatibility with existing adminCheck middleware
-- **Debug Support**: Comprehensive debugging tools for development
-
-## Architecture
-
 ### Core Components
 
 1. **RBACService** (`services/rbac.service.js`): Core service handling all RBAC operations
 2. **Permission Auth Middleware** (`middleware/permissionAuth.js`): Permission-based access control
-3. **Enhanced Admin Middleware** (`middleware/adminAccess.js`): Advanced admin access control
-4. **Group/Network Auth** (`middleware/groupNetworkAuth.js`): Specialized middleware for group/network operations
-
-### Data Model
-
-```javascript
-// User Model Structure
-user: {
-  group_roles: [
-    {
-      group: ObjectId, // Reference to Group
-      role: ObjectId,  // Reference to Role
-      userType: String, // 'user' or 'guest'
-      createdAt: Date
-    }
-  ],
-  network_roles: [
-    {
-      network: ObjectId, // Reference to Network
-      role: ObjectId,    // Reference to Role
-      userType: String,  // 'user' or 'guest'
-      createdAt: Date
-    }
-  ]
-}
-
-// Role Model Structure
-role: {
-  role_name: String,
-  role_code: String,
-  group_id: ObjectId,    // Associated group (optional)
-  network_id: ObjectId,  // Associated network (optional)
-  role_permissions: [ObjectId] // References to Permissions
-}
-```
-
-## Installation & Setup
-
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Environment Variables
-
-Add the following to your environment configuration:
-
-```bash
-# Default permissions for different user types
-DEFAULT_MEMBER_PERMISSIONS=GROUP_VIEW,MEMBER_VIEW,DASHBOARD_VIEW
-SUPER_ADMIN_PERMISSIONS=GROUP_MANAGEMENT,USER_MANAGEMENT,ROLE_ASSIGNMENT,SYSTEM_ADMIN
-
-# Tenant-specific super admin permissions (optional)
-SUPER_ADMIN_PERMISSIONS_AIRQO=GROUP_MANAGEMENT,USER_MANAGEMENT,ANALYTICS_VIEW
-SUPER_ADMIN_PERMISSIONS_KCCA=NETWORK_MANAGEMENT,GROUP_MANAGEMENT,USER_MANAGEMENT
-```
-
-### 3. Update Routes
-
-Replace your existing routes with the new RBAC middleware:
-
-```javascript
-// Old way
-router.get(
-  "/groups/:grp_id/dashboard",
-  setJWTAuth,
-  authJWT,
-  adminCheck,
-  controller.getDashboard
-);
-
-// New way
-router.get(
-  "/groups/:grp_id/dashboard",
-  setJWTAuth,
-  authJWT,
-  requireGroupPermissions(["DASHBOARD_VIEW"], "grp_id"),
-  controller.getDashboard
-);
-```
+3. **Admin Access Middleware** (`middleware/adminAccess.js`): Provides higher-level access checks like `requireGroupAdmin` and `requireGroupAccess`.
+4. **Group/Network Auth Middleware** (`middleware/groupNetworkAuth.js`): Provides specialized middleware for common group/network operations like `requireGroupManagerAccess` and `requireGroupAdminAccess`.
 
 ## Usage Examples
 
-### Basic Permission Checking
+### Basic Permission Checking (Global)
+
+Use `requirePermissions` for actions not tied to a specific group or network.
 
 ```javascript
 const { requirePermissions } = require("@middleware/permissionAuth");
 
 // Require any of the specified permissions globally
 router.get(
-  "/admin",
-  requirePermissions(["ADMIN_ACCESS", "SYSTEM_VIEW"]),
+  "/admin/dashboard",
+  requirePermissions(["SYSTEM_ADMIN", "SYSTEM_MONITOR"]),
   controller.adminDashboard
 );
 
 // Require ALL specified permissions
 router.post(
   "/admin/users",
-  requireAllPermissions(["USER_CREATE", "ADMIN_ACCESS"]),
+  requireAllPermissions(["USER_CREATE", "SYSTEM_ADMIN"]), // requireAllPermissions is a convenience wrapper
   controller.createUser
 );
 ```
@@ -264,6 +177,22 @@ Gradually replace your routes with the new middleware patterns. See the updated 
 4. Test with different user roles and permission combinations
 
 ## Permission Naming Conventions
+
+### Role Naming
+
+Roles are automatically prefixed with a normalized version of the organization's name. This ensures that roles are unique to each organization. The format is:
+
+**`ORGANIZATIONNAME_ROLETYPE`**
+
+For example:
+
+- An "Admin" role in the "AirQo" organization becomes `AIRQO_ADMIN`.
+- A "Manager" role in the "KCCA" organization becomes `KCCA_MANAGER`.
+- A "Super Admin" role in the "My New Org" organization becomes `MY_NEW_ORG_SUPER_ADMIN`.
+
+When using middleware like `requireGroupAdminAccess`, you only need to specify the base role type (e.g., `ADMIN`), and the system will automatically check for the correctly prefixed role within the group's context.
+
+### Permission Naming
 
 Follow these conventions for consistent permission naming:
 
