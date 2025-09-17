@@ -193,6 +193,4 @@ module.exports = {
   getCommandTenantDB,
   getQueryTenantDB,
   getRawTenantDB,
-  commandMongoDB,
-  queryMongoDB,
 };

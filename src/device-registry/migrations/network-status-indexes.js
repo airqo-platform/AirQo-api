@@ -7,8 +7,7 @@ const logger = log4js.getLogger(
 const MigrationTrackerModel = require("@models/MigrationTracker");
 const {
   getRawTenantDB, // Use the new function
-  queryMongoDB,
-  commandMongoDB,
+  connectToMongoDB,
 } = require("@config/database");
 
 const MIGRATION_NAME = "network-status-indexes-v1";
@@ -144,35 +143,48 @@ module.exports = {
 // This is a special case for when the script is run directly via CLI
 // It will NOT interfere with the application when imported as a module
 if (require.main === module) {
-  const run = async () => {
+  const run = async (commandDB, queryDB) => {
+    let exitCode = 0;
     try {
       await executeMigration();
       logger.info("Migration completed successfully.");
     } catch (error) {
       logger.error(`🐛🐛 Migration failed with error: ${error.message}`);
+      exitCode = 1;
     } finally {
       logger.info("Closing database connections and exiting script.");
       try {
-        await Promise.all([commandMongoDB.close(), queryMongoDB.close()]);
+        await Promise.all([
+          commandDB && typeof commandDB.close === "function"
+            ? commandDB.close()
+            : Promise.resolve(),
+          queryDB && typeof queryDB.close === "function"
+            ? queryDB.close()
+            : Promise.resolve(),
+        ]);
         logger.info("Database connections closed.");
       } catch (closeError) {
         logger.error(`Error closing connections: ${closeError.message}`);
+        exitCode = 1;
       }
-      process.exit(0);
+      process.exit(exitCode);
     }
   };
 
+  // Initialize DB connections explicitly
+  const { commandDB, queryDB } = connectToMongoDB();
+
   // Wait for the database connection to be ready before running the migration
-  if (queryMongoDB.readyState === 1) {
+  if (queryDB.readyState === 1) {
     logger.info("MongoDB connection is ready. Running migration...");
-    run();
+    run(commandDB, queryDB);
   } else {
     logger.info("Waiting for MongoDB connection to be ready...");
-    queryMongoDB.on("open", () => {
+    queryDB.once("open", () => {
       logger.info("MongoDB connection opened. Running migration...");
-      run();
+      run(commandDB, queryDB);
     });
-    queryMongoDB.on("error", (err) => {
+    queryDB.once("error", (err) => {
       logger.error(`MongoDB connection error: ${err.message}. Exiting.`);
       process.exit(1);
     });
