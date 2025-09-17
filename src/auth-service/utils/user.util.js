@@ -3431,8 +3431,8 @@ const createUserModule = {
             {
               user_id,
               token,
-              email,
-              firstName,
+              email: createdUser._doc.email,
+              firstName: createdUser._doc.firstName,
               category,
             },
             next
