@@ -16,6 +16,7 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
 
     const tracker = await MigrationTrackerModel(tenant).findOne({
       name: MIGRATION_NAME,
+      tenant,
     });
 
     if (tracker && tracker.status === "completed") {
@@ -25,11 +26,20 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
       return;
     }
 
-    await MigrationTrackerModel(tenant).findOneAndUpdate(
-      { name: MIGRATION_NAME },
-      { name: MIGRATION_NAME, status: "running", startedAt: new Date() },
+    const lease = await MigrationTrackerModel(tenant).findOneAndUpdate(
+      { name: MIGRATION_NAME, tenant, status: { $ne: "running" } },
+      {
+        $set: { status: "running", startedAt: new Date() },
+        $setOnInsert: { name: MIGRATION_NAME, tenant },
+      },
       { upsert: true, new: true }
     );
+    if (!lease || lease.status !== "running") {
+      logger.info(
+        `Migration '${MIGRATION_NAME}' is already running for tenant '${tenant}'. Skipping.`
+      );
+      return;
+    }
 
     const legacyRoles = await RoleModel(tenant).find({
       $or: [
@@ -122,8 +132,8 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
     }
 
     await MigrationTrackerModel(tenant).updateOne(
-      { name: MIGRATION_NAME },
-      { status: "completed", completedAt: new Date() }
+      { name: MIGRATION_NAME, tenant },
+      { $set: { status: "completed", completedAt: new Date() } }
     );
 
     logger.info(
@@ -135,32 +145,27 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
       error
     );
     await MigrationTrackerModel(tenant).updateOne(
-      { name: MIGRATION_NAME },
-      { status: "failed", error: error.message }
+      { name: MIGRATION_NAME, tenant },
+      { $set: { status: "failed", error: error.message } }
     );
   }
 };
 
 if (require.main === module) {
-  // Connect to DB and run migration if script is executed directly
-  connectToMongoDB();
-  const tenants = constants.TENANTS || ["airqo"];
-  for (const tenant of tenants) {
-    runLegacyRoleMigration(tenant)
-      .then(() => {
-        logger.info(
-          `Direct execution of migration for tenant ${tenant} finished.`
-        );
-        process.exit(0);
-      })
-      .catch((err) => {
-        logger.error(
-          `Direct execution of migration for tenant ${tenant} failed.`,
-          err
-        );
-        process.exit(1);
-      });
-  }
+  (async () => {
+    connectToMongoDB();
+    const tenants = constants.TENANTS || ["airqo"];
+    try {
+      const results = await Promise.allSettled(
+        tenants.map((t) => runLegacyRoleMigration(t))
+      );
+      const failures = results.filter((r) => r.status === "rejected").length;
+      process.exit(failures ? 1 : 0);
+    } catch (err) {
+      logger.error("Migration execution failed.", err);
+      process.exit(1);
+    }
+  })();
 }
 
 module.exports = { runLegacyRoleMigration };

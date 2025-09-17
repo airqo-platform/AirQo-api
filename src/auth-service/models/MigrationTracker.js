@@ -39,18 +39,8 @@ migrationTrackerSchema.index({ name: 1, tenant: 1 }, { unique: true });
 
 const MigrationTrackerModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-  const dbTenant = tenant || defaultTenant;
-
-  try {
-    const migrationTracker = mongoose.model("migrationTrackers");
-    return migrationTracker;
-  } catch (errors) {
-    return getModelByTenant(
-      dbTenant.toLowerCase(),
-      "migrationTracker",
-      migrationTrackerSchema
-    );
-  }
+  const dbTenant = (tenant || defaultTenant).toLowerCase();
+  return getModelByTenant(dbTenant, "migrationTracker", migrationTrackerSchema);
 };
 
 module.exports = MigrationTrackerModel;
