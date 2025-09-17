@@ -16,11 +16,12 @@ class RBACMigrationUtility {
       return "";
     }
     return name
-      .trim()
+      .normalize("NFKD") // decompose accents
+      .replace(/[\u0300-\u036f]/g, "") // strip diacritics
       .toUpperCase()
-      .replace(/[^A-Z0-9_\s-]/g, "") // Keep underscores, spaces, hyphens
-      .replace(/[\s-]+/g, "_") // Replace spaces and hyphens with a single underscore
-      .replace(/_+/g, "_"); // Collapse multiple underscores into one
+      .replace(/[^A-Z0-9]+/g, "_") // any non-alnum → underscore
+      .replace(/_+/g, "_") // collapse
+      .replace(/^_+|_+$/g, ""); // trim edges
   }
 
   constructor(tenant = "airqo") {
@@ -205,8 +206,6 @@ class RBACMigrationUtility {
           constants.ROLE_ASSIGNMENT,
           constants.SETTINGS_EDIT,
           constants.ANALYTICS_VIEW,
-          constants.SYSTEM_ADMIN,
-          constants.SUPER_ADMIN,
         ],
       },
       {
