@@ -52,7 +52,7 @@ class MetaDataUtils:
                 "description",
                 "device_manufacturer",
                 "device_category",
-                "mountType",
+                "mount_type",
                 "mobility",
                 "device_maintenance",
             ]
@@ -61,7 +61,6 @@ class MetaDataUtils:
             columns={
                 "isActive": "active",
                 "status": "deployed",
-                "mountType": "mount_type",
             },
             inplace=True,
         )
@@ -212,7 +211,7 @@ class MetaDataUtils:
             MetaDataType.DEVICES,
             "device_id",
             "next_offset_date",
-            pollutant={"pollutant": pollutants_},
+            filter={"pollutant": pollutants_},
         )
 
         if frequency.str in Config.extra_time_grouping:

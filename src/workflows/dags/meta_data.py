@@ -255,7 +255,6 @@ def compute_store_devices_metadata():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_computed_metadata(data: pd.DataFrame) -> None:
         if not data.empty:
-            # The frequency here is hourly because that is the frequency of the source data
             data, table = DataUtils.format_data_for_bigquery(
                 data,
                 DataType.EXTRAS,
@@ -295,7 +294,6 @@ def compute_store_devices_metadata_monthly():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_computed_metadata(data: pd.DataFrame) -> None:
         if not data.empty:
-            # The frequency here is hourly because that is the frequency of the source data
             data, table = DataUtils.format_data_for_bigquery(
                 data,
                 DataType.EXTRAS,
@@ -419,6 +417,6 @@ update_big_query_grids_cohorts_sites_and_devices()
 meta_data_update_microservice_sites_meta_data()
 cache_sites_data()
 compute_store_devices_metadata()
-compute_store_devices_metadata_monthly
+compute_store_devices_metadata_monthly()
 compute_store_devices_baseline_weekly()
 compute_store_devices_baseline_monthly()
