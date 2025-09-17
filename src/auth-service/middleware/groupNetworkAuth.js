@@ -63,7 +63,11 @@ const requireGroupManagerAccess = (groupIdParam = "grp_id") => {
       // Check if user has manager-level permissions
       const hasManagerPermissions = await rbacService.hasPermission(
         user._id,
-        ["GROUP_MANAGEMENT", "USER_MANAGEMENT", "GROUP_SETTINGS"],
+        [
+          constants.GROUP_MANAGEMENT,
+          constants.USER_MANAGEMENT,
+          constants.GROUP_SETTINGS,
+        ],
         false, // any of these permissions
         groupId,
         "group"
@@ -296,7 +300,12 @@ const requireGroupMemberManagementAccess = (groupIdParam = "grp_id") => {
       // Check if user has member management permissions
       const hasMemberManagePermission = await rbacService.hasPermission(
         user._id,
-        ["MEMBER_MANAGE", "USER_MANAGEMENT", "GROUP_USER_ASSIGN"],
+        [
+          constants.USER_MANAGEMENT,
+          constants.ORG_USER_ASSIGN,
+          constants.MEMBER_INVITE,
+          constants.MEMBER_REMOVE,
+        ],
         false, // any of these permissions
         groupId,
         "group"

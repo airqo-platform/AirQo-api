@@ -292,8 +292,8 @@ const requireGroupUserManagement = (groupIdParam = "grp_id") => {
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN"],
-    requiredPermissions: ["USER_MANAGEMENT", "GROUP_USER_ASSIGN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+    requiredPermissions: [constants.USER_MANAGEMENT, constants.ORG_USER_ASSIGN],
   });
 };
 
@@ -307,8 +307,8 @@ const requireGroupSettings = (groupIdParam = "grp_id") => {
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
-    allowedRoles: ["SUPER_ADMIN", "GROUP_ADMIN"],
-    requiredPermissions: ["GROUP_SETTINGS", "GROUP_MANAGEMENT"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+    requiredPermissions: [constants.GROUP_SETTINGS, constants.GROUP_MANAGEMENT],
   });
 };
 

@@ -10,6 +10,14 @@ const { connectToMongoDB } = require("@config/database");
 
 const MIGRATION_NAME = "rename-legacy-group-roles-v1";
 
+const LEASE_TTL_MS = parseInt(
+  process.env.MIGRATION_LEASE_TTL_MS || `${30 * 60 * 1000}`,
+  10
+); // 30 min default
+const leaseOwner = `${process.env.HOSTNAME || require("os").hostname()}#${
+  process.pid
+}`;
+
 const runLegacyRoleMigration = async (tenant = "airqo") => {
   try {
     logger.info(`Starting migration: ${MIGRATION_NAME} for tenant: ${tenant}`);
@@ -26,15 +34,24 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
       return;
     }
 
+    const now = new Date();
+    const staleCutoff = new Date(now.getTime() - LEASE_TTL_MS);
     const lease = await MigrationTrackerModel(tenant).findOneAndUpdate(
-      { name: MIGRATION_NAME, tenant, status: { $ne: "running" } },
       {
-        $set: { status: "running", startedAt: new Date() },
+        name: MIGRATION_NAME,
+        tenant,
+        $or: [
+          { status: { $ne: "running" } },
+          { status: "running", startedAt: { $lte: staleCutoff } },
+        ],
+      },
+      {
+        $set: { status: "running", startedAt: now, leaseOwner },
         $setOnInsert: { name: MIGRATION_NAME, tenant },
       },
       { upsert: true, new: true }
     );
-    if (!lease || lease.status !== "running") {
+    if (!lease || lease.status !== "running" || lease.tenant !== tenant) {
       logger.info(
         `Migration '${MIGRATION_NAME}' is already running for tenant '${tenant}'. Skipping.`
       );
@@ -71,43 +88,88 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
           `Conflict found for ${legacyRole.role_name}. Merging into existing role ${conflictingRole.role_name}.`
         );
 
-        // 1. Find users with the legacy role for this specific group
-        const usersToMigrate = await UserModel(tenant).find({
-          group_roles: {
-            $elemMatch: { role: legacyRole._id },
-          },
-        });
-
-        logger.info(
-          `Found ${usersToMigrate.length} users to migrate for role ${legacyRole.role_name}.`
-        );
-
-        // 2. Update users in bulk
-        if (usersToMigrate.length > 0) {
-          const userIds = usersToMigrate.map((user) => user._id);
-          // Atomically pull the old role and add the new one
-          await UserModel(tenant).updateMany(
-            { _id: { $in: userIds } },
+        // Use a single update with a pipeline to atomically migrate users,
+        // preserve userType, and prevent creating duplicate roles.
+        const updateResult = await UserModel(tenant).updateMany(
+          { "group_roles.role": legacyRole._id },
+          [
             {
-              $pull: { group_roles: { role: legacyRole._id } },
-            }
-          );
-          await UserModel(tenant).updateMany(
-            { _id: { $in: userIds } },
-            {
-              $addToSet: {
+              $set: {
                 group_roles: {
-                  group: legacyRole.group_id,
-                  role: conflictingRole._id,
-                  userType: "user", // Assuming a default userType
+                  $let: {
+                    vars: {
+                      kept: {
+                        $filter: {
+                          input: "$group_roles",
+                          as: "gr",
+                          cond: { $ne: ["$$gr.role", legacyRole._id] },
+                        },
+                      },
+                      old: {
+                        $first: {
+                          $filter: {
+                            input: "$group_roles",
+                            as: "gr",
+                            cond: { $eq: ["$$gr.role", legacyRole._id] },
+                          },
+                        },
+                      },
+                    },
+                    in: {
+                      $cond: [
+                        {
+                          $gt: [
+                            {
+                              $size: {
+                                $filter: {
+                                  input: "$$kept",
+                                  as: "gr",
+                                  cond: {
+                                    $and: [
+                                      {
+                                        $eq: [
+                                          "$$gr.group",
+                                          legacyRole.group_id,
+                                        ],
+                                      },
+                                      {
+                                        $eq: ["$$gr.role", conflictingRole._id],
+                                      },
+                                    ],
+                                  },
+                                },
+                              },
+                            },
+                            0,
+                          ],
+                        },
+                        "$$kept",
+                        {
+                          $concatArrays: [
+                            "$$kept",
+                            [
+                              {
+                                group: legacyRole.group_id,
+                                role: conflictingRole._id,
+                                userType: {
+                                  $ifNull: ["$$old.userType", "user"],
+                                },
+                              },
+                            ],
+                          ],
+                        },
+                      ],
+                    },
+                  },
                 },
               },
-            }
-          );
-          logger.info(
-            `Migrated ${userIds.length} users from old role to new role.`
-          );
-        }
+            },
+          ]
+        );
+
+        logger.info(
+          `Migrated users from old role to new role. Matched: ${updateResult.matchedCount}, Modified: ${updateResult.modifiedCount}`
+        );
 
         // 3. Delete the old, now-empty legacy role
         await RoleModel(tenant).deleteOne({ _id: legacyRole._id });
