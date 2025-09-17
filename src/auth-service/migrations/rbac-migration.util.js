@@ -3,6 +3,7 @@ const UserModel = require("@models/User");
 const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
+const NetworkModel = require("@models/Network");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- rbac-migration`
@@ -88,7 +89,7 @@ class RBACMigrationUtility {
    */
   async createDefaultPermissions(dryRun = false) {
     logger.info("Creating default permissions from single source of truth...");
-    const { PERMISSION_DEFINITIONS } = require("@config/constants");
+    const PERMISSION_DEFINITIONS = constants.PERMISSION_DEFINITIONS || [];
 
     for (const permissionDef of PERMISSION_DEFINITIONS) {
       try {
@@ -114,11 +115,11 @@ class RBACMigrationUtility {
         logger.debug(`Created permission: ${permissionData.permission}`);
       } catch (error) {
         this.results.permissions.errors.push({
-          permission: permissionData.name,
+          permission: permissionData.permission,
           error: error.message,
         });
         logger.error(
-          `Error creating permission ${permissionData.name}: ${error.message}`
+          `Error creating permission ${permissionData.permission}: ${error.message}`
         );
       }
     }
@@ -133,7 +134,9 @@ class RBACMigrationUtility {
    * @param {boolean} dryRun - Whether to actually create roles
    */
   async createDefaultRoles(dryRun = false) {
-    logger.info("Creating default roles for groups...");
+    logger.info(
+      "Creating default roles for all organizations (groups and networks)..."
+    );
 
     const groups = await GroupModel(this.tenant).find({}).lean();
 
