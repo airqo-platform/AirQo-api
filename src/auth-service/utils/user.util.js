@@ -67,7 +67,12 @@ const normalizeName = (name) => {
   if (!name || typeof name !== "string") {
     return "";
   }
-  return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  return name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_\s-]/g, "") // Keep underscores, spaces, hyphens
+    .replace(/[\s-]+/g, "_") // Replace spaces and hyphens with a single underscore
+    .replace(/_+/g, "_"); // Collapse multiple underscores into one
 };
 async function deleteCollection({ db, collectionPath, batchSize } = {}) {
   const collectionRef = db.collection(collectionPath);

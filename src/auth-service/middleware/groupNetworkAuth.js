@@ -161,7 +161,7 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
       // Also check for organization-specific admin roles
       const isGroupAdmin = await rbacService.hasRole(
         user._id,
-        ["GROUP_ADMIN"],
+        ["SUPER_ADMIN", "GROUP_ADMIN"],
         groupId,
         "group"
       );
