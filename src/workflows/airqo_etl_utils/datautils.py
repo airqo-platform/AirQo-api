@@ -79,17 +79,20 @@ class DataUtils:
                 devices, device_category, device_network
             )
             keys = DataUtils._extract_keys(devices, DeviceNetwork.AIRQO)
-            return devices, keys
         else:
             devices, keys = DataUtils.fetch_devices_from_api(
                 device_network, device_category
             )
-            if not devices.empty:
-                return devices, keys
-            else:
-                raise RuntimeError(
-                    "Failed to retrieve devices data from both cache and API."
-                )
+
+        if devices.empty:
+            raise RuntimeError(
+                "Failed to retrieve devices data from both cache and API."
+            )
+
+        # TODO Do any renaming here or introduce helpers to standardize column names
+        devices.rename(columns={"mountType": "mount_type"}, inplace=True)
+
+        return devices, keys
 
     def _load_devices_from_cache(file_path: str) -> Optional[pd.DataFrame]:
         """Loads devices data from the local cache."""
