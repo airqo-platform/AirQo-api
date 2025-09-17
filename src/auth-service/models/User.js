@@ -48,7 +48,6 @@ function validateProfilePicture(profilePicture) {
   return true;
 }
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
-
 const networkRoleSchema = new Schema({
   network: {
     type: Schema.Types.ObjectId,
@@ -272,7 +271,7 @@ const UserSchema = new Schema(
       minlength: [6, "Password is required"],
       validate: {
         validator(password) {
-          return passwordReg.test(password);
+          return constants.PASSWORD_REGEX.test(password);
         },
         message: "{VALUE} is not a valid password, please check documentation!",
       },
@@ -1032,7 +1031,7 @@ UserSchema.statics = {
     }
   },
 
-  async modify({ filter = {}, update = {} } = {}, next) {
+  async modify({ filter = {}, update = {} } = {}) {
     try {
       logText("the user modification function........");
       const options = {
@@ -1093,7 +1092,7 @@ UserSchema.statics = {
     }
   },
 
-  async remove({ filter = {} } = {}, next) {
+  async remove({ filter = {} } = {}) {
     try {
       const options = {
         projection: {
@@ -1114,27 +1113,21 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Provided User does not exist, please crosscheck",
-          })
-        );
-        return;
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "Provided User does not exist, please crosscheck",
+        });
       }
     } catch (error) {
       logObject("the models error", error);
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       if (error instanceof HttpError) {
-        return next(error);
+        throw error;
       }
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
-      return;
     }
   },
 };
@@ -1431,25 +1424,30 @@ UserSchema.statics.assignUserToGroup = async function (
   userType = "user"
 ) {
   try {
-    const user = await this.findById(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Filter out any existing assignment for this group to ensure atomicity
-    user.group_roles = user.group_roles.filter(
-      (gr) => gr.group.toString() !== groupId.toString()
-    );
-
-    // Add the new role
-    user.group_roles.push({
-      group: groupId,
-      role: roleId,
-      userType: userType,
-      createdAt: new Date(),
+    // Atomically remove any existing role for this group to ensure idempotency
+    await this.findByIdAndUpdate(userId, {
+      $pull: { group_roles: { group: groupId } },
     });
 
-    const updatedUser = await user.save();
+    // Add the new role assignment
+    const updatedUser = await this.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: {
+          group_roles: {
+            group: groupId,
+            role: roleId,
+            userType: userType,
+            createdAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
 
     return {
       success: true,
@@ -1473,25 +1471,30 @@ UserSchema.statics.assignUserToNetwork = async function (
   userType = "user"
 ) {
   try {
-    const user = await this.findById(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Filter out any existing assignment for this network to ensure atomicity
-    user.network_roles = user.network_roles.filter(
-      (nr) => nr.network.toString() !== networkId.toString()
-    );
-
-    // Add the new role
-    user.network_roles.push({
-      network: networkId,
-      role: roleId,
-      userType: userType,
-      createdAt: new Date(),
+    // Atomically remove any existing role for this network to ensure idempotency
+    await this.findByIdAndUpdate(userId, {
+      $pull: { network_roles: { network: networkId } },
     });
 
-    const updatedUser = await user.save();
+    // Add the new role assignment
+    const updatedUser = await this.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: {
+          network_roles: {
+            network: networkId,
+            role: roleId,
+            userType: userType,
+            createdAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
 
     return {
       success: true,
@@ -1588,20 +1591,29 @@ UserSchema.methods.addGroupRole = function (
   roleId,
   userType = "user"
 ) {
-  // Remove existing role for this group if any
-  this.group_roles = this.group_roles.filter(
-    (gr) => gr.group.toString() !== groupId.toString()
-  );
-
-  // Add new role
-  this.group_roles.push({
-    group: groupId,
-    role: roleId,
-    userType: userType,
-    createdAt: new Date(),
-  });
-
-  return this.save();
+  // Use the model to perform an atomic update on the current document instance
+  return this.constructor
+    .findByIdAndUpdate(this._id, {
+      // First, pull any existing role for the group
+      $pull: { group_roles: { group: groupId } },
+    })
+    .then(() => {
+      // Then, add the new role
+      return this.constructor.findByIdAndUpdate(
+        this._id,
+        {
+          $addToSet: {
+            group_roles: {
+              group: groupId,
+              role: roleId,
+              userType: userType,
+              createdAt: new Date(),
+            },
+          },
+        },
+        { new: true }
+      );
+    });
 };
 
 UserSchema.methods.addNetworkRole = function (
@@ -1609,20 +1621,27 @@ UserSchema.methods.addNetworkRole = function (
   roleId,
   userType = "user"
 ) {
-  // Remove existing role for this network if any
-  this.network_roles = this.network_roles.filter(
-    (nr) => nr.network.toString() !== networkId.toString()
-  );
-
-  // Add new role
-  this.network_roles.push({
-    network: networkId,
-    role: roleId,
-    userType: userType,
-    createdAt: new Date(),
-  });
-
-  return this.save();
+  // Use the model to perform an atomic update on the current document instance
+  return this.constructor
+    .findByIdAndUpdate(this._id, {
+      $pull: { network_roles: { network: networkId } },
+    })
+    .then(() => {
+      return this.constructor.findByIdAndUpdate(
+        this._id,
+        {
+          $addToSet: {
+            network_roles: {
+              network: networkId,
+              role: roleId,
+              userType: userType,
+              createdAt: new Date(),
+            },
+          },
+        },
+        { new: true }
+      );
+    });
 };
 
 const UserModel = (tenant) => {

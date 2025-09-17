@@ -536,7 +536,7 @@ const userController = {
       logger.info("inside delete user............");
       const request = handleRequest(req, next);
       if (!request) return;
-      const result = await userUtil.delete(request, next);
+      const result = await userUtil.delete(request);
       sendResponse(res, result, "user");
     } catch (error) {
       handleError(error, next);
@@ -601,15 +601,10 @@ const userController = {
   },
   resetPasswordRequest: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const { email } = req.body;
-      const tenant = req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { email } = request.body;
+      const { tenant } = request.query;
       const token = userUtil.generateNumericToken(5);
       const result = await userUtil.initiatePasswordReset({
         email,
