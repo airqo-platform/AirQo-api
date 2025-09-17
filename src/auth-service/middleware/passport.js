@@ -1505,27 +1505,24 @@ const enhancedJWTAuth = async (req, res, next) => {
               constants.DEFAULT_TENANT ||
               "airqo"
           ).toLowerCase();
-          const user = await UserModel(tenant).findById(userId).lean();
-          if (!user) {
+          const userDoc = await UserModel(tenant).findById(userId);
+          if (!userDoc) {
             throw new Error("User from legacy token no longer exists.");
           }
           // Attach user and decoded token to request
-          req.user = { ...user, ...expiredDecoded };
+          req.user = { ...userDoc.toObject(), ...expiredDecoded };
 
           // Add sliding refresh on this path as well
           try {
-            const userDoc = await UserModel(tenant).findById(userId);
-            if (userDoc) {
-              const newToken = await userDoc.createToken();
-              res.set("X-Access-Token", newToken);
-              res.set("Access-Control-Expose-Headers", "X-Access-Token");
-              logger.info(
-                `Successfully generated and set refresh token header for legacy user ${user.email}`
-              );
-            }
+            const newToken = await userDoc.createToken();
+            res.set("X-Access-Token", newToken);
+            res.set("Access-Control-Expose-Headers", "X-Access-Token");
+            logger.info(
+              `Successfully generated and set refresh token header for legacy user ${userDoc.email}`
+            );
           } catch (refreshError) {
             logger.error(
-              `Failed to refresh legacy token for ${user.email}: ${refreshError.message}`
+              `Failed to refresh legacy token for ${userDoc.email}: ${refreshError.message}`
             );
           }
           return next();
