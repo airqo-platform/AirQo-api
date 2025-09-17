@@ -111,17 +111,15 @@ function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
     .catch(reject);
 }
 
-const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
+const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
   try {
     const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
     const user = await UserModel(dbTenant).findById(userId);
 
     if (isEmpty(user)) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: `User ${userId} not found in the system`,
-        })
-      );
+      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: `User ${userId} not found in the system`,
+      });
     }
 
     const updatedGroup = await GroupModel(dbTenant).updateMany(
@@ -172,10 +170,13 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
     };
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message: error.message,
-      })
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: error.message }
     );
   }
 };
@@ -1717,38 +1718,36 @@ const createUserModule = {
     }
   },
 
-  delete: async (request, next) => {
+  delete: async (request) => {
     try {
       const { tenant } = request.query;
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
-      const filter = generateFilter.users(request, next);
+      const filter = generateFilter.users(request);
       const userId = filter._id;
-      const responseFromCascadeDeletion = await cascadeUserDeletion(
-        { userId, tenant },
-        next
-      );
+      const responseFromCascadeDeletion = await cascadeUserDeletion({
+        userId,
+        tenant,
+      });
       if (
         responseFromCascadeDeletion &&
         responseFromCascadeDeletion.success === true
       ) {
-        const responseFromRemoveUser = await UserModel(dbTenant).remove(
-          {
-            filter,
-          },
-          next
-        );
+        const responseFromRemoveUser = await UserModel(dbTenant).remove({
+          filter,
+        });
         return responseFromRemoveUser;
       } else {
         return responseFromCascadeDeletion;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
     }
   },

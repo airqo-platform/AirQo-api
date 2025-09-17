@@ -536,7 +536,7 @@ const userController = {
       logger.info("inside delete user............");
       const request = handleRequest(req, next);
       if (!request) return;
-      const result = await userUtil.delete(request, next);
+      const result = await userUtil.delete(request);
       sendResponse(res, result, "user");
     } catch (error) {
       handleError(error, next);
