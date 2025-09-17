@@ -6,17 +6,17 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-registry-api
-  tag: prod-14eb9ade-1758055633
+  tag: prod-dd99bdfd-1758088202
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 200m
-    memory: 500Mi
+    memory: 700Mi
   requests:
     cpu: 10m
-    memory: 200Mi
+    memory: 350Mi
 nodeSelector:
   role: moderate-usage
 affinity:
