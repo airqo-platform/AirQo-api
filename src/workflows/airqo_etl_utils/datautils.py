@@ -346,7 +346,7 @@ class DataUtils:
             logger.info("Device maintenance date is missing or invalid.")
             return pd.DataFrame()
 
-        device_previous_offset = entity.get("next_offset_date", None)
+        device_previous_offset = entity.get("next_offset_date")
         start_date = max(
             device_maintenance,
             device_maintenance
@@ -1273,26 +1273,50 @@ class DataUtils:
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
         """
-        Resamples and averages out the numeric type fields on an hourly basis.
+        Aggregates low-cost sensor data by resampling numeric fields to hourly averages. This method processes the input DataFrame by grouping data by `device_id` and
+        resampling numeric columns on an hourly basis. It ensures that required metadata columns are preserved and handles missing or invalid data gracefully.
 
         Args:
-            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
+            data(pd.DataFrame): A pandas DataFrame containing cleaned low-cost sensor data. Must include `timestamp` and `device_id` columns.
 
         Returns:
-            A pandas DataFrame object containing hourly averages of data.
+            pd.DataFrame: A DataFrame containing hourly averages of numeric fields, with metadata columns preserved.
         """
 
+        required_columns = {"timestamp", "device_id"}
+        if not required_columns.issubset(data.columns):
+            raise ValueError(
+                f"Input data must contain the following columns: {required_columns}"
+            )
+
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
-        group_metadata = (
-            data[
-                ["device_id", "site_id", "device_number", "network", "device_category"]
-            ]
-            .drop_duplicates("device_id")
-            .set_index("device_id")
+
+        try:
+            # TODO: Make this more dynamic and device-type agnostic
+            # Might drop some columns if not included in group metadata
+            group_metadata = (
+                data[
+                    [
+                        "device_id",
+                        "site_id",
+                        "device_number",
+                        "network",
+                        "device_category",
+                        "last_updated",
+                    ]
+                ]
+                .drop_duplicates("device_id")
+                .set_index("device_id")
+            )
+        except KeyError as e:
+            logger.exception(f"Missing required metadata columns: {e}")
+            return pd.DataFrame(columns=data.columns)
+
+        numeric_columns = data.select_dtypes(include=["number"]).columns.difference(
+            ["timestamp"]
         )
-        numeric_columns = data.select_dtypes(include=["number"]).columns
-        numeric_columns = numeric_columns.difference(["device_number"])
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
+
         try:
             aggregated = (
                 data_for_aggregation.groupby("device_id")
@@ -1301,7 +1325,7 @@ class DataUtils:
             )
             aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
         except Exception as e:
-            logger.exception(f"An error occured: No data passed - {e}")
+            logger.exception(f"Aggregation error: {e}")
             aggregated = pd.DataFrame(columns=data.columns)
 
         return drop_rows_with_bad_data("number", aggregated, exclude=["device_number"])
@@ -1382,6 +1406,7 @@ class DataUtils:
             )
             data.dropna(subset=["timestamp"], inplace=True)
             data["timestamp"] = pd.to_datetime(data["timestamp"])
+            data["last_updated"] = date_to_str(datetime.now(timezone.utc))
         except Exception as e:
             logger.exception(
                 f"There is an issue with the timestamp column. Shape of data: {data.shape}"
@@ -1617,6 +1642,7 @@ class DataUtils:
         timestamp_columns = big_query_api.get_columns(
             table=table, column_type=[ColumnDataType.TIMESTAMP]
         )
+
         try:
             for col in timestamp_columns:
                 data[col] = pd.to_datetime(data[col], errors="coerce")
@@ -1723,9 +1749,16 @@ class DataUtils:
 
         devices, _ = DataUtils.get_devices()
 
-        data.rename(columns={"device_id": "device_name"}, inplace=True)
-        devices.rename(columns={"name": "device_name"}, inplace=True)
         try:
+            data.rename(columns={"device_id": "device_name"}, inplace=True)
+            devices.rename(
+                columns={
+                    "name": "device_name",
+                    "latitude": "device_latitude",
+                    "longitude": "device_longitude",
+                },
+                inplace=True,
+            )
             devices = devices[
                 [
                     "device_name",
@@ -2001,7 +2034,7 @@ class DataUtils:
             )
         )
 
-    def __perform_data_quality_checks(
+    async def __perform_data_quality_checks(
         device_category: DeviceCategory,
         data_type: DataType,
         data: pd.DataFrame = None,
