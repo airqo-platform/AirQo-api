@@ -222,7 +222,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         // Fire-and-forget permission update
         (async () => {
           try {
-            const DEFAULT_PERMISSIONS = constants.DEFAULT_NEW_USER_PERMISSIONS;
+            const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
             const existingPermissions = await PermissionModel(
               tenant.toLowerCase()
             )
@@ -386,7 +386,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         // Fire-and-forget permission update
         (async () => {
           try {
-            const DEFAULT_PERMISSIONS = constants.DEFAULT_NEW_USER_PERMISSIONS;
+            const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
             const existingPermissions = await PermissionModel(
               tenant.toLowerCase()
             )

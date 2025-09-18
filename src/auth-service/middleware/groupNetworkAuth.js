@@ -63,7 +63,11 @@ const requireGroupManagerAccess = (groupIdParam = "grp_id") => {
       // Check if user has manager-level permissions
       const hasManagerPermissions = await rbacService.hasPermission(
         user._id,
-        ["GROUP_MANAGEMENT", "USER_MANAGEMENT", "GROUP_SETTINGS"],
+        [
+          constants.GROUP_MANAGEMENT,
+          constants.USER_MANAGEMENT,
+          constants.GROUP_SETTINGS,
+        ],
         false, // any of these permissions
         groupId,
         "group"
@@ -72,7 +76,7 @@ const requireGroupManagerAccess = (groupIdParam = "grp_id") => {
       // Check if user has manager-level roles
       const hasManagerRole = await rbacService.hasRole(
         user._id,
-        ["SUPER_ADMIN", "GROUP_ADMIN", "GROUP_MANAGER"],
+        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
         groupId,
         "group"
       );
@@ -161,7 +165,7 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
       // Also check for organization-specific admin roles
       const isGroupAdmin = await rbacService.hasRole(
         user._id,
-        ["GROUP_ADMIN"],
+        ["SUPER_ADMIN", "ADMIN"],
         groupId,
         "group"
       );
@@ -296,7 +300,12 @@ const requireGroupMemberManagementAccess = (groupIdParam = "grp_id") => {
       // Check if user has member management permissions
       const hasMemberManagePermission = await rbacService.hasPermission(
         user._id,
-        ["MEMBER_MANAGE", "USER_MANAGEMENT", "GROUP_USER_ASSIGN"],
+        [
+          constants.USER_MANAGEMENT,
+          constants.ORG_USER_ASSIGN,
+          constants.MEMBER_INVITE,
+          constants.MEMBER_REMOVE,
+        ],
         false, // any of these permissions
         groupId,
         "group"
@@ -305,7 +314,7 @@ const requireGroupMemberManagementAccess = (groupIdParam = "grp_id") => {
       // Check if user has appropriate management roles
       const hasManagementRole = await rbacService.hasRole(
         user._id,
-        ["SUPER_ADMIN", "GROUP_ADMIN", "GROUP_MANAGER"],
+        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
         groupId,
         "group"
       );

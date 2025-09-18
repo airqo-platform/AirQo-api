@@ -354,6 +354,7 @@ router.get(
 router.post(
   "/:grp_id/cohorts/assign",
   enhancedJWTAuth,
+  requireGroupAdminAccess(),
   groupValidations.assignCohortsToGroup,
   groupController.assignCohortsToGroup
 );
@@ -361,6 +362,7 @@ router.post(
 router.delete(
   "/:grp_id/cohorts/unassign",
   enhancedJWTAuth,
+  requireGroupAdminAccess(),
   groupValidations.unassignCohortsFromGroup,
   groupController.unassignCohortsFromGroup
 );
@@ -368,6 +370,7 @@ router.delete(
 router.get(
   "/:grp_id/cohorts",
   enhancedJWTAuth,
+  requireGroupAccess([constants.GROUP_VIEW]),
   groupValidations.listGroupCohorts,
   groupController.listGroupCohorts
 );
