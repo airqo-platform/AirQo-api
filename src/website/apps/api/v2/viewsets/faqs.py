@@ -40,12 +40,13 @@ class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     # Ordering configuration
     ordering_fields = [
         'id',
+        'order',
         'question',
         'is_active',
         'created_at',
         'updated_at',
     ]
-    ordering = ['-created_at']  # Default to newest first
+    ordering = ['order', '-created_at']  # Default to manual order, then newest
 
     # List optimization - only include basic fields for performance
     list_only_fields = [
