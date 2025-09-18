@@ -892,11 +892,28 @@ async function updateOnlineStatusAndAccuracy() {
       };
 
       // Format a human-readable summary for the main report
-      const { processing, offlineDetection } = accuracyReport;
-      const duration = (processing.processingDuration / 1000).toFixed(1);
-      const devices = offlineDetection.devices.metrics;
-      const sites = offlineDetection.sites.metrics;
-      const formattedReport = `📊📊 Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Devices: ${devices.successfulUpdates} updated, ${devices.markedOffline} marked offline. Sites: ${sites.successfulUpdates} updated, ${sites.markedOffline} marked offline.`;
+      const { processing, overallAccuracy, offlineDetection } = accuracyReport;
+      const durationMs =
+        typeof overallAccuracy?.processingDuration === "number"
+          ? overallAccuracy.processingDuration
+          : processing.endTime && processing.startTime
+          ? processing.endTime - processing.startTime
+          : 0;
+      const duration = (durationMs / 1000).toFixed(1);
+      const devices = offlineDetection?.devices?.metrics;
+      const sites = offlineDetection?.sites?.metrics;
+      const formattedReport =
+        `📊📊 Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. ` +
+        `Devices: ${
+          devices
+            ? `${devices.successfulUpdates} updated, ${devices.markedOffline} marked offline`
+            : "metrics unavailable"
+        }. ` +
+        `Sites: ${
+          sites
+            ? `${sites.successfulUpdates} updated, ${sites.markedOffline} marked offline`
+            : "metrics unavailable"
+        }.`;
 
       // Use throttled logging for accuracy report
       await throttledLog("ACCURACY_REPORT", formattedReport);
