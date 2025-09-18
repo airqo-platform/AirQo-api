@@ -491,7 +491,7 @@ class AirQoDataUtils:
                 if station.get("code")
             ]
         except Exception as e:
-            logging.error(f"Error extracting site information: {e}")
+            logger.error(f"Error extracting site information: {e}")
             return device_measurements
 
         sites_df = pd.DataFrame(sites_info)
