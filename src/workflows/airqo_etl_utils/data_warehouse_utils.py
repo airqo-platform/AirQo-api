@@ -201,7 +201,7 @@ class DataWarehouseUtils:
             low_cost_data["network"] != DeviceNetwork.AIRQO.str
         ]
         airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
-            airqo_data=airqo_data, weather_data=weather_data
+            airqo_data, weather_data=weather_data
         )
 
         devices_data = pd.concat(

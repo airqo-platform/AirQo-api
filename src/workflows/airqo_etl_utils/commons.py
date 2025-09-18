@@ -84,7 +84,7 @@ def upload_dataframe_to_gcs(
 
 
 def drop_rows_with_bad_data(
-    data_type: str, data: pd.DataFrame, exclude: Optional[List[str]] = None
+    data_type: str, data: pd.DataFrame, exclude: Optional[List[str]] = []
 ) -> pd.DataFrame:
     """
     Removes rows from a DataFrame where most numeric values are missing.
@@ -99,7 +99,7 @@ def drop_rows_with_bad_data(
     """
     # TODO Update to be more dynamic
     numeric_columns = data.select_dtypes(include=[data_type]).columns.difference(
-        exclude or []
+        exclude
     )
     return data[data[numeric_columns].count(axis=1) > 1]
 

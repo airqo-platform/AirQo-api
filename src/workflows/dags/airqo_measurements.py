@@ -98,7 +98,7 @@ def airqo_historical_hourly_measurements():
         device_measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
         return AirQoDataUtils.merge_aggregated_weather_data(
-            airqo_data=device_measurements, weather_data=weather_data
+            device_measurements, weather_data=weather_data
         )
 
     @task(retries=2, retry_delay=timedelta(minutes=2))
@@ -399,7 +399,7 @@ def airqo_realtime_measurements():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.merge_aggregated_weather_data(
-            airqo_data=averaged_hourly_data, weather_data=weather_data
+            averaged_hourly_data, weather_data=weather_data
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
