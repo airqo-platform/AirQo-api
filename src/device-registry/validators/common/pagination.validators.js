@@ -1,9 +1,8 @@
-const pagination = (defaultLimit = 1000, maxLimit = 2000) => {
+const pagination = (defaultLimit = 30, maxLimit = 80) => {
   return (req, res, next) => {
-    if (req.method === "GET" && (req.query.limit || req.query.skip)) {
-      // Apply ONLY to GET requests with limit/skip
-      let limit = parseInt(req.query.limit, 10);
-      let skip = parseInt(req.query.skip, 10);
+    if (req.method === "GET") {
+      let limit = parseInt(req.query.limit, 10) || defaultLimit;
+      let skip = parseInt(req.query.skip, 10) || 0;
 
       if (Number.isNaN(limit) || limit < 1) {
         limit = defaultLimit;
@@ -12,7 +11,7 @@ const pagination = (defaultLimit = 1000, maxLimit = 2000) => {
         limit = maxLimit;
       }
       if (Number.isNaN(skip) || skip < 0) {
-        skip = 0; // Assign 0 directly to skip. No need for req.query
+        skip = 0;
       }
 
       req.query.limit = limit;

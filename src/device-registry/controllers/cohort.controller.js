@@ -665,7 +665,7 @@ const createCohort = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      request.query.summary = "yes";
+      request.query.detailLevel = "summary";
 
       const result = await createCohortUtil.list(request, next);
 
@@ -678,6 +678,7 @@ const createCohort = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           cohorts: result.data,
         });
       } else if (result.success === false) {
@@ -721,7 +722,7 @@ const createCohort = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      request.query.dashboard = "yes";
+      request.query.detailLevel = "full";
 
       const result = await createCohortUtil.list(request, next);
 
@@ -734,6 +735,7 @@ const createCohort = {
         res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           cohorts: result.data,
         });
       } else if (result.success === false) {

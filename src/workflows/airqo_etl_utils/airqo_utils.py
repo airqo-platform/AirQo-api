@@ -356,24 +356,34 @@ class AirQoDataUtils:
 
     @staticmethod
     def merge_aggregated_weather_data(
-        airqo_data: pd.DataFrame, weather_data: pd.DataFrame
+        device_measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
         """
-        Merges airqo pm2.5 sensor data with weather data from the weather stations selected from the sites data.
-
-        args:
-            airqo_data(pandas.DataFrame):
-            weather_data(pandas.DataFrame):
+        Merges PM2.5 sensor data with weather data from selected weather stations.
+        This method combines air quality measurements from devices with weather data
+        from nearby weather stations. It ensures that the weather data is matched to the
+        corresponding site and timestamp of the device measurements. The method also handles
+        potential data inconsistencies and fills missing values where necessary.
+        Args:
+            device_measurements(pd.DataFrame): A DataFrame containing device measurements with columns such as 'timestamp' and 'site_id'.
+            weather_data (pd.DataFrame): A DataFrame containing weather data with columns such as 'timestamp', 'station_code', and other weather-related metrics.
+        Returns:
+            pd.DataFrame: A DataFrame containing the merged data, with weather data matched to
+            the corresponding device measurements based on site and timestamp. Rows with
+            invalid data are dropped.
         """
         if weather_data.empty:
-            return airqo_data
+            return device_measurements
 
-        airqo_data["timestamp"] = pd.to_datetime(airqo_data["timestamp"])
-        weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
+        device_measurements["timestamp"] = pd.to_datetime(
+            device_measurements["timestamp"], utc=True
+        )
+        weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"], utc=True)
 
         sites = DataUtils.get_sites(DeviceNetwork.AIRQO)
         sites_info: List[Dict[str, Any]] = []
-
+        # Add try catch due to unpredictable nature of the data in the weather_stations column
+        # TODO (cleanup): Might have to store some of this information in persistent storage. The cached file is changed every now and then.
         sites_info = [
             {
                 "site_id": site.get("_id"),
@@ -381,9 +391,12 @@ class AirQoDataUtils:
                 "distance": station.get("distance", None),
             }
             for _, site in sites.iterrows()
-            for station in ast.literal_eval(site.get("weather_stations", []))
+            for station in ast.literal_eval(site.get("weather_stations", "[]"))
         ]
+
         sites_df = pd.DataFrame(sites_info)
+        if sites_df.empty:
+            return device_measurements
 
         sites_weather_data = pd.DataFrame()
         weather_data_cols = weather_data.columns.to_list()
@@ -410,17 +423,19 @@ class AirQoDataUtils:
                     [sites_weather_data, by_timestamp], ignore_index=True
                 )
 
-        airqo_data_cols = airqo_data.columns.to_list()
+        airqo_data_cols = device_measurements.columns.to_list()
         weather_data_cols = sites_weather_data.columns.to_list()
         intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
         intersecting_cols.remove("timestamp")
         intersecting_cols.remove("site_id")
 
         for col in intersecting_cols:
-            airqo_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
+            device_measurements.rename(
+                columns={col: f"device_reading_{col}_col"}, inplace=True
+            )
 
         measurements = pd.merge(
-            left=airqo_data,
+            left=device_measurements,
             right=sites_weather_data,
             how="left",
             on=["site_id", "timestamp"],
@@ -434,6 +449,107 @@ class AirQoDataUtils:
         return drop_rows_with_bad_data(
             "number", measurements, exclude=["device_number"]
         )
+
+    # TODO: Test performance when device_registry is fixed.
+    @staticmethod
+    def merge_aggregated_weather_data_(
+        device_measurements: pd.DataFrame, weather_data: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Merges PM2.5 sensor data with weather data from selected weather stations. This method combines air quality measurements from devices with weather data
+        from nearby weather stations. It ensures that the weather data is matched to the corresponding site and timestamp of the device measurements. The method also handles
+        potential data inconsistencies and fills missing values where necessary.
+        Args:
+            device_measurements(pd.DataFrame): A DataFrame containing device measurements with columns such as 'timestamp' and 'site_id'.
+            weather_data (pd.DataFrame): A DataFrame containing weather data with columns such as 'timestamp', 'station_code', and other weather-related metrics.
+        Returns:
+            pd.DataFrame: A DataFrame containing the merged data, with weather data matched to
+            the corresponding device measurements based on site and timestamp. Rows with
+            invalid data are dropped.
+        """
+
+        if weather_data.empty:
+            return device_measurements
+
+        device_measurements["timestamp"] = pd.to_datetime(
+            device_measurements["timestamp"], utc=True, errors="coerce"
+        )
+        weather_data["timestamp"] = pd.to_datetime(
+            weather_data["timestamp"], utc=True, errors="coerce"
+        )
+
+        try:
+            sites = DataUtils.get_sites(DeviceNetwork.AIRQO)
+            sites_info = [
+                {
+                    "site_id": site.get("_id"),
+                    "station_code": station.get("code"),
+                    "distance": station.get("distance"),
+                }
+                for _, site in sites.iterrows()
+                for station in ast.literal_eval(site.get("weather_stations", "[]"))
+                if station.get("code")
+            ]
+        except Exception as e:
+            logger.error(f"Error extracting site information: {e}")
+            return device_measurements
+
+        sites_df = pd.DataFrame(sites_info)
+
+        if sites_df.empty:
+            return device_measurements
+
+        sites_weather_data = pd.merge(
+            weather_data,
+            sites_df,
+            on="station_code",
+        )
+
+        sites_weather_data["distance"] = sites_weather_data["distance"].fillna(
+            float("inf")
+        )
+
+        # Pick the closest station per (site_id, timestamp)
+        sites_weather_data = (
+            sites_weather_data.sort_values(
+                by=["timestamp", "site_id", "distance"], ascending=[True, True, True]
+            )
+            .drop_duplicates(subset=["timestamp", "site_id"], keep="first")
+            .reset_index(drop=True)
+        )
+
+        # Backfill missing weather values across time if needed
+        sites_weather_data = (
+            sites_weather_data.sort_values(by=["site_id", "timestamp"])
+            .groupby("site_id")
+            .apply(lambda g: g.ffill().bfill())  # ffill then bfill per site
+            .reset_index(drop=True)
+        )
+
+        # Resolve column conflicts
+        intersecting_cols = set(device_measurements.columns).intersection(
+            sites_weather_data.columns
+        ) - {"timestamp", "site_id"}
+        for col in intersecting_cols:
+            device_measurements.rename(
+                columns={col: f"device_reading_{col}_col"}, inplace=True
+            )
+
+        # Merge with device data
+        merged_data = pd.merge(
+            device_measurements,
+            sites_weather_data,
+            on=["site_id", "timestamp"],
+            how="left",
+        )
+
+        # Restore original values where weather data was missing
+        for col in intersecting_cols:
+            merged_data[col] = merged_data[col].fillna(
+                merged_data.pop(f"device_reading_{col}_col"), inplace=False
+            )
+
+        return drop_rows_with_bad_data("number", merged_data, exclude=["device_number"])
 
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
@@ -828,7 +944,7 @@ class AirQoDataUtils:
                     )
                     air_weather_hourly_data = (
                         AirQoDataUtils.merge_aggregated_weather_data(
-                            airqo_data=aggregated_device_data,
+                            aggregated_device_data,
                             weather_data=hourly_weather_data,
                         )
                     )

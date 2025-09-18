@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 import ast
 from typing import Optional, Callable, List, Dict, Any
@@ -135,6 +136,7 @@ class MetaDataUtils:
                 columns=[exclude_column], inplace=True, errors="ignore"
             )
         entities = pd.merge(entities, recent_readings, how="left", on=unique_id)
+        entities.fillna(np.nan, inplace=True)
 
         # Compute additional metadata
         computed_data = []
