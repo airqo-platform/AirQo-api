@@ -22,7 +22,7 @@ const JOB_SCHEDULE = "45 * * * *"; // At minute 45 of every hour (15 minutes aft
 
 // Log throttling configuration
 const LOG_THROTTLE_CONFIG = {
-  maxLogsPerDay: 2,
+  maxLogsPerDay: 1,
   logTypesThrottled: ["METRICS", "ACCURACY_REPORT"],
 };
 
@@ -206,6 +206,17 @@ async function throttledLog(logType, message, forceLog = false) {
   }
 
   try {
+    // New time-based check to only log around noon EAT
+    const now = moment().tz("Africa/Nairobi");
+    const currentHour = now.hour();
+
+    // Only log between 12:00 and 12:59 EAT
+    if (currentHour !== 12) {
+      logger.debug(
+        `Skipping log for ${logType} outside of the 12:00-12:59 EAT window.`
+      );
+      return;
+    }
     const shouldAllow = await logThrottleManager.shouldAllowLog(logType);
 
     if (shouldAllow) {
@@ -213,7 +224,7 @@ async function throttledLog(logType, message, forceLog = false) {
     } else {
       // Log throttling is working. A debug log is sufficient to avoid noise.
       logger.debug(
-        `Log throttled for ${logType}: Daily limit of ${LOG_THROTTLE_CONFIG.maxLogsPerDay} reached.`
+        `Log throttled for ${logType}: Daily limit of ${LOG_THROTTLE_CONFIG.maxLogsPerDay} reached for the 12 PM window.`
       );
     }
   } catch (error) {
@@ -460,31 +471,44 @@ async function updateOfflineEntitiesWithAccuracy(
       .subtract(INACTIVE_THRESHOLD, "milliseconds")
       .toDate();
 
-    const offlineUpdateResult = await Model.updateMany(
+    // 1. Find all entities that should be marked offline
+    const entitiesToMarkOffline = await Model.find(
       {
         _id: { $nin: Array.from(activeEntityIds) },
         lastActive: { $lt: thresholdTime },
         $or: [{ isOnline: true }, { isOnline: { $exists: false } }],
       },
-      {
-        $set: {
-          isOnline: false,
-          statusUpdatedAt: new Date(),
-          statusSource: "cron_offline_detection",
-        },
-        $inc: {
-          "onlineStatusAccuracy.totalAttempts": 1,
-          "onlineStatusAccuracy.successfulUpdates": 1,
-        },
-      }
-    );
+      { _id: 1 } // Only get the IDs
+    ).lean();
 
-    let modified = 0;
-    if (offlineUpdateResult) {
-      if (offlineUpdateResult.modifiedCount !== undefined) {
-        modified = offlineUpdateResult.modifiedCount;
-      } else if (offlineUpdateResult.nModified !== undefined) {
-        modified = offlineUpdateResult.nModified;
+    const offlineEntityIds = entitiesToMarkOffline.map((e) => e._id);
+    const modified = offlineEntityIds.length;
+
+    if (modified > 0) {
+      // 2. Atomically update their status to offline in one go.
+      await Model.updateMany(
+        { _id: { $in: offlineEntityIds } },
+        {
+          $set: {
+            isOnline: false,
+            statusUpdatedAt: new Date(),
+            statusSource: "cron_offline_detection",
+          },
+        }
+      );
+
+      // 3. Loop through the offline entities and update their accuracy individually.
+      // This correctly marks the offline event as a "success" for accuracy calculation,
+      // as the job correctly identified the device's offline state,
+      // and it recalculates the accuracy percentage for each device.
+      for (const entityId of offlineEntityIds) {
+        await updateEntityOnlineStatusAccuracy(
+          Model,
+          entityId,
+          true, // <-- This is the key change. Offline is a "success" for accuracy.
+          "device_offline",
+          entityType
+        );
       }
     }
 
@@ -497,10 +521,8 @@ async function updateOfflineEntitiesWithAccuracy(
       timestamp: new Date(),
     };
 
-    await throttledLog(
-      "METRICS",
-      `📊 ${entityType} Status Update Metrics: ${stringify(accuracyMetrics)}`
-    );
+    const formattedMetrics = `📊 ${entityType} Status: ${accuracyMetrics.totalProcessed} processed, ${accuracyMetrics.successfulUpdates} updated, ${accuracyMetrics.markedOffline} marked offline.`;
+    await throttledLog("METRICS", formattedMetrics);
 
     return {
       success: true,
@@ -869,20 +891,22 @@ async function updateOnlineStatusAndAccuracy() {
             : { success: false, error: siteOfflineResult.reason },
       };
 
+      // Format a human-readable summary for the main report
+      const { processing, offlineDetection } = accuracyReport;
+      const duration = (processing.processingDuration / 1000).toFixed(1);
+      const devices = offlineDetection.devices.metrics;
+      const sites = offlineDetection.sites.metrics;
+      const formattedReport = `📊📊 Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Devices: ${devices.successfulUpdates} updated, ${devices.markedOffline} marked offline. Sites: ${sites.successfulUpdates} updated, ${sites.markedOffline} marked offline.`;
+
       // Use throttled logging for accuracy report
-      await throttledLog(
-        "ACCURACY_REPORT",
-        `📊📊 ONLINE STATUS ACCURACY REPORT: ${stringify(accuracyReport)}`
-      );
+      await throttledLog("ACCURACY_REPORT", formattedReport);
     } catch (offlineError) {
       logger.error(`Error in offline detection: ${offlineError.message}`);
       const accuracyReport = await processor.getAccuracyReport();
-      await throttledLog(
-        "ACCURACY_REPORT",
-        `📊📊 PARTIAL ONLINE STATUS ACCURACY REPORT: ${stringify(
-          accuracyReport
-        )}`
-      );
+      const { processing } = accuracyReport;
+      const duration = (processing.processingDuration / 1000).toFixed(1);
+      const formattedReport = `📊📊 PARTIAL Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Check logs for offline detection errors.`;
+      await throttledLog("ACCURACY_REPORT", formattedReport);
     }
 
     logText("Online status and accuracy tracking completed successfully");
@@ -924,7 +948,7 @@ const startJob = () => {
   };
 
   console.log(
-    `✅ ${JOB_NAME} started - focused on online status updates and accuracy tracking (max ${LOG_THROTTLE_CONFIG.maxLogsPerDay} metrics/accuracy logs per day)`
+    `✅ ${JOB_NAME} started - will log summary around 12:00 EAT (max ${LOG_THROTTLE_CONFIG.maxLogsPerDay} report per day)`
   );
 };
 
