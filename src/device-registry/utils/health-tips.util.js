@@ -24,8 +24,16 @@ const createHealthTips = {
       }
       const language = request.query.language;
 
-      const _skip = parseInt(skip, 10) || 0;
-      const _limit = parseInt(limit, 10) || 1000;
+      const MAX_LIMIT =
+        Number(
+          constants.DEFAULT_LIMIT_FOR_QUERYING_HEALTH_TIPS ||
+            constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES
+        ) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
+      );
 
       const pipeline = [
         { $match: filter },

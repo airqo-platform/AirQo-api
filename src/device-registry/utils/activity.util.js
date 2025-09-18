@@ -73,11 +73,31 @@ const createActivity = {
         filter.path = path;
       }
 
-      const _skip = parseInt(skip, 10) || 0;
-      const _limit = parseInt(limit, 10) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
 
       const pipeline = [
         { $match: filter },
+        {
+          $project: {
+            _id: 1,
+            device: 1,
+            device_id: 1,
+            activityType: 1,
+            maintenanceType: 1,
+            recallType: 1,
+            date: 1,
+            description: 1,
+            nextMaintenance: 1,
+            createdAt: 1,
+            site_id: 1,
+            grid_id: 1,
+            deployment_type: 1,
+            host_id: 1,
+            network: 1,
+            tags: 1,
+          },
+        },
         {
           $facet: {
             paginatedResults: [

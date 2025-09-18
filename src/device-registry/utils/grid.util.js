@@ -485,8 +485,8 @@ const createGrid = {
       const { tenant, limit, skip, detailLevel = "full" } = request.query;
       const filter = generateFilter.grids(request, next);
 
-      const _skip = parseInt(skip, 10) || 0;
-      const _limit = parseInt(limit, 10) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
 
       let pipeline = [{ $match: filter }];
 
@@ -539,10 +539,15 @@ const createGrid = {
         .aggregate(facetPipeline)
         .allowDiskUse(true);
 
-      const paginatedResults = results[0].paginatedResults;
-      const total = results[0].totalCount[0]
-        ? results[0].totalCount[0].count
-        : 0;
+      const agg =
+        Array.isArray(results) && results[0]
+          ? results[0]
+          : { paginatedResults: [], totalCount: [] };
+      const paginatedResults = agg.paginatedResults || [];
+      const total =
+        Array.isArray(agg.totalCount) && agg.totalCount[0]
+          ? agg.totalCount[0].count
+          : 0;
 
       return {
         success: true,
@@ -665,11 +670,14 @@ const createGrid = {
     try {
       const { tenant, limit, skip } = request.query;
       const filter = generateFilter.admin_levels(request, next);
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+
       const responseFromListAdminLevels = await AdminLevelModel(tenant).list(
         {
           filter,
-          limit,
-          skip,
+          limit: _limit,
+          skip: _skip,
         },
         next
       );
