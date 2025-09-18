@@ -553,6 +553,7 @@ siteSchema.pre(
 
 siteSchema.index({ lat_long: 1 }, { unique: true });
 siteSchema.index({ generated_name: 1 }, { unique: true });
+siteSchema.index({ createdAt: -1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,

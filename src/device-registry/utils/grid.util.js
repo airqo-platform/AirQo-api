@@ -482,20 +482,86 @@ const createGrid = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, path, skip } = request.query;
+      const { tenant, limit, skip, detailLevel = "full" } = request.query;
       const filter = generateFilter.grids(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
+
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+
+      let pipeline = [{ $match: filter }];
+
+      if (detailLevel === "summary") {
+        pipeline.push({
+          $project: {
+            shape: 0, // Exclude the heavy shape field for summary
+            __v: 0,
+            sites: 0,
+            mobileDevices: 0,
+          },
+        });
+      } else {
+        // For 'full' detail, include lookups
+        pipeline.push(
+          {
+            $lookup: {
+              from: "sites",
+              localField: "_id",
+              foreignField: "grids",
+              as: "sites",
+            },
+          },
+          {
+            $lookup: {
+              from: "devices",
+              localField: "activeMobileDevices.device_id",
+              foreignField: "_id",
+              as: "mobileDevices",
+            },
+          }
+        );
       }
-      const responseFromListGrid = await GridModel(tenant).list(
+
+      const facetPipeline = [
+        ...pipeline,
         {
-          filter,
-          limit,
-          skip,
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
         },
-        next
-      );
-      return responseFromListGrid;
+      ];
+
+      const results = await GridModel(tenant)
+        .aggregate(facetPipeline)
+        .allowDiskUse(true);
+
+      const agg =
+        Array.isArray(results) && results[0]
+          ? results[0]
+          : { paginatedResults: [], totalCount: [] };
+      const paginatedResults = agg.paginatedResults || [];
+      const total =
+        Array.isArray(agg.totalCount) && agg.totalCount[0]
+          ? agg.totalCount[0].count
+          : 0;
+
+      return {
+        success: true,
+        message: "Successfully retrieved grids",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta: {
+          total,
+          limit: _limit,
+          skip: _skip,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages: Math.ceil(total / _limit),
+        },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -507,6 +573,7 @@ const createGrid = {
       );
     }
   },
+
   updateShape: async (request, next) => {
     try {
       const { query, body } = request;
@@ -603,11 +670,14 @@ const createGrid = {
     try {
       const { tenant, limit, skip } = request.query;
       const filter = generateFilter.admin_levels(request, next);
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+
       const responseFromListAdminLevels = await AdminLevelModel(tenant).list(
         {
           filter,
-          limit,
-          skip,
+          limit: _limit,
+          skip: _skip,
         },
         next
       );

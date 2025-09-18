@@ -67,22 +67,71 @@ const getNextMaintenanceDate = (dateInput, months = 3) => {
 const createActivity = {
   list: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant, limit, skip, path } = query;
+      const { tenant, limit, skip, path } = request.query;
       const filter = generateFilter.activities(request, next);
       if (!isEmpty(path)) {
         filter.path = path;
       }
 
-      const responseFromListActivity = await ActivityModel(tenant).list(
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+
+      const pipeline = [
+        { $match: filter },
         {
-          filter,
-          limit,
-          skip,
+          $project: {
+            _id: 1,
+            device: 1,
+            device_id: 1,
+            activityType: 1,
+            maintenanceType: 1,
+            recallType: 1,
+            date: 1,
+            description: 1,
+            nextMaintenance: 1,
+            createdAt: 1,
+            site_id: 1,
+            grid_id: 1,
+            deployment_type: 1,
+            host_id: 1,
+            network: 1,
+            tags: 1,
+          },
         },
-        next
-      );
-      return responseFromListActivity;
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await ActivityModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      return {
+        success: true,
+        message: "Successfully retrieved activities",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta: {
+          total,
+          limit: _limit,
+          skip: _skip,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages: Math.ceil(total / _limit),
+        },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
