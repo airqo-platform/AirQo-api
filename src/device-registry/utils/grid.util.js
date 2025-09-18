@@ -487,15 +487,46 @@ const createGrid = {
       if (!isEmpty(path)) {
         filter.path = path;
       }
-      const responseFromListGrid = await GridModel(tenant).list(
+
+      const _skip = parseInt(skip, 10) || 0;
+      const _limit = parseInt(limit, 10) || 1000;
+
+      const pipeline = [
+        { $match: filter },
         {
-          filter,
-          limit,
-          skip,
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
         },
-        next
-      );
-      return responseFromListGrid;
+      ];
+
+      const results = await GridModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      return {
+        success: true,
+        message: "Successfully retrieved grids",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta: {
+          total,
+          limit: _limit,
+          skip: _skip,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages: Math.ceil(total / _limit),
+        },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

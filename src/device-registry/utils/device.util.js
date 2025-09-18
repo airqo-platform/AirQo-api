@@ -1002,12 +1002,28 @@ const deviceUtil = {
           },
           {
             $project: {
-              // Exclude heavy fields for summary
-              cohorts: 0,
-              pictures: 0,
-              device_codes: 0,
-              onlineStatusAccuracy: 0,
-              mobility_metadata: 0,
+              // Include only essential fields for summary
+              _id: 1,
+              name: 1,
+              long_name: 1,
+              status: 1,
+              isActive: 1,
+              network: 1,
+              category: 1,
+              device_number: 1,
+              deployment_date: 1,
+              latitude: 1,
+              longitude: 1,
+              mountType: 1,
+              powerType: 1,
+              createdAt: 1,
+              site: 1,
+              assigned_grid: 1,
+              total_activities: 1,
+              activities_by_type: 1,
+              latest_deployment_activity: 1,
+              latest_maintenance_activity: 1,
+              latest_recall_activity: 1,
             },
           }
         );
@@ -1137,24 +1153,36 @@ const deviceUtil = {
         }
       }
 
-      // Common sorting and pagination
-      pipeline.push(
-        { $sort: { createdAt: -1 } },
-        { $skip: _skip },
-        { $limit: _limit }
-      );
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
 
-      const response = await DeviceModel(tenant)
-        .aggregate(pipeline)
+      const results = await DeviceModel(tenant)
+        .aggregate(facetPipeline)
         .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
 
       // Process activities for non-cached full detail requests
       if (
-        !isEmpty(response) &&
+        !isEmpty(paginatedResults) &&
         detailLevel === "full" &&
         useCache === "false"
       ) {
-        response.forEach((device) => {
+        paginatedResults.forEach((device) => {
           if (device.activities && device.activities.length > 0) {
             const activitiesByType = {};
             const latestActivitiesByType = {};
@@ -1205,12 +1233,17 @@ const deviceUtil = {
       return {
         success: true,
         message: "successfully retrieved the device details",
-        data: response,
+        data: paginatedResults,
         status: httpStatus.OK,
         meta: {
+          total,
+          totalResults: paginatedResults.length,
+          limit: _limit,
+          skip: _skip,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages: Math.ceil(total / _limit),
           detailLevel,
           usedCache: useCache === "true",
-          totalResults: response.length,
         },
       };
     } catch (error) {

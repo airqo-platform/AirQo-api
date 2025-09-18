@@ -23,29 +23,62 @@ const createHealthTips = {
         filter.path = path;
       }
       const language = request.query.language;
-      let translatedHealthTips;
 
-      let responseFromListHealthTips = await HealthTipModel(tenant).list(
+      const _skip = parseInt(skip, 10) || 0;
+      const _limit = parseInt(limit, 10) || 1000;
+
+      const pipeline = [
+        { $match: filter },
         {
-          filter,
-          limit,
-          skip,
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
         },
-        next
-      );
+      ];
+
+      const results = await HealthTipModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      let responseFromListHealthTips = {
+        success: true,
+        message: "Successfully retrieved health tips",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta: {
+          total,
+          limit: _limit,
+          skip: _skip,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages: Math.ceil(total / _limit),
+        },
+      };
+
       if (
         language !== undefined &&
         !isEmpty(responseFromListHealthTips) &&
         !isEmpty(responseFromListHealthTips.data)
       ) {
-        translatedHealthTips = await translate.translateTips(
+        const translatedHealthTips = await translate.translateTips(
           {
             healthTips: responseFromListHealthTips.data,
             targetLanguage: language,
           },
           next
         );
-        responseFromListHealthTips = translatedHealthTips;
+        if (translatedHealthTips.success === true) {
+          responseFromListHealthTips.data = translatedHealthTips.data;
+        }
       }
 
       logObject("responseFromListHealthTips", responseFromListHealthTips);

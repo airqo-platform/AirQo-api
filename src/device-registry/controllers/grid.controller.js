@@ -719,6 +719,7 @@ const createGrid = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           grids: result.data,
         });
       } else if (result.success === false) {

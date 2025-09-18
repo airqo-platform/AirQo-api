@@ -78,6 +78,8 @@ const createSite = {
           cached_total_devices: 1,
           cached_total_activities: 1,
           cached_activities_by_type: 1,
+          weather_stations: 1,
+          nearest_tahmo_station: 1,
         };
       }
 
@@ -389,6 +391,7 @@ const createSite = {
       );
     }
   },
+
   fetchSiteDetails: async (tenant, req, next) => {
     const filter = generateFilter.sites(req, next);
     logObject("the filter being used to filter", filter);
@@ -1330,6 +1333,7 @@ const createSite = {
         Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
       const filter = generateFilter.sites(request, next);
+      filter.lat_long = { $ne: "4_4" };
 
       let pipeline = [];
 
@@ -1362,12 +1366,23 @@ const createSite = {
           },
           {
             $project: {
-              // Exclude heavy fields for summary
-              geometry: 0,
-              site_tags: 0,
-              weather_stations: 0,
-              images: 0,
-              share_links: 0,
+              // Include only essential fields for summary
+              _id: 1,
+              name: 1,
+              generated_name: 1,
+              status: 1,
+              network: 1,
+              latitude: 1,
+              longitude: 1,
+              country: 1,
+              district: 1,
+              createdAt: 1,
+              weather_stations: 1,
+              nearest_tahmo_station: 1,
+              total_devices: 1,
+              total_activities: 1,
+              activities_by_type: 1,
+              latest_deployment_activity: 1,
             },
           }
         );
@@ -1463,24 +1478,36 @@ const createSite = {
         }
       }
 
-      // Common sorting and pagination
-      pipeline.push(
-        { $sort: { createdAt: -1 } },
-        { $skip: _skip },
-        { $limit: _limit }
-      );
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
 
-      const response = await SiteModel(tenant)
-        .aggregate(pipeline)
+      const results = await SiteModel(tenant)
+        .aggregate(facetPipeline)
         .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
 
       // Post-processing for non-cached full detail
       if (
-        !isEmpty(response) &&
+        !isEmpty(paginatedResults) &&
         detailLevel === "full" &&
         useCache === "false"
       ) {
-        response.forEach((site) => {
+        paginatedResults.forEach((site) => {
           if (site.activities && site.activities.length > 0) {
             const activitiesByType = {};
             const latestActivitiesByType = {};
@@ -1504,17 +1531,20 @@ const createSite = {
         });
       }
 
-      const filteredResponse = response.filter((obj) => obj.lat_long !== "4_4");
-
       return {
         success: true,
         message: "successfully retrieved the site details",
-        data: filteredResponse,
+        data: paginatedResults,
         status: httpStatus.OK,
         meta: {
+          total,
+          totalResults: paginatedResults.length,
+          limit: _limit,
+          skip: _skip,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages: Math.ceil(total / _limit),
           detailLevel,
           usedCache: useCache === "true",
-          totalResults: filteredResponse.length,
         },
       };
     } catch (error) {

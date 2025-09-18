@@ -266,6 +266,7 @@ const deviceController = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           devices: result.data,
         });
       } else if (result.success === false) {
@@ -609,6 +610,7 @@ const deviceController = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           devices: result.data,
         });
       } else if (result.success === false) {
@@ -662,6 +664,7 @@ const deviceController = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           devices: result.data,
         });
       } else if (result.success === false) {
@@ -1070,6 +1073,7 @@ const deviceController = {
         return res.status(result.status || httpStatus.OK).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           devices: result.data,
           total_devices: result.data.length,
           deployed_devices: result.data.filter((d) => d.status === "deployed")

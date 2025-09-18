@@ -67,22 +67,51 @@ const getNextMaintenanceDate = (dateInput, months = 3) => {
 const createActivity = {
   list: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant, limit, skip, path } = query;
+      const { tenant, limit, skip, path } = request.query;
       const filter = generateFilter.activities(request, next);
       if (!isEmpty(path)) {
         filter.path = path;
       }
 
-      const responseFromListActivity = await ActivityModel(tenant).list(
+      const _skip = parseInt(skip, 10) || 0;
+      const _limit = parseInt(limit, 10) || 1000;
+
+      const pipeline = [
+        { $match: filter },
         {
-          filter,
-          limit,
-          skip,
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
         },
-        next
-      );
-      return responseFromListActivity;
+      ];
+
+      const results = await ActivityModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      return {
+        success: true,
+        message: "Successfully retrieved activities",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta: {
+          total,
+          limit: _limit,
+          skip: _skip,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages: Math.ceil(total / _limit),
+        },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

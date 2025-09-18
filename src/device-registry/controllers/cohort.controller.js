@@ -734,6 +734,7 @@ const createCohort = {
         res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           cohorts: result.data,
         });
       } else if (result.success === false) {
