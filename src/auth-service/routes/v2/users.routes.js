@@ -627,7 +627,7 @@ router.put("/", userValidations.updateUser, userController.update);
 router.put(
   "/:user_id",
   enhancedJWTAuth,
-  requirePermissions([constants.USER_EDIT]),
+  // requirePermissions([constants.USER_EDIT]),
   userValidations.updateUserById,
   userController.update
 );
@@ -721,7 +721,7 @@ router.get(
   enhancedJWTAuth,
   userValidations.getEnhancedProfileForUser,
   validate,
-  requirePermissions([constants.USER_VIEW]),
+  // requirePermissions([constants.USER_VIEW]),
   userController.getEnhancedProfileForUser
 );
 
@@ -729,7 +729,7 @@ router.get(
   "/:user_id",
   userValidations.getUser,
   enhancedJWTAuth,
-  requirePermissions([constants.USER_VIEW]),
+  // requirePermissions([constants.USER_VIEW]),
   userController.list
 );
 
