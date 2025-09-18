@@ -7,7 +7,6 @@ from rest_framework import viewsets, filters
 from apps.externalteams.models import ExternalTeamMember, ExternalTeamMemberBiography
 from ..filters.externalteams import ExternalTeamMemberFilter, ExternalTeamMemberBiographyFilter
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..serializers.externalteams import (
     ExternalTeamMemberListSerializer, ExternalTeamMemberDetailSerializer,
     ExternalTeamMemberBiographyListSerializer, ExternalTeamMemberBiographyDetailSerializer
@@ -22,7 +21,6 @@ class ExternalTeamMemberViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelVi
     Provides comprehensive filtering for external team member profiles
     """
     queryset = ExternalTeamMember.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
@@ -63,7 +61,6 @@ class ExternalTeamMemberBiographyViewSet(OptimizedQuerySetMixin, viewsets.ReadOn
     Provides access to external team member descriptions and biographies
     """
     queryset = ExternalTeamMemberBiography.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,

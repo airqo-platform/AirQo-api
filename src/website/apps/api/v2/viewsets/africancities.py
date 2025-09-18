@@ -10,14 +10,12 @@ from apps.africancities.models import AfricanCountry
 from ..serializers.africancities import AfricanCountryListSerializer, AfricanCountryDetailSerializer
 from ..filters.africancities import AfricanCountryFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 
 
 class AfricanCountryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """ViewSet for AfricanCountry model"""
     queryset = AfricanCountry.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AfricanCountryFilterSet

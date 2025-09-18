@@ -7,7 +7,6 @@ from rest_framework import viewsets, filters
 from apps.highlights.models import Highlight, Tag
 from ..filters.highlights import HighlightFilter, TagFilter
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..serializers.highlights import (
     HighlightListSerializer, HighlightDetailSerializer,
     TagListSerializer, TagDetailSerializer
@@ -22,7 +21,6 @@ class HighlightViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     Provides comprehensive filtering for highlights with tag-based organization
     """
     queryset = Highlight.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
@@ -62,7 +60,6 @@ class TagViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     Provides access to highlight tags with filtering capabilities
     """
     queryset = Tag.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,

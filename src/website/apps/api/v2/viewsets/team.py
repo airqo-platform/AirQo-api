@@ -7,7 +7,6 @@ from rest_framework import viewsets, filters
 from apps.team.models import Member, MemberBiography
 from ..filters.team import MemberFilter, MemberBiographyFilter
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..serializers.team import (
     MemberListSerializer, MemberDetailSerializer,
     MemberBiographyListSerializer, MemberBiographyDetailSerializer
@@ -23,7 +22,6 @@ class MemberViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.Read
     Provides internal team member profiles with department hierarchy
     """
     queryset = Member.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
@@ -66,7 +64,6 @@ class MemberBiographyViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewS
     Provides access to team member descriptions and biographies
     """
     queryset = MemberBiography.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,

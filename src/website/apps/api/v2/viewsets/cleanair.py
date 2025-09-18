@@ -22,7 +22,6 @@ from ..serializers.cleanair import (
 )
 from ..filters.cleanair import CleanAirResourceFilterSet, ForumEventFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 
 
@@ -48,7 +47,6 @@ class CleanAirResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelView
     - /{id}/increment_views/ - Increment view count (if implemented)
     """
     queryset = CleanAirResource.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = CleanAirResourceFilterSet
@@ -181,7 +179,6 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     lookup_field = 'unique_title'
     # Allow typical slug characters (letters, numbers, hyphen, underscore, dot)
     lookup_value_regex = r"[-a-zA-Z0-9_\.]+"
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ForumEventFilterSet

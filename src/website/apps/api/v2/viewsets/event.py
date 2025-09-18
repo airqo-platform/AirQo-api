@@ -20,7 +20,6 @@ from rest_framework.response import Response
 from apps.event.models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from ..filters.event import EventFilter, InquiryFilter, ProgramFilter, SessionFilter, PartnerLogoFilter, ResourceFilter
 from ..pagination import StandardPageNumberPagination, StandardCursorPagination
-from ..permissions import OpenAPIPermission, DefaultAPIPermission
 from ..mixins import SlugModelViewSetMixin, OptimizedQuerySetMixin
 from ..serializers.event import (
     EventListSerializer, EventDetailSerializer,
@@ -55,9 +54,7 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     - <slug|id>/identifiers/ - Get all identifiers for an event
     """
     queryset = Event.objects.all()
-    # Use DefaultAPIPermission to keep write actions (like bulk-identifiers)
-    # restricted to authenticated users while allowing read access to anyone.
-    permission_classes = [DefaultAPIPermission]
+    # All endpoints are open - authorization handled at nginx level
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
@@ -227,7 +224,6 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
 class InquiryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Inquiry ViewSet for event-related inquiries"""
     queryset = Inquiry.objects.all()
-    permission_classes = [DefaultAPIPermission]
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = InquiryFilter
@@ -245,7 +241,6 @@ class InquiryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
 class ProgramViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Program ViewSet for event programs"""
     queryset = Program.objects.all()
-    permission_classes = [DefaultAPIPermission]
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ProgramFilter
@@ -263,7 +258,6 @@ class ProgramViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
 class SessionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Session ViewSet for event sessions"""
     queryset = Session.objects.all()
-    permission_classes = [DefaultAPIPermission]
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = SessionFilter
@@ -281,7 +275,6 @@ class SessionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
 class PartnerLogoViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """PartnerLogo ViewSet for event partner logos"""
     queryset = PartnerLogo.objects.all()
-    permission_classes = [DefaultAPIPermission]
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = PartnerLogoFilter
@@ -299,7 +292,6 @@ class PartnerLogoViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
 class ResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Resource ViewSet for event resources"""
     queryset = Resource.objects.all()
-    permission_classes = [DefaultAPIPermission]
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ResourceFilter

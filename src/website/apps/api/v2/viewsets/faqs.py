@@ -11,7 +11,6 @@ from apps.faqs.models import FAQ
 from ..serializers.faqs import FAQListSerializer, FAQDetailSerializer
 from ..filters.faqs import FAQFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 
 
@@ -28,7 +27,6 @@ class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     - Dynamic field selection via ?fields= and ?omit=
     """
     queryset = FAQ.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = FAQFilterSet

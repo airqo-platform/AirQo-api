@@ -7,14 +7,12 @@ from apps.career.models import Career, Department
 from ..serializers.career import CareerListSerializer, CareerDetailSerializer, DepartmentListSerializer, DepartmentDetailSerializer
 from ..filters.career import CareerFilterSet, DepartmentFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 from ..mixins import SlugModelViewSetMixin
 
 
 class DepartmentViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Department.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = DepartmentFilterSet
@@ -28,7 +26,6 @@ class DepartmentViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
 
 class CareerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Career.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = CareerFilterSet

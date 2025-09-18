@@ -12,7 +12,6 @@ from apps.press.models import Press
 from ..serializers.press import PressListSerializer, PressDetailSerializer
 from ..filters.press import PressFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 from ..mixins import SlugModelViewSetMixin
 
@@ -35,7 +34,6 @@ class PressViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     - /categories/ - Get available categories
     """
     queryset = Press.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = PressFilterSet

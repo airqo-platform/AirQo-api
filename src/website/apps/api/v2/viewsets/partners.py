@@ -7,7 +7,6 @@ from rest_framework import viewsets, filters
 from apps.partners.models import Partner, PartnerDescription
 from ..filters.partners import PartnerFilter, PartnerDescriptionFilter
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..serializers.partners import (
     PartnerListSerializer, PartnerDetailSerializer,
     PartnerDescriptionListSerializer, PartnerDescriptionDetailSerializer
@@ -22,7 +21,6 @@ class PartnerViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     Provides comprehensive filtering for partnership management with category filtering
     """
     queryset = Partner.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
@@ -65,7 +63,6 @@ class PartnerDescriptionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelVi
     Provides access to partner descriptions and details
     """
     queryset = PartnerDescription.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,

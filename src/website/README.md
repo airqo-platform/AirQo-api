@@ -22,13 +22,26 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 - 🔍 **Dynamic Field Selection** - `?fields=` and `?omit=` query parameters
 - 📊 **Advanced Filtering** - Complex filtering with django-filter integration
 
+### Enhanced File Upload Support
+
+- 📁 **Large File Support** - Up to 30MB file uploads with optimized handling
+- ☁️ **Cloudinary Integration** - Robust cloud storage with automatic optimization
+- 🔒 **Secure Upload** - Enhanced validation and error handling
+- ⚡ **Performance Optimized** - Async processing for large files
+
+### Security & Authorization
+
+- 🔓 **Open API Design** - Authorization handled at nginx level for better performance
+- 🛡️ **Cloudinary Security** - Secure file storage with automatic cleanup
+- 🚫 **No Django Auth** - Simplified architecture for public API endpoints
+
 ### Enhanced Documentation
 
 - 📖 **Interactive API Documentation** - Swagger UI and ReDoc interfaces
 - 🔄 **OpenAPI 3.0 Schema** - Machine-readable API specifications
 - 🧪 **Live Testing** - Test endpoints directly from documentation
 
-### 🔗 Universal Slug System (NEW!)
+### 🔗 Universal Slug System
 
 - 🔐 **Privacy-Friendly URLs** - Slug-based identifiers instead of numeric IDs
 - 🔍 **Universal Lookup** - Works across all models that support slugs
@@ -223,7 +236,8 @@ GET /website/api/v2/events/by-slug/my-event-slug/
 ```
 
 **Benefits:**
-- ✅ Privacy-friendly (no exposure of sequential IDs)  
+
+- ✅ Privacy-friendly (no exposure of sequential IDs)
 - ✅ SEO-optimized URLs
 - ✅ Human-readable identifiers
 - ✅ Automatic fallback to ID when slug not available
@@ -256,9 +270,10 @@ python manage.py generate_all_slugs \
 ```
 
 **Options:**
+
 - `--dry-run`: Preview changes without saving
 - `--apps`: Target specific Django apps
-- `--models`: Target specific model names  
+- `--models`: Target specific model names
 - `--batch-size`: Process in batches (default: 100)
 - `--force`: Regenerate existing slugs
 - `--verbose`: Show detailed progress
