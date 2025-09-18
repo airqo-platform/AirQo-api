@@ -482,12 +482,16 @@ async function updateOfflineEntitiesWithAccuracy(
     ).lean();
 
     const offlineEntityIds = entitiesToMarkOffline.map((e) => e._id);
-    const modified = offlineEntityIds.length;
+    let modified = 0;
 
-    if (modified > 0) {
-      // 2. Atomically update their status to offline in one go.
-      await Model.updateMany(
-        { _id: { $in: offlineEntityIds } },
+    if (offlineEntityIds.length > 0) {
+      // 2. Update offline, re-validating the same conditions to avoid races.
+      const writeResult = await Model.updateMany(
+        {
+          _id: { $in: offlineEntityIds },
+          lastActive: { $lt: thresholdTime },
+          $or: [{ isOnline: true }, { isOnline: { $exists: false } }],
+        },
         {
           $set: {
             isOnline: false,
@@ -496,6 +500,7 @@ async function updateOfflineEntitiesWithAccuracy(
           },
         }
       );
+      modified = writeResult?.modifiedCount || 0;
 
       // 3. Loop through the offline entities and update their accuracy individually.
       // This correctly marks the offline event as a "success" for accuracy calculation,
