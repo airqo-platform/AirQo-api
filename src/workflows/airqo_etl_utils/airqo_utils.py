@@ -382,23 +382,21 @@ class AirQoDataUtils:
 
         sites = DataUtils.get_sites(DeviceNetwork.AIRQO)
         sites_info: List[Dict[str, Any]] = []
-        try:
-            # Add try catch due to unpredictable nature of the data in the weather_stations column
-            # TODO (cleanup): Might have to store some of this information in persistent storage. The cached file is changed every now and then.
-            sites_info = [
-                {
-                    "site_id": site.get("_id"),
-                    "station_code": station.get("code", None),
-                    "distance": station.get("distance", None),
-                }
-                for _, site in sites.iterrows()
-                for station in ast.literal_eval(site.get("weather_stations", "[]"))
-            ]
-        except Exception as e:
-            logging.error(f"Error extracting site information: {e}")
-            return device_measurements
+        # Add try catch due to unpredictable nature of the data in the weather_stations column
+        # TODO (cleanup): Might have to store some of this information in persistent storage. The cached file is changed every now and then.
+        sites_info = [
+            {
+                "site_id": site.get("_id"),
+                "station_code": station.get("code", None),
+                "distance": station.get("distance", None),
+            }
+            for _, site in sites.iterrows()
+            for station in ast.literal_eval(site.get("weather_stations", "[]"))
+        ]
 
         sites_df = pd.DataFrame(sites_info)
+        if sites_df.empty:
+            return device_measurements
 
         sites_weather_data = pd.DataFrame()
         weather_data_cols = weather_data.columns.to_list()
@@ -946,7 +944,7 @@ class AirQoDataUtils:
                     )
                     air_weather_hourly_data = (
                         AirQoDataUtils.merge_aggregated_weather_data(
-                            airqo_data=aggregated_device_data,
+                            aggregated_device_data,
                             weather_data=hourly_weather_data,
                         )
                     )
