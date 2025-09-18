@@ -482,17 +482,47 @@ const createGrid = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, path, skip } = request.query;
+      const { tenant, limit, skip, detailLevel = "full" } = request.query;
       const filter = generateFilter.grids(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
 
       const _skip = parseInt(skip, 10) || 0;
       const _limit = parseInt(limit, 10) || 1000;
 
-      const pipeline = [
-        { $match: filter },
+      let pipeline = [{ $match: filter }];
+
+      if (detailLevel === "summary") {
+        pipeline.push({
+          $project: {
+            shape: 0, // Exclude the heavy shape field for summary
+            __v: 0,
+            sites: 0,
+            mobileDevices: 0,
+          },
+        });
+      } else {
+        // For 'full' detail, include lookups
+        pipeline.push(
+          {
+            $lookup: {
+              from: "sites",
+              localField: "_id",
+              foreignField: "grids",
+              as: "sites",
+            },
+          },
+          {
+            $lookup: {
+              from: "devices",
+              localField: "activeMobileDevices.device_id",
+              foreignField: "_id",
+              as: "mobileDevices",
+            },
+          }
+        );
+      }
+
+      const facetPipeline = [
+        ...pipeline,
         {
           $facet: {
             paginatedResults: [
@@ -506,7 +536,7 @@ const createGrid = {
       ];
 
       const results = await GridModel(tenant)
-        .aggregate(pipeline)
+        .aggregate(facetPipeline)
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;
@@ -538,6 +568,7 @@ const createGrid = {
       );
     }
   },
+
   updateShape: async (request, next) => {
     try {
       const { query, body } = request;

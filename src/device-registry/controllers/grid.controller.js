@@ -651,7 +651,7 @@ const createGrid = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      request.query.path = "summary";
+      request.query.detailLevel = "summary";
 
       const result = await gridUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {
@@ -663,6 +663,7 @@ const createGrid = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           grids: result.data,
         });
       } else if (result.success === false) {
@@ -707,7 +708,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      request.query.dashboard = "yes";
+      request.query.detailLevel = "full";
 
       const result = await gridUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {

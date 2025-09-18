@@ -413,17 +413,58 @@ const createCohort = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip, path } = request.query;
+      const { tenant, limit, skip, detailLevel = "full" } = request.query;
       const filter = generateFilter.cohorts(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
 
       const _skip = parseInt(skip, 10) || 0;
       const _limit = parseInt(limit, 10) || 1000;
 
-      const pipeline = [
-        { $match: filter },
+      let pipeline = [{ $match: filter }];
+
+      // Common lookup for devices
+      pipeline.push({
+        $lookup: {
+          from: "devices",
+          localField: "_id",
+          foreignField: "cohorts",
+          as: "devices",
+        },
+      });
+
+      // Add numberOfDevices for both summary and full, for backward compatibility
+      pipeline.push({
+        $addFields: {
+          numberOfDevices: { $size: "$devices" },
+        },
+      });
+
+      if (detailLevel === "summary") {
+        pipeline.push({
+          $project: {
+            devices: 0, // Exclude the full devices array for summary
+          },
+        });
+      } else {
+        // For 'full' detail, we can keep the devices but project them lightly
+        pipeline.push({
+          $addFields: {
+            devices: {
+              $map: {
+                input: "$devices",
+                as: "device",
+                in: {
+                  _id: "$$device._id",
+                  name: "$$device.name",
+                  long_name: "$$device.long_name",
+                },
+              },
+            },
+          },
+        });
+      }
+
+      const facetPipeline = [
+        ...pipeline,
         {
           $facet: {
             paginatedResults: [
@@ -437,7 +478,7 @@ const createCohort = {
       ];
 
       const results = await CohortModel(tenant)
-        .aggregate(pipeline)
+        .aggregate(facetPipeline)
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;
@@ -469,6 +510,7 @@ const createCohort = {
       );
     }
   },
+
   verify: async (request, next) => {
     try {
       const { tenant } = request.query;

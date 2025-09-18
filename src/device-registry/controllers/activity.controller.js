@@ -406,7 +406,8 @@ const activity = {
         return res.status(status).json({
           success: true,
           message: result.message,
-          updated_activity: result.data,
+          meta: result.meta || {},
+          activities: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
