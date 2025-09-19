@@ -1,10 +1,10 @@
 # 🚀 Pull Request
 
 ## 📋 Description
-**What does this PR do?**
+### What does this PR do?
 <!-- Brief summary of the changes -->
 
-**Why is this change needed?**
+### Why is this change needed?
 <!-- Explain the motivation/problem this solves -->
 
 ---
@@ -60,7 +60,3 @@
 - [ ] Self-review completed
 - [ ] Documentation updated (if needed)
 - [ ] Ready for review
-
----
-
-/cc @backend-team
