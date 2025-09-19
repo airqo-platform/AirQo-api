@@ -92,16 +92,7 @@ const userController = {
       handleError(error, next);
     }
   },
-  getUserStats: async (req, res, next) => {
-    try {
-      const request = handleRequest(req, next);
-      if (!request) return;
-      const result = await userUtil.getUserStats(request, next);
-      sendResponse(res, result, "users_stats");
-    } catch (error) {
-      handleError(error, next);
-    }
-  },
+
   listCache: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);
