@@ -25,7 +25,7 @@ const {
 } = require("./date.util");
 
 const filter = {
-  users: (req) => {
+  users: (req, next) => {
     try {
       let {
         privilege,
@@ -87,14 +87,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  guest_users: (req) => {
+  guest_users: (req, next) => {
     try {
       let { id, guest_id } = {
         ...req.body,
@@ -112,14 +116,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  tenantSettings: (req) => {
+  tenantSettings: (req, next) => {
     try {
       const { query, params } = req;
       const { tenant, id } = { ...query, ...params };
@@ -134,14 +142,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  networks: (req) => {
+  networks: (req, next) => {
     try {
       const {
         net_id,
@@ -190,14 +202,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  transactions: (req) => {
+  transactions: (req, next) => {
     try {
       const {
         paddle_transaction_id,
@@ -262,14 +278,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  campaigns: (req) => {
+  campaigns: (req, next) => {
     try {
       const {
         title,
@@ -347,14 +367,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  candidates: (req) => {
+  candidates: (req, next) => {
     try {
       let { category, id, email_address, email, network_id } = {
         ...req.body,
@@ -380,14 +404,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  requests: (req) => {
+  requests: (req, next) => {
     try {
       const {
         id,
@@ -440,14 +468,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  defaults: (req) => {
+  defaults: (req, next) => {
     try {
       let {
         id,
@@ -503,14 +535,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  preferences: (req) => {
+  preferences: (req, next) => {
     try {
       let { user_id, group_id } = {
         ...req.body,
@@ -531,14 +567,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  maintenances: (req) => {
+  maintenances: (req, next) => {
     try {
       let { id, product } = {
         ...req.body,
@@ -558,14 +598,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  selected_sites: (req) => {
+  selected_sites: (req, next) => {
     try {
       let { site_id } = {
         ...req.body,
@@ -579,14 +623,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  checklists: (req) => {
+  checklists: (req, next) => {
     try {
       let { id, user_id } = {
         ...req.body,
@@ -605,14 +653,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  inquiry: (req) => {
+  inquiry: (req, next) => {
     try {
       let { category, id, email } = {
         ...req.body,
@@ -634,14 +686,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  roles: (req) => {
+  roles: (req, next) => {
     try {
       const { query, params } = req;
       const {
@@ -703,14 +759,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  permissions: (req) => {
+  permissions: (req, next) => {
     try {
       const { query, params } = req;
       const { id, network, permission } = query;
@@ -740,14 +800,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  tokens: (req) => {
+  tokens: (req, next) => {
     try {
       const { query, params } = req;
       const { token, client_id, name, id, emailed } = { ...query, ...params };
@@ -776,14 +840,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  ips: (req) => {
+  ips: (req, next) => {
     try {
       const { id, ip, range, ip_counts, prefix, prefix_counts } = {
         ...req.query,
@@ -830,14 +898,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  clients: (req) => {
+  clients: (req, next) => {
     try {
       const { query, params } = req;
       const { id, user_id } = query;
@@ -863,14 +935,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  scopes: (req) => {
+  scopes: (req, next) => {
     try {
       const { query, params } = req;
       const { id, scope } = query;
@@ -895,14 +971,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  departments: (req) => {
+  departments: (req, next) => {
     try {
       const {
         dep_id,
@@ -938,14 +1018,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  groups: (req) => {
+  groups: (req, next) => {
     try {
       const { grp_title, grp_status, category, grp_id } = {
         ...req.query,
@@ -970,14 +1054,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  logs: (req) => {
+  logs: (req, next) => {
     try {
       const { service, startTime, endTime, email } = req.query;
       const today = monthsInfront(0, next);
@@ -1040,14 +1128,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  activities: (req) => {
+  activities: (req, next) => {
     try {
       const { service, startTime, endTime, email, tenant } = req.query;
       const today = monthsInfront(0, next);
@@ -1133,14 +1225,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  favorites: (req) => {
+  favorites: (req, next) => {
     try {
       const { query, params } = req;
       const { firebase_user_id, favorite_id, id } = { ...query, ...params };
@@ -1159,14 +1255,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  location_histories: (req) => {
+  location_histories: (req, next) => {
     try {
       const { query, params } = req;
       const { firebase_user_id, location_history_id, id } = {
@@ -1188,14 +1288,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  search_histories: (req) => {
+  search_histories: (req, next) => {
     try {
       const { query, params } = req;
       const { firebase_user_id, search_history_id, id } = {
@@ -1217,14 +1321,18 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  userRoles: (req) => {
+  userRoles: (req, next) => {
     try {
       const { query, params } = req;
       const {
@@ -1292,14 +1400,18 @@ const filter = {
       return { filter, options };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  userPermissions: (req) => {
+  userPermissions: (req, next) => {
     try {
       const { query, params } = req;
       const {
@@ -1341,14 +1453,18 @@ const filter = {
       return { filter, options };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  bulkPermissions: (req) => {
+  bulkPermissions: (req, next) => {
     try {
       const { body, params, query } = req;
       const { user_id } = params;
@@ -1384,14 +1500,18 @@ const filter = {
       return { filter, options };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
-  surveys: (request) => {
+  surveys: (request, next) => {
     try {
       const {
         survey_id,
@@ -1456,10 +1576,14 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },
@@ -1538,10 +1662,14 @@ const filter = {
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
     }
   },

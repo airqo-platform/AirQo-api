@@ -349,6 +349,7 @@ const analytics = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
