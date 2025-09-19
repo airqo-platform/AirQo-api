@@ -2578,6 +2578,24 @@ const analytics = {
       );
     }
   },
+  listStatistics: async (tenant, next) => {
+    try {
+      const responseFromListStatistics = await UserModel(tenant).listStatistics(
+        tenant
+      );
+      return responseFromListStatistics;
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getUserStats: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
@@ -2622,23 +2640,6 @@ const analytics = {
         )
       );
       return;
-    }
-  },
-  listStatistics: async (tenant, next) => {
-    try {
-      const responseFromListStatistics = await UserModel(tenant).listStatistics(
-        tenant
-      );
-      return responseFromListStatistics;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
     }
   },
 };

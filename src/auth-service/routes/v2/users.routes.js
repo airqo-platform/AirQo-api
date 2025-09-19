@@ -690,14 +690,6 @@ router.get(
   userController.listLogs
 );
 
-router.get(
-  "/user-stats",
-  userValidations.tenant,
-  enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN]),
-  userController.getUserStats
-);
-
 router.post(
   "/subscribe/:type",
   userValidations.subscribeToNotifications,
