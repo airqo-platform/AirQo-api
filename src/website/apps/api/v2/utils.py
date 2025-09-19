@@ -4,9 +4,43 @@ Utility functions and classes for v2 API
 from typing import Any, Dict, List, Optional, Union
 from rest_framework import serializers
 from rest_framework.fields import empty
+from rest_framework.response import Response
 from utils.delta_to_html import delta_to_html
 import json
 import bleach
+import hashlib
+
+
+class CachedViewSetMixin:
+    """
+    Mixin for ViewSets that provides caching functionality for list and detail views
+    """
+    cache_timeout_list = 300  # 5 minutes for list views
+    cache_timeout_detail = 600  # 10 minutes for detail views
+
+    def get_cache_key(self, prefix: str, identifier: str = "", query_params: Optional[Dict] = None) -> str:
+        """Generate a cache key with proper hashing"""
+        if query_params is None:
+            query_params = {}
+
+        query_str = str(sorted(query_params.items()))
+        hash_suffix = hashlib.md5(query_str.encode()).hexdigest()
+
+        if identifier:
+            return f"{prefix}_{identifier}_{hash_suffix}"
+        return f"{prefix}_{hash_suffix}"
+
+    def get_cached_response(self, cache_key: str) -> Optional[Dict]:
+        """Get cached response data"""
+        from django.core.cache import cache
+        return cache.get(cache_key)
+
+    def set_cached_response(self, cache_key: str, data: Dict, timeout: Optional[int] = None) -> None:
+        """Set cached response data"""
+        from django.core.cache import cache
+        if timeout is None:
+            timeout = self.cache_timeout_detail
+        cache.set(cache_key, data, timeout)
 
 
 class DynamicFieldsSerializerMixin:

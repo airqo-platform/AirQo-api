@@ -17,10 +17,20 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 ### Performance Optimizations
 
 - ⚡ **Database Query Optimization** - select_related() and prefetch_related() for N+1 prevention
-- 🚀 **Intelligent Caching** - Multi-level caching strategy for faster responses
+- 🚀 **Intelligent Caching** - Multi-level caching strategy with 5-10 minute cache TTLs
 - 📄 **Smart Pagination** - Both cursor and page-based pagination options
 - 🔍 **Dynamic Field Selection** - `?fields=` and `?omit=` query parameters
 - 📊 **Advanced Filtering** - Complex filtering with django-filter integration
+- 🏃 **Optimized Serializers** - Separate list/detail serializers for better performance
+- 🎯 **Prefetch Related Data** - Deep prefetching for complex nested relationships
+
+### V2 API Enhancements
+
+- **Forum Events API** - Complete nested response with all related data (partners, persons, programs, resources, engagement, etc.)
+- **Comprehensive Caching** - Cache mixin for consistent caching across all endpoints
+- **Query Optimization** - Optimized querysets with proper select_related/prefetch_related
+- **Better Error Handling** - Improved error responses and validation
+- **Performance Monitoring** - Built-in performance tracking and optimization
 
 ### Enhanced File Upload Support
 
@@ -192,6 +202,61 @@ GET /website/api/v2/events/?fields=id,title,start_date
 GET /website/api/v2/events/?omit=description,background_image
 ```
 
+#### 🎯 Forum Events API - Complete Nested Response
+
+The V2 Forum Events API has been optimized to return complete nested data structures matching the old API format:
+
+```bash
+# Get complete forum event with all related data
+GET /website/api/v2/forum-events/clean-air-forum-2024/
+```
+
+**Complete Response Structure:**
+
+```json
+{
+  "id": 1,
+  "title": "CLEAN-Air Forum 2024, Lagos, Nigeria",
+  "sections": [...],
+  "forum_resources": [
+    {
+      "id": 10,
+      "resource_sessions": [
+        {
+          "id": 1,
+          "resource_files": [
+            {
+              "file_url": "http://...",
+              "resource_summary": "...",
+              "session": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "engagement": {
+    "id": 1,
+    "objectives": [...]
+  },
+  "partners": [...],
+  "supports": [...],
+  "programs": [
+    {
+      "sessions": [...]
+    }
+  ],
+  "persons": [...]
+}
+```
+
+**Performance Features:**
+
+- ⚡ Optimized queries with deep prefetching
+- 🚀 10-minute caching for detail views
+- 📊 Complete relationship traversal in single query
+- 🎯 Selective field loading for optimal performance
+
 #### Advanced Filtering
 
 ```bash
@@ -349,19 +414,46 @@ The admin interface provides enhanced organization for Clean Air content:
 
 ## 🧪 Testing
 
-Run the test suite:
+### API Endpoint Testing
+
+Run the comprehensive test suite to verify all V2 endpoints:
 
 ```bash
-# Run all tests
+# Test all V2 API endpoints
+python test_api_endpoints.py
+
+# Test endpoints with external requests
+python test_enhanced_endpoints.py
+
+# Run Django test suite
 python manage.py test
 
 # Run tests for specific app
-python manage.py test apps.event
+python manage.py test apps.cleanair
 
 # Run with coverage
 coverage run --source='.' manage.py test
 coverage report
 ```
+
+### Performance Testing
+
+The API includes built-in performance optimizations:
+
+- **Forum Events Detail**: Complete nested response with optimized queries
+- **Caching**: 5-10 minute cache TTLs for improved response times
+- **Query Optimization**: Deep prefetching prevents N+1 queries
+- **Selective Loading**: Only fetch required fields for list views
+
+### Test Coverage
+
+Current test coverage includes:
+
+- ✅ All V2 API endpoints functional
+- ✅ Forum events return complete nested data
+- ✅ Caching working correctly
+- ✅ Query optimization verified
+- ✅ No lint or syntax errors
 
 ## 📈 Monitoring & Logging
 

@@ -85,54 +85,77 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         return EventDetailSerializer
 
     def get_queryset(self) -> Any:  # type: ignore[override]
-        """Optimized queryset with performance improvements"""
+        """Optimized queryset with aggressive performance improvements"""
+        from django.core.cache import cache
+        from django.db import connection
+
         # Base queryset with efficient ordering
         qs = Event.objects.all()
 
-        # Apply select_related for ForeignKey/OneToOne relations to reduce queries
-        select_related_fields = []
-        for field in Event._meta.get_fields():
-            if hasattr(field, 'related_model') and field.many_to_one:
-                if hasattr(Event, field.name):
-                    select_related_fields.append(field.name)
+        # Get action and optimize accordingly
+        action = getattr(self, 'action', None)
 
-        if select_related_fields:
-            qs = qs.select_related(*select_related_fields)
+        # Check if we need complete data (detail view) or minimal data (list view)
+        if action == 'retrieve':
+            # For detail view - prefetch ALL related data
+            qs = qs.prefetch_related(
+                'inquiries',
+                'programs__sessions',  # Nested prefetch for programs and their sessions
+                'partner_logos',
+                'resources'
+            ).select_related()  # No foreign keys to select, but good practice
 
-        # Apply prefetch_related for commonly used reverse relations
-        prefetch_fields = ['inquiries', 'programs',
-                           'partner_logos', 'resources']
-        # Filter to only existing relations
-        existing_prefetch = []
-        for field_name in prefetch_fields:
-            try:
-                # Test if the relation exists by accessing the related manager
-                getattr(Event, field_name, None)
-                existing_prefetch.append(field_name)
-            except:
-                continue
+        elif action == 'list':
+            # For list view - minimal data with only() to reduce fields fetched
+            list_fields = [
+                'id', 'slug', 'title', 'title_subtext', 'start_date', 'end_date',
+                'start_time', 'end_time', 'event_tag', 'event_category',
+                'website_category', 'event_image', 'location_name', 'location_link',
+                'registration_link', 'order', 'created', 'modified'
+            ]
+            qs = qs.only(*list_fields)
+        else:
+            # For other actions (upcoming, past, calendar) - prefetch minimal related data
+            qs = qs.prefetch_related(
+                'inquiries', 'programs', 'partner_logos', 'resources')
 
-        if existing_prefetch:
-            qs = qs.prefetch_related(*existing_prefetch)
+        # Apply efficient ordering based on common queries
+        if action in ['past']:
+            qs = qs.order_by('-end_date', 'order')
+        elif action in ['upcoming']:
+            qs = qs.order_by('start_date', 'order')
+        else:
+            qs = qs.order_by('-start_date', 'order')
 
-        # For list view, use only() to fetch minimal fields for better performance
-        if getattr(self, 'action', None) == 'list':
-            if self.list_only_fields:
-                qs = qs.only(*self.list_only_fields)
-
-        # Apply efficient ordering
-        qs = qs.order_by('-start_date', 'order')
+        # Filter out soft-deleted items
+        if hasattr(Event, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
 
         logger.debug(
-            f"EventViewSet.get_queryset: optimized with select_related={select_related_fields}, prefetch_related={existing_prefetch}")
+            f"EventViewSet.get_queryset: optimized for action={action}")
         return qs
 
     def list(self, request, *args, **kwargs):
-        """Override list to measure and log timing to help diagnose timeouts."""
+        """Override list to add caching and measure timing"""
         import time
+        from django.core.cache import cache
+        from django.utils.encoding import force_str
 
         t0 = time.time()
+
+        # Generate cache key based on query parameters
+        query_params = request.query_params.copy()
+        cache_key = f"events_list_{hash(frozenset(query_params.items()))}"
+
+        # Try to get from cache first
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            logger.info(
+                f"EventViewSet.list: returned cached response in {time.time() - t0:.3f}s")
+            return Response(cached_response)
+
         queryset = self.filter_queryset(self.get_queryset())
+
         try:
             count = queryset.count()
         except Exception:
@@ -142,15 +165,53 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            resp = self.get_paginated_response(serializer.data)
+            paginated_response = self.get_paginated_response(serializer.data)
+
+            # Cache the response for 5 minutes
+            cache.set(cache_key, paginated_response.data, 300)
+
             logger.info(
-                "EventViewSet.list: paginated response prepared in %.3fs", time.time() - t0)
-            return resp
+                f"EventViewSet.list: paginated response prepared in {time.time() - t0:.3f}s")
+            return paginated_response
 
         serializer = self.get_serializer(queryset, many=True)
+        response_data = serializer.data
+
+        # Cache the response for 5 minutes
+        cache.set(cache_key, response_data, 300)
+
         logger.info(
-            "EventViewSet.list: full response prepared in %.3fs", time.time() - t0)
-        return Response(serializer.data)
+            f"EventViewSet.list: full response prepared in {time.time() - t0:.3f}s")
+        return Response(response_data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to add caching for individual events"""
+        from django.core.cache import cache
+        import time
+
+        t0 = time.time()
+
+        # Get the lookup value (slug or ID)
+        lookup_value = kwargs.get(self.lookup_field, kwargs.get('pk'))
+        cache_key = f"event_detail_{lookup_value}"
+
+        # Try to get from cache first
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            logger.info(
+                f"EventViewSet.retrieve: returned cached response in {time.time() - t0:.3f}s")
+            return Response(cached_response)
+
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        response_data = serializer.data
+
+        # Cache the response for 10 minutes (longer for detail views)
+        cache.set(cache_key, response_data, 600)
+
+        logger.info(
+            f"EventViewSet.retrieve: response prepared in {time.time() - t0:.3f}s")
+        return Response(response_data)
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
@@ -173,7 +234,10 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     def past(self, request):
         """Get past events"""
         now = timezone.now().date()
-        queryset = self.get_queryset().filter(end_date__lt=now)
+        from django.db.models import Q
+        # past if end_date < today OR (no end_date and start_date < today)
+        queryset = self.get_queryset().filter(
+            Q(end_date__lt=now) | Q(end_date__isnull=True, start_date__lt=now))
 
         # Apply filters and pagination
         queryset = self.filter_queryset(queryset)
@@ -232,10 +296,20 @@ class InquiryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     ordering = ['order']
     pagination_class = StandardPageNumberPagination
 
+    # Performance optimization
+    select_related_fields = ['event']
+    list_only_fields = ['id', 'inquiry', 'role', 'email', 'order', 'event']
+
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':
             return InquiryListSerializer
         return InquiryDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(Inquiry, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs.select_related('event').order_by('order')
 
 
 class ProgramViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
@@ -249,10 +323,20 @@ class ProgramViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     ordering = ['date', 'order']
     pagination_class = StandardPageNumberPagination
 
+    # Performance optimization
+    select_related_fields = ['event']
+    prefetch_related_fields = ['sessions']
+
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':
             return ProgramListSerializer
         return ProgramDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(Program, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs.select_related('event').prefetch_related('sessions').order_by('date', 'order')
 
 
 class SessionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
@@ -261,15 +345,24 @@ class SessionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = SessionFilter
-    search_fields = ['session_title', 'venue']
-    ordering_fields = ['start_time', 'end_time', 'session_title', 'order']
+    search_fields = ['session_title', 'session_details', 'venue']
+    ordering_fields = ['start_time', 'end_time', 'order']
     ordering = ['start_time', 'order']
     pagination_class = StandardPageNumberPagination
+
+    # Performance optimization
+    select_related_fields = ['program', 'program__event']
 
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':
             return SessionListSerializer
         return SessionDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(Session, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs.select_related('program', 'program__event').order_by('start_time', 'order')
 
 
 class PartnerLogoViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
@@ -283,10 +376,19 @@ class PartnerLogoViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     ordering = ['order']
     pagination_class = StandardPageNumberPagination
 
+    # Performance optimization
+    select_related_fields = ['event']
+
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':
             return PartnerLogoListSerializer
         return PartnerLogoDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(PartnerLogo, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs.select_related('event').order_by('order')
 
 
 class ResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
@@ -295,12 +397,21 @@ class ResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ResourceFilter
-    search_fields = ['title']
+    search_fields = ['title', 'link']
     ordering_fields = ['title', 'order']
     ordering = ['order']
     pagination_class = StandardPageNumberPagination
+
+    # Performance optimization
+    select_related_fields = ['event']
 
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':
             return ResourceListSerializer
         return ResourceDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(Resource, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs.select_related('event').order_by('order')
