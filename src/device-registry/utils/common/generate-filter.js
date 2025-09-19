@@ -1672,55 +1672,6 @@ const generateFilter = {
     }
     return filter;
   },
-  logs: (req, next) => {
-    try {
-      const { email, service, username, endpoint, startTime, endTime } = {
-        ...req.query,
-        ...req.params,
-      };
-
-      const filter = {};
-
-      if (email) {
-        filter["meta.email"] = email;
-      }
-      if (service) {
-        filter["meta.service"] = service;
-      }
-      if (username) {
-        filter["meta.username"] = username;
-      }
-      if (endpoint) {
-        filter["meta.endpoint"] = endpoint;
-      }
-
-      if (startTime && endTime) {
-        filter.timestamp = {
-          $gte: new Date(startTime),
-          $lte: new Date(endTime),
-        };
-      } else if (startTime) {
-        filter.timestamp = {
-          $gte: new Date(startTime),
-        };
-      } else if (endTime) {
-        filter.timestamp = {
-          $lte: new Date(endTime),
-        };
-      }
-
-      return filter;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
   activities: (req, next) => {
     let {
       device,
