@@ -2598,7 +2598,10 @@ const analytics = {
   },
   getUserStats: async (request, next) => {
     try {
-      const { tenant, limit = 1000, skip = 0 } = request.query;
+      const { tenant, limit, skip } = request.query;
+      const _limit = Math.min(parseInt(limit, 10) || 50, 100);
+      const _skip = parseInt(skip, 10) || 0;
+
       const filter = generateFilter.logs(request, next);
 
       const pipeline = [
@@ -2621,13 +2624,30 @@ const analytics = {
             username: "$username",
           },
         },
+        { $sort: { count: -1 } },
+        {
+          $facet: {
+            paginatedResults: [{ $skip: _skip }, { $limit: _limit }],
+            totalCount: [{ $count: "count" }],
+          },
+        },
       ];
 
-      const getUserStatsResponse = await LogModel(tenant).aggregate(pipeline);
+      const [results] = await LogModel(tenant).aggregate(pipeline);
+      const paginatedResults = results.paginatedResults || [];
+      const totalCount = results.totalCount[0]
+        ? results.totalCount[0].count
+        : 0;
+
       return {
         success: true,
         message: "Successfully retrieved the user statistics",
-        data: getUserStatsResponse,
+        data: paginatedResults,
+        meta: {
+          total: totalCount,
+          limit: _limit,
+          skip: _skip,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
