@@ -1,4 +1,4 @@
-const analyticsUtil = require("@utils/analytics.util");
+const userUtil = require("@utils/user.util");
 const constants = require("@config/constants");
 const { isEmpty } = require("lodash");
 const httpStatus = require("http-status");
@@ -323,7 +323,7 @@ const analytics = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await analyticsUtil.getUserStats(request, next);
+      const result = await userUtil.getUserStats(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
