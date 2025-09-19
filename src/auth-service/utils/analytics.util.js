@@ -2599,8 +2599,11 @@ const analytics = {
   getUserStats: async (request, next) => {
     try {
       const { tenant, limit, skip } = request.query;
-      const _limit = Math.min(parseInt(limit, 10) || 50, 100);
-      const _skip = parseInt(skip, 10) || 0;
+      const l = Number.parseInt(limit, 10);
+      const s = Number.parseInt(skip, 10);
+      // limit: [1,100], skip: [0, +inf)
+      const _limit = Number.isInteger(l) ? Math.max(1, Math.min(l, 100)) : 50;
+      const _skip = Number.isInteger(s) ? Math.max(0, s) : 0;
 
       const filter = generateFilter.logs(request, next);
 
