@@ -1313,7 +1313,7 @@ class DataUtils:
             return pd.DataFrame(columns=data.columns)
 
         numeric_columns = data.select_dtypes(include=["number"]).columns.difference(
-            ["timestamp"]
+            ["device_number"]
         )
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
 
