@@ -71,8 +71,9 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     slug_filter_fields = ('slug',)  # Event uses standard slug field
     # No foreign keys to optimize
     select_related_fields: Optional[List[str]] = []
-    prefetch_related_fields: Optional[List[str]] = ['sessions',
-                                                    'programs', 'resources', 'partner_logos']
+    # Remove invalid 'sessions' - sessions are related through programs, not directly to events
+    prefetch_related_fields: Optional[List[str]] = [
+        'inquiries', 'programs', 'resources', 'partner_logos']
     pagination_class = StandardPageNumberPagination
     # Limit fields retrieved for list action to speed up list serialization
     list_only_fields: Optional[List[str]] = [
