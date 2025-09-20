@@ -17,10 +17,33 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 ### Performance Optimizations
 
 - ⚡ **Database Query Optimization** - select_related() and prefetch_related() for N+1 prevention
-- 🚀 **Intelligent Caching** - Multi-level caching strategy for faster responses
+- 🚀 **Intelligent Caching** - Multi-level caching strategy with 5-10 minute cache TTLs
 - 📄 **Smart Pagination** - Both cursor and page-based pagination options
 - 🔍 **Dynamic Field Selection** - `?fields=` and `?omit=` query parameters
 - 📊 **Advanced Filtering** - Complex filtering with django-filter integration
+- 🏃 **Optimized Serializers** - Separate list/detail serializers for better performance
+- 🎯 **Prefetch Related Data** - Deep prefetching for complex nested relationships
+
+### V2 API Enhancements
+
+- **Forum Events API** - Complete nested response with all related data (partners, persons, programs, resources, engagement, etc.)
+- **Comprehensive Caching** - Cache mixin for consistent caching across all endpoints
+- **Query Optimization** - Optimized querysets with proper select_related/prefetch_related
+- **Better Error Handling** - Improved error responses and validation
+- **Performance Monitoring** - Built-in performance tracking and optimization
+
+### Enhanced File Upload Support
+
+- 📁 **Large File Support** - Up to 30MB file uploads with optimized handling
+- ☁️ **Cloudinary Integration** - Robust cloud storage with automatic optimization
+- 🔒 **Secure Upload** - Enhanced validation and error handling
+- ⚡ **Performance Optimized** - Async processing for large files
+
+### Security & Authorization
+
+- 🔓 **Open API Design** - Authorization handled at nginx level for better performance
+- 🛡️ **Cloudinary Security** - Secure file storage with automatic cleanup
+- 🚫 **No Django Auth** - Simplified architecture for public API endpoints
 
 ### Enhanced Documentation
 
@@ -28,7 +51,7 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 - 🔄 **OpenAPI 3.0 Schema** - Machine-readable API specifications
 - 🧪 **Live Testing** - Test endpoints directly from documentation
 
-### 🔗 Universal Slug System (NEW!)
+### 🔗 Universal Slug System
 
 - 🔐 **Privacy-Friendly URLs** - Slug-based identifiers instead of numeric IDs
 - 🔍 **Universal Lookup** - Works across all models that support slugs
@@ -131,6 +154,83 @@ apps/
    python manage.py runserver
    ```
 
+### Development Database (PostgreSQL)
+
+For local development we recommend running PostgreSQL so you can provide a `DATABASE_URL` to the app (the settings fall back to SQLite only when `DATABASE_URL` is not set). Below are simple options to get PostgreSQL running and create a database and user.
+
+1. Install PostgreSQL (choose one):
+
+- macOS (Homebrew):
+
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+- Ubuntu/Debian:
+
+```bash
+sudo apt update
+sudo apt install -y postgresql postgresql-contrib
+sudo systemctl start postgresql
+```
+
+- Windows:
+
+Download and run the official PostgreSQL installer from https://www.postgresql.org/download/windows/ or use Chocolatey:
+
+```powershell
+choco install postgresql
+# then open a new shell to use psql
+```
+
+- Docker (recommended for isolation):
+
+```bash
+docker run --name airqo-postgres -e POSTGRES_USER=airqo -e POSTGRES_PASSWORD=airqo -e POSTGRES_DB=airqo_dev -p 5432:5432 -d postgres:15
+```
+
+2. Create a database and user (psql example):
+
+```sql
+-- connect as the postgres superuser or use the docker container's psql
+CREATE USER airqo_user WITH PASSWORD 'change_this_password';
+CREATE DATABASE airqo_dev OWNER airqo_user;
+GRANT ALL PRIVILEGES ON DATABASE airqo_dev TO airqo_user;
+```
+
+3. Export `DATABASE_URL` into your `.env` or environment. Example connection string formats:
+
+```env
+# PostgreSQL URL format
+DATABASE_URL=postgres://USER:PASSWORD@HOST:PORT/DBNAME
+
+# Example for the docker example above
+DATABASE_URL=postgres://airqo_user:change_this_password@127.0.0.1:5432/airqo_dev
+```
+
+4. Verify connection and run migrations:
+
+```bash
+# confirm psql can connect
+psql "$DATABASE_URL" -c '\l'
+
+# run migrations and create a superuser
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+Notes
+
+- The project `core/settings.py` will use `DATABASE_URL` if provided; otherwise it falls back to SQLite (development convenience). For parity with production and to run the full test-suite you should use PostgreSQL locally.
+- If you use Docker, make sure the container's port is reachable at the host address you put in `DATABASE_URL` (commonly `127.0.0.1:5432`).
+
+### Local Developer Assets
+
+The repository contains an `assets/` directory used by developers to store local images and uploads while working on the frontend or prototyping content. These files are not referenced by the Django application in production. Production static files should be served via `collectstatic` into `staticfiles/` (or a CDN/Cloudinary for media).
+
+Do not commit files under `assets/` into the repository. The project `.gitignore` explicitly ignores `assets/` to prevent accidental commits. If you need to store shared media for production, upload them to Cloudinary or add them to the appropriate `static/` or app-level `static/` directories and run `python manage.py collectstatic`.
+
 ### Environment Variables
 
 Create a `.env` file with the following variables:
@@ -179,6 +279,61 @@ GET /website/api/v2/events/?fields=id,title,start_date
 GET /website/api/v2/events/?omit=description,background_image
 ```
 
+#### 🎯 Forum Events API - Complete Nested Response
+
+The V2 Forum Events API has been optimized to return complete nested data structures matching the old API format:
+
+```bash
+# Get complete forum event with all related data
+GET /website/api/v2/forum-events/clean-air-forum-2024/
+```
+
+**Complete Response Structure:**
+
+```json
+{
+  "id": 1,
+  "title": "CLEAN-Air Forum 2024, Lagos, Nigeria",
+  "sections": [...],
+  "forum_resources": [
+    {
+      "id": 10,
+      "resource_sessions": [
+        {
+          "id": 1,
+          "resource_files": [
+            {
+              "file_url": "http://...",
+              "resource_summary": "...",
+              "session": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "engagement": {
+    "id": 1,
+    "objectives": [...]
+  },
+  "partners": [...],
+  "supports": [...],
+  "programs": [
+    {
+      "sessions": [...]
+    }
+  ],
+  "persons": [...]
+}
+```
+
+**Performance Features:**
+
+- ⚡ Optimized queries with deep prefetching
+- 🚀 10-minute caching for detail views
+- 📊 Complete relationship traversal in single query
+- 🎯 Selective field loading for optimal performance
+
 #### Advanced Filtering
 
 ```bash
@@ -223,7 +378,8 @@ GET /website/api/v2/events/by-slug/my-event-slug/
 ```
 
 **Benefits:**
-- ✅ Privacy-friendly (no exposure of sequential IDs)  
+
+- ✅ Privacy-friendly (no exposure of sequential IDs)
 - ✅ SEO-optimized URLs
 - ✅ Human-readable identifiers
 - ✅ Automatic fallback to ID when slug not available
@@ -256,9 +412,10 @@ python manage.py generate_all_slugs \
 ```
 
 **Options:**
+
 - `--dry-run`: Preview changes without saving
 - `--apps`: Target specific Django apps
-- `--models`: Target specific model names  
+- `--models`: Target specific model names
 - `--batch-size`: Process in batches (default: 100)
 - `--force`: Regenerate existing slugs
 - `--verbose`: Show detailed progress
@@ -334,19 +491,46 @@ The admin interface provides enhanced organization for Clean Air content:
 
 ## 🧪 Testing
 
-Run the test suite:
+### API Endpoint Testing
+
+Run the comprehensive test suite to verify all V2 endpoints:
 
 ```bash
-# Run all tests
+# Test all V2 API endpoints
+python test_api_endpoints.py
+
+# Test endpoints with external requests
+python test_enhanced_endpoints.py
+
+# Run Django test suite
 python manage.py test
 
 # Run tests for specific app
-python manage.py test apps.event
+python manage.py test apps.cleanair
 
 # Run with coverage
 coverage run --source='.' manage.py test
 coverage report
 ```
+
+### Performance Testing
+
+The API includes built-in performance optimizations:
+
+- **Forum Events Detail**: Complete nested response with optimized queries
+- **Caching**: 5-10 minute cache TTLs for improved response times
+- **Query Optimization**: Deep prefetching prevents N+1 queries
+- **Selective Loading**: Only fetch required fields for list views
+
+### Test Coverage
+
+Current test coverage includes:
+
+- ✅ All V2 API endpoints functional
+- ✅ Forum events return complete nested data
+- ✅ Caching working correctly
+- ✅ Query optimization verified
+- ✅ No lint or syntax errors
 
 ## 📈 Monitoring & Logging
 

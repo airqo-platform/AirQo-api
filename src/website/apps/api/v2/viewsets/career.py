@@ -7,14 +7,13 @@ from apps.career.models import Career, Department
 from ..serializers.career import CareerListSerializer, CareerDetailSerializer, DepartmentListSerializer, DepartmentDetailSerializer
 from ..filters.career import CareerFilterSet, DepartmentFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..utils import OptimizedQuerySetMixin
 from ..mixins import SlugModelViewSetMixin
+from typing import Optional, List, ClassVar
 
 
 class DepartmentViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Department.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = DepartmentFilterSet
@@ -28,14 +27,29 @@ class DepartmentViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
 
 class CareerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Career.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = CareerFilterSet
     search_fields = ['title', 'type']
     ordering_fields = ['id', 'title', 'closing_date', 'created', 'modified']
     ordering = ['-closing_date', 'title']
-    select_related_fields = ['department']
+    # Keep select_related minimal at class level; expensive prefetch only for retrieve
+    select_related_fields: Optional[List[str]] = ['department']
+    # heavy prefetch applied only in get_queryset for retrieve
+    prefetch_related_fields: Optional[List[str]] = None
 
     def get_serializer_class(self):  # type: ignore[override]
         return CareerListSerializer if self.action == 'list' else CareerDetailSerializer
+
+    def get_queryset(self):
+        """Optimized queryset with prefetch for related data"""
+        queryset = super().get_queryset()
+
+        # For detail view, ensure all related data is prefetched (expensive nested prefetch)
+        if self.action == 'retrieve':
+            queryset = queryset.select_related('department').prefetch_related(
+                'descriptions',
+                'bullets__bullet_points'
+            )
+
+        return queryset

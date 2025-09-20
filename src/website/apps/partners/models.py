@@ -1,9 +1,15 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
-from utils.models import BaseModel
+from utils.models import BaseModel, SlugBaseModel
 
 
-class Partner(BaseModel):
+class Partner(SlugBaseModel):
+    # Slug configuration
+    SLUG_SOURCE_FIELD = 'partner_name'
+    SLUG_USE_DATE = False  # Partners typically don't need year
+    SLUG_USE_LOCATION = False
+    SLUG_MAX_LENGTH = 70
+
     class RelationTypes(models.TextChoices):
         PARTNERSHIP = "partnership", "Partnership"
         COLLABORATION = "collaboration", "Collaboration"
@@ -50,7 +56,7 @@ class Partner(BaseModel):
         blank=True,
     )
 
-    class Meta:
+    class Meta(SlugBaseModel.Meta):
         ordering = ["order", "id"]
 
     def __str__(self):
@@ -68,8 +74,9 @@ class PartnerDescription(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order", "id"]
 
     def __str__(self):
-        return f"Description {self.id}"
+        instance_id = getattr(self, 'id', None)
+        return f"Description {instance_id}" if instance_id else "Description"

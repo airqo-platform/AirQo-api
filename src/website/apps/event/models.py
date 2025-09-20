@@ -96,6 +96,40 @@ class Event(SlugBaseModel):
     def __str__(self):
         return self.title
 
+    def get_event_status(self):
+        """Return the event status based on dates"""
+        from django.utils import timezone
+        now = timezone.now().date()
+
+        # Treat events with no end_date as single-day events (end_date == start_date)
+        effective_end = self.end_date or self.start_date
+
+        # If the event starts in the future -> upcoming
+        if self.start_date > now:
+            return 'upcoming'
+
+        # If the effective end is before today -> past
+        if effective_end < now:
+            return 'past'
+
+        # Otherwise it's ongoing (includes single-day events happening today)
+        return 'ongoing'
+
+    def is_virtual_event(self):
+        """Check if event is virtual based on location"""
+        if not self.location_name:
+            return False
+        location_text = str(self.location_name).lower()
+        virtual_keywords = ['virtual', 'online',
+                            'zoom', 'webinar', 'digital', 'remote']
+        return any(keyword in location_text for keyword in virtual_keywords)
+
+    def get_duration_days(self):
+        """Get event duration in days"""
+        if not self.end_date:
+            return 1
+        return (self.end_date - self.start_date).days + 1
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         super().save(*args, **kwargs)

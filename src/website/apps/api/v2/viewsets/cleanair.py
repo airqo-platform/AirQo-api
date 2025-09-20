@@ -14,6 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import Http404
+from typing import Optional, List, ClassVar
 
 from apps.cleanair.models import CleanAirResource, ForumEvent
 from ..serializers.cleanair import (
@@ -22,11 +23,10 @@ from ..serializers.cleanair import (
 )
 from ..filters.cleanair import CleanAirResourceFilterSet, ForumEventFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
-from ..utils import OptimizedQuerySetMixin
+from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
 
 
-class CleanAirResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class CleanAirResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for CleanAirResource model
 
@@ -48,20 +48,19 @@ class CleanAirResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelView
     - /{id}/increment_views/ - Increment view count (if implemented)
     """
     queryset = CleanAirResource.objects.all()
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = CleanAirResourceFilterSet
 
     # Search configuration
-    search_fields = [
+    search_fields: ClassVar[List[str]] = [
         'resource_title',
         'resource_authors',
         'author_title',
     ]
 
     # Ordering configuration
-    ordering_fields = [
+    ordering_fields: ClassVar[List[str]] = [
         'id',
         'resource_title',
         'resource_category',
@@ -70,10 +69,11 @@ class CleanAirResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelView
         'created',
         'modified',
     ]
-    ordering = ['order', '-created']  # Default to order, then newest first
+    # Default to order, then newest first
+    ordering: ClassVar[List[str]] = ['order', '-created']
 
     # List optimization
-    list_only_fields = [
+    list_only_fields: Optional[List[str]] = [
         'id',
         'resource_title',
         'resource_link',
@@ -96,15 +96,75 @@ class CleanAirResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelView
 
     def get_queryset(self):
         """
-        Optimized queryset for CleanAir resources
+        Optimized queryset for CleanAir resources with caching
         """
         queryset = super().get_queryset()
 
-        # Filter out deleted records
+        # Filter out soft-deleted items
         if hasattr(CleanAirResource, 'is_deleted'):
             queryset = queryset.filter(is_deleted=False)
 
-        return queryset
+        action = getattr(self, 'action', None)
+
+        # Optimize based on action
+        if action == 'list':
+            if self.list_only_fields:
+                queryset = queryset.only(*self.list_only_fields)
+
+        return queryset.order_by('order', '-created')
+
+    def list(self, request, *args, **kwargs):
+        """Override list to add caching for clean air resources"""
+        query_params = dict(request.query_params.items())
+        cache_key = self.get_cache_key(
+            "cleanair_resources_list", query_params=query_params)
+
+        # Try to get from cache first (cache for 5 minutes)
+        cached_response = self.get_cached_response(cache_key)
+        if cached_response:
+            return Response(cached_response)
+
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            paginated_response = self.get_paginated_response(serializer.data)
+
+            # Cache the response for 5 minutes
+            self.set_cached_response(
+                cache_key, paginated_response.data, self.cache_timeout_list)
+            return paginated_response
+
+        serializer = self.get_serializer(queryset, many=True)
+        response_data = serializer.data
+
+        # Cache the response for 5 minutes
+        self.set_cached_response(
+            cache_key, response_data, self.cache_timeout_list)
+        return Response(response_data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to add caching for individual clean air resources"""
+        # Get the lookup value
+        lookup_value = kwargs.get(self.lookup_field, kwargs.get('pk'))
+        query_params = dict(request.query_params.items())
+        cache_key = self.get_cache_key(
+            "cleanair_resource_detail", str(lookup_value), query_params)
+
+        # Try to get from cache first (cache for 10 minutes)
+        cached_response = self.get_cached_response(cache_key)
+        if cached_response:
+            return Response(cached_response)
+
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        response_data = serializer.data
+
+        # Cache the response for 10 minutes
+        self.set_cached_response(
+            cache_key, response_data, self.cache_timeout_detail)
+        return Response(response_data)
 
     @action(detail=False, methods=['get'])
     def featured(self, request):
@@ -154,7 +214,7 @@ class CleanAirResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelView
         return Response({'status': 'view count incremented'})
 
 
-class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class ForumEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for ForumEvent model
 
@@ -181,20 +241,19 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     lookup_field = 'unique_title'
     # Allow typical slug characters (letters, numbers, hyphen, underscore, dot)
     lookup_value_regex = r"[-a-zA-Z0-9_\.]+"
-    permission_classes = [OpenAPIPermission]
     pagination_class = StandardPageNumberPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ForumEventFilterSet
 
     # Search configuration
-    search_fields = [
+    search_fields: ClassVar[List[str]] = [
         'title',
         'title_subtext',
         'location_name',
     ]
 
     # Ordering configuration
-    ordering_fields = [
+    ordering_fields: ClassVar[List[str]] = [
         'id',
         'title',
         'start_date',
@@ -205,10 +264,10 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         'modified',
     ]
     # Default to chronological, then by order
-    ordering = ['start_date', 'order']
+    ordering: ClassVar[List[str]] = ['start_date', 'order']
 
     # List optimization
-    list_only_fields = [
+    list_only_fields: Optional[List[str]] = [
         'id',
         'title',
         'title_subtext',
@@ -248,22 +307,72 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         """
-        Support retrieving by `unique_title` slug and a special `latest` slug
-        to return the most recent ForumEvent. Fall back to raising 404 if
-        the slug does not match any record.
+        Override retrieve to prefetch related objects for full detail
         """
-        slug = kwargs.get(self.lookup_field)
-        if slug == 'latest':
-            # Return the latest forum event based on start_date then id
+        lookup = kwargs.get(self.lookup_field, kwargs.get('pk'))
+
+        # Generate cache key
+        query_params = dict(request.query_params.items())
+        cache_key = self.get_cache_key(
+            "forum_event_detail", str(lookup), query_params)
+
+        # Try to get from cache first (cache for 10 minutes)
+        cached_response = self.get_cached_response(cache_key)
+        if cached_response:
+            return Response(cached_response)
+
+        # If 'latest' handling is needed, keep existing logic
+        if lookup == 'latest':
             instance = self.get_queryset().order_by('-start_date', '-id').first()
             if not instance:
                 raise Http404("No forum event found.")
             serializer = self.get_serializer(instance)
-            return Response(serializer.data)
+            response_data = serializer.data
+            # Cache the response for 10 minutes
+            self.set_cached_response(
+                cache_key, response_data, self.cache_timeout_detail)
+            return Response(response_data)
 
-        # For normal slugs, delegate to the default implementation which will
-        # filter by the configured `lookup_field` (unique_title)
-        return super().retrieve(request, *args, **kwargs)
+        # Build a queryset that prefetches all related fields used in detail serializer
+        queryset = self.get_queryset().prefetch_related(
+            # Partners for the event
+            'partners',
+            # Persons for the event
+            'persons',
+            # Programs with their sessions
+            'programs',
+            'programs__sessions',
+            # Support contacts
+            'supports',
+            # Forum resources with sessions and files
+            'forum_resources',
+            'forum_resources__resource_sessions',
+            'forum_resources__resource_sessions__resource_files',
+            # Sections
+            'sections',
+            # Engagement with objectives
+            'engagement__objectives',
+        ).select_related(
+            # Single related objects
+            'engagement',
+        )
+
+        # Try to get the object by lookup_field
+        try:
+            instance = queryset.get(**{self.lookup_field: lookup})
+        except ForumEvent.DoesNotExist:
+            raise Http404
+
+        serializer = self.get_serializer(instance)
+        response_data = serializer.data
+
+        # Cache the response for 10 minutes
+        self.set_cached_response(
+            cache_key, response_data, self.cache_timeout_detail)
+        return Response(response_data)
+
+    # (The `retrieve` implementation above handles both 'latest' and normal
+    # lookups and prefetches related data for full detail responses.)
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
@@ -292,7 +401,10 @@ class ForumEventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         from django.utils import timezone
         now = timezone.now().date()
 
-        queryset = self.get_queryset().filter(end_date__lt=now)
+        # past if end_date < today OR (no end_date and start_date < today)
+        from django.db.models import Q
+        queryset = self.get_queryset().filter(
+            Q(end_date__lt=now) | Q(end_date__isnull=True, start_date__lt=now))
         queryset = self.filter_queryset(queryset)
 
         page = self.paginate_queryset(queryset)

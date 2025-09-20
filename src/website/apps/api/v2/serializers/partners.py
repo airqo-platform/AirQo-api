@@ -13,6 +13,9 @@ class PartnerListSerializer(serializers.ModelSerializer):
         source='get_type_display', read_only=True)
     website_category_display = serializers.CharField(
         source='get_website_category_display', read_only=True)
+    public_identifier = serializers.SerializerMethodField()
+    api_url = serializers.SerializerMethodField()
+    has_slug = serializers.SerializerMethodField()
 
     def get_partner_image_url(self, obj):
         return obj.partner_image.url if obj.partner_image else None
@@ -20,14 +23,34 @@ class PartnerListSerializer(serializers.ModelSerializer):
     def get_partner_logo_url(self, obj):
         return obj.partner_logo.url if obj.partner_logo else None
 
+    def get_public_identifier(self, obj):
+        """Return privacy-friendly public identifier"""
+        return obj.get_public_identifier()
+
+    def get_api_url(self, obj):
+        """Return API URL using slug when available"""
+        identifier = obj.get_public_identifier()
+        return f"/website/api/v2/partners/{identifier}/"
+
+    def get_has_slug(self, obj):
+        """Return whether object has a slug"""
+        return bool(obj.slug)
+
+    def to_representation(self, instance):
+        """Hide ID when slug is available"""
+        data = super().to_representation(instance)
+        if instance.slug:
+            data.pop('id', None)
+        return data
+
     class Meta:
         model = Partner
         # Unique ref_name for v2 to avoid OpenAPI collisions with v1
         ref_name = 'PartnerListV2'
         fields = [
-            'id', 'partner_name', 'partner_image_url', 'partner_logo_url',
+            'public_identifier', 'partner_name', 'partner_image_url', 'partner_logo_url',
             'partner_link', 'type', 'type_display', 'website_category',
-            'website_category_display', 'order', 'created', 'modified'
+            'website_category_display', 'order', 'api_url', 'has_slug', 'created', 'modified'
         ]
 
 
@@ -36,7 +59,7 @@ class PartnerDescriptionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PartnerDescription
-        fields = ['id', 'description', 'order', 'partner']
+        fields = ['id', 'description', 'order', 'created', 'modified']
         ref_name = 'PartnerDescriptionSerializerV2'
 
 
@@ -49,6 +72,9 @@ class PartnerDetailSerializer(serializers.ModelSerializer):
     website_category_display = serializers.CharField(
         source='get_website_category_display', read_only=True)
     descriptions = PartnerDescriptionSerializer(many=True, read_only=True)
+    public_identifier = serializers.SerializerMethodField()
+    api_url = serializers.SerializerMethodField()
+    has_slug = serializers.SerializerMethodField()
 
     def get_partner_image_url(self, obj):
         return obj.partner_image.url if obj.partner_image else None
@@ -56,15 +82,35 @@ class PartnerDetailSerializer(serializers.ModelSerializer):
     def get_partner_logo_url(self, obj):
         return obj.partner_logo.url if obj.partner_logo else None
 
+    def get_public_identifier(self, obj):
+        """Return privacy-friendly public identifier"""
+        return obj.get_public_identifier()
+
+    def get_api_url(self, obj):
+        """Return API URL using slug when available"""
+        identifier = obj.get_public_identifier()
+        return f"/website/api/v2/partners/{identifier}/"
+
+    def get_has_slug(self, obj):
+        """Return whether object has a slug"""
+        return bool(obj.slug)
+
+    def to_representation(self, instance):
+        """Hide ID when slug is available"""
+        data = super().to_representation(instance)
+        if instance.slug:
+            data.pop('id', None)
+        return data
+
     class Meta:
         model = Partner
         # Unique ref_name for v2 to avoid OpenAPI collisions with v1
         ref_name = 'PartnerDetailV2'
         fields = [
-            'id', 'partner_name', 'partner_image', 'partner_image_url',
+            'public_identifier', 'partner_name', 'partner_image', 'partner_image_url',
             'partner_logo', 'partner_logo_url', 'partner_link', 'type', 'type_display',
             'website_category', 'website_category_display', 'descriptions',
-            'order', 'created', 'modified', 'is_deleted'
+            'order', 'api_url', 'has_slug', 'created', 'modified', 'is_deleted'
         ]
 
 

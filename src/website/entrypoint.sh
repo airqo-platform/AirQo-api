@@ -43,7 +43,7 @@ if ! python manage.py collectstatic --noinput --clear; then
   fi
 fi
 
-# Start Gunicorn server optimized for production
+# Start Gunicorn server optimized for production with large upload support
 echo "Starting Gunicorn server..."
 exec gunicorn core.wsgi:application \
     --bind 0.0.0.0:8000 \
@@ -52,8 +52,10 @@ exec gunicorn core.wsgi:application \
     --worker-connections 1000 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
-    --timeout 120 \
-    --keep-alive 2 \
+    --timeout 300 \
+    --keep-alive 5 \
+    --limit-request-line 8192 \
+    --limit-request-field_size 32768 \
     --log-level info \
     --access-logfile - \
     --error-logfile -

@@ -2,16 +2,22 @@
 Universal serializer mixins for slug-based API responses
 """
 from rest_framework import serializers
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING, cast
 
 
 class DynamicFieldsSerializerMixin:
     """
     Mixin that allows dynamic field inclusion/exclusion via query parameters
     """
-    # Type annotations for Django REST Framework attributes
-    fields: Dict[str, Any]  # type: ignore
-    context: Dict[str, Any]  # type: ignore
+    # Avoid declaring class-level attributes named `fields` or `context` which
+    # shadow DRF's runtime properties and cause static type checker warnings.
+    # For the static type checker (Pylance) only, declare the attributes in a
+    # TYPE_CHECKING block below so type checkers know these exist on instances
+    # without creating actual class-level attributes at runtime.
+
+    # Do not declare class-level `context` or `fields` for static analysis here;
+    # using runtime getattr checks keeps us compatible with DRF and avoids
+    # conflicting type declarations across multiple mixins.
 
     def __init__(self, *args, **kwargs):
         # Don't pass the 'fields' arg up to the superclass
@@ -22,8 +28,10 @@ class DynamicFieldsSerializerMixin:
         super().__init__(*args, **kwargs)
 
         # Handle dynamic field selection from context (query params)
-        if hasattr(self, 'context') and self.context:
-            request = self.context.get('request')
+        request = None
+        ctx = getattr(self, 'context', None)
+        if ctx:
+            request = ctx.get('request')
             if request:
                 query_fields = request.query_params.get('fields')
                 query_omit = request.query_params.get('omit')
@@ -36,14 +44,19 @@ class DynamicFieldsSerializerMixin:
         if fields is not None:
             # Drop any fields that are not specified in the `fields` argument
             allowed = set(fields)
-            existing = set(self.fields)
+            existing = set(getattr(self, 'fields', {}))
+            fields_map = getattr(self, 'fields', None)
             for field_name in existing - allowed:
-                self.fields.pop(field_name)
+                # Use pop with default to avoid KeyError when DRF implements fields lazily
+                if fields_map is not None:
+                    fields_map.pop(field_name, None)
 
         if omit is not None:
             # Remove fields specified in the `omit` argument
+            fields_map = getattr(self, 'fields', None)
             for field_name in omit:
-                self.fields.pop(field_name, None)
+                if fields_map is not None:
+                    fields_map.pop(field_name, None)
 
 
 class SlugSerializerMixin(DynamicFieldsSerializerMixin):
@@ -94,7 +107,8 @@ class SlugSerializerMixin(DynamicFieldsSerializerMixin):
             data.pop('id', None)
 
             # Add note about privacy-friendly access
-            if self.context.get('request') and self.context['request'].query_params.get('debug'):
+            ctx = getattr(self, 'context', None)
+            if ctx and ctx.get('request') and ctx['request'].query_params.get('debug'):
                 data['_privacy_note'] = 'ID hidden - use public_identifier for references'
 
         return data
@@ -134,13 +148,14 @@ class ReadOnlySlugSerializerMixin(SlugSerializerMixin):
         super().__init__(*args, **kwargs)
 
         # Make slug fields read-only
-        if hasattr(self, 'fields'):
-            if 'public_identifier' in self.fields:
-                self.fields['public_identifier'].read_only = True
-            if 'api_url' in self.fields:
-                self.fields['api_url'].read_only = True
-            if 'has_slug' in self.fields:
-                self.fields['has_slug'].read_only = True
+        fields_map = getattr(self, 'fields', None)
+        if fields_map is not None:
+            if 'public_identifier' in fields_map:
+                fields_map['public_identifier'].read_only = True
+            if 'api_url' in fields_map:
+                fields_map['api_url'].read_only = True
+            if 'has_slug' in fields_map:
+                fields_map['has_slug'].read_only = True
 
 
 class ListSerializerMixin(ReadOnlySlugSerializerMixin):
@@ -153,7 +168,8 @@ class ListSerializerMixin(ReadOnlySlugSerializerMixin):
         data = super().to_representation(instance)  # type: ignore
 
         # For list views, we can add additional optimizations
-        request = self.context.get('request') if hasattr(self, 'context') else None
+        ctx = getattr(self, 'context', None)
+        request = ctx.get('request') if ctx else None
         if request and request.query_params.get('minimal'):
             # Ultra-minimal response for performance
             essential_fields = ['public_identifier', 'api_url']
@@ -178,7 +194,8 @@ class DetailSerializerMixin(ReadOnlySlugSerializerMixin):
         data = super().to_representation(instance)  # type: ignore
 
         # Add metadata for detail views
-        request = self.context.get('request') if hasattr(self, 'context') else None
+        ctx = getattr(self, 'context', None)
+        request = ctx.get('request') if ctx else None
         if request and request.query_params.get('include_meta'):
             data['_meta'] = {
                 'model': instance.__class__.__name__,
@@ -201,14 +218,29 @@ class BulkSerializerMixin:
         """Handle bulk data processing"""
         if isinstance(data, list):
             # Bulk operation
-            return [super().to_internal_value(item) for item in data]  # type: ignore
-        return super().to_internal_value(data)  # type: ignore
+            # Call parent `to_internal_value` dynamically to satisfy static
+            # analysis tools that may not be able to see the method on `super()`.
+            parent_method = getattr(super(), 'to_internal_value', None)
+            if parent_method:
+                return [parent_method(item) for item in data]
+            # Fallback: attempt to call Serializer.to_internal_value via cast
+            serializer_self = cast(serializers.Serializer, self)
+            return [serializer_self.to_internal_value(item) for item in data]
+        parent_method = getattr(super(), 'to_internal_value', None)
+        if parent_method:
+            return parent_method(data)
+        serializer_self = cast(serializers.Serializer, self)
+        return serializer_self.to_internal_value(data)
 
     def create(self, validated_data) -> Union[Any, List[Any]]:
         """Handle bulk creation"""
         if isinstance(validated_data, list):
             return [self.Meta.model.objects.create(**item) for item in validated_data]
-        return super().create(validated_data)  # type: ignore
+        parent_create = getattr(super(), 'create', None)
+        if parent_create:
+            return parent_create(validated_data)
+        # Fallback to model creation if base serializer doesn't implement create
+        return self.Meta.model.objects.create(**validated_data)
 
 
 # Note: Convenience base classes removed due to multiple inheritance complexity

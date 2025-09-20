@@ -2,6 +2,7 @@
 CleanAir app filters for v2 API
 """
 import django_filters
+from django.db.models import Q
 from django.utils import timezone
 from apps.cleanair.models import CleanAirResource, ForumEvent
 
@@ -85,12 +86,19 @@ class ForumEventFilterSet(django_filters.FilterSet):
         """Filter by event status (upcoming, ongoing, past)"""
         now = timezone.now().date()
 
+        # For events that lack end_date, treat end_date as start_date
         if value == 'upcoming':
             return queryset.filter(start_date__gt=now)
         elif value == 'ongoing':
-            return queryset.filter(start_date__lte=now, end_date__gte=now)
+            # ongoing if start_date <= today AND (end_date >= today OR (end_date is null and start_date == today))
+            return queryset.filter(start_date__lte=now).filter(
+                Q(end_date__gte=now) | Q(end_date__isnull=True, start_date=now)
+            )
         elif value == 'past':
-            return queryset.filter(end_date__lt=now)
+            # past if (end_date < today) OR (end_date is null and start_date < today)
+            return queryset.filter(
+                Q(end_date__lt=now) | Q(end_date__isnull=True, start_date__lt=now)
+            )
 
         return queryset
 
@@ -105,14 +113,14 @@ class ForumEventFilterSet(django_filters.FilterSet):
         """Filter past events"""
         if value:
             now = timezone.now().date()
-            return queryset.filter(end_date__lt=now)
+            return queryset.filter(Q(end_date__lt=now) | Q(end_date__isnull=True, start_date__lt=now))
         return queryset
 
     def filter_ongoing(self, queryset, name, value):
         """Filter ongoing events"""
         if value:
             now = timezone.now().date()
-            return queryset.filter(start_date__lte=now, end_date__gte=now)
+            return queryset.filter(start_date__lte=now).filter(Q(end_date__gte=now) | Q(end_date__isnull=True, start_date=now))
         return queryset
 
     def filter_date_range(self, queryset, name, value):

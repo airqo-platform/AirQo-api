@@ -52,12 +52,13 @@ class EventFilter(filters.FilterSet):
         """Filter by event status (upcoming/past/ongoing)"""
         now = timezone.now().date()
 
+        # Treat missing end_date as single-day event (effective end_date == start_date)
         if value == 'upcoming':
             return queryset.filter(start_date__gt=now)
         elif value == 'past':
-            return queryset.filter(end_date__lt=now)
+            return queryset.filter(Q(end_date__lt=now) | Q(end_date__isnull=True, start_date__lt=now))
         elif value == 'ongoing':
-            return queryset.filter(start_date__lte=now, end_date__gte=now)
+            return queryset.filter(start_date__lte=now).filter(Q(end_date__gte=now) | Q(end_date__isnull=True, start_date=now))
 
         return queryset
 

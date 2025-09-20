@@ -3,11 +3,11 @@ Publications app viewsets for v2 API with universal slug support
 """
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
+from typing import Optional, List, ClassVar
 
 from apps.publications.models import Publication
 from ..filters.publications import PublicationFilter
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..serializers.publications import PublicationListSerializer, PublicationDetailSerializer
 from ..mixins import SlugModelViewSetMixin, OptimizedQuerySetMixin
 
@@ -23,26 +23,26 @@ class PublicationViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets
     - Backward compatibility with ID-based URLs
     """
     queryset = Publication.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
     filterset_class = PublicationFilter
-    search_fields = ['title', 'authors', 'description']
-    ordering_fields = ['title', 'authors',
-                       'category', 'order', 'created', 'modified']
-    ordering = ['order', '-created']
+    search_fields: ClassVar[List[str]] = ['title', 'authors', 'description']
+    ordering_fields: ClassVar[List[str]] = ['title', 'authors',
+                                            'category', 'order', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', '-created']
     pagination_class = StandardPageNumberPagination
 
     # Slug configuration
     slug_filter_fields = ('slug',)  # Publication uses standard slug field
 
     # Optimization settings
-    select_related_fields = []  # No foreign keys to optimize
-    prefetch_related_fields = []  # No M2M relationships
-    list_only_fields = [
+    # No foreign keys to optimize
+    select_related_fields: Optional[List[str]] = []
+    prefetch_related_fields: Optional[List[str]] = []  # No M2M relationships
+    list_only_fields: Optional[List[str]] = [
         # Model fields for list view optimization
         'id', 'title', 'authors', 'category', 'link', 'link_title',
         'resource_file', 'order', 'created', 'modified'
