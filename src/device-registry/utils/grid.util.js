@@ -1,5 +1,6 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
+const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
 const geolib = require("geolib");
@@ -488,38 +489,36 @@ const createGrid = {
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
 
-      let pipeline = [{ $match: filter }];
+      const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
+        detailLevel
+      );
+      let pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+      ];
 
-      if (detailLevel === "summary") {
+      if (detailLevel === "full") {
         pipeline.push({
-          $project: {
-            shape: 0, // Exclude the heavy shape field for summary
-            __v: 0,
-            sites: 0,
-            mobileDevices: 0,
+          $lookup: {
+            from: "devices",
+            localField: "activeMobileDevices.device_id",
+            foreignField: "_id",
+            as: "mobileDevices",
           },
         });
-      } else {
-        // For 'full' detail, include lookups
-        pipeline.push(
-          {
-            $lookup: {
-              from: "sites",
-              localField: "_id",
-              foreignField: "grids",
-              as: "sites",
-            },
-          },
-          {
-            $lookup: {
-              from: "devices",
-              localField: "activeMobileDevices.device_id",
-              foreignField: "_id",
-              as: "mobileDevices",
-            },
-          }
-        );
       }
+
+      pipeline.push(
+        { $project: constants.GRIDS_INCLUSION_PROJECTION },
+        { $project: exclusionProjection }
+      );
 
       const facetPipeline = [
         ...pipeline,
@@ -549,18 +548,36 @@ const createGrid = {
           ? agg.totalCount[0].count
           : 0;
 
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
       return {
         success: true,
         message: "Successfully retrieved grids",
         data: paginatedResults,
         status: httpStatus.OK,
-        meta: {
-          total,
-          limit: _limit,
-          skip: _skip,
-          page: Math.floor(_skip / _limit) + 1,
-          totalPages: Math.ceil(total / _limit),
-        },
+        meta,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
