@@ -109,19 +109,39 @@ def preview_image(image_field, obj_name, alt_text, max_dimensions):
 class EventAdmin(NestedModelAdmin):
     list_display = (
         'title',
+        'event_status_display',
         'start_date',
         'end_date',
         'website_category',
         'event_category',
+        'event_tag',
+        'location_name',
         'order',
         'preview_event_image',
         'preview_background_image'
     )
-    search_fields = ('title', 'location_name')
+    search_fields = ('title', 'title_subtext',
+                     'location_name', 'event_details')
+    list_filter = (
+        'website_category',
+        'event_category',
+        'event_tag',
+        'start_date',
+        'end_date',
+        ('start_date', admin.DateFieldListFilter),
+    )
     list_editable = ('order',)
     ordering = ('order', '-start_date')
-    list_per_page = 10
-    readonly_fields = ('preview_event_image', 'preview_background_image')
+    list_per_page = 15
+    date_hierarchy = 'start_date'
+    readonly_fields = (
+        'preview_event_image',
+        'preview_background_image',
+        'event_status_display',
+        'slug',
+        'created',
+        'modified'
+    )
     inlines = [
         InquiryInline,
         ProgramInline,
@@ -130,21 +150,42 @@ class EventAdmin(NestedModelAdmin):
     ]
     fieldsets = (
         ("Basic Information", {
-            "fields": ('title', 'title_subtext', 'start_date', 'end_date', 'start_time', 'end_time')
+            "fields": ('title', 'title_subtext', 'slug'),
+            "classes": ('wide',),
         }),
-        ("Location", {
-            "fields": ('location_name', 'location_link')
+        ("Schedule", {
+            "fields": ('start_date', 'end_date', 'start_time', 'end_time', 'event_status_display'),
+            "classes": ('wide',),
+        }),
+        ("Location & Registration", {
+            "fields": ('location_name', 'location_link', 'registration_link'),
+            "classes": ('wide',),
         }),
         ("Details", {
-            "fields": ('event_details', 'registration_link')
+            "fields": ('event_details',),
+            "classes": ('wide',),
         }),
         ("Images", {
-            "fields": ('event_image', 'preview_event_image', 'background_image', 'preview_background_image')
+            "fields": (
+                ('event_image', 'preview_event_image'),
+                ('background_image', 'preview_background_image')
+            ),
+            "classes": ('wide',),
         }),
-        ("Categorization", {
-            "fields": ('website_category', 'event_category', 'event_tag', 'order')
+        ("Categorization & Ordering", {
+            "fields": ('website_category', 'event_category', 'event_tag', 'order'),
+            "classes": ('wide',),
+        }),
+        ("Metadata", {
+            "fields": ('created', 'modified'),
+            "classes": ('collapse',),
         }),
     )
+
+    class Media:
+        css = {
+            'all': ('admin/css/event_admin_custom.css',)
+        }
 
     @admin.display(description="Event Image")
     def preview_event_image(self, obj):
@@ -155,6 +196,33 @@ class EventAdmin(NestedModelAdmin):
     def preview_background_image(self, obj):
         """Preview background image."""
         return preview_image(obj.background_image, obj.title, "Background Image", (150, 300))
+
+    @admin.display(description="Status", ordering='start_date')
+    def event_status_display(self, obj):
+        """Display event status with color coding."""
+        from django.utils import timezone
+        now = timezone.now().date()
+
+        # Treat missing end_date as single-day event
+        effective_end = obj.end_date or obj.start_date
+
+        # Upcoming if start_date is in the future
+        if obj.start_date and obj.start_date > now:
+            status = 'UPCOMING'
+            color = '#28a745'  # Green
+        # Past if the effective end is before today
+        elif effective_end and effective_end < now:
+            status = 'PAST'
+            color = '#dc3545'  # Red
+        else:
+            # Otherwise it's ongoing (includes single-day events happening today)
+            status = 'ONGOING'
+            color = '#ffc107'  # Yellow
+
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color, status
+        )
 
     def save_model(self, request, obj, form, change):
         """Override save_model to handle image uploads and database errors gracefully."""

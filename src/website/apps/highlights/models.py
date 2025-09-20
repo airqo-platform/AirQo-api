@@ -1,6 +1,6 @@
 from django.db import models
-from cloudinary.models import CloudinaryField
 from utils.models import BaseModel
+from utils.fields import optimized_cloudinary_field
 
 
 class Tag(BaseModel):
@@ -15,10 +15,8 @@ class Highlight(BaseModel):
     # String-based reference to Tag
     tags = models.ManyToManyField("Tag", related_name='highlights')
 
-    image = CloudinaryField(
-        folder='website/uploads/highlights/images',
-        null=True,
-        blank=True,
+    image = optimized_cloudinary_field(
+        'website/uploads/highlights/images',
         resource_type='image'
     )
 
@@ -26,7 +24,10 @@ class Highlight(BaseModel):
     link_title = models.CharField(max_length=20, blank=True)
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
+        """Model metadata inheriting from BaseModel.Meta to remain compatible
+        with the base class's abstract Meta type (avoids Pylance type errors).
+        """
         ordering = ['order', '-id']
 
     def __str__(self):
@@ -38,4 +39,4 @@ class Highlight(BaseModel):
         """
         if self.image:
             self.image.delete(save=False)
-        super().delete(*args, **kwargs)
+        return super().delete(*args, **kwargs)

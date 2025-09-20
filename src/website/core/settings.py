@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import cast
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -156,35 +157,40 @@ TEMPLATES = [
 # Database Configuration
 # ---------------------------------------------------------
 DATABASE_URL = os.getenv('DATABASE_URL')
+
 if DATABASE_URL:
+    # if DEBUG is True, disable SSL; otherwise require SSL
+    ssl_is_required = not DEBUG
+
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
             conn_max_age=600,
-            ssl_require=True
+            ssl_require=ssl_is_required
         )
     }
-    # Add PostgreSQL-specific connection options
-    if 'postgresql' in DATABASE_URL:
-        DATABASES['default']['OPTIONS'] = {
-            'sslmode': 'require',
-        }
+
+    # PostgreSQL-specific connection options: set sslmode to match behavior
+    # Use the detected ENGINE from dj_database_url.parse to decide
+    engine = DATABASES['default'].get('ENGINE', '')
+    if engine.endswith('postgresql') or 'postgresql' in DATABASE_URL:
+        # Use a local variable and cast to avoid TypedDict access errors by static checkers
+        options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
+        options['sslmode'] = 'require' if ssl_is_required else 'disable'
     elif 'mysql' in DATABASE_URL:
-        DATABASES['default']['OPTIONS'] = {
+        options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
+        options.update({
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             'charset': 'utf8mb4',
             'autocommit': True,
-        }
+        })
 else:
+    # Fallback for development if DATABASE_URL not set
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            # Allow overriding the sqlite file location (useful for Docker named volumes).
-            # Set SQLITE_PATH to e.g. /app/data/db.sqlite3 in the container environment.
             'NAME': os.getenv('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
-            'OPTIONS': {
-                'timeout': 600,
-            }
+            'OPTIONS': {'timeout': 600},
         }
     }
 
@@ -238,14 +244,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Cloudinary Configuration
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
-    'API_SECRET': require_env_var('CLOUDINARY_API_SECRET'),
-    'SECURE': True,
-    'TIMEOUT': 600,
-}
+# Cloudinary Configuration - Moved to File Upload Settings section above
+# This configuration supports large file uploads up to 30MB
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # ---------------------------------------------------------
@@ -265,14 +265,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle'
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '1000/day',
-        'user': '5000/day'
-    }
+    # Throttling removed - handled at nginx level
 }
 
 # ---------------------------------------------------------
@@ -353,9 +346,9 @@ QUILL_CONFIGS = {
 # ---------------------------------------------------------
 # File Upload Settings
 # ---------------------------------------------------------
-# Increase these values to handle larger uploads (up to 25MB)
-FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 MB
+# Support up to 30MB uploads for images and files
+FILE_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB (30 * 1024 * 1024)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB
 FILE_UPLOAD_TEMP_DIR = None  # Use system default temp directory
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
@@ -363,6 +356,17 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 # Additional upload configurations
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000  # Maximum number of fields in form data
 DATA_UPLOAD_MAX_NUMBER_FILES = 100    # Maximum number of files in upload
+
+# Cloudinary specific timeout (10 minutes for large uploads)
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
+    'API_SECRET': require_env_var('CLOUDINARY_API_SECRET'),
+    'SECURE': True,
+    'TIMEOUT': 600,  # 10 minutes for large file uploads
+    'EAGER_ASYNC': True,  # Process transformations asynchronously
+    'EAGER_NOTIFICATION_URL': None,  # Set if you want upload notifications
+}
 
 # ---------------------------------------------------------
 # SSL and Proxy Settings (if behind a reverse proxy)
