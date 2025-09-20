@@ -181,32 +181,32 @@ class ProjectionFactory {
           isOnline: 1,
           activities: "$activities",
           latest_deployment_activity: {
-            $cond: {
-              if: { $isArray: "$latest_deployment_activity" },
-              then: { $arrayElemAt: ["$latest_deployment_activity", 0] },
-              else: "$latest_deployment_activity",
-            },
+            $cond: [
+              { $isArray: "$latest_deployment_activity" },
+              { $arrayElemAt: ["$latest_deployment_activity", 0] },
+              "$latest_deployment_activity",
+            ],
           },
           latest_maintenance_activity: {
-            $cond: {
-              if: { $isArray: "$latest_maintenance_activity" },
-              then: { $arrayElemAt: ["$latest_maintenance_activity", 0] },
-              else: "$latest_maintenance_activity",
-            },
+            $cond: [
+              { $isArray: "$latest_maintenance_activity" },
+              { $arrayElemAt: ["$latest_maintenance_activity", 0] },
+              "$latest_maintenance_activity",
+            ],
           },
           latest_recall_activity: {
-            $cond: {
-              if: { $isArray: "$latest_recall_activity" },
-              then: { $arrayElemAt: ["$latest_recall_activity", 0] },
-              else: "$latest_recall_activity",
-            },
+            $cond: [
+              { $isArray: "$latest_recall_activity" },
+              { $arrayElemAt: ["$latest_recall_activity", 0] },
+              "$latest_recall_activity",
+            ],
           },
           site_creation_activity: {
-            $cond: {
-              if: { $isArray: "$site_creation_activity" },
-              then: { $arrayElemAt: ["$site_creation_activity", 0] },
-              else: "$site_creation_activity",
-            },
+            $cond: [
+              { $isArray: "$site_creation_activity" },
+              { $arrayElemAt: ["$site_creation_activity", 0] },
+              "$site_creation_activity",
+            ],
           },
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
@@ -336,50 +336,50 @@ class ProjectionFactory {
           onlineStatusAccuracy: 1,
           previous_sites: 1,
           site: {
-            $cond: {
-              if: { $isArray: "$site" },
-              then: { $arrayElemAt: ["$site", 0] },
-              else: "$site",
-            },
+            $cond: [
+              { $isArray: "$site" },
+              { $arrayElemAt: ["$site", 0] },
+              "$site",
+            ],
           },
           host: {
-            $cond: {
-              if: { $isArray: "$host" },
-              then: { $arrayElemAt: ["$host", 0] },
-              else: "$host",
-            },
+            $cond: [
+              { $isArray: "$host" },
+              { $arrayElemAt: ["$host", 0] },
+              "$host",
+            ],
           },
           activities: "$activities",
           latest_deployment_activity: {
-            $cond: {
-              if: { $isArray: "$latest_deployment_activity" },
-              then: { $arrayElemAt: ["$latest_deployment_activity", 0] },
-              else: "$latest_deployment_activity",
-            },
+            $cond: [
+              { $isArray: "$latest_deployment_activity" },
+              { $arrayElemAt: ["$latest_deployment_activity", 0] },
+              "$latest_deployment_activity",
+            ],
           },
           latest_maintenance_activity: {
-            $cond: {
-              if: { $isArray: "$latest_maintenance_activity" },
-              then: { $arrayElemAt: ["$latest_maintenance_activity", 0] },
-              else: "$latest_maintenance_activity",
-            },
+            $cond: [
+              { $isArray: "$latest_maintenance_activity" },
+              { $arrayElemAt: ["$latest_maintenance_activity", 0] },
+              "$latest_maintenance_activity",
+            ],
           },
           latest_recall_activity: {
-            $cond: {
-              if: { $isArray: "$latest_recall_activity" },
-              then: { $arrayElemAt: ["$latest_recall_activity", 0] },
-              else: "$latest_recall_activity",
-            },
+            $cond: [
+              { $isArray: "$latest_recall_activity" },
+              { $arrayElemAt: ["$latest_recall_activity", 0] },
+              "$latest_recall_activity",
+            ],
           },
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
           assigned_grid: {
-            $cond: {
-              if: { $isArray: "$assigned_grid" },
-              then: { $arrayElemAt: ["$assigned_grid", 0] },
-              else: "$assigned_grid",
-            },
+            $cond: [
+              { $isArray: "$assigned_grid" },
+              { $arrayElemAt: ["$assigned_grid", 0] },
+              "$assigned_grid",
+            ],
           },
         },
         exclusion: {
