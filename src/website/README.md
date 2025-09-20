@@ -154,11 +154,82 @@ apps/
    python manage.py runserver
    ```
 
-  ### Local Developer Assets
+### Development Database (PostgreSQL)
 
-  The repository contains an `assets/` directory used by developers to store local images and uploads while working on the frontend or prototyping content. These files are not referenced by the Django application in production. Production static files should be served via `collectstatic` into `staticfiles/` (or a CDN/Cloudinary for media).
+For local development we recommend running PostgreSQL so you can provide a `DATABASE_URL` to the app (the settings fall back to SQLite only when `DATABASE_URL` is not set). Below are simple options to get PostgreSQL running and create a database and user.
 
-  Do not commit files under `assets/` into the repository. The project `.gitignore` explicitly ignores `assets/` to prevent accidental commits. If you need to store shared media for production, upload them to Cloudinary or add them to the appropriate `static/` or app-level `static/` directories and run `python manage.py collectstatic`.
+1. Install PostgreSQL (choose one):
+
+- macOS (Homebrew):
+
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+- Ubuntu/Debian:
+
+```bash
+sudo apt update
+sudo apt install -y postgresql postgresql-contrib
+sudo systemctl start postgresql
+```
+
+- Windows:
+
+Download and run the official PostgreSQL installer from https://www.postgresql.org/download/windows/ or use Chocolatey:
+
+```powershell
+choco install postgresql
+# then open a new shell to use psql
+```
+
+- Docker (recommended for isolation):
+
+```bash
+docker run --name airqo-postgres -e POSTGRES_USER=airqo -e POSTGRES_PASSWORD=airqo -e POSTGRES_DB=airqo_dev -p 5432:5432 -d postgres:15
+```
+
+2. Create a database and user (psql example):
+
+```sql
+-- connect as the postgres superuser or use the docker container's psql
+CREATE USER airqo_user WITH PASSWORD 'change_this_password';
+CREATE DATABASE airqo_dev OWNER airqo_user;
+GRANT ALL PRIVILEGES ON DATABASE airqo_dev TO airqo_user;
+```
+
+3. Export `DATABASE_URL` into your `.env` or environment. Example connection string formats:
+
+```env
+# PostgreSQL URL format
+DATABASE_URL=postgres://USER:PASSWORD@HOST:PORT/DBNAME
+
+# Example for the docker example above
+DATABASE_URL=postgres://airqo_user:change_this_password@127.0.0.1:5432/airqo_dev
+```
+
+4. Verify connection and run migrations:
+
+```bash
+# confirm psql can connect
+psql "$DATABASE_URL" -c '\l'
+
+# run migrations and create a superuser
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+Notes
+
+- The project `core/settings.py` will use `DATABASE_URL` if provided; otherwise it falls back to SQLite (development convenience). For parity with production and to run the full test-suite you should use PostgreSQL locally.
+- If you use Docker, make sure the container's port is reachable at the host address you put in `DATABASE_URL` (commonly `127.0.0.1:5432`).
+
+### Local Developer Assets
+
+The repository contains an `assets/` directory used by developers to store local images and uploads while working on the frontend or prototyping content. These files are not referenced by the Django application in production. Production static files should be served via `collectstatic` into `staticfiles/` (or a CDN/Cloudinary for media).
+
+Do not commit files under `assets/` into the repository. The project `.gitignore` explicitly ignores `assets/` to prevent accidental commits. If you need to store shared media for production, upload them to Cloudinary or add them to the appropriate `static/` or app-level `static/` directories and run `python manage.py collectstatic`.
 
 ### Environment Variables
 
