@@ -1277,6 +1277,30 @@ const validateGenerateShippingLabels = [
     }),
 ];
 
+const validateGetDeviceCountSummary = [
+  query("group_id")
+    .optional()
+    .isString()
+    .withMessage("group_id must be a string")
+    .trim(),
+  query("cohort_id")
+    .optional()
+    .isString()
+    .withMessage("cohort_id must be a string")
+    .custom((value) => {
+      if (value) {
+        const ids = value.split(",");
+        for (const id of ids) {
+          if (!mongoose.Types.ObjectId.isValid(id.trim())) {
+            throw new Error(`Invalid cohort ID format: ${id.trim()}`);
+          }
+        }
+      }
+      return true;
+    })
+    .trim(),
+];
+
 module.exports = {
   validateTenant,
   pagination,
@@ -1305,4 +1329,5 @@ module.exports = {
   getIdFromName,
   getNameFromId,
   suggestDeviceNames,
+  validateGetDeviceCountSummary,
 };
