@@ -27,7 +27,7 @@ const createFeed = {
       const channel = ch_id;
 
       try {
-        const apiKeyResponse = await createFeedUtil.getAPIKey(channel);
+        const apiKeyResponse = await createFeedUtil.getAPIKey(channel, next);
         if (apiKeyResponse.success !== true) {
           return res.status(apiKeyResponse.status).json(apiKeyResponse);
         }
@@ -79,7 +79,7 @@ const createFeed = {
       const { channel, start, end } = req.query;
 
       try {
-        const apiKeyResponse = await createFeedUtil.getAPIKey(channel);
+        const apiKeyResponse = await createFeedUtil.getAPIKey(channel, next);
         if (apiKeyResponse.success !== true) {
           return res.status(apiKeyResponse.status).json(apiKeyResponse);
         }
