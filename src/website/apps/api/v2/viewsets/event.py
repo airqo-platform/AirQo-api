@@ -90,9 +90,8 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         """Optimized queryset with aggressive performance improvements"""
         from django.core.cache import cache
         from django.db import connection
-
-        # Base queryset with efficient ordering
-        qs = Event.objects.all()
+        # Base queryset with efficient ordering (retain mixin hooks)
+        qs = super().get_queryset()
 
         # Get action and optimize accordingly
         action = getattr(self, 'action', None)
@@ -105,7 +104,7 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
                 'programs__sessions',  # Nested prefetch for programs and their sessions
                 'partner_logos',
                 'resources'
-            ).select_related()  # No foreign keys to select, but good practice
+            )
 
         elif action == 'list':
             # For list view - minimal data with only() to reduce fields fetched
@@ -137,17 +136,17 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
             f"EventViewSet.get_queryset: optimized for action={action}")
         return qs
 
-    def list(self, request, *args, **kwargs):
+    def list(self, request, *_args, **_kwargs):
         """Override list to add caching and measure timing"""
         import time
         from django.core.cache import cache
-        from django.utils.encoding import force_str
+        from urllib.parse import urlencode
 
         t0 = time.time()
 
-        # Generate cache key based on query parameters
-        query_params = request.query_params.copy()
-        cache_key = f"events_list_{hash(frozenset(query_params.items()))}"
+        # Deterministic cache key based on sorted full query params
+        query_params = request.query_params.lists()
+        cache_key = f"events_list:{urlencode(sorted(query_params), doseq=True)}"
 
         # Try to get from cache first
         cached_response = cache.get(cache_key)
@@ -186,16 +185,18 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
             f"EventViewSet.list: full response prepared in {time.time() - t0:.3f}s")
         return Response(response_data)
 
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request, *_args, **_kwargs):
         """Override retrieve to add caching for individual events"""
         from django.core.cache import cache
+        from urllib.parse import urlencode
         import time
 
         t0 = time.time()
 
         # Get the lookup value (slug or ID)
-        lookup_value = kwargs.get(self.lookup_field, kwargs.get('pk'))
-        cache_key = f"event_detail_{lookup_value}"
+        lookup_value = _kwargs.get(self.lookup_field, _kwargs.get('pk'))
+        params = request.query_params.lists()
+        cache_key = f"event_detail:{lookup_value}:{urlencode(sorted(params), doseq=True)}"
 
         # Try to get from cache first
         cached_response = cache.get(cache_key)

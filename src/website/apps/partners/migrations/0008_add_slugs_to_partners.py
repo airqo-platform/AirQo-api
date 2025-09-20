@@ -4,25 +4,30 @@ from django.db import migrations, models
 from django.utils.text import slugify
 
 
-def generate_partner_slugs(apps, schema_editor):
+def generate_partner_slugs(apps, _schema_editor):
     """Generate slugs for existing partner records"""
     Partner = apps.get_model('partners', 'Partner')
 
-    for partner in Partner.objects.all():
+    # Prefill used_slugs with any existing non-null slugs to reduce DB hits
+    used_slugs = set(Partner.objects.exclude(
+        slug__isnull=True).values_list('slug', flat=True))
+
+    for partner in Partner.objects.iterator():
         if not partner.slug and partner.partner_name:
             # Generate base slug from partner name
             base_slug = slugify(partner.partner_name)[
                 :70]  # Respect SLUG_MAX_LENGTH
 
-            # Ensure uniqueness
+            # Ensure uniqueness using in-memory set first
             unique_slug = base_slug
             counter = 1
-            while Partner.objects.filter(slug=unique_slug).exists():
+            while unique_slug in used_slugs or Partner.objects.filter(slug=unique_slug).exists():
                 unique_slug = f"{base_slug}-{counter}"
                 counter += 1
 
             partner.slug = unique_slug
             partner.save(update_fields=['slug'])
+            used_slugs.add(unique_slug)
 
 
 def reverse_partner_slugs(apps, schema_editor):

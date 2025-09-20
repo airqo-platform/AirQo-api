@@ -9,6 +9,7 @@ from ..filters.career import CareerFilterSet, DepartmentFilterSet
 from ..pagination import StandardPageNumberPagination
 from ..utils import OptimizedQuerySetMixin
 from ..mixins import SlugModelViewSetMixin
+from typing import Optional, List, ClassVar
 
 
 class DepartmentViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
@@ -32,8 +33,10 @@ class CareerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.Read
     search_fields = ['title', 'type']
     ordering_fields = ['id', 'title', 'closing_date', 'created', 'modified']
     ordering = ['-closing_date', 'title']
-    select_related_fields = ['department']
-    prefetch_related_fields = ['descriptions', 'bullets__bullet_points']
+    # Keep select_related minimal at class level; expensive prefetch only for retrieve
+    select_related_fields: Optional[List[str]] = ['department']
+    # heavy prefetch applied only in get_queryset for retrieve
+    prefetch_related_fields: Optional[List[str]] = None
 
     def get_serializer_class(self):  # type: ignore[override]
         return CareerListSerializer if self.action == 'list' else CareerDetailSerializer
@@ -42,7 +45,7 @@ class CareerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.Read
         """Optimized queryset with prefetch for related data"""
         queryset = super().get_queryset()
 
-        # For detail view, ensure all related data is prefetched
+        # For detail view, ensure all related data is prefetched (expensive nested prefetch)
         if self.action == 'retrieve':
             queryset = queryset.select_related('department').prefetch_related(
                 'descriptions',
