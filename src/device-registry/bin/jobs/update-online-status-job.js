@@ -284,43 +284,71 @@ function validateTimestamp(time) {
 async function updateEntityOnlineStatusAccuracy(
   Model,
   entityId,
-  isSuccess,
+  isCurrentlyOnline, // The status that was in the DB
+  isNowOnline, // The status just calculated by the job
   reason,
   entityType
 ) {
   try {
     const entity = await Model.findById(entityId, {
-      "onlineStatusAccuracy.totalAttempts": 1,
-      "onlineStatusAccuracy.successfulUpdates": 1,
-      "onlineStatusAccuracy.failedUpdates": 1,
-    });
+      onlineStatusAccuracy: 1,
+    }).lean();
 
     const currentStats = entity?.onlineStatusAccuracy || {};
-    const currentTotal = currentStats.totalAttempts || 0;
-    const currentSuccessful = currentStats.successfulUpdates || 0;
-    const currentFailed = currentStats.failedUpdates || 0;
 
-    const newTotal = currentTotal + 1;
-    const newSuccessful = isSuccess ? currentSuccessful + 1 : currentSuccessful;
-    const newFailed = isSuccess ? currentFailed : currentFailed + 1;
+    // --- New "Truthfulness" Logic ---
+    const currentTotalChecks = currentStats.totalChecks || 0;
+    const currentCorrectChecks = currentStats.correctChecks || 0;
+    const currentIncorrectChecks = currentStats.incorrectChecks || 0;
 
-    const successPercentage =
-      newTotal > 0 ? Math.round((newSuccessful / newTotal) * 10000) / 100 : 0;
-    const failurePercentage =
-      newTotal > 0 ? Math.round((newFailed / newTotal) * 10000) / 100 : 0;
+    const isTruthful = isCurrentlyOnline === isNowOnline;
+
+    const newTotalChecks = currentTotalChecks + 1;
+    const newCorrectChecks = isTruthful
+      ? currentCorrectChecks + 1
+      : currentCorrectChecks;
+    const newIncorrectChecks = isTruthful
+      ? currentIncorrectChecks
+      : currentIncorrectChecks + 1;
+
+    const accuracyPercentage =
+      newTotalChecks > 0 ? (newCorrectChecks / newTotalChecks) * 100 : 0;
+
+    // --- Backward Compatibility Logic ---
+    const newTotalAttempts = newTotalChecks;
+    const newSuccessfulUpdates = newCorrectChecks;
+    const newFailedUpdates = newIncorrectChecks;
+    const successPercentage = accuracyPercentage;
+    const failurePercentage = 100 - accuracyPercentage;
 
     const incUpdate = {
+      // New fields
+      "onlineStatusAccuracy.totalChecks": 1,
+      ...(isTruthful
+        ? { "onlineStatusAccuracy.correctChecks": 1 }
+        : { "onlineStatusAccuracy.incorrectChecks": 1 }),
+      // Old fields
       "onlineStatusAccuracy.totalAttempts": 1,
-      ...(isSuccess
+      ...(isTruthful
         ? { "onlineStatusAccuracy.successfulUpdates": 1 }
         : { "onlineStatusAccuracy.failedUpdates": 1 }),
     };
 
     const setUpdate = {
+      // New fields
+      "onlineStatusAccuracy.lastCheck": new Date(),
+      "onlineStatusAccuracy.accuracyPercentage": accuracyPercentage,
+      ...(isTruthful
+        ? { "onlineStatusAccuracy.lastCorrectCheck": new Date() }
+        : {
+            "onlineStatusAccuracy.lastIncorrectCheck": new Date(),
+            "onlineStatusAccuracy.lastIncorrectReason": reason,
+          }),
+      // Old fields
       "onlineStatusAccuracy.lastUpdate": new Date(),
       "onlineStatusAccuracy.successPercentage": successPercentage,
       "onlineStatusAccuracy.failurePercentage": failurePercentage,
-      ...(isSuccess
+      ...(isTruthful
         ? { "onlineStatusAccuracy.lastSuccessfulUpdate": new Date() }
         : { "onlineStatusAccuracy.lastFailureReason": reason }),
     };
@@ -334,11 +362,10 @@ async function updateEntityOnlineStatusAccuracy(
     return {
       success: true,
       stats: {
-        totalAttempts: newTotal,
-        successfulUpdates: newSuccessful,
-        failedUpdates: newFailed,
-        successPercentage,
-        failurePercentage,
+        totalChecks: newTotalChecks,
+        correctChecks: newCorrectChecks,
+        incorrectChecks: newIncorrectChecks,
+        accuracyPercentage,
       },
     };
   } catch (error) {
@@ -352,21 +379,24 @@ async function updateEntityOnlineStatusAccuracy(
 // Enhanced entity status update with better validation and atomic operations
 async function updateEntityStatus(Model, filter, time, entityType) {
   let entityId = null;
+  let isCurrentlyOnline = null;
   try {
     const validationResult = validateTimestamp(time);
     if (!validationResult.isValid) {
       logger.debug(
         `Invalid timestamp for ${entityType}: ${validationResult.reason} - ${time}`
       );
+      // We can't determine truthfulness without a valid time, so we just track a failure if possible.
       try {
-        const entity = await Model.findOne(filter, { _id: 1 });
+        const entity = await Model.findOne(filter, { _id: 1, isOnline: 1 });
         if (entity) {
           entityId = entity._id;
           await updateEntityOnlineStatusAccuracy(
             Model,
             entityId,
-            false,
-            validationResult.reason,
+            entity.isOnline, // current status
+            false, // new status is effectively offline
+            `invalid_timestamp: ${validationResult.reason}`,
             entityType
           );
         }
@@ -376,17 +406,31 @@ async function updateEntityStatus(Model, filter, time, entityType) {
       return { success: false, reason: validationResult.reason };
     }
 
-    const isActive = isEntityActive(validationResult.validTime);
+    const isNowOnline = isEntityActive(validationResult.validTime);
     const lastActiveTime = moment(validationResult.validTime)
       .tz(TIMEZONE)
       .toDate();
+
+    // Fetch the current state before updating for accuracy calculation
+    const currentEntity = await Model.findOne(filter, {
+      _id: 1,
+      isOnline: 1,
+    }).lean();
+
+    if (!currentEntity) {
+      logger.debug(`${entityType} not found with filter: ${stringify(filter)}`);
+      return { success: false, reason: "entity_not_found" };
+    }
+
+    entityId = currentEntity._id;
+    isCurrentlyOnline = currentEntity.isOnline;
 
     const result = await Model.findOneAndUpdate(
       filter,
       {
         $set: {
           lastActive: lastActiveTime,
-          isOnline: isActive,
+          isOnline: isNowOnline,
           statusUpdatedAt: new Date(),
           statusSource: "online_status_cron_job",
         },
@@ -399,24 +443,29 @@ async function updateEntityStatus(Model, filter, time, entityType) {
     );
 
     if (result) {
-      entityId = result._id;
       const accuracyResult = await updateEntityOnlineStatusAccuracy(
         Model,
         entityId,
-        true,
-        "success",
+        isCurrentlyOnline,
+        isNowOnline,
+        isCurrentlyOnline === isNowOnline
+          ? "status_confirmed"
+          : "status_corrected",
         entityType
       );
       return {
         success: true,
-        wasOnline: isActive,
+        wasOnline: isNowOnline,
         entityId: result._id,
         lastActive: lastActiveTime,
         accuracyStats: accuracyResult.success ? accuracyResult.stats : null,
       };
     } else {
-      logger.debug(`${entityType} not found with filter: ${stringify(filter)}`);
-      return { success: false, reason: "entity_not_found" };
+      // This case should be rare now since we check for existence first
+      logger.debug(
+        `${entityType} not found during update: ${stringify(filter)}`
+      );
+      return { success: false, reason: "entity_not_found_on_update" };
     }
   } catch (error) {
     if (isDuplicateKeyError(error)) {
@@ -424,8 +473,9 @@ async function updateEntityStatus(Model, filter, time, entityType) {
         await updateEntityOnlineStatusAccuracy(
           Model,
           entityId,
-          false,
-          "duplicate_key",
+          isCurrentlyOnline,
+          isCurrentlyOnline, // Assume no change on duplicate key error
+          "duplicate_key_ignored",
           entityType
         );
       }
@@ -436,7 +486,8 @@ async function updateEntityStatus(Model, filter, time, entityType) {
       await updateEntityOnlineStatusAccuracy(
         Model,
         entityId,
-        false,
+        isCurrentlyOnline,
+        isCurrentlyOnline, // Assume no change on error
         "database_error",
         entityType
       );
@@ -471,14 +522,17 @@ async function updateOfflineEntitiesWithAccuracy(
       .subtract(INACTIVE_THRESHOLD, "milliseconds")
       .toDate();
 
-    // 1. Find all entities that should be marked offline
+    // 1. Find all entities that should be marked as offline
     const entitiesToMarkOffline = await Model.find(
       {
         _id: { $nin: Array.from(activeEntityIds) },
-        lastActive: { $lt: thresholdTime },
-        $or: [{ isOnline: true }, { isOnline: { $exists: false } }],
+        $or: [
+          { lastActive: { $lt: thresholdTime } },
+          { lastActive: { $exists: false }, createdAt: { $lt: thresholdTime } },
+        ],
+        isOnline: { $ne: false },
       },
-      { _id: 1 } // Only get the IDs
+      { _id: 1, isOnline: 1 } // Also fetch current isOnline status
     ).lean();
 
     const offlineEntityIds = entitiesToMarkOffline.map((e) => e._id);
@@ -489,8 +543,14 @@ async function updateOfflineEntitiesWithAccuracy(
       const writeResult = await Model.updateMany(
         {
           _id: { $in: offlineEntityIds },
-          lastActive: { $lt: thresholdTime },
-          $or: [{ isOnline: true }, { isOnline: { $exists: false } }],
+          $or: [
+            { lastActive: { $lt: thresholdTime } },
+            {
+              lastActive: { $exists: false },
+              createdAt: { $lt: thresholdTime },
+            },
+          ],
+          isOnline: { $ne: false },
         },
         {
           $set: {
@@ -503,15 +563,13 @@ async function updateOfflineEntitiesWithAccuracy(
       modified = writeResult?.modifiedCount || 0;
 
       // 3. Loop through the offline entities and update their accuracy individually.
-      // This correctly marks the offline event as a "success" for accuracy calculation,
-      // as the job correctly identified the device's offline state,
-      // and it recalculates the accuracy percentage for each device.
-      for (const entityId of offlineEntityIds) {
+      for (const entity of entitiesToMarkOffline) {
         await updateEntityOnlineStatusAccuracy(
           Model,
-          entityId,
-          true, // <-- This is the key change. Offline is a "success" for accuracy.
-          "device_offline",
+          entity._id,
+          entity.isOnline, // The status that was in the DB (was true)
+          false, // The new status is now false
+          "device_offline_by_job",
           entityType
         );
       }
