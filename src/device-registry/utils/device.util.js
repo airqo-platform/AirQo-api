@@ -1000,32 +1000,8 @@ const deviceUtil = {
               latest_recall_activity: "$cached_latest_recall_activity",
             },
           },
-          {
-            $project: {
-              // Include only essential fields for summary
-              _id: 1,
-              name: 1,
-              long_name: 1,
-              status: 1,
-              isActive: 1,
-              network: 1,
-              category: 1,
-              device_number: 1,
-              deployment_date: 1,
-              latitude: 1,
-              longitude: 1,
-              mountType: 1,
-              powerType: 1,
-              createdAt: 1,
-              site: 1,
-              assigned_grid: 1,
-              total_activities: 1,
-              activities_by_type: 1,
-              latest_deployment_activity: 1,
-              latest_maintenance_activity: 1,
-              latest_recall_activity: 1,
-            },
-          }
+          { $project: constants.DEVICES_INCLUSION_PROJECTION },
+          { $project: constants.DEVICES_EXCLUSION_PROJECTION("summary") }
         );
       } else {
         // Full detail level (existing complex aggregation)
@@ -1151,6 +1127,10 @@ const deviceUtil = {
             },
           });
         }
+        pipeline.push({ $project: constants.DEVICES_INCLUSION_PROJECTION });
+        pipeline.push({
+          $project: constants.DEVICES_EXCLUSION_PROJECTION("full"),
+        });
       }
 
       const facetPipeline = [
@@ -1230,21 +1210,39 @@ const deviceUtil = {
         });
       }
 
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        totalResults: paginatedResults.length,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+        detailLevel,
+        usedCache: useCache === "true",
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
       return {
         success: true,
         message: "successfully retrieved the device details",
         data: paginatedResults,
         status: httpStatus.OK,
-        meta: {
-          total,
-          totalResults: paginatedResults.length,
-          limit: _limit,
-          skip: _skip,
-          page: Math.floor(_skip / _limit) + 1,
-          totalPages: Math.ceil(total / _limit),
-          detailLevel,
-          usedCache: useCache === "true",
-        },
+        meta,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

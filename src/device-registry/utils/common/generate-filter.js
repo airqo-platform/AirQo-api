@@ -999,6 +999,7 @@ const generateFilter = {
   },
   devices: (req, next) => {
     const {
+      search,
       name,
       channel,
       location,
@@ -1034,6 +1035,16 @@ const generateFilter = {
     } = { ...req.query, ...req.params };
 
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { long_name: { $regex: search, $options: "i" } },
+        { alias: { $regex: search, $options: "i" } },
+        { serial_number: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
 
     const toBooleanSafe = (value) => {
       if (value === undefined) return undefined;
@@ -1144,10 +1155,6 @@ const generateFilter = {
       filter.serial_number = serial_number;
     }
 
-    // if (authRequired) {
-    //   filter.authRequired = authRequired.toLowerCase() === "yes";
-    // }
-
     if (group) {
       filter.groups = handlePredefinedValueMatch(
         group,
@@ -1192,18 +1199,6 @@ const generateFilter = {
       filter.locationName = mapAddress || map;
     }
 
-    // if (primary) {
-    //   filter.isPrimaryInLocation = primary.toLowerCase() === "yes";
-    // }
-
-    // if (active) {
-    //   filter.isActive = active.toLowerCase() === "yes";
-    // }
-
-    // if (visibility) {
-    //   filter.visibility = visibility.toLowerCase() === "yes";
-    // }
-
     const validStatuses = constants.VALID_DEVICE_STATUSES;
 
     if (status) {
@@ -1232,6 +1227,7 @@ const generateFilter = {
   },
   sites: (req, next) => {
     const {
+      search,
       lat_long,
       id,
       generated_name,
@@ -1256,6 +1252,21 @@ const generateFilter = {
       last_active_after,
     } = { ...req.query, ...req.params };
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { generated_name: { $regex: search, $options: "i" } },
+        { formatted_name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { location_name: { $regex: search, $options: "i" } },
+        { search_name: { $regex: search, $options: "i" } },
+        { district: { $regex: search, $options: "i" } },
+        { region: { $regex: search, $options: "i" } },
+        { city: { $regex: search, $options: "i" } },
+        { country: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (county) {
       filter["county"] = county;
@@ -1367,8 +1378,10 @@ const generateFilter = {
 
     return filter;
   },
+
   airqlouds: (req, next) => {
     const {
+      search,
       id,
       airqloud_id,
       admin_level,
@@ -1382,6 +1395,14 @@ const generateFilter = {
     } = { ...req.query, ...req.params };
 
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { long_name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (id) {
       filter._id = ObjectId(id);
@@ -1432,6 +1453,7 @@ const generateFilter = {
 
     return filter;
   },
+
   grids: (req, next) => {
     const {
       id,
@@ -1501,6 +1523,7 @@ const generateFilter = {
   },
   cohorts: (req, next) => {
     const {
+      search,
       id,
       cohort_codes,
       name,
@@ -1514,6 +1537,13 @@ const generateFilter = {
       ...req.params,
     };
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -1558,6 +1588,7 @@ const generateFilter = {
 
     return filter;
   },
+
   networks: (req, next) => {
     try {
       const { id, name, network_codes, net_id } = {
@@ -1674,6 +1705,7 @@ const generateFilter = {
   },
   activities: (req, next) => {
     let {
+      search,
       device,
       id,
       activity_type,
@@ -1691,6 +1723,13 @@ const generateFilter = {
     };
 
     let filter = {};
+
+    if (search) {
+      filter.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { device: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (maintenance_type) {
       filter["maintenanceType"] = maintenance_type;
@@ -1748,6 +1787,7 @@ const generateFilter = {
 
     return filter;
   },
+
   photos: (req, next) => {
     let {
       id,
@@ -1813,12 +1853,20 @@ const generateFilter = {
     return filter;
   },
   tips: (request, next) => {
-    let { id, pm25, pm10 } = {
+    let { search, id, pm25, pm10 } = {
       ...request.query,
       ...request.params,
       ...request.body,
     };
     let filter = {};
+
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
     if (id) {
       filter["_id"] = ObjectId(id);
     }
@@ -1830,6 +1878,7 @@ const generateFilter = {
     }
     return filter;
   },
+
   kyalessons: (request, next) => {
     try {
       const { id, task_id, lesson_id } = {
