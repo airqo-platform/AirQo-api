@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import cast
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -156,35 +157,40 @@ TEMPLATES = [
 # Database Configuration
 # ---------------------------------------------------------
 DATABASE_URL = os.getenv('DATABASE_URL')
+
 if DATABASE_URL:
+    # if DEBUG is True, disable SSL; otherwise require SSL
+    ssl_is_required = not DEBUG
+
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
             conn_max_age=600,
-            ssl_require=True
+            ssl_require=ssl_is_required
         )
     }
-    # Add PostgreSQL-specific connection options
-    if 'postgresql' in DATABASE_URL:
-        DATABASES['default']['OPTIONS'] = {
-            'sslmode': 'require',
-        }
+
+    # PostgreSQL-specific connection options: set sslmode to match behavior
+    # Use the detected ENGINE from dj_database_url.parse to decide
+    engine = DATABASES['default'].get('ENGINE', '')
+    if engine.endswith('postgresql') or 'postgresql' in DATABASE_URL:
+        # Use a local variable and cast to avoid TypedDict access errors by static checkers
+        options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
+        options['sslmode'] = 'require' if ssl_is_required else 'disable'
     elif 'mysql' in DATABASE_URL:
-        DATABASES['default']['OPTIONS'] = {
+        options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
+        options.update({
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             'charset': 'utf8mb4',
             'autocommit': True,
-        }
+        })
 else:
+    # Fallback for development if DATABASE_URL not set
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            # Allow overriding the sqlite file location (useful for Docker named volumes).
-            # Set SQLITE_PATH to e.g. /app/data/db.sqlite3 in the container environment.
             'NAME': os.getenv('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
-            'OPTIONS': {
-                'timeout': 600,
-            }
+            'OPTIONS': {'timeout': 600},
         }
     }
 
