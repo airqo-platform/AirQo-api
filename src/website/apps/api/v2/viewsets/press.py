@@ -3,6 +3,7 @@ Press app viewsets for v2 API
 """
 from rest_framework import viewsets
 from typing import Any
+from typing import Optional, List, ClassVar
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -39,13 +40,13 @@ class PressViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     filterset_class = PressFilterSet
 
     # Search configuration
-    search_fields = [
+    search_fields: ClassVar[List[str]] = [
         'article_title',
         'article_intro',
     ]
 
     # Ordering configuration
-    ordering_fields = [
+    ordering_fields: ClassVar[List[str]] = [
         'id',
         'article_title',
         'date_published',
@@ -55,10 +56,10 @@ class PressViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         'modified',
     ]
     # Default to newest first, then by order
-    ordering = ['-date_published', 'order']
+    ordering: ClassVar[List[str]] = ['-date_published', 'order']
 
     # List optimization - only include essential fields for performance
-    list_only_fields = [
+    list_only_fields: Optional[List[str]] = [
         'id',
         'article_title',
         'article_intro',

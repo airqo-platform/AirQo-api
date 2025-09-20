@@ -6,6 +6,7 @@ content, descriptions, and images as shown in the requirements.
 """
 from rest_framework import viewsets
 from rest_framework.filters import SearchFilter, OrderingFilter
+from typing import Optional, List
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.africancities.models import AfricanCountry
@@ -30,8 +31,8 @@ class AfricanCountryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSe
     ordering = ['order', 'country_name']
 
     # Optimization - no foreign keys to select_related
-    list_only_fields = ['id', 'country_name',
-                        'country_flag', 'order', 'created', 'modified']
+    list_only_fields: Optional[List[str]] = ['id', 'country_name',
+                                             'country_flag', 'order', 'created', 'modified']
 
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':

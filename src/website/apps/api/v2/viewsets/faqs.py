@@ -3,7 +3,7 @@ FAQs app viewsets for v2 API
 """
 from rest_framework import viewsets
 from django.db.models.query import QuerySet
-from typing import Any
+from typing import Any, ClassVar, Optional, List
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -32,13 +32,13 @@ class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     filterset_class = FAQFilterSet
 
     # Search configuration
-    search_fields = [
+    search_fields: ClassVar[list[str]] = [
         'question',
         'answer',
     ]
 
     # Ordering configuration
-    ordering_fields = [
+    ordering_fields: ClassVar[list[str]] = [
         'id',
         'order',
         'question',
@@ -46,10 +46,14 @@ class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         'created_at',
         'updated_at',
     ]
-    ordering = ['order', '-created_at']  # Default to manual order, then newest
+    # Default to manual order, then newest
+    ordering: ClassVar[list[str]] = ['order', '-created_at']
 
     # List optimization - only include basic fields for performance
-    list_only_fields = [
+    # Match the base mixin signature (Optional[List[str]]) to avoid Pylance
+    # incompatible override warnings while still allowing a class-level
+    # default value for subclasses to override.
+    list_only_fields: Optional[List[str]] = [
         'id',
         'question',
         'answer',

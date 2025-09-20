@@ -14,6 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import Http404
+from typing import Optional, List, ClassVar
 
 from apps.cleanair.models import CleanAirResource, ForumEvent
 from ..serializers.cleanair import (
@@ -52,14 +53,14 @@ class CleanAirResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewse
     filterset_class = CleanAirResourceFilterSet
 
     # Search configuration
-    search_fields = [
+    search_fields: ClassVar[List[str]] = [
         'resource_title',
         'resource_authors',
         'author_title',
     ]
 
     # Ordering configuration
-    ordering_fields = [
+    ordering_fields: ClassVar[List[str]] = [
         'id',
         'resource_title',
         'resource_category',
@@ -68,10 +69,11 @@ class CleanAirResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewse
         'created',
         'modified',
     ]
-    ordering = ['order', '-created']  # Default to order, then newest first
+    # Default to order, then newest first
+    ordering: ClassVar[List[str]] = ['order', '-created']
 
     # List optimization
-    list_only_fields = [
+    list_only_fields: Optional[List[str]] = [
         'id',
         'resource_title',
         'resource_link',
@@ -244,14 +246,14 @@ class ForumEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Rea
     filterset_class = ForumEventFilterSet
 
     # Search configuration
-    search_fields = [
+    search_fields: ClassVar[List[str]] = [
         'title',
         'title_subtext',
         'location_name',
     ]
 
     # Ordering configuration
-    ordering_fields = [
+    ordering_fields: ClassVar[List[str]] = [
         'id',
         'title',
         'start_date',
@@ -262,10 +264,10 @@ class ForumEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Rea
         'modified',
     ]
     # Default to chronological, then by order
-    ordering = ['start_date', 'order']
+    ordering: ClassVar[List[str]] = ['start_date', 'order']
 
     # List optimization
-    list_only_fields = [
+    list_only_fields: Optional[List[str]] = [
         'id',
         'title',
         'title_subtext',

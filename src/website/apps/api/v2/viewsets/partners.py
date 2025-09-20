@@ -3,6 +3,7 @@ Partners app viewsets for v2 API
 """
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
+from typing import Optional, List, ClassVar
 
 from apps.partners.models import Partner, PartnerDescription
 from ..filters.partners import PartnerFilter, PartnerDescriptionFilter
@@ -28,15 +29,17 @@ class PartnerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.Rea
         filters.OrderingFilter,
     ]
     filterset_class = PartnerFilter
-    search_fields = ['partner_name', 'descriptions__description']
-    ordering_fields = ['partner_name', 'type', 'order', 'created', 'modified']
-    ordering = ['order', 'partner_name']
+    search_fields: ClassVar[List[str]] = [
+        'partner_name', 'descriptions__description']
+    ordering_fields: ClassVar[List[str]] = [
+        'partner_name', 'type', 'order', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', 'partner_name']
     pagination_class = StandardPageNumberPagination
 
     # Optimization settings
-    select_related_fields = []
-    prefetch_related_fields = ['descriptions']
-    list_only_fields = [
+    select_related_fields: Optional[List[str]] = []
+    prefetch_related_fields: Optional[List[str]] = ['descriptions']
+    list_only_fields: Optional[List[str]] = [
         'id', 'partner_name', 'partner_image', 'partner_logo', 'partner_link',
         'type', 'website_category', 'order', 'created', 'modified'
     ]
@@ -70,15 +73,17 @@ class PartnerDescriptionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelVi
         filters.OrderingFilter,
     ]
     filterset_class = PartnerDescriptionFilter
-    search_fields = ['description', 'partner__partner_name']
-    ordering_fields = ['order', 'partner__partner_name']
-    ordering = ['order']
+    search_fields: ClassVar[List[str]] = [
+        'description', 'partner__partner_name']
+    ordering_fields: ClassVar[List[str]] = ['order', 'partner__partner_name']
+    ordering: ClassVar[List[str]] = ['order']
     pagination_class = StandardPageNumberPagination
 
     # Optimization settings
-    select_related_fields = ['partner']
-    prefetch_related_fields = []
-    list_only_fields = ['id', 'description', 'order', 'partner']
+    select_related_fields: Optional[List[str]] = ['partner']
+    prefetch_related_fields: Optional[List[str]] = []
+    list_only_fields: Optional[List[str]] = [
+        'id', 'description', 'order', 'partner']
 
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':

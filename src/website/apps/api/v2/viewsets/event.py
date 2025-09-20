@@ -10,7 +10,7 @@ Special features for event app as per requirements:
 - Universal slug support for privacy-friendly URLs
 """
 from django.utils import timezone
-from typing import Optional, Any
+from typing import Optional, Any, ClassVar, List
 from django.db.models.query import QuerySet
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
@@ -61,19 +61,21 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         filters.OrderingFilter,
     ]
     filterset_class = EventFilter
-    search_fields = ['title', 'title_subtext', 'location_name']
-    ordering_fields = ['start_date', 'end_date',
-                       'title', 'order', 'created', 'modified']
-    ordering = ['-start_date', 'order']
+    search_fields: ClassVar[List[str]] = [
+        'title', 'title_subtext', 'location_name']
+    ordering_fields: ClassVar[List[str]] = ['start_date', 'end_date',
+                                            'title', 'order', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['-start_date', 'order']
 
     # Slug configuration
     slug_filter_fields = ('slug',)  # Event uses standard slug field
-    select_related_fields = []  # No foreign keys to optimize
-    prefetch_related_fields = ['sessions',
-                               'programs', 'resources', 'partner_logos']
+    # No foreign keys to optimize
+    select_related_fields: Optional[List[str]] = []
+    prefetch_related_fields: Optional[List[str]] = ['sessions',
+                                                    'programs', 'resources', 'partner_logos']
     pagination_class = StandardPageNumberPagination
     # Limit fields retrieved for list action to speed up list serialization
-    list_only_fields = [
+    list_only_fields: Optional[List[str]] = [
         'id', 'title', 'title_subtext', 'start_date', 'end_date',
         'start_time', 'end_time', 'event_tag', 'location_name',
         'registration_link', 'order', 'created', 'modified'
@@ -291,14 +293,15 @@ class InquiryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     filter_backends = [django_filters.DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
     filterset_class = InquiryFilter
-    search_fields = ['inquiry', 'role', 'email']
-    ordering_fields = ['role', 'email', 'order']
-    ordering = ['order']
+    search_fields: ClassVar[List[str]] = ['inquiry', 'role', 'email']
+    ordering_fields: ClassVar[List[str]] = ['role', 'email', 'order']
+    ordering: ClassVar[List[str]] = ['order']
     pagination_class = StandardPageNumberPagination
 
     # Performance optimization
-    select_related_fields = ['event']
-    list_only_fields = ['id', 'inquiry', 'role', 'email', 'order', 'event']
+    select_related_fields: Optional[List[str]] = ['event']
+    list_only_fields: Optional[List[str]] = [
+        'id', 'inquiry', 'role', 'email', 'order', 'event']
 
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':
