@@ -154,6 +154,12 @@ apps/
    python manage.py runserver
    ```
 
+  ### Local Developer Assets
+
+  The repository contains an `assets/` directory used by developers to store local images and uploads while working on the frontend or prototyping content. These files are not referenced by the Django application in production. Production static files should be served via `collectstatic` into `staticfiles/` (or a CDN/Cloudinary for media).
+
+  Do not commit files under `assets/` into the repository. The project `.gitignore` explicitly ignores `assets/` to prevent accidental commits. If you need to store shared media for production, upload them to Cloudinary or add them to the appropriate `static/` or app-level `static/` directories and run `python manage.py collectstatic`.
+
 ### Environment Variables
 
 Create a `.env` file with the following variables:
