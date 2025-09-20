@@ -267,9 +267,6 @@ const createGrid = {
           errors: { message: "NOT YET IMPLEMENTED" },
         },
       });
-
-      const result = await gridUtil.createGridFromShapefile(request, next);
-      handleResponse({ res, result });
     } catch (error) {
       handleError(error, next);
     }
