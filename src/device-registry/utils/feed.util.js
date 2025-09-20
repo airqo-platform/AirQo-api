@@ -39,7 +39,8 @@ const createFeed = {
     const url = createFeed.readRecentDeviceMeasurementsFromThingspeak({
       request,
     });
-    const response = await axios.get(url);
+    // Add a 15-second timeout to prevent hanging requests
+    const response = await axios.get(url, { timeout: 15000 });
     return response.data;
   },
 
