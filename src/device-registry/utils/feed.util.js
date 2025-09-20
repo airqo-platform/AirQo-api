@@ -188,7 +188,7 @@ const createFeed = {
     }
     return trimmedValues;
   },
-  getAPIKey: async (channel) => {
+  getAPIKey: async (channel, next) => {
     try {
       const tenant = "airqo";
       logText(`getAPIKey util: fetching readKey for channel: ${channel}`);
@@ -199,7 +199,7 @@ const createFeed = {
           device_number: channel,
         },
       };
-      const responseFromListDevice = await createDevice.list(request);
+      const responseFromListDevice = await createDevice.list(request, next);
 
       if (!responseFromListDevice.success) {
         return {
@@ -264,6 +264,7 @@ const createFeed = {
       };
     }
   },
+
   getFieldLabel: (field) => {
     try {
       return constants.FIELDS_AND_LABELS[field];
