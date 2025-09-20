@@ -1,5 +1,6 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
+const qs = require("qs");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -413,17 +414,24 @@ const createCohort = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip, path } = request.query;
+      const { tenant, limit, skip, detailLevel } = request.query;
       const filter = generateFilter.cohorts(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
 
       const pipeline = [
         { $match: filter },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $project: constants.COHORTS_INCLUSION_PROJECTION },
+        { $project: constants.COHORTS_EXCLUSION_PROJECTION(detailLevel) },
         {
           $facet: {
             paginatedResults: [
@@ -450,18 +458,36 @@ const createCohort = {
           ? agg.totalCount[0].count
           : 0;
 
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
       return {
         success: true,
         message: "Successfully retrieved cohorts",
         data: paginatedResults,
         status: httpStatus.OK,
-        meta: {
-          total,
-          limit: _limit,
-          skip: _skip,
-          page: Math.floor(_skip / _limit) + 1,
-          totalPages: Math.ceil(total / _limit),
-        },
+        meta,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -474,6 +500,7 @@ const createCohort = {
       );
     }
   },
+
   verify: async (request, next) => {
     try {
       const { tenant } = request.query;

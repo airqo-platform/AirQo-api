@@ -1,4 +1,5 @@
 const SiteModel = require("@models/Site");
+const qs = require("qs");
 const ActivityModel = require("@models/Activity");
 const DeviceModel = require("@models/Device");
 const GridModel = require("@models/Grid");
@@ -1364,27 +1365,8 @@ const createSite = {
               latest_deployment_activity: "$cached_latest_deployment_activity",
             },
           },
-          {
-            $project: {
-              // Include only essential fields for summary
-              _id: 1,
-              name: 1,
-              generated_name: 1,
-              status: 1,
-              network: 1,
-              latitude: 1,
-              longitude: 1,
-              country: 1,
-              district: 1,
-              createdAt: 1,
-              weather_stations: 1,
-              nearest_tahmo_station: 1,
-              total_devices: 1,
-              total_activities: 1,
-              activities_by_type: 1,
-              latest_deployment_activity: 1,
-            },
-          }
+          { $project: constants.SITES_INCLUSION_PROJECTION },
+          { $project: constants.SITES_EXCLUSION_PROJECTION("summary") }
         );
       } else {
         // Full detail level
@@ -1476,6 +1458,10 @@ const createSite = {
             },
           });
         }
+        pipeline.push({ $project: constants.SITES_INCLUSION_PROJECTION });
+        pipeline.push({
+          $project: constants.SITES_EXCLUSION_PROJECTION("full"),
+        });
       }
 
       const facetPipeline = [
@@ -1531,21 +1517,39 @@ const createSite = {
         });
       }
 
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        totalResults: paginatedResults.length,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+        detailLevel,
+        usedCache: useCache === "true",
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
       return {
         success: true,
         message: "successfully retrieved the site details",
         data: paginatedResults,
         status: httpStatus.OK,
-        meta: {
-          total,
-          totalResults: paginatedResults.length,
-          limit: _limit,
-          skip: _skip,
-          page: Math.floor(_skip / _limit) + 1,
-          totalPages: Math.ceil(total / _limit),
-          detailLevel,
-          usedCache: useCache === "true",
-        },
+        meta,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

@@ -18,41 +18,8 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
-const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
-const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
-const gridShapeFieldsToExclude = constants.GRID_SHAPE_FIELDS_TO_EXCLUDE;
-const gridsInclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
-const cohortsInclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
-
-const sitesExclusionProjection = siteFieldsToExclude.reduce(
-  (projection, fieldName) => {
-    projection[`sites.${fieldName}`] = 0;
-    return projection;
-  },
-  {}
-);
-const devicesExclusionProjection = deviceFieldsToExclude.reduce(
-  (projection, fieldName) => {
-    projection[`devices.${fieldName}`] = 0;
-    return projection;
-  },
-  {}
-);
-const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
-  (projection, fieldName) => {
-    projection[`shape.${fieldName}`] = 0;
-    return projection;
-  },
-  {}
-);
-const getDocumentsByNetworkId = async (tenantId, network, path) => {
+const getDocumentsByNetworkId = async (tenantId, network, detailLevel) => {
   try {
-    if (path === "summary") {
-      //make modifications to the exclusion projection
-    }
-    if (path === "dashboard") {
-      //make modifications to the exclusion projection
-    }
     const cohortsQuery = CohortModel(tenantId).aggregate([
       {
         $match: { network },
@@ -66,10 +33,10 @@ const getDocumentsByNetworkId = async (tenantId, network, path) => {
         },
       },
       {
-        $project: cohortsInclusionProjection,
+        $project: constants.COHORTS_INCLUSION_PROJECTION,
       },
       {
-        $project: devicesExclusionProjection,
+        $project: constants.COHORTS_EXCLUSION_PROJECTION(detailLevel),
       },
     ]);
 
@@ -86,13 +53,10 @@ const getDocumentsByNetworkId = async (tenantId, network, path) => {
         },
       },
       {
-        $project: gridsInclusionProjection,
+        $project: constants.GRIDS_INCLUSION_PROJECTION,
       },
       {
-        $project: sitesExclusionProjection,
-      },
-      {
-        $project: gridShapeExclusionProjection,
+        $project: constants.GRIDS_EXCLUSION_PROJECTION(detailLevel),
       },
     ]);
 
@@ -112,15 +76,8 @@ const getDocumentsByNetworkId = async (tenantId, network, path) => {
     };
   }
 };
-const getDocumentsByGroupId = async (tenantId, groupId, path) => {
+const getDocumentsByGroupId = async (tenantId, groupId, detailLevel) => {
   try {
-    if (path === "summary") {
-      // Make modifications to the exclusion projection for summary path
-    }
-    if (path === "dashboard") {
-      // Make modifications to the exclusion projection for dashboard path
-    }
-
     const cohortsQuery = CohortModel(tenantId).aggregate([
       {
         $match: { group: groupId }, // Match with group instead of network
@@ -134,10 +91,10 @@ const getDocumentsByGroupId = async (tenantId, groupId, path) => {
         },
       },
       {
-        $project: cohortsInclusionProjection,
+        $project: constants.COHORTS_INCLUSION_PROJECTION,
       },
       {
-        $project: devicesExclusionProjection,
+        $project: constants.COHORTS_EXCLUSION_PROJECTION(detailLevel),
       },
     ]);
 
@@ -154,13 +111,10 @@ const getDocumentsByGroupId = async (tenantId, groupId, path) => {
         },
       },
       {
-        $project: gridsInclusionProjection,
+        $project: constants.GRIDS_INCLUSION_PROJECTION,
       },
       {
-        $project: sitesExclusionProjection,
-      },
-      {
-        $project: gridShapeExclusionProjection,
+        $project: constants.GRIDS_EXCLUSION_PROJECTION(detailLevel),
       },
     ]);
 
@@ -721,20 +675,19 @@ const createAirqloud = {
           message: "Please use Grids or Cohorts, AirQlouds are deprecated",
         },
       };
-      const { tenant, limit, skip, path } = request.query;
+      const { tenant, limit, skip, page, detailLevel } = request.query;
       const filter = generateFilter.airqlouds(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
-      const responseFromListAirQloud = await AirQloudModel(tenant).list(
+      const data = await AirQloudModel(tenant).list(
         {
           filter,
           limit,
           skip,
+          page,
+          projection: constants.AIRQLOUDS_EXCLUSION_PROJECTION(detailLevel),
         },
         next
       );
-      return responseFromListAirQloud;
+      return data;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -746,15 +699,16 @@ const createAirqloud = {
       );
     }
   },
+
   listCohortsAndGrids: async (request, next) => {
     try {
       const { params, query } = request;
       const groupId = params.group_id;
       const networkId = params.net_id;
-      const { tenant, path } = query;
+      const { tenant, detailLevel } = query;
 
       if (groupId) {
-        return await getDocumentsByGroupId(tenant, groupId, path)
+        return await getDocumentsByGroupId(tenant, groupId, detailLevel)
           .then(({ cohorts, grids }) => {
             return {
               success: true,
@@ -772,7 +726,7 @@ const createAirqloud = {
             };
           });
       } else if (networkId) {
-        return await getDocumentsByNetworkId(tenant, networkId, path)
+        return await getDocumentsByNetworkId(tenant, networkId, detailLevel)
           .then(({ cohorts, grids }) => {
             return {
               success: true,

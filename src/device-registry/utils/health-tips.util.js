@@ -1,4 +1,5 @@
 const httpStatus = require("http-status");
+const qs = require("qs");
 const HealthTipModel = require("@models/HealthTips");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -58,18 +59,36 @@ const createHealthTips = {
         ? results[0].totalCount[0].count
         : 0;
 
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
       let responseFromListHealthTips = {
         success: true,
         message: "Successfully retrieved health tips",
         data: paginatedResults,
         status: httpStatus.OK,
-        meta: {
-          total,
-          limit: _limit,
-          skip: _skip,
-          page: Math.floor(_skip / _limit) + 1,
-          totalPages: Math.ceil(total / _limit),
-        },
+        meta,
       };
 
       if (
@@ -102,6 +121,7 @@ const createHealthTips = {
       );
     }
   },
+
   bulkUpdate: async (request, next) => {
     try {
       const { query, body } = request;
