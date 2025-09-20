@@ -33,6 +33,20 @@ class CareerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.Read
     ordering_fields = ['id', 'title', 'closing_date', 'created', 'modified']
     ordering = ['-closing_date', 'title']
     select_related_fields = ['department']
+    prefetch_related_fields = ['descriptions', 'bullets__bullet_points']
 
     def get_serializer_class(self):  # type: ignore[override]
         return CareerListSerializer if self.action == 'list' else CareerDetailSerializer
+
+    def get_queryset(self):
+        """Optimized queryset with prefetch for related data"""
+        queryset = super().get_queryset()
+
+        # For detail view, ensure all related data is prefetched
+        if self.action == 'retrieve':
+            queryset = queryset.select_related('department').prefetch_related(
+                'descriptions',
+                'bullets__bullet_points'
+            )
+
+        return queryset

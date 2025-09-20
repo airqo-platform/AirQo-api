@@ -6,6 +6,7 @@ from rest_framework import viewsets, filters
 
 from apps.partners.models import Partner, PartnerDescription
 from ..filters.partners import PartnerFilter, PartnerDescriptionFilter
+from ..mixins import SlugModelViewSetMixin
 from ..pagination import StandardPageNumberPagination
 from ..serializers.partners import (
     PartnerListSerializer, PartnerDetailSerializer,
@@ -14,7 +15,7 @@ from ..serializers.partners import (
 from ..utils import OptimizedQuerySetMixin
 
 
-class PartnerViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class PartnerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for Partner
 
@@ -49,7 +50,7 @@ class PartnerViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         """Optimized queryset with prefetch for descriptions"""
         queryset = super().get_queryset()
 
-        # For detail view, prefetch related descriptions
+        # For detail view, prefetch related descriptions to avoid N+1 queries
         if self.action == 'retrieve':
             queryset = queryset.prefetch_related('descriptions')
 
