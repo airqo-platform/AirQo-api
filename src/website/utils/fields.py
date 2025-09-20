@@ -10,18 +10,18 @@ from cloudinary.models import CloudinaryField
 
 logger = logging.getLogger(__name__)
 
-# Maximum size for uploaded images in bytes (25MB)
-MAX_IMAGE_SIZE = 25 * 1024 * 1024
+# Maximum size for uploaded images in bytes (30MB)
+MAX_IMAGE_SIZE = 30 * 1024 * 1024
 
 
 def validate_image_format(file):
     """
-    Validate that the file is a valid image and does not exceed 25MB.
+    Validate that the file is a valid image and does not exceed 30MB.
     Allowed extensions are handled by FileExtensionValidator in the field definition.
     """
     if file.size > MAX_IMAGE_SIZE:
         raise ValidationError(
-            f"Image size must not exceed 25MB. Current size: {file.size/1024/1024:.2f}MB.")
+            f"Image size must not exceed 30MB. Current size: {file.size/1024/1024:.2f}MB.")
 
     # Check if file is an actual image
     # get_image_dimensions will raise an error if not a valid image
@@ -30,6 +30,33 @@ def validate_image_format(file):
     except Exception as e:
         logger.error(f"Invalid image file '{file.name}': {e}")
         raise ValidationError(f"The file '{file.name}' is not a valid image.")
+
+
+def optimized_cloudinary_field(folder_path, **kwargs):
+    """
+    Factory function to create an optimized CloudinaryField with best practices
+    for large file uploads and error handling.
+
+    Args:
+        folder_path (str): Cloudinary folder path for uploaded files
+        **kwargs: Additional CloudinaryField arguments
+
+    Returns:
+        CloudinaryField: Configured field instance
+    """
+    defaults = {
+        'folder': folder_path,
+        'null': True,
+        'blank': True,
+        'resource_type': 'auto',  # Auto-detect resource type
+        'use_filename': True,     # Preserve original filename
+        'unique_filename': True,  # Ensure unique filenames
+        'overwrite': False,       # Don't overwrite existing files
+        'transformation': {},     # No transformations by default
+        'format': None,          # Auto-detect format
+    }
+    defaults.update(kwargs)
+    return CloudinaryField(**defaults)
 
 
 def upload_to(instance, filename):
