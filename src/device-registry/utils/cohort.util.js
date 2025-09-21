@@ -1466,22 +1466,6 @@ const createCohort = {
         .aggregate(pipeline)
         .allowDiskUse(true);
 
-      if (isEmpty(paginatedResults)) {
-        return {
-          success: true,
-          message: "No devices found for the provided cohorts",
-          data: [],
-          status: httpStatus.OK,
-          meta: {
-            total: 0,
-            limit: _limit,
-            skip: _skip,
-            page: 1,
-            totalPages: 0,
-          },
-        };
-      }
-
       // Post-processing for consistency
       paginatedResults.forEach((device) => {
         // Process latest activities to extract single objects
