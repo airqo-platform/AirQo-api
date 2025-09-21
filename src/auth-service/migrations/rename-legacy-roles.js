@@ -216,7 +216,9 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
 if (require.main === module) {
   (async () => {
     connectToMongoDB();
-    const tenants = constants.TENANTS || ["airqo"];
+    // The auth-service is single-tenant ('airqo'), but the migration was
+    // attempting to run for all tenants listed in constants, causing errors.
+    const tenants = ["airqo"];
     try {
       const results = await Promise.allSettled(
         tenants.map((t) => runLegacyRoleMigration(t))
