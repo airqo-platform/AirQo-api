@@ -9,7 +9,11 @@ const SiteModel = require("@models/Site");
 const LogThrottleModel = require("@models/LogThrottle");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
-const { stringify, generateFilter } = require("@utils/common");
+const {
+  stringify,
+  generateFilter,
+  getUptimeAccuracyUpdateObject,
+} = require("@utils/common");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 
@@ -296,62 +300,12 @@ async function updateEntityOnlineStatusAccuracy(
 
     const currentStats = entity?.onlineStatusAccuracy || {};
 
-    // --- New "Truthfulness" Logic ---
-    const currentTotalChecks = currentStats.totalChecks || 0;
-    const currentCorrectChecks = currentStats.correctChecks || 0;
-    const currentIncorrectChecks = currentStats.incorrectChecks || 0;
-
-    const isTruthful = isCurrentlyOnline === isNowOnline;
-
-    const newTotalChecks = currentTotalChecks + 1;
-    const newCorrectChecks = isTruthful
-      ? currentCorrectChecks + 1
-      : currentCorrectChecks;
-    const newIncorrectChecks = isTruthful
-      ? currentIncorrectChecks
-      : currentIncorrectChecks + 1;
-
-    const accuracyPercentage =
-      newTotalChecks > 0 ? (newCorrectChecks / newTotalChecks) * 100 : 0;
-
-    // --- Backward Compatibility Logic ---
-    const newTotalAttempts = newTotalChecks;
-    const newSuccessfulUpdates = newCorrectChecks;
-    const newFailedUpdates = newIncorrectChecks;
-    const successPercentage = accuracyPercentage;
-    const failurePercentage = 100 - accuracyPercentage;
-
-    const incUpdate = {
-      // New fields
-      "onlineStatusAccuracy.totalChecks": 1,
-      ...(isTruthful
-        ? { "onlineStatusAccuracy.correctChecks": 1 }
-        : { "onlineStatusAccuracy.incorrectChecks": 1 }),
-      // Old fields
-      "onlineStatusAccuracy.totalAttempts": 1,
-      ...(isTruthful
-        ? { "onlineStatusAccuracy.successfulUpdates": 1 }
-        : { "onlineStatusAccuracy.failedUpdates": 1 }),
-    };
-
-    const setUpdate = {
-      // New fields
-      "onlineStatusAccuracy.lastCheck": new Date(),
-      "onlineStatusAccuracy.accuracyPercentage": accuracyPercentage,
-      ...(isTruthful
-        ? { "onlineStatusAccuracy.lastCorrectCheck": new Date() }
-        : {
-            "onlineStatusAccuracy.lastIncorrectCheck": new Date(),
-            "onlineStatusAccuracy.lastIncorrectReason": reason,
-          }),
-      // Old fields
-      "onlineStatusAccuracy.lastUpdate": new Date(),
-      "onlineStatusAccuracy.successPercentage": successPercentage,
-      "onlineStatusAccuracy.failurePercentage": failurePercentage,
-      ...(isTruthful
-        ? { "onlineStatusAccuracy.lastSuccessfulUpdate": new Date() }
-        : { "onlineStatusAccuracy.lastFailureReason": reason }),
-    };
+    const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline,
+      isNowOnline,
+      currentStats,
+      reason,
+    });
 
     await Model.findByIdAndUpdate(
       entityId,
@@ -359,12 +313,21 @@ async function updateEntityOnlineStatusAccuracy(
       { upsert: false }
     );
 
+    const isTruthful = isCurrentlyOnline === isNowOnline;
+
+    const totalChecks = (currentStats.totalChecks || 0) + 1;
+    const correctChecks =
+      (currentStats.correctChecks || 0) + (isTruthful ? 1 : 0);
+    const incorrectChecks = totalChecks - correctChecks;
+    const accuracyPercentage =
+      totalChecks > 0 ? (correctChecks / totalChecks) * 100 : 0;
+
     return {
       success: true,
       stats: {
-        totalChecks: newTotalChecks,
-        correctChecks: newCorrectChecks,
-        incorrectChecks: newIncorrectChecks,
+        totalChecks,
+        correctChecks,
+        incorrectChecks,
         accuracyPercentage,
       },
     };

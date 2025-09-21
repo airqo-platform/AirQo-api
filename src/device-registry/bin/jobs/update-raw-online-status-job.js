@@ -9,6 +9,7 @@ const createFeedUtil = require("@utils/feed.util");
 const { logObject, logText } = require("@utils/shared");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
+const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 
 // Constants
 const TIMEZONE = moment.tz.guess();
@@ -32,7 +33,7 @@ const mockNext = (error) => {
 
 const processDeviceBatch = async (devices) => {
   const CONCURRENCY_LIMIT = 10; // Process 10 devices at a time to prevent saturation
-  const allBulkOps = [];
+  let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
   const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
@@ -135,12 +136,29 @@ const processDeviceBatch = async (devices) => {
           }
         }
 
+        // Calculate accuracy update ONLY for UNDEPLOYED devices to avoid double-counting
+        let setUpdate = {};
+        let incUpdate = null;
+        if (device.status === "not deployed") {
+          const isCurrentlyOnline = device.isOnline;
+          const isNowOnline = isRawOnline;
+          ({ setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+            isCurrentlyOnline,
+            isNowOnline,
+            currentStats: device.onlineStatusAccuracy,
+            reason: isNowOnline ? "online_raw" : "offline_raw",
+          }));
+        }
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+        const updateDoc = { $set: finalSetUpdate };
+        if (incUpdate) {
+          updateDoc.$inc = incUpdate;
+        }
+
         return {
           updateOne: {
             filter: { _id: device._id },
-            update: {
-              $set: updateFields,
-            },
+            update: updateDoc,
           },
         };
       } catch (error) {
@@ -153,18 +171,18 @@ const processDeviceBatch = async (devices) => {
     });
 
     const chunkBulkOps = (await Promise.all(devicePromises)).filter(Boolean);
-    allBulkOps.push(...chunkBulkOps);
+
+    // 6. Perform a bulk write for each small chunk
+    if (chunkBulkOps.length > 0) {
+      await DeviceModel("airqo").bulkWrite(chunkBulkOps);
+      totalUpdates += chunkBulkOps.length;
+    }
 
     // Yield to the event loop after each small chunk to prevent blocking
     await new Promise((resolve) => setImmediate(resolve));
   }
 
-  // 6. Perform a single bulk write for the entire batch
-  if (allBulkOps.length > 0) {
-    await DeviceModel("airqo").bulkWrite(allBulkOps);
-  }
-
-  return allBulkOps.length;
+  return totalUpdates;
 };
 
 const updateRawOnlineStatus = async () => {
@@ -180,7 +198,7 @@ const updateRawOnlineStatus = async () => {
 
     const cursor = DeviceModel("airqo")
       .find({})
-      .select("_id name device_number status")
+      .select("_id name device_number status isOnline onlineStatusAccuracy") // Fetch accuracy fields
       .lean()
       .cursor();
 
