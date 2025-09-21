@@ -276,10 +276,19 @@ const startJob = () => {
       logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
       logText(`📅 ${JOB_NAME} schedule stopped.`);
-      if (currentJobPromise) {
-        await currentJobPromise;
+      try {
+        if (currentJobPromise) {
+          await currentJobPromise;
+        }
+      } catch (e) {
+        logger.error(
+          `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${e.message}`
+        );
+      } finally {
+        if (typeof cronJobInstance.destroy === "function")
+          cronJobInstance.destroy();
+        delete global.cronJobs[JOB_NAME];
       }
-      delete global.cronJobs[JOB_NAME];
     },
   };
 

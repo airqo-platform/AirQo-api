@@ -490,8 +490,20 @@ const startJob = () => {
       logText(`📅 ${JOB_NAME} schedule stopped.`);
       if (currentJobPromise) {
         logText(`⏳ Waiting for current ${JOB_NAME} execution to finish...`);
-        await currentJobPromise;
-        logText(`✅ Current ${JOB_NAME} execution completed.`);
+        try {
+          await currentJobPromise;
+          logText(`✅ Current ${JOB_NAME} execution completed.`);
+        } catch (err) {
+          logger.error(
+            `⚠️ ${JOB_NAME} in-flight run rejected during shutdown: ${err.stack ||
+              err.message}`
+          );
+        }
+      }
+      try {
+        cronJobInstance.destroy?.();
+      } catch (err) {
+        logger.warn(`Failed to destroy ${JOB_NAME}: ${err.message}`);
       }
       delete global.cronJobs[JOB_NAME];
     },

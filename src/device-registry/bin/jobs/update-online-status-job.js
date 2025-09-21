@@ -971,6 +971,16 @@ async function updateOnlineStatusAndAccuracy() {
 
 // Create and register the job
 const startJob = () => {
+  if (global.cronJobs && global.cronJobs[JOB_NAME]) {
+    logger.warn(`${JOB_NAME} already registered. Skipping duplicate start.`);
+    return;
+  }
+
+  // Initialize global cronJobs if it doesn't exist
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
   let isJobRunning = false;
   let currentJobPromise = null;
 
