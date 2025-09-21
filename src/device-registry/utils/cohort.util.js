@@ -1236,6 +1236,290 @@ const createCohort = {
       );
     }
   },
+  listDevices: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { cohort_ids } = request.body;
+      const maxActivities = 500;
+      const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
+        "full"
+      );
+
+      const filter = { cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) } };
+
+      const pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "site_id",
+            foreignField: "_id",
+            as: "site",
+          },
+        },
+        {
+          $lookup: {
+            from: "hosts",
+            localField: "host_id",
+            foreignField: "_id",
+            as: "host",
+          },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "previous_sites",
+            foreignField: "_id",
+            as: "previous_sites",
+          },
+        },
+        {
+          $lookup: {
+            from: "cohorts",
+            localField: "cohorts",
+            foreignField: "_id",
+            as: "cohorts",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "site.grids",
+            foreignField: "_id",
+            as: "grids",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "assigned_grid",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$device_id", "$$deviceId"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                },
+              },
+              { $limit: maxActivities },
+            ],
+            as: "activities",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                        ],
+                      },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                        ],
+                      },
+                      { $eq: ["$activityType", "maintenance"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_maintenance_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                        ],
+                      },
+                      {
+                        $or: [
+                          { $eq: ["$activityType", "recall"] },
+                          { $eq: ["$activityType", "recallment"] },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_recall_activity",
+          },
+        },
+        {
+          $addFields: {
+            total_activities: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $project: inclusionProjection },
+        { $project: exclusionProjection },
+      ];
+
+      const devices = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      if (isEmpty(devices)) {
+        return {
+          success: true,
+          message: "No devices found for the provided cohorts",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      // Post-processing for consistency
+      devices.forEach((device) => {
+        // Process latest activities to extract single objects
+        device.latest_deployment_activity =
+          device.latest_deployment_activity &&
+          device.latest_deployment_activity.length > 0
+            ? device.latest_deployment_activity[0]
+            : null;
+
+        device.latest_maintenance_activity =
+          device.latest_maintenance_activity &&
+          device.latest_maintenance_activity.length > 0
+            ? device.latest_maintenance_activity[0]
+            : null;
+
+        device.latest_recall_activity =
+          device.latest_recall_activity &&
+          device.latest_recall_activity.length > 0
+            ? device.latest_recall_activity[0]
+            : null;
+
+        // Create activities by type mapping
+        if (device.activities && device.activities.length > 0) {
+          const activitiesByType = {};
+          const latestActivitiesByType = {};
+
+          device.activities.forEach((activity) => {
+            const type = activity.activityType || "unknown";
+            activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+            if (
+              !latestActivitiesByType[type] ||
+              new Date(activity.createdAt) >
+                new Date(latestActivitiesByType[type].createdAt)
+            ) {
+              latestActivitiesByType[type] = activity;
+            }
+          });
+
+          device.activities_by_type = activitiesByType;
+          device.latest_activities_by_type = latestActivitiesByType;
+        } else {
+          device.activities_by_type = {};
+          device.latest_activities_by_type = {};
+        }
+
+        // Process assigned_grid to extract single object
+        if (device.assigned_grid && device.assigned_grid.length > 0) {
+          const grid = device.assigned_grid[0];
+          device.assigned_grid = {
+            _id: grid._id,
+            name: grid.name,
+            admin_level: grid.admin_level,
+            long_name: grid.long_name,
+          };
+        } else {
+          device.assigned_grid = null;
+        }
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved devices for the provided cohorts",
+        data: devices,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createCohort;
