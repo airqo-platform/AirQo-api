@@ -9,6 +9,7 @@ const createFeedUtil = require("@utils/feed.util");
 const { logObject, logText } = require("@utils/shared");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
+const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 
 // Constants
 const TIMEZONE = moment.tz.guess();
@@ -135,11 +136,26 @@ const processDeviceBatch = async (devices) => {
           }
         }
 
+        // Calculate accuracy update
+        const isCurrentlyOnline = device.isOnline;
+        const isNowOnline =
+          device.status === "not deployed" ? isRawOnline : isCurrentlyOnline;
+
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline,
+          isNowOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: isNowOnline ? "online_raw" : "offline_raw",
+        });
+
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+
         return {
           updateOne: {
             filter: { _id: device._id },
             update: {
-              $set: updateFields,
+              $set: finalSetUpdate,
+              $inc: incUpdate,
             },
           },
         };
@@ -180,7 +196,7 @@ const updateRawOnlineStatus = async () => {
 
     const cursor = DeviceModel("airqo")
       .find({})
-      .select("_id name device_number status")
+      .select("_id name device_number status isOnline onlineStatusAccuracy") // Fetch accuracy fields
       .lean()
       .cursor();
 
