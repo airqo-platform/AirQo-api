@@ -15,6 +15,7 @@ const { getModelByTenant } = require("@config/database");
 const {
   validatePolygonClosure,
   TOLERANCE_LEVELS,
+  validateAndFixPolygon,
 } = require("@validators/common");
 
 const shapeSchema = new Schema(
