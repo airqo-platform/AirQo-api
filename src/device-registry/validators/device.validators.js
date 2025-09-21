@@ -473,6 +473,28 @@ const validateCreateDevice = [
 ];
 
 const validateUpdateDevice = [
+  body("mobility")
+    .not()
+    .exists()
+    .withMessage("Cannot directly update mobility. Use deployment activities."),
+  body("isActive")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update isActive. Use deployment/recall activities."
+    ),
+  body("status")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update status. Use deployment/recall activities."
+    ),
+  body("deployment_type")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update deployment_type. Use deployment activities."
+    ),
   body("visibility")
     .optional()
     .notEmpty()
@@ -546,12 +568,6 @@ const validateUpdateDevice = [
 
       return true;
     }),
-  body("isActive")
-    .optional()
-    .notEmpty()
-    .trim()
-    .isBoolean()
-    .withMessage("isActive must be Boolean"),
   body("groups")
     .optional()
     .custom((value) => {
@@ -567,12 +583,6 @@ const validateUpdateDevice = [
     .trim()
     .isBoolean()
     .withMessage("isRetired must be Boolean"),
-  body("mobility")
-    .optional()
-    .notEmpty()
-    .trim()
-    .isBoolean()
-    .withMessage("mobility must be Boolean"),
   body("nextMaintenance")
     .optional()
     .notEmpty()
@@ -763,6 +773,14 @@ const validateListDevices = oneOf([
         "the device name can only contain letters, numbers, spaces, hyphens and underscores"
       )
       .bail(),
+    query("mobility")
+      .optional()
+      .notEmpty()
+      .withMessage("the mobility should not be empty if provided")
+      .bail()
+      .trim()
+      .isBoolean()
+      .withMessage("mobility must be a boolean value (true or false)"),
     query("online_status")
       .optional()
       .notEmpty()

@@ -741,6 +741,63 @@ const deviceController = {
       return;
     }
   },
+  listMobile: async (req, res, next) => {
+    try {
+      logText(".....................................");
+      logText("list all mobile devices...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Force mobility filter
+      request.query.mobility = "true";
+
+      const result = await createDeviceUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          meta: result.meta || {},
+          devices: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   listAllByNearestCoordinates: async (req, res, next) => {
     try {
       const { tenant, latitude, longitude, radius, chid } = req.query;
