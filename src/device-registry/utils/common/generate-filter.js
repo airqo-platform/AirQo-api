@@ -1222,7 +1222,6 @@ const generateFilter = {
         filter.status = { $in: validStatusArray };
       }
     }
-    logObject("filter", filter);
     return filter;
   },
   sites: (req, next) => {

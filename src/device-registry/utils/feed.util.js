@@ -39,7 +39,8 @@ const createFeed = {
     const url = createFeed.readRecentDeviceMeasurementsFromThingspeak({
       request,
     });
-    const response = await axios.get(url);
+    // Add a 15-second timeout to prevent hanging requests
+    const response = await axios.get(url, { timeout: 15000 });
     return response.data;
   },
 
@@ -131,7 +132,6 @@ const createFeed = {
   },
   readRecentDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
-      logObject("the request", request);
       const { channel, api_key, start, end, path } = request;
       if (isEmpty(start) && !isEmpty(end)) {
         return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&end=${end}`;
