@@ -361,6 +361,8 @@ class ProjectionFactory {
           grids: 1,
           lastActive: 1,
           isOnline: 1,
+          rawOnlineStatus: 1,
+          lastRawData: 1,
           onlineStatusAccuracy: 1,
           previous_sites: 1,
           site: {

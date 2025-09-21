@@ -685,6 +685,8 @@ deviceSchema.methods = {
       writeKey: this.writeKey,
       lastActive: this.lastActive,
       isOnline: this.isOnline,
+      rawOnlineStatus: this.rawOnlineStatus,
+      lastRawData: this.lastRawData,
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,
