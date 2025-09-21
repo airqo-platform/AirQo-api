@@ -69,16 +69,16 @@ const processDeviceBatch = async (devices) => {
 
     const devicePromises = chunk.map(async (device) => {
       if (!device.device_number) {
-        logger.warn(
-          `Skipping device ${device.name || device._id} - missing device_number`
-        );
+        // logger.warn(
+        //   `Skipping device ${device.name || device._id} - missing device_number`
+        // );
         return null;
       }
 
       // 4. Get the API key from the pre-fetched details
       const detail = deviceDetailsMap.get(device.device_number);
       if (!detail || !detail.readKey) {
-        logger.warn(`No readKey found for device ${device.name}`);
+        // logger.warn(`No readKey found for device ${device.name}`);
         return null;
       }
 
@@ -89,9 +89,9 @@ const processDeviceBatch = async (devices) => {
           mockNext
         );
         if (!decryptResponse.success) {
-          logger.warn(
-            `Failed to decrypt key for device ${device.name}: ${decryptResponse.message}`
-          );
+          // logger.warn(
+          //   `Failed to decrypt key for device ${device.name}: ${decryptResponse.message}`
+          // );
           return null;
         }
         apiKey = decryptResponse.data;
@@ -237,9 +237,9 @@ const updateRawOnlineStatus = async () => {
     }
 
     const duration = (Date.now() - startTime) / 1000;
-    logger.info(
-      `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
-    );
+    // logger.info(
+    //   `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
+    // );
   } catch (error) {
     logger.error(`Error in raw online status job: ${error.message}`);
     logger.error(`Stack trace: ${error.stack}`);
@@ -249,7 +249,7 @@ const updateRawOnlineStatus = async () => {
 const startJob = () => {
   // Idempotency check: prevent re-registering the job
   if (global.cronJobs && global.cronJobs[JOB_NAME]) {
-    logger.warn(`${JOB_NAME} already registered. Skipping duplicate start.`);
+    // logger.warn(`${JOB_NAME} already registered. Skipping duplicate start.`);
     return;
   }
 
@@ -261,9 +261,9 @@ const startJob = () => {
       JOB_SCHEDULE,
       async () => {
         if (isJobRunning) {
-          logger.warn(
-            `${JOB_NAME} is already running, skipping this execution.`
-          );
+          // logger.warn(
+          //   `${JOB_NAME} is already running, skipping this execution.`
+          // );
           return;
         }
         isJobRunning = true;
