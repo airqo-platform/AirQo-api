@@ -347,9 +347,30 @@ async function fetchAndStoreReadings() {
   }
 }
 
+let isJobRunning = false;
+let currentJobPromise = null;
+
+const jobWrapper = async () => {
+  if (isJobRunning) {
+    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
+    return;
+  }
+
+  isJobRunning = true;
+  currentJobPromise = fetchAndStoreReadings();
+  try {
+    await currentJobPromise;
+  } catch (error) {
+    logger.error(`🐛🐛 Error during ${JOB_NAME} execution: ${error.message}`);
+  } finally {
+    isJobRunning = false;
+    currentJobPromise = null;
+  }
+};
+
 // Create and register the job
 const startJob = () => {
-  const cronJobInstance = cron.schedule(JOB_SCHEDULE, fetchAndStoreReadings, {
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
     scheduled: true,
     timezone: TIMEZONE,
   });
@@ -361,9 +382,11 @@ const startJob = () => {
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
     stop: async () => {
+      logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
-      if (typeof cronJobInstance.destroy === "function") {
-        cronJobInstance.destroy();
+      logText(`📅 ${JOB_NAME} schedule stopped.`);
+      if (currentJobPromise) {
+        await currentJobPromise;
       }
       delete global.cronJobs[JOB_NAME];
     },
