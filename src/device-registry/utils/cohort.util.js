@@ -1238,27 +1238,50 @@ const createCohort = {
   },
   listDevices: async (request, next) => {
     try {
-      const { tenant, limit, skip } = request.query;
+      const { tenant, limit, skip, activities_limit } = request.query;
       const { cohort_ids } = request.body;
-      const maxActivities = 500;
+
+      // Pagination and activities controls
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 50, 200));
+      const activitiesLimit = Math.min(
+        parseInt(activities_limit, 10) || 100,
+        500
+      );
+
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         "full"
       );
 
-      const _skip = Math.max(0, parseInt(skip, 10) || 0);
-      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 100, 200));
-
       const filter = { cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) } };
+
+      // Get total count for pagination metadata before applying limit and skip
+      const total = await DeviceModel(tenant).countDocuments(filter);
 
       const pipeline = [
         { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $skip: _skip },
+        { $limit: _limit },
         {
           $lookup: {
             from: "sites",
             localField: "site_id",
             foreignField: "_id",
             as: "site",
+          },
+        },
+        // Normalize site array to a single doc for downstream lookups
+        {
+          $addFields: {
+            site: {
+              $cond: [
+                { $gt: [{ $size: "$site" }, 0] },
+                { $arrayElemAt: ["$site", 0] },
+                null,
+              ],
+            },
           },
         },
         {
@@ -1288,8 +1311,11 @@ const createCohort = {
         {
           $lookup: {
             from: "grids",
-            localField: "site.grids",
-            foreignField: "_id",
+            let: { gridIds: { $ifNull: ["$site.grids", []] } },
+            pipeline: [
+              { $match: { $expr: { $in: ["$_id", "$$gridIds"] } } },
+              { $project: { _id: 1, name: 1, admin_level: 1, long_name: 1 } },
+            ],
             as: "grids",
           },
         },
@@ -1333,7 +1359,7 @@ const createCohort = {
                   tags: 1,
                 },
               },
-              { $limit: maxActivities },
+              { $limit: activitiesLimit },
             ],
             as: "activities",
           },
@@ -1426,39 +1452,19 @@ const createCohort = {
             total_activities: {
               $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
             },
+            // explicit metric for the truncated activities array we actually returned
+            activities_loaded: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
           },
         },
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
 
-      const facetPipeline = [
-        ...pipeline,
-        {
-          $facet: {
-            paginatedResults: [
-              { $sort: { createdAt: -1 } },
-              { $skip: _skip },
-              { $limit: _limit },
-            ],
-            totalCount: [{ $count: "count" }],
-          },
-        },
-      ];
-
-      const results = await DeviceModel(tenant)
-        .aggregate(facetPipeline)
+      const paginatedResults = await DeviceModel(tenant)
+        .aggregate(pipeline)
         .allowDiskUse(true);
-
-      const agg =
-        Array.isArray(results) && results[0]
-          ? results[0]
-          : { paginatedResults: [], totalCount: [] };
-      const paginatedResults = agg.paginatedResults || [];
-      const total =
-        Array.isArray(agg.totalCount) && agg.totalCount[0]
-          ? agg.totalCount[0].count
-          : 0;
 
       if (isEmpty(paginatedResults)) {
         return {
