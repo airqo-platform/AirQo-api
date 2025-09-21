@@ -88,6 +88,13 @@ const createGrid = {
         return responseFromCalculateGeographicalCenter;
       } else {
         modifiedBody["centers"] = responseFromCalculateGeographicalCenter.data;
+
+        if (
+          modifiedBody.admin_level &&
+          modifiedBody.admin_level.toLowerCase() === "country"
+        ) {
+          modifiedBody.flag_url = constants.getFlagUrl(modifiedBody.name);
+        }
         // logObject("modifiedBody", modifiedBody);
 
         const responseFromRegisterGrid = await GridModel(tenant).register(
@@ -1170,6 +1177,59 @@ const createGrid = {
         success: true,
         message: "Successfully found nearest country(ies)",
         data: nearestCountries,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listCountries: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const pipeline = [
+        {
+          $match: { admin_level: "country" },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            country: "$name",
+            sites: { $size: "$sites" },
+          },
+        },
+        {
+          $sort: {
+            country: 1,
+          },
+        },
+      ];
+
+      const results = await GridModel(tenant).aggregate(pipeline);
+
+      const countriesWithFlags = results.map((countryData) => ({
+        ...countryData,
+        flag_url: constants.getFlagUrl(countryData.country),
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved countries and site counts.",
+        data: countriesWithFlags,
         status: httpStatus.OK,
       };
     } catch (error) {

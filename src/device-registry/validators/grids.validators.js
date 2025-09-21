@@ -832,6 +832,22 @@ const gridsValidations = {
       next();
     },
   ],
+  listCountries: [
+    ...commonValidations.tenant,
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
+  ],
 };
 
 module.exports = gridsValidations;
