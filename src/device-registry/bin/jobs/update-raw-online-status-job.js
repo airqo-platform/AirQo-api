@@ -1,5 +1,6 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const createDeviceUtil = require("@utils/device.util");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`
 );
@@ -30,15 +31,37 @@ const mockNext = (error) => {
 };
 
 const processDeviceBatch = async (devices) => {
-  const CONCURRENCY_LIMIT = 10; // Process 10 devices at a time
+  const CONCURRENCY_LIMIT = 10; // Process 10 devices at a time to prevent saturation
   const allBulkOps = [];
 
+  // 1. Get all device numbers from the current batch
+  const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
+
+  // 2. Fetch all necessary device details (readKey) in a single query
+  let deviceDetailsMap = new Map();
+  if (deviceNumbers.length > 0) {
+    try {
+      const deviceDetails = await DeviceModel("airqo")
+        .find({ device_number: { $in: deviceNumbers } })
+        .select("device_number readKey")
+        .lean();
+
+      deviceDetails.forEach((detail) => {
+        deviceDetailsMap.set(detail.device_number, detail);
+      });
+    } catch (error) {
+      logger.error(`Error fetching device details for batch: ${error.message}`);
+      return 0; // Skip this batch if we can't get device details
+    }
+  }
+
+  // 3. Process devices in smaller, concurrent chunks
   for (let i = 0; i < devices.length; i += CONCURRENCY_LIMIT) {
     if (global.isShuttingDown) {
       logText(
         `${JOB_NAME} stopping during batch processing due to application shutdown.`
       );
-      break; // Exit the loop if shutdown is requested
+      break;
     }
 
     const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
@@ -51,22 +74,38 @@ const processDeviceBatch = async (devices) => {
         return null;
       }
 
+      // 4. Get the API key from the pre-fetched details
+      const detail = deviceDetailsMap.get(device.device_number);
+      if (!detail || !detail.readKey) {
+        logger.warn(`No readKey found for device ${device.name}`);
+        return null;
+      }
+
+      let apiKey;
       try {
-        const apiKeyResponse = await createFeedUtil.getAPIKey(
-          device.device_number,
+        const decryptResponse = await createDeviceUtil.decryptKey(
+          detail.readKey,
           mockNext
         );
-
-        if (!apiKeyResponse.success) {
+        if (!decryptResponse.success) {
           logger.warn(
-            `Could not get API key for device ${device.name}: ${apiKeyResponse.message}`
+            `Failed to decrypt key for device ${device.name}: ${decryptResponse.message}`
           );
           return null;
         }
+        apiKey = decryptResponse.data;
+      } catch (error) {
+        logger.error(
+          `Error decrypting key for device ${device.name}: ${error.message}`
+        );
+        return null;
+      }
 
+      // 5. Fetch data from ThingSpeak
+      try {
         const request = {
           channel: device.device_number,
-          api_key: apiKeyResponse.data,
+          api_key: apiKey,
         };
         const thingspeakData = await createFeedUtil.fetchThingspeakData(
           request
@@ -105,6 +144,7 @@ const processDeviceBatch = async (devices) => {
           },
         };
       } catch (error) {
+        // This specifically catches errors from fetchThingspeakData (e.g., timeouts)
         logger.error(
           `Error processing raw status for device ${device.name}: ${error.message}`
         );
@@ -116,6 +156,7 @@ const processDeviceBatch = async (devices) => {
     allBulkOps.push(...chunkBulkOps);
   }
 
+  // 6. Perform a single bulk write for the entire batch
   if (allBulkOps.length > 0) {
     await DeviceModel("airqo").bulkWrite(allBulkOps);
   }
@@ -160,6 +201,8 @@ const updateRawOnlineStatus = async () => {
           `Processed batch. ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
         );
         batch = []; // Clear the batch
+        // Yield to the event loop to allow other operations (like API requests) to be handled.
+        await new Promise(setImmediate);
       }
     }
 
