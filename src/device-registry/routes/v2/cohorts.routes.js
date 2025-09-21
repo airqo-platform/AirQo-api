@@ -143,6 +143,13 @@ router.post(
   createCohortController.createFromCohorts
 );
 
+router.post(
+  "/devices",
+  cohortValidations.listDevices,
+  pagination(),
+  createCohortController.listDevicesByCohort
+);
+
 router.get(
   "/:cohort_id",
   cohortValidations.getCohort,
