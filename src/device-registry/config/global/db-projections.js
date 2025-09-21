@@ -21,6 +21,7 @@ class ProjectionFactory {
           _id: 1,
           name: 1,
           long_name: 1,
+          flag_url: 1,
           description: 1,
           grid_tags: 1,
           visibility: 1,
@@ -360,6 +361,8 @@ class ProjectionFactory {
           grids: 1,
           lastActive: 1,
           isOnline: 1,
+          rawOnlineStatus: 1,
+          lastRawData: 1,
           onlineStatusAccuracy: 1,
           previous_sites: 1,
           site: {
