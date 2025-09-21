@@ -1238,13 +1238,16 @@ const createCohort = {
   },
   listDevices: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, limit, skip } = request.query;
       const { cohort_ids } = request.body;
       const maxActivities = 500;
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         "full"
       );
+
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 100, 200));
 
       const filter = { cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) } };
 
@@ -1425,26 +1428,56 @@ const createCohort = {
             },
           },
         },
-        { $sort: { createdAt: -1 } },
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
 
-      const devices = await DeviceModel(tenant)
-        .aggregate(pipeline)
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await DeviceModel(tenant)
+        .aggregate(facetPipeline)
         .allowDiskUse(true);
 
-      if (isEmpty(devices)) {
+      const agg =
+        Array.isArray(results) && results[0]
+          ? results[0]
+          : { paginatedResults: [], totalCount: [] };
+      const paginatedResults = agg.paginatedResults || [];
+      const total =
+        Array.isArray(agg.totalCount) && agg.totalCount[0]
+          ? agg.totalCount[0].count
+          : 0;
+
+      if (isEmpty(paginatedResults)) {
         return {
           success: true,
           message: "No devices found for the provided cohorts",
           data: [],
           status: httpStatus.OK,
+          meta: {
+            total: 0,
+            limit: _limit,
+            skip: _skip,
+            page: 1,
+            totalPages: 0,
+          },
         };
       }
 
       // Post-processing for consistency
-      devices.forEach((device) => {
+      paginatedResults.forEach((device) => {
         // Process latest activities to extract single objects
         device.latest_deployment_activity =
           device.latest_deployment_activity &&
@@ -1503,11 +1536,36 @@ const createCohort = {
         }
       });
 
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
       return {
         success: true,
         message: "Successfully retrieved devices for the provided cohorts",
-        data: devices,
+        data: paginatedResults,
         status: httpStatus.OK,
+        meta,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
