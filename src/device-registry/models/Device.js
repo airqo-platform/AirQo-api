@@ -413,23 +413,19 @@ deviceSchema.pre(
       if (typeof doc.mobility === "boolean") {
         if (doc.mobility === true) {
           doc.deployment_type = "mobile";
-          if (doc.site_id) {
-            if (isQuery) {
-              update.$unset = { ...(update.$unset || {}), site_id: "" };
-              if (update.$set) delete update.$set.site_id;
-            } else {
-              this.site_id = undefined;
-            }
+          if (isQuery) {
+            update.$unset = { ...(update.$unset || {}), site_id: "" };
+            if (update.$set) delete update.$set.site_id;
+          } else {
+            this.site_id = undefined;
           }
         } else {
           doc.deployment_type = "static";
-          if (doc.grid_id) {
-            if (isQuery) {
-              update.$unset = { ...(update.$unset || {}), grid_id: "" };
-              if (update.$set) delete update.$set.grid_id;
-            } else {
-              this.grid_id = undefined;
-            }
+          if (isQuery) {
+            update.$unset = { ...(update.$unset || {}), grid_id: "" };
+            if (update.$set) delete update.$set.grid_id;
+          } else {
+            this.grid_id = undefined;
           }
         }
       }
@@ -437,23 +433,19 @@ deviceSchema.pre(
       else if (doc.deployment_type) {
         if (doc.deployment_type === "mobile") {
           doc.mobility = true;
-          if (doc.site_id) {
-            if (isQuery) {
-              update.$unset = { ...(update.$unset || {}), site_id: "" };
-              if (update.$set) delete update.$set.site_id;
-            } else {
-              this.site_id = undefined;
-            }
+          if (isQuery) {
+            update.$unset = { ...(update.$unset || {}), site_id: "" };
+            if (update.$set) delete update.$set.site_id;
+          } else {
+            this.site_id = undefined;
           }
         } else if (doc.deployment_type === "static") {
           doc.mobility = false;
-          if (doc.grid_id) {
-            if (isQuery) {
-              update.$unset = { ...(update.$unset || {}), grid_id: "" };
-              if (update.$set) delete update.$set.grid_id;
-            } else {
-              this.grid_id = undefined;
-            }
+          if (isQuery) {
+            update.$unset = { ...(update.$unset || {}), grid_id: "" };
+            if (update.$set) delete update.$set.grid_id;
+          } else {
+            this.grid_id = undefined;
           }
         }
       }
@@ -553,8 +545,14 @@ deviceSchema.pre(
           this.alias = (this.long_name || this.name).trim().replace(/ /g, "_");
         }
 
-        if (this.isModified("name") && this.writeKey && this.readKey) {
+        const writeChanged =
+          typeof this.isModified === "function" && this.isModified("writeKey");
+        const readChanged =
+          typeof this.isModified === "function" && this.isModified("readKey");
+        if (writeChanged && this.writeKey) {
           this.writeKey = this._encryptKey(this.writeKey);
+        }
+        if (readChanged && this.readKey) {
           this.readKey = this._encryptKey(this.readKey);
         }
 
