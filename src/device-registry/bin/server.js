@@ -317,107 +317,47 @@ const createServer = () => {
       console.log("HTTP server closed");
       logger.info("HTTP server closed");
 
-      // Enhanced cron job shutdown handling
+      // Stop cron jobs
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
+        const jobNames = Object.keys(global.cronJobs);
         console.log(
-          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`
         );
         logger.info(
-          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`
         );
 
-        // Stop each job individually with error handling
-        for (const [jobName, jobObj] of Object.entries(global.cronJobs)) {
-          try {
-            console.log(`Stopping cron job: ${jobName}`);
-            logger.info(`Stopping cron job: ${jobName}`);
-
-            // Enhanced pattern: Use the async stop method if available
-            if (jobObj.stop && typeof jobObj.stop === "function") {
-              await jobObj.stop();
-              console.log(`✅ Successfully stopped cron job: ${jobName}`);
-              logger.info(`✅ Successfully stopped cron job: ${jobName}`);
-            }
-            // Legacy pattern: Direct job manipulation
-            else if (jobObj.job) {
-              console.log(`🔄 Using legacy stop method for job: ${jobName}`);
-              logger.info(`🔄 Using legacy stop method for job: ${jobName}`);
-
-              // Stop the schedule
-              if (typeof jobObj.job.stop === "function") {
-                jobObj.job.stop();
-                console.log(`📅 Stopped schedule for job: ${jobName}`);
-              }
-
-              // Try to destroy if method exists
-              if (typeof jobObj.job.destroy === "function") {
-                jobObj.job.destroy();
-                console.log(`💥 Destroyed job: ${jobName}`);
-              } else {
-                console.log(
-                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
-                );
-                logger.warn(
-                  `Job ${jobName} doesn't have destroy method (older node-cron version)`
-                );
-              }
-
-              // Remove from registry
-              delete global.cronJobs[jobName];
-              console.log(
-                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
-              );
-              logger.info(
-                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
-              );
-            }
-            // Simple job pattern (current pattern)
-            else if (typeof jobObj.stop === "function") {
-              jobObj.stop();
-              console.log(
-                `✅ Successfully stopped cron job: ${jobName} (simple mode)`
-              );
-            }
-            // Unknown pattern
-            else {
-              console.warn(
-                `⚠️  Job ${jobName} has unknown structure, skipping`
-              );
-              logger.warn(`Job ${jobName} has unknown structure, skipping`);
-            }
-          } catch (error) {
-            console.error(
-              `❌ Error stopping cron job ${jobName}:`,
-              error.message
-            );
-            logger.error(
-              `❌ Error stopping cron job ${jobName}: ${error.message}`
-            );
-
-            // Try emergency cleanup
+        const stopPromises = Object.entries(global.cronJobs).map(
+          async ([jobName, jobObj]) => {
             try {
-              if (jobObj.job && typeof jobObj.job.stop === "function") {
-                jobObj.job.stop();
-                console.log(`🆘 Emergency stopped job: ${jobName}`);
+              if (jobObj && typeof jobObj.stop === "function") {
+                await jobObj.stop();
+                console.log(`✅ Successfully stopped cron job: ${jobName}`);
+                logger.info(`✅ Successfully stopped cron job: ${jobName}`);
+              } else {
+                console.warn(
+                  `⚠️ Job ${jobName} does not have a 'stop' method.`
+                );
+                logger.warn(`⚠️ Job ${jobName} does not have a 'stop' method.`);
               }
-              delete global.cronJobs[jobName];
-            } catch (emergencyError) {
+            } catch (error) {
               console.error(
-                `💥 Emergency cleanup failed for ${jobName}:`,
-                emergencyError.message
+                `❌ Error stopping cron job ${jobName}:`,
+                error.message
               );
               logger.error(
-                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
+                `❌ Error stopping cron job ${jobName}: ${error.message}`
               );
             }
           }
-        }
+        );
 
-        console.log("All cron jobs stopped");
-        logger.info("All cron jobs stopped");
+        await Promise.all(stopPromises);
+        console.log("All cron jobs have been processed for shutdown.");
+        logger.info("All cron jobs have been processed for shutdown.");
       } else {
-        console.log("No cron jobs to stop");
-        logger.info("No cron jobs to stop");
+        console.log("No cron jobs to stop.");
+        logger.info("No cron jobs to stop.");
       }
 
       // Close any Redis connections if they exist

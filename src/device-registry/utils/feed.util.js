@@ -132,7 +132,6 @@ const createFeed = {
   },
   readRecentDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
-      logObject("the request", request);
       const { channel, api_key, start, end, path } = request;
       if (isEmpty(start) && !isEmpty(end)) {
         return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&end=${end}`;

@@ -154,6 +154,9 @@ const processDeviceBatch = async (devices) => {
 
     const chunkBulkOps = (await Promise.all(devicePromises)).filter(Boolean);
     allBulkOps.push(...chunkBulkOps);
+
+    // Yield to the event loop after each small chunk to prevent blocking
+    await new Promise((resolve) => setImmediate(resolve));
   }
 
   // 6. Perform a single bulk write for the entire batch
@@ -201,8 +204,8 @@ const updateRawOnlineStatus = async () => {
           `Processed batch. ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
         );
         batch = []; // Clear the batch
-        // Yield to the event loop to allow other operations (like API requests) to be handled.
-        await new Promise(setImmediate);
+        // Yield to the event loop to prevent blocking other operations
+        await new Promise((resolve) => setImmediate(resolve));
       }
     }
 
@@ -258,33 +261,25 @@ const startJob = () => {
     global.cronJobs[JOB_NAME] = {
       job: cronJobInstance,
       stop: async () => {
-        logText(`🛑 Stopping ${JOB_NAME}...`);
         try {
-          // Stop the cron schedule to prevent new runs
+          logText(`🛑 Stopping ${JOB_NAME}...`);
+          // 1. Stop the cron scheduler to prevent new runs
           cronJobInstance.stop();
           logText(`📅 ${JOB_NAME} schedule stopped.`);
 
-          // If a job is currently running, wait for it to complete, but with a timeout
+          // 2. If a job is currently running, wait for it to complete.
+          //    The job's main loop will see `global.isShuttingDown` and exit.
           if (currentJobPromise) {
             logText(
               `⏳ Waiting for current ${JOB_NAME} execution to finish...`
             );
-            // Race the job promise against a 10-second timeout
-            await Promise.race([
-              currentJobPromise,
-              new Promise((resolve) => setTimeout(resolve, 10000)),
-            ]);
-            logText(`✅ Current ${JOB_NAME} execution finished or timed out.`);
+            await currentJobPromise;
+            logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
 
-          // Destroy the job instance to clean up resources
-          if (typeof cronJobInstance.destroy === "function") {
-            cronJobInstance.destroy();
-          }
-          logText(`💥 ${JOB_NAME} destroyed successfully.`);
-
-          // Remove from global registry
+          // 3. Remove from global registry
           delete global.cronJobs[JOB_NAME];
+          logText(`🧹 ${JOB_NAME} removed from job registry.`);
         } catch (error) {
           logger.error(`❌ Error stopping ${JOB_NAME}: ${error.message}`);
         }
