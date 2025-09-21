@@ -151,30 +151,46 @@ const updateDuplicateSiteFields = async () => {
 logText("Update duplicate site fields job is now running.....");
 // Schedule the job to run every 4 hours at minute 15
 
+let isJobRunning = false;
+let currentJobPromise = null;
+
+const jobWrapper = async () => {
+  if (isJobRunning) {
+    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
+    return;
+  }
+
+  isJobRunning = true;
+  currentJobPromise = updateDuplicateSiteFields();
+  try {
+    await currentJobPromise;
+  } catch (error) {
+    logger.error(`🐛🐛 Error during ${JOB_NAME} execution: ${error.message}`);
+  } finally {
+    isJobRunning = false;
+    currentJobPromise = null;
+  }
+};
+
 // 3. Create and register the job
 const startJob = () => {
-  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
-  const cronJobInstance = cron.schedule(
-    JOB_SCHEDULE,
-    updateDuplicateSiteFields,
-    {
-      scheduled: true,
-      timezone: constants.TIMEZONE,
-    }
-  );
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
+    scheduled: true,
+    timezone: constants.TIMEZONE,
+  });
 
-  // Initialize global registry
   if (!global.cronJobs) {
     global.cronJobs = {};
   }
 
-  // Register for cleanup 👇 USING cronJobInstance HERE!
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
     stop: async () => {
+      logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
-      if (typeof cronJobInstance.destroy === "function") {
-        cronJobInstance.destroy();
+      logText(`📅 ${JOB_NAME} schedule stopped.`);
+      if (currentJobPromise) {
+        await currentJobPromise;
       }
       delete global.cronJobs[JOB_NAME];
     },

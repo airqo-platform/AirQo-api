@@ -247,6 +247,12 @@ const updateRawOnlineStatus = async () => {
 };
 
 const startJob = () => {
+  // Idempotency check: prevent re-registering the job
+  if (global.cronJobs && global.cronJobs[JOB_NAME]) {
+    logger.warn(`${JOB_NAME} already registered. Skipping duplicate start.`);
+    return;
+  }
+
   try {
     let isJobRunning = false;
     let currentJobPromise = null;
@@ -262,9 +268,16 @@ const startJob = () => {
         }
         isJobRunning = true;
         currentJobPromise = updateRawOnlineStatus();
-        await currentJobPromise;
-        isJobRunning = false;
-        currentJobPromise = null;
+        try {
+          await currentJobPromise;
+        } catch (err) {
+          logger.error(
+            `🐛🐛 Error executing ${JOB_NAME}: ${err.stack || err.message}`
+          );
+        } finally {
+          isJobRunning = false;
+          currentJobPromise = null;
+        }
       },
       {
         scheduled: true,
@@ -279,14 +292,10 @@ const startJob = () => {
     global.cronJobs[JOB_NAME] = {
       job: cronJobInstance,
       stop: async () => {
+        logText(`🛑 Stopping ${JOB_NAME}...`);
+        cronJobInstance.stop();
+        logText(`📅 ${JOB_NAME} schedule stopped.`);
         try {
-          logText(`🛑 Stopping ${JOB_NAME}...`);
-          // 1. Stop the cron scheduler to prevent new runs
-          cronJobInstance.stop();
-          logText(`📅 ${JOB_NAME} schedule stopped.`);
-
-          // 2. If a job is currently running, wait for it to complete.
-          //    The job's main loop will see `global.isShuttingDown` and exit.
           if (currentJobPromise) {
             logText(
               `⏳ Waiting for current ${JOB_NAME} execution to finish...`
@@ -294,12 +303,17 @@ const startJob = () => {
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
-
-          // 3. Remove from global registry
+        } catch (error) {
+          logger.error(
+            `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${error.message}`
+          );
+        } finally {
+          if (typeof cronJobInstance.destroy === "function") {
+            cronJobInstance.destroy();
+            logText(`💥 ${JOB_NAME} destroyed successfully.`);
+          }
           delete global.cronJobs[JOB_NAME];
           logText(`🧹 ${JOB_NAME} removed from job registry.`);
-        } catch (error) {
-          logger.error(`❌ Error stopping ${JOB_NAME}: ${error.message}`);
         }
       },
     };

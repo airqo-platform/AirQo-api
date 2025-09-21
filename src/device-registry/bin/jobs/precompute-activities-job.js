@@ -448,19 +448,28 @@ async function precomputeActivitiesAndMetrics() {
 
 // Create and register the job
 const startJob = () => {
-  let running = false;
+  let isJobRunning = false;
+  let currentJobPromise = null;
+
   const cronJobInstance = cron.schedule(
     JOB_SCHEDULE,
     async () => {
-      if (running) {
-        logger.warn(`${JOB_NAME} skipped: previous run still in progress`);
+      if (isJobRunning) {
+        logger.warn(`${JOB_NAME} is already running, skipping this execution`);
         return;
       }
-      running = true;
+
+      isJobRunning = true;
+      currentJobPromise = precomputeActivitiesAndMetrics();
       try {
-        await precomputeActivitiesAndMetrics();
+        await currentJobPromise;
+      } catch (error) {
+        logger.error(
+          `🐛🐛 Error during ${JOB_NAME} execution: ${error.message}`
+        );
       } finally {
-        running = false;
+        isJobRunning = false;
+        currentJobPromise = null;
       }
     },
     {
@@ -476,9 +485,25 @@ const startJob = () => {
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
     stop: async () => {
+      logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
-      if (typeof cronJobInstance.destroy === "function") {
-        cronJobInstance.destroy();
+      logText(`📅 ${JOB_NAME} schedule stopped.`);
+      if (currentJobPromise) {
+        logText(`⏳ Waiting for current ${JOB_NAME} execution to finish...`);
+        try {
+          await currentJobPromise;
+          logText(`✅ Current ${JOB_NAME} execution completed.`);
+        } catch (err) {
+          logger.error(
+            `⚠️ ${JOB_NAME} in-flight run rejected during shutdown: ${err.stack ||
+              err.message}`
+          );
+        }
+      }
+      try {
+        cronJobInstance.destroy?.();
+      } catch (err) {
+        logger.warn(`Failed to destroy ${JOB_NAME}: ${err.message}`);
       }
       delete global.cronJobs[JOB_NAME];
     },
