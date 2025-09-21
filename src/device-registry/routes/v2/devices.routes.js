@@ -207,6 +207,7 @@ router.put(
 router.get(
   "/mobile",
   validateTenant,
+  validateListDevices,
   pagination(),
   deviceController.listMobile
 );

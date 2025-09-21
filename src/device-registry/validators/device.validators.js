@@ -568,12 +568,6 @@ const validateUpdateDevice = [
 
       return true;
     }),
-  body("isActive")
-    .optional()
-    .notEmpty()
-    .trim()
-    .isBoolean()
-    .withMessage("isActive must be Boolean"),
   body("groups")
     .optional()
     .custom((value) => {
@@ -589,12 +583,6 @@ const validateUpdateDevice = [
     .trim()
     .isBoolean()
     .withMessage("isRetired must be Boolean"),
-  body("mobility")
-    .optional()
-    .notEmpty()
-    .trim()
-    .isBoolean()
-    .withMessage("mobility must be Boolean"),
   body("nextMaintenance")
     .optional()
     .notEmpty()

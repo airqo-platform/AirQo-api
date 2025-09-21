@@ -398,9 +398,13 @@ deviceSchema.pre(
   ["save", "findOneAndUpdate", "update", "updateOne", "updateMany"],
   async function(next) {
     try {
-      const isNew = this.isNew;
-      const update = this.getUpdate ? this.getUpdate() : this;
-      const doc = isNew ? this : update.$set || update;
+      const isQuery = typeof this.getUpdate === "function";
+      const isNew = this.isNew === true; // only true for pre('save') on new docs
+      const update = isQuery ? this.getUpdate() : null;
+      const doc = isQuery ? update.$set || update : this;
+      if (isQuery) {
+        this.setOptions({ runValidators: true, context: "query" });
+      }
 
       if (!doc) return next();
 
@@ -409,20 +413,48 @@ deviceSchema.pre(
       if (typeof doc.mobility === "boolean") {
         if (doc.mobility === true) {
           doc.deployment_type = "mobile";
-          if (doc.site_id) doc.site_id = undefined; // Mobile devices shouldn't have a site_id
+          if (doc.site_id) {
+            if (isQuery) {
+              update.$unset = { ...(update.$unset || {}), site_id: "" };
+              if (update.$set) delete update.$set.site_id;
+            } else {
+              this.site_id = undefined;
+            }
+          }
         } else {
           doc.deployment_type = "static";
-          if (doc.grid_id) doc.grid_id = undefined; // Static devices shouldn't have a grid_id
+          if (doc.grid_id) {
+            if (isQuery) {
+              update.$unset = { ...(update.$unset || {}), grid_id: "" };
+              if (update.$set) delete update.$set.grid_id;
+            } else {
+              this.grid_id = undefined;
+            }
+          }
         }
       }
       // Rule 2: If mobility is not set, infer from deployment_type.
       else if (doc.deployment_type) {
         if (doc.deployment_type === "mobile") {
           doc.mobility = true;
-          if (doc.site_id) doc.site_id = undefined;
+          if (doc.site_id) {
+            if (isQuery) {
+              update.$unset = { ...(update.$unset || {}), site_id: "" };
+              if (update.$set) delete update.$set.site_id;
+            } else {
+              this.site_id = undefined;
+            }
+          }
         } else if (doc.deployment_type === "static") {
           doc.mobility = false;
-          if (doc.grid_id) doc.grid_id = undefined;
+          if (doc.grid_id) {
+            if (isQuery) {
+              update.$unset = { ...(update.$unset || {}), grid_id: "" };
+              if (update.$set) delete update.$set.grid_id;
+            } else {
+              this.grid_id = undefined;
+            }
+          }
         }
       }
       // Rule 3: If neither is set, infer from location reference for new documents.
@@ -438,12 +470,24 @@ deviceSchema.pre(
 
       // --- Business Rule Enforcement ---
       if (doc.mobility === true || doc.deployment_type === "mobile") {
-        if (doc.mountType && doc.mountType !== "vehicle") {
+        if (!doc.mountType) {
+          if (isNew) doc.mountType = "vehicle";
+          else
+            return next(
+              new Error("Mobile devices must include mountType 'vehicle'")
+            );
+        } else if (doc.mountType !== "vehicle") {
           return next(
             new Error("Mobile devices must have mountType 'vehicle'")
           );
         }
-        if (doc.powerType && doc.powerType !== "alternator") {
+        if (!doc.powerType) {
+          if (isNew) doc.powerType = "alternator";
+          else
+            return next(
+              new Error("Mobile devices must include powerType 'alternator'")
+            );
+        } else if (doc.powerType !== "alternator") {
           return next(
             new Error("Mobile devices must have powerType 'alternator'")
           );
@@ -536,11 +580,23 @@ deviceSchema.pre(
         }
       }
 
-      if (update) {
+      if (isQuery && update) {
         if (doc.network === "airqo") {
           if (doc.device_number) doc.serial_number = String(doc.device_number);
           else if (doc.serial_number)
             doc.device_number = Number(doc.serial_number);
+        } else if (doc.network && doc.network !== "airqo") {
+          const existingDevice = await this.model
+            .findOne(this.getQuery())
+            .lean();
+          if (!doc.serial_number && !existingDevice.serial_number) {
+            return next(
+              new HttpError(
+                "Devices not part of the AirQo network must include a serial_number as a string.",
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
         }
 
         if (doc.name) doc.name = sanitizeName(doc.name);
