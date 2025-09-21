@@ -203,6 +203,14 @@ router.put(
   deviceController.updateManyDevicesOnPlatform
 );
 
+// LIST MOBILE DEVICES
+router.get(
+  "/mobile",
+  validateTenant,
+  pagination(),
+  deviceController.listMobile
+);
+
 // =============================================================================
 // DEVICE METADATA CLEANUP ROUTES
 // =============================================================================

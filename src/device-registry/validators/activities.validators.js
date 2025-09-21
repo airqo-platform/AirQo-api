@@ -31,11 +31,32 @@ const validateDeploymentType = (value) => {
 
 // Custom validator to ensure either site_id OR grid_id is provided -- prevent pole-mobile conflicts + comprehensive business rules
 const validateLocationReference = (value, { req }) => {
-  const { site_id, grid_id, deployment_type, mountType, powerType } = req.body;
+  const {
+    site_id,
+    grid_id,
+    deployment_type,
+    mountType,
+    powerType,
+    mobility,
+  } = req.body;
 
   // Determine actual deployment type
   const actualDeploymentType =
     deployment_type || (grid_id ? "mobile" : "static");
+
+  // If mobility is explicitly provided, it must match the deployment type
+  if (typeof mobility === "boolean") {
+    if (mobility === true && actualDeploymentType !== "mobile") {
+      throw new Error(
+        "mobility=true is only valid for mobile deployments (with a grid_id)."
+      );
+    }
+    if (mobility === false && actualDeploymentType !== "static") {
+      throw new Error(
+        "mobility=false is only valid for static deployments (with a site_id)."
+      );
+    }
+  }
 
   // MOBILE DEPLOYMENT VALIDATIONS
   if (actualDeploymentType === "mobile") {
