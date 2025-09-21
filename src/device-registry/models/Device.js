@@ -589,7 +589,11 @@ deviceSchema.pre(
           const existingDevice = await this.model
             .findOne(this.getQuery())
             .lean();
-          if (!doc.serial_number && !existingDevice.serial_number) {
+          const hasExistingSerial =
+            existingDevice &&
+            typeof existingDevice.serial_number === "string" &&
+            existingDevice.serial_number.length > 0;
+          if (!doc.serial_number && !hasExistingSerial) {
             return next(
               new HttpError(
                 "Devices not part of the AirQo network must include a serial_number as a string.",
