@@ -1031,6 +1031,7 @@ const generateFilter = {
       last_active_before,
       last_active_after,
       serial_number,
+      mobility,
       authRequired,
     } = { ...req.query, ...req.params };
 
@@ -1087,6 +1088,13 @@ const generateFilter = {
       const boolValue = toBooleanSafe(primary);
       if (boolValue !== undefined) {
         filter.primary = boolValue;
+      }
+    }
+
+    if (mobility !== undefined) {
+      const boolValue = toBooleanSafe(mobility);
+      if (boolValue !== undefined) {
+        filter.mobility = boolValue;
       }
     }
 
