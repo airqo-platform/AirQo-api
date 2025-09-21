@@ -82,6 +82,7 @@ const { stringify } = require("@utils/common");
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
 require("@bin/jobs/update-raw-online-status-job");
+require("@bin/jobs/update-grid-flags-job");
 require("@bin/jobs/update-online-status-job");
 require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");

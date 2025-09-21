@@ -87,6 +87,11 @@ const gridSchema = new Schema(
       trim: true,
       unique: true,
     },
+    flag_url: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     description: {
       type: String,
       trim: true,
@@ -223,6 +228,7 @@ gridSchema.methods.toJSON = function() {
     name,
     long_name,
     network,
+    flag_url,
     groups,
     visibility,
     description,
@@ -242,6 +248,7 @@ gridSchema.methods.toJSON = function() {
     name,
     visibility,
     long_name,
+    flag_url,
     description,
     grid_tags,
     network,

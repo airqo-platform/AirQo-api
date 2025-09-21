@@ -330,6 +330,28 @@ const createGrid = {
       handleError(error, next);
     }
   },
+  listCountries: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await gridUtil.listCountries(request, next);
+      handleResponse({ res, result, key: "countries" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  listCountries: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await gridUtil.listCountries(request, next);
+      handleResponse({ res, result, key: "countries" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
 };
 
 module.exports = createGrid;

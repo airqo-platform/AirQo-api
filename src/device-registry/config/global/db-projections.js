@@ -21,6 +21,7 @@ class ProjectionFactory {
           _id: 1,
           name: 1,
           long_name: 1,
+          flag_url: 1,
           description: 1,
           grid_tags: 1,
           visibility: 1,
