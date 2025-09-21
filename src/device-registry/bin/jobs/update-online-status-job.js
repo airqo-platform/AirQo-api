@@ -589,6 +589,11 @@ class OnlineStatusProcessor {
     this.processingMetrics.totalDocuments = data.length;
 
     for (const doc of data) {
+      // Add a check for the global shutdown flag
+      if (global.isShuttingDown) {
+        logger.info(`${JOB_NAME} is shutting down, stopping status updates.`);
+        break;
+      }
       const docTime = moment(doc.time).tz(TIMEZONE);
 
       // Handle site status updates
@@ -966,25 +971,46 @@ async function updateOnlineStatusAndAccuracy() {
 
 // Create and register the job
 const startJob = () => {
+  let isJobRunning = false;
+  let currentJobPromise = null;
+
   const cronJobInstance = cron.schedule(
     JOB_SCHEDULE,
-    updateOnlineStatusAndAccuracy,
+    async () => {
+      if (isJobRunning) {
+        logger.warn(`${JOB_NAME} is already running, skipping this execution.`);
+        return;
+      }
+
+      isJobRunning = true;
+      currentJobPromise = updateOnlineStatusAndAccuracy();
+      try {
+        await currentJobPromise;
+      } catch (error) {
+        logger.error(
+          `🐛🐛 Error during ${JOB_NAME} execution: ${error.message}`
+        );
+      } finally {
+        isJobRunning = false;
+        currentJobPromise = null;
+      }
+    },
     {
       scheduled: true,
       timezone: TIMEZONE,
     }
   );
 
-  if (!global.cronJobs) {
-    global.cronJobs = {};
-  }
-
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
     stop: async () => {
+      logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
-      if (typeof cronJobInstance.destroy === "function") {
-        cronJobInstance.destroy();
+      logText(`📅 ${JOB_NAME} schedule stopped.`);
+      if (currentJobPromise) {
+        logText(`⏳ Waiting for current ${JOB_NAME} execution to finish...`);
+        await currentJobPromise;
+        logText(`✅ Current ${JOB_NAME} execution completed.`);
       }
       delete global.cronJobs[JOB_NAME];
     },

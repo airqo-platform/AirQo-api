@@ -14,6 +14,11 @@ const updateGridFlags = async () => {
   try {
     logText(`Starting ${JOB_NAME}...`);
 
+    if (global.isShuttingDown) {
+      logger.info(`${JOB_NAME} is shutting down, skipping flag updates.`);
+      return;
+    }
+
     const gridsToUpdate = await GridModel("airqo")
       .find({
         admin_level: "country",
@@ -66,6 +71,7 @@ const startJob = () => {
     return;
   }
   let isJobRunning = false;
+  let currentJobPromise = null;
   const cronJobInstance = cron.schedule(
     JOB_SCHEDULE,
     async () => {
@@ -74,14 +80,16 @@ const startJob = () => {
         return;
       }
       isJobRunning = true;
+      currentJobPromise = updateGridFlags();
       try {
-        await updateGridFlags();
+        await currentJobPromise;
       } catch (err) {
         logger.error(
           `🐛🐛 Error executing ${JOB_NAME}: ${err.stack || err.message}`
         );
       } finally {
         isJobRunning = false;
+        currentJobPromise = null;
       }
     },
     { timezone: process.env.TZ || "Africa/Kampala" }
@@ -94,8 +102,14 @@ const startJob = () => {
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
     stop: async () => {
-      if (cronJobInstance) {
-        cronJobInstance.stop();
+      logText(`🛑 Stopping ${JOB_NAME}...`);
+      cronJobInstance.stop();
+      logText(`📅 ${JOB_NAME} schedule stopped.`);
+
+      if (currentJobPromise) {
+        logText(`⏳ Waiting for current ${JOB_NAME} execution to finish...`);
+        await currentJobPromise;
+        logText(`✅ Current ${JOB_NAME} execution completed.`);
       }
       delete global.cronJobs[JOB_NAME];
     },

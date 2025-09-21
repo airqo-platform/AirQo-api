@@ -295,6 +295,12 @@ const startJob = () => {
             logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
 
+          // 4. Destroy the job instance to clean up resources
+          if (typeof cronJobInstance.destroy === "function") {
+            cronJobInstance.destroy();
+            logText(`💥 ${JOB_NAME} destroyed successfully.`);
+          }
+
           // 3. Remove from global registry
           delete global.cronJobs[JOB_NAME];
           logText(`🧹 ${JOB_NAME} removed from job registry.`);
