@@ -313,16 +313,22 @@ async function updateEntityOnlineStatusAccuracy(
       { upsert: false }
     );
 
+    const isTruthful = isCurrentlyOnline === isNowOnline;
+
+    const totalChecks = (currentStats.totalChecks || 0) + 1;
+    const correctChecks =
+      (currentStats.correctChecks || 0) + (isTruthful ? 1 : 0);
+    const incorrectChecks = totalChecks - correctChecks;
+    const accuracyPercentage =
+      totalChecks > 0 ? (correctChecks / totalChecks) * 100 : 0;
+
     return {
       success: true,
       stats: {
-        totalChecks: (currentStats.totalChecks || 0) + 1,
-        correctChecks: (currentStats.correctChecks || 0) + (isTruthful ? 1 : 0),
-        incorrectChecks:
-          (currentStats.incorrectChecks || 0) + (isTruthful ? 0 : 1),
-        accuracyPercentage:
-          ((currentStats.correctChecks || 0) + (isTruthful ? 1 : 0)) /
-          ((currentStats.totalChecks || 0) + 1),
+        totalChecks,
+        correctChecks,
+        incorrectChecks,
+        accuracyPercentage,
       },
     };
   } catch (error) {
