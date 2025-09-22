@@ -350,7 +350,7 @@ class DataUtils:
         start_date = max(
             device_maintenance,
             device_maintenance
-            if np.isnan(device_previous_offset)
+            if device_previous_offset is None or np.isnan(device_previous_offset)
             else device_previous_offset,
         )
         entity_id = entity.get(unique_id)
