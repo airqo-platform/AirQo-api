@@ -1,5 +1,6 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
+const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
 const geolib = require("geolib");
@@ -87,6 +88,13 @@ const createGrid = {
         return responseFromCalculateGeographicalCenter;
       } else {
         modifiedBody["centers"] = responseFromCalculateGeographicalCenter.data;
+
+        if (
+          modifiedBody.admin_level &&
+          modifiedBody.admin_level.toLowerCase() === "country"
+        ) {
+          modifiedBody.flag_url = constants.getFlagUrl(modifiedBody.name);
+        }
         // logObject("modifiedBody", modifiedBody);
 
         const responseFromRegisterGrid = await GridModel(tenant).register(
@@ -482,20 +490,102 @@ const createGrid = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, path, skip } = request.query;
+      const { tenant, limit, skip, detailLevel = "full" } = request.query;
       const filter = generateFilter.grids(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
-      const responseFromListGrid = await GridModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
-        next
+
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+
+      const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
+        detailLevel
       );
-      return responseFromListGrid;
+      let pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+      ];
+
+      if (detailLevel === "full") {
+        pipeline.push({
+          $lookup: {
+            from: "devices",
+            localField: "activeMobileDevices.device_id",
+            foreignField: "_id",
+            as: "mobileDevices",
+          },
+        });
+      }
+
+      pipeline.push(
+        { $project: constants.GRIDS_INCLUSION_PROJECTION },
+        { $project: exclusionProjection }
+      );
+
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await GridModel(tenant)
+        .aggregate(facetPipeline)
+        .allowDiskUse(true);
+
+      const agg =
+        Array.isArray(results) && results[0]
+          ? results[0]
+          : { paginatedResults: [], totalCount: [] };
+      const paginatedResults = agg.paginatedResults || [];
+      const total =
+        Array.isArray(agg.totalCount) && agg.totalCount[0]
+          ? agg.totalCount[0].count
+          : 0;
+
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved grids",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -507,6 +597,7 @@ const createGrid = {
       );
     }
   },
+
   updateShape: async (request, next) => {
     try {
       const { query, body } = request;
@@ -603,11 +694,14 @@ const createGrid = {
     try {
       const { tenant, limit, skip } = request.query;
       const filter = generateFilter.admin_levels(request, next);
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+
       const responseFromListAdminLevels = await AdminLevelModel(tenant).list(
         {
           filter,
-          limit,
-          skip,
+          limit: _limit,
+          skip: _skip,
         },
         next
       );
@@ -1083,6 +1177,59 @@ const createGrid = {
         success: true,
         message: "Successfully found nearest country(ies)",
         data: nearestCountries,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listCountries: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const pipeline = [
+        {
+          $match: { admin_level: "country" },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            country: "$name",
+            sites: { $size: "$sites" },
+          },
+        },
+        {
+          $sort: {
+            country: 1,
+          },
+        },
+      ];
+
+      const results = await GridModel(tenant).aggregate(pipeline);
+
+      const countriesWithFlags = results.map((countryData) => ({
+        ...countryData,
+        flag_url: constants.getFlagUrl(countryData.country),
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved countries and site counts.",
+        data: countriesWithFlags,
         status: httpStatus.OK,
       };
     } catch (error) {

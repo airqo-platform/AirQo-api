@@ -13,1214 +13,334 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- cohort-controller`
 );
 const isEmpty = require("is-empty");
-function handleResponse({
-  result,
-  key = "data",
-  errorKey = "errors",
-  res,
-} = {}) {
-  if (!result) {
+
+const handleRequest = (req, next) => {
+  const errors = extractErrorsFromRequest(req);
+  if (errors) {
+    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+    return null;
+  }
+  const request = req;
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  request.query.tenant = isEmpty(req.query.tenant)
+    ? defaultTenant
+    : req.query.tenant;
+  return request;
+};
+
+const handleError = (error, next) => {
+  logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: error.message,
+    })
+  );
+};
+
+function handleResponse({ res, result, key = "data" }) {
+  if (!result || res.headersSent) {
     return;
   }
 
-  const isSuccess = result.success;
-  const defaultStatus = isSuccess
-    ? httpStatus.OK
-    : httpStatus.INTERNAL_SERVER_ERROR;
+  const { success, status, data, message, errors, ...rest } = result;
 
-  const defaultMessage = isSuccess
-    ? "Operation Successful"
-    : "Internal Server Error";
+  const responseStatus =
+    status || (success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
 
-  const status = result.status !== undefined ? result.status : defaultStatus;
-  const message =
-    result.message !== undefined ? result.message : defaultMessage;
-  const data = result.data !== undefined ? result.data : [];
-  const errors = isSuccess
-    ? undefined
-    : result.errors !== undefined
-    ? result.errors
-    : { message: "Internal Server Error" };
-
-  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+  if (success) {
+    const responseBody = {
+      success: true,
+      message: message || "Operation Successful",
+      ...rest,
+    };
+    if (data !== undefined) {
+      responseBody[key] = data;
+    }
+    return res.status(responseStatus).json(responseBody);
+  } else {
+    return res.status(responseStatus).json({
+      success: false,
+      message: message || "An unexpected error occurred.",
+      errors: errors || { message: "An unexpected error occurred." },
+    });
+  }
 }
 
 const createCohort = {
   createFromCohorts: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.createCohortFromCohortIDs(
         request,
         next
       );
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result && result.success) {
-        res.status(result.status || httpStatus.CREATED).json({
-          success: true,
-          message: result.message,
-          data: result.data,
-        });
-      } else {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
+      handleError(error, next);
     }
   },
   createNetwork: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.createNetwork(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      logObject("result in controller", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          new_network: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "new_network" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listNetworks: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.listNetworks(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      logElement(
-        "has the response for listing cohorts been successful?",
-        result.success
-      );
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          networks: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "networks" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   updateNetwork: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.updateNetwork(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_network: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "updated_network" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   deleteNetwork: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.deleteNetwork(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          deleted_network: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "deleted_network" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   list: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.list(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logElement(
-        "has the response for listing cohorts been successful?",
-        result.success
-      );
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          cohorts: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "cohorts" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   verify: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.verify(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logElement(
-        "has the response for verifying cohort ID been successful?",
-        result.success
-      );
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   update: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.update(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          cohort: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "cohort" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   updateName: async (req, res, next) => {
     try {
       logText("updating cohort name................");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.updateName(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          cohort: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "cohort" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   delete: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.delete(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          cohort: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "cohort" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   create: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.create(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result in controller", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          cohort: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "cohort" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listSummary: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all cohorts by query params provided");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
+      const request = handleRequest(req, next);
+      if (!request) return;
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      request.query.summary = "yes";
+      request.query.detailLevel = "summary";
 
       const result = await createCohortUtil.list(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          cohorts: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "cohorts" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listDashboard: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all cohorts by query params provided");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
+      const request = handleRequest(req, next);
+      if (!request) return;
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      request.query.dashboard = "yes";
+      request.query.detailLevel = "full";
 
       const result = await createCohortUtil.list(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          cohorts: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "cohorts" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listAvailableDevices: async (req, res, next) => {
     try {
       logText("listing available devices....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.listAvailableDevices(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result in controller", result);
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          available_devices: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "available_devices" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listAssignedDevices: async (req, res, next) => {
     try {
       logText("listing assigned devices....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.listAssignedDevices(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result in controller", result);
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        if (result.data.length === 0) {
-          return res.status(status).json({
-            success: true,
-            message: "no assigned devices to this cohort",
-            assigned_devices: [],
-          });
-        }
-        return res.status(status).json({
-          success: true,
-          message:
-            "successfully retrieved the assigned devices for this cohort",
-          assigned_devices: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "assigned_devices" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   assignManyDevicesToCohort: async (req, res, next) => {
     try {
       logText("assign many devices....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.assignManyDevicesToCohort(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-
-        return res.status(status).json({
-          message: result.message,
-          updated_cohort: result.data,
-          success: true,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "updated_cohort" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   unAssignManyDevicesFromCohort: async (req, res, next) => {
     try {
       logText("unAssign device....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.unAssignManyDevicesFromCohort(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result", result);
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-
-        return res.status(status).json({
-          message: "devices successully unassigned",
-          updated_records: result.data,
-          success: true,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
+      handleResponse({ res, result, key: "updated_records" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   assignOneDeviceToCohort: async (req, res, next) => {
     try {
       logText("assign one device....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.assignOneDeviceToCohort(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_records: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "updated_records" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   unAssignOneDeviceFromCohort: async (req, res, next) => {
     try {
       logText("unAssign device....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.unAssignOneDeviceFromCohort(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-
-        return res.status(status).json({
-          message: "device successully unassigned",
-          updated_records: result.data,
-          success: true,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "updated_records" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   getSiteAndDeviceIds: async (req, res, next) => {
     try {
       logText("generate Sites and Devices from provided Grid ID....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.getSiteAndDeviceIds(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          sites_and_devices: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "sites_and_devices" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   filterOutPrivateDevices: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await createCohortUtil.filterOutPrivateDevices(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      const status =
-        result.status ||
-        (result.success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
-
-      res.status(status).json({
-        success: result.success,
-        message: result.message,
-        ...(result.success
-          ? { devices: result.data }
-          : {
-              errors: result.errors || {
-                message: "Internal Server Error",
-              },
-            }),
-      });
+      handleResponse({ res, result, key: "devices" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
+    }
+  },
+  listDevicesByCohort: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.listDevices(request, next);
+      handleResponse({ res, result, key: "devices" });
+    } catch (error) {
+      handleError(error, next);
     }
   },
 };

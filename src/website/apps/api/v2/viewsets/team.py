@@ -3,11 +3,11 @@ Team app viewsets for v2 API
 """
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
+from typing import Optional, List, ClassVar
 
 from apps.team.models import Member, MemberBiography
 from ..filters.team import MemberFilter, MemberBiographyFilter
 from ..pagination import StandardPageNumberPagination
-from ..permissions import OpenAPIPermission
 from ..serializers.team import (
     MemberListSerializer, MemberDetailSerializer,
     MemberBiographyListSerializer, MemberBiographyDetailSerializer
@@ -23,22 +23,23 @@ class MemberViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.Read
     Provides internal team member profiles with department hierarchy
     """
     queryset = Member.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
     filterset_class = MemberFilter
-    search_fields = ['name', 'title', 'about']
-    ordering_fields = ['name', 'title', 'order', 'created', 'modified']
-    ordering = ['order', 'name']
+    search_fields: ClassVar[List[str]] = ['name', 'title', 'about']
+    ordering_fields: ClassVar[List[str]] = [
+        'name', 'title', 'order', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', 'name']
     pagination_class = StandardPageNumberPagination
 
     # Optimization settings
-    select_related_fields = []  # No foreign keys to optimize
-    prefetch_related_fields = ['descriptions']
-    list_only_fields = [
+    # No foreign keys to optimize
+    select_related_fields: Optional[List[str]] = []
+    prefetch_related_fields: Optional[List[str]] = ['descriptions']
+    list_only_fields: Optional[List[str]] = [
         'id', 'name', 'title', 'about', 'picture', 'twitter', 'linked_in',
         'order', 'created', 'modified'
     ]
@@ -66,22 +67,22 @@ class MemberBiographyViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewS
     Provides access to team member descriptions and biographies
     """
     queryset = MemberBiography.objects.all()
-    permission_classes = [OpenAPIPermission]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
     filterset_class = MemberBiographyFilter
-    search_fields = ['description', 'member__name']
-    ordering_fields = ['order', 'member__name']
-    ordering = ['order']
+    search_fields: ClassVar[List[str]] = ['description', 'member__name']
+    ordering_fields: ClassVar[List[str]] = ['order', 'member__name']
+    ordering: ClassVar[List[str]] = ['order']
     pagination_class = StandardPageNumberPagination
 
     # Optimization settings
-    select_related_fields = ['member']
-    prefetch_related_fields = []
-    list_only_fields = ['id', 'description', 'order', 'member']
+    select_related_fields: Optional[List[str]] = ['member']
+    prefetch_related_fields: Optional[List[str]] = []
+    list_only_fields: Optional[List[str]] = [
+        'id', 'description', 'order', 'member']
 
     def get_serializer_class(self):  # type: ignore[override]
         if self.action == 'list':

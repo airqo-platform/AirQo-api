@@ -143,6 +143,16 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       default: false,
     },
+    rawOnlineStatus: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
+    lastRawData: {
+      type: Date,
+      trim: true,
+      default: null,
+    },
     generation_version: {
       type: Number,
     },
@@ -315,6 +325,7 @@ const deviceSchema = new mongoose.Schema(
     },
 
     onlineStatusAccuracy: {
+      // Old fields for backward compatibility
       totalAttempts: { type: Number, default: 0 },
       successfulUpdates: { type: Number, default: 0 },
       failedUpdates: { type: Number, default: 0 },
@@ -323,6 +334,16 @@ const deviceSchema = new mongoose.Schema(
       lastFailureReason: { type: String },
       successPercentage: { type: Number, default: 0 },
       failurePercentage: { type: Number, default: 0 },
+
+      // New, more descriptive fields for "truthfulness"
+      totalChecks: { type: Number, default: 0 },
+      correctChecks: { type: Number, default: 0 },
+      incorrectChecks: { type: Number, default: 0 },
+      lastCheck: { type: Date },
+      lastCorrectCheck: { type: Date },
+      lastIncorrectCheck: { type: Date },
+      lastIncorrectReason: { type: String },
+      accuracyPercentage: { type: Number, default: 0 },
     },
     // Precomputed activity fields for performance
     cached_activities_by_type: {
@@ -373,130 +394,133 @@ const checkDuplicates = (arr, fieldName) => {
   return null;
 };
 
-// validation for deployment type consistency
 deviceSchema.pre(
-  [
-    "update",
-    "findByIdAndUpdate",
-    "updateMany",
-    "updateOne",
-    "save",
-    "findOneAndUpdate",
-  ],
+  ["save", "findOneAndUpdate", "update", "updateOne", "updateMany"],
   async function(next) {
     try {
-      // Determine if this is a new document or an update
-      const isNew = this.isNew;
-      const updateData = this.getUpdate ? this.getUpdate() : this;
+      const isQuery = typeof this.getUpdate === "function";
+      const isNew = this.isNew === true; // only true for pre('save') on new docs
+      const update = isQuery ? this.getUpdate() : null;
+      const doc = isQuery ? update.$set || update : this;
+      if (isQuery) {
+        this.setOptions({ runValidators: true, context: "query" });
+      }
 
-      // Validate deployment type consistency
-      if (isNew) {
-        // For new documents, set deployment_type based on provided data
-        if (!this.deployment_type) {
-          if (this.grid_id) {
-            this.deployment_type = "mobile";
-            this.mobility = true; // Set mobility flag for mobile devices
-          } else if (this.site_id) {
-            this.deployment_type = "static";
-            this.mobility = false;
+      if (!doc) return next();
+
+      // --- Mobility and Deployment Type Logic ---
+      // Rule 1: `mobility` is the source of truth.
+      if (typeof doc.mobility === "boolean") {
+        if (doc.mobility === true) {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), deployment_type: "mobile" };
+            update.$unset = { ...(update.$unset || {}), site_id: "" };
+            if (update.$set) delete update.$set.site_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.site_id;
           } else {
-            this.deployment_type = "static"; // default
+            this.deployment_type = "mobile";
+            this.site_id = undefined;
+          }
+        } else {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), deployment_type: "static" };
+            update.$unset = { ...(update.$unset || {}), grid_id: "" };
+            if (update.$set) delete update.$set.grid_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.grid_id;
+          } else {
+            this.deployment_type = "static";
+            this.grid_id = undefined;
+          }
+        }
+      }
+      // Rule 2: If mobility is not set, infer from deployment_type.
+      else if (doc.deployment_type) {
+        if (doc.deployment_type === "mobile") {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), mobility: true };
+            update.$unset = { ...(update.$unset || {}), site_id: "" };
+            if (update.$set) delete update.$set.site_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.site_id;
+          } else {
+            this.mobility = true;
+            this.site_id = undefined;
+          }
+        } else if (doc.deployment_type === "static") {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), mobility: false };
+            update.$unset = { ...(update.$unset || {}), grid_id: "" };
+            if (update.$set) delete update.$set.grid_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.grid_id;
+          } else {
             this.mobility = false;
-          }
-        }
-
-        // Validate deployment type consistency
-        if (this.deployment_type === "mobile") {
-          if (this.site_id && !this.grid_id) {
-            return next(
-              new Error(
-                "Mobile devices should be associated with grids, not sites"
-              )
-            );
-          }
-          this.mobility = true;
-        } else if (this.deployment_type === "static") {
-          if (this.grid_id && !this.site_id) {
-            return next(
-              new Error(
-                "Static devices should be associated with sites, not grids"
-              )
-            );
-          }
-          this.mobility = false;
-        }
-      } else {
-        // For updates, validate deployment type changes
-        if ("deployment_type" in updateData) {
-          if (updateData.deployment_type === "mobile") {
-            updateData.mobility = true;
-          } else if (updateData.deployment_type === "static") {
-            updateData.mobility = false;
-          }
-        }
-
-        // Validate location reference changes
-        if ("grid_id" in updateData && "site_id" in updateData) {
-          if (updateData.grid_id && updateData.site_id) {
-            return next(
-              new Error(
-                "Device cannot be associated with both site and grid simultaneously"
-              )
-            );
+            this.grid_id = undefined;
           }
         }
       }
-
-      // Handle category field for both new documents and updates
-      if (isNew) {
-        // For new documents
-        if ("category" in this) {
-          if (this.category === null) {
-            delete this.category;
-          } else if (
-            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(this.category)
-          ) {
-            return next(
-              new HttpError(
-                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
-                  ", "
-                )}`,
-                httpStatus.BAD_REQUEST
-              )
-            );
-          }
+      // Rule 3: If neither is set, infer from location reference for new documents.
+      else if (isNew && typeof doc.mobility === "undefined") {
+        if (doc.grid_id) {
+          doc.deployment_type = "mobile";
+          doc.mobility = true;
+        } else {
+          doc.deployment_type = "static";
+          doc.mobility = false;
         }
-      } else {
-        // For updates
-        if ("category" in updateData) {
-          if (updateData.category === null) {
-            delete updateData.category;
-          } else if (
-            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(updateData.category)
-          ) {
+      }
+
+      // --- Business Rule Enforcement ---
+      if (doc.mobility === true || doc.deployment_type === "mobile") {
+        if (!doc.mountType) {
+          if (isNew) doc.mountType = "vehicle";
+          else
             return next(
-              new HttpError(
-                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
-                  ", "
-                )}`,
-                httpStatus.BAD_REQUEST
-              )
+              new Error("Mobile devices must include mountType 'vehicle'")
             );
-          }
+        } else if (doc.mountType !== "vehicle") {
+          return next(
+            new Error("Mobile devices must have mountType 'vehicle'")
+          );
+        }
+        if (!doc.powerType) {
+          if (isNew) doc.powerType = "alternator";
+          else
+            return next(
+              new Error("Mobile devices must include powerType 'alternator'")
+            );
+        } else if (doc.powerType !== "alternator") {
+          return next(
+            new Error("Mobile devices must have powerType 'alternator'")
+          );
+        }
+      }
+
+      // --- Other existing logic from the old hook ---
+
+      // Category validation
+      if ("category" in doc) {
+        if (doc.category === null) {
+          delete doc.category;
+        } else if (!DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(doc.category)) {
+          return next(
+            new HttpError(
+              `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                ", "
+              )}`,
+              httpStatus.BAD_REQUEST
+            )
+          );
         }
       }
 
       if (isNew) {
-        // Set default network if not provided
         if (!this.network) {
           this.network = constants.DEFAULT_NETWORK;
         }
 
-        // Manage serial_number based on device_number and network
         if (this.network === "airqo" && this.device_number) {
-          this.serial_number = String(this.device_number); // Assign device_number as a string
+          this.serial_number = String(this.device_number);
         } else if (!this.serial_number && this.network !== "airqo") {
-          next(
+          return next(
             new HttpError(
               "Devices not part of the AirQo network must include a serial_number as a string.",
               httpStatus.BAD_REQUEST
@@ -504,22 +528,8 @@ deviceSchema.pre(
           );
         }
 
-        // Generate name based on generation version and count
         if (this.generation_version && this.generation_count) {
           this.name = `aq_g${this.generation_version}_${this.generation_count}`;
-        }
-
-        // Handle alias generation
-        if (!this.alias && (this.long_name || this.name)) {
-          this.alias = (this.long_name || this.name).trim().replace(/ /g, "_");
-          if (!this.alias) {
-            return next(
-              new HttpError(
-                "Unable to generate ALIAS for the device.",
-                httpStatus.INTERNAL_SERVER_ERROR
-              )
-            );
-          }
         }
 
         if (!this.name && !this.long_name) {
@@ -533,25 +543,27 @@ deviceSchema.pre(
 
         if (this.name) {
           this.name = sanitizeName(this.name);
-        } else {
-          // Use long_name if name is not provided
-          this.name = sanitizeName(this.long_name);
-        }
+        } else this.name = sanitizeName(this.long_name);
 
         if (this.long_name) {
           this.long_name = sanitizeName(this.long_name);
-        } else {
-          // Use name if long_name is not provided
-          this.long_name = this.name;
+        } else this.long_name = this.name;
+
+        if (!this.alias) {
+          this.alias = (this.long_name || this.name).trim().replace(/ /g, "_");
         }
 
-        // Encrypt keys if modified
-        if (this.isModified("name") && this.writeKey && this.readKey) {
+        const writeChanged =
+          typeof this.isModified === "function" && this.isModified("writeKey");
+        const readChanged =
+          typeof this.isModified === "function" && this.isModified("readKey");
+        if (writeChanged && this.writeKey) {
           this.writeKey = this._encryptKey(this.writeKey);
+        }
+        if (readChanged && this.readKey) {
           this.readKey = this._encryptKey(this.readKey);
         }
 
-        // Generate device codes
         this.device_codes = [this._id, this.name];
         if (this.device_number) {
           this.device_codes.push(this.device_number);
@@ -563,56 +575,62 @@ deviceSchema.pre(
           this.device_codes.push(this.serial_number);
         }
 
-        // Check for duplicates in cohorts
         const cohortsDuplicateError = checkDuplicates(this.cohorts, "cohorts");
         if (cohortsDuplicateError) {
           return next(cohortsDuplicateError);
         }
 
-        // Check for duplicates in groups
         const groupsDuplicateError = checkDuplicates(this.groups, "groups");
         if (groupsDuplicateError) {
           return next(groupsDuplicateError);
         }
       }
 
-      // Handling the network condition
-      if (updateData.network === "airqo") {
-        if (updateData.device_number) {
-          updateData.serial_number = String(updateData.device_number);
-        } else if (updateData.serial_number) {
-          updateData.device_number = Number(updateData.serial_number);
+      if (isQuery && update) {
+        if (doc.network === "airqo") {
+          if (doc.device_number) doc.serial_number = String(doc.device_number);
+          else if (doc.serial_number)
+            doc.device_number = Number(doc.serial_number);
+        } else if (doc.network && doc.network !== "airqo") {
+          const existingDevice = await this.model
+            .findOne(this.getQuery())
+            .lean();
+          const hasExistingSerial =
+            existingDevice &&
+            typeof existingDevice.serial_number === "string" &&
+            existingDevice.serial_number.length > 0;
+          if (!doc.serial_number && !hasExistingSerial) {
+            return next(
+              new HttpError(
+                "Devices not part of the AirQo network must include a serial_number as a string.",
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
         }
-      }
 
-      // Sanitize name if modified
-      if (updateData.name) {
-        updateData.name = sanitizeName(updateData.name);
-      }
+        if (doc.name) doc.name = sanitizeName(doc.name);
 
-      // Generate access code if present in update
-      if (updateData.access_code) {
-        const access_code = accessCodeGenerator.generate({
-          length: 16,
-          excludeSimilarCharacters: true,
+        if (doc.access_code) {
+          doc.access_code = accessCodeGenerator
+            .generate({ length: 16, excludeSimilarCharacters: true })
+            .toUpperCase();
+        }
+
+        const arrayFieldsToAddToSet = [
+          "device_codes",
+          "previous_sites",
+          "groups",
+          "pictures",
+        ];
+        arrayFieldsToAddToSet.forEach((field) => {
+          if (doc[field]) {
+            update.$addToSet = update.$addToSet || {};
+            update.$addToSet[field] = { $each: doc[field] };
+            delete doc[field];
+          }
         });
-        updateData.access_code = access_code.toUpperCase();
       }
-
-      // Handle array fields using $addToSet
-      const arrayFieldsToAddToSet = [
-        "device_codes",
-        "previous_sites",
-        "groups",
-        "pictures",
-      ];
-      arrayFieldsToAddToSet.forEach((field) => {
-        if (updateData[field]) {
-          updateData.$addToSet = updateData.$addToSet || {};
-          updateData.$addToSet[field] = { $each: updateData[field] };
-          delete updateData[field];
-        }
-      });
 
       next();
     } catch (error) {
@@ -664,6 +682,8 @@ deviceSchema.methods = {
       writeKey: this.writeKey,
       lastActive: this.lastActive,
       isOnline: this.isOnline,
+      rawOnlineStatus: this.rawOnlineStatus,
+      lastRawData: this.lastRawData,
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,

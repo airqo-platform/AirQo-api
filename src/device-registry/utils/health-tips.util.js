@@ -1,4 +1,5 @@
 const httpStatus = require("http-status");
+const qs = require("qs");
 const HealthTipModel = require("@models/HealthTips");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -23,29 +24,88 @@ const createHealthTips = {
         filter.path = path;
       }
       const language = request.query.language;
-      let translatedHealthTips;
 
-      let responseFromListHealthTips = await HealthTipModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
-        next
+      const MAX_LIMIT =
+        Number(
+          constants.DEFAULT_LIMIT_FOR_QUERYING_HEALTH_TIPS ||
+            constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES
+        ) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
+
+      const pipeline = [
+        { $match: filter },
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await HealthTipModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      const baseUrl = `${request.protocol}://${request.get("host")}${
+        request.originalUrl.split("?")[0]
+      }`;
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      const nextSkip = _skip + _limit;
+      if (nextSkip < total) {
+        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+      }
+
+      const prevSkip = _skip - _limit;
+      if (prevSkip >= 0) {
+        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+      }
+
+      let responseFromListHealthTips = {
+        success: true,
+        message: "Successfully retrieved health tips",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
+
       if (
         language !== undefined &&
         !isEmpty(responseFromListHealthTips) &&
         !isEmpty(responseFromListHealthTips.data)
       ) {
-        translatedHealthTips = await translate.translateTips(
+        const translatedHealthTips = await translate.translateTips(
           {
             healthTips: responseFromListHealthTips.data,
             targetLanguage: language,
           },
           next
         );
-        responseFromListHealthTips = translatedHealthTips;
+        if (translatedHealthTips.success === true) {
+          responseFromListHealthTips.data = translatedHealthTips.data;
+        }
       }
 
       logObject("responseFromListHealthTips", responseFromListHealthTips);
@@ -61,6 +121,7 @@ const createHealthTips = {
       );
     }
   },
+
   bulkUpdate: async (request, next) => {
     try {
       const { query, body } = request;

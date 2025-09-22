@@ -19,6 +19,14 @@ const leaseOwner = `${process.env.HOSTNAME || require("os").hostname()}#${
 }`;
 
 const runLegacyRoleMigration = async (tenant = "airqo") => {
+  // The auth-service is single-tenant ('airqo'). This guard prevents the
+  // migration from running for any other tenant, which would cause auth errors.
+  if (tenant !== "airqo") {
+    logger.warn(
+      `Skipping migration '${MIGRATION_NAME}' for tenant '${tenant}': auth-service is single-tenant.`
+    );
+    return;
+  }
   try {
     logger.info(`Starting migration: ${MIGRATION_NAME} for tenant: ${tenant}`);
 
@@ -77,10 +85,11 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
       const newRoleName = legacyRole.role_name.replace("_GROUP_", "_");
       const newRoleCode = legacyRole.role_code.replace("_GROUP_", "_");
 
-      const conflictingRole = await RoleModel(tenant).findOne({
-        role_code: newRoleCode,
-        group_id: legacyRole.group_id,
-      });
+      // Check for conflict based on the new role name, which is the unique field.
+      // This correctly finds existing global roles like 'AIRQO_SUPER_ADMIN'.
+      const conflictingRole = await RoleModel(tenant)
+        .findOne({ role_name: newRoleName })
+        .lean();
 
       if (conflictingRole) {
         // MERGE: A new-style role already exists.
@@ -216,7 +225,9 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
 if (require.main === module) {
   (async () => {
     connectToMongoDB();
-    const tenants = constants.TENANTS || ["airqo"];
+    // The auth-service is single-tenant ('airqo'), but the migration was
+    // attempting to run for all tenants listed in constants, causing errors.
+    const tenants = ["airqo"];
     try {
       const results = await Promise.allSettled(
         tenants.map((t) => runLegacyRoleMigration(t))

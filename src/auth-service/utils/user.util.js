@@ -467,52 +467,6 @@ const createUserModule = {
       );
     }
   },
-  getUserStats: async (request, next) => {
-    try {
-      const { tenant, limit = 1000, skip = 0 } = request.query;
-      const filter = generateFilter.logs(request, next);
-
-      const pipeline = [
-        { $match: filter },
-        {
-          $group: {
-            _id: { email: "$meta.email", endpoint: "$meta.endpoint" },
-            service: { $first: "$meta.service" },
-            username: { $first: "$meta.username" },
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            email: "$_id.email",
-            endpoint: "$_id.endpoint",
-            count: 1,
-            service: "$service",
-            username: "$username",
-          },
-        },
-      ];
-
-      const getUserStatsResponse = await LogModel(tenant).aggregate(pipeline);
-      return {
-        success: true,
-        message: "Successfully retrieved the user statistics",
-        data: getUserStatsResponse,
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
   listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics = await UserModel(tenant).listStatistics(

@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from drf_spectacular.renderers import OpenApiJsonRenderer, OpenApiYamlRenderer
 
 # Import for custom error handlers
 from core import views as core_views
@@ -68,7 +69,9 @@ urlpatterns = [
     # make the redirect permanent so browsers cache it.
     path(
         'favicon.ico',
-        RedirectView.as_view(url=static_url('favicon.ico'), permanent=True),
+        # path which is present at `/website/static/admin/images/favicon.ico`.
+        RedirectView.as_view(url=static_url(
+            'admin/images/favicon.ico'), permanent=True),
         name='favicon'
     ),
 
@@ -92,10 +95,28 @@ urlpatterns = [
     path('website/api/', include('apps.api.urls')),
 
     # OpenAPI 3.0 Schema and Documentation (drf-spectacular) - V2 Only
-    # Protect documentation endpoints: require Django login so unauthenticated
-    # requests are redirected to the login page.
-    path('website/api/schema/',
-         login_required(SpectacularAPIView.as_view()), name='schema'),
+    # NOTE: The raw schema (JSON) must be publicly accessible so the UI
+    # (Swagger / ReDoc) can fetch a machine-readable JSON object. If this
+    # endpoint is wrapped with `login_required` it will redirect to the
+    # Django login page and return HTML (string), causing the docs UIs to
+    # fail with errors like "Document must be JSON object, got string".
+    # Keep the interactive UI views protected, but serve the raw schema
+    # without authentication so tooling can load it correctly.
+    # Serve raw schema and UI docs only to authenticated users (redirect to
+    # the admin login page if unauthenticated). We protect both the raw
+    # schema and the UI so access behaves like the admin portal.
+    # Serve JSON/YAML schema but use DRF permissions so API clients receive
+    # a proper 401/403 response (JSON) when unauthenticated instead of an
+    # HTML redirect. The interactive UI views remain protected by
+    # `login_required` so browser users are redirected to the admin login.
+    path('website/api/schema/', SpectacularAPIView.as_view(
+        renderer_classes=[OpenApiJsonRenderer],
+        permission_classes=[IsAuthenticated]
+    ), name='schema'),
+    path('website/api/schema.yaml', SpectacularAPIView.as_view(
+        renderer_classes=[OpenApiYamlRenderer],
+        permission_classes=[IsAuthenticated]
+    ), name='schema-yaml'),
 
     # Legacy Swagger URLs (drf-yasg) - expose under /website/api/swagger/
     re_path(
@@ -124,21 +145,15 @@ urlpatterns = [
 ]
 
 # Spectacular UI views - protect in production
-if settings.DEBUG:
-    urlpatterns += [
-        path('website/api/docs/',
-             SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-        path('website/api/redoc/',
-             SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
-    ]
-else:
-    # In production protect the UI docs behind the admin login (redirect)
-    urlpatterns += [
-        path('website/api/docs/', login_required(
-            SpectacularSwaggerView.as_view(url_name='schema')), name='swagger-ui'),
-        path('website/api/redoc/',
-             login_required(SpectacularRedocView.as_view(url_name='schema')), name='redoc'),
-    ]
+# Always protect the interactive UI views behind the admin login so that
+# unauthenticated users are redirected to the login page instead of the
+# UI attempting to fetch the (protected) schema and receiving HTML.
+urlpatterns += [
+    path('website/api/docs/', login_required(
+        SpectacularSwaggerView.as_view(url_name='schema')), name='swagger-ui'),
+    path('website/api/redoc/', login_required(
+        SpectacularRedocView.as_view(url_name='schema')), name='redoc'),
+]
 
 # Serve media files during development
 if settings.DEBUG:

@@ -52,6 +52,9 @@ __pycache__/
 /staticfiles/
 /public/static/
 
+# Local source asset folders (these are developer-local build artifacts; do not commit)
+assets/
+
 # Keep the source static files in your apps (Don't ignore app static folders)
 !myapp/static/
 !global_static/

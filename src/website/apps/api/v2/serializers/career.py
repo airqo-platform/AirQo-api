@@ -1,6 +1,6 @@
 # Career app serializers
 from rest_framework import serializers
-from apps.career.models import Career, Department
+from apps.career.models import Career, Department, JobDescription, BulletDescription, BulletPoint
 from ..utils import DynamicFieldsSerializerMixin
 
 
@@ -16,6 +16,30 @@ class DepartmentDetailSerializer(DynamicFieldsSerializerMixin, serializers.Model
         model = Department
         fields = ['id', 'name', 'created', 'modified', 'is_deleted']
         ref_name = 'DepartmentDetailSerializerV2'
+
+
+class BulletPointSerializer(serializers.ModelSerializer):
+    """Serializer for BulletPoint"""
+    class Meta:
+        model = BulletPoint
+        fields = ['id', 'point', 'order', 'created', 'modified']
+
+
+class BulletDescriptionSerializer(serializers.ModelSerializer):
+    """Serializer for BulletDescription with nested bullet points"""
+    bullet_points = BulletPointSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = BulletDescription
+        fields = ['id', 'name', 'order',
+                  'bullet_points', 'created', 'modified']
+
+
+class JobDescriptionSerializer(serializers.ModelSerializer):
+    """Serializer for JobDescription"""
+    class Meta:
+        model = JobDescription
+        fields = ['id', 'description', 'order', 'created', 'modified']
 
 
 class CareerListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
@@ -54,9 +78,13 @@ class CareerListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerial
 
 class CareerDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
     department = DepartmentDetailSerializer(read_only=True)
+    descriptions = JobDescriptionSerializer(many=True, read_only=True)
+    bullets = BulletDescriptionSerializer(many=True, read_only=True)
     public_identifier = serializers.SerializerMethodField()
     api_url = serializers.SerializerMethodField()
     has_slug = serializers.SerializerMethodField()
+    type_display = serializers.CharField(
+        source='get_type_display', read_only=True)
 
     def get_public_identifier(self, obj):
         """Return privacy-friendly public identifier"""
@@ -80,5 +108,9 @@ class CareerDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeri
 
     class Meta:
         model = Career
-        fields = '__all__'
-    ref_name = 'CareerDetailV2'
+        fields = [
+            'public_identifier', 'title', 'unique_title', 'type', 'type_display',
+            'closing_date', 'apply_url', 'department', 'descriptions', 'bullets',
+            'api_url', 'has_slug', 'created', 'modified', 'is_deleted'
+        ]
+        ref_name = 'CareerDetailV2'

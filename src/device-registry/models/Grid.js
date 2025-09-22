@@ -15,6 +15,7 @@ const { getModelByTenant } = require("@config/database");
 const {
   validatePolygonClosure,
   TOLERANCE_LEVELS,
+  validateAndFixPolygon,
 } = require("@validators/common");
 
 const shapeSchema = new Schema(
@@ -86,6 +87,11 @@ const gridSchema = new Schema(
       type: String,
       trim: true,
       unique: true,
+    },
+    flag_url: {
+      type: String,
+      trim: true,
+      default: null,
     },
     description: {
       type: String,
@@ -223,6 +229,7 @@ gridSchema.methods.toJSON = function() {
     name,
     long_name,
     network,
+    flag_url,
     groups,
     visibility,
     description,
@@ -242,6 +249,7 @@ gridSchema.methods.toJSON = function() {
     name,
     visibility,
     long_name,
+    flag_url,
     description,
     grid_tags,
     network,

@@ -185,7 +185,7 @@ jobs:
             --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
             --port=3000 \
             --cpu=1000m \
-            --memory=300Mi \
+            --memory=400Mi \
             --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated

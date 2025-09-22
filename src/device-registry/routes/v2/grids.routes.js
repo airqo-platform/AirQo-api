@@ -15,6 +15,11 @@ const {
 
 router.use(headers);
 
+router.get(
+  "/countries",
+  gridsValidations.listCountries,
+  createGridController.listCountries
+);
 router.post("/", gridsValidations.createGrid, createGridController.create);
 
 router.get(

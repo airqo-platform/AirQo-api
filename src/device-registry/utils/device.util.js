@@ -48,6 +48,80 @@ const kafka = new Kafka({
 });
 
 const deviceUtil = {
+  getDeviceCountSummary: async (request, next) => {
+    try {
+      const { tenant, group_id, cohort_id } = request.query;
+
+      // 1. Build the initial filter based on group or cohort
+      const filter = {};
+      if (group_id) {
+        const groupIds = group_id.split(",").map((id) => id.trim());
+        filter.groups = { $in: groupIds };
+      }
+      if (cohort_id) {
+        const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
+        filter.cohorts = { $in: cohortIds };
+      }
+
+      // 2. Create the aggregation pipeline with $facet
+      const pipeline = [
+        { $match: filter },
+        {
+          $facet: {
+            deployed: [{ $match: { status: "deployed" } }, { $count: "count" }],
+            recalled: [{ $match: { status: "recalled" } }, { $count: "count" }],
+            undeployed: [
+              { $match: { status: "not deployed" } },
+              { $count: "count" },
+            ],
+            online: [{ $match: { isOnline: true } }, { $count: "count" }],
+            offline: [{ $match: { isOnline: false } }, { $count: "count" }],
+            maintenance_overdue: [
+              {
+                $match: {
+                  nextMaintenance: { $lt: new Date() },
+                  status: "deployed",
+                },
+              },
+              { $count: "count" },
+            ],
+          },
+        },
+      ];
+
+      // 3. Execute the aggregation
+      const results = await DeviceModel(tenant).aggregate(pipeline);
+
+      // 4. Format the response
+      const counts = results[0];
+      const summary = {
+        deployed: counts.deployed[0] ? counts.deployed[0].count : 0,
+        recalled: counts.recalled[0] ? counts.recalled[0].count : 0,
+        undeployed: counts.undeployed[0] ? counts.undeployed[0].count : 0,
+        online: counts.online[0] ? counts.online[0].count : 0,
+        offline: counts.offline[0] ? counts.offline[0].count : 0,
+        maintenance_overdue: counts.maintenance_overdue[0]
+          ? counts.maintenance_overdue[0].count
+          : 0,
+      };
+
+      return {
+        success: true,
+        message: "Successfully retrieved device count summary.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getDeviceById: async (req, next) => {
     try {
       const { id } = req.params;
@@ -456,7 +530,7 @@ const deviceUtil = {
       );
     }
   },
-  doesDeviceExist: async (request) => {
+  doesDeviceExist: async (request, next) => {
     logText("checking device existence...");
     const responseFromList = await deviceUtil.list(request, next);
     if (responseFromList.success === true && responseFromList.data) {
@@ -464,6 +538,7 @@ const deviceUtil = {
     }
     return false;
   },
+
   getDevicesCount: async (request, next) => {
     try {
       const { query } = request;
@@ -1000,16 +1075,8 @@ const deviceUtil = {
               latest_recall_activity: "$cached_latest_recall_activity",
             },
           },
-          {
-            $project: {
-              // Exclude heavy fields for summary
-              cohorts: 0,
-              pictures: 0,
-              device_codes: 0,
-              onlineStatusAccuracy: 0,
-              mobility_metadata: 0,
-            },
-          }
+          { $project: constants.DEVICES_INCLUSION_PROJECTION },
+          { $project: constants.DEVICES_EXCLUSION_PROJECTION("summary") }
         );
       } else {
         // Full detail level (existing complex aggregation)
@@ -1135,26 +1202,42 @@ const deviceUtil = {
             },
           });
         }
+        pipeline.push({ $project: constants.DEVICES_INCLUSION_PROJECTION });
+        pipeline.push({
+          $project: constants.DEVICES_EXCLUSION_PROJECTION("full"),
+        });
       }
 
-      // Common sorting and pagination
-      pipeline.push(
-        { $sort: { createdAt: -1 } },
-        { $skip: _skip },
-        { $limit: _limit }
-      );
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { createdAt: -1 } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
 
-      const response = await DeviceModel(tenant)
-        .aggregate(pipeline)
+      const results = await DeviceModel(tenant)
+        .aggregate(facetPipeline)
         .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
 
       // Process activities for non-cached full detail requests
       if (
-        !isEmpty(response) &&
+        !isEmpty(paginatedResults) &&
         detailLevel === "full" &&
         useCache === "false"
       ) {
-        response.forEach((device) => {
+        paginatedResults.forEach((device) => {
           if (device.activities && device.activities.length > 0) {
             const activitiesByType = {};
             const latestActivitiesByType = {};
@@ -1202,16 +1285,44 @@ const deviceUtil = {
         });
       }
 
+      const baseUrl =
+        request.protocol && typeof request.get === "function"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        totalResults: paginatedResults.length,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+        detailLevel,
+        usedCache: useCache === "true",
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
       return {
         success: true,
         message: "successfully retrieved the device details",
-        data: response,
+        data: paginatedResults,
         status: httpStatus.OK,
-        meta: {
-          detailLevel,
-          usedCache: useCache === "true",
-          totalResults: response.length,
-        },
+        meta,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
