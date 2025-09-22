@@ -1,6 +1,12 @@
 const mongoose = require("mongoose");
 
 const numericals = {
+  JWT_EXPIRES_IN_SECONDS:
+    parseInt(process.env.JWT_EXPIRES_IN_SECONDS, 10) || 24 * 60 * 60, // 24 hours
+  JWT_REFRESH_WINDOW_SECONDS:
+    parseInt(process.env.JWT_REFRESH_WINDOW_SECONDS, 10) || 15 * 60, // 15 minutes
+  JWT_GRACE_PERIOD_SECONDS:
+    parseInt(process.env.JWT_GRACE_PERIOD_SECONDS, 10) || 5 * 60, // 5 minutes
   SALT_ROUNDS: 10,
   BCRYPT_SALT_ROUNDS: 12,
   SLUG_MAX_LENGTH: 20,
