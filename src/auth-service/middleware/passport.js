@@ -1,6 +1,6 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const createUserUtil = require("@utils/user.util");
+const userUtil = require("@utils/user.util");
 const { AbstractTokenFactory } = require("@services/atf.service");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
@@ -25,6 +25,11 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`
 );
+
+// --- Token Lifecycle Configuration ---
+const TOKEN_LIFE_SECONDS = constants.JWT_EXPIRES_IN_SECONDS;
+const REFRESH_WINDOW_SECONDS = constants.JWT_REFRESH_WINDOW_SECONDS;
+const GRACE_PERIOD_SECONDS = constants.JWT_GRACE_PERIOD_SECONDS;
 
 const setLocalOptions = (req, res, next) => {
   try {
@@ -171,16 +176,16 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         }
 
         // Centralized verification check
-        const verificationResult = createUserUtil._handleVerification(user);
+        const verificationResult = userUtil._handleVerification(user);
         if (!verificationResult.shouldProceed) {
           try {
             if (verificationResult.requiresV3Reminder) {
-              await createUserUtil.verificationReminder(
+              await userUtil.verificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
             } else if (verificationResult.requiresV4Reminder) {
-              await createUserUtil.mobileVerificationReminder(
+              await userUtil.mobileVerificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
@@ -255,13 +260,9 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             user.analyticsVersion !== 3 &&
             user.analyticsVersion !== 4;
 
-          const updatePayload = createUserUtil._constructLoginUpdate(
-            user,
-            null,
-            {
-              autoVerify: shouldAutoVerify,
-            }
-          );
+          const updatePayload = userUtil._constructLoginUpdate(user, null, {
+            autoVerify: shouldAutoVerify,
+          });
           await UserModel(tenant.toLowerCase())
             .findOneAndUpdate({ _id: user._id }, updatePayload, {
               new: true,
@@ -276,7 +277,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
         // Ensure user's default role is correctly assigned before proceeding
-        await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
+        await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -336,16 +337,16 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         }
 
         // Centralized verification check
-        const verificationResult = createUserUtil._handleVerification(user);
+        const verificationResult = userUtil._handleVerification(user);
         if (!verificationResult.shouldProceed) {
           try {
             if (verificationResult.requiresV3Reminder) {
-              await createUserUtil.verificationReminder(
+              await userUtil.verificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
             } else if (verificationResult.requiresV4Reminder) {
-              await createUserUtil.mobileVerificationReminder(
+              await userUtil.mobileVerificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
@@ -419,13 +420,9 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             user.analyticsVersion !== 3 &&
             user.analyticsVersion !== 4;
 
-          const updatePayload = createUserUtil._constructLoginUpdate(
-            user,
-            null,
-            {
-              autoVerify: shouldAutoVerify,
-            }
-          );
+          const updatePayload = userUtil._constructLoginUpdate(user, null, {
+            autoVerify: shouldAutoVerify,
+          });
           await UserModel(tenant.toLowerCase())
             .findOneAndUpdate({ _id: user._id }, updatePayload, {
               new: true,
@@ -441,7 +438,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         }
 
         // Ensure user's default role is correctly assigned before proceeding
-        await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
+        await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
 
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
@@ -514,10 +511,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           }
 
           // Role check and fix
-          await createUserUtil.ensureDefaultAirqoRole(
-            user,
-            tenant.toLowerCase()
-          );
+          await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
 
           winstonLogger.info(
             `successful login through ${service ? service : "unknown"} service`,
@@ -566,11 +560,9 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             user = responseFromRegisterUser.data;
             try {
               // New user from Google should be auto-verified.
-              const updatePayload = createUserUtil._constructLoginUpdate(
-                user,
-                null,
-                { autoVerify: true }
-              );
+              const updatePayload = userUtil._constructLoginUpdate(user, null, {
+                autoVerify: true,
+              });
               await UserModel(tenant.toLowerCase())
                 .findOneAndUpdate({ _id: user._id }, updatePayload, {
                   new: true,
@@ -1136,7 +1128,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       try {
         // Only update login stats; do not flip verification state here.
-        const updatePayload = createUserUtil._constructLoginUpdate(user, null, {
+        const updatePayload = userUtil._constructLoginUpdate(user, null, {
           autoVerify: false,
         });
         await UserModel(tenant.toLowerCase())
@@ -1154,7 +1146,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
       }
 
       // Ensure user's default role is correctly assigned before proceeding
-      await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
+      await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
 
       winstonLogger.info(userAction, {
         username: user.userName,
@@ -1368,7 +1360,7 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
-const enhancedJWTAuth = async (req, res, next) => {
+const enhancedJWTAuth = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -1379,12 +1371,12 @@ const enhancedJWTAuth = async (req, res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i); //NOSONAR
     if (!match || !match[2]) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'", //NOSONAR
         })
       );
     }
@@ -1398,152 +1390,96 @@ const enhancedJWTAuth = async (req, res, next) => {
       );
     }
 
-    const tenantRaw =
-      req.query.tenant ||
-      req.body.tenant ||
-      constants.DEFAULT_TENANT ||
-      "airqo";
-    const tenant = String(tenantRaw).toLowerCase();
-
-    const tokenFactory = new AbstractTokenFactory(tenant);
-    const decodedToken = await tokenFactory.decodeToken(token);
-
-    const userId = decodedToken.userId || decodedToken.id || decodedToken._id;
-    if (!userId) {
-      return next(
-        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message: "Invalid token: User identifier not found in token payload",
-        })
-      );
-    }
-
-    const user = await UserModel(tenant).findById(userId).lean();
-
-    if (!user) {
-      return next(
-        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message: "User no longer exists",
-        })
-      );
-    }
-
-    // Attach DB-backed user and token claims separately to avoid shadowing DB values
-    req.user = {
-      ...user,
-      ...decodedToken,
-    };
-
-    // Sliding Session: Automatically refresh the token if it's nearing expiration.
-    try {
-      const nowInSeconds = Math.floor(Date.now() / 1000);
-      const tokenExpiry = decodedToken.exp; // 'exp' is a standard JWT claim.
-      const refreshThreshold = 15 * 60; // Refresh if token expires in the next 15 minutes.
-
-      if (tokenExpiry && tokenExpiry - nowInSeconds < refreshThreshold) {
-        logger.info(
-          `Token for user ${user.email} is nearing expiration. Issuing a new one.`
-        );
-
-        // Re-fetch the user as a Mongoose document to access instance methods.
-        const userDoc = await UserModel(tenant).findById(userId);
-        if (userDoc) {
-          const newToken = await userDoc.createToken();
-
-          // Set the new token in a custom header. The client will need to check for this.
-          res.set("X-Access-Token", newToken);
-
-          // IMPORTANT: For CORS, you must expose custom headers so the browser can access them.
-          res.set("Access-Control-Expose-Headers", "X-Access-Token");
-        }
-      }
-    } catch (refreshError) {
-      // Log the error but don't crash the application, as the primary request was successful.
-      logger.error(
-        `Failed to refresh token for user ${user ? user.email : "unknown"}: ${
-          refreshError.message
-        }`
-      );
-    }
-
-    next();
-  } catch (error) {
-    // The token decoding utility (atf.service) now handles logging based on error type.
-    // We just need to construct the correct HTTP response.
-    // Provide a more specific error message based on the JWT error type
-    let errorMessage = "Your session is invalid. Please log in again.";
-    if (error.name === "TokenExpiredError") {
-      errorMessage = "Your session has expired. Please log in again.";
-
-      // GRACEFUL MIGRATION: Handle old tokens that have just expired.
-      // This allows a one-time refresh for users transitioning from non-expiring tokens.
-      try {
-        const expiredDecoded = jwt.verify(
-          req.headers.authorization.split(" ")[1],
-          constants.JWT_SECRET,
-          {
-            ignoreExpiration: true,
-          }
-        );
-
-        // Check if it's an old token (lacks the 'expiresAt' field we added).
-        if (!expiredDecoded.expiresAt) {
-          logger.warn(
-            `Gracefully handling an expired legacy token for user ${
-              expiredDecoded.email || expiredDecoded._id
-            }. Allowing one-time refresh.`
+    jwt.verify(
+      token,
+      constants.JWT_SECRET,
+      { ignoreExpiration: true },
+      async (err, decoded) => {
+        if (err) {
+          // This handles malformed tokens, but not expiration
+          return next(
+            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+              message: `Invalid token: ${err.message}`,
+            })
           );
-          // FIX: We must still attach the user to the request for subsequent middleware.
-          const userId =
-            expiredDecoded.userId || expiredDecoded.id || expiredDecoded._id;
-          if (!userId) {
-            // if no user id, then we can't proceed.
-            throw new Error("Legacy token has no user identifier.");
-          }
-          const tenant = String(
-            req.query.tenant ||
-              req.body.tenant ||
-              constants.DEFAULT_TENANT ||
-              "airqo"
-          ).toLowerCase();
-          const userDoc = await UserModel(tenant).findById(userId);
-          if (!userDoc) {
-            throw new Error("User from legacy token no longer exists.");
-          }
+        }
 
-          // Keep DB as source of truth; expose legacy claims separately if needed
-          req.user = userDoc.toObject();
-          req.tokenClaims = expiredDecoded;
+        const now = Math.floor(Date.now() / 1000);
 
-          // Add sliding refresh on this path as well
+        // 1. Check if token is fully expired (past grace period)
+        if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
+          return next(
+            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+              message: "Your session has expired. Please log in again.",
+            })
+          );
+        }
+
+        const tenantRaw =
+          req.query.tenant ||
+          req.body.tenant ||
+          constants.DEFAULT_TENANT ||
+          "airqo";
+        const tenant = String(tenantRaw).toLowerCase();
+
+        // 2. Check if a refresh is needed (proactive sliding window OR reactive grace period)
+        if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
+          logger.info(
+            `Token for user ${
+              decoded.email || decoded.id
+            } is eligible for refresh.`
+          );
           try {
-            const newToken = await userDoc.createToken();
-            res.set("X-Access-Token", newToken);
-            res.set("Access-Control-Expose-Headers", "X-Access-Token");
-            logger.info(
-              `Successfully generated and set refresh token header for legacy user ${userDoc.email}`
-            );
+            const userIdForRefresh = decoded.id || decoded._id;
+            const userForRefresh = await UserModel(tenant)
+              .findById(userIdForRefresh)
+              .lean();
+
+            if (userForRefresh) {
+              const tokenFactory = new AbstractTokenFactory(tenant);
+              const strategy =
+                userUtil._getEffectiveTokenStrategy(userForRefresh);
+              const newToken = await tokenFactory.createToken(
+                userForRefresh,
+                strategy,
+                { expiresIn: `${TOKEN_LIFE_SECONDS}s` }
+              );
+
+              res.set("X-Access-Token", `JWT ${newToken}`);
+              res.set("Access-Control-Expose-Headers", "X-Access-Token");
+            }
           } catch (refreshError) {
             logger.error(
-              `Failed to refresh legacy token for ${userDoc.email}: ${refreshError.message}`
+              `Failed to refresh token for user ${decoded.id || decoded._id}: ${
+                refreshError.message
+              }`
             );
+            // Do not fail the request, just log the error. The current token is still valid (or within grace).
           }
-          return next();
         }
-      } catch (migrationError) {
-        // If decoding the expired token fails for any other reason, proceed with the original error.
-        logger.error(
-          `Error during graceful token migration check: ${migrationError.message}`
-        );
+
+        // 3. Attach user info to the request and proceed
+        const userId = decoded.userId || decoded.id || decoded._id;
+        const user = await UserModel(tenant).findById(userId).lean();
+
+        if (!user) {
+          return next(
+            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+              message: "User from token no longer exists",
+            })
+          );
+        }
+
+        // For compatibility, merge DB user data with token claims
+        req.user = { ...user, ...decoded };
+        next();
       }
-    } else if (error.name === "JsonWebTokenError") {
-      errorMessage = `Invalid token: ${error.message}`;
-    } else {
-      // Only log other, unexpected errors at this level.
-      logger.error(`Enhanced JWT Auth Error: ${error.message}`);
-    }
-    return next(
-      new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-        message: errorMessage,
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 Enhanced JWT Auth Error: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
       })
     );
   }
