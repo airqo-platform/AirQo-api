@@ -26,7 +26,7 @@ router.get(
   "/",
   networkValidations.list,
   enhancedJWTAuth,
-  requirePermissions([constants.NETWORK_VIEW]),
+  // requirePermissions([constants.NETWORK_VIEW]),
   createNetworkController.list
 );
 
@@ -114,7 +114,7 @@ router.get(
   "/:net_id",
   networkValidations.getNetworkById,
   enhancedJWTAuth,
-  requireNetworkPermissions([constants.NETWORK_VIEW], "net_id"),
+  // requireNetworkPermissions([constants.NETWORK_VIEW], "net_id"),
   createNetworkController.list
 );
 
