@@ -77,10 +77,11 @@ const runLegacyRoleMigration = async (tenant = "airqo") => {
       const newRoleName = legacyRole.role_name.replace("_GROUP_", "_");
       const newRoleCode = legacyRole.role_code.replace("_GROUP_", "_");
 
-      const conflictingRole = await RoleModel(tenant).findOne({
-        role_code: newRoleCode,
-        group_id: legacyRole.group_id,
-      });
+      // Check for conflict based on the new role name, which is the unique field.
+      // This correctly finds existing global roles like 'AIRQO_SUPER_ADMIN'.
+      const conflictingRole = await RoleModel(tenant)
+        .findOne({ role_name: newRoleName })
+        .lean();
 
       if (conflictingRole) {
         // MERGE: A new-style role already exists.
