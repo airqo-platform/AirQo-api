@@ -19,6 +19,14 @@ const leaseOwner = `${process.env.HOSTNAME || require("os").hostname()}#${
 }`;
 
 const runLegacyRoleMigration = async (tenant = "airqo") => {
+  // The auth-service is single-tenant ('airqo'). This guard prevents the
+  // migration from running for any other tenant, which would cause auth errors.
+  if (tenant !== "airqo") {
+    logger.warn(
+      `Skipping migration '${MIGRATION_NAME}' for tenant '${tenant}': auth-service is single-tenant.`
+    );
+    return;
+  }
   try {
     logger.info(`Starting migration: ${MIGRATION_NAME} for tenant: ${tenant}`);
 
