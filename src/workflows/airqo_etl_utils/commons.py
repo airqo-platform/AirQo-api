@@ -22,15 +22,38 @@ def download_file_from_gcs(
 
     Returns:
         path(str): The path to the downloaded file.
+
+    Raises:
+        FileNotFoundError: If the source file does not exist in the bucket.
+        ConnectionError: If there is an issue connecting to GCS.
     """
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(source_file)
-    blob.download_to_filename(destination_file)
-    logger.info(
-        f"file: {destination_file} downloaded from bucket: {bucket_name} successfully"
-    )
-    return destination_file
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(source_file)
+
+        if not blob.exists():
+            raise FileNotFoundError(
+                f"The file '{source_file}' does not exist in the bucket '{bucket_name}'."
+            )
+
+        blob.download_to_filename(destination_file)
+        logger.info(
+            f"File: {destination_file} downloaded from bucket: {bucket_name} successfully"
+        )
+        return destination_file
+
+    except FileNotFoundError as e:
+        logger.error(e)
+        raise
+
+    except Exception as e:
+        logger.error(
+            f"Failed to download file '{source_file}' from bucket '{bucket_name}': {e}"
+        )
+        raise ConnectionError(
+            f"An error occurred while connecting to GCS or downloading the file: {e}"
+        )
 
 
 def delete_old_files(files: List[str]) -> None:
