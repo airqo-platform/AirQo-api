@@ -252,10 +252,8 @@ class Utils:
             str: The constructed calibration model file path.
         """
         model_type = "_rf.pkl" if pollutant == "pm2_5" else "_lasso.pkl"
-        if isinstance(calibrateby, CountryModels) or isinstance(
-            calibrateby, CityModels
-        ):
-            return f"{calibrateby.value}{model_type}"
+        if isinstance(calibrateby, (CountryModels, CityModels)):
+            return f"{calibrateby.str}{model_type}"
 
         return f"{calibrateby}{model_type}"
 
