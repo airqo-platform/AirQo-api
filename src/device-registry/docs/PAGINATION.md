@@ -1,6 +1,6 @@
 # Device Registry API Pagination Guide
 
-This guide explains how to work with paginated responses from the Device Registry API's listing endpoints (e.g., `/api/v2/devices`, `/api/v2/sites`, `/api/v2/cohorts`).
+This guide explains how to work with paginated responses from the Device Registry API's listing endpoints (e.g., `/api/v2/devices`, `/api/v2/devices/sites`, `/api/v2/devices/cohorts`).
 
 ## 1. Overview
 
@@ -11,8 +11,8 @@ All `GET` endpoints that return a list of items now support standardized `skip` 
 You can control pagination using the following query parameters:
 
 - `limit` (optional): Specifies the maximum number of items to return in a single response.
-  - **Default**: `1000`
-  - **Maximum**: `2000`
+  - **Default**: `100`
+  - **Maximum**: `300`
 - `skip` (optional): Specifies the number of items to skip from the beginning of the result set.
   - **Default**: `0`
 
@@ -21,7 +21,7 @@ You can control pagination using the following query parameters:
 To get the second page of devices, with 25 devices per page:
 
 ```
-GET /api/v2/devices?tenant=airqo&limit=25&skip=25
+GET /api/v2/devices?limit=25&skip=25
 ```
 
 ## 3. Response Structure
@@ -44,8 +44,8 @@ A successful paginated request will return a JSON object with a `meta` field alo
     "skip": 25,
     "page": 2,
     "totalPages": 210,
-    "nextPage": "https://api.airqo.net/api/v2/devices?tenant=airqo&limit=25&skip=50",
-    "previousPage": "https://api.airqo.net/api/v2/devices?tenant=airqo&limit=25&skip=0"
+    "nextPage": "https://api.airqo.net/api/v2/devices?limit=25&skip=50",
+    "previousPage": "https://api.airqo.net/api/v2/devices?limit=25&skip=0"
   }
 }
 ```
@@ -124,7 +124,6 @@ const API_BASE_URL = "https://api.airqo.net/api/v2/devices";
 const AUTH_TOKEN = "YOUR_JWT_TOKEN_HERE";
 
 const queryParams = {
-  tenant: "airqo",
   limit: 100, // Fetch in batches of 100
 };
 
@@ -180,7 +179,6 @@ API_BASE_URL = 'https://api.airqo.net/api/v2/devices'
 AUTH_TOKEN = 'YOUR_JWT_TOKEN_HERE'
 
 query_params = {
-    'tenant': 'airqo',
     'limit': 100,
 }
 
