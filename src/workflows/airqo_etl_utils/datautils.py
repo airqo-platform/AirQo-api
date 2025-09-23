@@ -70,9 +70,6 @@ class DataUtils:
         keys: Dict = {}
         devices = DataUtils._load_devices_from_cache(local_file_path)
 
-        if Config.ENVIRONMENT == "production":
-            devices = devices.loc[devices["deployed"]]
-
         if devices is not None and not devices.empty:
             devices = DataUtils._process_cached_devices(
                 devices, device_category, device_network
@@ -88,8 +85,17 @@ class DataUtils:
                 "Failed to retrieve devices data from both cache and API."
             )
 
-        # TODO Do any renaming here or introduce helpers to standardize column names
-        devices.rename(columns={"mountType": "mount_type"}, inplace=True)
+        devices.rename(
+            columns={
+                "mountType": "mount_type",
+                "powerType": "power_type",
+                "createdAt": "created_at",
+                "_id": "id",
+                "authRequired": "auth_required",
+                "isActive": "active",
+            },
+            inplace=True,
+        )
 
         return devices, keys
 

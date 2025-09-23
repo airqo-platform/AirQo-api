@@ -405,6 +405,8 @@ class BigQueryApi:
         available_data = self.client.query(query=q).result().to_dataframe()
 
         if not available_data.empty:
+            # TODO: Include update some fields of existing data as well as adding new ones
+            # Update device_maintenance, site_id, deployed, key, active, assigned_grid, mount_type, mobility if changed.
             available_data.drop_duplicates(subset=unique_id, inplace=True, keep="first")
             data_not_for_updating = available_data.loc[
                 ~available_data[unique_id[0]].isin(dataframe[unique_id[0]].to_list())

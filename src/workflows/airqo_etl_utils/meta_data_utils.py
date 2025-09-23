@@ -48,6 +48,8 @@ class MetaDataUtils:
                 "latitude",
                 "longitude",
                 "site_id",
+                "id",
+                "auth_required",
                 "name",
                 "device_number",
                 "description",
@@ -56,11 +58,13 @@ class MetaDataUtils:
                 "mount_type",
                 "mobility",
                 "device_maintenance",
+                "assigned_grid",
+                "power_type",
+                "created_at",
             ]
         ]
         devices.rename(
             columns={
-                "isActive": "active",
                 "status": "deployed",
             },
             inplace=True,
