@@ -19,6 +19,7 @@
     "type": "STRING",
     "mode": "NULLABLE"
   },
+  { "name": "id", "type": "STRING", "mode": "NULLABLE" },
   {
     "name": "device_id",
     "type": "STRING",
@@ -27,6 +28,11 @@
   {
     "name": "device_number",
     "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "auth_required",
+    "type": "STRING",
     "mode": "NULLABLE"
   },
   {
@@ -76,6 +82,31 @@
   },
   {
     "name": "device_maintenance",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "key": "key",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "power_type": "power_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "assigned_grid": "assigned_grid",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "api_code": "api_code",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "created_at": "created_at",
     "type": "TIMESTAMP",
     "mode": "NULLABLE"
   }
