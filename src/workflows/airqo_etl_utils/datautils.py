@@ -34,8 +34,7 @@ import logging
 
 logger = logging.getLogger("airflow.task")
 
-cpu_count = os.cpu_count() or 2
-max_workers = min(20, cpu_count * 10)
+max_workers = Config.MAX_WORKERS
 
 
 class DataUtils:
@@ -438,10 +437,7 @@ class DataUtils:
         data_api = DataApi()
 
         try:
-            devices = data_api.get_devices_by_network(
-                device_network=device_network,
-                device_category=device_category,
-            )
+            devices = data_api.get_devices()
             devices = pd.DataFrame(devices)
             devices["device_number"] = devices["device_number"].fillna(-1)
             airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
