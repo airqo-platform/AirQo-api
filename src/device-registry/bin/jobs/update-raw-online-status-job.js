@@ -69,17 +69,76 @@ const processDeviceBatch = async (devices) => {
 
     const devicePromises = chunk.map(async (device) => {
       if (!device.device_number) {
-        // logger.warn(
-        //   `Skipping device ${device.name || device._id} - missing device_number`
-        // );
-        return null;
+        // For devices without device_number, we can still track accuracy
+        // based on the fact that they can't get raw data
+        const isCurrentlyRawOnline = device.rawOnlineStatus;
+        const isNowRawOnline = false; // No device_number means no raw data possible
+
+        // Calculate accuracy update for ALL devices
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: isCurrentlyRawOnline,
+          isNowOnline: isNowRawOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: "no_device_number",
+        });
+
+        const updateFields = {
+          rawOnlineStatus: isNowRawOnline,
+        };
+
+        // Update primary online status for UNDEPLOYED devices only
+        if (device.status === "not deployed") {
+          updateFields.isOnline = isNowRawOnline;
+        }
+
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+        const updateDoc = { $set: finalSetUpdate };
+        if (incUpdate) {
+          updateDoc.$inc = incUpdate;
+        }
+
+        return {
+          updateOne: {
+            filter: { _id: device._id },
+            update: updateDoc,
+          },
+        };
       }
 
       // 4. Get the API key from the pre-fetched details
       const detail = deviceDetailsMap.get(device.device_number);
       if (!detail || !detail.readKey) {
-        // logger.warn(`No readKey found for device ${device.name}`);
-        return null;
+        // Even without readKey, we can track accuracy
+        const isCurrentlyRawOnline = device.rawOnlineStatus;
+        const isNowRawOnline = false; // No readKey means no raw data possible
+
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: isCurrentlyRawOnline,
+          isNowOnline: isNowRawOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: "no_readkey",
+        });
+
+        const updateFields = {
+          rawOnlineStatus: isNowRawOnline,
+        };
+
+        if (device.status === "not deployed") {
+          updateFields.isOnline = isNowRawOnline;
+        }
+
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+        const updateDoc = { $set: finalSetUpdate };
+        if (incUpdate) {
+          updateDoc.$inc = incUpdate;
+        }
+
+        return {
+          updateOne: {
+            filter: { _id: device._id },
+            update: updateDoc,
+          },
+        };
       }
 
       let apiKey;
@@ -89,17 +148,74 @@ const processDeviceBatch = async (devices) => {
           mockNext
         );
         if (!decryptResponse.success) {
-          // logger.warn(
-          //   `Failed to decrypt key for device ${device.name}: ${decryptResponse.message}`
-          // );
-          return null;
+          // Track accuracy for decryption failure
+          const isCurrentlyRawOnline = device.rawOnlineStatus;
+          const isNowRawOnline = false;
+
+          const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+            isCurrentlyOnline: isCurrentlyRawOnline,
+            isNowOnline: isNowRawOnline,
+            currentStats: device.onlineStatusAccuracy,
+            reason: "decryption_failed",
+          });
+
+          const updateFields = {
+            rawOnlineStatus: isNowRawOnline,
+          };
+
+          if (device.status === "not deployed") {
+            updateFields.isOnline = isNowRawOnline;
+          }
+
+          const finalSetUpdate = { ...updateFields, ...setUpdate };
+          const updateDoc = { $set: finalSetUpdate };
+          if (incUpdate) {
+            updateDoc.$inc = incUpdate;
+          }
+
+          return {
+            updateOne: {
+              filter: { _id: device._id },
+              update: updateDoc,
+            },
+          };
         }
         apiKey = decryptResponse.data;
       } catch (error) {
         logger.error(
           `Error decrypting key for device ${device.name}: ${error.message}`
         );
-        return null;
+        // Track accuracy for decryption error
+        const isCurrentlyRawOnline = device.rawOnlineStatus;
+        const isNowRawOnline = false;
+
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: isCurrentlyRawOnline,
+          isNowOnline: isNowRawOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: "decryption_error",
+        });
+
+        const updateFields = {
+          rawOnlineStatus: isNowRawOnline,
+        };
+
+        if (device.status === "not deployed") {
+          updateFields.isOnline = isNowRawOnline;
+        }
+
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+        const updateDoc = { $set: finalSetUpdate };
+        if (incUpdate) {
+          updateDoc.$inc = incUpdate;
+        }
+
+        return {
+          updateOne: {
+            filter: { _id: device._id },
+            update: updateDoc,
+          },
+        };
       }
 
       // 5. Fetch data from ThingSpeak
@@ -136,19 +252,16 @@ const processDeviceBatch = async (devices) => {
           }
         }
 
-        // Calculate accuracy update ONLY for UNDEPLOYED devices to avoid double-counting
-        let setUpdate = {};
-        let incUpdate = null;
-        if (device.status === "not deployed") {
-          const isCurrentlyOnline = device.isOnline;
-          const isNowOnline = isRawOnline;
-          ({ setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
-            isCurrentlyOnline,
-            isNowOnline,
-            currentStats: device.onlineStatusAccuracy,
-            reason: isNowOnline ? "online_raw" : "offline_raw",
-          }));
-        }
+        // Calculate accuracy update for ALL devices (not just undeployed)
+        const isCurrentlyRawOnline = device.rawOnlineStatus;
+        const isNowRawOnline = isRawOnline;
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: isCurrentlyRawOnline,
+          isNowOnline: isNowRawOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: isNowRawOnline ? "online_raw" : "offline_raw",
+        });
+
         const finalSetUpdate = { ...updateFields, ...setUpdate };
         const updateDoc = { $set: finalSetUpdate };
         if (incUpdate) {
@@ -166,7 +279,38 @@ const processDeviceBatch = async (devices) => {
         logger.error(
           `Error processing raw status for device ${device.name}: ${error.message}`
         );
-        return null;
+
+        // Track accuracy for fetch error
+        const isCurrentlyRawOnline = device.rawOnlineStatus;
+        const isNowRawOnline = false; // Assume offline on fetch error
+
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: isCurrentlyRawOnline,
+          isNowOnline: isNowRawOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: "fetch_error",
+        });
+
+        const updateFields = {
+          rawOnlineStatus: isNowRawOnline,
+        };
+
+        if (device.status === "not deployed") {
+          updateFields.isOnline = isNowRawOnline;
+        }
+
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+        const updateDoc = { $set: finalSetUpdate };
+        if (incUpdate) {
+          updateDoc.$inc = incUpdate;
+        }
+
+        return {
+          updateOne: {
+            filter: { _id: device._id },
+            update: updateDoc,
+          },
+        };
       }
     });
 
@@ -198,7 +342,9 @@ const updateRawOnlineStatus = async () => {
 
     const cursor = DeviceModel("airqo")
       .find({})
-      .select("_id name device_number status isOnline onlineStatusAccuracy") // Fetch accuracy fields
+      .select(
+        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy"
+      ) // Fetch accuracy fields
       .lean()
       .cursor();
 
@@ -237,9 +383,9 @@ const updateRawOnlineStatus = async () => {
     }
 
     const duration = (Date.now() - startTime) / 1000;
-    // logger.info(
-    //   `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
-    // );
+    logText(
+      `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
+    );
   } catch (error) {
     logger.error(`Error in raw online status job: ${error.message}`);
     logger.error(`Stack trace: ${error.stack}`);
