@@ -1286,7 +1286,9 @@ const deviceUtil = {
       }
 
       const baseUrl =
-        request.protocol && typeof request.get === "function"
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
           ? `${request.protocol}://${request.get("host")}${
               request.originalUrl.split("?")[0]
             }`

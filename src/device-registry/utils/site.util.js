@@ -1517,9 +1517,14 @@ const createSite = {
         });
       }
 
-      const baseUrl = `${request.protocol}://${request.get("host")}${
-        request.originalUrl.split("?")[0]
-      }`;
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
 
       const meta = {
         total,
@@ -1532,16 +1537,18 @@ const createSite = {
         usedCache: useCache === "true",
       };
 
-      const nextSkip = _skip + _limit;
-      if (nextSkip < total) {
-        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
-        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
-      }
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
 
-      const prevSkip = _skip - _limit;
-      if (prevSkip >= 0) {
-        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
-        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
       }
 
       return {
