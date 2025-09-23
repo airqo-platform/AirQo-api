@@ -78,6 +78,75 @@ const {
 } = require("@utils/shared");
 const { stringify } = require("@utils/common");
 
+// Enhanced event loop monitoring for development
+if (isDev) {
+  // Monitor event loop lag
+  const lagMonitor = setInterval(() => {
+    const start = process.hrtime.bigint();
+    setImmediate(() => {
+      const lag = Number(process.hrtime.bigint() - start) / 1e6; // Convert to milliseconds
+      if (lag > 100) {
+        // Alert if lag is over 100ms
+        console.warn(`⚠️  Event loop lag detected: ${lag.toFixed(2)}ms`);
+        logger.warn(`⚠️  Event loop lag detected: ${lag.toFixed(2)}ms`);
+      }
+    });
+  }, 5000); // Check every 5 seconds
+
+  // Clear interval on shutdown
+  process.on("exit", () => {
+    clearInterval(lagMonitor);
+  });
+}
+
+// Initialize job monitoring
+global.jobMetrics = {
+  activeJobs: new Set(),
+  jobStartTimes: new Map(),
+  maxConcurrentJobs: 0,
+  totalJobRuns: 0,
+
+  startJob: (jobName) => {
+    global.jobMetrics.activeJobs.add(jobName);
+    global.jobMetrics.jobStartTimes.set(jobName, Date.now());
+    global.jobMetrics.totalJobRuns++;
+
+    const currentConcurrent = global.jobMetrics.activeJobs.size;
+    if (currentConcurrent > global.jobMetrics.maxConcurrentJobs) {
+      global.jobMetrics.maxConcurrentJobs = currentConcurrent;
+    }
+
+    if (isDev && currentConcurrent > 3) {
+      console.warn(
+        `⚠️  High job concurrency: ${currentConcurrent} jobs running simultaneously`
+      );
+    }
+  },
+
+  endJob: (jobName) => {
+    global.jobMetrics.activeJobs.delete(jobName);
+    const startTime = global.jobMetrics.jobStartTimes.get(jobName);
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      global.jobMetrics.jobStartTimes.delete(jobName);
+
+      if (isDev && duration > 30000) {
+        // Alert if job takes longer than 30 seconds
+        console.warn(
+          `⚠️  Long-running job detected: ${jobName} took ${duration}ms`
+        );
+      }
+    }
+  },
+
+  getStats: () => ({
+    activeJobs: Array.from(global.jobMetrics.activeJobs),
+    activeJobCount: global.jobMetrics.activeJobs.size,
+    maxConcurrentJobs: global.jobMetrics.maxConcurrentJobs,
+    totalJobRuns: global.jobMetrics.totalJobRuns,
+  }),
+};
+
 // Initialize all background jobs
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
@@ -303,6 +372,21 @@ const createServer = () => {
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+
+    // Log job initialization status
+    setTimeout(() => {
+      const jobStats = global.jobMetrics.getStats();
+      const cronJobs = global.cronJobs ? Object.keys(global.cronJobs) : [];
+      console.log(
+        `📋 Background jobs initialized: ${cronJobs.length} cron jobs registered`
+      );
+      logger.info(
+        `📋 Background jobs initialized: ${cronJobs.length} cron jobs registered`
+      );
+      if (isDev) {
+        console.log(`📊 Job names: [${cronJobs.join(", ")}]`);
+      }
+    }, 2000); // Give jobs time to initialize
   });
 
   // Enhanced graceful shutdown handler
@@ -312,6 +396,21 @@ const createServer = () => {
 
     // Set global shutdown flag to signal running jobs to stop
     global.isShuttingDown = true;
+
+    // Log current job status
+    const activeJobs = global.jobMetrics.getStats().activeJobs;
+    if (activeJobs.length > 0) {
+      console.log(
+        `⏳ Waiting for ${
+          activeJobs.length
+        } active jobs to complete: [${activeJobs.join(", ")}]`
+      );
+      logger.info(
+        `⏳ Waiting for ${
+          activeJobs.length
+        } active jobs to complete: [${activeJobs.join(", ")}]`
+      );
+    }
 
     // Close the server first to stop accepting new connections
     server.close(async () => {
@@ -359,6 +458,25 @@ const createServer = () => {
       } else {
         console.log("No cron jobs to stop.");
         logger.info("No cron jobs to stop.");
+      }
+
+      // Wait for any remaining active jobs to finish
+      let waitCount = 0;
+      while (global.jobMetrics.activeJobs.size > 0 && waitCount < 30) {
+        // Wait up to 30 seconds
+        const remainingJobs = Array.from(global.jobMetrics.activeJobs);
+        console.log(`⏳ Still waiting for jobs: [${remainingJobs.join(", ")}]`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        waitCount++;
+      }
+
+      if (global.jobMetrics.activeJobs.size > 0) {
+        const remainingJobs = Array.from(global.jobMetrics.activeJobs);
+        console.warn(
+          `⚠️ Force stopping with ${
+            remainingJobs.length
+          } jobs still active: [${remainingJobs.join(", ")}]`
+        );
       }
 
       // Close any Redis connections if they exist

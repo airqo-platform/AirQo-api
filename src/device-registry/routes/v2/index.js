@@ -147,6 +147,8 @@ const routes = [
   { path: "/grids", route: "@routes/v2/grids.routes", name: "grids" },
   { path: "/metadata", route: "@routes/v2/metadata.routes", name: "metadata" },
   { path: "/transmit", route: "@routes/v2/transmit.routes", name: "transmit" },
+
+  { path: "/health", route: "@routes/v2/health.routes", name: "health" },
 ];
 
 logInfo(`Starting to load ${routes.length} routes...`);
