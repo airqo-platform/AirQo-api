@@ -34,6 +34,9 @@ class Config:
     # Data quality tests configs
     # -----------------------------------------------
 
+    CPU_COUNT = os.cpu_count() or 2
+    MAX_WORKERS = min(20, CPU_COUNT * 10)
+
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")

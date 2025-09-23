@@ -614,7 +614,7 @@ class MetaDataUtils:
         """
         data_api = DataApi()
         endpoints: Dict[str, Callable[[], Any]] = {
-            "devices": lambda: data_api.get_devices_by_network(),
+            "devices": lambda: data_api.get_devices(),
             "sites": lambda: data_api.get_sites(),
         }
         result: pd.DataFrame = pd.DataFrame()
