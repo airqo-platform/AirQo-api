@@ -278,7 +278,10 @@ const startJob = () => {
 };
 
 // Defer job start to prevent blocking server startup
-process.nextTick(startJob);
+//process.nextTick(startJob);
+// Intentionally no auto-start to avoid side effects when importing the template.
+// If needed for local experiments, explicitly call startJob() behind a guard.
+// if (process.env.START_EXAMPLE_JOB === "true") process.nextTick(startJob);
 
 module.exports = {
   exampleJob,

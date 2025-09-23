@@ -171,7 +171,7 @@ sortedRoutes.forEach(({ path, route, name }) => {
 });
 
 // Enhanced health check endpoint - mounted before the catch-all
-router.get("/health", (req, res) => {
+router.get("/loader-health", (req, res) => {
   const totalRoutes = routes.length;
   const loadedCount = routeStatus.loaded.length;
   const failedCount = routeStatus.failed.length;

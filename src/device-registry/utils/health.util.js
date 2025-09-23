@@ -50,13 +50,15 @@ const healthUtil = {
         registeredJobs: cronJobs,
         cronJobsCount: cronJobs.length,
         activeJobDetails: Array.from(jobStats.activeJobs || []).map(
-          (jobName) => ({
-            name: jobName,
-            startTime: global.jobMetrics.jobStartTimes.get(jobName),
-            duration: global.jobMetrics.jobStartTimes.get(jobName)
-              ? Date.now() - global.jobMetrics.jobStartTimes.get(jobName)
-              : null,
-          })
+          (jobName) => {
+            const jobStartTimes = global.jobMetrics?.jobStartTimes;
+            const start = jobStartTimes?.get?.(jobName) || null;
+            return {
+              name: jobName,
+              startTime: start,
+              duration: start ? Date.now() - start : null,
+            };
+          }
         ),
       };
 

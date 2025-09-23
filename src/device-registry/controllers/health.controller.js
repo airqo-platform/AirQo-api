@@ -10,13 +10,12 @@ const healthController = {
         return res.status(result.status).json(result.data);
       }
 
-      const status = result.status
-        ? result.status
-        : httpStatus.INTERNAL_SERVER_ERROR;
+      const status =
+        (result && result.status) || httpStatus.INTERNAL_SERVER_ERROR;
       return res.status(status).json({
         success: false,
-        message: result.message,
-        errors: result.errors,
+        message: (result && result.message) || "health check failed",
+        errors: result ? result.errors : undefined,
       });
     } catch (error) {
       next(
@@ -36,13 +35,12 @@ const healthController = {
         return res.status(result.status).json(result.data);
       }
 
-      const status = result.status
-        ? result.status
-        : httpStatus.INTERNAL_SERVER_ERROR;
+      const status =
+        (result && result.status) || httpStatus.INTERNAL_SERVER_ERROR;
       return res.status(status).json({
         success: false,
-        message: result.message,
-        errors: result.errors,
+        message: (result && result.message) || "job metrics retrieval failed",
+        errors: result ? result.errors : undefined,
       });
     } catch (error) {
       next(

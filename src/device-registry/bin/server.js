@@ -574,7 +574,7 @@ const createServer = () => {
         "Could not close connections in time, forcefully shutting down"
       );
       process.exit(1);
-    }, 15000); // Increased timeout to 15 seconds to allow for async job stopping
+    }, 45000); // Allow up to 45s to cover job wait (30s) + cleanup headroom
   };
 
   // Add signal handlers
