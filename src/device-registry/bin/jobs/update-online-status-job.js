@@ -20,6 +20,7 @@ const moment = require("moment-timezone");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
+const STALE_ACCURACY_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours for stale accuracy tracking
 
 const JOB_NAME = "update-online-status-job";
 const JOB_SCHEDULE = "45 * * * *"; // At minute 45 of every hour (15 minutes after readings job)
@@ -473,6 +474,83 @@ function isEntityActive(time) {
   return validationResult.timeDiff < INACTIVE_THRESHOLD;
 }
 
+// New function to process stale entities (devices/sites that haven't been checked recently)
+async function processStaleEntities(Model, entityType) {
+  try {
+    const staleThreshold = new Date(Date.now() - STALE_ACCURACY_THRESHOLD);
+
+    // Find entities that either:
+    // 1. Have never had accuracy tracking (lastCheck doesn't exist)
+    // 2. Haven't been checked in the last 24 hours
+    const staleEntities = await Model.find(
+      {
+        $or: [
+          { "onlineStatusAccuracy.lastCheck": { $exists: false } },
+          { "onlineStatusAccuracy.lastCheck": { $lt: staleThreshold } },
+        ],
+      },
+      {
+        _id: 1,
+        isOnline: 1,
+        lastActive: 1,
+        onlineStatusAccuracy: 1,
+        name: 1,
+      }
+    )
+      .limit(50)
+      .lean(); // Limit to prevent overwhelming the system
+
+    let processedCount = 0;
+    for (const entity of staleEntities) {
+      if (global.isShuttingDown) {
+        logText(
+          `${JOB_NAME} stopping during stale entity processing due to application shutdown.`
+        );
+        break;
+      }
+
+      const isCurrentlyOnline = entity.isOnline;
+      const shouldBeOnline = isEntityActive(entity.lastActive);
+
+      // Update accuracy tracking for this entity
+      await updateEntityOnlineStatusAccuracy(
+        Model,
+        entity._id,
+        isCurrentlyOnline,
+        shouldBeOnline,
+        "stale_entity_check",
+        entityType
+      );
+
+      // If the calculated status differs from current status, update it
+      if (isCurrentlyOnline !== shouldBeOnline) {
+        await Model.findByIdAndUpdate(entity._id, {
+          $set: {
+            isOnline: shouldBeOnline,
+            statusUpdatedAt: new Date(),
+            statusSource: "stale_entity_correction",
+          },
+        });
+      }
+
+      processedCount++;
+    }
+
+    return {
+      success: true,
+      processedCount,
+      totalFound: staleEntities.length,
+    };
+  } catch (error) {
+    logger.error(`Error processing stale ${entityType}s: ${error.message}`);
+    return {
+      success: false,
+      error: error.message,
+      processedCount: 0,
+    };
+  }
+}
+
 // Enhanced offline detection with accuracy tracking and throttled logging
 async function updateOfflineEntitiesWithAccuracy(
   Model,
@@ -870,27 +948,51 @@ async function updateOnlineStatusAndAccuracy() {
       return;
     }
 
+    // Process events if available
+    let deviceIds = new Set();
+    let siteIds = new Set();
+
     if (
-      !viewEventsResponse?.success ||
-      !Array.isArray(viewEventsResponse.data?.[0]?.data)
+      viewEventsResponse?.success &&
+      Array.isArray(viewEventsResponse.data?.[0]?.data) &&
+      viewEventsResponse.data[0].data.length > 0
     ) {
-      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
-      return;
+      const data = viewEventsResponse.data[0].data;
+
+      // Process status updates from events
+      await processor.processStatusUpdates(data);
+
+      // Collect IDs from events
+      deviceIds = new Set(data.map((doc) => doc.device_id).filter(Boolean));
+      siteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
+    } else {
+      logText("No Events found for status updates from recent data");
     }
 
-    const data = viewEventsResponse.data[0].data;
-    if (data.length === 0) {
-      logText("No Events found for status updates");
-      return;
-    }
+    // NEW: Process stale entities (devices/sites not checked recently)
+    logText("Processing stale entities that haven't been checked recently...");
 
-    // Process status updates
-    await processor.processStatusUpdates(data);
+    const [staleDeviceResult, staleSiteResult] = await Promise.allSettled([
+      processStaleEntities(DeviceModel("airqo"), "Device"),
+      processStaleEntities(SiteModel("airqo"), "Site"),
+    ]);
+
+    let staleProcessingStats = {
+      devices:
+        staleDeviceResult.status === "fulfilled"
+          ? staleDeviceResult.value
+          : { processedCount: 0, error: staleDeviceResult.reason },
+      sites:
+        staleSiteResult.status === "fulfilled"
+          ? staleSiteResult.value
+          : { processedCount: 0, error: staleSiteResult.reason },
+    };
+
+    logText(
+      `Processed ${staleProcessingStats.devices.processedCount} stale devices, ${staleProcessingStats.sites.processedCount} stale sites`
+    );
 
     // Enhanced offline detection
-    const deviceIds = new Set(data.map((doc) => doc.device_id).filter(Boolean));
-    const siteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
-
     try {
       const [deviceOfflineResult, siteOfflineResult] = await Promise.allSettled(
         [
@@ -922,8 +1024,16 @@ async function updateOnlineStatusAndAccuracy() {
             : { success: false, error: siteOfflineResult.reason },
       };
 
+      // Add stale processing stats to report
+      accuracyReport.staleProcessing = staleProcessingStats;
+
       // Format a human-readable summary for the main report
-      const { processing, overallAccuracy, offlineDetection } = accuracyReport;
+      const {
+        processing,
+        overallAccuracy,
+        offlineDetection,
+        staleProcessing,
+      } = accuracyReport;
       const durationMs =
         typeof overallAccuracy?.processingDuration === "number"
           ? overallAccuracy.processingDuration
@@ -944,7 +1054,8 @@ async function updateOnlineStatusAndAccuracy() {
           sites
             ? `${sites.successfulUpdates} updated, ${sites.markedOffline} marked offline`
             : "metrics unavailable"
-        }.`;
+        }. ` +
+        `Stale entities processed: ${staleProcessing.devices.processedCount} devices, ${staleProcessing.sites.processedCount} sites.`;
 
       // Use throttled logging for accuracy report
       await throttledLog("ACCURACY_REPORT", formattedReport);
@@ -953,7 +1064,7 @@ async function updateOnlineStatusAndAccuracy() {
       const accuracyReport = await processor.getAccuracyReport();
       const { processing } = accuracyReport;
       const duration = (processing.processingDuration / 1000).toFixed(1);
-      const formattedReport = `📊📊 PARTIAL Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Check logs for offline detection errors.`;
+      const formattedReport = `📊📊 PARTIAL Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Stale entities: ${staleProcessingStats.devices.processedCount} devices, ${staleProcessingStats.sites.processedCount} sites. Check logs for offline detection errors.`;
       await throttledLog("ACCURACY_REPORT", formattedReport);
     }
 
@@ -1045,4 +1156,5 @@ module.exports = {
   isDuplicateKeyError,
   validateTimestamp,
   throttledLog,
+  processStaleEntities,
 };
