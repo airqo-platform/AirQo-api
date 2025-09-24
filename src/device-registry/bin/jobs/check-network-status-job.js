@@ -44,7 +44,8 @@ const checkNetworkStatus = async () => {
     const result = await DeviceModel("airqo").aggregate([
       {
         $match: {
-          status: "deployed", // Only consider deployed devices
+          status: "deployed",
+          isActive: true, // Consider only active and deployed devices
         },
       },
       {

@@ -20,9 +20,120 @@ const moment = require("moment-timezone");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
+const STALE_ACCURACY_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours for stale accuracy tracking
+const MAX_EXECUTION_TIME = 15 * 60 * 1000; // 15 minutes max execution
+const YIELD_INTERVAL = 10; // Yield every 10 operations
+const STALE_BATCH_SIZE = 30; // Smaller batches for stale entity processing
 
 const JOB_NAME = "update-online-status-job";
 const JOB_SCHEDULE = "45 * * * *"; // At minute 45 of every hour (15 minutes after readings job)
+
+// Non-blocking job processor class
+class NonBlockingJobProcessor {
+  constructor(jobName) {
+    this.jobName = jobName;
+    this.startTime = null;
+    this.isRunning = false;
+    this.shouldStop = false;
+    this.operationCount = 0;
+  }
+
+  start() {
+    if (global.jobMetrics) {
+      global.jobMetrics.startJob(this.jobName);
+    }
+    this.startTime = Date.now();
+    this.isRunning = true;
+    this.shouldStop = false;
+    this.operationCount = 0;
+  }
+
+  end() {
+    if (global.jobMetrics) {
+      global.jobMetrics.endJob(this.jobName);
+    }
+    this.isRunning = false;
+    this.shouldStop = false;
+  }
+
+  shouldStopExecution() {
+    if (global.isShuttingDown) {
+      logText(`${this.jobName} stopping due to application shutdown`);
+      return true;
+    }
+
+    if (this.startTime && Date.now() - this.startTime > MAX_EXECUTION_TIME) {
+      logger.warn(
+        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`
+      );
+      return true;
+    }
+
+    return this.shouldStop;
+  }
+
+  async yieldControl() {
+    return new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+  }
+
+  async processWithYielding(operation) {
+    this.operationCount++;
+
+    if (this.operationCount % YIELD_INTERVAL === 0) {
+      await this.yieldControl();
+
+      if (this.shouldStopExecution()) {
+        throw new Error(`${this.jobName} stopped execution`);
+      }
+    }
+
+    return await operation();
+  }
+
+  async processBatch(items, processingFunction) {
+    const results = [];
+    const errors = [];
+
+    for (let i = 0; i < items.length; i++) {
+      try {
+        if (this.shouldStopExecution()) {
+          logText(
+            `${this.jobName} batch processing stopped at item ${i}/${items.length}`
+          );
+          break;
+        }
+
+        const result = await this.processWithYielding(async () => {
+          return await processingFunction(items[i], i);
+        });
+
+        results.push(result);
+      } catch (error) {
+        if (error.message.includes("stopped execution")) {
+          break;
+        }
+        logger.error(
+          `${this.jobName} error processing item ${i}: ${error.message}`
+        );
+        errors.push({ index: i, error: error.message });
+      }
+    }
+
+    return { results, errors, processed: results.length };
+  }
+
+  getStats() {
+    return {
+      jobName: this.jobName,
+      isRunning: this.isRunning,
+      operationCount: this.operationCount,
+      executionTime: this.startTime ? Date.now() - this.startTime : 0,
+      shouldStop: this.shouldStop,
+    };
+  }
+}
 
 // Log throttling configuration
 const LOG_THROTTLE_CONFIG = {
@@ -473,6 +584,96 @@ function isEntityActive(time) {
   return validationResult.timeDiff < INACTIVE_THRESHOLD;
 }
 
+// New function to process stale entities (devices/sites that haven't been checked recently)
+async function processStaleEntities(Model, entityType, processor) {
+  try {
+    const staleThreshold = new Date(Date.now() - STALE_ACCURACY_THRESHOLD);
+
+    // Find entities that either:
+    // 1. Have never had accuracy tracking (lastCheck doesn't exist)
+    // 2. Haven't been checked in the last 24 hours
+    const staleEntities = await Model.find(
+      {
+        $or: [
+          { "onlineStatusAccuracy.lastCheck": { $exists: false } },
+          { "onlineStatusAccuracy.lastCheck": { $lt: staleThreshold } },
+        ],
+      },
+      {
+        _id: 1,
+        isOnline: 1,
+        lastActive: 1,
+        onlineStatusAccuracy: 1,
+        name: 1,
+      }
+    )
+      .limit(STALE_BATCH_SIZE)
+      .lean();
+
+    if (staleEntities.length === 0) {
+      return {
+        success: true,
+        processedCount: 0,
+        totalFound: 0,
+      };
+    }
+
+    // Process stale entities with non-blocking patterns
+    const batchResult = await processor.processBatch(
+      staleEntities,
+      async (entity) => {
+        const isCurrentlyOnline = entity.isOnline;
+        const shouldBeOnline = isEntityActive(entity.lastActive);
+
+        // Update accuracy tracking for this entity
+        await updateEntityOnlineStatusAccuracy(
+          Model,
+          entity._id,
+          isCurrentlyOnline,
+          shouldBeOnline,
+          "stale_entity_check",
+          entityType
+        );
+
+        // If the calculated status differs from current status, update it
+        if (isCurrentlyOnline !== shouldBeOnline) {
+          await Model.findByIdAndUpdate(entity._id, {
+            $set: {
+              isOnline: shouldBeOnline,
+              statusUpdatedAt: new Date(),
+              statusSource: "stale_entity_correction",
+            },
+          });
+          return { updated: true, entityId: entity._id };
+        }
+
+        return { updated: false, entityId: entity._id };
+      }
+    );
+
+    return {
+      success: true,
+      processedCount: batchResult.processed,
+      totalFound: staleEntities.length,
+    };
+  } catch (error) {
+    if (error.message.includes("stopped execution")) {
+      logText(`Stale ${entityType} processing stopped gracefully`);
+      return {
+        success: true,
+        processedCount: 0,
+        stopped: true,
+      };
+    }
+    logger.error(`Error processing stale ${entityType}s: ${error.message}`);
+    return {
+      success: false,
+      error: error.message,
+      processedCount: 0,
+    };
+  }
+}
+
 // Enhanced offline detection with accuracy tracking and throttled logging
 async function updateOfflineEntitiesWithAccuracy(
   Model,
@@ -569,7 +770,8 @@ async function updateOfflineEntitiesWithAccuracy(
 
 // Online status processor focused on accuracy and metrics
 class OnlineStatusProcessor {
-  constructor() {
+  constructor(processor) {
+    this.processor = processor;
     this.statusResults = {
       devices: [],
       sites: [],
@@ -588,13 +790,15 @@ class OnlineStatusProcessor {
     this.processingMetrics.startTime = new Date();
     this.processingMetrics.totalDocuments = data.length;
 
-    for (const doc of data) {
-      // Add a check for the global shutdown flag
-      if (global.isShuttingDown) {
-        logger.info(`${JOB_NAME} is shutting down, stopping status updates.`);
-        break;
-      }
+    if (data.length === 0) {
+      this.processingMetrics.endTime = new Date();
+      return;
+    }
+
+    // Process data with non-blocking patterns
+    const batchResult = await this.processor.processBatch(data, async (doc) => {
       const docTime = moment(doc.time).tz(TIMEZONE);
+      let results = [];
 
       // Handle site status updates
       if (doc.site_id) {
@@ -618,6 +822,7 @@ class OnlineStatusProcessor {
           } else {
             this.processingMetrics.statusUpdatesFailed++;
           }
+          results.push({ type: "site", success: result.success });
         } catch (error) {
           logger.debug(
             `Site status update failed for ${doc.site_id}: ${error.message}`
@@ -632,6 +837,7 @@ class OnlineStatusProcessor {
             timestamp: new Date(),
           });
           this.processingMetrics.statusUpdatesFailed++;
+          results.push({ type: "site", success: false });
         }
       }
 
@@ -657,6 +863,7 @@ class OnlineStatusProcessor {
           } else {
             this.processingMetrics.statusUpdatesFailed++;
           }
+          results.push({ type: "device", success: result.success });
         } catch (error) {
           logger.debug(
             `Device status update failed for ${doc.device_id}: ${error.message}`
@@ -671,9 +878,14 @@ class OnlineStatusProcessor {
             timestamp: new Date(),
           });
           this.processingMetrics.statusUpdatesFailed++;
+          results.push({ type: "device", success: false });
         }
       }
-    }
+
+      return results;
+    });
+
+    this.processingMetrics.endTime = new Date();
   }
 
   async getAccuracyReport() {
@@ -841,9 +1053,12 @@ class OnlineStatusProcessor {
 
 // Main function focused on online status updates
 async function updateOnlineStatusAndAccuracy() {
-  const processor = new OnlineStatusProcessor();
+  const processor = new NonBlockingJobProcessor(JOB_NAME);
+  const statusProcessor = new OnlineStatusProcessor(processor);
 
   try {
+    processor.start();
+
     const request = {
       query: {
         tenant: "airqo",
@@ -870,102 +1085,156 @@ async function updateOnlineStatusAndAccuracy() {
       return;
     }
 
+    // Process events if available
+    let deviceIds = new Set();
+    let siteIds = new Set();
+
     if (
-      !viewEventsResponse?.success ||
-      !Array.isArray(viewEventsResponse.data?.[0]?.data)
+      viewEventsResponse?.success &&
+      Array.isArray(viewEventsResponse.data?.[0]?.data) &&
+      viewEventsResponse.data[0].data.length > 0
     ) {
-      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
-      return;
+      const data = viewEventsResponse.data[0].data;
+
+      // Process status updates from events with yielding
+      await statusProcessor.processStatusUpdates(data);
+
+      // Collect IDs from events
+      deviceIds = new Set(data.map((doc) => doc.device_id).filter(Boolean));
+      siteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
+    } else {
+      logText("No Events found for status updates from recent data");
     }
 
-    const data = viewEventsResponse.data[0].data;
-    if (data.length === 0) {
-      logText("No Events found for status updates");
-      return;
+    // Process stale entities (devices/sites not checked recently)
+    if (!processor.shouldStopExecution()) {
+      logText(
+        "Processing stale entities that haven't been checked recently..."
+      );
+
+      const [staleDeviceResult, staleSiteResult] = await Promise.allSettled([
+        processStaleEntities(DeviceModel("airqo"), "Device", processor),
+        processStaleEntities(SiteModel("airqo"), "Site", processor),
+      ]);
+
+      let staleProcessingStats = {
+        devices:
+          staleDeviceResult.status === "fulfilled"
+            ? staleDeviceResult.value
+            : { processedCount: 0, error: staleDeviceResult.reason },
+        sites:
+          staleSiteResult.status === "fulfilled"
+            ? staleSiteResult.value
+            : { processedCount: 0, error: staleSiteResult.reason },
+      };
+
+      logText(
+        `Processed ${staleProcessingStats.devices.processedCount} stale devices, ${staleProcessingStats.sites.processedCount} stale sites`
+      );
     }
 
-    // Process status updates
-    await processor.processStatusUpdates(data);
+    // Enhanced offline detection with yielding
+    if (!processor.shouldStopExecution()) {
+      try {
+        // Process offline entities with yielding between operations
+        await processor.yieldControl();
 
-    // Enhanced offline detection
-    const deviceIds = new Set(data.map((doc) => doc.device_id).filter(Boolean));
-    const siteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
-
-    try {
-      const [deviceOfflineResult, siteOfflineResult] = await Promise.allSettled(
-        [
+        const [
+          deviceOfflineResult,
+          siteOfflineResult,
+        ] = await Promise.allSettled([
           updateOfflineEntitiesWithAccuracy(
             DeviceModel("airqo"),
             deviceIds,
             "Device",
-            processor.statusResults.devices.map((d) => d.result)
+            statusProcessor.statusResults.devices.map((d) => d.result)
           ),
           updateOfflineEntitiesWithAccuracy(
             SiteModel("airqo"),
             siteIds,
             "Site",
-            processor.statusResults.sites.map((s) => s.result)
+            statusProcessor.statusResults.sites.map((s) => s.result)
           ),
-        ]
-      );
+        ]);
 
-      // Generate comprehensive accuracy report
-      const accuracyReport = await processor.getAccuracyReport();
-      accuracyReport.offlineDetection = {
-        devices:
-          deviceOfflineResult.status === "fulfilled"
-            ? deviceOfflineResult.value
-            : { success: false, error: deviceOfflineResult.reason },
-        sites:
-          siteOfflineResult.status === "fulfilled"
-            ? siteOfflineResult.value
-            : { success: false, error: siteOfflineResult.reason },
-      };
+        // Generate comprehensive accuracy report
+        const accuracyReport = await statusProcessor.getAccuracyReport();
+        accuracyReport.offlineDetection = {
+          devices:
+            deviceOfflineResult.status === "fulfilled"
+              ? deviceOfflineResult.value
+              : { success: false, error: deviceOfflineResult.reason },
+          sites:
+            siteOfflineResult.status === "fulfilled"
+              ? siteOfflineResult.value
+              : { success: false, error: siteOfflineResult.reason },
+        };
 
-      // Format a human-readable summary for the main report
-      const { processing, overallAccuracy, offlineDetection } = accuracyReport;
-      const durationMs =
-        typeof overallAccuracy?.processingDuration === "number"
-          ? overallAccuracy.processingDuration
-          : processing.endTime && processing.startTime
-          ? processing.endTime - processing.startTime
-          : 0;
-      const duration = (durationMs / 1000).toFixed(1);
-      const devices = offlineDetection?.devices?.metrics;
-      const sites = offlineDetection?.sites?.metrics;
-      const formattedReport =
-        `📊📊 Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. ` +
-        `Devices: ${
-          devices
-            ? `${devices.successfulUpdates} updated, ${devices.markedOffline} marked offline`
-            : "metrics unavailable"
-        }. ` +
-        `Sites: ${
-          sites
-            ? `${sites.successfulUpdates} updated, ${sites.markedOffline} marked offline`
-            : "metrics unavailable"
-        }.`;
+        // Add stale processing stats to report
+        if (staleProcessingStats) {
+          accuracyReport.staleProcessing = staleProcessingStats;
+        }
 
-      // Use throttled logging for accuracy report
-      await throttledLog("ACCURACY_REPORT", formattedReport);
-    } catch (offlineError) {
-      logger.error(`Error in offline detection: ${offlineError.message}`);
-      const accuracyReport = await processor.getAccuracyReport();
-      const { processing } = accuracyReport;
-      const duration = (processing.processingDuration / 1000).toFixed(1);
-      const formattedReport = `📊📊 PARTIAL Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Check logs for offline detection errors.`;
-      await throttledLog("ACCURACY_REPORT", formattedReport);
+        // Format a human-readable summary for the main report
+        const {
+          processing,
+          overallAccuracy,
+          offlineDetection,
+          staleProcessing,
+        } = accuracyReport;
+        const durationMs =
+          typeof overallAccuracy?.processingDuration === "number"
+            ? overallAccuracy.processingDuration
+            : processing.endTime && processing.startTime
+            ? processing.endTime - processing.startTime
+            : 0;
+        const duration = (durationMs / 1000).toFixed(1);
+        const devices = offlineDetection?.devices?.metrics;
+        const sites = offlineDetection?.sites?.metrics;
+        const formattedReport =
+          `📊📊 Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. ` +
+          `Devices: ${
+            devices
+              ? `${devices.successfulUpdates} updated, ${devices.markedOffline} marked offline`
+              : "metrics unavailable"
+          }. ` +
+          `Sites: ${
+            sites
+              ? `${sites.successfulUpdates} updated, ${sites.markedOffline} marked offline`
+              : "metrics unavailable"
+          }. ` +
+          (staleProcessing
+            ? `Stale entities processed: ${staleProcessing.devices.processedCount} devices, ${staleProcessing.sites.processedCount} sites.`
+            : "");
+
+        // Use throttled logging for accuracy report
+        await throttledLog("ACCURACY_REPORT", formattedReport);
+      } catch (offlineError) {
+        logger.error(`Error in offline detection: ${offlineError.message}`);
+        const accuracyReport = await statusProcessor.getAccuracyReport();
+        const { processing } = accuracyReport;
+        const duration =
+          processing.endTime && processing.startTime
+            ? ((processing.endTime - processing.startTime) / 1000).toFixed(1)
+            : "unknown";
+        const formattedReport = `📊📊 PARTIAL Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Check logs for offline detection errors.`;
+        await throttledLog("ACCURACY_REPORT", formattedReport);
+      }
     }
 
     logText("Online status and accuracy tracking completed successfully");
   } catch (error) {
-    if (isDuplicateKeyError(error)) {
+    if (error.message.includes("stopped execution")) {
+      logText(`${JOB_NAME} stopped gracefully during execution`);
+    } else if (isDuplicateKeyError(error)) {
       logText(
         "Online status processing completed with some duplicate entries (ignored)"
       );
     } else {
       logger.error(`🐛 Error in online status processing: ${stringify(error)}`);
     }
+  } finally {
+    processor.end();
   }
 }
 
@@ -994,6 +1263,7 @@ const startJob = () => {
 
       isJobRunning = true;
       currentJobPromise = updateOnlineStatusAndAccuracy();
+
       try {
         await currentJobPromise;
       } catch (error) {
@@ -1017,17 +1287,33 @@ const startJob = () => {
       logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
       logText(`📅 ${JOB_NAME} schedule stopped.`);
+
       if (currentJobPromise) {
         logText(`⏳ Waiting for current ${JOB_NAME} execution to finish...`);
-        await currentJobPromise;
-        logText(`✅ Current ${JOB_NAME} execution completed.`);
+        try {
+          await Promise.race([
+            currentJobPromise,
+            new Promise(
+              (_, reject) =>
+                setTimeout(() => reject(new Error("Job stop timeout")), 45000) // Longer timeout for this job
+            ),
+          ]);
+          logText(`✅ Current ${JOB_NAME} execution completed.`);
+        } catch (error) {
+          logger.warn(`${JOB_NAME} stop timeout: ${error.message}`);
+        }
+      }
+
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
       }
       delete global.cronJobs[JOB_NAME];
+      logText(`🧹 ${JOB_NAME} removed from job registry.`);
     },
   };
 
   console.log(
-    `✅ ${JOB_NAME} started - will log summary around 12:00 EAT (max ${LOG_THROTTLE_CONFIG.maxLogsPerDay} report per day)`
+    `✅ ${JOB_NAME} started with non-blocking patterns - will log summary around 12:00 EAT (max ${LOG_THROTTLE_CONFIG.maxLogsPerDay} report per day)`
   );
 };
 
@@ -1045,4 +1331,6 @@ module.exports = {
   isDuplicateKeyError,
   validateTimestamp,
   throttledLog,
+  processStaleEntities,
+  NonBlockingJobProcessor,
 };

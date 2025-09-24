@@ -1355,6 +1355,21 @@ const createActivity = {
         };
       }
 
+      // Check if device is deployed before allowing maintenance
+      const deviceDetails = await DeviceModel(tenant).findOne({
+        name: deviceName,
+      });
+
+      if (!deviceDetails || deviceDetails.status !== "deployed") {
+        return {
+          success: false,
+          message: "Maintenance can only be recorded for deployed devices",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Device ${deviceName} is not currently deployed.`,
+          },
+        };
+      }
       const siteActivityBody = {
         device: deviceName,
         user_id: user_id ? user_id : null,
