@@ -1320,6 +1320,8 @@ const createSite = {
         tenant: rawTenant,
         useCache = "true",
         detailLevel = "full",
+        sortBy,
+        order,
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const devicesColl = DeviceModel(tenant).collection.name;
@@ -1333,6 +1335,8 @@ const createSite = {
         MAX_LIMIT,
         Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
       const filter = generateFilter.sites(request, next);
       filter.lat_long = { $ne: "4_4" };
 
@@ -1469,7 +1473,7 @@ const createSite = {
         {
           $facet: {
             paginatedResults: [
-              { $sort: { createdAt: -1 } },
+              { $sort: { [sortField]: sortOrder } },
               { $skip: _skip },
               { $limit: _limit },
             ],

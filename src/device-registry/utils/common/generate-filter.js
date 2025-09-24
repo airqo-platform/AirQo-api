@@ -1461,8 +1461,11 @@ const generateFilter = {
     return filter;
   },
 
+  // Replace the existing 'grids' function with this one:
+
   grids: (req, next) => {
     const {
+      search,
       id,
       admin_level,
       grid_codes,
@@ -1477,6 +1480,13 @@ const generateFilter = {
     };
 
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { long_name: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -1528,6 +1538,7 @@ const generateFilter = {
 
     return filter;
   },
+
   cohorts: (req, next) => {
     const {
       search,

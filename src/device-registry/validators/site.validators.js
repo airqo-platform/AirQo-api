@@ -272,6 +272,17 @@ const validateSiteQueryParams = oneOf([
     )
     .bail()
     .toDate(),
+  query("sortBy")
+    .optional()
+    .notEmpty()
+    .trim(),
+  query("order")
+    .optional()
+    .notEmpty()
+    .trim()
+    .toLowerCase()
+    .isIn(["asc", "desc"])
+    .withMessage("the order value is not among the expected ones"),
 ]);
 
 const validateMandatorySiteIdentifier = oneOf([

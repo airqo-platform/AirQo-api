@@ -819,6 +819,14 @@ const deviceController = {
       // Force category filter
       request.query.category = "lowcost";
 
+      // Pass search and group_id if they exist
+      if (req.query.search) {
+        request.query.search = req.query.search;
+      }
+      if (req.query.group_id) {
+        request.query.group_id = req.query.group_id;
+      }
+
       const result = await createDeviceUtil.list(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -877,6 +885,14 @@ const deviceController = {
       // Force category filter
       request.query.category = "bam";
 
+      // Pass search and group_id if they exist
+      if (req.query.search) {
+        request.query.search = req.query.search;
+      }
+      if (req.query.group_id) {
+        request.query.group_id = req.query.group_id;
+      }
+
       const result = await createDeviceUtil.list(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -934,6 +950,14 @@ const deviceController = {
 
       // Force category filter
       request.query.category = "gas";
+
+      // Pass search and group_id if they exist
+      if (req.query.search) {
+        request.query.search = req.query.search;
+      }
+      if (req.query.group_id) {
+        request.query.group_id = req.query.group_id;
+      }
 
       const result = await createDeviceUtil.list(request, next);
 
