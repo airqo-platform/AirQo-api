@@ -411,9 +411,44 @@ class BigQueryApi:
             data_not_for_updating = available_data.loc[
                 ~available_data[unique_id[0]].isin(dataframe[unique_id[0]].to_list())
             ]
+            self.update_dynamic_metadata_fields(
+                new_data=dataframe, existing_data=data_not_for_updating
+            )
             dataframe = pd.concat([data_not_for_updating, dataframe], ignore_index=True)
 
         self.load_data(dataframe=dataframe, table=table, job_action=JobAction.OVERWRITE)
+
+    def update_dynamic_metadata_fields(
+        self, new_data: pd.DataFrame, existing_data: pd.DataFrame
+    ) -> None:
+        """
+        Updates dynamic metadata fields in existing_data with values from new_data for matching device_id.
+        This function modifies existing_data in place and does not return a value.
+
+        Args:
+            new_data (pd.DataFrame): DataFrame containing new metadata values.
+            existing_data (pd.DataFrame): DataFrame to be updated.
+        """
+        columns_to_update = [
+            "device_number",
+            "site_id",
+            "device_maintenance",
+            "deployed",
+            "key",
+            "active",
+            "assigned_grid",
+            "mount_type",
+            "mobility",
+        ]
+
+        existing_data.set_index("device_id", inplace=True)
+        new_data.set_index("device_id", inplace=True)
+
+        existing_data.update(new_data[columns_to_update])
+
+        # Reset the index for both DataFrames
+        existing_data.reset_index(inplace=True)
+        new_data.reset_index(inplace=True)
 
     def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
         """
