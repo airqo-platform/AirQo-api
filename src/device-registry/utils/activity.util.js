@@ -1689,10 +1689,19 @@ const createActivity = {
       }
 
       let updatedActivitiesCount = 0;
+      let updatedDevicesCount = 0;
       const changes = [];
-      const updatedDeviceNames = new Set();
       const activityBulkOps = [];
-      const deviceUpdateMap = new Map();
+      // Build latest maintenance date per device across ALL maintenance activities
+      const latestMaintenanceDateByDevice = new Map();
+      for (const a of maintenanceActivities) {
+        const prev = latestMaintenanceDateByDevice.get(a.device);
+        const currDate = new Date(a.date);
+        if (!prev || currDate > new Date(prev)) {
+          latestMaintenanceDateByDevice.set(a.device, a.date);
+        }
+      }
+      const devicesWithChangedActivities = new Set();
 
       for (const activity of maintenanceActivities) {
         const correctNextMaintenance = getNextMaintenanceDate(activity.date, 3);
@@ -1716,52 +1725,60 @@ const createActivity = {
               update: { $set: { nextMaintenance: correctNextMaintenance } },
             },
           });
-
-          // Track the latest maintenance date for each device
-          if (
-            !deviceUpdateMap.has(activity.device) ||
-            activity.date > deviceUpdateMap.get(activity.device)
-          ) {
-            deviceUpdateMap.set(activity.device, activity.date);
-          }
+          // Mark device as needing nextMaintenance re-evaluation
+          devicesWithChangedActivities.add(activity.device);
         }
       }
 
       if (!dry_run && activityBulkOps.length > 0) {
         const activityResult = await ActivityModel(tenant).bulkWrite(
-          activityBulkOps
+          activityBulkOps,
+          { ordered: false }
         );
         updatedActivitiesCount = activityResult.modifiedCount;
 
         // Prepare bulk operations for devices
         const deviceBulkOps = [];
-        const deviceNamesToUpdate = Array.from(deviceUpdateMap.keys());
+        const deviceNamesToUpdate = Array.from(devicesWithChangedActivities);
 
         if (deviceNamesToUpdate.length > 0) {
           const devices = await DeviceModel(tenant)
             .find({ name: { $in: deviceNamesToUpdate } })
-            .select("_id name")
+            .select("_id name nextMaintenance")
             .lean();
 
           for (const device of devices) {
-            const latestMaintenanceDate = deviceUpdateMap.get(device.name);
+            const latestMaintenanceDate = latestMaintenanceDateByDevice.get(
+              device.name
+            );
+            if (!latestMaintenanceDate) continue;
             const latestCorrectNextMaintenance = getNextMaintenanceDate(
               latestMaintenanceDate,
               3
             );
-            deviceBulkOps.push({
-              updateOne: {
-                filter: { _id: device._id },
-                update: {
-                  $set: { nextMaintenance: latestCorrectNextMaintenance },
+            // Only update when it actually changes
+            if (
+              !device.nextMaintenance ||
+              new Date(device.nextMaintenance).getTime() !==
+                latestCorrectNextMaintenance.getTime()
+            ) {
+              deviceBulkOps.push({
+                updateOne: {
+                  filter: { _id: device._id },
+                  update: {
+                    $set: { nextMaintenance: latestCorrectNextMaintenance },
+                  },
                 },
-              },
-            });
-            updatedDeviceNames.add(device.name);
+              });
+            }
           }
 
           if (deviceBulkOps.length > 0) {
-            await DeviceModel(tenant).bulkWrite(deviceBulkOps);
+            const deviceResult = await DeviceModel(tenant).bulkWrite(
+              deviceBulkOps,
+              { ordered: false }
+            );
+            updatedDevicesCount = deviceResult.modifiedCount || 0;
           }
         }
       }
@@ -1770,7 +1787,7 @@ const createActivity = {
         total_maintenance_activities_checked: maintenanceActivities.length,
         activities_to_update: changes.length,
         updated_activities: updatedActivitiesCount,
-        updated_devices: dry_run ? 0 : updatedDeviceNames.size,
+        updated_devices: dry_run ? 0 : updatedDevicesCount,
         dry_run,
         changes: changes,
       };
