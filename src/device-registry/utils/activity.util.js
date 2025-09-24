@@ -28,9 +28,21 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const getValidDate = (dateInput) => {
-  // If a date is provided, use it. The validator has already checked its range.
-  // Otherwise, default to the current date.
-  return dateInput ? new Date(dateInput) : new Date();
+  // If no date is provided, return null.
+  if (!dateInput) {
+    return null;
+  }
+
+  const parsedDate = new Date(dateInput);
+
+  // If the provided date string is invalid, return null.
+  if (isNaN(parsedDate.getTime())) {
+    logger.warn(`Invalid date string provided: "${dateInput}". Skipping.`);
+    return null;
+  }
+
+  // Otherwise, return the valid Date object.
+  return parsedDate;
 };
 
 const getNextMaintenanceDate = (dateInput, months = 3) => {
@@ -1692,9 +1704,16 @@ const createActivity = {
       let updatedDevicesCount = 0;
       const changes = [];
       const activityBulkOps = [];
+      // Validate dates and track invalid rows
+      const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
+      const invalidActivities = [];
       // Build latest maintenance date per device across ALL maintenance activities
       const latestMaintenanceDateByDevice = new Map();
       for (const a of maintenanceActivities) {
+        if (!isValidDate(a.date)) {
+          invalidActivities.push(a);
+          continue; // Skip invalid activities from being processed
+        }
         const prev = latestMaintenanceDateByDevice.get(a.device);
         const currDate = new Date(a.date);
         if (!prev || currDate > new Date(prev)) {
@@ -1704,6 +1723,10 @@ const createActivity = {
       const devicesWithChangedActivities = new Set();
 
       for (const activity of maintenanceActivities) {
+        if (!isValidDate(activity.date)) {
+          // Already tracked above, just skip processing
+          continue;
+        }
         const correctNextMaintenance = getNextMaintenanceDate(activity.date, 3);
 
         if (
@@ -1788,8 +1811,14 @@ const createActivity = {
         activities_to_update: changes.length,
         updated_activities: updatedActivitiesCount,
         updated_devices: dry_run ? 0 : updatedDevicesCount,
+        invalid_activities_skipped: invalidActivities.length,
         dry_run,
         changes: changes,
+        invalid_activities: invalidActivities.map((a) => ({
+          activity_id: a._id,
+          device_name: a.device,
+          invalid_date: a.date,
+        })),
       };
 
       return {
