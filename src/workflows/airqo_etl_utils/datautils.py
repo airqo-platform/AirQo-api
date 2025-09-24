@@ -68,10 +68,8 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
         keys: Dict = {}
-        devices = DataUtils._load_devices_from_cache(local_file_path)
 
-        if Config.ENVIRONMENT == "production":
-            devices = devices.loc[devices["deployed"]]
+        devices = DataUtils._load_devices_from_cache(local_file_path)
 
         if devices is not None and not devices.empty:
             devices = DataUtils._process_cached_devices(
@@ -87,9 +85,8 @@ class DataUtils:
             raise RuntimeError(
                 "Failed to retrieve devices data from both cache and API."
             )
-
-        # TODO Do any renaming here or introduce helpers to standardize column names
-        devices.rename(columns={"mountType": "mount_type"}, inplace=True)
+        if Config.ENVIRONMENT == "production":
+            devices = devices[devices.deployed == True]
 
         return devices, keys
 
@@ -204,7 +201,7 @@ class DataUtils:
         device_category: DeviceCategory,
         device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
-        device_names: Optional[List[str]] = None,
+        device_ids: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -216,7 +213,7 @@ class DataUtils:
             start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
             end_date_time (str): End date and time (ISO 8601 format) for data extraction.
             device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
-            device_names(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
+            device_ids(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
         """
         # Temporary fix for mobile devices - TODO: Fix after requirements review
         is_mobile_category = device_category == DeviceCategory.MOBILE
@@ -237,8 +234,8 @@ class DataUtils:
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
 
-        if device_names:
-            devices = devices.loc[devices.name.isin(device_names)]
+        if device_ids:
+            devices = devices.loc[devices.device_id.isin(device_ids)]
 
         config = Config.device_config_mapping.get(device_category.str, None)
         if not config:
@@ -309,7 +306,9 @@ class DataUtils:
             if not data.empty:
                 return data
         else:
-            logger.info(f"No data returned from {device.name} for the given date range")
+            logger.info(
+                f"No data returned from {device.device_id} for the given date range"
+            )
 
     @staticmethod
     def compute_device_site_metadata_per_device(
@@ -434,20 +433,57 @@ class DataUtils:
         Raises:
             Logs exceptions internally and returns empty outputs rather than propagating errors.
         """
-        data_api = DataApi()
-
+        data_api: DataApi = DataApi()
+        devices: pd.DataFrame = pd.DataFrame()
+        keys: Dict[int, str] = {}
         try:
             devices = data_api.get_devices()
             devices = pd.DataFrame(devices)
-            devices["device_number"] = devices["device_number"].fillna(-1)
-            airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
-            keys = data_api.get_thingspeak_read_keys(airqo_devices)
-            return devices, keys
+            if not devices.empty:
+                DataUtils.device_metadata_normalizer(devices)
+                devices["device_number"] = devices["device_number"].fillna(-1)
+                airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
+                keys = data_api.get_thingspeak_read_keys(airqo_devices)
         except Exception as e:
             logger.exception(
                 f"Failed to fetch devices or read keys from device_registry. {e}"
             )
-        return pd.DataFrame(), {}
+        return devices, keys
+
+    @staticmethod
+    def device_metadata_normalizer(devices: pd.DataFrame) -> None:
+        """
+        Normalize and clean device metadata DataFrame.
+
+        This function performs the following operations on the input devices DataFrame:
+        - Renames columns to standardize naming conventions.
+        - Converts specific columns to appropriate data types (e.g., boolean, integer).
+        - Parses string representations of lists into actual list objects.
+        - Fills missing values in the `device_number` column with `-1` and ensures it is of integer type.
+        - Removes duplicate entries based on the `device_id` column, keeping the first occurrence.
+
+        Args:
+            devices(pd.DataFrame): A pandas DataFrame containing raw device metadata.
+        Returns:
+            pd.DataFrame: A cleaned and normalized DataFrame with standardized column names and types.
+        """
+        devices.rename(
+            columns={
+                "status": "deployed",
+                "mountType": "mount_type",
+                "powerType": "power_type",
+                "createdAt": "created_at",
+                "name": "device_id",
+                "_id": "id",
+                "authRequired": "auth_required",
+                "isActive": "active",
+            },
+            inplace=True,
+            errors="ignore",
+        )
+        devices["deployed"] = devices["deployed"].replace(
+            {"deployed": True, "not deployed": False, "recalled": False}
+        )
 
     def _extract_device_api_data(
         device: pd.Series,
@@ -506,14 +542,20 @@ class DataUtils:
         if (
             device_number
             and not np.isnan(device_number)
+            and device_number != -1
             and network == DeviceNetwork.AIRQO.str
         ):
+            key = (
+                Utils.decrypt_key(bytes(key, "utf-8"))
+                if key
+                else Utils.decrypt_key(bytes(keys.get(device_number), "utf-8"))
+            )
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
                     device_number=int(device_number),
                     start_date_time=start,
                     end_date_time=end,
-                    read_key=key if key else keys.get(device_number),
+                    read_key=key,
                 )
                 if data_available:
                     api_data.extend(data_)
@@ -567,7 +609,7 @@ class DataUtils:
         """
         is_mobile = device.get("mobility", False)
         if data.empty:
-            logger.warning(f"No data received from {device.get('name')}")
+            logger.warning(f"No data received from {device.get('device_id')}")
             return
 
         data_columns = list(
@@ -595,7 +637,7 @@ class DataUtils:
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")
         data["device_number"] = device.get("device_number")
-        data["device_id"] = device.get("name")
+        data["device_id"] = device.get("device_id")
         data["site_id"] = device.get("site_id")
         data["network"] = device.get("network")
         # Does not update for mobile devices unless sent data is equal to 0
@@ -1035,8 +1077,7 @@ class DataUtils:
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
         devices, _ = DataUtils.get_devices()
-        devices.rename(columns={"name": "device_id"}, inplace=True)
-        devices = devices[["_id", "device_id", "network"]]
+        devices = devices[["id", "device_id", "network"]]
         devices = devices.set_index("device_id")
 
         restructured_data = DataUtils.__device_registry_api_data(
@@ -1086,7 +1127,7 @@ class DataUtils:
                 device_details = devices.loc[device_id]
                 row_data = {
                     "device": device_id,
-                    "device_id": device_details["_id"],
+                    "device_id": device_details["id"],
                     "site_id": row.get("site_id", None),
                     "device_number": device_number,
                     "network": device_details["network"],
@@ -1573,7 +1614,7 @@ class DataUtils:
                         "timestamp": row["UTC"],
                         "network": row["network"],
                         "site_id": device_details.get("site_id"),
-                        "device_id": device_details.get("name"),
+                        "device_id": device_details.get("device_id"),
                         "mongo_id": device_details.get("_id"),
                         "device_number": device_details.get("device_number"),
                         "frequency": Frequency.HOURLY.str,
@@ -1749,7 +1790,7 @@ class DataUtils:
             data.rename(columns={"device_id": "device_name"}, inplace=True)
             devices.rename(
                 columns={
-                    "name": "device_name",
+                    "device_id": "device_name",
                     "latitude": "device_latitude",
                     "longitude": "device_longitude",
                 },
@@ -1885,7 +1926,7 @@ class DataUtils:
                     or None values if the device is not found or an error occurs.
         """
         try:
-            filtered_devices = devices.loc[devices.name == device_id]
+            filtered_devices = devices.loc[devices.device_id == device_id]
             if not filtered_devices.empty:
                 result = filtered_devices.iloc[0]
                 return pd.Series(

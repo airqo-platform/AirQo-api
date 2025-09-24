@@ -290,12 +290,10 @@ class DataApi:
             - If no activities are available, the method returns None.
         """
         try:
-            activities = device.get("latest_activities_by_type", {}).get("maintenance")
+            activities = device.get("latest_maintenance_activity", {}).get("date")
             if not activities:
-                activities = device.get("latest_activities_by_type", {}).get(
-                    "deployment"
-                )
-            return activities.get("date") if activities else None
+                activities = device.get("latest_deployment_activity", {}).get("date")
+            return activities if activities else None
         except Exception as e:
             logger.exception(f"Failed to fetch maintenance activities: {e}")
             return None
@@ -326,7 +324,9 @@ class DataApi:
             if response:
                 decrypted_keys = response.get("decrypted_keys", [])
                 return {
-                    int(entry["device_number"]): entry["decrypted_key"]
+                    int(entry["device_number"]): Utils.encrypt_key(
+                        entry["decrypted_key"]
+                    )
                     for entry in decrypted_keys
                 }
         except Exception as e:
