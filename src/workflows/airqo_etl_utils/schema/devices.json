@@ -36,11 +36,6 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "name",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
     "name": "description",
     "type": "STRING",
     "mode": "NULLABLE"
@@ -86,27 +81,27 @@
     "mode": "NULLABLE"
   },
   {
-    "key": "key",
+    "name": "key",
     "type": "STRING",
     "mode": "NULLABLE"
   },
   {
-    "power_type": "power_type",
+    "name": "power_type",
     "type": "STRING",
     "mode": "NULLABLE"
   },
   {
-    "assigned_grid": "assigned_grid",
+    "name": "assigned_grid",
     "type": "STRING",
     "mode": "NULLABLE"
   },
   {
-    "api_code": "api_code",
+    "name": "api_code",
     "type": "STRING",
     "mode": "NULLABLE"
   },
   {
-    "created_at": "created_at",
+    "name": "created_at",
     "type": "TIMESTAMP",
     "mode": "NULLABLE"
   }
