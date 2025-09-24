@@ -1010,6 +1010,13 @@ const activitiesValidations = {
     commonDeployValidations.network,
     commonDeployValidations.host_id,
   ],
+  recalculate: [
+    ...commonValidations.tenant,
+    body("dry_run")
+      .optional()
+      .isBoolean()
+      .withMessage("dry_run must be a boolean value (true or false)"),
+  ],
 };
 
 const validateUniqueDeviceNames = (req, res, next) => {
