@@ -124,6 +124,53 @@ const activity = {
     return handleDeployment(req, res, next, createActivityUtil.deploy);
   },
 
+  recalculateNextMaintenance: async (req, res, next) => {
+    try {
+      logText("Recalculating next maintenance dates...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createActivityUtil.recalculateNextMaintenance(
+        request,
+        next
+      );
+
+      if (result && result.success) {
+        return res.status(result.status).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      }
+
+      return res.status(result.status).json({
+        success: false,
+        message: result.message,
+        errors: result.errors ? result.errors : { message: "" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Recalculate Maintenance Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   deployOwnedDevice: async (req, res, next) => {
     return handleDeployment(
       req,

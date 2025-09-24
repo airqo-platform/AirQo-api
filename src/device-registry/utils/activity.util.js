@@ -28,17 +28,9 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const getValidDate = (dateInput) => {
-  if (!dateInput) {
-    return new Date(); // Current date if no input
-  }
-
-  const parsedDate = new Date(dateInput);
-  if (isNaN(parsedDate.getTime())) {
-    console.warn("Invalid date provided, using current date:", dateInput);
-    return new Date(); // Current date if invalid input
-  }
-
-  return parsedDate;
+  // If a date is provided, use it. The validator has already checked its range.
+  // Otherwise, default to the current date.
+  return dateInput ? new Date(dateInput) : new Date();
 };
 
 const getNextMaintenanceDate = (dateInput, months = 3) => {
@@ -1666,6 +1658,128 @@ const createActivity = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+    }
+  },
+  recalculateNextMaintenance: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { dry_run = false } = request.body;
+
+      const maintenanceActivities = await ActivityModel(tenant).find({
+        activityType: "maintenance",
+      });
+
+      if (isEmpty(maintenanceActivities)) {
+        return {
+          success: true,
+          message: "No maintenance activities found to process.",
+          data: {
+            total_checked: 0,
+            updated_activities: 0,
+            updated_devices: 0,
+            dry_run: dry_run,
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      let updatedActivitiesCount = 0;
+      let updatedDevicesCount = 0;
+      const changes = [];
+
+      for (const activity of maintenanceActivities) {
+        const correctNextMaintenance = getNextMaintenanceDate(activity.date, 3);
+
+        if (
+          !activity.nextMaintenance ||
+          activity.nextMaintenance.getTime() !==
+            correctNextMaintenance.getTime()
+        ) {
+          changes.push({
+            activity_id: activity._id,
+            device_name: activity.device,
+            activity_date: activity.date,
+            old_next_maintenance: activity.nextMaintenance,
+            new_next_maintenance: correctNextMaintenance,
+          });
+
+          if (!dry_run) {
+            // Update the activity
+            const activityUpdate = await ActivityModel(
+              tenant
+            ).findByIdAndUpdate(
+              activity._id,
+              { nextMaintenance: correctNextMaintenance },
+              { new: true }
+            );
+            if (activityUpdate) {
+              updatedActivitiesCount++;
+            }
+
+            // Find the device associated with the activity
+            const device = await DeviceModel(tenant).findOne({
+              name: activity.device,
+            });
+
+            if (device) {
+              // Find the latest maintenance activity for this device to ensure we set the correct nextMaintenance date
+              const latestMaintenanceActivity = await ActivityModel(tenant)
+                .findOne({
+                  device: activity.device,
+                  activityType: "maintenance",
+                })
+                .sort({ date: -1 });
+
+              if (latestMaintenanceActivity) {
+                const latestCorrectNextMaintenance = getNextMaintenanceDate(
+                  latestMaintenanceActivity.date,
+                  3
+                );
+                // Update the device with the next maintenance date from the LATEST activity
+                const deviceUpdate = await DeviceModel(
+                  tenant
+                ).findByIdAndUpdate(
+                  device._id,
+                  { nextMaintenance: latestCorrectNextMaintenance },
+                  { new: true }
+                );
+                if (deviceUpdate) {
+                  updatedDevicesCount++;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const summary = {
+        total_maintenance_activities_checked: maintenanceActivities.length,
+        activities_to_update: changes.length,
+        updated_activities: updatedActivitiesCount,
+        updated_devices: updatedDevicesCount,
+        dry_run: dry_run,
+        changes: changes,
+      };
+
+      return {
+        success: true,
+        message: dry_run
+          ? "Dry run completed. No changes were made."
+          : "Recalculation completed successfully.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
     }

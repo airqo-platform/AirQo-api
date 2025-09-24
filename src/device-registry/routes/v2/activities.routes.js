@@ -79,6 +79,12 @@ router.post(
   activityController.maintain
 );
 
+router.post(
+  "/recalculate-next-maintenance",
+  activitiesValidations.recalculate,
+  activityController.recalculateNextMaintenance
+);
+
 router.get(
   "/",
   activitiesValidations.listActivities,
