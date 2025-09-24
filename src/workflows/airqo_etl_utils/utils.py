@@ -9,6 +9,7 @@ import simplejson
 
 import requests
 from typing import Any, Dict, Tuple, Coroutine, Optional
+from cryptography.fernet import Fernet
 
 from .constants import (
     Pollutant,
@@ -329,3 +330,58 @@ class Utils:
                 except Exception as e:
                     logger.exception(f"Failed to parse or save binary response: {e}")
         return None
+
+    @staticmethod
+    def encrypt_key(data: str) -> str:
+        """
+        Encrypts a given string using a secret key.
+
+        Args:
+            data (str): The string to be encrypted.
+
+        Returns:
+            str: The encrypted string (token).
+
+        Raises:
+            ValueError: If the secret key is not properly configured or invalid.
+            TypeError: If the input data is not a string.
+
+        Note:
+            The encryption process relies on the `Config.SECRET_KEY` being a valid key
+            for the Fernet encryption scheme.
+        """
+        try:
+            if not isinstance(data, str):
+                raise TypeError("Input data must be a string.")
+            secret_key = bytes(Config.SECRET_KEY, "utf-8")
+            cipher_suite = Fernet(secret_key)
+            token = cipher_suite.encrypt(data.encode("utf-8"))
+            return token.decode("utf-8")
+        except Exception as e:
+            logger.exception(f"Failed to encrypt data: {e}")
+            # raise ValueError("Encryption failed due to an error.") from e
+
+    @staticmethod
+    def decrypt_key(token: bytes) -> str:
+        """
+        Decrypts an encrypted token using a secret key.
+
+        Args:
+            token (str): The encrypted token to be decrypted.
+
+        Returns:
+            str: The decrypted token as a UTF-8 string.
+
+        Raises:
+            InvalidToken: If the token cannot be decrypted due to an invalid or incorrect secret key.
+        """
+        try:
+            if not isinstance(token, bytes):
+                raise TypeError("Input token must be a bytes.")
+            secret_key = bytes(Config.SECRET_KEY, "utf-8")
+            cipher_suite = Fernet(secret_key)
+            decrypted = cipher_suite.decrypt(token)
+            return decrypted.decode("utf-8")
+        except Exception as e:
+            logger.exception(f"Failed to decrypt token: {e}")
+            # raise ValueError("Decryption failed due to an error.") from e
