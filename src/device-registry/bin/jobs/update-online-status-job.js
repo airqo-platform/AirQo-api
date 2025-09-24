@@ -1055,6 +1055,7 @@ class OnlineStatusProcessor {
 async function updateOnlineStatusAndAccuracy() {
   const processor = new NonBlockingJobProcessor(JOB_NAME);
   const statusProcessor = new OnlineStatusProcessor(processor);
+  let staleProcessingStats = null;
 
   try {
     processor.start();
@@ -1117,7 +1118,7 @@ async function updateOnlineStatusAndAccuracy() {
         processStaleEntities(SiteModel("airqo"), "Site", processor),
       ]);
 
-      let staleProcessingStats = {
+      staleProcessingStats = {
         devices:
           staleDeviceResult.status === "fulfilled"
             ? staleDeviceResult.value
