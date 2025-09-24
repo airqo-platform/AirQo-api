@@ -1,10 +1,10 @@
 # Device Registry API Pagination Guide
 
-This guide explains how to work with paginated responses from the Device Registry API's listing endpoints (e.g., `/api/v2/devices`, `/api/v2/devices/sites`, `/api/v2/devices/cohorts`).
+This guide explains how to work with paginated and sorted responses from the Device Registry API's listing endpoints (e.g., `/api/v2/devices`, `/api/v2/devices/sites`, `/api/v2/devices/cohorts`).
 
 ## 1. Overview
 
-All `GET` endpoints that return a list of items now support standardized `skip` and `limit` pagination. The response for these endpoints includes a `meta` object that provides all the necessary information to navigate through the entire dataset.
+All `GET` endpoints that return a list of items now support standardized pagination (`skip`, `limit`) and sorting (`sortBy`, `order`). The response for these endpoints includes a `meta` object that provides all the necessary information to navigate through the entire dataset.
 
 ## 2. Request Parameters
 
@@ -16,7 +16,18 @@ You can control pagination using the following query parameters:
 - `skip` (optional): Specifies the number of items to skip from the beginning of the result set.
   - **Default**: `0`
 
-**Example Request:**
+### Sorting Parameters
+
+You can also control the order of the results:
+
+- `sortBy` (optional): The field to sort the results by.
+  - **Default**: `createdAt`
+  - **Examples**: `name`, `lastActive`, `createdAt`
+- `order` (optional): The sort order.
+  - **Default**: `desc` (descending)
+  - **Values**: `asc` (ascending), `desc` (descending)
+
+**Example Requests:**
 
 To get the second page of devices, with 25 devices per page:
 
