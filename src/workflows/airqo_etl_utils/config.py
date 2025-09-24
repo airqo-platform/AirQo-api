@@ -36,7 +36,7 @@ class Config:
 
     CPU_COUNT = os.cpu_count() or 2
     MAX_WORKERS = min(20, CPU_COUNT * 10)
-
+    SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")

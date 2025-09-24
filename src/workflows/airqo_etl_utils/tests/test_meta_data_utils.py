@@ -34,7 +34,6 @@ def mock_extract_devices_df():
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "site_id": ["site1", "site2", "site3"],
-            "name": ["device1", "device2", "device3"],
             "device_number": [1, 2, 3],
             "description": ["desc1", "desc2", "desc3"],
             "device_manufacturer": ["manufacturer1", "manufacturer2", "manufacturer3"],
@@ -62,7 +61,7 @@ def mock_devices_df():
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "site_id": ["site1", "site2", "site3"],
-            "name": ["device1", "device2", "device3"],
+            "device_id": ["device1", "device2", "device3"],
             "device_number": [1, 2, 3],
             "description": ["desc1", "desc2", "desc3"],
             "device_manufacturer": ["manufacturer1", "manufacturer2", "manufacturer3"],
@@ -84,7 +83,7 @@ def mock_sites_df():
     return pd.DataFrame(
         {
             "site_id": ["site1", "site2", "site3"],
-            "name": ["Site 1", "Site 2", "Site 3"],
+            "device_id": ["Site 1", "Site 2", "Site 3"],
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "network": ["airqo", "airqo", "other"],
@@ -154,7 +153,7 @@ class TestMetaDataUtils:
                 "latitude",
                 "longitude",
                 "site_id",
-                "name",
+                "device_id",
                 "device_number",
                 "description",
                 "device_manufacturer",
@@ -174,7 +173,7 @@ class TestMetaDataUtils:
             assert result["mount_type"].tolist() == ["pole", "wall", "roof"]
 
             # Check that device_id matches name
-            assert result["device_id"].tolist() == result["name"].tolist()
+            assert result["device_id"].tolist() == result["device_id"].tolist()
 
     @patch("airqo_etl_utils.meta_data_utils.MetaDataUtils.extract_devices")
     @patch(

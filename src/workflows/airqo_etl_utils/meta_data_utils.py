@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import ast
+import hashlib
 from typing import Optional, Callable, List, Dict, Any
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,18 +38,18 @@ class MetaDataUtils:
             pd.DataFrame: A DataFrame containing device information.
         """
         devices, _ = DataUtils.get_devices()
-        devices["status"] = devices["status"].replace(
-            {"deployed": True, "not deployed": False, "recalled": False}
-        )
+
         devices = devices[
             [
                 "network",
-                "status",
-                "isActive",
+                "deployed",
+                "active",
                 "latitude",
                 "longitude",
                 "site_id",
-                "name",
+                "id",
+                "auth_required",
+                "device_id",
                 "device_number",
                 "description",
                 "device_manufacturer",
@@ -56,16 +57,14 @@ class MetaDataUtils:
                 "mount_type",
                 "mobility",
                 "device_maintenance",
+                "assigned_grid",
+                "power_type",
+                "api_code",
+                "key",
+                "created_at",
             ]
         ]
-        devices.rename(
-            columns={
-                "isActive": "active",
-                "status": "deployed",
-            },
-            inplace=True,
-        )
-        devices.loc[:, "device_id"] = devices["name"]
+
         devices.loc[:, "last_updated"] = datetime.now(timezone.utc)
 
         return devices
@@ -612,27 +611,22 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
         """
-        data_api = DataApi()
         endpoints: Dict[str, Callable[[], Any]] = {
-            "devices": lambda: data_api.get_devices(),
-            "sites": lambda: data_api.get_sites(),
+            "devices": lambda: DataUtils.fetch_devices_from_api(),
+            "sites": lambda: DataUtils.fetch_sites_from_api(),
         }
         result: pd.DataFrame = pd.DataFrame()
         match metadata_type:
             case MetaDataType.DEVICES:
-                devices_raw = endpoints.get(metadata_type.str)()
-                if devices_raw:
-                    devices_df = pd.DataFrame(devices_raw)
-                    keys = data_api.get_thingspeak_read_keys(devices_df)
+                result, keys = endpoints.get(metadata_type.str)()
+                if not result.empty:
                     if keys:
-                        devices_df["key"] = (
-                            devices_df["device_number"].map(keys).fillna(-1)
-                        )
-                    result = devices_df
+                        result["key"] = result["device_number"].map(keys).fillna(-1)
             case MetaDataType.SITES:
                 sites_raw = endpoints.get(metadata_type.str)()
                 if sites_raw:
                     result = pd.DataFrame(sites_raw)
+
         return result
 
     def transform_devices(devices: List[Dict[str, Any]], taskinstance) -> pd.DataFrame:
@@ -649,8 +643,6 @@ class MetaDataUtils:
             pd.DataFrame: Transformed DataFrame if the devices data has changed since
                         the last execution; otherwise, an empty DataFrame.
         """
-        import hashlib
-
         devices = pd.DataFrame(devices)
         devices.rename(
             columns={
