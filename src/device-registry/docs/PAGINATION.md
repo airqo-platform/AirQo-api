@@ -125,6 +125,8 @@ const AUTH_TOKEN = "YOUR_JWT_TOKEN_HERE";
 
 const queryParams = {
   limit: 100, // Fetch in batches of 100
+  sortBy: "name",
+  order: "asc",
 };
 
 fetchAllDevices(API_BASE_URL, queryParams, AUTH_TOKEN);
@@ -180,6 +182,8 @@ AUTH_TOKEN = 'YOUR_JWT_TOKEN_HERE'
 
 query_params = {
     'limit': 100,
+    'sortBy': 'name',
+    'order': 'asc',
 }
 
 all_devices_data = fetch_all_paginated_data(API_BASE_URL, query_params, AUTH_TOKEN, 'devices')
