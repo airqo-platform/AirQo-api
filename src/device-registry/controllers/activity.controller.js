@@ -146,6 +146,10 @@ const activity = {
         next
       );
 
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
       if (result && result.success) {
         return res.status(result.status).json({
           success: true,

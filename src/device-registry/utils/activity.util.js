@@ -1667,34 +1667,39 @@ const createActivity = {
       const { tenant } = request.query;
       const { dry_run = false } = request.body;
 
-      const maintenanceActivities = await ActivityModel(tenant).find({
-        activityType: "maintenance",
-      });
+      const maintenanceActivities = await ActivityModel(tenant)
+        .find({ activityType: "maintenance" })
+        .select("_id device date nextMaintenance")
+        .lean();
 
       if (isEmpty(maintenanceActivities)) {
         return {
           success: true,
           message: "No maintenance activities found to process.",
           data: {
-            total_checked: 0,
+            total_maintenance_activities_checked: 0,
+            activities_to_update: 0,
             updated_activities: 0,
             updated_devices: 0,
-            dry_run: dry_run,
+            dry_run,
+            changes: [],
           },
           status: httpStatus.OK,
         };
       }
 
       let updatedActivitiesCount = 0;
-      let updatedDevicesCount = 0;
       const changes = [];
+      const updatedDeviceNames = new Set();
+      const activityBulkOps = [];
+      const deviceUpdateMap = new Map();
 
       for (const activity of maintenanceActivities) {
         const correctNextMaintenance = getNextMaintenanceDate(activity.date, 3);
 
         if (
           !activity.nextMaintenance ||
-          activity.nextMaintenance.getTime() !==
+          new Date(activity.nextMaintenance).getTime() !==
             correctNextMaintenance.getTime()
         ) {
           changes.push({
@@ -1705,51 +1710,58 @@ const createActivity = {
             new_next_maintenance: correctNextMaintenance,
           });
 
-          if (!dry_run) {
-            // Update the activity
-            const activityUpdate = await ActivityModel(
-              tenant
-            ).findByIdAndUpdate(
-              activity._id,
-              { nextMaintenance: correctNextMaintenance },
-              { new: true }
+          activityBulkOps.push({
+            updateOne: {
+              filter: { _id: activity._id },
+              update: { $set: { nextMaintenance: correctNextMaintenance } },
+            },
+          });
+
+          // Track the latest maintenance date for each device
+          if (
+            !deviceUpdateMap.has(activity.device) ||
+            activity.date > deviceUpdateMap.get(activity.device)
+          ) {
+            deviceUpdateMap.set(activity.device, activity.date);
+          }
+        }
+      }
+
+      if (!dry_run && activityBulkOps.length > 0) {
+        const activityResult = await ActivityModel(tenant).bulkWrite(
+          activityBulkOps
+        );
+        updatedActivitiesCount = activityResult.modifiedCount;
+
+        // Prepare bulk operations for devices
+        const deviceBulkOps = [];
+        const deviceNamesToUpdate = Array.from(deviceUpdateMap.keys());
+
+        if (deviceNamesToUpdate.length > 0) {
+          const devices = await DeviceModel(tenant)
+            .find({ name: { $in: deviceNamesToUpdate } })
+            .select("_id name")
+            .lean();
+
+          for (const device of devices) {
+            const latestMaintenanceDate = deviceUpdateMap.get(device.name);
+            const latestCorrectNextMaintenance = getNextMaintenanceDate(
+              latestMaintenanceDate,
+              3
             );
-            if (activityUpdate) {
-              updatedActivitiesCount++;
-            }
-
-            // Find the device associated with the activity
-            const device = await DeviceModel(tenant).findOne({
-              name: activity.device,
+            deviceBulkOps.push({
+              updateOne: {
+                filter: { _id: device._id },
+                update: {
+                  $set: { nextMaintenance: latestCorrectNextMaintenance },
+                },
+              },
             });
+            updatedDeviceNames.add(device.name);
+          }
 
-            if (device) {
-              // Find the latest maintenance activity for this device to ensure we set the correct nextMaintenance date
-              const latestMaintenanceActivity = await ActivityModel(tenant)
-                .findOne({
-                  device: activity.device,
-                  activityType: "maintenance",
-                })
-                .sort({ date: -1 });
-
-              if (latestMaintenanceActivity) {
-                const latestCorrectNextMaintenance = getNextMaintenanceDate(
-                  latestMaintenanceActivity.date,
-                  3
-                );
-                // Update the device with the next maintenance date from the LATEST activity
-                const deviceUpdate = await DeviceModel(
-                  tenant
-                ).findByIdAndUpdate(
-                  device._id,
-                  { nextMaintenance: latestCorrectNextMaintenance },
-                  { new: true }
-                );
-                if (deviceUpdate) {
-                  updatedDevicesCount++;
-                }
-              }
-            }
+          if (deviceBulkOps.length > 0) {
+            await DeviceModel(tenant).bulkWrite(deviceBulkOps);
           }
         }
       }
@@ -1758,8 +1770,8 @@ const createActivity = {
         total_maintenance_activities_checked: maintenanceActivities.length,
         activities_to_update: changes.length,
         updated_activities: updatedActivitiesCount,
-        updated_devices: updatedDevicesCount,
-        dry_run: dry_run,
+        updated_devices: dry_run ? 0 : updatedDeviceNames.size,
+        dry_run,
         changes: changes,
       };
 
