@@ -488,13 +488,24 @@ const createGrid = {
       return;
     }
   },
+  // Replace the existing 'list' function with this one:
+
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip, detailLevel = "full" } = request.query;
+      const {
+        tenant,
+        limit,
+        skip,
+        detailLevel = "full",
+        sortBy,
+        order,
+      } = request.query;
       const filter = generateFilter.grids(request, next);
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
 
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
@@ -532,7 +543,7 @@ const createGrid = {
         {
           $facet: {
             paginatedResults: [
-              { $sort: { createdAt: -1 } },
+              { $sort: { [sortField]: sortOrder } },
               { $skip: _skip },
               { $limit: _limit },
             ],

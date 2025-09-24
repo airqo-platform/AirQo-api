@@ -955,6 +955,17 @@ const activitiesValidations = {
     commonValidations.objectId("site_id"),
     ...commonValidations.network,
     ...commonValidations.activityCodes,
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
   ],
 
   updateActivity: [
