@@ -72,7 +72,7 @@ const getNextMaintenanceDate = (dateInput, months = 3) => {
 const createActivity = {
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip, path } = request.query;
+      const { tenant, limit, skip, path, sortBy, order } = request.query;
       const filter = generateFilter.activities(request, next);
       if (!isEmpty(path)) {
         filter.path = path;
@@ -80,6 +80,8 @@ const createActivity = {
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
 
       const pipeline = [
         { $match: filter },
@@ -106,7 +108,7 @@ const createActivity = {
         {
           $facet: {
             paginatedResults: [
-              { $sort: { createdAt: -1 } },
+              { $sort: { [sortField]: sortOrder } },
               { $skip: _skip },
               { $limit: _limit },
             ],

@@ -1007,6 +1007,8 @@ const deviceUtil = {
         skip,
         useCache = "true",
         detailLevel = "full",
+        sortBy,
+        order,
       } = request.query;
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const activitiesColl = ActivityModel(tenant).collection.name;
@@ -1017,7 +1019,11 @@ const deviceUtil = {
         MAX_LIMIT,
         Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
       const filter = generateFilter.devices(request, next);
+
+      logObject("ziii filter", filter);
 
       let pipeline = [];
 
@@ -1213,7 +1219,7 @@ const deviceUtil = {
         {
           $facet: {
             paginatedResults: [
-              { $sort: { createdAt: -1 } },
+              { $sort: { [sortField]: sortOrder } },
               { $skip: _skip },
               { $limit: _limit },
             ],

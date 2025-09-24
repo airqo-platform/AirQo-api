@@ -318,6 +318,17 @@ const cohortValidations = {
   listCohorts: [
     ...commonValidations.tenant,
     oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
     handleValidationErrors,
   ],
 
