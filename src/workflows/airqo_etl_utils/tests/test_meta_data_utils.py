@@ -34,7 +34,6 @@ def mock_extract_devices_df():
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "site_id": ["site1", "site2", "site3"],
-            "device_id": ["device1", "device2", "device3"],
             "device_number": [1, 2, 3],
             "description": ["desc1", "desc2", "desc3"],
             "device_manufacturer": ["manufacturer1", "manufacturer2", "manufacturer3"],

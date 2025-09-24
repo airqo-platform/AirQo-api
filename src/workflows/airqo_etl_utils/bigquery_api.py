@@ -411,9 +411,11 @@ class BigQueryApi:
             data_not_for_updating = available_data.loc[
                 ~available_data[unique_id[0]].isin(dataframe[unique_id[0]].to_list())
             ]
-            self.update_dynamic_metadata_fields(
-                new_data=dataframe, existing_data=data_not_for_updating
-            )
+            if component == MetaDataType.DEVICES:
+                # Update dynamic fields in existing data before merging with new data
+                self.update_dynamic_metadata_fields(
+                    new_data=dataframe, existing_data=data_not_for_updating
+                )
             dataframe = pd.concat([data_not_for_updating, dataframe], ignore_index=True)
 
         self.load_data(dataframe=dataframe, table=table, job_action=JobAction.OVERWRITE)
