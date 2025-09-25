@@ -462,6 +462,17 @@ const gridsValidations = {
       commonValidations.nameQuery,
       commonValidations.adminLevelQuery,
     ]),
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

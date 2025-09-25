@@ -28,16 +28,20 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const getValidDate = (dateInput) => {
+  // If no date is provided, return null.
   if (!dateInput) {
-    return new Date(); // Current date if no input
+    return null;
   }
 
   const parsedDate = new Date(dateInput);
+
+  // If the provided date string is invalid, return null.
   if (isNaN(parsedDate.getTime())) {
-    console.warn("Invalid date provided, using current date:", dateInput);
-    return new Date(); // Current date if invalid input
+    logger.warn(`Invalid date string provided: "${dateInput}". Skipping.`);
+    return null;
   }
 
+  // Otherwise, return the valid Date object.
   return parsedDate;
 };
 
@@ -68,7 +72,7 @@ const getNextMaintenanceDate = (dateInput, months = 3) => {
 const createActivity = {
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip, path } = request.query;
+      const { tenant, limit, skip, path, sortBy, order } = request.query;
       const filter = generateFilter.activities(request, next);
       if (!isEmpty(path)) {
         filter.path = path;
@@ -76,6 +80,8 @@ const createActivity = {
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
 
       const pipeline = [
         { $match: filter },
@@ -102,7 +108,7 @@ const createActivity = {
         {
           $facet: {
             paginatedResults: [
-              { $sort: { createdAt: -1 } },
+              { $sort: { [sortField]: sortOrder } },
               { $skip: _skip },
               { $limit: _limit },
             ],
@@ -1666,6 +1672,174 @@ const createActivity = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+    }
+  },
+  recalculateNextMaintenance: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { dry_run = false } = request.body;
+
+      const maintenanceActivities = await ActivityModel(tenant)
+        .find({ activityType: "maintenance" })
+        .select("_id device date nextMaintenance")
+        .lean();
+
+      if (isEmpty(maintenanceActivities)) {
+        return {
+          success: true,
+          message: "No maintenance activities found to process.",
+          data: {
+            total_maintenance_activities_checked: 0,
+            activities_to_update: 0,
+            updated_activities: 0,
+            updated_devices: 0,
+            dry_run,
+            changes: [],
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      let updatedActivitiesCount = 0;
+      let updatedDevicesCount = 0;
+      const changes = [];
+      const activityBulkOps = [];
+      // Validate dates and track invalid rows
+      const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
+      const invalidActivities = [];
+      // Build latest maintenance date per device across ALL maintenance activities
+      const latestMaintenanceDateByDevice = new Map();
+      for (const a of maintenanceActivities) {
+        if (!isValidDate(a.date)) {
+          invalidActivities.push(a);
+          continue; // Skip invalid activities from being processed
+        }
+        const prev = latestMaintenanceDateByDevice.get(a.device);
+        const currDate = new Date(a.date);
+        if (!prev || currDate > new Date(prev)) {
+          latestMaintenanceDateByDevice.set(a.device, a.date);
+        }
+      }
+      const devicesWithChangedActivities = new Set();
+
+      for (const activity of maintenanceActivities) {
+        if (!isValidDate(activity.date)) {
+          // Already tracked above, just skip processing
+          continue;
+        }
+        const correctNextMaintenance = getNextMaintenanceDate(activity.date, 3);
+
+        if (
+          !activity.nextMaintenance ||
+          new Date(activity.nextMaintenance).getTime() !==
+            correctNextMaintenance.getTime()
+        ) {
+          changes.push({
+            activity_id: activity._id,
+            device_name: activity.device,
+            activity_date: activity.date,
+            old_next_maintenance: activity.nextMaintenance,
+            new_next_maintenance: correctNextMaintenance,
+          });
+
+          activityBulkOps.push({
+            updateOne: {
+              filter: { _id: activity._id },
+              update: { $set: { nextMaintenance: correctNextMaintenance } },
+            },
+          });
+          // Mark device as needing nextMaintenance re-evaluation
+          devicesWithChangedActivities.add(activity.device);
+        }
+      }
+
+      if (!dry_run && activityBulkOps.length > 0) {
+        const activityResult = await ActivityModel(tenant).bulkWrite(
+          activityBulkOps,
+          { ordered: false }
+        );
+        updatedActivitiesCount = activityResult.modifiedCount;
+
+        // Prepare bulk operations for devices
+        const deviceBulkOps = [];
+        const deviceNamesToUpdate = Array.from(devicesWithChangedActivities);
+
+        if (deviceNamesToUpdate.length > 0) {
+          const devices = await DeviceModel(tenant)
+            .find({ name: { $in: deviceNamesToUpdate } })
+            .select("_id name nextMaintenance")
+            .lean();
+
+          for (const device of devices) {
+            const latestMaintenanceDate = latestMaintenanceDateByDevice.get(
+              device.name
+            );
+            if (!latestMaintenanceDate) continue;
+            const latestCorrectNextMaintenance = getNextMaintenanceDate(
+              latestMaintenanceDate,
+              3
+            );
+            // Only update when it actually changes
+            if (
+              !device.nextMaintenance ||
+              new Date(device.nextMaintenance).getTime() !==
+                latestCorrectNextMaintenance.getTime()
+            ) {
+              deviceBulkOps.push({
+                updateOne: {
+                  filter: { _id: device._id },
+                  update: {
+                    $set: { nextMaintenance: latestCorrectNextMaintenance },
+                  },
+                },
+              });
+            }
+          }
+
+          if (deviceBulkOps.length > 0) {
+            const deviceResult = await DeviceModel(tenant).bulkWrite(
+              deviceBulkOps,
+              { ordered: false }
+            );
+            updatedDevicesCount = deviceResult.modifiedCount || 0;
+          }
+        }
+      }
+
+      const summary = {
+        total_maintenance_activities_checked: maintenanceActivities.length,
+        activities_to_update: changes.length,
+        updated_activities: updatedActivitiesCount,
+        updated_devices: dry_run ? 0 : updatedDevicesCount,
+        invalid_activities_skipped: invalidActivities.length,
+        dry_run,
+        changes: changes,
+        invalid_activities: invalidActivities.map((a) => ({
+          activity_id: a._id,
+          device_name: a.device,
+          invalid_date: a.date,
+        })),
+      };
+
+      return {
+        success: true,
+        message: dry_run
+          ? "Dry run completed. No changes were made."
+          : "Recalculation completed successfully.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
     }

@@ -18,7 +18,7 @@ const createHealthTips = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip, path } = query;
+      const { tenant, limit, skip, path, sortBy, order } = query;
       const filter = generateFilter.tips(request, next);
       if (!isEmpty(path)) {
         filter.path = path;
@@ -35,13 +35,15 @@ const createHealthTips = {
         MAX_LIMIT,
         Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
 
       const pipeline = [
         { $match: filter },
         {
           $facet: {
             paginatedResults: [
-              { $sort: { createdAt: -1 } },
+              { $sort: { [sortField]: sortOrder } },
               { $skip: _skip },
               { $limit: _limit },
             ],

@@ -1,8 +1,0 @@
-BASE_URL = '/api/v1'
-ROOT = '/'
-HEALTH_CHECK = f'{BASE_URL}/locate/health'
-PARISHES = f'{BASE_URL}/locate/map/parishes'
-CREATE_MAP = f'{BASE_URL}/locate/map/create'
-GET_MAP = f'{BASE_URL}/locate/map/get'
-UPDATE_MAP = f'{BASE_URL}/locate/map/update'
-DELETE_MAP =  f'{BASE_URL}/locate/map/delete'
