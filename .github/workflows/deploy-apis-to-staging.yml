@@ -70,7 +70,7 @@ jobs:
           git diff --name-only HEAD^ HEAD > files.txt
 
           echo "run_auth_service=false" >>$GITHUB_OUTPUT
-          echo "run_device_registry=false" >>$GITHUB_OUTPUT  T
+          echo "run_device_registry=false" >>$GITHUB_OUTPUT  
           echo "run_analytics=false" >>$GITHUB_OUTPUT
           echo "run_beacon_api=false" >>$GITHUB_OUTPUT 
           echo "run_predict=false" >>$GITHUB_OUTPUT
