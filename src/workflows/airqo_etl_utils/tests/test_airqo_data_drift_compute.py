@@ -247,11 +247,12 @@ class TestAirQoDataDriftCompute:
         )
 
         # Mock the MetaDataUtils.compute_device_site_metadata method directly
+        metadata = MetaDataUtils()
         with patch.object(
             MetaDataUtils, "compute_device_site_metadata", return_value=mock_df
         ) as mock_compute:
             # Call the method
-            result = MetaDataUtils.compute_device_site_metadata(
+            result = metadata.compute_device_site_metadata(
                 data_type=DataType.AVERAGED,
                 device_category=DeviceCategory.LOWCOST,
                 metadata_type=MetaDataType.DEVICES,
