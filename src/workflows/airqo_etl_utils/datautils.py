@@ -538,7 +538,9 @@ class DataUtils:
             and device_number != -1
             and network == DeviceNetwork.AIRQO.str
         ):
-            key = Utils.decrypt_key(bytes(key, "utf-8")) if key else None
+            key = (
+                Utils.decrypt_key(bytes(key, "utf-8")) if isinstance(key, str) else None
+            )
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
                     device_number=int(device_number),
