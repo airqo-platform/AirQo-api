@@ -37,26 +37,16 @@ jobs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon api
-      run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
-      run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
-      run_data_proxy: ${{ steps.check_files.outputs.run_data_proxy }} # data proxy
       run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
-      run_device_uptime: ${{ steps.check_files.outputs.run_device_uptime }} # device uptime
-      run_device_status: ${{ steps.check_files.outputs.run_device_status }} # device status
-      run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_superset: ${{ steps.check_files.outputs.run_superset }} # superset
-      run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
-      run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
-      run_insights: ${{ steps.check_files.outputs.run_insights}} # analytics
       run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
       run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
       run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
       run_workflows: ${{ steps.check_files.outputs.run_workflows }} # workflows
-      run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
       run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
       run_website: ${{ steps.check_files.outputs.run_website }} # website
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
@@ -83,17 +73,9 @@ jobs:
           echo "run_auth_service=false" >>$GITHUB_OUTPUT
           echo "run_device_registry=false" >>$GITHUB_OUTPUT
           echo "run_beacon_api=false" >>$GITHUB_OUTPUT
-          echo "run_device_monitoring=false" >>$GITHUB_OUTPUT
-          echo "run_data_mgt=false" >>$GITHUB_OUTPUT
-          echo "run_data_proxy=false" >>$GITHUB_OUTPUT
           echo "run_analytics=false" >>$GITHUB_OUTPUT
-          echo "run_device_uptime=false" >>$GITHUB_OUTPUT
-          echo "run_device_status=false" >>$GITHUB_OUTPUT
-          echo "run_locate=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
           echo "run_superset=false" >>$GITHUB_OUTPUT
-          echo "run_gp_model=false" >>$GITHUB_OUTPUT
-          echo "run_exceedances=false" >>$GITHUB_OUTPUT
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
           echo "run_view=false" >>$GITHUB_OUTPUT
           echo "run_calibrate=false" >>$GITHUB_OUTPUT
@@ -101,8 +83,6 @@ jobs:
           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
           echo "run_workflows=false" >>$GITHUB_OUTPUT
-          echo "run_incentives=false" >>$GITHUB_OUTPUT
-          echo "run_insights=false" >>$GITHUB_OUTPUT
           echo "run_spatial=false" >>$GITHUB_OUTPUT
           echo "run_website=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
@@ -136,61 +116,12 @@ jobs:
               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
             fi
 
-
-            if [[ $file == src/device-monitoring/* ]]; then
-              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/device-monitor/* ]]; then
-              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/data-mgt/* ]]; then
-              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/data-mgt/* ]]; then
-              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/data-proxy/* ]]; then
-              echo "run_data_proxy=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/data-proxy/* ]]; then
-              echo "run_data_proxy=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == src/analytics/* ]]; then
               echo "run_analytics=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/analytics/* ]]; then
               echo "run_analytics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/device-uptime/* ]]; then
-              echo "run_device_uptime=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/device-uptime/* ]]; then
-              echo "run_device_uptime=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/device-status/* ]]; then
-              echo "run_device_status=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/device-status/* ]]; then
-              echo "run_device_status=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/locate/* ]]; then
-              echo "run_locate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/locate/* ]]; then
-              echo "run_locate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/predict/* ]]; then
@@ -207,22 +138,6 @@ jobs:
 
             if [[ $file == k8s/superset/* ]]; then
               echo "run_superset=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/gp-model/* ]]; then
-              echo "run_gp_model=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/gp-model/* ]]; then
-              echo "run_gp_model=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/exceedances/* ]]; then
-              echo "run_exceedances=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/exceedance/* ]]; then
-              echo "run_exceedances=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/meta-data/* ]]; then
@@ -273,21 +188,6 @@ jobs:
               echo "run_workflows=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/incentives/* ]]; then
-              echo "run_incentives=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/incentives/* ]]; then
-              echo "run_incentives=true" >>$GITHUB_OUTPUT
-            fi
-            if [[ $file == src/insights/* ]]; then
-              echo "run_insights=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/insights/* ]]; then
-              echo "run_insights=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == src/spatial/* ]]; then
               echo "run_spatial=true" >>$GITHUB_OUTPUT
             fi
@@ -315,23 +215,13 @@ jobs:
             if [[ $file == workflow-trigger ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
               echo "run_meta_data=true" >>$GITHUB_OUTPUT
-              echo "run_exceedances=true" >>$GITHUB_OUTPUT
-              echo "run_gp_model=true" >>$GITHUB_OUTPUT
               echo "run_predict=true" >>$GITHUB_OUTPUT
               echo "run_superset=true" >>$GITHUB_OUTPUT
-              echo "run_locate=true" >>$GITHUB_OUTPUT
-              echo "run_device_status=true" >>$GITHUB_OUTPUT
-              echo "run_device_uptime=true" >>$GITHUB_OUTPUT
               echo "run_analytics=true" >>$GITHUB_OUTPUT
-              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
-              echo "run_data_proxy=true" >>$GITHUB_OUTPUT
-              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
               echo "run_device_registry=true" >>$GITHUB_OUTPUT
               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
               echo "run_workflows=true" >>$GITHUB_OUTPUT
-              echo "run_incentives=true" >>$GITHUB_OUTPUT
-              echo "run_insights=true" >>$GITHUB_OUTPUT
               echo "run_spatial=true" >>$GITHUB_OUTPUT
               echo "run_website=true" >>$GITHUB_OUTPUT
               echo "run_view=true" >>$GITHUB_OUTPUT
@@ -665,196 +555,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-env-beacon" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-beacon-production | kubectl replace -f - -n production
               
-
-  ### device monitoring ###
-  device-monitoring:
-    name: build-push-deploy-device-monitoring
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_device_monitoring == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and push API
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/device-monitoring/
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
-
-      - name: Build and push celery-beat
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/device-monitoring/
-          target: celery-beat
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:latest
-
-      - name: Build and push celery-worker
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/device-monitoring/
-          target: celery-worker
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-worker:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/device-monitor/values-prod.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update device monitor production images' tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/device-monitoring/
-          gcloud secrets versions access latest --secret="prod-env-device-monitoring" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-monitoring-production | kubectl replace -f - -n production
-          gcloud secrets versions access latest --secret="prod-key-device-monitoring-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-monitor-config-files | kubectl replace -f - -n production
-
-  ### data-mgt ###
-  data-mgt:
-    name: build-push-deploy-data-mgt
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_data_mgt == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/data-mgt/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }}
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/data-mgt/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update data mgt production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/data-mgt/
-          gcloud secrets versions access latest --secret="prod-env-data-mgt-nodejs" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-mgt-api-config | kubectl replace -f - -n production
-
-  ### data-proxy ###
-  data-proxy:
-    name: build-push-deploy-data-proxy
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_data_proxy == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/data-proxy/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-proxy-api:${{ needs.image-tag.outputs.build_id }} .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-proxy-api:${{ needs.image-tag.outputs.build_id }}
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-proxy-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-proxy-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-proxy-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/data-proxy/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update data proxy production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/data-proxy/
-          gcloud secrets versions access latest --secret="prod-env-data-proxy" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-proxy-api-config | kubectl replace -f - -n production
-
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
@@ -950,201 +650,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
 
-  insights:
-    name: build-push-deploy-insights
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_insights == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and push API Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/insights/
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-api:latest
-
-      - name: Build and push Celery worker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/insights/
-          target: celery
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/insights/values-prod.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update insights production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/insights/
-          gcloud secrets versions access latest --secret="prod-env-analytics" > .env
-          gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-insights-production | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-insights-config-files | kubectl replace -f - -n production
-
-  ### device uptime ###
-  device-uptime:
-    name: build-push-deploy-device-uptime
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_device_uptime == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and push device uptime v1 docker image
-        uses: docker/build-push-action@v4.0.0
-        with:
-          push: true
-          context: src/device-uptime/
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
-
-      - name: Build and push device uptime v2 docker image
-        uses: docker/build-push-action@v4.0.0
-        with:
-          push: true
-          context: src/device-uptime/
-          target: uptime
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job-v2:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job-v2:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/device-uptime/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/device-uptime/
-          gcloud secrets versions access latest --secret="prod-env-device-uptime" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-uptime-production | kubectl replace -f - -n production
-          gcloud secrets versions access latest --secret="prod-key-device-uptime-v2-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-uptime-v2-files | kubectl replace -f - -n production
-
-  ### device status ###
-  device-status:
-    name: build-push-deploy-device-status
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_device_status == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/device-status/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }} -f Dockerfile .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }}
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/device-status/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update device status production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/device-status/
-          gcloud secrets versions access latest --secret="prod-env-device-status" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-status-production | kubectl replace -f - -n production
 
   ### kafka cluster operator ###
   kafka-cluster-operator:
@@ -1214,203 +719,6 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/kafka/topics/kafka-topics.yaml -n message-broker
-
-  ### locate ###
-  locate:
-    name: build-push-deploy-locate
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_locate == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/locate/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/locate/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update locate production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/locate/
-          gcloud secrets versions access latest --secret="prod-env-locate-api" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-locate-production | kubectl replace -f - -n production
-
-  ### gp model ###
-  gp-model:
-    name: build-push-deploy-gp-model
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_gp_model == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and push cron job
-        uses: docker/build-push-action@v4.0.0
-        with:
-          push: true
-          context: src/gp-model
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/gp-model/values-prod.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update gp-model production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/gp-model/
-          gcloud secrets versions access latest --secret="prod-env-gp-model" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-gp-model-production | kubectl replace -f - -n production
-          gcloud secrets versions access latest --secret="prod-key-gp-model-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json gp-model-job-config-files | kubectl replace -f - -n production
-
-  ### exceddences ###
-  exceedance:
-    name: build-push-deploy-exceedances
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_exceedances == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and push AirQo Docker image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/exceedances
-          target: airqo-production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-exceedance-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/exceedance/values-prod-airqo.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update AirQo exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Build and push KCCA Docker image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/exceedances
-          target: kcca-production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/kcca-exceedance-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/exceedance/values-prod-kcca.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update KCCA exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/exceedances/
-          gcloud secrets versions access latest --secret="prod-env-exceedances" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-exceedance-production | kubectl replace -f - -n production
 
   ### meta-data ###
   meta-data:
@@ -1775,63 +1083,6 @@ jobs:
       - name: Restart the deployments
         run: |
           kubectl rollout restart deployment/superset -n superset
-
-  ### incentives ###
-  incentives:
-    name: build-push-incentives
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_incentives == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/incentives/
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-incentives-api:${{ needs.image-tag.outputs.build_id }}, ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-incentives-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/incentives/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update incentives production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/incentives/
-          gcloud secrets versions access latest --secret="prod-env-incentives" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-incentives-api-config | kubectl replace -f - -n production
 
   ### apply nginx ###
   nginx:
