@@ -27,7 +27,6 @@ jobs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon_api
-      run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # metadata
       run_view: ${{ steps.check_files.outputs.run_view }} # view
@@ -55,7 +54,6 @@ jobs:
           echo "run_auth_service=false" >>$GITHUB_OUTPUT
           echo "run_device_registry=false" >>$GITHUB_OUTPUT  
           echo "run_beacon_api=false" >>$GITHUB_OUTPUT
-          echo "run_locate=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
           echo "run_view=false" >>$GITHUB_OUTPUT
@@ -76,10 +74,6 @@ jobs:
             fi
             if [[ $file == src/beacon-api/* ]]; then
               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/locate/* ]]; then
-              echo "run_locate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/predict/* ]]; then
@@ -346,85 +340,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Device registry changes in this PR available for preview [here](${{ needs.device-registry.outputs.url }})'
-            })
-
-
-  ### locate ###
-  locate:
-    name: build-push-deploy-locate
-    needs: [check, branch-name]
-    if: needs.check.outputs.run_locate == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/locate/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} ./
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }}
-
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} \
-            --port=4001 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-locate:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "url=${service_url}" >>$GITHUB_OUTPUT
-
-  locate-pr-comment:
-    name: locate-preview-link-comment
-    if: needs.check.outputs.run_locate == 'true'
-    needs: [locate]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Locate API changes in this PR available for preview [here](${{ needs.locate.outputs.url }})'
             })
 
   ### predict service ###

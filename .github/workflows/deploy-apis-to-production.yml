@@ -38,7 +38,6 @@ jobs:
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon api
       run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
-      run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_superset: ${{ steps.check_files.outputs.run_superset }} # superset
       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
@@ -75,7 +74,6 @@ jobs:
           echo "run_device_registry=false" >>$GITHUB_OUTPUT
           echo "run_beacon_api=false" >>$GITHUB_OUTPUT
           echo "run_analytics=false" >>$GITHUB_OUTPUT
-          echo "run_locate=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
           echo "run_superset=false" >>$GITHUB_OUTPUT
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
@@ -124,14 +122,6 @@ jobs:
 
             if [[ $file == k8s/analytics/* ]]; then
               echo "run_analytics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/locate/* ]]; then
-              echo "run_locate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/locate/* ]]; then
-              echo "run_locate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/predict/* ]]; then
@@ -227,7 +217,6 @@ jobs:
               echo "run_meta_data=true" >>$GITHUB_OUTPUT
               echo "run_predict=true" >>$GITHUB_OUTPUT
               echo "run_superset=true" >>$GITHUB_OUTPUT
-              echo "run_locate=true" >>$GITHUB_OUTPUT
               echo "run_analytics=true" >>$GITHUB_OUTPUT
               echo "run_device_registry=true" >>$GITHUB_OUTPUT
               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
@@ -730,65 +719,6 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/kafka/topics/kafka-topics.yaml -n message-broker
-
-  ### locate ###
-  locate:
-    name: build-push-deploy-locate
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_locate == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/locate/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/locate/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update locate production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/locate/
-          gcloud secrets versions access latest --secret="prod-env-locate-api" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-locate-production | kubectl replace -f - -n production
 
   ### meta-data ###
   meta-data:
