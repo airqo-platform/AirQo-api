@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-registry-api
-  tag: prod-b6e71d84-1758724928
+  tag: prod-aae3dd03-1758742180
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

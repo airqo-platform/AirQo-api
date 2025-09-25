@@ -1,9 +1,0 @@
-apiVersion: v2
-appVersion: "1.16.1"
-name: gp-model
-home: https://airqo.net
-version: 1.0.6
-maintainers:
-  - name: AirQo
-    email: support@airqo.net
-    url: https://airqo.net
