@@ -27,7 +27,7 @@ max_workers = min(20, cpu_count * 10)
 
 class MetaDataUtils:
     @staticmethod
-    def extract_devices() -> pd.DataFrame:
+    def extract_devices(preferred_source: Optional[str] = "cache") -> pd.DataFrame:
         """
         Extracts and processes device information into a structured Pandas DataFrame.
 
@@ -37,8 +37,7 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing device information.
         """
-        devices, _ = DataUtils.get_devices()
-
+        devices = DataUtils.get_devices(preferred_source=preferred_source)
         devices = devices[
             [
                 "network",
@@ -69,8 +68,8 @@ class MetaDataUtils:
 
         return devices
 
-    @staticmethod
     def compute_device_site_metadata(
+        self,
         data_type: DataType,
         device_category: DeviceCategory,
         metadata_type: MetaDataType,
@@ -108,9 +107,9 @@ class MetaDataUtils:
             data_type.str, None
         )
 
-        metadata_method = {
-            MetaDataType.DEVICES: MetaDataUtils.extract_devices,
-            MetaDataType.SITES: MetaDataUtils.extract_sites,
+        metadata_method: Dict[str, Callable[[], Any]] = {
+            MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
+            MetaDataType.SITES: lambda: self.extract_sites(),
         }
         unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
 
@@ -595,7 +594,7 @@ class MetaDataUtils:
             data_api.refresh_grid(grid_id=grid.get("id"))
 
     def extract_transform_and_decrypt_metadata(
-        metadata_type: MetaDataType,
+        self, metadata_type: MetaDataType
     ) -> pd.DataFrame:
         """
         Extracts, transforms, and decrypts metadata for a given type.
@@ -612,16 +611,13 @@ class MetaDataUtils:
             pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
         """
         endpoints: Dict[str, Callable[[], Any]] = {
-            "devices": lambda: DataUtils.fetch_devices_from_api(),
-            "sites": lambda: DataUtils.fetch_sites_from_api(),
+            MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
+            MetaDataType.SITES: lambda: self.extract_sites(),
         }
         result: pd.DataFrame = pd.DataFrame()
         match metadata_type:
             case MetaDataType.DEVICES:
-                result, keys = endpoints.get(metadata_type.str)()
-                if not result.empty:
-                    if keys:
-                        result["key"] = result["device_number"].map(keys).fillna(-1)
+                result = endpoints.get(metadata_type.str)()
             case MetaDataType.SITES:
                 sites_raw = endpoints.get(metadata_type.str)()
                 if sites_raw:
