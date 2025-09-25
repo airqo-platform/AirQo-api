@@ -42,7 +42,7 @@ class TestsDevices:
         airqo_device_keys,
     ):
         mock_load_devices_or_sites_cached_data.return_value = DEVICES
-        devices, _ = DataUtils.get_devices()
+        devices = DataUtils.get_devices()
         expected_df = DEVICES.copy()
         expected_df["device_number"] = (
             expected_df["device_number"].fillna(-1).astype(int)
@@ -57,21 +57,20 @@ class TestsDevices:
         airqo_device_keys,
     ):
         mock_load_devices_or_sites_cached_data.return_value = pd.DataFrame()
-        mock_fetch_devices_from_api.return_value = (DEVICES, airqo_device_keys)
-        devices, keys = DataUtils.get_devices()
+        mock_fetch_devices_from_api.return_value = DEVICES
+        devices = DataUtils.get_devices()
         expected_df = DEVICES.copy()
         expected_df["device_number"] = (
             expected_df["device_number"].fillna(-1).astype(int)
         )
         pd.testing.assert_frame_equal(devices, expected_df)
-        assert keys == airqo_device_keys
         mock_load_devices_or_sites_cached_data.assert_called_once()
 
     def test_failure_to_retrieve_from_api(
         self, mock_load_devices_or_sites_cached_data, mock_fetch_devices_from_api
     ):
         mock_load_devices_or_sites_cached_data.return_value = pd.DataFrame()
-        mock_fetch_devices_from_api.return_value = (pd.DataFrame(), {})
+        mock_fetch_devices_from_api.return_value = pd.DataFrame()
         with pytest.raises(
             RuntimeError,
             match="Failed to retrieve devices data from both cache and API.",

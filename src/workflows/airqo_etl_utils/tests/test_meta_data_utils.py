@@ -212,11 +212,12 @@ class TestMetaDataUtils:
             mock_executor.return_value.__enter__.return_value = mock_executor_instance
 
             # Mock the as_completed function with a custom implementation
+            metadata = MetaDataUtils()
             with patch(
                 "airqo_etl_utils.meta_data_utils.as_completed",
                 side_effect=lambda futures: futures,
             ):
-                result = MetaDataUtils.compute_device_site_metadata(
+                result = metadata.compute_device_site_metadata(
                     data_type=DataType.AVERAGED,
                     device_category=DeviceCategory.LOWCOST,
                     metadata_type=MetaDataType.DEVICES,
