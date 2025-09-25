@@ -617,11 +617,9 @@ class MetaDataUtils:
         result: pd.DataFrame = pd.DataFrame()
         match metadata_type:
             case MetaDataType.DEVICES:
-                result = endpoints.get(metadata_type.str)()
+                result = endpoints.get(metadata_type)()
             case MetaDataType.SITES:
-                sites_raw = endpoints.get(metadata_type.str)()
-                if sites_raw:
-                    result = pd.DataFrame(sites_raw)
+                result = endpoints.get(metadata_type)()
 
         return result
 
