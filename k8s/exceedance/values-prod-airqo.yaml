@@ -1,9 +1,0 @@
-app:
-  name: airqo-exceedance-job
-  namespace: production
-  configmap: env-exceedance-production
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-exceedance-job
-  tag: prod-60679fa6-1738828272
-nameOverride: ''
-fullnameOverride: ''

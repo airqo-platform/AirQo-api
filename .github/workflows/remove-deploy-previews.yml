@@ -24,16 +24,12 @@ jobs:
     outputs:
       remove_preview__auth_service: ${{ steps.check_files.outputs.remove_preview__auth_service }} # auth service
       remove_preview__device_registry: ${{ steps.check_files.outputs.remove_preview__device_registry }} # device registry
-      remove_preview__device_monitoring: ${{ steps.check_files.outputs.remove_preview__device_monitoring }} # device monitoring
       remove_preview__beacon_api: ${{ steps.check_files.outputs.remove_preview__beacon_api }} # beacon
-      remove_preview__data_mgt: ${{ steps.check_files.outputs.remove_preview__data_mgt }} # data mgt
-      remove_preview__data_proxy: ${{ steps.check_files.outputs.remove_preview__data_proxy }} # data proxy
       remove_preview__locate: ${{ steps.check_files.outputs.remove_preview__locate }} # locate
       remove_preview__predict: ${{ steps.check_files.outputs.remove_preview__predict }} # predict
       remove_preview__meta_data: ${{ steps.check_files.outputs.remove_preview__meta_data }} # meta-data
       remove_preview__view: ${{ steps.check_files.outputs.remove_preview__view }} # view
       remove_preview__calibrate: ${{ steps.check_files.outputs.remove_preview__calibrate }} # calibrate
-      remove_preview__incentives: ${{ steps.check_files.outputs.remove_preview__incentives }} #incentives
       remove_preview__spatial: ${{ steps.check_files.outputs.remove_preview__spatial }} #spatial
       remove_preview__website: ${{ steps.check_files.outputs.remove_preview__website }} #website
 
@@ -55,17 +51,13 @@ jobs:
           git diff --name-only HEAD^ HEAD > files.txt
 
           echo "remove_preview__auth_service=false" >>$GITHUB_OUTPUT
-          echo "remove_preview__device_registry=false" >>$GITHUB_OUTPUT  
-          echo "remove_preview__device_monitoring=false" >>$GITHUB_OUTPUT 
-          echo "remove_preview_beacon_api=false" >>$GITHUB_OUTPUT
-          echo "remove_preview__data_mgt=false" >>$GITHUB_OUTPUT
-          echo "remove_preview__data_proxy=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__device_registry=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__beacon_api=false" >>$GITHUB_OUTPUT
           echo "remove_preview__locate=false" >>$GITHUB_OUTPUT
           echo "remove_preview__predict=false" >>$GITHUB_OUTPUT
           echo "remove_preview__meta_data=false" >>$GITHUB_OUTPUT
           echo "remove_preview__view=false" >>$GITHUB_OUTPUT
           echo "remove_preview__calibrate=false" >>$GITHUB_OUTPUT 
-          echo "remove_preview__incentives=false" >>$GITHUB_OUTPUT
           echo "remove_preview__spatial=false" >>$GITHUB_OUTPUT 
           echo "remove_preview__website=false" >>$GITHUB_OUTPUT 
 
@@ -82,18 +74,6 @@ jobs:
 
             if [[ $file == src/beacon-api/* ]]; then
               echo "remove_preview__beacon_api=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/device-monitoring/* ]]; then
-              echo "remove_preview__device_monitoring=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/data-mgt/* ]]; then
-              echo "remove_preview__data_mgt=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/data-proxy/* ]]; then
-              echo "remove_preview__data_proxy=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/locate/* ]]; then
@@ -114,10 +94,6 @@ jobs:
             
             if [[ $file == src/calibrate/* ]]; then
               echo "remove_preview__calibrate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/incentives/* ]]; then
-              echo "remove_preview__incentives=true" >>$GITHUB_OUTPUT
             fi     
             
             if [[ $file == src/spatial/* ]]; then
@@ -195,73 +171,6 @@ jobs:
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-registry-preview \
             --region=${{ secrets.REGION }} \
             --quiet
-
-  ### device monitoring ###
-  device-monitoring:
-    name: remove-preview--device-monitoring
-    needs: [check, branch-name]
-    if: needs.check.outputs.remove_preview__device_monitoring == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
-
-      - name: Setup Cloud SDK
-        uses: "google-github-actions/setup-gcloud@v1.1.1"
-
-      - name: Delete PR deploy preview
-        run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-monitoring-preview \
-            --region=${{ secrets.REGION }} \
-            --quiet
-
-  ### data-mgt ###
-  data-mgt:
-    name: remove-preview--data-mgt
-    needs: [check, branch-name]
-    if: needs.check.outputs.remove_preview__data_mgt == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
-
-      - name: Setup Cloud SDK
-        uses: "google-github-actions/setup-gcloud@v1.1.1"
-
-      - name: Delete PR deploy preview
-        run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
-            --region=${{ secrets.REGION }} \
-            --quiet
-
-  ### data-proxy ###
-  data-proxy:
-    name: remove-preview--data-proxy
-    needs: [check, branch-name]
-    if: needs.check.outputs.remove_preview__data_proxy == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
-
-      - name: Setup Cloud SDK
-        uses: "google-github-actions/setup-gcloud@v1.1.1"
-
-      - name: Delete PR deploy preview
-        run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-data-proxy-preview \
-            --region=${{ secrets.REGION }} \
-            --quiet
-
 
   ### locate ###
   locate:
@@ -370,28 +279,6 @@ jobs:
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-calibrate-preview \
-            --region=${{ secrets.REGION }} \
-            --quiet
-
-  ### incentives ###
-  incentives:
-    name: build-push-incentives
-    needs: [check, branch-name]
-    if: needs.check.outputs.remove_preview__incentives == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
-
-      - name: Setup Cloud SDK
-        uses: "google-github-actions/setup-gcloud@v1.1.1"
-
-      - name: Delete PR deploy preview
-        run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-incentives-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
