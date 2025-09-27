@@ -115,7 +115,7 @@ const routes = [
   {
     method: "get",
     path: "/map",
-    middlewares: [pagination()],
+    // middlewares: [pagination()],
     controller: "readingsForMap",
   },
   {
@@ -127,7 +127,7 @@ const routes = [
   {
     method: "get",
     path: "/recent",
-    middlewares: [checkValidation("recent"), pagination()],
+    middlewares: [checkValidation("recent")],
     controller: "recentReadings",
   },
   {
