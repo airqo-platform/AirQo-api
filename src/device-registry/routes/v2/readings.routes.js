@@ -115,7 +115,7 @@ const routes = [
   {
     method: "get",
     path: "/map",
-    // middlewares: [pagination()],
+    middlewares: [],
     controller: "readingsForMap",
   },
   {
