@@ -19,7 +19,7 @@ const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
 
 const JOB_NAME = "update-raw-online-status-job";
-const JOB_SCHEDULE = "0 * * * *"; // Every hour
+const JOB_SCHEDULE = "35 * * * *"; // At minute 35 of every hour
 
 // Non-blocking job processor class
 class NonBlockingJobProcessor {
