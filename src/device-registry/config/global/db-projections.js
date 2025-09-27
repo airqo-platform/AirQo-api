@@ -1293,6 +1293,9 @@ class ProjectionFactory {
             cached_total_activities: 0,
             weather_stations: 0,
             site_category: 0,
+            cached_site_creation_activity: 0,
+            cached_total_devices: 0,
+            groups: 0,
           },
         },
         brief_site: {
