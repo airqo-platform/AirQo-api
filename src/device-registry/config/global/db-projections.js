@@ -576,7 +576,6 @@ class ProjectionFactory {
           "previous_sites.village": 0,
           "previous_sites.isOnline": 0,
           "previous_sites.site_category": 0,
-          "host._id": 0,
           "cohorts.network_id": 0,
           "cohorts.description": 0,
           "cohorts.cohort_tags": 0,
