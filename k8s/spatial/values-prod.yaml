@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-spatial-api
-  tag: prod-95fdc261-1759007517
+  tag: prod-4b2355ec-1759011679
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
