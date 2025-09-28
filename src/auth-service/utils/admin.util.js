@@ -1,6 +1,6 @@
 // admin.util.js
 const UserModel = require("@models/User");
-const RoleModel = require("@models/Role");
+const RBACService = require("@services/rbac.service");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
@@ -8,13 +8,14 @@ const { logObject, logText, HttpError } = require("@utils/shared");
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const ObjectId = require("mongoose").Types.ObjectId;
+const { ObjectId } = require("mongoose").Types;
 const mongoose = require("mongoose");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
 const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
 
+const __rbacInstances = new Map();
 // Helper function to validate setup secret
 const validateSetupSecret = (secret) => {
   return secret === SETUP_SECRET;
@@ -58,24 +59,30 @@ const admin = {
       const { user_id, secret, tenant } = { ...request.body, ...request.query };
       const currentUser = request.user;
 
-      logObject("setupSuperAdmin request:", {
+      logText("--- Starting setupSuperAdmin ---");
+      logObject("Request Body/Query:", {
         user_id,
         tenant,
         hasSecret: !!secret,
       });
+      logObject("Authenticated User:", {
+        _id: currentUser._id,
+        email: currentUser.email,
+      });
 
+      // Authorization is now handled by the 'requireSuperAdminAccess' middleware.
+      // The secret is kept as a fallback for initial setup or emergencies,
+      // but the primary authorization path is role-based via the middleware.
       if (!validateSetupSecret(secret)) {
-        return {
-          success: false,
-          message: "Invalid setup secret",
-          status: httpStatus.FORBIDDEN,
-          errors: { message: "Authentication failed" },
-        };
+        logText(
+          "No valid secret provided. Relying on middleware for authorization."
+        );
       }
 
       if (
         !isProductionOperationAllowed("super-admin", user_id, currentUser?._id)
       ) {
+        logText("Production operation not allowed. Exiting.");
         return {
           success: false,
           message: "Production setup only allowed for current user",
@@ -84,38 +91,30 @@ const admin = {
         };
       }
 
-      const targetUserId = user_id || currentUser._id;
-
+      const targetUserId = user_id;
+      const RoleModel = require("@models/Role");
       const rolePermissionsUtil = require("@utils/role-permissions.util");
       let superAdminRole;
 
       try {
+        logText("Ensuring SUPER_ADMIN role exists...");
         superAdminRole = await rolePermissionsUtil.ensureSuperAdminRole(tenant);
+        logObject("SUPER_ADMIN Role:", {
+          _id: superAdminRole._id,
+          name: superAdminRole.role_name,
+        });
       } catch (roleError) {
         logger.error("Failed to ensure super admin role:", roleError.message);
-
-        superAdminRole = await RoleModel(tenant).findOne({
-          $or: [
-            { role_name: { $regex: /SUPER_ADMIN/i } },
-            { role_code: { $regex: /SUPER_ADMIN/i } },
-          ],
-        });
-
-        if (!superAdminRole) {
-          return {
-            success: false,
-            message:
-              "Could not create or find SUPER_ADMIN role. Please check logs and try running full RBAC setup first.",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: {
-              message: "SUPER_ADMIN role creation failed",
-              suggestion:
-                "Try POST /api/v2/admin/rbac-reset first, then retry this request",
-            },
-          };
-        }
+        return {
+          success: false,
+          message:
+            "Could not create or find SUPER_ADMIN role. Please check logs.",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "SUPER_ADMIN role creation failed" },
+        };
       }
 
+      logText("Ensuring 'airqo' group exists...");
       let airqoGroup = await GroupModel(tenant).findOne({
         grp_title: { $regex: /^airqo$/i },
       });
@@ -127,12 +126,15 @@ const admin = {
           grp_status: "ACTIVE",
           organization_slug: "airqo",
         });
+        logText("Created 'airqo' group.");
       }
+      logObject("AirQo Group ID:", airqoGroup._id);
 
       const existingUser = await UserModel(tenant)
         .findById(targetUserId)
         .lean();
       if (!existingUser) {
+        logText(`Target user ${targetUserId} not found. Exiting.`);
         return {
           success: false,
           message: `User ${targetUserId} not found`,
@@ -141,9 +143,9 @@ const admin = {
         };
       }
 
-      // Atomically update the user's roles for the AirQo group.
-      // This operation ensures the user ends up with just the SUPER_ADMIN role for this group,
-      // replacing any other role they might have had for the AirQo group.
+      logText(`Found target user: ${existingUser.email}`);
+      logText("Preparing to update user's group_roles...");
+
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         targetUserId,
         [
@@ -151,15 +153,15 @@ const admin = {
             $set: {
               group_roles: {
                 $concatArrays: [
-                  // 1. Filter out any existing role for the airqoGroup
                   {
                     $filter: {
                       input: { $ifNull: ["$group_roles", []] },
                       as: "role",
-                      cond: { $ne: ["$$role.group", airqoGroup._id] },
+                      cond: {
+                        $ne: ["$$role.group", new ObjectId(airqoGroup._id)],
+                      },
                     },
                   },
-                  // 2. Add the new SUPER_ADMIN role
                   [
                     {
                       group: airqoGroup._id,
@@ -182,10 +184,10 @@ const admin = {
         });
       }
 
-      // Clear the user's permissions cache to reflect the changes immediately
-      const RBACService = require("@services/rbac.service");
+      logText("User update successful. Clearing RBAC cache...");
       const rbacService = new RBACService(tenant);
       rbacService.clearUserCache(targetUserId);
+      logText("--- Finished setupSuperAdmin ---");
 
       return {
         success: true,

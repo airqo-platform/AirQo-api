@@ -946,6 +946,56 @@ const updateTenantSettingsWithDefaultRoles = async (tenant) => {
 };
 
 /**
+ * Cleanup legacy roles with any duplicated prefix (e.g., "MYORG_MYORG_...").
+ * This is done efficiently in-memory after a single database query.
+ * @param {string} tenant - The tenant identifier.
+ */
+const cleanupDuplicateRolePrefixes = async (tenant) => {
+  try {
+    const allRoles = await RoleModel(tenant)
+      .find({})
+      .select("_id role_name")
+      .lean();
+    const rolesToDelete = [];
+
+    for (const role of allRoles) {
+      const name = role.role_name;
+      if (!name) continue;
+
+      // Efficiently check for repeating prefixes (e.g., "PREFIX_PREFIX_")
+      // by finding the middle point of the string.
+      const mid = Math.floor(name.length / 2);
+      for (let i = 1; i <= mid; i++) {
+        const prefix = name.substring(0, i);
+        if (name.startsWith(prefix + prefix)) {
+          rolesToDelete.push(role);
+          break; // Found a duplicate prefix, no need to check further for this role
+        }
+      }
+    }
+
+    if (rolesToDelete.length > 0) {
+      const roleIdsToDelete = rolesToDelete.map((role) => role._id);
+      logger.info(
+        `[RBAC Cleanup] Found ${
+          rolesToDelete.length
+        } roles with duplicate prefixes to delete: ${rolesToDelete
+          .map((r) => r.role_name)
+          .join(", ")}`
+      );
+      await RoleModel(tenant).deleteMany({ _id: { $in: roleIdsToDelete } });
+      logger.info(
+        `[RBAC Cleanup] Successfully deleted roles with duplicate prefixes.`
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `[RBAC Cleanup] Error during duplicate prefix role cleanup: ${error}`
+    );
+  }
+};
+
+/**
  * Setup default permissions and roles for the system
  * Called at application startup
  */
@@ -1028,6 +1078,9 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
     logText(
       `🚀 Setting up default permissions and roles for tenant: ${tenant}`
     );
+
+    // Run cleanup for legacy roles first
+    await cleanupDuplicateRolePrefixes(tenant);
 
     // Step 1: Synchronize all permissions
     const allPermissionsList = constants.ALL.map((p) => ({

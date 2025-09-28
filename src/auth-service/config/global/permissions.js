@@ -192,36 +192,13 @@ const DEFAULT_ROLE_DEFINITIONS = {
   AIRQO_SUPER_ADMIN: {
     role_name: "AIRQO_SUPER_ADMIN",
     role_code: "AIRQO_SUPER_ADMIN",
-    role_description: "AirQo Super Administrator with all permissions",
+    role_description:
+      "AirQo Super Administrator with system-wide privileges across all groups and networks",
     permissions: ALL_PERMISSIONS.filter(
       (p) => !["ACCESS_PLATFORM"].includes(p)
     ),
-  },
-  SYSTEM_ADMIN: {
-    role_name: "SYSTEM_ADMIN",
-    role_code: "SYSTEM_ADMIN",
-    role_description:
-      "System Administrator with platform-wide administrative privileges",
-    permissions: [
-      PERMISSIONS.SYSTEM_ADMIN,
-      PERMISSIONS.SYSTEM_CONFIGURE,
-      PERMISSIONS.SYSTEM_MONITOR,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
-      PERMISSIONS.ORG_APPROVE,
-      PERMISSIONS.ORG_REJECT,
-      PERMISSIONS.ORG_VIEW,
-      PERMISSIONS.ORG_USER_ASSIGN,
-      PERMISSIONS.USER_MANAGEMENT,
-      PERMISSIONS.ROLE_VIEW,
-      PERMISSIONS.ROLE_CREATE,
-      PERMISSIONS.ROLE_EDIT,
-      PERMISSIONS.ROLE_DELETE,
-      PERMISSIONS.ROLE_ASSIGNMENT,
-      PERMISSIONS.TOKEN_MANAGE,
-      PERMISSIONS.TOKEN_ANALYZE,
-      PERMISSIONS.AUDIT_VIEW,
-      PERMISSIONS.SETTINGS_EDIT,
-    ],
+    isSystemWide: true, // Flag to indicate this role grants system-wide access
+    grantedIn: "AIRQO_GROUP", // Indicates this role is granted in the AirQo master group
   },
   AIRQO_ADMIN: {
     role_name: "AIRQO_ADMIN",
@@ -415,6 +392,67 @@ const permissionsExport = {
   // do not mix AUTH constants into the flat "permissions" bag
 };
 
+// Step 5: System Administration Constants
+const SYSTEM_ADMIN_CONSTANTS = {
+  // The master AirQo group ID - users with admin roles in this group have system-wide privileges
+  AIRQO_GROUP_ID: "652ee1f0c619ed8f6e08eec2", // Your AirQo group ID from the profile
+
+  // Role names that grant system-wide administrative privileges
+  SYSTEM_ADMIN_ROLE_NAMES: [
+    "AIRQO_SUPER_ADMIN",
+    "AIRQO_ADMIN",
+    "SYSTEM_ADMIN",
+    "SUPER_ADMIN",
+  ],
+
+  // Role codes that grant system-wide administrative privileges
+  SYSTEM_ADMIN_ROLE_CODES: [
+    "AIRQO_SUPER_ADMIN",
+    "AIRQO_ADMIN",
+    "SYSTEM_ADMIN",
+    "SUPER_ADMIN",
+  ],
+
+  // User types in the AirQo group that grant system-wide privileges
+  SYSTEM_ADMIN_USER_TYPES: ["admin", "super_admin"],
+
+  // Permissions that grant system-wide administrative access
+  SYSTEM_ADMIN_PERMISSIONS: [
+    PERMISSIONS.SYSTEM_ADMIN,
+    PERMISSIONS.SUPER_ADMIN,
+    PERMISSIONS.DATABASE_ADMIN,
+    PERMISSIONS.ADMIN_FULL_ACCESS,
+  ],
+
+  // Groups that grant system-wide admin privileges to their admins
+  SYSTEM_ADMIN_GROUPS: [
+    "652ee1f0c619ed8f6e08eec2", // AirQo group
+    // Add other system groups here if needed
+  ],
+};
+
+// Step 6: RBAC Helper Constants
+const RBAC_CONSTANTS = {
+  // Cache TTL for permission checks (in milliseconds)
+  PERMISSION_CACHE_TTL: 5 * 60 * 1000, // 5 minutes
+
+  // Maximum number of group memberships to check
+  MAX_GROUP_MEMBERSHIPS: 50,
+
+  // Default context types
+  CONTEXT_TYPES: {
+    GROUP: "group",
+    NETWORK: "network",
+    SYSTEM: "system",
+  },
+
+  // Permission check strategies
+  PERMISSION_STRATEGIES: {
+    ANY: false, // User needs ANY of the specified permissions
+    ALL: true, // User needs ALL of the specified permissions
+  },
+};
+
 module.exports = {
   // Back-compat nested export
   PERMISSIONS: {
@@ -427,7 +465,57 @@ module.exports = {
     DEFAULT_MEMBER_PERMISSIONS,
     DEPRECATED_ROLE_NAMES,
   },
+
   // New flat export
   ...permissionsExport,
+
+  // System administration constants
+  SYSTEM_ADMIN_CONSTANTS,
+  RBAC_CONSTANTS,
+
+  // Individual constants for easy access
+  AIRQO_GROUP_ID: SYSTEM_ADMIN_CONSTANTS.AIRQO_GROUP_ID,
+  SYSTEM_ADMIN_ROLE_NAMES: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_ROLE_NAMES,
+  SYSTEM_ADMIN_ROLE_CODES: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_ROLE_CODES,
+  SYSTEM_ADMIN_USER_TYPES: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_USER_TYPES,
+  SYSTEM_ADMIN_PERMISSIONS: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_PERMISSIONS,
+  SYSTEM_ADMIN_GROUPS: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_GROUPS,
+
+  // Auth constants
   AUTH: AUTH_CONSTANTS,
+
+  // Helper functions for permission checking
+  HELPERS: {
+    /**
+     * Check if a role name indicates system admin privileges
+     */
+    isSystemAdminRole: (roleName) => {
+      return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_ROLE_NAMES.includes(roleName);
+    },
+
+    /**
+     * Check if a user type in AirQo group indicates system admin privileges
+     */
+    isSystemAdminUserType: (userType) => {
+      return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_USER_TYPES.includes(userType);
+    },
+
+    /**
+     * Check if a group ID grants system admin privileges to its admins
+     */
+    isSystemAdminGroup: (groupId) => {
+      return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_GROUPS.includes(
+        groupId?.toString()
+      );
+    },
+
+    /**
+     * Check if a permission grants system admin access
+     */
+    isSystemAdminPermission: (permission) => {
+      return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_PERMISSIONS.includes(
+        permission
+      );
+    },
+  },
 };

@@ -7,6 +7,7 @@ const RBACService = require("@services/rbac.service");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- group-network-auth`
 );
+const { logText, logObject } = require("@utils/shared");
 
 const __rbacInstances = new Map();
 const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
@@ -53,6 +54,12 @@ const requireGroupManagerAccess = (groupIdParam = "grp_id") => {
       }
 
       const rbacService = getRBACService(tenant);
+
+      // System super admin bypasses further checks
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
+      if (isSystemSuperAdmin) {
+        return next();
+      }
 
       // Check if user is group manager
       const isGroupManager = await rbacService.isGroupManager(
@@ -154,15 +161,37 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
         );
       }
 
-      const rbacService = getRBACService(tenant);
+      // ✅ ENHANCED: Check for AIRQO_SUPER_ADMIN specifically
+      const hasAirqoSuperAdmin = user.group_roles?.some((gr) => {
+        return (
+          (gr.userType === "admin" || gr.userType === "super_admin") &&
+          gr.group?.toString() === constants.AIRQO_GROUP_ID
+        );
+      });
 
-      // Use the dedicated, unambiguous check for system-wide super admin
-      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
-      if (isSystemSuperAdmin) {
-        return next(); // System super admin bypasses further checks
+      const hasSystemPermissions =
+        user.systemPermissions?.includes("SUPER_ADMIN") ||
+        user.systemPermissions?.includes("SYSTEM_ADMIN");
+
+      // If user has AIRQO_SUPER_ADMIN or system permissions, grant access
+      if (hasAirqoSuperAdmin || hasSystemPermissions) {
+        req.groupAdminContext = {
+          groupId,
+          isSystemSuperAdmin: true,
+          isAirqoSuperAdmin: hasAirqoSuperAdmin,
+          userPermissions: user.systemPermissions || [],
+        };
+        return next();
       }
 
-      // Also check for organization-specific admin roles
+      // Continue with existing RBAC checks...
+      const rbacService = getRBACService(tenant);
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
+
+      if (isSystemSuperAdmin) {
+        return next();
+      }
+
       const isGroupAdmin = await rbacService.hasRole(
         user._id,
         ["SUPER_ADMIN", "ADMIN"],
@@ -218,45 +247,116 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
  */
 const requireSuperAdminAccess = async (req, res, next) => {
   try {
-    const user = req.user;
+    const { user } = req;
     const tenant = req.query.tenant || constants.DEFAULT_TENANT;
 
+    logText("--- requireSuperAdminAccess middleware ---");
     if (!user || !user._id) {
+      logText("Access denied: User not authenticated.");
       return next(
         new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
           message: "You must be logged in to access this resource",
         })
       );
     }
-    const rbacService = getRBACService(tenant);
 
-    // Use the dedicated, unambiguous check for system-wide super admin
-    const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
+    logObject("Authenticated User:", { _id: user._id, email: user.email });
 
-    if (!isSystemSuperAdmin) {
-      logger.warn(
-        `Super admin access denied for user ${user.email} (ID: ${user._id}): No super admin role or permissions`
-      );
+    // ✅ ENHANCED: Check multiple ways for system admin access
 
-      return next(
-        new HttpError(
-          "Access denied: Super admin access required",
-          httpStatus.FORBIDDEN,
-          {
-            message:
-              "You don't have super administrator access to this resource",
-          }
-        )
-      );
+    // Check 1: Direct system permissions in user object (from JWT)
+    const hasSystemPermissions =
+      user.systemPermissions?.some((perm) =>
+        constants.SYSTEM_ADMIN_PERMISSIONS.includes(perm)
+      ) || false;
+
+    if (hasSystemPermissions) {
+      logText(`Access granted via system permissions for user ${user.email}`);
+      req.superAdminContext = {
+        isSystemSuperAdmin: true,
+        accessMethod: "system_permissions",
+        allPermissions: user.systemPermissions || [],
+      };
+      return next();
     }
 
-    // Store super admin context
-    req.superAdminContext = {
-      isSystemSuperAdmin,
-      allPermissions: await rbacService.getUserPermissions(user._id),
-    };
+    // Check 2: AIRQO_SUPER_ADMIN role in user object (from JWT)
+    const hasAirqoSuperAdminRole =
+      user.group_roles?.some((gr) => {
+        const isAirqoGroup = constants.HELPERS.isSystemAdminGroup(
+          gr.group?.toString()
+        );
+        const isAdminUserType = constants.HELPERS.isSystemAdminUserType(
+          gr.userType
+        );
+        const hasAdminRole =
+          gr.role &&
+          // Check if role name suggests super admin (this comes from expanded user data)
+          ((typeof gr.role === "object" &&
+            constants.HELPERS.isSystemAdminRole(gr.role.name)) ||
+            // Check if user type is admin in AirQo group
+            (isAirqoGroup && isAdminUserType));
+        return isAirqoGroup && (isAdminUserType || hasAdminRole);
+      }) || false;
 
-    next();
+    if (hasAirqoSuperAdminRole) {
+      logText(
+        `Access granted via AIRQO_SUPER_ADMIN role for user ${user.email}`
+      );
+      req.superAdminContext = {
+        isSystemSuperAdmin: true,
+        accessMethod: "airqo_super_admin_role",
+        allPermissions: user.systemPermissions || [],
+      };
+      return next();
+    }
+
+    // Check 3: isSuperAdmin flag in user object (from enhanced profile)
+    if (user.isSuperAdmin === true) {
+      logText(`Access granted via isSuperAdmin flag for user ${user.email}`);
+      req.superAdminContext = {
+        isSystemSuperAdmin: true,
+        accessMethod: "is_super_admin_flag",
+        allPermissions: user.systemPermissions || [],
+      };
+      return next();
+    }
+
+    // Check 4: Legacy RBAC service check (fallback)
+    const rbacService = getRBACService(tenant);
+    const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
+
+    if (isSystemSuperAdmin) {
+      logText(`Access granted via RBAC service for user ${user.email}`);
+      req.superAdminContext = {
+        isSystemSuperAdmin: true,
+        accessMethod: "rbac_service",
+        allPermissions: await rbacService.getUserPermissions(user._id),
+      };
+      return next();
+    }
+
+    // Access denied
+    logText(
+      `Access denied for user ${user.email}: No system admin privileges found`
+    );
+    logObject("User debug info:", {
+      hasSystemPermissions,
+      hasAirqoSuperAdminRole,
+      isSuperAdmin: user.isSuperAdmin,
+      systemPermissions: user.systemPermissions?.slice(0, 5) || [], // First 5 for debugging
+      groupRoles: user.group_roles?.length || 0,
+    });
+
+    return next(
+      new HttpError(
+        "Access denied: Super admin access required",
+        httpStatus.FORBIDDEN,
+        {
+          message: "You don't have super administrator access to this resource",
+        }
+      )
+    );
   } catch (error) {
     logger.error(`Super admin access check error: ${error.message}`);
     next(
@@ -296,6 +396,12 @@ const requireGroupMemberManagementAccess = (groupIdParam = "grp_id") => {
       }
 
       const rbacService = getRBACService(tenant);
+
+      // System super admin bypasses further checks
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
+      if (isSystemSuperAdmin) {
+        return next();
+      }
 
       // Check if user has member management permissions
       const hasMemberManagePermission = await rbacService.hasPermission(
