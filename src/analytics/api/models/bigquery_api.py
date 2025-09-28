@@ -171,7 +171,7 @@ class BigQueryApi:
         """
         table_name = Utils.table_name(table)
         query = (
-            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_id "
+            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.device_id "
             f"FROM {table_name} "
             f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {table_name}.device_id "
             f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
