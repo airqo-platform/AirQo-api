@@ -1,12 +1,14 @@
 const mongoose = require("mongoose");
 const httpStatus = require("http-status");
 const { HttpError } = require("@utils/shared");
+const { redisUtils } = require("@config/redis");
 
 const healthUtil = {
   getHealth: async (req, next) => {
     try {
       const memUsage = process.memoryUsage();
       const uptime = process.uptime();
+      const redisStatus = redisUtils.getStatus();
       const jobStats = global.jobMetrics ? global.jobMetrics.getStats() : {};
 
       const healthStatus = {
@@ -21,6 +23,7 @@ const healthUtil = {
         jobs: jobStats,
         database:
           mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+        redis: redisStatus,
       };
 
       return {
