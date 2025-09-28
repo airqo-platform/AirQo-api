@@ -55,6 +55,43 @@ const logRedisWarning = (operation) => {
   }
 };
 
+/**
+ * Determines if a request is for historical measurements that should be optimized
+ * @param {Object} request - The request object
+ * @returns {Boolean} - True if this is a historical measurement request
+ */
+const isHistoricalMeasurement = (request) => {
+  const { query, params } = request;
+  const { startTime, endTime, historical, optimize, recent } = {
+    ...query,
+    ...params,
+  };
+
+  // Check if explicitly marked as historical
+  if (historical === "yes" || optimize === "yes") {
+    return true;
+  }
+
+  // Check if recent is explicitly set to "no"
+  if (recent === "no") {
+    return true;
+  }
+
+  // Check if the time range is more than 7 days old
+  if (startTime && endTime) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // If the entire time range is older than 7 days, consider it historical
+    if (end < sevenDaysAgo) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const listDevices = async (request, next) => {
   try {
     const { tenant, limit, skip } = request.query;
@@ -477,6 +514,8 @@ class AirQualityService {
 
   async getAirQualityData(request, next, version = "v1") {
     const { language, site_id } = { ...request.query, ...request.params };
+    const isHistorical = isHistoricalMeasurement(request);
+
     let responseFromListEvents;
 
     try {
@@ -489,22 +528,22 @@ class AirQualityService {
       const versionedFunctions = {
         v2: this.EventModel.v2_getAirQualityAverages,
         v3: this.EventModel.v3_getAirQualityAverages,
-        // Add more versions as needed
       };
 
       const defaultFunction = this.EventModel.getAirQualityAverages;
-
       const getAveragesFunction =
         versionedFunctions[version] || defaultFunction;
 
+      // Pass the historical flag to the model method
       responseFromListEvents = await getAveragesFunction.call(
         this.EventModel,
         site_id,
-        next
-      ); // Use .call to preserve 'this' context
+        next,
+        { isHistorical }
+      );
 
-      // Handle translation if needed (only for v1 as v2 doesn't include health tips)
-      if (version === "v1") {
+      // Handle translation only for current measurements or v1
+      if (!isHistorical && version === "v1") {
         await this.translateHealthTips(responseFromListEvents, language, next);
       }
 
@@ -1326,6 +1365,8 @@ const createEvent = {
       let missingDataMessage = "";
       const { query } = request;
       let { limit, skip, recent } = query;
+      const isHistorical = isHistoricalMeasurement(request);
+
       limit = Number(limit);
       skip = Number(skip);
 
@@ -1341,13 +1382,16 @@ const createEvent = {
       let page = parseInt(query.page);
       const language = request.query.language;
 
-      // if (recent === "yes") {
-      //   logText("Routing recent query to optimized Readings collection");
-      //   return await createEvent.listFromReadings(request, next);
-      // }
+      logText(
+        isHistorical
+          ? "Using optimized historical data query"
+          : "Using standard data query"
+      );
 
-      logText("Using Events collection for historical data");
       const filter = generateFilter.events(request, next);
+
+      // Add historical flag to filter
+      filter.isHistorical = isHistorical;
 
       try {
         const cacheResult = await createEvent.handleCacheOperation(
@@ -1391,7 +1435,9 @@ const createEvent = {
         );
       }
 
+      // Only do translation for non-historical data
       if (
+        !isHistorical &&
         language !== undefined &&
         !isEmpty(responseFromListEvents) &&
         responseFromListEvents.success === true &&
@@ -3254,9 +3300,14 @@ const createEvent = {
         threshold,
         pollutant,
         quality_checks,
+        historical,
+        optimize,
       } = { ...request.query, ...request.params };
+
       const currentTime = new Date().toISOString();
       const day = generateDateFormatWithoutHrs(currentTime);
+      const isHistorical = isHistoricalMeasurement(request);
+
       return `list_events
       _${device ? device : "noDevice"}
       _${tenant}
@@ -3288,6 +3339,7 @@ const createEvent = {
       _${threshold ? threshold : "noThreshold"}
       _${pollutant ? pollutant : "noPollutant"}
       _${quality_checks ? quality_checks : "noQualityChecks"}
+      _${isHistorical ? "historical" : "current"}
       `;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -4721,6 +4773,52 @@ const createEvent = {
       let mobileDeviceCount = 0;
       let staticDeviceCount = 0;
 
+      // OPTIMIZATION: Pre-fetch all device contexts in a single query
+      const deviceIdentifiers = measurements
+        .map(({ device_id, device, device_number }) => {
+          if (device_id) return { _id: device_id };
+          if (device) return { name: device };
+          if (device_number) return { device_number: device_number };
+          return null;
+        })
+        .filter(Boolean);
+
+      const uniqueDeviceIdentifiers = deviceIdentifiers.reduce(
+        (acc, current) => {
+          const key = JSON.stringify(current);
+          if (!acc.find((item) => JSON.stringify(item) === key)) {
+            acc.push(current);
+          }
+          return acc;
+        },
+        []
+      );
+
+      let deviceContexts = new Map();
+      if (uniqueDeviceIdentifiers.length > 0) {
+        try {
+          const devices = await DeviceModel(tenant)
+            .find({ $or: uniqueDeviceIdentifiers })
+            .select(
+              "_id name device_number deployment_type site_id grid_id mobility isActive"
+            )
+            .lean();
+
+          devices.forEach((device) => {
+            deviceContexts.set(device._id.toString(), device);
+            deviceContexts.set(device.name, device);
+            if (device.device_number) {
+              deviceContexts.set(device.device_number.toString(), device);
+            }
+          });
+        } catch (dbError) {
+          logger.error(
+            `Database error pre-fetching devices: ${dbError.message}`
+          );
+          // Continue without pre-fetched context, falling back to individual lookups
+        }
+      }
+
       const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
         measurements,
         next
@@ -4734,7 +4832,21 @@ const createEvent = {
         return responseFromTransformMeasurements;
       }
 
-      for (const measurement of responseFromTransformMeasurements.data) {
+      // Attach pre-fetched context to each measurement
+      const measurementsWithContext = responseFromTransformMeasurements.data.map(
+        (m) => {
+          const identifier = m.device_id
+            ? m.device_id.toString()
+            : m.device || (m.device_number ? m.device_number.toString() : null);
+          const context = deviceContexts.get(identifier);
+          if (context) {
+            return { ...m, ...context };
+          }
+          return m;
+        }
+      );
+
+      for (const measurement of measurementsWithContext) {
         try {
           // Track deployment types
           if (measurement.deployment_type === "mobile") {
@@ -5006,13 +5118,38 @@ const createEvent = {
 
   addValuesWithStats: async (tenant, measurements, next) => {
     try {
+      // Add input validation and limits
+      if (!Array.isArray(measurements)) {
+        return {
+          success: false,
+          message: "Measurements must be an array",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Limit batch size to prevent memory issues
+      const MAX_BATCH_SIZE = 1000;
+      if (measurements.length > MAX_BATCH_SIZE) {
+        return {
+          success: false,
+          message: `Batch size too large. Maximum allowed: ${MAX_BATCH_SIZE}`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       return await ActivityLogger.trackOperation(
         async () => {
-          const result = await createEvent.insertMeasurements_v3(
-            tenant,
-            measurements,
-            next
-          );
+          // Add timeout to prevent hanging
+          const OPERATION_TIMEOUT = 30000; // 30 seconds
+          const result = await Promise.race([
+            createEvent.insertMeasurements_v3(tenant, measurements, next),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Insert operation timeout")),
+                OPERATION_TIMEOUT
+              )
+            ),
+          ]);
 
           // Map deployment_stats to fields that trackOperation recognizes
           return {
