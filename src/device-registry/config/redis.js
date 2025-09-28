@@ -44,6 +44,32 @@ const logThrottledOperationError = (operation, key, error) => {
 };
 // --- END: Log Throttling ---
 
+// --- START: Connection Error Log Throttling ---
+const logThrottledConnectionError = (error) => {
+  const currentMinute = new Date().getMinutes();
+  if (currentMinute < LOGGING_WINDOW_MINUTES) {
+    const errorMessage = error.message.toLowerCase();
+    if (
+      error.code === "ECONNREFUSED" ||
+      error.code === "ETIMEDOUT" ||
+      errorMessage.includes("timeout")
+    ) {
+      logger.warn(
+        `Redis connection error: ${error.code || "N/A"} - ${
+          error.message
+        }. Check server and network.`
+      );
+    } else if (errorMessage.includes("auth")) {
+      logger.error(
+        "Redis authentication failed. Please check your password/credentials."
+      );
+    } else {
+      logger.error(`Redis error: ${error.message}`);
+    }
+  }
+};
+// --- END: Connection Error Log Throttling ---
+
 // Redis v4 configuration with improved retry strategy
 const redisConfig = {
   url: REDIS_URL,
@@ -95,18 +121,7 @@ client.on("error", (error) => {
   lastError = error;
   isConnected = false;
   isReady = false;
-
-  if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
-    logger.warn(
-      `Redis connection error: ${error.code}. Check server and network.`
-    );
-  } else if (error.message.includes("AUTH")) {
-    logger.error(
-      "Redis authentication failed. Please check your password/credentials."
-    );
-  } else {
-    logger.error(`Redis error: ${error.message}`);
-  }
+  logThrottledConnectionError(error);
 });
 
 client.on("end", () => {
