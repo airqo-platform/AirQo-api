@@ -705,6 +705,29 @@ const elementAtIndexName = (metadata, recent) => {
     }
   }
 };
+
+function getHistoricalComputedFieldsExclusion(isHistorical) {
+  let exclusions = {};
+
+  if (isHistorical) {
+    // Only exclude expensive computed fields for historical measurements
+    const expensiveComputedFields = [
+      "timeDifferenceHours", // Expensive time calculation
+      "aqi_ranges", // Static AQI ranges (not needed for historical)
+      "aqi_color", // AQI color computation
+      "aqi_category", // AQI category computation
+      "aqi_color_name", // AQI color name computation
+      "health_tips", // Health tips lookup (expensive)
+      "site_image", // Image lookups (expensive)
+      "is_reading_primary", // Device status check
+    ];
+
+    expensiveComputedFields.forEach((field) => (exclusions[field] = 0));
+  }
+
+  return exclusions;
+}
+
 async function fetchData(model, filter) {
   let {
     metadata,
@@ -719,13 +742,20 @@ async function fetchData(model, filter) {
     page,
     active,
     internal,
+    isHistorical = false, // New parameter
   } = filter;
 
-  if (typeof limit !== "number" || isNaN(limit)) {
+  // Validate and sanitize input parameters
+  if (typeof limit !== "number" || isNaN(limit) || limit < 0) {
     limit = DEFAULT_LIMIT;
   }
 
-  if (typeof page !== "number" || isNaN(page)) {
+  const MAX_LIMIT = 10000;
+  if (limit > MAX_LIMIT) {
+    limit = MAX_LIMIT;
+  }
+
+  if (typeof page !== "number" || isNaN(page) || page < 1) {
     page = DEFAULT_PAGE;
   }
 
@@ -749,13 +779,14 @@ async function fetchData(model, filter) {
   let s1_pm2_5 = "$pm2_5";
   let s1_pm10 = "$pm10";
   let elementAtIndex0 = elementAtIndexName(metadata, recent);
-  let projection = {
-    _id: 0,
-  };
+
+  // Start with base projection
+  let projection = { _id: 0 };
   let siteProjection = {};
   let deviceProjection = {};
   let sort = { time: -1 };
 
+  // Clean up search filter
   delete search["external"];
   delete search["frequency"];
   delete search["metadata"];
@@ -770,73 +801,81 @@ async function fetchData(model, filter) {
   delete search["skip"];
   delete search["active"];
   delete search["internal"];
+  delete search["isHistorical"]; // Clean up our new flag
 
   if (tenant !== "airqo") {
     pm2_5 = "$pm2_5";
     pm10 = "$pm10";
   }
 
+  // Apply existing external/brief projections first (unchanged from original)
   if (external === "yes" || brief === "yes") {
-    projection["s2_pm10"] = 0;
-    projection["s1_pm10"] = 0;
-    projection["s2_pm2_5"] = 0;
-    projection["s1_pm2_5"] = 0;
-    projection["rtc_adc"] = 0;
-    projection["rtc_v"] = 0;
-    projection["rtc"] = 0;
-    projection["stc_adc"] = 0;
-    projection["stc_v"] = 0;
-    projection["stc"] = 0;
-    projection["pm1"] = 0;
-    projection["externalHumidity"] = 0;
-    projection["externalAltitude"] = 0;
-    projection["internalHumidity"] = 0;
-    projection["externalTemperature"] = 0;
-    projection["internalTemperature"] = 0;
-    projection["hdop"] = 0;
-    projection["tvoc"] = 0;
-    projection["hcho"] = 0;
-    projection["co2"] = 0;
-    projection["intaketemperature"] = 0;
-    projection["intakehumidity"] = 0;
-    projection["satellites"] = 0;
-    projection["speed"] = 0;
-    projection["altitude"] = 0;
-    projection["site_image"] = 0;
-    projection["location"] = 0;
-    projection["network"] = 0;
-    projection["battery"] = 0;
-    projection["average_pm10"] = 0;
-    projection["average_pm2_5"] = 0;
-    projection["device_number"] = 0;
-    projection["pm2_5.uncertaintyValue"] = 0;
-    projection["pm2_5.calibratedValue"] = 0;
-    projection["pm2_5.standardDeviationValue"] = 0;
-    projection["pm10.uncertaintyValue"] = 0;
-    projection["pm10.calibratedValue"] = 0;
-    projection["pm10.standardDeviationValue"] = 0;
-    projection["no2.uncertaintyValue"] = 0;
-    projection["no2.standardDeviationValue"] = 0;
-    projection["no2.calibratedValue"] = 0;
-    projection["site"] = 0;
-    projection[as] = 0;
+    const excludeFields = [
+      "s2_pm10",
+      "s1_pm10",
+      "s2_pm2_5",
+      "s1_pm2_5",
+      "rtc_adc",
+      "rtc_v",
+      "rtc",
+      "stc_adc",
+      "stc_v",
+      "stc",
+      "pm1",
+      "externalHumidity",
+      "externalAltitude",
+      "internalHumidity",
+      "externalTemperature",
+      "internalTemperature",
+      "hdop",
+      "tvoc",
+      "hcho",
+      "co2",
+      "intaketemperature",
+      "intakehumidity",
+      "satellites",
+      "speed",
+      "altitude",
+      "site_image",
+      "location",
+      "network",
+      "battery",
+      "average_pm10",
+      "average_pm2_5",
+      "device_number",
+      "pm2_5.uncertaintyValue",
+      "pm2_5.calibratedValue",
+      "pm2_5.standardDeviationValue",
+      "pm10.uncertaintyValue",
+      "pm10.calibratedValue",
+      "pm10.standardDeviationValue",
+      "no2.uncertaintyValue",
+      "no2.standardDeviationValue",
+      "no2.calibratedValue",
+      "site",
+      as,
+    ];
+
+    excludeFields.forEach((field) => (projection[field] = 0));
   }
 
+  // Configure metadata-specific settings (always use constants.EVENTS_METADATA_PROJECTION)
   if (!metadata || metadata === "device" || metadata === "device_id") {
     idField = "$device";
-    groupId = "$" + metadata ? metadata : groupId;
-    localField = metadata ? metadata : localField;
+    groupId = "$" + (metadata || "device");
+    localField = metadata || localField;
     if (metadata === "device_id") {
       foreignField = "_id";
     }
     if (metadata === "device" || !metadata) {
       foreignField = "name";
     }
-
     from = "devices";
     _as = "_deviceDetails";
     as = "deviceDetails";
     elementAtIndex0 = elementAtIndexName(metadata, recent);
+
+    // Always use the centralized projection configuration
     deviceProjection = constants.EVENTS_METADATA_PROJECTION("device", as);
     Object.assign(projection, deviceProjection);
   }
@@ -856,6 +895,7 @@ async function fetchData(model, filter) {
     as = "siteDetails";
     elementAtIndex0 = elementAtIndexName(metadata, recent);
 
+    // Always use the centralized projection configuration
     if (brief === "yes") {
       siteProjection = constants.EVENTS_METADATA_PROJECTION("brief_site", as);
     } else {
@@ -864,57 +904,63 @@ async function fetchData(model, filter) {
     Object.assign(projection, siteProjection);
   }
 
-  if (running === "yes") {
-    delete projection["pm2_5.uncertaintyValue"];
-    delete projection["pm2_5.standardDeviationValue"];
-    delete projection["pm2_5.calibratedValue"];
+  // Apply historical optimization for expensive computed fields only
+  if (isHistorical) {
+    const historicalExclusions = getHistoricalComputedFieldsExclusion(
+      isHistorical
+    );
+    Object.assign(projection, historicalExclusions);
+  }
 
-    Object.assign(projection, {
-      site_image: 0,
-      is_reading_primary: 0,
-      deviceDetails: 0,
-      aqi_color: 0,
-      aqi_category: 0,
-      aqi_color_name: 0,
-      pm2_5: 0,
-      average_pm10: 0,
-      average_pm2_5: 0,
-      pm10: 0,
-      frequency: 0,
-      network: 0,
-      location: 0,
-      altitude: 0,
-      speed: 0,
-      satellites: 0,
-      hdop: 0,
-      intaketemperature: 0,
-      tvoc: 0,
-      hcho: 0,
-      co2: 0,
-      intakehumidity: 0,
-      internalTemperature: 0,
-      externalTemperature: 0,
-      internalHumidity: 0,
-      externalHumidity: 0,
-      externalAltitude: 0,
-      pm1: 0,
-      no2: 0,
-      site: 0,
-      site_id: 0,
-      health_tips: 0,
-      s1_pm2_5: 0,
-      s2_pm2_5: 0,
-      s1_pm10: 0,
-      s2_pm10: 0,
-      battery: 0,
-      rtc_adc: 0,
-      rtc_v: 0,
-      rtc: 0,
-      stc_adc: 0,
-      stc_v: 0,
-      stc: 0,
-      siteDetails: 0,
-    });
+  // Special handling for running devices
+  if (running === "yes" && !isHistorical) {
+    const runningFields = [
+      "site_image",
+      "is_reading_primary",
+      "deviceDetails",
+      "aqi_color",
+      "aqi_category",
+      "aqi_color_name",
+      "pm2_5",
+      "average_pm10",
+      "average_pm2_5",
+      "pm10",
+      "frequency",
+      "network",
+      "location",
+      "altitude",
+      "speed",
+      "satellites",
+      "hdop",
+      "intaketemperature",
+      "tvoc",
+      "hcho",
+      "co2",
+      "intakehumidity",
+      "internalTemperature",
+      "externalTemperature",
+      "internalHumidity",
+      "externalHumidity",
+      "externalAltitude",
+      "pm1",
+      "no2",
+      "site",
+      "site_id",
+      "health_tips",
+      "s1_pm2_5",
+      "s2_pm2_5",
+      "s1_pm10",
+      "s2_pm10",
+      "battery",
+      "rtc_adc",
+      "rtc_v",
+      "rtc",
+      "stc_adc",
+      "stc_v",
+      "stc",
+      "siteDetails",
+    ];
+    runningFields.forEach((field) => (projection[field] = 0));
   }
 
   if (!isEmpty(index)) {
@@ -922,140 +968,183 @@ async function fetchData(model, filter) {
   }
 
   logObject("the query for this request", search);
+  logText(
+    `Using ${isHistorical ? "historical" : "current"} measurement optimization`
+  );
 
   if (!recent || recent === "yes") {
-    // First, get the total count with a lightweight aggregation
-    const totalCountPipeline = model
-      .aggregate()
-      .unwind("values")
-      .match(search)
-      .replaceRoot("values");
+    try {
+      // Build the count pipeline stages as an array first
+      const countPipelineStages = [
+        { $match: search },
+        { $unwind: "$values" },
+        { $match: { "values.time": search["values.time"] } },
+        { $replaceRoot: { newRoot: "$values" } },
+      ];
 
-    if (active === "yes") {
-      totalCountPipeline
-        .lookup({
-          from: "devices",
-          localField: "device_id",
-          foreignField: "_id",
-          as: "device_details",
-        })
-        .match({ "device_details.isActive": true });
-    }
+      // Track whether we've added device lookup to avoid duplicates
+      let hasDeviceLookup = false;
 
-    if (internal !== "yes") {
-      if (
-        !totalCountPipeline._pipeline.some(
-          (stage) => stage.$lookup && stage.$lookup.from === "devices"
-        )
-      ) {
-        totalCountPipeline.lookup({
-          from: "devices",
-          localField: "device_id",
-          foreignField: "_id",
-          as: "device_details",
+      // Add active device filtering if needed
+      if (active === "yes") {
+        if (!hasDeviceLookup) {
+          countPipelineStages.push({
+            $lookup: {
+              from: "devices",
+              localField: "device_id",
+              foreignField: "_id",
+              as: "device_details",
+            },
+          });
+          hasDeviceLookup = true;
+        }
+        countPipelineStages.push({
+          $match: { "device_details.isActive": true },
         });
       }
-      totalCountPipeline
-        .lookup({
-          from: "cohorts",
-          localField: "device_details.cohorts",
-          foreignField: "_id",
-          as: "cohort_details",
-        })
-        .match({
-          "cohort_details.visibility": { $ne: false },
-        });
-    }
 
-    const totalCountResult = await totalCountPipeline
-      .group({
-        _id: idField,
-      })
-      .count("device")
-      .allowDiskUse(true);
+      // Add visibility filtering for non-internal requests
+      if (internal !== "yes") {
+        if (!hasDeviceLookup) {
+          countPipelineStages.push({
+            $lookup: {
+              from: "devices",
+              localField: "device_id",
+              foreignField: "_id",
+              as: "device_details",
+            },
+          });
+          hasDeviceLookup = true;
+        }
+        countPipelineStages.push(
+          {
+            $lookup: {
+              from: "cohorts",
+              localField: "device_details.cohorts",
+              foreignField: "_id",
+              as: "cohort_details",
+            },
+          },
+          { $match: { "cohort_details.visibility": { $ne: false } } }
+        );
+      }
 
-    const totalCount =
-      totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+      // Add the final count stages
+      countPipelineStages.push(
+        { $group: { _id: idField } },
+        { $count: "device" }
+      );
 
-    // Now get the actual data with pagination applied early
-    let pipeline = model
-      .aggregate()
-      .unwind("values")
-      .match(search)
-      .replaceRoot("values")
-      .lookup({
-        from: "photos",
-        localField: "site_id",
-        foreignField: "site_id",
-        as: "site_images",
-      })
-      .lookup({
-        from: "devices",
-        localField: "device_id",
-        foreignField: "_id",
-        as: "device_details",
-      });
+      // Execute the count pipeline with timeout
+      const COUNT_TIMEOUT = 15000; // 15 seconds
+      const totalCountResult = await Promise.race([
+        model
+          .aggregate(countPipelineStages)
+          .allowDiskUse(true)
+          .exec(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Count query timeout")),
+            COUNT_TIMEOUT
+          )
+        ),
+      ]);
 
-    if (active === "yes") {
-      pipeline = pipeline.match({ "device_details.isActive": true });
-    }
+      const totalCount =
+        totalCountResult.length > 0 ? totalCountResult[0].device : 0;
 
-    pipeline = pipeline.lookup({
-      from: "cohorts",
-      localField: "device_details.cohorts",
-      foreignField: "_id",
-      as: "cohort_details",
-    });
+      // Build main aggregation pipeline with optimizations
+      let pipeline = model.aggregate([
+        { $match: search },
+        { $unwind: "$values" },
+        { $match: { "values.time": search["values.time"] } },
+        { $replaceRoot: { newRoot: "$values" } },
+      ]);
 
-    if (internal !== "yes") {
-      pipeline = pipeline.match({
-        "cohort_details.visibility": { $ne: false },
-      });
-    }
+      // Conditionally add lookups based on historical flag
+      if (!isHistorical) {
+        pipeline = pipeline.append([
+          {
+            $lookup: {
+              from: "photos",
+              localField: "site_id",
+              foreignField: "site_id",
+              as: "site_images",
+            },
+          },
+        ]);
+      }
 
-    const data = await pipeline
-      .lookup({
+      pipeline = pipeline.append([
+        {
+          $lookup: {
+            from: "devices",
+            localField: "device_id",
+            foreignField: "_id",
+            as: "device_details",
+          },
+        },
+      ]);
+
+      // Add conditional stages based on requirements
+      if (active === "yes") {
+        pipeline = pipeline.append([
+          { $match: { "device_details.isActive": true } },
+        ]);
+      }
+
+      pipeline = pipeline.append([
+        {
+          $lookup: {
+            from: "cohorts",
+            localField: "device_details.cohorts",
+            foreignField: "_id",
+            as: "cohort_details",
+          },
+        },
+      ]);
+
+      if (internal !== "yes") {
+        pipeline = pipeline.append([
+          { $match: { "cohort_details.visibility": { $ne: false } } },
+        ]);
+      }
+
+      // Add lookup for metadata
+      pipeline = pipeline.lookup({
         from,
         localField,
         foreignField,
         as,
-      })
-      .lookup({
-        from: "healthtips",
-        let: { pollutantValue: { $toInt: "$pm2_5.value" } },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  {
-                    $lte: ["$aqi_category.min", "$$pollutantValue"],
-                  },
-                  {
-                    $gte: ["$aqi_category.max", "$$pollutantValue"],
-                  },
-                ],
+      });
+
+      // Conditionally add health tips lookup for non-historical data
+      if (!isHistorical) {
+        pipeline = pipeline.lookup({
+          from: "healthtips",
+          let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $lte: ["$aqi_category.min", "$$pollutantValue"] },
+                    { $gte: ["$aqi_category.max", "$$pollutantValue"] },
+                  ],
+                },
               },
             },
-          },
-        ],
-        as: "healthTips",
-      })
-      .sort(sort)
-      .group({
+          ],
+          as: "healthTips",
+        });
+      }
+
+      // Continue with grouping and projections
+      let groupStage = {
         _id: idField,
         device: { $first: "$device" },
         device_id: { $first: "$device_id" },
-        site_image: {
-          $first: { $arrayElemAt: ["$site_images.image_url", 0] },
-        },
-        is_reading_primary: {
-          $first: {
-            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
-          },
-        },
         device_number: { $first: "$device_number" },
-        health_tips: { $first: "$healthTips" },
         site: { $first: "$site" },
         site_id: { $first: "$site_id" },
         time: { $first: "$time" },
@@ -1094,198 +1183,339 @@ async function fetchData(model, filter) {
         stc_v: { $first: "$stc_v" },
         stc: { $first: "$stc" },
         [as]: elementAtIndex0,
-      })
-      .addFields({
-        timeDifferenceHours: {
-          $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
+      };
+
+      // Add fields that are only needed for non-historical data
+      if (!isHistorical) {
+        groupStage.site_image = {
+          $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+        };
+        groupStage.is_reading_primary = {
+          $first: {
+            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+          },
+        };
+        groupStage.health_tips = { $first: "$healthTips" };
+      }
+
+      pipeline = pipeline.sort(sort).group(groupStage);
+
+      // Conditionally add expensive fields for non-historical data
+      if (!isHistorical) {
+        pipeline = pipeline.addFields({
+          timeDifferenceHours: {
+            $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
+          },
+        });
+      }
+
+      // Clean up health tips projection for non-historical data
+      if (!isHistorical) {
+        pipeline = pipeline
+          .project({
+            "health_tips.aqi_category": 0,
+            "health_tips.value": 0,
+            "health_tips.createdAt": 0,
+            "health_tips.updatedAt": 0,
+            "health_tips.__v": 0,
+          })
+          .project({
+            "site_image.createdAt": 0,
+            "site_image.updatedAt": 0,
+            "site_image.metadata": 0,
+            "site_image.__v": 0,
+            "site_image.device_name": 0,
+            "site_image.device_id": 0,
+            "site_image._id": 0,
+            "site_image.tags": 0,
+            "site_image.image_code": 0,
+            "site_image.site_id": 0,
+            "site_image.airqloud_id": 0,
+          });
+      }
+
+      pipeline = pipeline.project(projection);
+
+      // Add AQI fields only for non-historical data
+      if (!isHistorical) {
+        pipeline = pipeline
+          .addFields({
+            aqi_ranges: AQI_RANGES,
+          })
+          .addFields(generateAqiAddFields().$addFields);
+      }
+
+      // Apply timeout for main data query
+      const DATA_TIMEOUT = isHistorical ? 45000 : 30000; // Longer timeout for historical
+      const data = await Promise.race([
+        pipeline
+          .skip(skip)
+          .limit(limit)
+          .allowDiskUse(true)
+          .exec(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Data query timeout")),
+            DATA_TIMEOUT
+          )
+        ),
+      ]);
+
+      // Construct the response format
+      const meta = {
+        total: totalCount,
+        skip: skip,
+        limit: limit,
+        page: Math.trunc(skip / limit + 1),
+        pages: Math.ceil(totalCount / limit) || 1,
+        startTime,
+        endTime,
+        optimized: isHistorical,
+      };
+
+      return [{ meta, data }];
+    } catch (error) {
+      // Log error and return empty result rather than failing completely
+      logger.error(
+        `Error in fetchData ${isHistorical ? "historical" : "current"} query: ${
+          error.message
+        }`
+      );
+      return [
+        {
+          meta: {
+            total: 0,
+            skip: skip,
+            limit: limit,
+            page: 1,
+            pages: 1,
+            startTime,
+            endTime,
+            error: error.message,
+            optimized: isHistorical,
+          },
+          data: [],
         },
-      })
-      .project({
-        "health_tips.aqi_category": 0,
-        "health_tips.value": 0,
-        "health_tips.createdAt": 0,
-        "health_tips.updatedAt": 0,
-        "health_tips.__v": 0,
-      })
-      .project({
-        "site_image.createdAt": 0,
-        "site_image.updatedAt": 0,
-        "site_image.metadata": 0,
-        "site_image.__v": 0,
-        "site_image.device_name": 0,
-        "site_image.device_id": 0,
-        "site_image._id": 0,
-        "site_image.tags": 0,
-        "site_image.image_code": 0,
-        "site_image.site_id": 0,
-        "site_image.airqloud_id": 0,
-      })
-      .project(projection)
-      .addFields({
-        aqi_ranges: AQI_RANGES,
-      })
-      .addFields(generateAqiAddFields().$addFields)
-      // Apply pagination here instead of in facet to prevent memory overflow
-      .skip(skip)
-      .limit(limit)
-      .allowDiskUse(true);
-
-    // Construct the exact same response format as the original
-    const meta = {
-      total: totalCount,
-      skip: skip,
-      limit: limit,
-      page: Math.trunc(skip / limit + 1),
-      pages: Math.ceil(totalCount / limit) || 1,
-      startTime,
-      endTime,
-    };
-
-    // Return in the exact same format as the original facet-based approach
-    return [{ meta, data }];
+      ];
+    }
   }
 
+  // Historical data processing (recent === "no") - similar optimizations would apply
   if (recent === "no") {
-    // Get total count first to avoid memory issues
-    const totalCountResult = await model
-      .aggregate()
-      .unwind("values")
-      .match(search)
-      .replaceRoot("values")
-      .lookup({
-        from,
-        localField,
-        foreignField,
-        as,
-      })
-      .count("device")
-      .allowDiskUse(true);
+    try {
+      // Similar timeout and optimization patterns for historical data
+      const HISTORICAL_TIMEOUT = 45000; // 45 seconds for larger historical queries
 
-    const totalCount =
-      totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+      const totalCountResult = await Promise.race([
+        model
+          .aggregate([
+            { $match: search },
+            { $unwind: "$values" },
+            { $match: { "values.time": search["values.time"] } },
+            { $replaceRoot: { newRoot: "$values" } },
+            {
+              $lookup: {
+                from,
+                localField,
+                foreignField,
+                as,
+              },
+            },
+            { $count: "device" },
+          ])
+          .allowDiskUse(true)
+          .exec(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Historical count timeout")),
+            HISTORICAL_TIMEOUT
+          )
+        ),
+      ]);
 
-    // Get paginated data
-    let data = await model
-      .aggregate()
-      .unwind("values")
-      .match(search)
-      .replaceRoot("values")
-      .lookup({
-        from,
-        localField,
-        foreignField,
-        as,
-      })
-      .sort(sort)
-      .addFields({
-        timeDifferenceHours: {
-          $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
+      const totalCount =
+        totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+
+      let histPipeline = [
+        { $match: search },
+        { $unwind: "$values" },
+        { $match: { "values.time": search["values.time"] } },
+        { $replaceRoot: { newRoot: "$values" } },
+        {
+          $lookup: {
+            from,
+            localField,
+            foreignField,
+            as,
+          },
         },
-      })
-      .project({
-        _device: "$device",
-        _time: "$time",
-        _average_pm2_5: "$average_pm2_5",
-        _pm2_5: pm2_5,
-        _s1_pm2_5: s1_pm2_5,
-        _s2_pm2_5: "$s2_pm2_5",
-        _average_pm10: "$average_pm10",
-        _pm10: pm10,
-        _s1_pm10: s1_pm10,
-        _s2_pm10: "$s2_pm10",
-        _frequency: "$frequency",
-        _battery: "$battery",
-        _location: "$location",
-        _altitude: "$altitude",
-        _speed: "$speed",
-        _network: "$network",
-        _satellites: "$satellites",
-        _hdop: "$hdop",
-        _tvoc: "$tvoc",
-        _hcho: "$hcho",
-        _co2: "$co2",
-        _intaketemperature: "$intaketemperature",
-        _intakehumidity: "$intakehumidity",
-        _site_id: "$site_id",
-        _device_id: "$device_id",
-        _site: "$site",
-        _device_number: "$device_number",
-        _internalTemperature: "$internalTemperature",
-        _externalTemperature: "$externalTemperature",
-        _internalHumidity: "$internalHumidity",
-        _externalHumidity: "$externalHumidity",
-        _externalAltitude: "$externalAltitude",
-        _pm1: "$pm1",
-        _no2: "$no2",
-        _rtc_adc: "$rtc_adc",
-        _rtc_v: "$rtc_v",
-        _rtc: "$rtc",
-        _stc_adc: "$stc_adc",
-        _stc_v: "$stc_v",
-        _stc: "$stc",
-        [_as]: elementAtIndex0,
-      })
-      .project({
-        device: "$_device",
-        device_id: "$_device_id",
-        device_number: "$_device_number",
-        site: "$_site",
-        site_id: "$_site_id",
-        time: "$_time",
-        average_pm2_5: "$_average_pm2_5",
-        pm2_5: "$_pm2_5",
-        s1_pm2_5: "$_s1_pm2_5",
-        s2_pm2_5: "$_s2_pm2_5",
-        average_pm10: "$_average_pm10",
-        pm10: "$_pm10",
-        s1_pm10: "$_s1_pm10",
-        s2_pm10: "$_s2_pm10",
-        frequency: "$_frequency",
-        battery: "$_battery",
-        location: "$_location",
-        altitude: "$_altitude",
-        speed: "$_speed",
-        network: "$_network",
-        satellites: "$_satellites",
-        hdop: "$_hdop",
-        intaketemperature: "$_intaketemperature",
-        tvoc: "$_tvoc",
-        hcho: "$_hcho",
-        co2: "$_co2",
-        intakehumidity: "$_intakehumidity",
-        internalTemperature: "$_internalTemperature",
-        externalTemperature: "$_externalTemperature",
-        internalHumidity: "$_internalHumidity",
-        externalHumidity: "$_externalHumidity",
-        externalAltitude: "$_externalAltitude",
-        pm1: "$_pm1",
-        no2: "$_no2",
-        rtc_adc: "$_rtc_adc",
-        rtc_v: "$_rtc_v",
-        rtc: "$_rtc",
-        stc_adc: "$_stc_adc",
-        stc_v: "$_stc_v",
-        stc: "$_stc",
-        [as]: "$" + _as,
-      })
-      .project(projection)
-      // Apply pagination to prevent memory overflow
-      .skip(skip)
-      .limit(limit)
-      .allowDiskUse(true);
+        { $sort: sort },
+      ];
 
-    const meta = {
-      total: totalCount,
-      skip: skip,
-      limit: limit,
-      page: Math.trunc(skip / limit + 1),
-      pages: Math.ceil(totalCount / limit) || 1,
-      startTime,
-      endTime,
-    };
+      // Add timeDifferenceHours only for non-historical
+      if (!isHistorical) {
+        histPipeline.push({
+          $addFields: {
+            timeDifferenceHours: {
+              $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
+            },
+          },
+        });
+      }
 
-    // Return in the exact same format as the original
-    return [{ meta, data }];
+      // Simplified projection for historical data
+      histPipeline.push({
+        $project: {
+          _device: "$device",
+          _time: "$time",
+          _average_pm2_5: "$average_pm2_5",
+          _pm2_5: pm2_5,
+          _s1_pm2_5: s1_pm2_5,
+          _s2_pm2_5: "$s2_pm2_5",
+          _average_pm10: "$average_pm10",
+          _pm10: pm10,
+          _s1_pm10: s1_pm10,
+          _s2_pm10: "$s2_pm10",
+          _frequency: "$frequency",
+          _site_id: "$site_id",
+          _device_id: "$device_id",
+          _site: "$site",
+          _device_number: "$device_number",
+          [_as]: elementAtIndex0,
+          // Only include these for non-historical data
+          ...(isHistorical
+            ? {}
+            : {
+                _battery: "$battery",
+                _location: "$location",
+                _altitude: "$altitude",
+                _speed: "$speed",
+                _network: "$network",
+                _satellites: "$satellites",
+                _hdop: "$hdop",
+                _tvoc: "$tvoc",
+                _hcho: "$hcho",
+                _co2: "$co2",
+                _intaketemperature: "$intaketemperature",
+                _intakehumidity: "$intakehumidity",
+                _internalTemperature: "$internalTemperature",
+                _externalTemperature: "$externalTemperature",
+                _internalHumidity: "$internalHumidity",
+                _externalHumidity: "$externalHumidity",
+                _externalAltitude: "$externalAltitude",
+                _pm1: "$pm1",
+                _no2: "$no2",
+                _rtc_adc: "$rtc_adc",
+                _rtc_v: "$rtc_v",
+                _rtc: "$rtc",
+                _stc_adc: "$stc_adc",
+                _stc_v: "$stc_v",
+                _stc: "$stc",
+              }),
+        },
+      });
+
+      histPipeline.push({
+        $project: {
+          device: "$_device",
+          device_id: "$_device_id",
+          device_number: "$_device_number",
+          site: "$_site",
+          site_id: "$_site_id",
+          time: "$_time",
+          average_pm2_5: "$_average_pm2_5",
+          pm2_5: "$_pm2_5",
+          s1_pm2_5: "$_s1_pm2_5",
+          s2_pm2_5: "$_s2_pm2_5",
+          average_pm10: "$_average_pm10",
+          pm10: "$_pm10",
+          s1_pm10: "$_s1_pm10",
+          s2_pm10: "$_s2_pm10",
+          frequency: "$_frequency",
+          [as]: "$" + _as,
+          // Only include these for non-historical data
+          ...(isHistorical
+            ? {}
+            : {
+                battery: "$_battery",
+                location: "$_location",
+                altitude: "$_altitude",
+                speed: "$_speed",
+                network: "$_network",
+                satellites: "$_satellites",
+                hdop: "$_hdop",
+                intaketemperature: "$_intaketemperature",
+                tvoc: "$_tvoc",
+                hcho: "$_hcho",
+                co2: "$_co2",
+                intakehumidity: "$_intakehumidity",
+                internalTemperature: "$_internalTemperature",
+                externalTemperature: "$_externalTemperature",
+                internalHumidity: "$_internalHumidity",
+                externalHumidity: "$_externalHumidity",
+                externalAltitude: "$_externalAltitude",
+                pm1: "$_pm1",
+                no2: "$_no2",
+                rtc_adc: "$_rtc_adc",
+                rtc_v: "$_rtc_v",
+                rtc: "$_rtc",
+                stc_adc: "$_stc_adc",
+                stc_v: "$_stc_v",
+                stc: "$_stc",
+              }),
+        },
+      });
+
+      histPipeline.push(
+        { $project: projection },
+        { $skip: skip },
+        { $limit: limit }
+      );
+
+      const data = await Promise.race([
+        model
+          .aggregate(histPipeline)
+          .allowDiskUse(true)
+          .exec(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Historical data timeout")),
+            HISTORICAL_TIMEOUT
+          )
+        ),
+      ]);
+
+      const meta = {
+        total: totalCount,
+        skip: skip,
+        limit: limit,
+        page: Math.trunc(skip / limit + 1),
+        pages: Math.ceil(totalCount / limit) || 1,
+        startTime,
+        endTime,
+        optimized: isHistorical,
+      };
+
+      return [{ meta, data }];
+    } catch (error) {
+      logger.error(`Error in fetchData historical query: ${error.message}`);
+      return [
+        {
+          meta: {
+            total: 0,
+            skip: skip,
+            limit: limit,
+            page: 1,
+            pages: 1,
+            startTime,
+            endTime,
+            error: error.message,
+            optimized: isHistorical,
+          },
+          data: [],
+        },
+      ];
+    }
   }
 }
 
@@ -1747,11 +1977,17 @@ eventSchema.statics.view = async function(filter, next) {
     request.skip = filter.skip ? filter.skip : DEFAULT_SKIP;
     request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
     request.page = filter.page ? filter.page : DEFAULT_PAGE;
+
     const result = await fetchData(this, request);
     const transformedData = filterNull(result[0].data);
     result[0].data = transformedData;
-    const calculatedValues = computeAveragePm2_5(transformedData);
-    result[0].meta.pm2_5Avg = calculatedValues;
+
+    // Only calculate average if we have data
+    if (transformedData.length > 0) {
+      const calculatedValues = computeAveragePm2_5(transformedData);
+      result[0].meta.pm2_5Avg = calculatedValues;
+    }
+
     return {
       success: true,
       data: result,
@@ -1776,11 +2012,17 @@ eventSchema.statics.fetch = async function(filter) {
     request.skip = filter.skip ? filter.skip : DEFAULT_SKIP;
     request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
     request.page = filter.page ? filter.page : DEFAULT_PAGE;
+
     const result = await fetchData(this, request);
     const transformedData = filterNullAndReportOffDevices(result[0].data);
     result[0].data = transformedData;
-    const calculatedValues = computeAveragePm2_5(transformedData);
-    result[0].meta.pm2_5Avg = calculatedValues;
+
+    // Only calculate average if we have data
+    if (transformedData.length > 0) {
+      const calculatedValues = computeAveragePm2_5(transformedData);
+      result[0].meta.pm2_5Avg = calculatedValues;
+    }
+
     return {
       success: true,
       data: result,
@@ -1789,7 +2031,7 @@ eventSchema.statics.fetch = async function(filter) {
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error --- view events -- ${error.message}`
+      `🐛🐛 Internal Server Error --- fetch events -- ${error.message}`
     );
     return;
   }
@@ -1819,12 +2061,18 @@ eventSchema.statics.signal = async function(filter) {
   }
 };
 
-eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
+eventSchema.statics.getAirQualityAverages = async function(
+  siteId,
+  next,
+  options = {}
+) {
   try {
-    const testDate = "2022-12-20T11:43:18.595Z";
+    const { isHistorical = false } = options;
+    const TIMEZONE = moment.tz.guess();
+
     const now = moment()
       .tz(TIMEZONE)
-      .toDate(); // Convert back to Date object
+      .toDate();
     const today = moment()
       .tz(TIMEZONE)
       .startOf("day")
@@ -1835,38 +2083,105 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
       .subtract(14, "days")
       .toDate();
 
-    logText("Debug Info:");
-    logObject("TIMEZONE", TIMEZONE);
-    logObject("now", now);
-    logObject("today", today);
-    logObject("twoWeeksAgo", twoWeeksAgo);
+    // For historical measurements, use simplified aggregation
+    if (isHistorical) {
+      const result = await this.aggregate([
+        {
+          $match: {
+            "values.site_id": mongoose.Types.ObjectId(siteId),
+            "values.time": { $gte: twoWeeksAgo, $lte: now },
+          },
+        },
+        {
+          $unwind: {
+            path: "$values",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        {
+          $match: {
+            "values.time": { $gte: twoWeeksAgo, $lte: now },
+            "values.pm2_5.value": { $exists: true, $ne: null },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            time: "$values.time",
+            pm2_5: "$values.pm2_5.value",
+            dayOfYear: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$values.time",
+                timezone: TIMEZONE,
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$dayOfYear",
+            dailyAverage: { $avg: "$pm2_5" },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            overallAverage: { $avg: "$dailyAverage" },
+            days: { $push: { date: "$_id", average: "$dailyAverage" } },
+          },
+        },
+      ]).allowDiskUse(true);
 
+      if (result.length === 0) {
+        return {
+          success: false,
+          message: "No data available for the specified period",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const todayStr = moment(today)
+        .tz(TIMEZONE)
+        .format("YYYY-MM-DD");
+      const todayAverage = result[0].days.find((day) => day.date === todayStr)
+        ?.average;
+
+      return {
+        success: true,
+        data: {
+          dailyAverage: todayAverage
+            ? parseFloat(todayAverage.toFixed(2))
+            : null,
+          overallAverage: parseFloat(result[0].overallAverage.toFixed(2)),
+          // Simplified response for historical data - no percentage difference
+          isHistorical: true,
+        },
+        message: "Successfully retrieved air quality averages (historical)",
+        status: httpStatus.OK,
+      };
+    }
+
+    // Full calculation for current data (existing implementation)
     const result = await this.aggregate([
-      // Initial match to reduce documents early
       {
         $match: {
           "values.site_id": mongoose.Types.ObjectId(siteId),
           "values.time": { $gte: twoWeeksAgo, $lte: now },
         },
       },
-
-      // Unwind with preservation to handle empty arrays
       {
         $unwind: {
           path: "$values",
           preserveNullAndEmptyArrays: false,
         },
       },
-
-      // Secondary match to filter unwound documents
       {
         $match: {
           "values.time": { $gte: twoWeeksAgo, $lte: now },
           "values.pm2_5.value": { $exists: true, $ne: null },
         },
       },
-
-      // Optimized projection
       {
         $project: {
           _id: 0,
@@ -1909,8 +2224,6 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // First group by day
       {
         $group: {
           _id: "$dayOfYear",
@@ -1918,8 +2231,6 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
           yearWeek: { $first: "$yearWeek" },
         },
       },
-
-      // Then group by week
       {
         $group: {
           _id: "$yearWeek",
@@ -1932,8 +2243,6 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // Sort and limit
       { $sort: { _id: -1 } },
       { $limit: 2 },
     ]).allowDiskUse(true);
@@ -1947,20 +2256,11 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
     }
 
     const [currentWeek, previousWeek] = result;
-    logObject("Current Week days", currentWeek.days);
     const todayStr = moment(today)
       .tz(TIMEZONE)
       .format("YYYY-MM-DD");
-
-    logObject("todayStr", todayStr);
     const todayAverage = currentWeek.days.find((day) => day.date === todayStr)
       ?.average;
-
-    logObject("Found todayAverage", todayAverage);
-    logObject(
-      "Matching day",
-      currentWeek.days.find((day) => day.date === todayStr)
-    );
 
     const percentageDifference =
       previousWeek.weeklyAverage !== 0
@@ -1978,6 +2278,7 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
           currentWeek: parseFloat(currentWeek.weeklyAverage.toFixed(2)),
           previousWeek: parseFloat(previousWeek.weeklyAverage.toFixed(2)),
         },
+        isHistorical: false,
       },
       message: "Successfully retrieved air quality averages",
       status: httpStatus.OK,
@@ -1995,10 +2296,22 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
   }
 };
 
-eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
+eventSchema.statics.v2_getAirQualityAverages = async function(
+  siteId,
+  next,
+  options = {}
+) {
   try {
+    const { isHistorical = false } = options;
+
+    // For historical data, use the simplified version from v1
+    if (isHistorical) {
+      return this.getAirQualityAverages(siteId, next, { isHistorical: true });
+    }
+
+    // Full v2 implementation for current data (existing code)
     const TIMEZONE = "Africa/Kampala";
-    const MIN_READINGS_PER_DAY = 12; // Minimum readings per day for validity
+    const MIN_READINGS_PER_DAY = 12;
 
     const now = moment()
       .tz(TIMEZONE)
@@ -2013,30 +2326,19 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
       .subtract(14, "days")
       .toDate();
 
-    logText("Debug Info:");
-    logObject("TIMEZONE", TIMEZONE);
-    logObject("now", now);
-    logObject("today", today);
-    logObject("twoWeeksAgo", twoWeeksAgo);
-
     const result = await this.aggregate([
-      // Initial match
       {
         $match: {
           "values.site_id": mongoose.Types.ObjectId(siteId),
           "values.time": { $gte: twoWeeksAgo, $lte: now },
         },
       },
-
-      // Unwind values
       {
         $unwind: {
           path: "$values",
           preserveNullAndEmptyArrays: false,
         },
       },
-
-      // Data quality filtering
       {
         $match: {
           "values.time": { $gte: twoWeeksAgo, $lte: now },
@@ -2048,8 +2350,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // Project fields
       {
         $project: {
           _id: 0,
@@ -2096,8 +2396,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // Group by day with data quality metrics
       {
         $group: {
           _id: "$dayOfYear",
@@ -2109,8 +2407,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
           maxReading: { $max: "$pm2_5" },
         },
       },
-
-      // Add data quality indicators
       {
         $addFields: {
           dataQuality: {
@@ -2120,8 +2416,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // Group by week with quality metrics
       {
         $group: {
           _id: "$yearWeek",
@@ -2142,8 +2436,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // Sort and limit to 2 weeks
       { $sort: { _id: -1 } },
       { $limit: 2 },
     ]).allowDiskUse(true);
@@ -2162,7 +2454,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
       .format("YYYY-MM-DD");
     const todayData = currentWeek.days.find((day) => day.date === todayStr);
 
-    // Calculate percentage difference without capping
     const percentageDifference =
       previousWeek.weeklyAverage !== 0
         ? ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
@@ -2170,7 +2461,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
           100
         : 0;
 
-    // Calculate data quality score
     const dataQualityScore = calculateWeeklyDataQuality(
       currentWeek,
       previousWeek
@@ -2212,13 +2502,14 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
               ? "Low data quality may affect accuracy of comparison"
               : null,
         },
+        isHistorical: false,
       },
       message: "Successfully retrieved air quality averages",
       status: httpStatus.OK,
     };
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getAirQualityAverages --- ${error.message}`
+      `Internal Server Error --- v2_getAirQualityAverages --- ${error.message}`
     );
     logObject("error", error);
     next(
@@ -2229,11 +2520,23 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
   }
 };
 
-eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
+eventSchema.statics.v3_getAirQualityAverages = async function(
+  siteId,
+  next,
+  options = {}
+) {
   try {
-    const TIMEZONE = "Africa/Kampala"; // Using a consistent timezone
-    const MIN_READINGS_PER_WEEK = 7 * 12; // Minimum 12 readings/day * 7 days/week
-    const EPSILON = 0.1; // Minimum divisor for percentage change
+    const { isHistorical = false } = options;
+
+    // For historical data, use the simplified version
+    if (isHistorical) {
+      return this.getAirQualityAverages(siteId, next, { isHistorical: true });
+    }
+
+    // Full v3 implementation for current data (existing code)
+    const TIMEZONE = "Africa/Kampala";
+    const MIN_READINGS_PER_WEEK = 7 * 12;
+    const EPSILON = 0.1;
 
     const now = moment()
       .tz(TIMEZONE)
@@ -2249,7 +2552,6 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
       .toDate();
 
     const aggregationPipeline = [
-      // Initial match and unwind
       {
         $match: {
           "values.site_id": mongoose.Types.ObjectId(siteId),
@@ -2257,8 +2559,6 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
         },
       },
       { $unwind: { path: "$values", preserveNullAndEmptyArrays: false } },
-
-      // Filter for valid pm2_5 values and time range
       {
         $match: {
           "values.time": { $gte: twoWeeksAgo, $lte: now },
@@ -2269,15 +2569,13 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
             $lte: 500,
           },
         },
-      }, // Reasonable range check
-
-      // Project necessary fields
+      },
       {
         $project: {
           _id: 0,
           time: "$values.time",
           pm2_5: "$values.pm2_5.value",
-          yearWeek: { $week: { date: "$values.time", timezone: TIMEZONE } }, // Use $week for simplification if your MongoDB version supports it. Otherwise, use the $let approach.
+          yearWeek: { $week: { date: "$values.time", timezone: TIMEZONE } },
           dayOfYear: {
             $dateToString: {
               format: "%Y-%m-%d",
@@ -2287,8 +2585,6 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // Group by day and calculate daily average
       {
         $group: {
           _id: "$dayOfYear",
@@ -2297,13 +2593,11 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
           dailyReadingCount: { $sum: 1 },
         },
       },
-
-      // Group by week and calculate weekly metrics
       {
         $group: {
           _id: "$yearWeek",
           weeklyAverage: { $avg: "$dailyAverage" },
-          weeklyReadingCount: { $sum: "$dailyReadingCount" }, // Count readings for the week
+          weeklyReadingCount: { $sum: "$dailyReadingCount" },
           days: {
             $push: {
               date: "$_id",
@@ -2312,11 +2606,7 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
           },
         },
       },
-
-      // Sort by week descending (most recent first)
       { $sort: { _id: -1 } },
-
-      // Limit to the last two weeks
       { $limit: 2 },
     ];
 
@@ -2330,7 +2620,6 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
       };
     }
 
-    // Check data quality for both weeks.
     if (
       result[0].weeklyReadingCount < MIN_READINGS_PER_WEEK ||
       result[1].weeklyReadingCount < MIN_READINGS_PER_WEEK
@@ -2349,10 +2638,9 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
     const todayAverage = currentWeek.days.find((day) => day.date === todayStr)
       ?.average;
 
-    let percentageDifference = null; // Initialize as null, calculate only if sufficient data quality
+    let percentageDifference = null;
 
     if (previousWeek.weeklyAverage > EPSILON) {
-      //Calculate % diff only if divisor large enough
       percentageDifference =
         ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
           previousWeek.weeklyAverage) *
@@ -2362,7 +2650,7 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
         ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
           Math.abs(previousWeek.weeklyAverage)) *
         100;
-    } // if previousWeek.weeklyAverage is close to 0, no percentage difference will be returned
+    }
 
     return {
       success: true,
@@ -2371,18 +2659,19 @@ eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
         percentageDifference:
           percentageDifference !== null
             ? parseFloat(percentageDifference.toFixed(2))
-            : null, // Return null or formatted value
+            : null,
         weeklyAverages: {
           currentWeek: parseFloat(currentWeek.weeklyAverage.toFixed(2)),
           previousWeek: parseFloat(previousWeek.weeklyAverage.toFixed(2)),
         },
+        isHistorical: false,
       },
       message: "Successfully retrieved air quality averages",
       status: httpStatus.OK,
     };
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getAirQualityAverages --- ${error.message}`
+      `Internal Server Error --- v3_getAirQualityAverages --- ${error.message}`
     );
     logObject("error", error);
     next(

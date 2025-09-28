@@ -150,9 +150,21 @@ global.jobMetrics = {
 // Initialize all background jobs
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
-require("@bin/jobs/update-raw-online-status-job");
+try {
+  require("@bin/jobs/update-raw-online-status-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `update-raw-online-status-job failed to start: ${err.message}`
+  );
+}
 require("@bin/jobs/update-grid-flags-job");
-require("@bin/jobs/update-online-status-job");
+try {
+  require("@bin/jobs/update-online-status-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `update-online-status-job failed to start: ${err.message}`
+  );
+}
 require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
