@@ -18,7 +18,7 @@ const createHealthTips = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip, path } = query;
+      const { tenant, limit, skip, path, sortBy, order } = query;
       const filter = generateFilter.tips(request, next);
       if (!isEmpty(path)) {
         filter.path = path;
@@ -35,13 +35,15 @@ const createHealthTips = {
         MAX_LIMIT,
         Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
 
       const pipeline = [
         { $match: filter },
         {
           $facet: {
             paginatedResults: [
-              { $sort: { createdAt: -1 } },
+              { $sort: { [sortField]: sortOrder } },
               { $skip: _skip },
               { $limit: _limit },
             ],
@@ -59,9 +61,14 @@ const createHealthTips = {
         ? results[0].totalCount[0].count
         : 0;
 
-      const baseUrl = `${request.protocol}://${request.get("host")}${
-        request.originalUrl.split("?")[0]
-      }`;
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
 
       const meta = {
         total,
@@ -71,16 +78,18 @@ const createHealthTips = {
         totalPages: Math.ceil(total / _limit),
       };
 
-      const nextSkip = _skip + _limit;
-      if (nextSkip < total) {
-        const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
-        meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
-      }
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
 
-      const prevSkip = _skip - _limit;
-      if (prevSkip >= 0) {
-        const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
-        meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
       }
 
       let responseFromListHealthTips = {

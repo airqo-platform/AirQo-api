@@ -212,6 +212,33 @@ router.get(
   deviceController.listMobile
 );
 
+// LIST LOWCOST DEVICES
+router.get(
+  "/lowcost",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listLowCost
+);
+
+// LIST BAM DEVICES
+router.get(
+  "/bam",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listBam
+);
+
+// LIST GAS DEVICES
+router.get(
+  "/gas",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listGas
+);
+
 // =============================================================================
 // DEVICE METADATA CLEANUP ROUTES
 // =============================================================================

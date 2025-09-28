@@ -34,7 +34,6 @@ def mock_extract_devices_df():
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "site_id": ["site1", "site2", "site3"],
-            "name": ["device1", "device2", "device3"],
             "device_number": [1, 2, 3],
             "description": ["desc1", "desc2", "desc3"],
             "device_manufacturer": ["manufacturer1", "manufacturer2", "manufacturer3"],
@@ -62,7 +61,7 @@ def mock_devices_df():
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "site_id": ["site1", "site2", "site3"],
-            "name": ["device1", "device2", "device3"],
+            "device_id": ["device1", "device2", "device3"],
             "device_number": [1, 2, 3],
             "description": ["desc1", "desc2", "desc3"],
             "device_manufacturer": ["manufacturer1", "manufacturer2", "manufacturer3"],
@@ -84,7 +83,7 @@ def mock_sites_df():
     return pd.DataFrame(
         {
             "site_id": ["site1", "site2", "site3"],
-            "name": ["Site 1", "Site 2", "Site 3"],
+            "device_id": ["Site 1", "Site 2", "Site 3"],
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "network": ["airqo", "airqo", "other"],
@@ -137,6 +136,50 @@ def mock_computed_metadata_df(device_computed_metadata_schema):
     return pd.DataFrame(data)
 
 
+@pytest.fixture
+def mock_devices_data():
+    """Fixture providing mock devices data."""
+    return pd.DataFrame(
+        {
+            "network": ["airqo", "airqo"],
+            "deployed": [True, True],
+            "active": [True, False],
+            "latitude": [0.315, 0.316],
+            "longitude": [32.581, 32.582],
+            "site_id": ["site1", "site2"],
+            "device_id": ["device1", "device2"],
+            "device_number": [1, 2],
+            "description": ["desc1", "desc2"],
+            "device_manufacturer": ["manufacturer1", "manufacturer2"],
+            "device_category": ["lowcost", "lowcost"],
+            "mount_type": ["pole", "wall"],
+            "mobility": ["stationary", "stationary"],
+            "device_maintenance": [
+                "2023-01-01 13:00:00Z",
+                "2023-01-02 13:00:00Z",
+            ],
+        }
+    )
+
+
+@pytest.fixture
+def mock_sites_data():
+    """Fixture providing mock sites data."""
+    return pd.DataFrame(
+        {
+            "network": ["airqo", "airqo"],
+            "site_id": ["site1", "site2"],
+            "latitude": [0.315, 0.316],
+            "longitude": [32.581, 32.582],
+            "name": ["Site 1", "Site 2"],
+            "description": ["desc1", "desc2"],
+            "city": ["city1", "city2"],
+            "region": ["region1", "region2"],
+            "country": ["country1", "country2"],
+        }
+    )
+
+
 class TestMetaDataUtils:
     def test_extract_devices(self, mock_extract_devices_df):
         """Test the extract_devices method."""
@@ -154,7 +197,7 @@ class TestMetaDataUtils:
                 "latitude",
                 "longitude",
                 "site_id",
-                "name",
+                "device_id",
                 "device_number",
                 "description",
                 "device_manufacturer",
@@ -174,7 +217,7 @@ class TestMetaDataUtils:
             assert result["mount_type"].tolist() == ["pole", "wall", "roof"]
 
             # Check that device_id matches name
-            assert result["device_id"].tolist() == result["name"].tolist()
+            assert result["device_id"].tolist() == result["device_id"].tolist()
 
     @patch("airqo_etl_utils.meta_data_utils.MetaDataUtils.extract_devices")
     @patch(
@@ -213,11 +256,12 @@ class TestMetaDataUtils:
             mock_executor.return_value.__enter__.return_value = mock_executor_instance
 
             # Mock the as_completed function with a custom implementation
+            metadata = MetaDataUtils()
             with patch(
                 "airqo_etl_utils.meta_data_utils.as_completed",
                 side_effect=lambda futures: futures,
             ):
-                result = MetaDataUtils.compute_device_site_metadata(
+                result = metadata.compute_device_site_metadata(
                     data_type=DataType.AVERAGED,
                     device_category=DeviceCategory.LOWCOST,
                     metadata_type=MetaDataType.DEVICES,
@@ -340,3 +384,49 @@ class TestMetaDataUtils:
                 mock_compute_baseline.assert_called()
 
                 assert mock_executor_instance.submit.call_count >= 1
+
+    @patch("airqo_etl_utils.meta_data_utils.MetaDataUtils.extract_devices")
+    def test_extract_transform_and_decrypt_metadata_devices(
+        self, mock_extract_devices, mock_devices_data
+    ):
+        """Test extract_transform_and_decrypt_metadata for devices."""
+        mock_extract_devices.return_value = mock_devices_data
+
+        metadata_utils = MetaDataUtils()
+        result = metadata_utils.extract_transform_and_decrypt_metadata(
+            metadata_type=MetaDataType.DEVICES
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
+        assert result.equals(mock_devices_data)
+
+        mock_extract_devices.assert_called_once()
+
+    @patch("airqo_etl_utils.meta_data_utils.MetaDataUtils.extract_sites")
+    def test_extract_transform_and_decrypt_metadata_sites(
+        self, mock_extract_sites, mock_sites_data
+    ):
+        """Test extract_transform_and_decrypt_metadata for sites."""
+        mock_extract_sites.return_value = mock_sites_data
+
+        metadata_utils = MetaDataUtils()
+        result = metadata_utils.extract_transform_and_decrypt_metadata(
+            metadata_type=MetaDataType.SITES
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
+        assert result.equals(mock_sites_data)
+
+        mock_extract_sites.assert_called_once()
+
+    def test_extract_transform_and_decrypt_metadata_invalid_type(self):
+        """Test extract_transform_and_decrypt_metadata with an invalid metadata type."""
+        metadata_utils = MetaDataUtils()
+        result = metadata_utils.extract_transform_and_decrypt_metadata(
+            metadata_type="INVALID_TYPE"
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty

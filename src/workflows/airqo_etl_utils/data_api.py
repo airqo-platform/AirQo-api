@@ -6,11 +6,12 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from urllib.parse import urlencode
 import simplejson
 import urllib3
+from urllib.parse import parse_qs
 from urllib3.util.retry import Retry
 
 from .utils import Utils
 from .config import configuration
-from .constants import DeviceCategory, DeviceNetwork
+from .constants import DeviceCategory, DeviceNetwork, MetaDataType
 
 import logging
 
@@ -18,6 +19,7 @@ logger = logging.getLogger("airflow.task")
 
 MAX_RETRIES = 2
 RETRY_DELAY = 300
+max_workers = configuration.MAX_WORKERS
 
 
 class DataApi:
@@ -79,8 +81,7 @@ class DataApi:
         Args:
             measurements (List): A list of event measurement objects to be posted.
         """
-        # TODO Findout if there is a bulk post api option greater than 5.
-        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             for i in range(
                 0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)
             ):
@@ -186,13 +187,6 @@ class DataApi:
         if network:
             params["network"] = network.str
 
-        # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
-        try:
-            response = self._request("devices/summary", params)
-        except Exception as e:
-            logger.exception(f"Failed to fetch devices: {e}")
-            return []
-
         devices = [
             {
                 "device_id": device.pop("name"),
@@ -200,11 +194,54 @@ class DataApi:
                 "site_location": device.pop("site", {}).get("location_name", None),
                 "device_category": device.pop("category", ""),
                 "device_manufacturer": device.get("network", "airqo"),
+                "device_maintenance": self.__get_device_maintenance_activity(device),
                 **device,
             }
-            for device in response.get("devices", [])
+            for device in self._fetch_metadata(
+                "devices/summary", MetaDataType.DEVICES, params
+            )
         ]
         return devices
+
+    @retry(
+        stop=stop_after_attempt(MAX_RETRIES),
+        wait=wait_exponential(multiplier=1, max=120),
+    )
+    def _fetch_metadata(
+        self, endpoint: str, metadatatype: MetaDataType, params: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves a list of devices/sites from the API, handling pagination.
+        Args:
+            params(Dict[str, Any]): A dictionary of query parameters to be sent with the request. Expected keys include 'limit', 'skip', 'tenant', and 'detailLevel'.
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries, where each dictionary represents a device.
+        Notes:
+            - This method handles pagination by updating the 'params' dictionary with the
+              appropriate 'limit', 'skip', 'tenant', and 'detailLevel' values extracted from the
+              'nextPage' URL in the API response.
+        """
+        next_page: Optional[str] = True
+        response_data: List[Dict[str, Any]] = []
+
+        while next_page:
+            try:
+                response = self._request(endpoint, params)
+                next_page = response.get("meta", {}).get("nextPage", None)
+                response_data.extend(response.get(metadatatype.str, []))
+                if next_page:
+                    parsed_url = urllib3.util.parse_url(next_page)
+                    query_params = parse_qs(parsed_url.query)
+                    params = {
+                        k: v[0]
+                        for k, v in query_params.items()
+                        if k in ["limit", "skip", "tenant", "detailLevel"]
+                    }
+            except Exception as e:
+                logger.exception(f"Failed to fetch devices: {e}. Params: {params}")
+                return []
+        logger.info(f"Total devices fetched: {len(response_data)}")
+        return response_data
 
     def get_networks(
         self, net_status: str = "active"
@@ -236,98 +273,6 @@ class DataApi:
 
         return networks, exception_message
 
-    def get_devices_by_network(
-        self,
-        device_network: DeviceNetwork = None,
-        device_category: DeviceCategory = None,
-    ) -> List[Dict[str, Any]]:
-        """
-        Retrieve devices by network based on the specified device category.
-
-        Args:
-            network (str): This defines the network or manufacture of the device(s) to retrieve. Defaults to `None`. If not passed, devices from all networks are returned.
-            device_category (DeviceCategory, optional): The category of devices to retrieve. Defaults to `None`. If not passed, devices from all categories are returned.
-
-        Returns:
-            List[Dict[str, Any]]: A List of dictionaries containing the details of the devices. The dictionary has the following structure.
-            [
-                {
-                    "_id": str,
-                    "visibility": bool,
-                    "mobility": bool,
-                    "height": int,
-                    "device_codes": List[str]
-                    "status": str,
-                    "isPrimaryInLocation": bool,
-                    "nextMaintenance": date(str),
-                    "category": str,
-                    "isActive": bool,
-                    "long_name": str,
-                    "network": str,
-                    "alias": str",
-                    "name": str,
-                    "createdAt": date(str),
-                    "description": str,
-                    "latitude": float,
-                    "longitude": float,
-                    "approximate_distance_in_km": float,
-                    "bearing_in_radians": float,
-                    "deployment_date": date(str),
-                    "mountType": str,
-                    "powerType": str,
-                    "recall_date": date(str),
-                    "previous_sites": List[Dict[str, Any]],
-                    "cohorts": List,
-                    "site": Dict[str, Any],
-                    "device_number": int
-                },
-            ]
-        """
-        devices: List[Dict[str, Any]] = []
-        networks: List[str] = []
-        params: Dict[str, Any] = {}
-        if device_network:
-            networks.append({"net_name": device_network.str})
-        else:
-            networks, error = self.get_networks()
-            if error:
-                logger.error(f"Error while fetching networks: {error}")
-                return devices
-
-        if device_category:
-            params["category"] = device_category.str
-
-        if configuration.ENVIRONMENT == "production":
-            params["active"] = True
-
-        for network in networks:
-            network_name = network.get("net_name", "airqo")
-            params["network"] = network_name
-            try:
-                response = self._request("devices/summary", params)
-                devices.extend(
-                    [
-                        {
-                            "site_id": device.get("site", {}).get("_id", None),
-                            "site_location": device.pop("site", {}).get(
-                                "location_name", None
-                            ),
-                            "device_category": device.pop("category", None),
-                            "device_manufacturer": network_name,
-                            "device_maintenance": self.__get_device_maintenance_activity(
-                                device
-                            ),
-                            **device,
-                        }
-                        for device in response.get("devices", [])
-                    ]
-                )
-            except Exception as e:
-                logger.exception(f"Failed to fetch devices on {network_name}: {e}")
-                continue
-
-        return devices
-
     def __get_device_maintenance_activity(
         self, device: Dict[str, Any]
     ) -> Optional[str]:
@@ -345,12 +290,10 @@ class DataApi:
             - If no activities are available, the method returns None.
         """
         try:
-            activities = device.get("latest_activities_by_type", {}).get("maintenance")
+            activities = device.get("latest_maintenance_activity", {}).get("date")
             if not activities:
-                activities = device.get("latest_activities_by_type", {}).get(
-                    "deployment"
-                )
-            return activities.get("date") if activities else None
+                activities = device.get("latest_deployment_activity", {}).get("date")
+            return activities if activities else None
         except Exception as e:
             logger.exception(f"Failed to fetch maintenance activities: {e}")
             return None
@@ -381,7 +324,9 @@ class DataApi:
             if response:
                 decrypted_keys = response.get("decrypted_keys", [])
                 return {
-                    int(entry["device_number"]): entry["decrypted_key"]
+                    int(entry["device_number"]): Utils.encrypt_key(
+                        entry["decrypted_key"]
+                    )
                     for entry in decrypted_keys
                 }
         except Exception as e:
@@ -898,8 +843,6 @@ class DataApi:
         if network:
             query_params["network"] = network.str
 
-        response = self._request("devices/sites", query_params)
-
         return [
             {
                 **site,
@@ -913,7 +856,9 @@ class DataApi:
                 "search_name": site.get("search_name", site.get("name", None)),
                 "location_name": site.get("location_name", site.get("location", None)),
             }
-            for site in response.get("sites", [])
+            for site in self._fetch_metadata(
+                "devices/sites", MetaDataType.SITES, query_params
+            )
         ]
 
     def update_sites(self, updated_sites: List[Dict[str, Any]]) -> None:

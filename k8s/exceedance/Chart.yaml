@@ -1,9 +1,0 @@
-apiVersion: v2
-appVersion: "1.16.0"
-name: exceedances
-home: https://airqo.net
-version: 0.1.0
-maintainers:
-  - name: AirQo
-    email: support@airqo.net
-    url: https://airqo.net

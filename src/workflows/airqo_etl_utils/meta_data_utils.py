@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import ast
+import hashlib
 from typing import Optional, Callable, List, Dict, Any
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -26,7 +27,7 @@ max_workers = min(20, cpu_count * 10)
 
 class MetaDataUtils:
     @staticmethod
-    def extract_devices() -> pd.DataFrame:
+    def extract_devices(preferred_source: Optional[str] = "cache") -> pd.DataFrame:
         """
         Extracts and processes device information into a structured Pandas DataFrame.
 
@@ -36,19 +37,18 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing device information.
         """
-        devices, _ = DataUtils.get_devices()
-        devices["status"] = devices["status"].replace(
-            {"deployed": True, "not deployed": False, "recalled": False}
-        )
+        devices = DataUtils.get_devices(preferred_source=preferred_source)
         devices = devices[
             [
                 "network",
-                "status",
-                "isActive",
+                "deployed",
+                "active",
                 "latitude",
                 "longitude",
                 "site_id",
-                "name",
+                "id",
+                "auth_required",
+                "device_id",
                 "device_number",
                 "description",
                 "device_manufacturer",
@@ -56,22 +56,20 @@ class MetaDataUtils:
                 "mount_type",
                 "mobility",
                 "device_maintenance",
+                "assigned_grid",
+                "power_type",
+                "api_code",
+                "key",
+                "created_at",
             ]
         ]
-        devices.rename(
-            columns={
-                "isActive": "active",
-                "status": "deployed",
-            },
-            inplace=True,
-        )
-        devices.loc[:, "device_id"] = devices["name"]
+
         devices.loc[:, "last_updated"] = datetime.now(timezone.utc)
 
         return devices
 
-    @staticmethod
     def compute_device_site_metadata(
+        self,
         data_type: DataType,
         device_category: DeviceCategory,
         metadata_type: MetaDataType,
@@ -109,9 +107,9 @@ class MetaDataUtils:
             data_type.str, None
         )
 
-        metadata_method = {
-            MetaDataType.DEVICES: MetaDataUtils.extract_devices,
-            MetaDataType.SITES: MetaDataUtils.extract_sites,
+        metadata_method: Dict[str, Callable[[], Any]] = {
+            MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
+            MetaDataType.SITES: lambda: self.extract_sites(),
         }
         unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
 
@@ -596,7 +594,7 @@ class MetaDataUtils:
             data_api.refresh_grid(grid_id=grid.get("id"))
 
     def extract_transform_and_decrypt_metadata(
-        metadata_type: MetaDataType,
+        self, metadata_type: MetaDataType
     ) -> pd.DataFrame:
         """
         Extracts, transforms, and decrypts metadata for a given type.
@@ -612,27 +610,17 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
         """
-        data_api = DataApi()
         endpoints: Dict[str, Callable[[], Any]] = {
-            "devices": lambda: data_api.get_devices_by_network(),
-            "sites": lambda: data_api.get_sites(),
+            MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
+            MetaDataType.SITES: lambda: self.extract_sites(),
         }
         result: pd.DataFrame = pd.DataFrame()
         match metadata_type:
             case MetaDataType.DEVICES:
-                devices_raw = endpoints.get(metadata_type.str)()
-                if devices_raw:
-                    devices_df = pd.DataFrame(devices_raw)
-                    keys = data_api.get_thingspeak_read_keys(devices_df)
-                    if keys:
-                        devices_df["key"] = (
-                            devices_df["device_number"].map(keys).fillna(-1)
-                        )
-                    result = devices_df
+                result = endpoints.get(metadata_type)()
             case MetaDataType.SITES:
-                sites_raw = endpoints.get(metadata_type.str)()
-                if sites_raw:
-                    result = pd.DataFrame(sites_raw)
+                result = endpoints.get(metadata_type)()
+
         return result
 
     def transform_devices(devices: List[Dict[str, Any]], taskinstance) -> pd.DataFrame:
@@ -649,8 +637,6 @@ class MetaDataUtils:
             pd.DataFrame: Transformed DataFrame if the devices data has changed since
                         the last execution; otherwise, an empty DataFrame.
         """
-        import hashlib
-
         devices = pd.DataFrame(devices)
         devices.rename(
             columns={

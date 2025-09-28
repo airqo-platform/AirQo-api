@@ -14,10 +14,119 @@ const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const RAW_INACTIVE_THRESHOLD = 1 * 60 * 60 * 1000; // 1 hour in milliseconds
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 50; // Reduced for better yielding
+const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
+const YIELD_INTERVAL = 5; // Yield every 5 operations
 
 const JOB_NAME = "update-raw-online-status-job";
-const JOB_SCHEDULE = "0 * * * *"; // Every hour
+const JOB_SCHEDULE = "35 * * * *"; // At minute 35 of every hour
+
+// Non-blocking job processor class
+class NonBlockingJobProcessor {
+  constructor(jobName) {
+    this.jobName = jobName;
+    this.startTime = null;
+    this.isRunning = false;
+    this.shouldStop = false;
+    this.operationCount = 0;
+  }
+
+  start() {
+    if (global.jobMetrics) {
+      global.jobMetrics.startJob(this.jobName);
+    }
+    this.startTime = Date.now();
+    this.isRunning = true;
+    this.shouldStop = false;
+    this.operationCount = 0;
+  }
+
+  end() {
+    if (global.jobMetrics) {
+      global.jobMetrics.endJob(this.jobName);
+    }
+    this.isRunning = false;
+    this.shouldStop = false;
+  }
+
+  shouldStopExecution() {
+    if (global.isShuttingDown) {
+      logText(`${this.jobName} stopping due to application shutdown`);
+      return true;
+    }
+
+    if (this.startTime && Date.now() - this.startTime > MAX_EXECUTION_TIME) {
+      logger.warn(
+        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`
+      );
+      return true;
+    }
+
+    return this.shouldStop;
+  }
+
+  async yieldControl() {
+    return new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+  }
+
+  async processWithYielding(operation) {
+    this.operationCount++;
+
+    if (this.operationCount % YIELD_INTERVAL === 0) {
+      await this.yieldControl();
+
+      if (this.shouldStopExecution()) {
+        throw new Error(`${this.jobName} stopped execution`);
+      }
+    }
+
+    return await operation();
+  }
+
+  async processBatch(items, processingFunction) {
+    const results = [];
+    const errors = [];
+
+    for (let i = 0; i < items.length; i++) {
+      try {
+        if (this.shouldStopExecution()) {
+          logText(
+            `${this.jobName} batch processing stopped at item ${i}/${items.length}`
+          );
+          break;
+        }
+
+        const result = await this.processWithYielding(async () => {
+          return await processingFunction(items[i], i);
+        });
+
+        results.push(result);
+      } catch (error) {
+        if (error.message.includes("stopped execution")) {
+          break;
+        }
+        logger.error(
+          `${this.jobName} error processing item ${i}: ${error.message}`
+        );
+        errors.push({ index: i, error: error.message });
+      }
+    }
+
+    return { results, errors, processed: results.length };
+  }
+
+  getStats() {
+    return {
+      jobName: this.jobName,
+      isRunning: this.isRunning,
+      operationCount: this.operationCount,
+      executionTime: this.startTime ? Date.now() - this.startTime : 0,
+      shouldStop: this.shouldStop,
+    };
+  }
+}
 
 const isDeviceRawActive = (lastFeedTime) => {
   if (!lastFeedTime) {
@@ -31,8 +140,8 @@ const mockNext = (error) => {
   logger.error(`Error passed to mock 'next' function in job: ${error.message}`);
 };
 
-const processDeviceBatch = async (devices) => {
-  const CONCURRENCY_LIMIT = 10; // Process 10 devices at a time to prevent saturation
+const processDeviceBatch = async (devices, processor) => {
+  const CONCURRENCY_LIMIT = 8; // Reduced for better performance
   let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
@@ -52,153 +161,262 @@ const processDeviceBatch = async (devices) => {
       });
     } catch (error) {
       logger.error(`Error fetching device details for batch: ${error.message}`);
-      return 0; // Skip this batch if we can't get device details
+      return 0;
     }
   }
 
-  // 3. Process devices in smaller, concurrent chunks
+  // 3. Process devices in smaller, concurrent chunks with yielding
   for (let i = 0; i < devices.length; i += CONCURRENCY_LIMIT) {
-    if (global.isShuttingDown) {
-      logText(
-        `${JOB_NAME} stopping during batch processing due to application shutdown.`
-      );
+    if (processor.shouldStopExecution()) {
+      logText(`${JOB_NAME} stopping during batch processing`);
       break;
     }
 
     const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
 
-    const devicePromises = chunk.map(async (device) => {
-      if (!device.device_number) {
-        // logger.warn(
-        //   `Skipping device ${device.name || device._id} - missing device_number`
-        // );
-        return null;
+    // Process chunk with yielding support
+    const batchResult = await processor.processBatch(
+      chunk,
+      async (device, index) => {
+        return await processIndividualDevice(device, deviceDetailsMap);
       }
+    );
 
-      // 4. Get the API key from the pre-fetched details
-      const detail = deviceDetailsMap.get(device.device_number);
-      if (!detail || !detail.readKey) {
-        // logger.warn(`No readKey found for device ${device.name}`);
-        return null;
-      }
+    totalUpdates += batchResult.results.filter((result) => result !== null)
+      .length;
 
-      let apiKey;
+    // Perform bulk write for successful operations
+    const bulkOps = batchResult.results.filter(Boolean);
+    if (bulkOps.length > 0) {
       try {
-        const decryptResponse = await createDeviceUtil.decryptKey(
-          detail.readKey,
-          mockNext
-        );
-        if (!decryptResponse.success) {
-          // logger.warn(
-          //   `Failed to decrypt key for device ${device.name}: ${decryptResponse.message}`
-          // );
-          return null;
-        }
-        apiKey = decryptResponse.data;
+        await DeviceModel("airqo").bulkWrite(bulkOps);
       } catch (error) {
-        logger.error(
-          `Error decrypting key for device ${device.name}: ${error.message}`
-        );
-        return null;
+        logger.error(`Bulk write error in batch: ${error.message}`);
       }
-
-      // 5. Fetch data from ThingSpeak
-      try {
-        const request = {
-          channel: device.device_number,
-          api_key: apiKey,
-        };
-        const thingspeakData = await createFeedUtil.fetchThingspeakData(
-          request
-        );
-
-        let isRawOnline = false;
-        let lastFeedTime = null;
-        let updateFields = {};
-
-        if (thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]) {
-          const lastFeed = thingspeakData.feeds[0];
-          lastFeedTime = lastFeed.created_at;
-          isRawOnline = isDeviceRawActive(lastFeedTime);
-        }
-
-        // Update raw status for ALL devices
-        updateFields.rawOnlineStatus = isRawOnline;
-        if (lastFeedTime) {
-          updateFields.lastRawData = new Date(lastFeedTime);
-        }
-
-        // ALSO update primary online status for UNDEPLOYED devices
-        if (device.status === "not deployed") {
-          updateFields.isOnline = isRawOnline;
-          if (lastFeedTime) {
-            updateFields.lastActive = new Date(lastFeedTime);
-          }
-        }
-
-        // Calculate accuracy update ONLY for UNDEPLOYED devices to avoid double-counting
-        let setUpdate = {};
-        let incUpdate = null;
-        if (device.status === "not deployed") {
-          const isCurrentlyOnline = device.isOnline;
-          const isNowOnline = isRawOnline;
-          ({ setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
-            isCurrentlyOnline,
-            isNowOnline,
-            currentStats: device.onlineStatusAccuracy,
-            reason: isNowOnline ? "online_raw" : "offline_raw",
-          }));
-        }
-        const finalSetUpdate = { ...updateFields, ...setUpdate };
-        const updateDoc = { $set: finalSetUpdate };
-        if (incUpdate) {
-          updateDoc.$inc = incUpdate;
-        }
-
-        return {
-          updateOne: {
-            filter: { _id: device._id },
-            update: updateDoc,
-          },
-        };
-      } catch (error) {
-        // This specifically catches errors from fetchThingspeakData (e.g., timeouts)
-        logger.error(
-          `Error processing raw status for device ${device.name}: ${error.message}`
-        );
-        return null;
-      }
-    });
-
-    const chunkBulkOps = (await Promise.all(devicePromises)).filter(Boolean);
-
-    // 6. Perform a bulk write for each small chunk
-    if (chunkBulkOps.length > 0) {
-      await DeviceModel("airqo").bulkWrite(chunkBulkOps);
-      totalUpdates += chunkBulkOps.length;
     }
 
-    // Yield to the event loop after each small chunk to prevent blocking
-    await new Promise((resolve) => setImmediate(resolve));
+    // Yield between chunks
+    await processor.yieldControl();
   }
 
   return totalUpdates;
 };
 
-const updateRawOnlineStatus = async () => {
+// Extracted individual device processing function
+const processIndividualDevice = async (device, deviceDetailsMap) => {
+  if (!device.device_number) {
+    // For devices without device_number, we can still track accuracy
+    const isCurrentlyRawOnline = device.rawOnlineStatus;
+    const isNowRawOnline = false;
+
+    const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline: isCurrentlyRawOnline,
+      isNowOnline: isNowRawOnline,
+      currentStats: device.onlineStatusAccuracy,
+      reason: "no_device_number",
+    });
+
+    const updateFields = {
+      rawOnlineStatus: isNowRawOnline,
+    };
+
+    if (device.status === "not deployed") {
+      updateFields.isOnline = isNowRawOnline;
+    }
+
+    const finalSetUpdate = { ...updateFields, ...setUpdate };
+    const updateDoc = { $set: finalSetUpdate };
+    if (incUpdate) {
+      updateDoc.$inc = incUpdate;
+    }
+
+    return {
+      updateOne: {
+        filter: { _id: device._id },
+        update: updateDoc,
+      },
+    };
+  }
+
+  // Get the API key from the pre-fetched details
+  const detail = deviceDetailsMap.get(device.device_number);
+  if (!detail || !detail.readKey) {
+    const isCurrentlyRawOnline = device.rawOnlineStatus;
+    const isNowRawOnline = false;
+
+    const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline: isCurrentlyRawOnline,
+      isNowOnline: isNowRawOnline,
+      currentStats: device.onlineStatusAccuracy,
+      reason: "no_readkey",
+    });
+
+    const updateFields = {
+      rawOnlineStatus: isNowRawOnline,
+    };
+
+    if (device.status === "not deployed") {
+      updateFields.isOnline = isNowRawOnline;
+    }
+
+    const finalSetUpdate = { ...updateFields, ...setUpdate };
+    const updateDoc = { $set: finalSetUpdate };
+    if (incUpdate) {
+      updateDoc.$inc = incUpdate;
+    }
+
+    return {
+      updateOne: {
+        filter: { _id: device._id },
+        update: updateDoc,
+      },
+    };
+  }
+
+  let apiKey;
   try {
+    const decryptResponse = await createDeviceUtil.decryptKey(
+      detail.readKey,
+      mockNext
+    );
+    if (!decryptResponse.success) {
+      return createFailureUpdate(device, "decryption_failed");
+    }
+    apiKey = decryptResponse.data;
+  } catch (error) {
+    logger.error(
+      `Error decrypting key for device ${device.name}: ${error.message}`
+    );
+    return createFailureUpdate(device, "decryption_error");
+  }
+
+  // Fetch data from ThingSpeak with timeout
+  try {
+    const request = {
+      channel: device.device_number,
+      api_key: apiKey,
+    };
+
+    // Add timeout to prevent hanging
+    const thingspeakData = await Promise.race([
+      createFeedUtil.fetchThingspeakData(request),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("ThingSpeak fetch timeout")), 30000)
+      ),
+    ]);
+
+    let isRawOnline = false;
+    let lastFeedTime = null;
+    let updateFields = {};
+
+    if (thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]) {
+      const lastFeed = thingspeakData.feeds[0];
+      lastFeedTime = lastFeed.created_at;
+      isRawOnline = isDeviceRawActive(lastFeedTime);
+    }
+
+    // Update raw status for ALL devices
+    updateFields.rawOnlineStatus = isRawOnline;
+    if (lastFeedTime) {
+      updateFields.lastRawData = new Date(lastFeedTime);
+    }
+
+    // ALSO update primary online status for UNDEPLOYED devices
+    if (device.status === "not deployed") {
+      updateFields.isOnline = isRawOnline;
+      if (lastFeedTime) {
+        updateFields.lastActive = new Date(lastFeedTime);
+      }
+    }
+
+    // Calculate accuracy update for ALL devices
+    const isCurrentlyRawOnline = device.rawOnlineStatus;
+    const isNowRawOnline = isRawOnline;
+    const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline: isCurrentlyRawOnline,
+      isNowOnline: isNowRawOnline,
+      currentStats: device.onlineStatusAccuracy,
+      reason: isNowRawOnline ? "online_raw" : "offline_raw",
+    });
+
+    const finalSetUpdate = { ...updateFields, ...setUpdate };
+    const updateDoc = { $set: finalSetUpdate };
+    if (incUpdate) {
+      updateDoc.$inc = incUpdate;
+    }
+
+    return {
+      updateOne: {
+        filter: { _id: device._id },
+        update: updateDoc,
+      },
+    };
+  } catch (error) {
+    logger.error(
+      `Error processing raw status for device ${device.name}: ${error.message}`
+    );
+    return createFailureUpdate(device, "fetch_error");
+  }
+};
+
+// Helper function to create failure updates
+const createFailureUpdate = (device, reason) => {
+  const isCurrentlyRawOnline = device.rawOnlineStatus;
+  const isNowRawOnline = false;
+
+  const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+    isCurrentlyOnline: isCurrentlyRawOnline,
+    isNowOnline: isNowRawOnline,
+    currentStats: device.onlineStatusAccuracy,
+    reason: reason,
+  });
+
+  const updateFields = {
+    rawOnlineStatus: isNowRawOnline,
+  };
+
+  if (device.status === "not deployed") {
+    updateFields.isOnline = isNowRawOnline;
+  }
+
+  const finalSetUpdate = { ...updateFields, ...setUpdate };
+  const updateDoc = { $set: finalSetUpdate };
+  if (incUpdate) {
+    updateDoc.$inc = incUpdate;
+  }
+
+  return {
+    updateOne: {
+      filter: { _id: device._id },
+      update: updateDoc,
+    },
+  };
+};
+
+const updateRawOnlineStatus = async () => {
+  const processor = new NonBlockingJobProcessor(JOB_NAME);
+
+  try {
+    processor.start();
     const startTime = Date.now();
     logText(`Starting raw online status check for ALL devices...`);
 
     const totalDevices = await DeviceModel("airqo").countDocuments({});
     if (totalDevices === 0) {
       logText("No devices to process.");
+      processor.end();
       return;
     }
 
+    logText(
+      `Found ${totalDevices} devices to process in batches of ${BATCH_SIZE}`
+    );
+
     const cursor = DeviceModel("airqo")
       .find({})
-      .select("_id name device_number status isOnline onlineStatusAccuracy") // Fetch accuracy fields
+      .select(
+        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy"
+      )
       .lean()
       .cursor();
 
@@ -206,50 +424,56 @@ const updateRawOnlineStatus = async () => {
     let totalProcessed = 0;
 
     for await (const device of cursor) {
-      if (global.isShuttingDown) {
-        logText(
-          `${JOB_NAME} stopping during processing due to application shutdown.`
-        );
+      if (processor.shouldStopExecution()) {
+        logText(`${JOB_NAME} stopping during processing`);
         await cursor.close();
-        return;
+        break;
       }
 
       batch.push(device);
+
       if (batch.length >= BATCH_SIZE) {
-        const updatedCount = await processDeviceBatch(batch);
+        const updatedCount = await processDeviceBatch(batch, processor);
         totalProcessed += batch.length;
+
         logText(
-          `Processed batch. ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
+          `Processed batch: ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
         );
-        batch = []; // Clear the batch
-        // Yield to the event loop to prevent blocking other operations
-        await new Promise((resolve) => setImmediate(resolve));
+        batch = [];
+
+        // Yield between batches to prevent blocking
+        await processor.yieldControl();
       }
     }
 
     // Process the final batch if it's not empty
-    if (batch.length > 0) {
-      const updatedCount = await processDeviceBatch(batch);
+    if (batch.length > 0 && !processor.shouldStopExecution()) {
+      const updatedCount = await processDeviceBatch(batch, processor);
       totalProcessed += batch.length;
       logText(
-        `Processed final batch. ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
+        `Processed final batch: ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
       );
     }
 
     const duration = (Date.now() - startTime) / 1000;
-    // logger.info(
-    //   `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
-    // );
+    logText(
+      `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
+    );
   } catch (error) {
-    logger.error(`Error in raw online status job: ${error.message}`);
-    logger.error(`Stack trace: ${error.stack}`);
+    if (error.message.includes("stopped execution")) {
+      logText(`${JOB_NAME} stopped gracefully during execution`);
+    } else {
+      logger.error(`Error in raw online status job: ${error.message}`);
+      logger.error(`Stack trace: ${error.stack}`);
+    }
+  } finally {
+    processor.end();
   }
 };
 
 const startJob = () => {
   // Idempotency check: prevent re-registering the job
   if (global.cronJobs && global.cronJobs[JOB_NAME]) {
-    // logger.warn(`${JOB_NAME} already registered. Skipping duplicate start.`);
     return;
   }
 
@@ -261,13 +485,15 @@ const startJob = () => {
       JOB_SCHEDULE,
       async () => {
         if (isJobRunning) {
-          // logger.warn(
-          //   `${JOB_NAME} is already running, skipping this execution.`
-          // );
+          logger.warn(
+            `${JOB_NAME} is already running, skipping this execution.`
+          );
           return;
         }
+
         isJobRunning = true;
         currentJobPromise = updateRawOnlineStatus();
+
         try {
           await currentJobPromise;
         } catch (err) {
@@ -295,12 +521,18 @@ const startJob = () => {
         logText(`🛑 Stopping ${JOB_NAME}...`);
         cronJobInstance.stop();
         logText(`📅 ${JOB_NAME} schedule stopped.`);
+
         try {
           if (currentJobPromise) {
             logText(
               `⏳ Waiting for current ${JOB_NAME} execution to finish...`
             );
-            await currentJobPromise;
+            await Promise.race([
+              currentJobPromise,
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Job stop timeout")), 30000)
+              ),
+            ]);
             logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
         } catch (error) {
@@ -318,7 +550,7 @@ const startJob = () => {
       },
     };
 
-    console.log(`✅ ${JOB_NAME} started`);
+    console.log(`✅ ${JOB_NAME} started with non-blocking patterns`);
   } catch (error) {
     logger.error(`💥 Failed to initialize ${JOB_NAME}: ${error.message}`);
   }
@@ -330,4 +562,5 @@ process.nextTick(startJob);
 
 module.exports = {
   updateRawOnlineStatus,
+  NonBlockingJobProcessor,
 };

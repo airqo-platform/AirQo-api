@@ -27,15 +27,10 @@ jobs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon_api
-      run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
-      run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
-      run_data_proxy: ${{ steps.check_files.outputs.run_data_proxy }} # data proxy
-      run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # metadata
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
-      run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
       run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
       run_superset: ${{ steps.check_files.outputs.run_superset }} # superset
       run_website: ${{ steps.check_files.outputs.run_website }} # website
@@ -59,15 +54,10 @@ jobs:
           echo "run_auth_service=false" >>$GITHUB_OUTPUT
           echo "run_device_registry=false" >>$GITHUB_OUTPUT  
           echo "run_beacon_api=false" >>$GITHUB_OUTPUT
-          echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
-          echo "run_data_mgt=false" >>$GITHUB_OUTPUT
-          echo "run_data_proxy=false" >>$GITHUB_OUTPUT
-          echo "run_locate=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
           echo "run_view=false" >>$GITHUB_OUTPUT
           echo "run_calibrate=false" >>$GITHUB_OUTPUT 
-          echo "run_incentives=false" >>$GITHUB_OUTPUT
           echo "run_spatial=false" >>$GITHUB_OUTPUT
           echo "run_superset=false" >>$GITHUB_OUTPUT
           echo "run_website=false" >>$GITHUB_OUTPUT
@@ -86,22 +76,6 @@ jobs:
               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/device-monitoring/* ]]; then
-              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/data-mgt/* ]]; then
-              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/data-proxy/* ]]; then
-              echo "run_data_proxy=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/locate/* ]]; then
-              echo "run_locate=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == src/predict/* ]]; then
               echo "run_predict=true" >>$GITHUB_OUTPUT
             fi
@@ -116,10 +90,6 @@ jobs:
             
             if [[ $file == src/calibrate/* ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/incentives/* ]]; then
-              echo "run_incentives=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/spatial/* ]]; then
@@ -370,321 +340,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Device registry changes in this PR available for preview [here](${{ needs.device-registry.outputs.url }})'
-            })
-
-  ### device monitoring ###
-  device-monitoring:
-    name: build-push-deploy-device-monitoring
-    needs: [check, branch-name]
-    if: needs.check.outputs.run_device_monitoring == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/device-monitoring/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} ./
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }}
-
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-monitoring-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} \
-            --port=4001 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-device-monitoring:latest,/etc/config/google_application_credentials.json=sta-key-device-monitoring-service-account:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-device-monitoring-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "url=${service_url}" >>$GITHUB_OUTPUT
-
-  device-monitoring-pr-comment:
-    name: device-monitoring-preview-link-comment
-    if: needs.check.outputs.run_device_monitoring == 'true'
-    needs: [device-monitoring]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Device monitoring changes in this PR available for preview [here](${{ needs.device-monitoring.outputs.url }})'
-            })
-
-  ### run data mgt ###
-  data-mgt:
-    name: build-push-deploy-data-mgt
-    needs: [check, branch-name]
-    if: needs.check.outputs.run_data_mgt == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/data-mgt/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} ./
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }}
-
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-data-mgt-nodejs:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "url=${service_url}" >>$GITHUB_OUTPUT
-
-  data-mgt-pr-comment:
-    name: data-mgt-preview-link-comment
-    if: needs.check.outputs.run_data_mgt == 'true'
-    needs: [data-mgt]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Data management changes in this PR available for preview [here](${{ needs.data-mgt.outputs.url }})'
-            })
-
-  ### run data proxy ###
-  data-proxy:
-    name: build-push-deploy-data-proxy
-    needs: [check, branch-name]
-    if: needs.check.outputs.run_data_proxy == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/data-proxy/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-proxy-pr-previews:${{ github.sha }} ./
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-proxy-pr-previews:${{ github.sha }}
-
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-data-proxy-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-proxy-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-data-proxy:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-data-proxy-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "url=${service_url}" >>$GITHUB_OUTPUT
-
-  data-proxy-pr-comment:
-    name: data-proxy-preview-link-comment
-    if: needs.check.outputs.run_data_proxy == 'true'
-    needs: [data-proxy]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Data Proxy changes in this PR available for preview [here](${{ needs.data-proxy.outputs.url }})'
-            })
-
-
-
-
-  ### locate ###
-  locate:
-    name: build-push-deploy-locate
-    needs: [check, branch-name]
-    if: needs.check.outputs.run_locate == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/locate/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} ./
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }}
-
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} \
-            --port=4001 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-locate:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "url=${service_url}" >>$GITHUB_OUTPUT
-
-  locate-pr-comment:
-    name: locate-preview-link-comment
-    if: needs.check.outputs.run_locate == 'true'
-    needs: [locate]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Locate API changes in this PR available for preview [here](${{ needs.locate.outputs.url }})'
             })
 
   ### predict service ###
@@ -997,84 +652,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Calibrate changes in this PR available for preview [here](${{ needs.calibrate.outputs.url }})'
-            })
-
-  ### incentives ###
-  incentives:
-    name: build-push-deploy-incentives
-    needs: [check, branch-name]
-    if: needs.check.outputs.run_incentives == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/incentives/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/incentives-pr-previews:${{ github.sha }} .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/incentives-pr-previews:${{ github.sha }}
-
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-incentives-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/incentives-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-incentives:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; npm run stage" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-incentives-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "url=${service_url}" >>$GITHUB_OUTPUT
-
-  incentives-pr-comment:
-    name: incentives-preview-link-comment
-    if: needs.check.outputs.run_incentives == 'true'
-    needs: [incentives]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Incentives API changes in this PR available for preview [here](${{ needs.incentives.outputs.url }})'
             })
 
   ### spatial ###

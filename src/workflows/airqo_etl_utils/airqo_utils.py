@@ -554,7 +554,7 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         data_api = DataApi()
-        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
+        devices = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
         for _, device in devices.iterrows():
             try:

@@ -70,7 +70,7 @@ def update_big_query_airqlouds_sites_and_devices():
 
     @task()
     def extract_devices():
-        return MetaDataUtils.extract_devices()
+        return MetaDataUtils.extract_devices(preferred_source="api")
 
     @task()
     def load_devices(data: pd.DataFrame):
@@ -151,7 +151,7 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
     @task()
     def extract_devices():
-        return MetaDataUtils.extract_devices()
+        return MetaDataUtils.extract_devices(preferred_source="api")
 
     @task()
     def load_devices(data: pd.DataFrame):
@@ -217,9 +217,8 @@ def meta_data_update_microservice_sites_meta_data():
 def cache_devices_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_devices() -> pd.DataFrame:
-        return MetaDataUtils.extract_transform_and_decrypt_metadata(
-            MetaDataType.DEVICES
-        )
+        metadata = MetaDataUtils()
+        return metadata.extract_transform_and_decrypt_metadata(MetaDataType.DEVICES)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_devices(devices: pd.DataFrame) -> None:
@@ -395,7 +394,8 @@ def compute_store_devices_baseline_monthly():
 def cache_sites_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_sites() -> pd.DataFrame:
-        return MetaDataUtils.extract_transform_and_decrypt_metadata(MetaDataType.SITES)
+        metadata = MetaDataUtils()
+        return metadata.extract_transform_and_decrypt_metadata(MetaDataType.SITES)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_sites(sites: pd.DataFrame) -> None:
