@@ -27,7 +27,9 @@ const FALLBACK_CACHE_MAX_SIZE = 1000;
 const FALLBACK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Key prefix for environment isolation
-const KEY_PREFIX = `${constants.ENVIRONMENT || "unknown"}:`;
+const KEY_PREFIX = `${(constants.ENVIRONMENT || "unknown")
+  .replace(/\s+/g, "_")
+  .toLowerCase()}:`;
 
 // Redis v4 configuration with improved retry strategy
 const redisConfig = {
