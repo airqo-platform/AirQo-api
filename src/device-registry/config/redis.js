@@ -31,8 +31,8 @@ const redisConfig = {
   url: REDIS_URL,
   socket: {
     connectTimeout: 10000, // 10 seconds
-    commandTimeout: 5000, // 5 seconds
     keepAlive: 5000, // Send keep-alive packets every 5 seconds
+    tls: REDIS_URL?.startsWith("rediss://") ? true : undefined,
   },
   reconnectStrategy: (retries) => {
     connectionAttempts = retries + 1;
