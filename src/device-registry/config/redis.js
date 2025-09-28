@@ -26,6 +26,9 @@ const fallbackCache = new Map();
 const FALLBACK_CACHE_MAX_SIZE = 1000;
 const FALLBACK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Key prefix for environment isolation
+const KEY_PREFIX = `${constants.ENVIRONMENT || "unknown"}:`;
+
 // Redis v4 configuration with improved retry strategy
 const redisConfig = {
   url: REDIS_URL,
@@ -138,85 +141,93 @@ const getFallbackCache = (key) => {
 
 // Redis operations with simple fallback
 const redisGetAsync = async (key) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
   if (!client.isOpen) {
-    logger.debug(`Redis not available - using fallback for GET ${key}`);
-    return getFallbackCache(key);
+    logger.debug(`Redis not available - using fallback for GET ${prefixedKey}`);
+    return getFallbackCache(prefixedKey);
   }
 
   try {
-    const result = await client.get(key);
+    const result = await client.get(prefixedKey);
     // Cache successful results for future fallback use
     if (result !== null) {
-      setFallbackCache(key, result);
+      setFallbackCache(prefixedKey, result);
     }
     return result;
   } catch (error) {
     logger.warn(
-      `Redis GET failed for ${key}: ${error.message} - using fallback`
+      `Redis GET failed for ${prefixedKey}: ${error.message} - using fallback`
     );
-    return getFallbackCache(key);
+    return getFallbackCache(prefixedKey);
   }
 };
 
 const redisSetAsync = async (key, value, ttlSeconds = null) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
   // Always update fallback cache
   const ttlMs = ttlSeconds ? ttlSeconds * 1000 : FALLBACK_CACHE_TTL;
-  setFallbackCache(key, value, ttlMs);
+  setFallbackCache(prefixedKey, value, ttlMs);
 
   if (!client.isOpen) {
-    logger.debug(`Redis not available - SET ${key} cached in fallback only`);
+    logger.debug(
+      `Redis not available - SET ${prefixedKey} cached in fallback only`
+    );
     return "OK";
   }
 
   try {
     if (ttlSeconds) {
-      return await client.setEx(key, ttlSeconds, value);
+      return await client.setEx(prefixedKey, ttlSeconds, value);
     } else {
-      return await client.set(key, value);
+      return await client.set(prefixedKey, value);
     }
   } catch (error) {
     logger.warn(
-      `Redis SET failed for ${key}: ${error.message} - using fallback only`
+      `Redis SET failed for ${prefixedKey}: ${error.message} - using fallback only`
     );
     return "OK"; // Data is in fallback cache
   }
 };
 
 const redisExpireAsync = async (key, seconds) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
   // Update fallback cache expiry
-  const item = fallbackCache.get(key);
+  const item = fallbackCache.get(prefixedKey);
   if (item) {
     item.expires = Date.now() + seconds * 1000;
   }
 
   if (!client.isOpen) {
     logger.debug(
-      `Redis not available - EXPIRE ${key} applied to fallback only`
+      `Redis not available - EXPIRE ${prefixedKey} applied to fallback only`
     );
     return 1;
   }
 
   try {
-    return await client.expire(key, seconds);
+    return await client.expire(prefixedKey, seconds);
   } catch (error) {
-    logger.warn(`Redis EXPIRE failed for ${key}: ${error.message}`);
+    logger.warn(`Redis EXPIRE failed for ${prefixedKey}: ${error.message}`);
     return 1;
   }
 };
 
 const redisDelAsync = async (key) => {
-  const hadKey = fallbackCache.has(key);
-  fallbackCache.delete(key);
+  const prefixedKey = `${KEY_PREFIX}${key}`;
+  const hadKey = fallbackCache.has(prefixedKey);
+  fallbackCache.delete(prefixedKey);
 
   if (!client.isOpen) {
-    logger.debug(`Redis not available - DEL ${key} removed from fallback only`);
+    logger.debug(
+      `Redis not available - DEL ${prefixedKey} removed from fallback only`
+    );
     return hadKey ? 1 : 0;
   }
 
   try {
-    return await client.del(key);
+    return await client.del(prefixedKey);
   } catch (error) {
-    logger.warn(`Redis DEL failed for ${key}: ${error.message}`);
+    logger.warn(`Redis DEL failed for ${prefixedKey}: ${error.message}`);
     return hadKey ? 1 : 0;
   }
 };
