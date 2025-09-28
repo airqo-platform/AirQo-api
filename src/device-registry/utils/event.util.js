@@ -3354,16 +3354,6 @@ const createEvent = {
   },
   setCache: async (data, request, next) => {
     try {
-      // Simple Redis availability check
-      if (!redis || !redis.connected() || !redis.ready()) {
-        logRedisWarning("set");
-        return {
-          success: false,
-          message: "Cache unavailable - Redis not connected",
-          status: httpStatus.OK,
-        };
-      }
-
       const cacheID = createEvent.generateCacheID(request, next);
       if (!cacheID) {
         logger.warn("Failed to generate cache ID");
@@ -3436,17 +3426,6 @@ const createEvent = {
   },
   getCache: async (request, next) => {
     try {
-      // Simple Redis availability check
-      if (!redis || !redis.connected() || !redis.ready()) {
-        logRedisWarning("get");
-        return {
-          success: false,
-          message: "Cache unavailable",
-          errors: { message: "Redis connection not available" },
-          status: httpStatus.OK,
-        };
-      }
-
       const cacheID = createEvent.generateCacheID(request, next);
       if (!cacheID) {
         return {

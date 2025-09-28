@@ -6,6 +6,7 @@ const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const urls = {
+  REDIS_URL: process.env.REDIS_URL,
   GET_ROAD_METADATA: ({
     path,
     latitude,

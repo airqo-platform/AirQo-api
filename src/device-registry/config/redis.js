@@ -1,16 +1,19 @@
 // config/redis.js - Redis v4 Compatible with Simple Resilience
 const redis = require("redis");
 const constants = require("./constants");
-const { logObject, logText, logElement } = require("@utils/shared");
+const { logText, logElement, logTextWithTimestamp } = require("@utils/shared");
 
-const REDIS_SERVER = constants.REDIS_SERVER;
-const REDIS_PORT = constants.REDIS_PORT;
+const REDIS_URL = constants.REDIS_URL;
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- redis-config`
 );
 
-logElement("redis URL", REDIS_SERVER && REDIS_SERVER.concat(":", REDIS_PORT));
+if (!REDIS_URL) {
+  logger.error(
+    "REDIS_URL environment variable not set. Redis will be unavailable."
+  );
+}
 
 // Connection state tracking
 let isConnected = false;
@@ -25,48 +28,49 @@ const FALLBACK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Redis v4 configuration with improved retry strategy
 const redisConfig = {
+  url: REDIS_URL,
   socket: {
-    host: REDIS_SERVER,
-    port: REDIS_PORT,
-    connectTimeout: 10000,
-    commandTimeout: 5000,
-    keepAlive: true,
-    reconnectStrategy: (retries) => {
-      connectionAttempts = retries + 1;
+    connectTimeout: 10000, // 10 seconds
+    commandTimeout: 5000, // 5 seconds
+    keepAlive: 5000, // Send keep-alive packets every 5 seconds
+  },
+  reconnectStrategy: (retries) => {
+    connectionAttempts = retries + 1;
 
-      // Increased retry limit (addressing PR review #1)
-      if (retries > 10) {
-        logger.error("Redis maximum retry attempts (10) reached");
-        return false;
-      }
-
-      // Exponential backoff with jitter (addressing PR review #1)
-      const baseDelay = Math.min(Math.pow(2, retries) * 1000, 30000);
-      const jitter = Math.random() * 1000;
-      const delay = baseDelay + jitter;
-
-      logger.warn(
-        `Redis retry attempt ${retries + 1}/10 in ${Math.round(delay)}ms`
+    if (retries > 15) {
+      logger.error(
+        "Redis maximum retry attempts (15) reached. Stopping retries."
       );
-      return delay;
-    },
+      return new Error("Redis retry limit reached");
+    }
+
+    // Exponential backoff with jitter
+    const baseDelay = Math.min(Math.pow(2, retries) * 500, 30000); // Start at 500ms, max 30s
+    const jitter = Math.random() * 1000;
+    const delay = baseDelay + jitter;
+
+    logger.warn(
+      `Redis retry attempt ${retries + 1}/15 in ${Math.round(delay)}ms`
+    );
+    return delay;
   },
   disableOfflineQueue: true,
 };
 
-// Create Redis client
-const client = redis.createClient(redisConfig);
+// Create Redis client. If REDIS_URL is not set, create a disconnected client
+// that will rely on the fallback cache.
+const client = redis.createClient(REDIS_URL ? redisConfig : {});
 
 // Event handlers
 client.on("connect", () => {
   isConnected = true;
-  logger.info(`Redis connected to ${REDIS_SERVER}:${REDIS_PORT}`);
+  logTextWithTimestamp(`Redis connecting...`);
 });
 
 client.on("ready", () => {
   isReady = true;
   lastError = null;
-  logger.info("Redis connection ready");
+  logTextWithTimestamp("Redis connection ready");
 });
 
 client.on("error", (error) => {
@@ -74,14 +78,14 @@ client.on("error", (error) => {
   isConnected = false;
   isReady = false;
 
-  if (error.code === "ECONNREFUSED") {
+  if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
     logger.warn(
-      `Redis connection refused. Is Redis running on ${REDIS_SERVER}:${REDIS_PORT}?`
+      `Redis connection error: ${error.code}. Check server and network.`
     );
-  } else if (error.code === "ETIMEDOUT") {
-    logger.warn(`Redis connection timeout to ${REDIS_SERVER}:${REDIS_PORT}`);
-  } else if (error.code === "ENOTFOUND") {
-    logger.error(`Redis host not found: ${REDIS_SERVER}`);
+  } else if (error.message.includes("AUTH")) {
+    logger.error(
+      "Redis authentication failed. Please check your password/credentials."
+    );
   } else {
     logger.error(`Redis error: ${error.message}`);
   }
@@ -94,19 +98,21 @@ client.on("end", () => {
 });
 
 client.on("reconnecting", () => {
-  logger.info(`Redis reconnecting... Attempt ${connectionAttempts}`);
+  logTextWithTimestamp(`Redis reconnecting... Attempt ${connectionAttempts}`);
 });
 
-// Initialize connection with graceful handling (addressing PR review #2)
-(async () => {
-  try {
-    await client.connect();
-    logger.info("Redis connection established successfully");
-  } catch (error) {
-    // Always use graceful degradation - never fail the application
-    logger.warn(`Redis unavailable: ${error.message} - using fallback cache`);
-  }
-})();
+// Initialize connection only if REDIS_URL is provided
+if (REDIS_URL) {
+  (async () => {
+    try {
+      await client.connect();
+      logTextWithTimestamp("Redis connection established successfully");
+    } catch (error) {
+      // Always use graceful degradation - never fail the application
+      logger.warn(`Redis unavailable: ${error.message} - using fallback cache`);
+    }
+  })();
+}
 
 // Simple fallback cache functions
 const setFallbackCache = (key, value, ttl = FALLBACK_CACHE_TTL) => {
@@ -241,8 +247,8 @@ const redisUtils = {
     ready: isReady,
     isOpen: client.isOpen,
     attempts: connectionAttempts,
-    lastError: lastError?.message || null,
-    server: `${REDIS_SERVER}:${REDIS_PORT}`,
+    lastError: lastError ? lastError.message : null,
+    server: REDIS_URL ? new URL(REDIS_URL).host : "Not configured",
     fallbackCacheSize: fallbackCache.size,
   }),
 
