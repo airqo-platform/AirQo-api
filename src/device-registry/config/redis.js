@@ -31,6 +31,19 @@ const KEY_PREFIX = `${(constants.ENVIRONMENT || "unknown")
   .replace(/\s+/g, "_")
   .toLowerCase()}:`;
 
+// --- START: Log Throttling ---
+const LOGGING_WINDOW_MINUTES = 5; // Only log in the first 5 minutes of each hour
+
+const logThrottledOperationError = (operation, key, error) => {
+  const currentMinute = new Date().getMinutes();
+  if (currentMinute < LOGGING_WINDOW_MINUTES) {
+    logger.warn(
+      `Redis ${operation} failed for ${key}: ${error.message} - using fallback`
+    );
+  }
+};
+// --- END: Log Throttling ---
+
 // Redis v4 configuration with improved retry strategy
 const redisConfig = {
   url: REDIS_URL,
@@ -157,9 +170,7 @@ const redisGetAsync = async (key) => {
     }
     return result;
   } catch (error) {
-    logger.warn(
-      `Redis GET failed for ${prefixedKey}: ${error.message} - using fallback`
-    );
+    logThrottledOperationError("GET", prefixedKey, error);
     return getFallbackCache(prefixedKey);
   }
 };
@@ -184,9 +195,7 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
       return await client.set(prefixedKey, value);
     }
   } catch (error) {
-    logger.warn(
-      `Redis SET failed for ${prefixedKey}: ${error.message} - using fallback only`
-    );
+    logThrottledOperationError("SET", prefixedKey, error);
     return "OK"; // Data is in fallback cache
   }
 };
@@ -209,7 +218,7 @@ const redisExpireAsync = async (key, seconds) => {
   try {
     return await client.expire(prefixedKey, seconds);
   } catch (error) {
-    logger.warn(`Redis EXPIRE failed for ${prefixedKey}: ${error.message}`);
+    logThrottledOperationError("EXPIRE", prefixedKey, error);
     return 1;
   }
 };
@@ -229,7 +238,7 @@ const redisDelAsync = async (key) => {
   try {
     return await client.del(prefixedKey);
   } catch (error) {
-    logger.warn(`Redis DEL failed for ${prefixedKey}: ${error.message}`);
+    logThrottledOperationError("DEL", prefixedKey, error);
     return hadKey ? 1 : 0;
   }
 };
