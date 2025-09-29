@@ -223,11 +223,11 @@ class DataApi:
         """
         next_page: Optional[str] = True
         response_data: List[Dict[str, Any]] = []
-
+        i = 0
         while next_page:
             try:
                 response = self._request(endpoint, params)
-                next_page = response.get("meta", {}).get("nextPage", None)
+                next_page = response.get("meta", {}).get("nextPage", False)
                 response_data.extend(response.get(metadatatype.str, []))
                 if next_page:
                     parsed_url = urllib3.util.parse_url(next_page)
@@ -846,7 +846,6 @@ class DataApi:
         return [
             {
                 **site,
-                "site_id": site.get("_id", None),
                 "approximate_latitude": site.get(
                     "approximate_latitude", site.get("latitude", None)
                 ),

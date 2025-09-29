@@ -22,6 +22,7 @@ from .ml_utils import GCSUtils
 from .utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
+from .meta_data_utils import MetaDataUtils
 
 import logging
 
@@ -386,7 +387,7 @@ class AirQoDataUtils:
         # TODO (cleanup): Might have to store some of this information in persistent storage. The cached file is changed every now and then.
         sites_info = [
             {
-                "site_id": site.get("_id"),
+                "site_id": site.get("id"),
                 "station_code": station.get("code", None),
                 "distance": station.get("distance", None),
             }
@@ -482,7 +483,7 @@ class AirQoDataUtils:
             sites = DataUtils.get_sites(DeviceNetwork.AIRQO)
             sites_info = [
                 {
-                    "site_id": site.get("_id"),
+                    "site_id": site.get("id"),
                     "station_code": station.get("code"),
                     "distance": station.get("distance"),
                 }
@@ -554,7 +555,7 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         data_api = DataApi()
-        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
+        devices = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
         for _, device in devices.iterrows():
             try:
@@ -743,10 +744,11 @@ class AirQoDataUtils:
             groupby, CountryModels
         )
 
-        sites = DataUtils.get_sites()
+        sites = MetaDataUtils.extract_sites()
         if sites.empty:
-            raise RuntimeError("Failed to fetch sites data from the cache/API")
+            raise RuntimeError("Failed to fetch sites data")
 
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         sites = sites[["site_id", groupby]]
         data = pd.merge(data, sites, on="site_id", how="left")
 

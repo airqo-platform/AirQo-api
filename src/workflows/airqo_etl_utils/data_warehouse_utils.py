@@ -144,6 +144,7 @@ class DataWarehouseUtils:
         sites = DataUtils.get_sites(network=network)
         sites.rename(
             columns={
+                "id": "site_id",
                 "approximate_latitude": "site_latitude",
                 "approximate_longitude": "site_longitude",
                 "description": "site_description",

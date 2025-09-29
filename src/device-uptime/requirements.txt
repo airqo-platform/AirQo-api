@@ -1,8 +1,0 @@
-colored
-pandas
-pymongo
-python-dateutil
-python-dotenv
-requests
-google-cloud-bigquery
-db-dtypes

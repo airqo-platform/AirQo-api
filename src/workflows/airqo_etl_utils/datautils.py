@@ -42,7 +42,8 @@ class DataUtils:
     def get_devices(
         device_category: Optional[DeviceCategory] = None,
         device_network: Optional[DeviceNetwork] = None,
-    ) -> Tuple[pd.DataFrame, Dict]:
+        preferred_source: Optional[str] = "cache",
+    ) -> pd.DataFrame:
         """
         Retrieve devices data and associated keys for a given device network and category.
 
@@ -54,6 +55,7 @@ class DataUtils:
         Args:
             device_network (DeviceNetwork): The device network for which devices data is required.
             device_category (DeviceCategory): The category of devices to filter the retrieved data.
+            preferred_source (str, optional): Preferred source for fetching devices data. Defaults to "cache". Other option is "api".
 
         Returns:
             Tuple[pd.DataFrame, Dict]: A tuple where:
@@ -67,48 +69,57 @@ class DataUtils:
         # There might be some repeated devices data cleaning/column renaming/normalization logic in other places
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
-        keys: Dict = {}
 
-        devices = DataUtils._load_devices_from_cache(local_file_path)
+        if preferred_source == "cache":
+            try:
+                devices = DataUtils._load_devices_from_cache(local_file_path)
+                if preferred_source == "cache" and not devices.empty:
+                    devices = DataUtils._process_cached_devices(
+                        devices, device_category, device_network
+                    )
+            except Exception as e:
+                logger.exception(f"Failed to load cached devices: {e}")
 
-        if devices is not None and not devices.empty:
-            devices = DataUtils._process_cached_devices(
-                devices, device_category, device_network
-            )
-            keys = DataUtils._extract_keys(devices, DeviceNetwork.AIRQO)
-        else:
-            devices, keys = DataUtils.fetch_devices_from_api(
-                device_network, device_category
-            )
+        if devices.empty:
+            try:
+                devices = DataUtils.fetch_devices_from_api()
+            except Exception as e:
+                logger.exception(f"Failed to fetch devices from API: {e}")
 
         if devices.empty:
             raise RuntimeError(
                 "Failed to retrieve devices data from both cache and API."
             )
+
+        # TODO: Review deployed status metadata field usage
         if Config.ENVIRONMENT == "production":
             devices = devices[devices.deployed == True]
 
-        return devices, keys
+        if device_category:
+            devices = devices.loc[devices.device_category == device_category.str]
 
-    def _load_devices_from_cache(file_path: str) -> Optional[pd.DataFrame]:
+        if device_network:
+            devices = devices.loc[devices.network == device_network.str]
+
+        return devices
+
+    def _load_devices_from_cache(file_path: str) -> pd.DataFrame:
         """Loads devices data from the local cache."""
+        devices: pd.DataFrame = pd.DataFrame()
         try:
             devices = DataUtils.load_cached_data(file_path, MetaDataType.DEVICES.str)
-            return devices
         except FileNotFoundError:
             logger.info(f"Cache file not found at: {file_path}")
-            return None
         except pd.errors.EmptyDataError:
             logger.info(f"Cache file at {file_path} is empty.")
-            return None
         except Exception as e:
             logger.exception(f"Error loading devices from cache: {e}")
-            return None
+        return devices
 
     def _process_cached_devices(
         devices: pd.DataFrame,
-        device_category: Optional[DeviceCategory],
-        device_network: Optional[DeviceNetwork],
+        device_category: Optional[DeviceCategory] = None,
+        device_network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
         """Processes the DataFrame loaded from the cache."""
 
@@ -123,7 +134,7 @@ class DataUtils:
         return devices
 
     def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict:
-        """Extracts device numbers and keys for a specific network."""
+        """Extracts and match device numbers and keys from file."""
         keys = dict(
             zip(
                 devices.loc[devices.network == network.str, "device_number"].to_numpy(),
@@ -133,7 +144,10 @@ class DataUtils:
         return keys
 
     @staticmethod
-    def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
+    def get_sites(
+        network: Optional[DeviceNetwork] = None,
+        preferred_source: Optional[str] = "cache",
+    ) -> pd.DataFrame:
         """
         Retrieve sites data.
 
@@ -150,15 +164,20 @@ class DataUtils:
         local_file_path = "/tmp/sites.csv"
         sites: pd.DataFrame = pd.DataFrame()
 
-        # Load sites from cache
-        try:
-            sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
-        except Exception as e:
-            logger.exception(f"Failed to load cached: {e}")
+        if preferred_source == "cache":
+            try:
+                sites = DataUtils.load_cached_data(
+                    local_file_path, MetaDataType.SITES.str
+                )
+            except Exception as e:
+                logger.exception(f"Failed to load cached: {e}")
 
-        # If cache is empty, fetch from API
         if sites.empty:
-            sites = DataUtils.fetch_sites_from_api()
+            try:
+                datautils = DataUtils()
+                sites = datautils.fetch_sites_from_api()
+            except Exception as e:
+                logger.exception(f"Failed to fetch sites from API: {e}")
 
         if network:
             sites = sites.loc[sites.network == network.str]
@@ -168,8 +187,7 @@ class DataUtils:
 
         return sites
 
-    @staticmethod
-    def fetch_sites_from_api():
+    def fetch_sites_from_api(self) -> pd.DataFrame:
         """
         Fetch all site metadata from the external API.
 
@@ -186,13 +204,16 @@ class DataUtils:
         Raises:
             Logs exceptions internally and does not propagate errors.
         """
-        data_api = DataApi()
+        data_api: DataApi = DataApi()
+        sites_data: pd.DataFrame = pd.DataFrame()
         try:
             sites_data = data_api.get_sites()
-            return pd.DataFrame(sites_data)
+            sites_data = pd.DataFrame(sites_data)
+            self.sites_metadata_normalizer(sites_data)
+
         except Exception as e:
             logger.exception(f"Failed to load sites data from api. {e}")
-        return pd.DataFrame()
+        return sites_data
 
     @staticmethod
     def extract_devices_data(
@@ -222,7 +243,7 @@ class DataUtils:
         if is_mobile_category:
             device_category = DeviceCategory.LOWCOST
 
-        devices, keys = DataUtils.get_devices(device_category, device_network)
+        devices = DataUtils.get_devices(device_category, device_network)
 
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
         if is_mobile_category:
@@ -254,7 +275,7 @@ class DataUtils:
         ) as executor:  # Adjust worker count to your CPU
             futures = [
                 executor.submit(
-                    DataUtils.__per_device_data, device, dates, config, keys, resolution
+                    DataUtils.__per_device_data, device, dates, config, resolution
                 )
                 for _, device in devices.iterrows()
             ]
@@ -275,7 +296,6 @@ class DataUtils:
         device: Dict[str, Any],
         dates: List[str],
         config: Dict[str, Any],
-        keys: Dict[str, str],
         resolution: Frequency,
     ):
         """
@@ -290,14 +310,13 @@ class DataUtils:
             device(Dict[str, Any]): Device information (must include identifiers used in extraction).
             dates(List[str]): List of date strings to extract data for.
             config(Dict[str, Any]): Configuration parameters for data extraction and processing.
-            keys(Dict[str, str]): Mapping of key names used for access or interpretation.
             resolution(Frequency): Data resolution or granularity (e.g., hourly, daily).
 
         Returns:
             Optional[pd.DataFrame]: Processed device data as a DataFrame, or None if no data was returned.
         """
         data, meta_data = DataUtils._extract_device_api_data(
-            device, dates, config, keys, resolution
+            device, dates, config, resolution
         )
         if isinstance(data, pd.DataFrame) and not data.empty:
             data = DataUtils._process_and_append_device_data(
@@ -404,51 +423,44 @@ class DataUtils:
             return pd.DataFrame()
 
     @staticmethod
-    def fetch_devices_from_api(
-        device_network: Optional[DeviceNetwork] = None,
-        device_category: Optional[DeviceCategory] = None,
-    ) -> Tuple[pd.DataFrame, Dict[int, str]]:
-        """Fetch devices from the external device registry API, optionally filtered by network and category.
+    def fetch_devices_from_api() -> pd.DataFrame:
+        """Fetch devices from the external device registry API.
 
         This method:
             - Retrieves a list of devices from the API using the provided `device_network` and `device_category`.
             - Converts the response into a pandas DataFrame.
             - Ensures that any missing `device_number` values are filled with `-1`.
-            - Filters devices belonging to a specific network (e.g., `DeviceNetwork.AIRQO`).
             - Fetches associated read keys for the filtered devices.
             - Returns both the complete devices DataFrame and a dictionary of read keys.
 
         If the API request or processing fails, it logs the exception and returns an empty DataFrame and an empty dictionary.
 
-        Args:
-            device_network(Optional[DeviceNetwork], default=None): Network filter to restrict the API request to a specific device network. If None, retrieves devices from all networks.
-            device_category(Optional[DeviceCategory], default=None): Category filter to restrict the API request to a specific device category. If None, retrieves devices from all categories.
-
         Returns:
-            Tuple[pd.DataFrame, Dict[int, str]]
-                - **devices** : pandas DataFrame containing device metadata.
-                Always includes a `device_number` column with missing values filled as `-1`.
-                - **keys** : dictionary mapping device IDs (int) to their corresponding read keys.
+            pd.DataFrame: pandas DataFrame containing device metadata. Always includes a `device_number` column with missing values filled as `-1`.
 
         Raises:
             Logs exceptions internally and returns empty outputs rather than propagating errors.
         """
         data_api: DataApi = DataApi()
         devices: pd.DataFrame = pd.DataFrame()
-        keys: Dict[int, str] = {}
         try:
             devices = data_api.get_devices()
             devices = pd.DataFrame(devices)
             if not devices.empty:
                 DataUtils.device_metadata_normalizer(devices)
-                devices["device_number"] = devices["device_number"].fillna(-1)
+                devices["device_number"] = (
+                    devices["device_number"].fillna(-1).astype(int)
+                )
+                # It is assumed only airqo devices have keys
                 airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
                 keys = data_api.get_thingspeak_read_keys(airqo_devices)
+                devices["key"] = devices["device_number"].map(keys)
         except Exception as e:
             logger.exception(
                 f"Failed to fetch devices or read keys from device_registry. {e}"
             )
-        return devices, keys
+
+        return devices
 
     @staticmethod
     def device_metadata_normalizer(devices: pd.DataFrame) -> None:
@@ -485,11 +497,38 @@ class DataUtils:
             {"deployed": True, "not deployed": False, "recalled": False}
         )
 
+    @staticmethod
+    def sites_metadata_normalizer(sites: pd.DataFrame) -> None:
+        """
+        Normalize and clean site metadata DataFrame.
+
+        This function performs the following operations on the input sites DataFrame:
+        - Renames columns to standardize naming conventions.
+        - Converts specific columns to appropriate data types (e.g., boolean, integer).
+        - Parses string representations of lists into actual list objects.
+        - Removes duplicate entries based on the `site_id` column, keeping the first occurrence.
+
+        Args:
+            sites(pd.DataFrame): A pandas DataFrame containing raw site metadata.
+        Returns:
+            None.
+        """
+        sites.rename(
+            columns={
+                "search_name": "display_name",
+                "_id": "id",
+                "location_name": "display_location",
+            },
+            inplace=True,
+        )
+
+        if "id" in sites.columns:
+            sites.drop_duplicates(subset=["id"], keep="first", inplace=True)
+
     def _extract_device_api_data(
         device: pd.Series,
         dates: List[Tuple[str, str]],
         config: dict,
-        keys: dict,
         resolution: Frequency,
     ) -> pd.DataFrame:
         """
@@ -506,7 +545,6 @@ class DataUtils:
             dates(List[Tuple[str, str]]): A list of (start_date, end_date) tuples specifying the time ranges for data extraction.
             config(dict): Configuration dictionary containing:
                         - `mapping`: a mapping of network names to their data field mapping rules.
-            keys(dict): A dictionary mapping device numbers to read keys (used for authorized API calls).
             resolution(Frequency): Data resolution (e.g., hourly, daily) used when querying certain networks (like `DeviceNetwork.IQAIR`).
 
         Returns:
@@ -546,9 +584,7 @@ class DataUtils:
             and network == DeviceNetwork.AIRQO.str
         ):
             key = (
-                Utils.decrypt_key(bytes(key, "utf-8"))
-                if key
-                else Utils.decrypt_key(bytes(keys.get(device_number), "utf-8"))
+                Utils.decrypt_key(bytes(key, "utf-8")) if isinstance(key, str) else None
             )
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
@@ -687,7 +723,7 @@ class DataUtils:
         bigquery_api = BigQueryApi()
         table: str = None
 
-        if not device_category:
+        if not device_category or device_category == DeviceCategory.LOWCOST:
             device_category = DeviceCategory.GENERAL
 
         table, _ = DataUtils._get_table(
@@ -769,7 +805,7 @@ class DataUtils:
             pd.DataFrame: A DataFrame containing aggregated sensor readings along with metadata (device number, location, and ID).
         """
         all_data: List[Any] = []
-        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
+        devices = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -1076,7 +1112,7 @@ class DataUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
-        devices, _ = DataUtils.get_devices()
+        devices = DataUtils.get_devices()
         devices = devices[["id", "device_id", "network"]]
         devices = devices.set_index("device_id")
 
@@ -1577,7 +1613,7 @@ class DataUtils:
         """
         air_now_data = []
 
-        devices, _ = DataUtils.get_devices(
+        devices = DataUtils.get_devices(
             device_category=DeviceCategory.BAM, device_network=DeviceNetwork.METONE
         )
         device_mapping = {
@@ -1784,7 +1820,7 @@ class DataUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        devices, _ = DataUtils.get_devices()
+        devices = DataUtils.get_devices()
 
         try:
             data.rename(columns={"device_id": "device_name"}, inplace=True)
@@ -1892,7 +1928,7 @@ class DataUtils:
             DataUtils._flatten_location_coordinates_clarity
         )
 
-        devices, _ = DataUtils.get_devices()
+        devices = DataUtils.get_devices()
         data[["site_id", "device_number"]] = data["device_id"].apply(
             lambda device_id: DataUtils._add_site_and_device_details(
                 devices=devices, device_id=device_id
