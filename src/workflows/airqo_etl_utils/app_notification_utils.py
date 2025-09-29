@@ -122,6 +122,7 @@ def get_random_measurement() -> Tuple[
     """
     try:
         sites = DataUtils.get_sites()
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         data_api = DataApi()
         max_attempts = len(sites)
         attempt = 0

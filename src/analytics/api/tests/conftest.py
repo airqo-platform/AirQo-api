@@ -2,6 +2,61 @@ import pandas as pd
 import pytest
 from unittest.mock import MagicMock, patch
 
+
+class MockCacheClient:
+    """Mock implementation of Redis cache client for testing"""
+
+    def __init__(self):
+        self.cache_data = {}
+
+    def get(self, key):
+        return self.cache_data.get(key)
+
+    def set(self, key, value, *args, **kwargs):
+        self.cache_data[key] = value
+        return True
+
+    def expire(self, key, time):
+        """Mock expire method for Redis compatibility."""
+        # Just return True since this is a mock
+        return True
+
+    def delete(self, *keys):
+        for key in keys:
+            if key in self.cache_data:
+                del self.cache_data[key]
+        return len(keys)
+
+    def memoize(self, timeout=None, make_name=None, source=None, **kwargs):
+        """
+        Improved memoize decorator mock that properly handles decorated functions.
+        When used as a decorator, it returns the function unchanged.
+        """
+
+        def decorator(func):
+            # Simply return the original function without changes
+            return func
+
+        return decorator
+
+    # Add this method for Flask-Caching compatibility
+    def _memoize_make_cache_key(*args, **kwargs):
+        """Mock implementation to prevent actual cache key generation"""
+        return "mock_cache_key"
+
+
+# Mock the cache before any other imports
+mock_cache_client = MockCacheClient()
+
+# Patch environment variables to prevent Redis connections
+patch.dict("os.environ", {"REDIS_SERVER": "mock_redis", "REDIS_PORT": "6379"}).start()
+
+# Patch at the module level before any imports happen
+patch("main.cache", mock_cache_client).start()
+patch("api.models.bigquery_api.cache", mock_cache_client).start()
+patch("api.utils.cursor_utils.cache", mock_cache_client).start()
+patch("flask_caching.Cache", return_value=mock_cache_client).start()
+
 from manage import app as flask_app
 
 
@@ -106,11 +161,10 @@ class MockCacheClient:
         self.cache_data[key] = value
         return True
 
-    def delete(self, *keys):
-        for key in keys:
-            if key in self.cache_data:
-                del self.cache_data[key]
-        return len(keys)
+    def expire(self, key, time):
+        """Mock expire method for Redis compatibility."""
+        # Just return True since this is a mock
+        return True
 
     def memoize(self, timeout=None, make_name=None, source=None, **kwargs):
         """
@@ -133,15 +187,8 @@ class MockCacheClient:
 @pytest.fixture(autouse=True)
 def mock_redis_cache():
     """
-    Fixture that automatically mocks Redis cache for all tests.
-    This prevents tests from connecting to a real Redis instance.
+    Fixture that provides access to the mocked Redis cache for all tests.
+    The cache is already mocked at the module level to prevent Redis connections.
     """
-    mock_cache = MockCacheClient()
-
-    # We need to patch at multiple levels to ensure no Redis connections are made
-    with patch("main.cache", mock_cache), patch(
-        "api.models.bigquery_api.cache", mock_cache
-    ), patch("api.utils.cursor_utils.cache", mock_cache), patch(
-        "flask_caching.Cache", return_value=mock_cache
-    ):
-        yield mock_cache
+    global mock_cache_client
+    return mock_cache_client

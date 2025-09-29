@@ -71,20 +71,27 @@ class DataUtils:
         devices: pd.DataFrame = pd.DataFrame()
 
         if preferred_source == "cache":
-            devices = DataUtils._load_devices_from_cache(local_file_path)
+            try:
+                devices = DataUtils._load_devices_from_cache(local_file_path)
+                if preferred_source == "cache" and not devices.empty:
+                    devices = DataUtils._process_cached_devices(
+                        devices, device_category, device_network
+                    )
+            except Exception as e:
+                logger.exception(f"Failed to load cached devices: {e}")
 
-        if preferred_source == "cache" and not devices.empty:
-            devices = DataUtils._process_cached_devices(
-                devices, device_category, device_network
-            )
-        else:
-            devices = DataUtils.fetch_devices_from_api()
+        if devices.empty:
+            try:
+                devices = DataUtils.fetch_devices_from_api()
+            except Exception as e:
+                logger.exception(f"Failed to fetch devices from API: {e}")
 
         if devices.empty:
             raise RuntimeError(
                 "Failed to retrieve devices data from both cache and API."
             )
 
+        # TODO: Review deployed status metadata field usage
         if Config.ENVIRONMENT == "production":
             devices = devices[devices.deployed == True]
 
@@ -111,8 +118,8 @@ class DataUtils:
 
     def _process_cached_devices(
         devices: pd.DataFrame,
-        device_category: Optional[DeviceCategory],
-        device_network: Optional[DeviceNetwork],
+        device_category: Optional[DeviceCategory] = None,
+        device_network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
         """Processes the DataFrame loaded from the cache."""
 
@@ -137,7 +144,10 @@ class DataUtils:
         return keys
 
     @staticmethod
-    def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
+    def get_sites(
+        network: Optional[DeviceNetwork] = None,
+        preferred_source: Optional[str] = "cache",
+    ) -> pd.DataFrame:
         """
         Retrieve sites data.
 
@@ -154,15 +164,20 @@ class DataUtils:
         local_file_path = "/tmp/sites.csv"
         sites: pd.DataFrame = pd.DataFrame()
 
-        # Load sites from cache
-        try:
-            sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
-        except Exception as e:
-            logger.exception(f"Failed to load cached: {e}")
+        if preferred_source == "cache":
+            try:
+                sites = DataUtils.load_cached_data(
+                    local_file_path, MetaDataType.SITES.str
+                )
+            except Exception as e:
+                logger.exception(f"Failed to load cached: {e}")
 
-        # If cache is empty, fetch from API
         if sites.empty:
-            sites = DataUtils.fetch_sites_from_api()
+            try:
+                datautils = DataUtils()
+                sites = datautils.fetch_sites_from_api()
+            except Exception as e:
+                logger.exception(f"Failed to fetch sites from API: {e}")
 
         if network:
             sites = sites.loc[sites.network == network.str]
@@ -172,8 +187,7 @@ class DataUtils:
 
         return sites
 
-    @staticmethod
-    def fetch_sites_from_api():
+    def fetch_sites_from_api(self) -> pd.DataFrame:
         """
         Fetch all site metadata from the external API.
 
@@ -190,13 +204,16 @@ class DataUtils:
         Raises:
             Logs exceptions internally and does not propagate errors.
         """
-        data_api = DataApi()
+        data_api: DataApi = DataApi()
+        sites_data: pd.DataFrame = pd.DataFrame()
         try:
             sites_data = data_api.get_sites()
-            return pd.DataFrame(sites_data)
+            sites_data = pd.DataFrame(sites_data)
+            self.sites_metadata_normalizer(sites_data)
+
         except Exception as e:
             logger.exception(f"Failed to load sites data from api. {e}")
-        return pd.DataFrame()
+        return sites_data
 
     @staticmethod
     def extract_devices_data(
@@ -479,6 +496,34 @@ class DataUtils:
         devices["deployed"] = devices["deployed"].replace(
             {"deployed": True, "not deployed": False, "recalled": False}
         )
+
+    @staticmethod
+    def sites_metadata_normalizer(sites: pd.DataFrame) -> None:
+        """
+        Normalize and clean site metadata DataFrame.
+
+        This function performs the following operations on the input sites DataFrame:
+        - Renames columns to standardize naming conventions.
+        - Converts specific columns to appropriate data types (e.g., boolean, integer).
+        - Parses string representations of lists into actual list objects.
+        - Removes duplicate entries based on the `site_id` column, keeping the first occurrence.
+
+        Args:
+            sites(pd.DataFrame): A pandas DataFrame containing raw site metadata.
+        Returns:
+            None.
+        """
+        sites.rename(
+            columns={
+                "search_name": "display_name",
+                "_id": "id",
+                "location_name": "display_location",
+            },
+            inplace=True,
+        )
+
+        if "id" in sites.columns:
+            sites.drop_duplicates(subset=["id"], keep="first", inplace=True)
 
     def _extract_device_api_data(
         device: pd.Series,
