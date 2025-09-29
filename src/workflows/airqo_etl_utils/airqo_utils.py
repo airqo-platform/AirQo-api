@@ -748,7 +748,7 @@ class AirQoDataUtils:
         if sites.empty:
             raise RuntimeError("Failed to fetch sites data")
 
-        sites.rename(collums={"id": "site_id"})
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         sites = sites[["site_id", groupby]]
         data = pd.merge(data, sites, on="site_id", how="left")
 
