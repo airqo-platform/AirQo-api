@@ -723,7 +723,7 @@ class DataUtils:
         bigquery_api = BigQueryApi()
         table: str = None
 
-        if not device_category:
+        if not device_category or device_category == DeviceCategory.LOWCOST:
             device_category = DeviceCategory.GENERAL
 
         table, _ = DataUtils._get_table(
