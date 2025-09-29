@@ -522,7 +522,7 @@ class AirQualityGrids(BaseAirQoAPI):
         # If cache is empty or invalid, fetch from API
         self.logger.info("No valid cached data found, fetching from API...")
         payload = self._get_json(
-            path="/api/v2/devices/grids",
+            path="/api/v2/devices/grids?limit=10000",
             validator=self._is_valid_grids,
             cache_key=self.REDIS_KEY,
             use_cache_on_error=True,

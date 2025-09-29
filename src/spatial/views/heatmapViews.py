@@ -142,7 +142,7 @@ class AQIImageGenerator:
             Flask response with JSON containing city heatmaps or an error message.
         """
         redis_client = AQIImageGenerator.get_redis_client()
-        cache_ttl_seconds = 1800 #Cache for 30 minutes
+        cache_ttl_seconds = 3600 #Cache for 60 minutes 3600
         all_cities_cache_key = "aqi_images_all_cities"
         
         # --- NEW: Check for the entire 'all cities' response in cache first ---
@@ -233,8 +233,8 @@ class AQIImageGenerator:
             Flask response with JSON containing the city's heatmap or an error message.
         """
         redis_client = AQIImageGenerator.get_redis_client()
-        cache_key = f"aqi_image_{city_id}"
-        cache_ttl_seconds = 1800 #Cache for 30 minutes
+        cache_key = f"aqi_image_{city_id}" 
+        cache_ttl_seconds = 3600 #Cache for 60 minutes 3600
 
         # Try to get from cache
         if redis_client:
