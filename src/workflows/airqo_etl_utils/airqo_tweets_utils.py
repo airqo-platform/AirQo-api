@@ -25,7 +25,7 @@ class AirQoTweetsUtils:
             Dict[str, str]: A dictionary where keys are site search names and values are site IDs.
         """
         sites_for_forecast = random.sample(sites.to_dict(orient="records"), 7)
-        return {site["search_name"]: site["_id"] for site in sites_for_forecast}
+        return {site["search_name"]: site["id"] for site in sites_for_forecast}
 
     @staticmethod
     def fetch_site_forecasts(sites_dict: Dict[str, str]) -> Dict[str, Any]:

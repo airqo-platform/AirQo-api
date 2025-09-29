@@ -68,6 +68,43 @@ class MetaDataUtils:
 
         return devices
 
+    @staticmethod
+    def extract_sites(preferred_source: Optional[str] = "cache") -> pd.DataFrame:
+        """
+        Extracts site information for a given device network and standardizes the data format.
+
+        This function retrieves site data, selects relevant columns, renames certain fields
+        for consistency, and adds a timestamp indicating when the data was last updated.
+
+        Args:
+            network (Optional[DeviceNetwork]): The device network to filter sites by. If None, data for all networks is retrieved.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the extracted site information with standardized columns.
+        """
+        sites = DataUtils.get_sites(preferred_source=preferred_source)
+        sites = sites[
+            [
+                "network",
+                "id",
+                "latitude",
+                "longitude",
+                "approximate_latitude",
+                "approximate_longitude",
+                "name",
+                "display_name",
+                "display_location",
+                "description",
+                "city",
+                "region",
+                "country",
+            ]
+        ]
+
+        sites["last_updated"] = datetime.now(timezone.utc)
+
+        return sites
+
     def compute_device_site_metadata(
         self,
         data_type: DataType,
@@ -109,7 +146,7 @@ class MetaDataUtils:
 
         metadata_method: Dict[str, Callable[[], Any]] = {
             MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
-            MetaDataType.SITES: lambda: self.extract_sites(),
+            MetaDataType.SITES: lambda: self.extract_sites(preferred_source="api"),
         }
         unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
 
@@ -409,51 +446,6 @@ class MetaDataUtils:
         return merged_data
 
     @staticmethod
-    def extract_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
-        """
-        Extracts site information for a given device network and standardizes the data format.
-
-        This function retrieves site data, selects relevant columns, renames certain fields
-        for consistency, and adds a timestamp indicating when the data was last updated.
-
-        Args:
-            network (Optional[DeviceNetwork]): The device network to filter sites by. If None, data for all networks is retrieved.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing the extracted site information with standardized columns.
-        """
-        sites = DataUtils.get_sites(network=network)
-        sites = sites[
-            [
-                "network",
-                "site_id",
-                "latitude",
-                "longitude",
-                "approximate_latitude",
-                "approximate_longitude",
-                "name",
-                "search_name",
-                "location_name",
-                "description",
-                "city",
-                "region",
-                "country",
-            ]
-        ]
-
-        sites.rename(
-            columns={
-                "search_name": "display_name",
-                "site_id": "id",
-                "location_name": "display_location",
-            },
-            inplace=True,
-        )
-        sites["last_updated"] = datetime.now(timezone.utc)
-
-        return sites
-
-    @staticmethod
     def extract_sites_meta_data(
         network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
@@ -472,6 +464,7 @@ class MetaDataUtils:
             pd.DataFrame: A DataFrame containing the extracted site metadata with the correct schema.
         """
         sites = DataUtils.get_sites(network=network)
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.sites_meta_data_table)
         sites = DataValidationUtils.fill_missing_columns(data=sites, cols=cols)
@@ -498,6 +491,7 @@ class MetaDataUtils:
         sites_data = DataUtils.get_sites(network=network)
         sites_data.rename(
             columns={
+                "id": "site_id",
                 "approximate_latitude": "latitude",
                 "approximate_longitude": "longitude",
             },
@@ -530,6 +524,7 @@ class MetaDataUtils:
         """
         data_api = DataApi()
         sites = DataUtils.get_sites(network=network)
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         updated_sites = []
         for _, site in sites.iterrows():
             latitude = site.get("approximate_latitude", None)
@@ -612,7 +607,7 @@ class MetaDataUtils:
         """
         endpoints: Dict[str, Callable[[], Any]] = {
             MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
-            MetaDataType.SITES: lambda: self.extract_sites(),
+            MetaDataType.SITES: lambda: self.extract_sites(preferred_source="api"),
         }
         result: pd.DataFrame = pd.DataFrame()
         match metadata_type:
