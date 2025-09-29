@@ -141,20 +141,29 @@ const mockNext = (error) => {
 };
 
 const processDeviceBatch = async (devices, processor) => {
-  const CONCURRENCY_LIMIT = 8; // Reduced for better performance
+  const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
   let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
   const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
 
-  // 2. Fetch all necessary device details (readKey) in a single query
+  // 2. Fetch all necessary device details in a single query with timeout
   let deviceDetailsMap = new Map();
   if (deviceNumbers.length > 0) {
     try {
-      const deviceDetails = await DeviceModel("airqo")
-        .find({ device_number: { $in: deviceNumbers } })
-        .select("device_number readKey")
-        .lean();
+      const QUERY_TIMEOUT = 10000; // 10 seconds
+      const deviceDetails = await Promise.race([
+        DeviceModel("airqo")
+          .find({ device_number: { $in: deviceNumbers } })
+          .select("device_number readKey")
+          .lean(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Device details query timeout")),
+            QUERY_TIMEOUT
+          )
+        ),
+      ]);
 
       deviceDetails.forEach((detail) => {
         deviceDetailsMap.set(detail.device_number, detail);
@@ -185,13 +194,23 @@ const processDeviceBatch = async (devices, processor) => {
     totalUpdates += batchResult.results.filter((result) => result !== null)
       .length;
 
-    // Perform bulk write for successful operations
+    // Perform bulk write for successful operations with error handling
     const bulkOps = batchResult.results.filter(Boolean);
     if (bulkOps.length > 0) {
       try {
-        await DeviceModel("airqo").bulkWrite(bulkOps);
+        const BULK_TIMEOUT = 15000; // 15 seconds
+        await Promise.race([
+          DeviceModel("airqo").bulkWrite(bulkOps, { ordered: false }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Bulk write timeout")),
+              BULK_TIMEOUT
+            )
+          ),
+        ]);
       } catch (error) {
         logger.error(`Bulk write error in batch: ${error.message}`);
+        // Continue processing instead of failing completely
       }
     }
 
@@ -401,7 +420,8 @@ const updateRawOnlineStatus = async () => {
     const startTime = Date.now();
     logText(`Starting raw online status check for ALL devices...`);
 
-    const totalDevices = await DeviceModel("airqo").countDocuments({});
+    // Use more efficient counting method
+    const totalDevices = await DeviceModel("airqo").estimatedDocumentCount();
     if (totalDevices === 0) {
       logText("No devices to process.");
       processor.end();
@@ -409,50 +429,83 @@ const updateRawOnlineStatus = async () => {
     }
 
     logText(
-      `Found ${totalDevices} devices to process in batches of ${BATCH_SIZE}`
+      `Found ~${totalDevices} devices to process in batches of ${BATCH_SIZE}`
     );
 
+    // Use cursor with smaller memory footprint
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
         "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy"
       )
       .lean()
+      .batchSize(BATCH_SIZE) // Add batch size for cursor
       .cursor();
 
     let batch = [];
     let totalProcessed = 0;
+    let errorCount = 0;
+    const MAX_ERRORS = 50; // Stop if too many errors
 
-    for await (const device of cursor) {
-      if (processor.shouldStopExecution()) {
-        logText(`${JOB_NAME} stopping during processing`);
-        await cursor.close();
-        break;
+    try {
+      for await (const device of cursor) {
+        if (processor.shouldStopExecution()) {
+          logText(`${JOB_NAME} stopping during processing`);
+          break;
+        }
+
+        batch.push(device);
+
+        if (batch.length >= BATCH_SIZE) {
+          try {
+            const updatedCount = await processDeviceBatch(batch, processor);
+            totalProcessed += batch.length;
+
+            logText(
+              `Batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}/${totalDevices}`
+            );
+
+            // Reset error count on successful batch
+            errorCount = 0;
+          } catch (batchError) {
+            errorCount++;
+            logger.error(
+              `Batch processing error (${errorCount}/${MAX_ERRORS}): ${batchError.message}`
+            );
+
+            // Stop if too many consecutive errors
+            if (errorCount >= MAX_ERRORS) {
+              logger.error(`Too many batch errors, stopping job`);
+              break;
+            }
+          }
+
+          batch = [];
+
+          // Yield between batches to prevent blocking
+          await processor.yieldControl();
+
+          // Add small delay to prevent overwhelming external APIs
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       }
-
-      batch.push(device);
-
-      if (batch.length >= BATCH_SIZE) {
-        const updatedCount = await processDeviceBatch(batch, processor);
-        totalProcessed += batch.length;
-
-        logText(
-          `Processed batch: ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
-        );
-        batch = [];
-
-        // Yield between batches to prevent blocking
-        await processor.yieldControl();
-      }
+    } finally {
+      await cursor.close();
     }
 
     // Process the final batch if it's not empty
     if (batch.length > 0 && !processor.shouldStopExecution()) {
-      const updatedCount = await processDeviceBatch(batch, processor);
-      totalProcessed += batch.length;
-      logText(
-        `Processed final batch: ${updatedCount} updates. Total processed: ${totalProcessed}/${totalDevices}`
-      );
+      try {
+        const updatedCount = await processDeviceBatch(batch, processor);
+        totalProcessed += batch.length;
+        logText(
+          `Final batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}`
+        );
+      } catch (finalBatchError) {
+        logger.error(
+          `Final batch processing error: ${finalBatchError.message}`
+        );
+      }
     }
 
     const duration = (Date.now() - startTime) / 1000;
@@ -468,6 +521,11 @@ const updateRawOnlineStatus = async () => {
     }
   } finally {
     processor.end();
+
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
   }
 };
 

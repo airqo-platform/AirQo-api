@@ -1068,6 +1068,7 @@ async function updateOnlineStatusAndAccuracy() {
         internal: "yes",
         active: "yes",
         brief: "yes",
+        limit: 5000, // Add reasonable limit to prevent memory issues
       },
     };
     const filter = generateFilter.fetch(request);
@@ -1076,17 +1077,26 @@ async function updateOnlineStatusAndAccuracy() {
 
     let viewEventsResponse;
     try {
-      viewEventsResponse = await EventModel("airqo").fetch(filter);
+      // Add timeout to prevent hanging
+      const FETCH_TIMEOUT = 30000; // 30 seconds
+      viewEventsResponse = await Promise.race([
+        EventModel("airqo").fetch(filter),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Fetch timeout")), FETCH_TIMEOUT)
+        ),
+      ]);
     } catch (fetchError) {
       if (isDuplicateKeyError(fetchError)) {
         logText("Ignoring duplicate key error in fetch operation");
         return;
       }
       logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
-      return;
+
+      // Don't fail completely - try to process stale entities
+      viewEventsResponse = { success: false, data: [] };
     }
 
-    // Process events if available
+    // Process events if available with memory management
     let deviceIds = new Set();
     let siteIds = new Set();
 
@@ -1097,78 +1107,142 @@ async function updateOnlineStatusAndAccuracy() {
     ) {
       const data = viewEventsResponse.data[0].data;
 
-      // Process status updates from events with yielding
-      await statusProcessor.processStatusUpdates(data);
+      // Process in smaller chunks to prevent memory issues
+      const CHUNK_SIZE = 1000;
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        if (processor.shouldStopExecution()) break;
 
-      // Collect IDs from events
-      deviceIds = new Set(data.map((doc) => doc.device_id).filter(Boolean));
-      siteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        await statusProcessor.processStatusUpdates(chunk);
+
+        // Collect IDs from this chunk
+        chunk.forEach((doc) => {
+          if (doc.device_id) deviceIds.add(doc.device_id);
+          if (doc.site_id) siteIds.add(doc.site_id);
+        });
+
+        // Yield control periodically
+        await processor.yieldControl();
+      }
     } else {
       logText("No Events found for status updates from recent data");
     }
 
-    // Process stale entities (devices/sites not checked recently)
+    // Process stale entities with better error handling
     if (!processor.shouldStopExecution()) {
       logText(
         "Processing stale entities that haven't been checked recently..."
       );
 
-      const [staleDeviceResult, staleSiteResult] = await Promise.allSettled([
-        processStaleEntities(DeviceModel("airqo"), "Device", processor),
-        processStaleEntities(SiteModel("airqo"), "Site", processor),
-      ]);
+      try {
+        const [staleDeviceResult, staleSiteResult] = await Promise.allSettled([
+          Promise.race([
+            processStaleEntities(DeviceModel("airqo"), "Device", processor),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Stale device processing timeout")),
+                25000
+              )
+            ),
+          ]),
+          Promise.race([
+            processStaleEntities(SiteModel("airqo"), "Site", processor),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Stale site processing timeout")),
+                25000
+              )
+            ),
+          ]),
+        ]);
 
-      staleProcessingStats = {
-        devices:
-          staleDeviceResult.status === "fulfilled"
-            ? staleDeviceResult.value
-            : { processedCount: 0, error: staleDeviceResult.reason },
-        sites:
-          staleSiteResult.status === "fulfilled"
-            ? staleSiteResult.value
-            : { processedCount: 0, error: staleSiteResult.reason },
-      };
+        staleProcessingStats = {
+          devices:
+            staleDeviceResult.status === "fulfilled"
+              ? staleDeviceResult.value
+              : {
+                  processedCount: 0,
+                  error: staleDeviceResult.reason?.message || "Unknown error",
+                },
+          sites:
+            staleSiteResult.status === "fulfilled"
+              ? staleSiteResult.value
+              : {
+                  processedCount: 0,
+                  error: staleSiteResult.reason?.message || "Unknown error",
+                },
+        };
 
-      logText(
-        `Processed ${staleProcessingStats.devices.processedCount} stale devices, ${staleProcessingStats.sites.processedCount} stale sites`
-      );
+        logText(
+          `Processed ${staleProcessingStats.devices.processedCount} stale devices, ${staleProcessingStats.sites.processedCount} stale sites`
+        );
+      } catch (error) {
+        logger.error(`Error in stale entity processing: ${error.message}`);
+        staleProcessingStats = {
+          devices: { processedCount: 0, error: error.message },
+          sites: { processedCount: 0, error: error.message },
+        };
+      }
     }
 
-    // Enhanced offline detection with yielding
+    // Enhanced offline detection with better memory management
     if (!processor.shouldStopExecution()) {
       try {
-        // Process offline entities with yielding between operations
         await processor.yieldControl();
 
+        // Process offline detection with timeouts
+        const OFFLINE_TIMEOUT = 20000; // 20 seconds
         const [
           deviceOfflineResult,
           siteOfflineResult,
         ] = await Promise.allSettled([
-          updateOfflineEntitiesWithAccuracy(
-            DeviceModel("airqo"),
-            deviceIds,
-            "Device",
-            statusProcessor.statusResults.devices.map((d) => d.result)
-          ),
-          updateOfflineEntitiesWithAccuracy(
-            SiteModel("airqo"),
-            siteIds,
-            "Site",
-            statusProcessor.statusResults.sites.map((s) => s.result)
-          ),
+          Promise.race([
+            updateOfflineEntitiesWithAccuracy(
+              DeviceModel("airqo"),
+              deviceIds,
+              "Device",
+              statusProcessor.statusResults.devices.map((d) => d.result)
+            ),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Device offline detection timeout")),
+                OFFLINE_TIMEOUT
+              )
+            ),
+          ]),
+          Promise.race([
+            updateOfflineEntitiesWithAccuracy(
+              SiteModel("airqo"),
+              siteIds,
+              "Site",
+              statusProcessor.statusResults.sites.map((s) => s.result)
+            ),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Site offline detection timeout")),
+                OFFLINE_TIMEOUT
+              )
+            ),
+          ]),
         ]);
 
-        // Generate comprehensive accuracy report
+        // Generate comprehensive accuracy report with error handling
         const accuracyReport = await statusProcessor.getAccuracyReport();
         accuracyReport.offlineDetection = {
           devices:
             deviceOfflineResult.status === "fulfilled"
               ? deviceOfflineResult.value
-              : { success: false, error: deviceOfflineResult.reason },
+              : {
+                  success: false,
+                  error: deviceOfflineResult.reason?.message || "Unknown error",
+                },
           sites:
             siteOfflineResult.status === "fulfilled"
               ? siteOfflineResult.value
-              : { success: false, error: siteOfflineResult.reason },
+              : {
+                  success: false,
+                  error: siteOfflineResult.reason?.message || "Unknown error",
+                },
         };
 
         // Add stale processing stats to report
@@ -1176,7 +1250,7 @@ async function updateOnlineStatusAndAccuracy() {
           accuracyReport.staleProcessing = staleProcessingStats;
         }
 
-        // Format a human-readable summary for the main report
+        // Format a more concise summary to reduce log noise
         const {
           processing,
           overallAccuracy,
@@ -1190,22 +1264,24 @@ async function updateOnlineStatusAndAccuracy() {
             ? processing.endTime - processing.startTime
             : 0;
         const duration = (durationMs / 1000).toFixed(1);
+
         const devices = offlineDetection?.devices?.metrics;
         const sites = offlineDetection?.sites?.metrics;
+
         const formattedReport =
-          `📊📊 Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. ` +
+          `📊 Online Status Report: ${duration}s | ` +
           `Devices: ${
             devices
-              ? `${devices.successfulUpdates} updated, ${devices.markedOffline} marked offline`
-              : "metrics unavailable"
-          }. ` +
+              ? `${devices.successfulUpdates}↑ ${devices.markedOffline}↓`
+              : "N/A"
+          } | ` +
           `Sites: ${
             sites
-              ? `${sites.successfulUpdates} updated, ${sites.markedOffline} marked offline`
-              : "metrics unavailable"
-          }. ` +
+              ? `${sites.successfulUpdates}↑ ${sites.markedOffline}↓`
+              : "N/A"
+          }` +
           (staleProcessing
-            ? `Stale entities processed: ${staleProcessing.devices.processedCount} devices, ${staleProcessing.sites.processedCount} sites.`
+            ? ` | Stale: ${staleProcessing.devices.processedCount}D ${staleProcessing.sites.processedCount}S`
             : "");
 
         // Use throttled logging for accuracy report
@@ -1218,7 +1294,7 @@ async function updateOnlineStatusAndAccuracy() {
           processing.endTime && processing.startTime
             ? ((processing.endTime - processing.startTime) / 1000).toFixed(1)
             : "unknown";
-        const formattedReport = `📊📊 PARTIAL Online Status Report: Processed ${processing.totalDocuments} events in ${duration}s. Check logs for offline detection errors.`;
+        const formattedReport = `📊 PARTIAL Online Status Report: ${duration}s | Check logs for errors`;
         await throttledLog("ACCURACY_REPORT", formattedReport);
       }
     }
@@ -1236,6 +1312,11 @@ async function updateOnlineStatusAndAccuracy() {
     }
   } finally {
     processor.end();
+
+    // Force garbage collection if available (helps with memory management)
+    if (global.gc) {
+      global.gc();
+    }
   }
 }
 

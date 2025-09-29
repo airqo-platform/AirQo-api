@@ -1,16 +1,19 @@
 // config/redis.js - Redis v4 Compatible with Simple Resilience
 const redis = require("redis");
 const constants = require("./constants");
-const { logObject, logText, logElement } = require("@utils/shared");
+const { logText, logElement, logTextWithTimestamp } = require("@utils/shared");
 
-const REDIS_SERVER = constants.REDIS_SERVER;
-const REDIS_PORT = constants.REDIS_PORT;
+const REDIS_URL = constants.REDIS_URL;
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- redis-config`
 );
 
-logElement("redis URL", REDIS_SERVER && REDIS_SERVER.concat(":", REDIS_PORT));
+if (!REDIS_URL) {
+  logger.error(
+    "REDIS_URL environment variable not set. Redis will be unavailable."
+  );
+}
 
 // Connection state tracking
 let isConnected = false;
@@ -23,68 +26,102 @@ const fallbackCache = new Map();
 const FALLBACK_CACHE_MAX_SIZE = 1000;
 const FALLBACK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Key prefix for environment isolation
+const KEY_PREFIX = `${(constants.ENVIRONMENT || "unknown")
+  .replace(/\s+/g, "_")
+  .toLowerCase()}:`;
+
+// --- START: Log Throttling ---
+const LOGGING_WINDOW_MINUTES = 5; // Only log in the first 5 minutes of each hour
+
+const logThrottledOperationError = (operation, key, error) => {
+  const currentMinute = new Date().getMinutes();
+  if (currentMinute < LOGGING_WINDOW_MINUTES) {
+    logger.warn(
+      `Redis ${operation} failed for ${key}: ${error.message} - using fallback`
+    );
+  }
+};
+// --- END: Log Throttling ---
+
+// --- START: Connection Error Log Throttling ---
+const logThrottledConnectionError = (error) => {
+  const currentMinute = new Date().getMinutes();
+  if (currentMinute < LOGGING_WINDOW_MINUTES) {
+    const errorMessage = error.message.toLowerCase();
+    if (
+      error.code === "ECONNREFUSED" ||
+      error.code === "ETIMEDOUT" ||
+      errorMessage.includes("timeout")
+    ) {
+      logger.warn(
+        `Redis connection error: ${error.code || "N/A"} - ${
+          error.message
+        }. Check server and network.`
+      );
+    } else if (errorMessage.includes("auth")) {
+      logger.error(
+        "Redis authentication failed. Please check your password/credentials."
+      );
+    } else {
+      logger.error(`Redis error: ${error.message}`);
+    }
+  }
+};
+// --- END: Connection Error Log Throttling ---
+
 // Redis v4 configuration with improved retry strategy
 const redisConfig = {
+  url: REDIS_URL,
   socket: {
-    host: REDIS_SERVER,
-    port: REDIS_PORT,
-    connectTimeout: 10000,
-    commandTimeout: 5000,
-    keepAlive: true,
-    reconnectStrategy: (retries) => {
-      connectionAttempts = retries + 1;
+    connectTimeout: 10000, // 10 seconds
+    keepAlive: 5000, // Send keep-alive packets every 5 seconds
+    tls: REDIS_URL?.startsWith("rediss://") ? true : undefined,
+  },
+  reconnectStrategy: (retries) => {
+    connectionAttempts = retries + 1;
 
-      // Increased retry limit (addressing PR review #1)
-      if (retries > 10) {
-        logger.error("Redis maximum retry attempts (10) reached");
-        return false;
-      }
-
-      // Exponential backoff with jitter (addressing PR review #1)
-      const baseDelay = Math.min(Math.pow(2, retries) * 1000, 30000);
-      const jitter = Math.random() * 1000;
-      const delay = baseDelay + jitter;
-
-      logger.warn(
-        `Redis retry attempt ${retries + 1}/10 in ${Math.round(delay)}ms`
+    if (retries > 15) {
+      logger.error(
+        "Redis maximum retry attempts (15) reached. Stopping retries."
       );
-      return delay;
-    },
+      return new Error("Redis retry limit reached");
+    }
+
+    // Exponential backoff with jitter
+    const baseDelay = Math.min(Math.pow(2, retries) * 500, 30000); // Start at 500ms, max 30s
+    const jitter = Math.random() * 1000;
+    const delay = baseDelay + jitter;
+
+    logger.warn(
+      `Redis retry attempt ${retries + 1}/15 in ${Math.round(delay)}ms`
+    );
+    return delay;
   },
   disableOfflineQueue: true,
 };
 
-// Create Redis client
-const client = redis.createClient(redisConfig);
+// Create Redis client. If REDIS_URL is not set, create a disconnected client
+// that will rely on the fallback cache.
+const client = redis.createClient(REDIS_URL ? redisConfig : {});
 
 // Event handlers
 client.on("connect", () => {
   isConnected = true;
-  logger.info(`Redis connected to ${REDIS_SERVER}:${REDIS_PORT}`);
+  logTextWithTimestamp(`Redis connecting...`);
 });
 
 client.on("ready", () => {
   isReady = true;
   lastError = null;
-  logger.info("Redis connection ready");
+  logTextWithTimestamp("Redis connection ready");
 });
 
 client.on("error", (error) => {
   lastError = error;
   isConnected = false;
   isReady = false;
-
-  if (error.code === "ECONNREFUSED") {
-    logger.warn(
-      `Redis connection refused. Is Redis running on ${REDIS_SERVER}:${REDIS_PORT}?`
-    );
-  } else if (error.code === "ETIMEDOUT") {
-    logger.warn(`Redis connection timeout to ${REDIS_SERVER}:${REDIS_PORT}`);
-  } else if (error.code === "ENOTFOUND") {
-    logger.error(`Redis host not found: ${REDIS_SERVER}`);
-  } else {
-    logger.error(`Redis error: ${error.message}`);
-  }
+  logThrottledConnectionError(error);
 });
 
 client.on("end", () => {
@@ -94,19 +131,21 @@ client.on("end", () => {
 });
 
 client.on("reconnecting", () => {
-  logger.info(`Redis reconnecting... Attempt ${connectionAttempts}`);
+  logTextWithTimestamp(`Redis reconnecting... Attempt ${connectionAttempts}`);
 });
 
-// Initialize connection with graceful handling (addressing PR review #2)
-(async () => {
-  try {
-    await client.connect();
-    logger.info("Redis connection established successfully");
-  } catch (error) {
-    // Always use graceful degradation - never fail the application
-    logger.warn(`Redis unavailable: ${error.message} - using fallback cache`);
-  }
-})();
+// Initialize connection only if REDIS_URL is provided
+if (REDIS_URL) {
+  (async () => {
+    try {
+      await client.connect();
+      logTextWithTimestamp("Redis connection established successfully");
+    } catch (error) {
+      // Always use graceful degradation - never fail the application
+      logger.warn(`Redis unavailable: ${error.message} - using fallback cache`);
+    }
+  })();
+}
 
 // Simple fallback cache functions
 const setFallbackCache = (key, value, ttl = FALLBACK_CACHE_TTL) => {
@@ -132,85 +171,89 @@ const getFallbackCache = (key) => {
 
 // Redis operations with simple fallback
 const redisGetAsync = async (key) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
   if (!client.isOpen) {
-    logger.debug(`Redis not available - using fallback for GET ${key}`);
-    return getFallbackCache(key);
+    logger.debug(`Redis not available - using fallback for GET ${prefixedKey}`);
+    return getFallbackCache(prefixedKey);
   }
 
   try {
-    const result = await client.get(key);
+    const result = await client.get(prefixedKey);
     // Cache successful results for future fallback use
     if (result !== null) {
-      setFallbackCache(key, result);
+      setFallbackCache(prefixedKey, result);
     }
     return result;
   } catch (error) {
-    logger.warn(
-      `Redis GET failed for ${key}: ${error.message} - using fallback`
-    );
-    return getFallbackCache(key);
+    logThrottledOperationError("GET", prefixedKey, error);
+    return getFallbackCache(prefixedKey);
   }
 };
 
 const redisSetAsync = async (key, value, ttlSeconds = null) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
   // Always update fallback cache
   const ttlMs = ttlSeconds ? ttlSeconds * 1000 : FALLBACK_CACHE_TTL;
-  setFallbackCache(key, value, ttlMs);
+  setFallbackCache(prefixedKey, value, ttlMs);
 
   if (!client.isOpen) {
-    logger.debug(`Redis not available - SET ${key} cached in fallback only`);
+    logger.debug(
+      `Redis not available - SET ${prefixedKey} cached in fallback only`
+    );
     return "OK";
   }
 
   try {
     if (ttlSeconds) {
-      return await client.setEx(key, ttlSeconds, value);
+      return await client.setEx(prefixedKey, ttlSeconds, value);
     } else {
-      return await client.set(key, value);
+      return await client.set(prefixedKey, value);
     }
   } catch (error) {
-    logger.warn(
-      `Redis SET failed for ${key}: ${error.message} - using fallback only`
-    );
+    logThrottledOperationError("SET", prefixedKey, error);
     return "OK"; // Data is in fallback cache
   }
 };
 
 const redisExpireAsync = async (key, seconds) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
   // Update fallback cache expiry
-  const item = fallbackCache.get(key);
+  const item = fallbackCache.get(prefixedKey);
   if (item) {
     item.expires = Date.now() + seconds * 1000;
   }
 
   if (!client.isOpen) {
     logger.debug(
-      `Redis not available - EXPIRE ${key} applied to fallback only`
+      `Redis not available - EXPIRE ${prefixedKey} applied to fallback only`
     );
     return 1;
   }
 
   try {
-    return await client.expire(key, seconds);
+    return await client.expire(prefixedKey, seconds);
   } catch (error) {
-    logger.warn(`Redis EXPIRE failed for ${key}: ${error.message}`);
+    logThrottledOperationError("EXPIRE", prefixedKey, error);
     return 1;
   }
 };
 
 const redisDelAsync = async (key) => {
-  const hadKey = fallbackCache.has(key);
-  fallbackCache.delete(key);
+  const prefixedKey = `${KEY_PREFIX}${key}`;
+  const hadKey = fallbackCache.has(prefixedKey);
+  fallbackCache.delete(prefixedKey);
 
   if (!client.isOpen) {
-    logger.debug(`Redis not available - DEL ${key} removed from fallback only`);
+    logger.debug(
+      `Redis not available - DEL ${prefixedKey} removed from fallback only`
+    );
     return hadKey ? 1 : 0;
   }
 
   try {
-    return await client.del(key);
+    return await client.del(prefixedKey);
   } catch (error) {
-    logger.warn(`Redis DEL failed for ${key}: ${error.message}`);
+    logThrottledOperationError("DEL", prefixedKey, error);
     return hadKey ? 1 : 0;
   }
 };
@@ -241,8 +284,8 @@ const redisUtils = {
     ready: isReady,
     isOpen: client.isOpen,
     attempts: connectionAttempts,
-    lastError: lastError?.message || null,
-    server: `${REDIS_SERVER}:${REDIS_PORT}`,
+    lastError: lastError ? lastError.message : null,
+    server: REDIS_URL ? new URL(REDIS_URL).host : "Not configured",
     fallbackCacheSize: fallbackCache.size,
   }),
 
