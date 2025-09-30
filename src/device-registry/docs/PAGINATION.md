@@ -11,8 +11,8 @@ All `GET` endpoints that return a list of items now support standardized paginat
 You can control pagination using the following query parameters:
 
 - `limit` (optional): Specifies the maximum number of items to return in a single response.
-  - **Default**: `100`
-  - **Maximum**: `300`
+  - **Default**: `30`
+  - **Maximum**: `80`
 - `skip` (optional): Specifies the number of items to skip from the beginning of the result set.
   - **Default**: `0`
 
