@@ -93,7 +93,8 @@ class DownloadService:
             use_cache=True,
             cursor_token=cursor_token,
         )
-
+        if not results.empty:
+            results.rename(columns={"device_id": "device_name"}, inplace=True)
         return results, metadata
 
     @staticmethod
