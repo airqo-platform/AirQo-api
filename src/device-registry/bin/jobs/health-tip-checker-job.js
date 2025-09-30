@@ -98,23 +98,39 @@ async function findCategoriesWithoutTips(
   validAqiRanges,
   tenant
 ) {
-  const categoriesWithoutTips = [];
+  try {
+    const aqiRanges = validAqiRanges.map((range) => ({
+      min: range.min,
+      max: range.max,
+    }));
 
-  // Check each range in parallel for better performance
-  const checkPromises = validAqiRanges.map((range) =>
-    checkSingleRangeForTips(range, healthTipModel, tenant)
-  );
+    const existingTips = await healthTipModel(tenant).aggregate([
+      {
+        $group: {
+          _id: {
+            min: "$aqi_category.min",
+            max: "$aqi_category.max",
+          },
+        },
+      },
+    ]);
 
-  const results = await Promise.all(checkPromises);
+    const existingRanges = new Set(
+      existingTips.map((tip) => JSON.stringify(tip._id))
+    );
 
-  // Filter out null results and collect categories without tips
-  results.forEach((result) => {
-    if (result !== null) {
-      categoriesWithoutTips.push(result);
-    }
-  });
+    const categoriesWithoutTips = aqiRanges
+      .filter((range) => !existingRanges.has(JSON.stringify(range)))
+      .map((range) => ({
+        ...range,
+        name: findCategoryName(range) || "unknown",
+      }));
 
-  return categoriesWithoutTips;
+    return categoriesWithoutTips;
+  } catch (error) {
+    logger.error(`Error in findCategoriesWithoutTips: ${error.message}`);
+    return [];
+  }
 }
 
 /**

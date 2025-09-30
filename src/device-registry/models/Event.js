@@ -974,74 +974,45 @@ async function fetchData(model, filter) {
 
   if (!recent || recent === "yes") {
     try {
-      // Build the count pipeline stages as an array first
-      const countPipelineStages = [
-        { $match: search },
-        { $unwind: "$values" },
-        { $match: { "values.time": search["values.time"] } },
-        { $replaceRoot: { newRoot: "$values" } },
-      ];
+      // --- START: Optimized Count Query ---
+      // This simplified query is much faster than the previous aggregation.
+      // It directly counts the documents that match the core criteria.
+      const countFilter = { ...search };
 
-      // Track whether we've added device lookup to avoid duplicates
-      let hasDeviceLookup = false;
+      // Remove the 'values.time' from the top-level filter for counting,
+      // as it's used inside $elemMatch for efficiency.
+      const timeFilter = countFilter["values.time"];
+      delete countFilter["values.time"];
 
-      // Add active device filtering if needed
+      // Use $elemMatch to efficiently find documents with at least one matching value
+      // without unwinding the entire array.
+      if (timeFilter) {
+        countFilter.values = { $elemMatch: { time: timeFilter } };
+      }
+
+      // If filtering by active devices, we need to get their IDs first.
       if (active === "yes") {
-        if (!hasDeviceLookup) {
-          countPipelineStages.push({
-            $lookup: {
-              from: "devices",
-              localField: "device_id",
-              foreignField: "_id",
-              as: "device_details",
-            },
-          });
-          hasDeviceLookup = true;
-        }
-        countPipelineStages.push({
-          $match: { "device_details.isActive": true },
-        });
-      }
+        const DeviceModel = require("@models/Device");
+        const activeDevices = await DeviceModel(tenant)
+          .find({ isActive: true })
+          .select("_id")
+          .lean();
+        const activeDeviceIds = activeDevices.map((d) => d._id);
 
-      // Add visibility filtering for non-internal requests
-      if (internal !== "yes") {
-        if (!hasDeviceLookup) {
-          countPipelineStages.push({
-            $lookup: {
-              from: "devices",
-              localField: "device_id",
-              foreignField: "_id",
-              as: "device_details",
-            },
-          });
-          hasDeviceLookup = true;
+        // Add the device_id filter to the count query.
+        if (countFilter.device_id) {
+          countFilter.device_id.$in = countFilter.device_id.$in.filter((id) =>
+            activeDeviceIds.some((activeId) => activeId.equals(id))
+          );
+        } else {
+          countFilter.device_id = { $in: activeDeviceIds };
         }
-        countPipelineStages.push(
-          {
-            $lookup: {
-              from: "cohorts",
-              localField: "device_details.cohorts",
-              foreignField: "_id",
-              as: "cohort_details",
-            },
-          },
-          { $match: { "cohort_details.visibility": { $ne: false } } }
-        );
       }
-
-      // Add the final count stages
-      countPipelineStages.push(
-        { $group: { _id: idField } },
-        { $count: "device" }
-      );
 
       // Execute the count pipeline with timeout
       const COUNT_TIMEOUT = 15000; // 15 seconds
       const totalCountResult = await Promise.race([
-        model
-          .aggregate(countPipelineStages)
-          .allowDiskUse(true)
-          .exec(),
+        model.countDocuments(countFilter),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error("Count query timeout")),
@@ -1050,8 +1021,8 @@ async function fetchData(model, filter) {
         ),
       ]);
 
-      const totalCount =
-        totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+      const totalCount = totalCountResult;
+      // --- END: Optimized Count Query ---
 
       // Build main aggregation pipeline with optimizations
       let pipeline = model.aggregate([
@@ -1190,11 +1161,11 @@ async function fetchData(model, filter) {
         groupStage.site_image = {
           $first: { $arrayElemAt: ["$site_images.image_url", 0] },
         };
-        groupStage.is_reading_primary = {
-          $first: {
-            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
-          },
-        };
+        // groupStage.is_reading_primary = {
+        //   $first: {
+        //     $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+        //   },
+        // };
         groupStage.health_tips = { $first: "$healthTips" };
       }
 
