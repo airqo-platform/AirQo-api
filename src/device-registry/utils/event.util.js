@@ -4729,7 +4729,6 @@ const createEvent = {
       let mobileDeviceCount = 0;
       let staticDeviceCount = 0;
 
-      // OPTIMIZATION: Pre-fetch all device contexts in a single query
       const deviceIdentifiers = measurements
         .map(({ device_id, device, device_number }) => {
           if (device_id) return { _id: device_id };
@@ -4771,7 +4770,6 @@ const createEvent = {
           logger.error(
             `Database error pre-fetching devices: ${dbError.message}`
           );
-          // Continue without pre-fetched context, falling back to individual lookups
         }
       }
 
@@ -4781,11 +4779,13 @@ const createEvent = {
       );
 
       if (!responseFromTransformMeasurements.success) {
-        // Critical transformation system failure
+        logObject(
+          "Failed to transform measurements",
+          responseFromTransformMeasurements
+        );
         return responseFromTransformMeasurements;
       }
 
-      // Collect transformation failures as errors (non-critical)
       if (responseFromTransformMeasurements.failed_count > 0) {
         const transformationErrors = responseFromTransformMeasurements.failed_transformations.map(
           (failure) => ({
@@ -4798,7 +4798,6 @@ const createEvent = {
         errors.push(...transformationErrors);
       }
 
-      // Attach pre-fetched context to each measurement
       const measurementsWithContext = responseFromTransformMeasurements.data.map(
         (m) => {
           const identifier = m.device_id
@@ -4812,17 +4811,14 @@ const createEvent = {
         }
       );
 
-      // MEASUREMENT PROCESSING LOOP - WITH FIX
       for (const measurement of measurementsWithContext) {
         try {
-          // Track deployment types
           if (measurement.deployment_type === "mobile") {
             mobileDeviceCount++;
           } else {
             staticDeviceCount++;
           }
 
-          // Create filter based on deployment type
           let eventsFilter = {
             day: measurement.day,
             device_id: measurement.device_id,
@@ -4836,7 +4832,6 @@ const createEvent = {
             ],
           };
 
-          // Add location-specific filter based on deployment type
           if (measurement.deployment_type === "static" && measurement.site_id) {
             eventsFilter.site_id = measurement.site_id;
             eventsFilter.$or.push({
@@ -4859,7 +4854,6 @@ const createEvent = {
             $inc: { nValues: 1 },
           };
 
-          // Set metadata based on deployment type
           if (measurement.deployment_type === "static") {
             eventsUpdate.$set = {
               site_id: measurement.site_id,
@@ -4883,51 +4877,57 @@ const createEvent = {
             { upsert: true }
           );
 
-          // ✅ FIX: Check the actual MongoDB response properly
-          if (
-            addedEvents &&
-            (addedEvents.modifiedCount > 0 || addedEvents.upsertedCount > 0)
-          ) {
+          if (addedEvents) {
             nAdded += 1;
             eventsAdded.push(measurement);
           } else {
-            // ✅ FIX: Properly count as failed when no database changes made
             eventsRejected.push(measurement);
-            errors.push({
-              type: "INSERTION_FAILURE",
-              msg: "Unable to add the event - no database changes made",
+            let errMsg = {
+              msg: "Unable to add the events",
               deployment_type: measurement.deployment_type,
               record: {
-                device: measurement.device,
-                device_id: measurement.device_id,
-                site_id: measurement.site_id,
-                grid_id: measurement.grid_id,
-                time: measurement.time,
-                frequency: measurement.frequency,
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+                ...(measurement.grid_id
+                  ? { grid_id: measurement.grid_id }
+                  : {}),
               },
-            });
+            };
+            errors.push(errMsg);
           }
         } catch (e) {
           eventsRejected.push(measurement);
-          errors.push({
-            type: "INSERTION_ERROR",
+          let errMsg = {
             msg:
               "System conflict detected, most likely a cast error or duplicate record",
             more: e.message,
             deployment_type: measurement.deployment_type,
             record: {
-              device: measurement.device,
-              device_id: measurement.device_id,
-              site_id: measurement.site_id,
-              grid_id: measurement.grid_id,
-              time: measurement.time,
-              frequency: measurement.frequency,
+              ...(measurement.device ? { device: measurement.device } : {}),
+              ...(measurement.frequency
+                ? { frequency: measurement.frequency }
+                : {}),
+              ...(measurement.time ? { time: measurement.time } : {}),
+              ...(measurement.device_id
+                ? { device_id: measurement.device_id }
+                : {}),
+              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+              ...(measurement.grid_id ? { grid_id: measurement.grid_id } : {}),
             },
-          });
+          };
+          errors.push(errMsg);
         }
       }
 
-      // Calculate deployment statistics
       const deploymentStats = {
         total_measurements: measurements.length,
         static_device_measurements: staticDeviceCount,
@@ -4937,67 +4937,39 @@ const createEvent = {
         transformation_failures: responseFromTransformMeasurements.failed_count,
       };
 
-      const totalFailed =
-        eventsRejected.length + responseFromTransformMeasurements.failed_count;
-      const allFailed = nAdded === 0 && measurements.length > 0;
-      const anySucceeded = nAdded > 0;
-
-      // LENIENT: Only return error status if everything failed
-      if (allFailed) {
+      if (errors.length > 0 && nAdded === 0) {
         logTextWithTimestamp(
-          "API: All measurements failed - no data was inserted"
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
         );
         return {
           success: false,
-          message: "All measurements failed to process",
+          message: "finished the operation with some errors",
           deployment_stats: deploymentStats,
-          status: httpStatus.BAD_REQUEST,
-          errors:
-            errors.length > 0
-              ? errors
-              : [
-                  {
-                    message:
-                      "All measurements failed transformation or insertion",
-                  },
-                ],
+          errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
-      }
-
-      // BACKWARD COMPATIBLE: ANY success = 200 OK
-      if (anySucceeded) {
-        const hasFailures = totalFailed > 0;
-
-        if (hasFailures) {
-          logTextWithTimestamp(
-            `API: Partial success - ${nAdded} succeeded, ${totalFailed} failed`
-          );
-        } else {
-          logTextWithTimestamp("API: All measurements successfully added");
-        }
-
+      } else {
+        logTextWithTimestamp("API: successfully added the events");
         return {
-          success: true, // true because some succeeded
-          message: hasFailures
-            ? `Successfully processed ${nAdded} of ${measurements.length} measurements`
-            : "Successfully added all events",
+          success: true,
+          message: "successfully added the events",
           deployment_stats: deploymentStats,
-          status: httpStatus.OK, // Always 200 if any succeeded
+          status: httpStatus.OK,
           errors: errors.length > 0 ? errors : undefined,
         };
       }
     } catch (error) {
-      // Critical system error
-      logTextWithTimestamp(`API: Critical Error ${error.message}`);
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-
-      // Don't call next() here - return error response instead
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
     }
   },
   validateDeviceContext: async (
@@ -5191,24 +5163,16 @@ const createEvent = {
               if (result.data && Array.isArray(result.data)) {
                 aggregatedResult.data.push(...result.data);
               }
+
+              if (!result.success) {
+                aggregatedResult.success = false;
+                aggregatedResult.message = "Some chunks failed processing";
+              }
             } catch (chunkError) {
-              // Log but don't fail the entire operation unless it's critical
               logger.error(
                 `Chunk ${i + 1}/${chunks.length} failed: ${chunkError.message}`
               );
-
-              // Check if it's a critical system error
-              const isCriticalError =
-                chunkError.message.includes("database") ||
-                chunkError.message.includes("connection") ||
-                chunkError.message.includes("ECONNREFUSED");
-
-              if (isCriticalError) {
-                // Critical error - propagate immediately
-                throw chunkError;
-              }
-
-              // Non-critical error - track and continue
+              aggregatedResult.success = false;
               aggregatedResult.deployment_stats.failed_insertions +=
                 chunk.length;
               aggregatedResult.errors.push({
@@ -5219,40 +5183,22 @@ const createEvent = {
             }
           }
 
-          // BACKWARD COMPATIBLE: Calculate totals
-          const totalFailed =
-            aggregatedResult.deployment_stats.failed_insertions +
-            aggregatedResult.deployment_stats.transformation_failures;
-          const totalSucceeded =
-            aggregatedResult.deployment_stats.successful_insertions;
-
-          // LENIENT APPROACH: Only fail if EVERYTHING failed
-          if (totalFailed === measurements.length && totalSucceeded === 0) {
-            // Complete failure - return 400
-            aggregatedResult.status = httpStatus.BAD_REQUEST;
-            aggregatedResult.success = false;
-            aggregatedResult.message = "All measurements failed to process";
-          } else if (totalSucceeded > 0) {
-            // ANY success = return 200 OK (backward compatible)
-            aggregatedResult.status = httpStatus.OK;
-            aggregatedResult.success = true;
-
-            if (totalFailed > 0) {
-              // Partial success - include helpful message but keep 200 status
-              aggregatedResult.message =
-                `Successfully processed ${totalSucceeded} of ${measurements.length} measurements. ` +
-                `${totalFailed} failed (see errors array for details)`;
-            } else {
-              // Complete success
-              aggregatedResult.message =
-                "All measurements processed successfully";
-            }
+          if (
+            aggregatedResult.deployment_stats.failed_insertions ===
+            measurements.length
+          ) {
+            aggregatedResult.status = httpStatus.INTERNAL_SERVER_ERROR;
+            aggregatedResult.message = "All measurements failed";
+          } else if (aggregatedResult.deployment_stats.failed_insertions > 0) {
+            aggregatedResult.status = httpStatus.PARTIAL_CONTENT;
+            aggregatedResult.message = "Partially completed with some failures";
           }
 
           return {
             ...aggregatedResult,
-            records_successful: totalSucceeded,
-            records_failed: totalFailed,
+            records_successful:
+              aggregatedResult.deployment_stats.successful_insertions,
+            records_failed: aggregatedResult.deployment_stats.failed_insertions,
           };
         },
         {
@@ -5269,10 +5215,7 @@ const createEvent = {
         }
       );
     } catch (error) {
-      // Only critical errors reach here
-      logger.error(
-        `🐛🐛 Critical Error in addValuesWithStats: ${error.message}`
-      );
+      logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
