@@ -4729,7 +4729,51 @@ const createEvent = {
       let mobileDeviceCount = 0;
       let staticDeviceCount = 0;
 
-      // ... existing device context pre-fetching code ...
+      // OPTIMIZATION: Pre-fetch all device contexts in a single query
+      const deviceIdentifiers = measurements
+        .map(({ device_id, device, device_number }) => {
+          if (device_id) return { _id: device_id };
+          if (device) return { name: device };
+          if (device_number) return { device_number: device_number };
+          return null;
+        })
+        .filter(Boolean);
+
+      const uniqueDeviceIdentifiers = deviceIdentifiers.reduce(
+        (acc, current) => {
+          const key = JSON.stringify(current);
+          if (!acc.find((item) => JSON.stringify(item) === key)) {
+            acc.push(current);
+          }
+          return acc;
+        },
+        []
+      );
+
+      let deviceContexts = new Map();
+      if (uniqueDeviceIdentifiers.length > 0) {
+        try {
+          const devices = await DeviceModel(tenant)
+            .find({ $or: uniqueDeviceIdentifiers })
+            .select(
+              "_id name device_number deployment_type site_id grid_id mobility isActive"
+            )
+            .lean();
+
+          devices.forEach((device) => {
+            deviceContexts.set(device._id.toString(), device);
+            deviceContexts.set(device.name, device);
+            if (device.device_number) {
+              deviceContexts.set(device.device_number.toString(), device);
+            }
+          });
+        } catch (dbError) {
+          logger.error(
+            `Database error pre-fetching devices: ${dbError.message}`
+          );
+          // Continue without pre-fetched context, falling back to individual lookups
+        }
+      }
 
       const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
         measurements,
@@ -4754,8 +4798,136 @@ const createEvent = {
         errors.push(...transformationErrors);
       }
 
-      // ... existing measurement processing code ...
+      // Attach pre-fetched context to each measurement
+      const measurementsWithContext = responseFromTransformMeasurements.data.map(
+        (m) => {
+          const identifier = m.device_id
+            ? m.device_id.toString()
+            : m.device || (m.device_number ? m.device_number.toString() : null);
+          const context = deviceContexts.get(identifier);
+          if (context) {
+            return { ...m, ...context };
+          }
+          return m;
+        }
+      );
 
+      // MEASUREMENT PROCESSING LOOP - WITH FIX
+      for (const measurement of measurementsWithContext) {
+        try {
+          // Track deployment types
+          if (measurement.deployment_type === "mobile") {
+            mobileDeviceCount++;
+          } else {
+            staticDeviceCount++;
+          }
+
+          // Create filter based on deployment type
+          let eventsFilter = {
+            day: measurement.day,
+            device_id: measurement.device_id,
+            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+            $or: [
+              { "values.time": { $ne: measurement.time } },
+              { "values.device": { $ne: measurement.device } },
+              { "values.frequency": { $ne: measurement.frequency } },
+              { "values.device_id": { $ne: measurement.device_id } },
+              { day: { $ne: measurement.day } },
+            ],
+          };
+
+          // Add location-specific filter based on deployment type
+          if (measurement.deployment_type === "static" && measurement.site_id) {
+            eventsFilter.site_id = measurement.site_id;
+            eventsFilter.$or.push({
+              "values.site_id": { $ne: measurement.site_id },
+            });
+          } else if (
+            measurement.deployment_type === "mobile" &&
+            measurement.grid_id
+          ) {
+            eventsFilter.grid_id = measurement.grid_id;
+            eventsFilter.$or.push({
+              "values.grid_id": { $ne: measurement.grid_id },
+            });
+          }
+
+          const eventsUpdate = {
+            $push: { values: measurement },
+            $min: { first: measurement.time },
+            $max: { last: measurement.time },
+            $inc: { nValues: 1 },
+          };
+
+          // Set metadata based on deployment type
+          if (measurement.deployment_type === "static") {
+            eventsUpdate.$set = {
+              site_id: measurement.site_id,
+              device_id: measurement.device_id,
+              deployment_type: "static",
+            };
+          } else if (measurement.deployment_type === "mobile") {
+            eventsUpdate.$set = {
+              grid_id: measurement.grid_id,
+              device_id: measurement.device_id,
+              deployment_type: "mobile",
+            };
+            if (measurement.site_id) {
+              eventsUpdate.$set.site_id = measurement.site_id;
+            }
+          }
+
+          const addedEvents = await EventModel(tenant).updateOne(
+            eventsFilter,
+            eventsUpdate,
+            { upsert: true }
+          );
+
+          // ✅ FIX: Check the actual MongoDB response properly
+          if (
+            addedEvents &&
+            (addedEvents.modifiedCount > 0 || addedEvents.upsertedCount > 0)
+          ) {
+            nAdded += 1;
+            eventsAdded.push(measurement);
+          } else {
+            // ✅ FIX: Properly count as failed when no database changes made
+            eventsRejected.push(measurement);
+            errors.push({
+              type: "INSERTION_FAILURE",
+              msg: "Unable to add the event - no database changes made",
+              deployment_type: measurement.deployment_type,
+              record: {
+                device: measurement.device,
+                device_id: measurement.device_id,
+                site_id: measurement.site_id,
+                grid_id: measurement.grid_id,
+                time: measurement.time,
+                frequency: measurement.frequency,
+              },
+            });
+          }
+        } catch (e) {
+          eventsRejected.push(measurement);
+          errors.push({
+            type: "INSERTION_ERROR",
+            msg:
+              "System conflict detected, most likely a cast error or duplicate record",
+            more: e.message,
+            deployment_type: measurement.deployment_type,
+            record: {
+              device: measurement.device,
+              device_id: measurement.device_id,
+              site_id: measurement.site_id,
+              grid_id: measurement.grid_id,
+              time: measurement.time,
+              frequency: measurement.frequency,
+            },
+          });
+        }
+      }
+
+      // Calculate deployment statistics
       const deploymentStats = {
         total_measurements: measurements.length,
         static_device_measurements: staticDeviceCount,
