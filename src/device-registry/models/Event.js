@@ -1167,11 +1167,11 @@ async function fetchData(model, filter) {
         groupStage.site_image = {
           $first: { $arrayElemAt: ["$site_images.image_url", 0] },
         };
-        // groupStage.is_reading_primary = {
-        //   $first: {
-        //     $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
-        //   },
-        // };
+        groupStage.is_reading_primary = {
+          $first: {
+            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+          },
+        };
         groupStage.health_tips = { $first: "$healthTips" };
       }
 
