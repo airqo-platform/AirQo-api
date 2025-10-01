@@ -32,16 +32,9 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 │   ├── auth-service
 │   ├── calibrate
 │   ├── cilium
-│   ├── data-mgt
-│   ├── device-monitor
 │   ├── device-registry
-│   ├── device-status
-│   ├── device-uptime
-│   ├── exceedance
 │   ├── gp-model
 │   ├── grafana
-│   ├── incentives
-│   ├── insights
 │   ├── jenkins
 │   ├── kafka
 │   ├── locate
@@ -61,19 +54,10 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 └── src
     ├── analytics
     ├── auth-service
-    ├── blog-content-manager
     ├── calibrate
-    ├── data-mgt
-    ├── data-proxy
-    ├── device-monitoring
     ├── device-registry
-    ├── device-status
-    ├── device-uptime
-    ├── exceedances
     ├── firebase
     ├── gp-model
-    ├── incentives
-    ├── insights
     ├── kafka-connectors
     ├── locate
     ├── meta-data
