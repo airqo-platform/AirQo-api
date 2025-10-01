@@ -992,20 +992,26 @@ async function fetchData(model, filter) {
 
       // If filtering by active devices, we need to get their IDs first.
       if (active === "yes") {
-        const DeviceModel = require("@models/Device");
-        const activeDevices = await DeviceModel(tenant)
+        const activeIds = (await DeviceModel(tenant)
           .find({ isActive: true })
           .select("_id")
-          .lean();
-        const activeDeviceIds = activeDevices.map((d) => d._id);
+          .lean()).map((d) => d._id);
+        const activeSet = new Set(activeIds.map(String));
 
-        // Add the device_id filter to the count query.
         if (countFilter.device_id) {
-          countFilter.device_id.$in = countFilter.device_id.$in.filter((id) =>
-            activeDeviceIds.some((activeId) => activeId.equals(id))
+          // Normalize the existing device_id filter to an array
+          const requestedIds = Array.isArray(countFilter.device_id.$in)
+            ? countFilter.device_id.$in
+            : [countFilter.device_id];
+
+          // Find the intersection between requested IDs and active IDs
+          const intersection = requestedIds.filter((id) =>
+            activeSet.has(String(id))
           );
+          countFilter.device_id = { $in: intersection };
         } else {
-          countFilter.device_id = { $in: activeDeviceIds };
+          // If no device filter exists, use all active IDs
+          countFilter.device_id = { $in: activeIds };
         }
       }
 

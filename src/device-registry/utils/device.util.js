@@ -787,8 +787,15 @@ const deviceUtil = {
           {
             $lookup: {
               from: "grids",
-              localField: "siteInfo.grids",
-              foreignField: "_id",
+              let: {
+                gridIds: {
+                  $ifNull: [{ $arrayElemAt: ["$siteInfo.grids", 0] }, []],
+                },
+              },
+              pipeline: [
+                { $match: { $expr: { $in: ["$_id", "$$gridIds"] } } },
+                { $project: { _id: 1, name: 1, admin_level: 1, long_name: 1 } },
+              ],
               as: "gridsInfo",
             },
           },
