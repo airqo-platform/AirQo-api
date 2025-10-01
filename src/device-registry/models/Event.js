@@ -11,7 +11,6 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
-const DeviceModel = require("@models/Device");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
@@ -975,59 +974,74 @@ async function fetchData(model, filter) {
 
   if (!recent || recent === "yes") {
     try {
-      // --- START: Optimized Count Query ---
-      // This simplified query is much faster than the previous aggregation.
-      // It directly counts the documents that match the core criteria.
-      const countFilter = { ...search };
+      // Build the count pipeline stages as an array first
+      const countPipelineStages = [
+        { $match: search },
+        { $unwind: "$values" },
+        { $match: { "values.time": search["values.time"] } },
+        { $replaceRoot: { newRoot: "$values" } },
+      ];
 
-      // Remove the 'values.time' from the top-level filter for counting,
-      // as it's used inside $elemMatch for efficiency.
-      const timeFilter = countFilter["values.time"];
-      delete countFilter["values.time"];
+      // Track whether we've added device lookup to avoid duplicates
+      let hasDeviceLookup = false;
 
-      // Use $elemMatch to efficiently find documents with at least one matching value
-      // without unwinding the entire array.
-      if (timeFilter) {
-        countFilter.values = { $elemMatch: { time: timeFilter } };
-      }
-
-      // If filtering by active devices, we need to get their IDs first.
+      // Add active device filtering if needed
       if (active === "yes") {
-        const activeIds = (await DeviceModel(tenant)
-          .find({ isActive: true })
-          .select("_id")
-          .lean()).map((d) => d._id);
-        const activeSet = new Set(activeIds.map(String));
-
-        if (countFilter.device_id) {
-          // Normalize device_id filter to an array of IDs
-          let requestedIds = [];
-          if (Array.isArray(countFilter.device_id.$in)) {
-            requestedIds = countFilter.device_id.$in;
-          } else if (countFilter.device_id.$eq) {
-            requestedIds = [countFilter.device_id.$eq];
-          } else if (mongoose.Types.ObjectId.isValid(countFilter.device_id)) {
-            requestedIds = [countFilter.device_id];
-          } else if (typeof countFilter.device_id === "string") {
-            // Fallback for plain string ID
-            requestedIds = [countFilter.device_id];
-          }
-
-          // Find the intersection between requested IDs and active IDs
-          const intersection = requestedIds.filter((id) =>
-            activeSet.has(String(id))
-          );
-          countFilter.device_id = { $in: intersection };
-        } else {
-          // If no device filter exists, use all active IDs
-          countFilter.device_id = { $in: activeIds };
+        if (!hasDeviceLookup) {
+          countPipelineStages.push({
+            $lookup: {
+              from: "devices",
+              localField: "device_id",
+              foreignField: "_id",
+              as: "device_details",
+            },
+          });
+          hasDeviceLookup = true;
         }
+        countPipelineStages.push({
+          $match: { "device_details.isActive": true },
+        });
       }
+
+      // Add visibility filtering for non-internal requests
+      if (internal !== "yes") {
+        if (!hasDeviceLookup) {
+          countPipelineStages.push({
+            $lookup: {
+              from: "devices",
+              localField: "device_id",
+              foreignField: "_id",
+              as: "device_details",
+            },
+          });
+          hasDeviceLookup = true;
+        }
+        countPipelineStages.push(
+          {
+            $lookup: {
+              from: "cohorts",
+              localField: "device_details.cohorts",
+              foreignField: "_id",
+              as: "cohort_details",
+            },
+          },
+          { $match: { "cohort_details.visibility": { $ne: false } } }
+        );
+      }
+
+      // Add the final count stages
+      countPipelineStages.push(
+        { $group: { _id: idField } },
+        { $count: "device" }
+      );
 
       // Execute the count pipeline with timeout
       const COUNT_TIMEOUT = 15000; // 15 seconds
       const totalCountResult = await Promise.race([
-        model.countDocuments(countFilter),
+        model
+          .aggregate(countPipelineStages)
+          .allowDiskUse(true)
+          .exec(),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error("Count query timeout")),
@@ -1036,8 +1050,8 @@ async function fetchData(model, filter) {
         ),
       ]);
 
-      const totalCount = totalCountResult;
-      // --- END: Optimized Count Query ---
+      const totalCount =
+        totalCountResult.length > 0 ? totalCountResult[0].device : 0;
 
       // Build main aggregation pipeline with optimizations
       let pipeline = model.aggregate([
@@ -1173,14 +1187,14 @@ async function fetchData(model, filter) {
 
       // Add fields that are only needed for non-historical data
       if (!isHistorical) {
-        // groupStage.site_image = {
-        //   $first: { $arrayElemAt: ["$site_images.image_url", 0] },
-        // };
-        // groupStage.is_reading_primary = {
-        //   $first: {
-        //     $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
-        //   },
-        // };
+        groupStage.site_image = {
+          $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+        };
+        groupStage.is_reading_primary = {
+          $first: {
+            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+          },
+        };
         groupStage.health_tips = { $first: "$healthTips" };
       }
 
@@ -1197,13 +1211,27 @@ async function fetchData(model, filter) {
 
       // Clean up health tips projection for non-historical data
       if (!isHistorical) {
-        pipeline = pipeline.project({
-          "health_tips.aqi_category": 0,
-          "health_tips.value": 0,
-          "health_tips.createdAt": 0,
-          "health_tips.updatedAt": 0,
-          "health_tips.__v": 0,
-        });
+        pipeline = pipeline
+          .project({
+            "health_tips.aqi_category": 0,
+            "health_tips.value": 0,
+            "health_tips.createdAt": 0,
+            "health_tips.updatedAt": 0,
+            "health_tips.__v": 0,
+          })
+          .project({
+            "site_image.createdAt": 0,
+            "site_image.updatedAt": 0,
+            "site_image.metadata": 0,
+            "site_image.__v": 0,
+            "site_image.device_name": 0,
+            "site_image.device_id": 0,
+            "site_image._id": 0,
+            "site_image.tags": 0,
+            "site_image.image_code": 0,
+            "site_image.site_id": 0,
+            "site_image.airqloud_id": 0,
+          });
       }
 
       pipeline = pipeline.project(projection);
