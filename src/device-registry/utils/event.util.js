@@ -5099,7 +5099,7 @@ const createEvent = {
       return await ActivityLogger.trackOperation(
         async () => {
           const CHUNK_SIZE = 25;
-          const OPERATION_TIMEOUT = 120000; // 2 minutes
+          const OPERATION_TIMEOUT = 45000;
 
           const chunks = [];
           for (let i = 0; i < measurements.length; i += CHUNK_SIZE) {
