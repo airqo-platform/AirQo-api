@@ -8,6 +8,12 @@ const generateDescription = (permission) => {
   );
 };
 
+// Direct import of environment config to get AIRQO_GROUP_ID
+const environments = require("../environments");
+const environment = process.env.NODE_ENV || "production";
+const envConfig = environments[environment];
+const AIRQO_GROUP_ID = envConfig.AIRQO_GROUP_ID || "652ee1f0c619ed8f6e08eec2";
+
 // Step 1: Define the single source of truth for all permissions
 const PERMISSION_DEFINITIONS = [
   // System & Admin
@@ -197,38 +203,33 @@ const DEFAULT_ROLE_DEFINITIONS = {
     permissions: ALL_PERMISSIONS.filter(
       (p) => !["ACCESS_PLATFORM"].includes(p)
     ),
-    isSystemWide: true, // Flag to indicate this role grants system-wide access
-    grantedIn: "AIRQO_GROUP", // Indicates this role is granted in the AirQo master group
+    isSystemWide: true,
+    grantedIn: "AIRQO_GROUP",
   },
   AIRQO_ADMIN: {
     role_name: "AIRQO_ADMIN",
     role_code: "AIRQO_ADMIN",
     role_description: "Default Administrator role for the AirQo organization",
     permissions: [
-      // ORGANIZATION
       PERMISSIONS.ORG_CREATE,
       PERMISSIONS.ORG_VIEW,
       PERMISSIONS.ORG_UPDATE,
       PERMISSIONS.ORG_DELETE,
       PERMISSIONS.ORG_APPROVE,
       PERMISSIONS.ORG_REJECT,
-      // GROUP
       PERMISSIONS.GROUP_VIEW,
       PERMISSIONS.GROUP_CREATE,
       PERMISSIONS.GROUP_EDIT,
       PERMISSIONS.GROUP_DELETE,
       PERMISSIONS.GROUP_MANAGEMENT,
-      // USER & MEMBER
       PERMISSIONS.USER_MANAGEMENT,
       PERMISSIONS.USER_INVITE,
       PERMISSIONS.ORG_USER_ASSIGN,
-      // ROLE
       PERMISSIONS.ROLE_VIEW,
       PERMISSIONS.ROLE_CREATE,
       PERMISSIONS.ROLE_EDIT,
       PERMISSIONS.ROLE_DELETE,
       PERMISSIONS.ROLE_ASSIGNMENT,
-      // DEVICE, SITE, ANALYTICS, SETTINGS
       ...Object.values(PERMISSIONS).filter((p) =>
         [
           "DEVICE_",
@@ -239,7 +240,7 @@ const DEFAULT_ROLE_DEFINITIONS = {
           "SETTINGS_",
         ].some((prefix) => p.startsWith(prefix))
       ),
-    ].filter((value, index, self) => self.indexOf(value) === index), // Ensure unique
+    ].filter((value, index, self) => self.indexOf(value) === index),
   },
   AIRQO_DEFAULT_USER: {
     role_name: "AIRQO_DEFAULT_USER",
@@ -364,22 +365,17 @@ const DEFAULT_MEMBER_PERMISSIONS = [
   PERMISSIONS.SITE_VIEW,
 ];
 
-// Deprecated roles that should be cleaned up (must match Role.role_name exactly)
 const DEPRECATED_ROLE_NAMES = Object.freeze([
   "AIRQO_DEFAULT_PRODUCTION",
   "AIRQO_AIRQO_ADMIN",
   "AIRQO_DEFAULT_STAGING",
 ]);
 
-// Step 3: Define system-wide constants related to authentication
 const AUTH_CONSTANTS = {
-  // Date until which initial logins will receive a 30-day token to support mobile app transition.
   TOKEN_TRANSITION_CUTOFF_DATE: "2025-10-15T00:00:00Z",
-  // Default token expiration period after the transition cutoff date.
   DEFAULT_TOKEN_EXPIRATION: "24h",
 };
 
-// Step 4: Assemble the final export object
 const permissionsExport = {
   ...PERMISSIONS,
   ALL: ALL_PERMISSIONS,
@@ -389,61 +385,36 @@ const permissionsExport = {
   DEFAULT_NETWORK_MEMBER_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
   DEPRECATED_ROLE_NAMES,
-  // do not mix AUTH constants into the flat "permissions" bag
 };
 
-// Step 5: System Administration Constants
 const SYSTEM_ADMIN_CONSTANTS = {
-  // The master AirQo group ID - users with admin roles in this group have system-wide privileges
-  AIRQO_GROUP_ID: "652ee1f0c619ed8f6e08eec2",
-
-  // Role names that grant system-wide administrative privileges
+  AIRQO_GROUP_ID,
   SYSTEM_ADMIN_ROLE_NAMES: ["AIRQO_SUPER_ADMIN", "SYSTEM_ADMIN", "SUPER_ADMIN"],
-
-  // Role codes that grant system-wide administrative privileges
   SYSTEM_ADMIN_ROLE_CODES: ["AIRQO_SUPER_ADMIN", "SYSTEM_ADMIN", "SUPER_ADMIN"],
-
-  // User types in the AirQo group that grant system-wide privileges
   SYSTEM_ADMIN_USER_TYPES: ["admin", "super_admin"],
-
-  // Permissions that grant system-wide administrative access
   SYSTEM_ADMIN_PERMISSIONS: [
     PERMISSIONS.SYSTEM_ADMIN,
     PERMISSIONS.SUPER_ADMIN,
     PERMISSIONS.DATABASE_ADMIN,
   ],
-
-  // Groups that grant system-wide admin privileges to their admins
-  SYSTEM_ADMIN_GROUPS: [
-    "652ee1f0c619ed8f6e08eec2", // AirQo group
-    // Add other system groups here if needed
-  ],
+  SYSTEM_ADMIN_GROUPS: [AIRQO_GROUP_ID],
 };
 
-// Step 6: RBAC Helper Constants
 const RBAC_CONSTANTS = {
-  // Cache TTL for permission checks (in milliseconds)
-  PERMISSION_CACHE_TTL: 5 * 60 * 1000, // 5 minutes
-
-  // Maximum number of group memberships to check
+  PERMISSION_CACHE_TTL: 5 * 60 * 1000,
   MAX_GROUP_MEMBERSHIPS: 50,
-
-  // Default context types
   CONTEXT_TYPES: {
     GROUP: "group",
     NETWORK: "network",
     SYSTEM: "system",
   },
-
-  // Permission check strategies
   PERMISSION_STRATEGIES: {
-    ANY: false, // User needs ANY of the specified permissions
-    ALL: true, // User needs ALL of the specified permissions
+    ANY: false,
+    ALL: true,
   },
 };
 
 module.exports = {
-  // Back-compat nested export
   PERMISSIONS: {
     ...PERMISSIONS,
     ALL: ALL_PERMISSIONS,
@@ -454,61 +425,33 @@ module.exports = {
     DEFAULT_MEMBER_PERMISSIONS,
     DEPRECATED_ROLE_NAMES,
   },
-
-  // New flat export
   ...permissionsExport,
-
-  // System administration constants
   SYSTEM_ADMIN_CONSTANTS,
   RBAC_CONSTANTS,
-
-  // Individual constants for easy access
   AIRQO_GROUP_ID: SYSTEM_ADMIN_CONSTANTS.AIRQO_GROUP_ID,
   SYSTEM_ADMIN_ROLE_NAMES: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_ROLE_NAMES,
   SYSTEM_ADMIN_ROLE_CODES: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_ROLE_CODES,
   SYSTEM_ADMIN_USER_TYPES: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_USER_TYPES,
   SYSTEM_ADMIN_PERMISSIONS: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_PERMISSIONS,
   SYSTEM_ADMIN_GROUPS: SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_GROUPS,
-
-  // Auth constants
   AUTH: AUTH_CONSTANTS,
-
-  // Helper functions for permission checking
   HELPERS: {
-    /**
-     * Check if a role name indicates system admin privileges
-     */
     isSystemAdminRole: (roleName) => {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_ROLE_NAMES.includes(roleName);
     },
-
-    /**
-     * Check if a user type in AirQo group indicates system admin privileges
-     */
     isSystemAdminUserType: (userType) => {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_USER_TYPES.includes(userType);
     },
-
-    /**
-     * Check if a group ID grants system admin privileges to its admins
-     */
     isSystemAdminGroup: (groupId) => {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_GROUPS.includes(
         groupId?.toString()
       );
     },
-
-    /**
-     * Check if a permission grants system admin access
-     */
     isSystemAdminPermission: (permission) => {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_PERMISSIONS.includes(
         permission
       );
     },
-    /**
-     * Composite check: only allow system-wide bypass for super-admins in AirQo group.
-     */
     isSystemWideBypass: ({
       roleName,
       roleCode,
@@ -522,7 +465,12 @@ module.exports = {
       const hasPerm = permissions.some((p) =>
         module.exports.HELPERS.isSystemAdminPermission(p)
       );
-      const inAirQo = module.exports.HELPERS.isSystemAdminGroup(groupId);
+      const groupIds = Array.isArray(groupId)
+        ? groupId.filter(Boolean)
+        : [groupId].filter(Boolean);
+      const inAirQo = groupIds.some((id) =>
+        module.exports.HELPERS.isSystemAdminGroup(id)
+      );
       const isSu = module.exports.HELPERS.isSystemAdminUserType(userType);
       return inAirQo && isSu && (hasRole || hasPerm);
     },
