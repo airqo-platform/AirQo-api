@@ -12,7 +12,7 @@ const generateDescription = (permission) => {
 const environments = require("../environments");
 const environment = process.env.NODE_ENV || "production";
 const envConfig = environments[environment];
-const AIRQO_GROUP_ID = envConfig.AIRQO_GROUP_ID || "652ee1f0c619ed8f6e08eec2";
+const AIRQO_GROUP_ID = envConfig.AIRQO_GROUP_ID;
 
 // Step 1: Define the single source of truth for all permissions
 const PERMISSION_DEFINITIONS = [
