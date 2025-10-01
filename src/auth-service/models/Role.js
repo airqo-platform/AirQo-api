@@ -70,43 +70,53 @@ RoleSchema.pre("update", function (next) {
 });
 
 // Pre-remove hook
-RoleSchema.pre(["findOneAndRemove", "remove"], async function (next) {
-  const query = this.getQuery ? this.getQuery() : { _id: this._id };
-  const Model = this.model || this.constructor;
-  const docToDelete =
-    typeof this.getQuery === "function" ? await Model.findOne(query) : this;
+RoleSchema.pre(
+  [
+    "findOneAndRemove",
+    "remove",
+    "findOneAndDelete",
+    "findByIdAndDelete",
+    "deleteOne",
+    "deleteMany",
+  ],
+  async function (next) {
+    const query = this.getQuery ? this.getQuery() : { _id: this._id };
+    const Model = this.model || this.constructor;
+    const docToDelete =
+      typeof this.getQuery === "function" ? await Model.findOne(query) : this;
 
-  if (!docToDelete) {
-    return next();
+    if (!docToDelete) {
+      return next();
+    }
+
+    // Check is_default flag
+    if (docToDelete.is_default) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete default/system roles",
+        })
+      );
+    }
+
+    // Check against environment default IDs
+    const defaultIds = [
+      constants.DEFAULT_GROUP_ROLE,
+      constants.DEFAULT_NETWORK_ROLE,
+    ]
+      .filter(Boolean)
+      .map((id) => id.toString());
+
+    if (defaultIds.includes(docToDelete._id.toString())) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete configured default roles",
+        })
+      );
+    }
+
+    next();
   }
-
-  // Check is_default flag
-  if (docToDelete.is_default) {
-    return next(
-      new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-        message: "Cannot delete default/system roles",
-      })
-    );
-  }
-
-  // Check against environment default IDs
-  const defaultIds = [
-    constants.DEFAULT_GROUP_ROLE,
-    constants.DEFAULT_NETWORK_ROLE,
-  ]
-    .filter(Boolean)
-    .map((id) => id.toString());
-
-  if (defaultIds.includes(docToDelete._id.toString())) {
-    return next(
-      new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-        message: "Cannot delete configured default roles",
-      })
-    );
-  }
-
-  next();
-});
+);
 
 // Uniqueness when network scoped
 RoleSchema.index(
