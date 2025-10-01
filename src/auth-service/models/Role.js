@@ -48,6 +48,11 @@ const RoleSchema = new mongoose.Schema(
         ref: "permission",
       },
     ],
+    is_default: {
+      type: Boolean,
+      default: false,
+      immutable: true,
+    },
   },
   { timestamps: true }
 );
@@ -62,6 +67,43 @@ RoleSchema.pre("save", async function (next) {
 
 RoleSchema.pre("update", function (next) {
   return next();
+});
+
+// Pre-remove hook
+RoleSchema.pre(["findOneAndRemove", "remove"], async function (next) {
+  const query = this.getQuery ? this.getQuery() : { _id: this._id };
+  const docToDelete = await this.model.findOne(query);
+
+  if (!docToDelete) {
+    return next();
+  }
+
+  // Check is_default flag
+  if (docToDelete.is_default) {
+    return next(
+      new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+        message: "Cannot delete default/system groups",
+      })
+    );
+  }
+
+  // Check against environment default IDs
+  const defaultIds = [
+    constants.DEFAULT_GROUP_ROLE,
+    constants.DEFAULT_NETWORK_ROLE,
+  ]
+    .filter(Boolean)
+    .map((id) => id.toString());
+
+  if (defaultIds.includes(docToDelete._id.toString())) {
+    return next(
+      new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+        message: "Cannot delete configured default groups",
+      })
+    );
+  }
+
+  next();
 });
 
 // Uniqueness when network scoped

@@ -104,6 +104,11 @@ const GroupSchema = new Schema(
         type: ObjectId,
       },
     ],
+    is_default: {
+      type: Boolean,
+      default: false,
+      immutable: true,
+    },
   },
   {
     timestamps: true,
@@ -185,6 +190,40 @@ GroupSchema.pre(
     }
   }
 );
+
+// Pre-remove hook
+GroupSchema.pre(["findOneAndRemove", "remove"], async function (next) {
+  const query = this.getQuery ? this.getQuery() : { _id: this._id };
+  const docToDelete = await this.model.findOne(query);
+
+  if (!docToDelete) {
+    return next();
+  }
+
+  // Check is_default flag
+  if (docToDelete.is_default) {
+    return next(
+      new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+        message: "Cannot delete default/system groups",
+      })
+    );
+  }
+
+  // Check against environment default IDs
+  const defaultIds = [constants.DEFAULT_GROUP]
+    .filter(Boolean)
+    .map((id) => id.toString());
+
+  if (defaultIds.includes(docToDelete._id.toString())) {
+    return next(
+      new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+        message: "Cannot delete configured default groups",
+      })
+    );
+  }
+
+  next();
+});
 
 GroupSchema.methods = {
   toJSON() {
