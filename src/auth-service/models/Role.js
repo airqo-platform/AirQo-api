@@ -7,7 +7,7 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- role-model`
 );
-const { logObject, logText } = require("@utils/shared");
+const { logObject, logText, HttpError } = require("@utils/shared");
 
 const {
   createSuccessResponse,
