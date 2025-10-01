@@ -72,7 +72,9 @@ RoleSchema.pre("update", function (next) {
 // Pre-remove hook
 RoleSchema.pre(["findOneAndRemove", "remove"], async function (next) {
   const query = this.getQuery ? this.getQuery() : { _id: this._id };
-  const docToDelete = await this.model.findOne(query);
+  const Model = this.model || this.constructor;
+  const docToDelete =
+    typeof this.getQuery === "function" ? await Model.findOne(query) : this;
 
   if (!docToDelete) {
     return next();
@@ -98,7 +100,7 @@ RoleSchema.pre(["findOneAndRemove", "remove"], async function (next) {
   if (defaultIds.includes(docToDelete._id.toString())) {
     return next(
       new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-        message: "Cannot delete configured default groups",
+        message: "Cannot delete configured default roles",
       })
     );
   }

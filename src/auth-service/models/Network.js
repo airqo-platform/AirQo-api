@@ -274,7 +274,9 @@ NetworkSchema.pre(
 // Pre-remove hook
 NetworkSchema.pre(["findOneAndRemove", "remove"], async function (next) {
   const query = this.getQuery ? this.getQuery() : { _id: this._id };
-  const docToDelete = await this.model.findOne(query);
+  const Model = this.model || this.constructor;
+  const docToDelete =
+    typeof this.getQuery === "function" ? await Model.findOne(query) : this;
 
   if (!docToDelete) {
     return next();
@@ -284,7 +286,7 @@ NetworkSchema.pre(["findOneAndRemove", "remove"], async function (next) {
   if (docToDelete.is_default) {
     return next(
       new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-        message: "Cannot delete default/system groups",
+        message: "Cannot delete default/system networks",
       })
     );
   }
