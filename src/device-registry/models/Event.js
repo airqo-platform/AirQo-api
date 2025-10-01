@@ -999,10 +999,18 @@ async function fetchData(model, filter) {
         const activeSet = new Set(activeIds.map(String));
 
         if (countFilter.device_id) {
-          // Normalize the existing device_id filter to an array
-          const requestedIds = Array.isArray(countFilter.device_id.$in)
-            ? countFilter.device_id.$in
-            : [countFilter.device_id];
+          // Normalize device_id filter to an array of IDs
+          let requestedIds = [];
+          if (Array.isArray(countFilter.device_id.$in)) {
+            requestedIds = countFilter.device_id.$in;
+          } else if (countFilter.device_id.$eq) {
+            requestedIds = [countFilter.device_id.$eq];
+          } else if (mongoose.Types.ObjectId.isValid(countFilter.device_id)) {
+            requestedIds = [countFilter.device_id];
+          } else if (typeof countFilter.device_id === "string") {
+            // Fallback for plain string ID
+            requestedIds = [countFilter.device_id];
+          }
 
           // Find the intersection between requested IDs and active IDs
           const intersection = requestedIds.filter((id) =>
@@ -1164,14 +1172,14 @@ async function fetchData(model, filter) {
 
       // Add fields that are only needed for non-historical data
       if (!isHistorical) {
-        groupStage.site_image = {
-          $first: { $arrayElemAt: ["$site_images.image_url", 0] },
-        };
-        groupStage.is_reading_primary = {
-          $first: {
-            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
-          },
-        };
+        // groupStage.site_image = {
+        //   $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+        // };
+        // groupStage.is_reading_primary = {
+        //   $first: {
+        //     $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+        //   },
+        // };
         groupStage.health_tips = { $first: "$healthTips" };
       }
 
@@ -1188,27 +1196,13 @@ async function fetchData(model, filter) {
 
       // Clean up health tips projection for non-historical data
       if (!isHistorical) {
-        pipeline = pipeline
-          .project({
-            "health_tips.aqi_category": 0,
-            "health_tips.value": 0,
-            "health_tips.createdAt": 0,
-            "health_tips.updatedAt": 0,
-            "health_tips.__v": 0,
-          })
-          .project({
-            "site_image.createdAt": 0,
-            "site_image.updatedAt": 0,
-            "site_image.metadata": 0,
-            "site_image.__v": 0,
-            "site_image.device_name": 0,
-            "site_image.device_id": 0,
-            "site_image._id": 0,
-            "site_image.tags": 0,
-            "site_image.image_code": 0,
-            "site_image.site_id": 0,
-            "site_image.airqloud_id": 0,
-          });
+        pipeline = pipeline.project({
+          "health_tips.aqi_category": 0,
+          "health_tips.value": 0,
+          "health_tips.createdAt": 0,
+          "health_tips.updatedAt": 0,
+          "health_tips.__v": 0,
+        });
       }
 
       pipeline = pipeline.project(projection);
