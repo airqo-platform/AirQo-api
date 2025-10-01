@@ -421,7 +421,6 @@ const SYSTEM_ADMIN_CONSTANTS = {
     PERMISSIONS.SYSTEM_ADMIN,
     PERMISSIONS.SUPER_ADMIN,
     PERMISSIONS.DATABASE_ADMIN,
-    PERMISSIONS.ADMIN_FULL_ACCESS,
   ],
 
   // Groups that grant system-wide admin privileges to their admins
@@ -516,6 +515,26 @@ module.exports = {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_PERMISSIONS.includes(
         permission
       );
+    },
+    /**
+     * Composite check: only allow system-wide bypass for super-admins in AirQo group.
+     */
+    isSystemWideBypass: ({
+      roleName,
+      roleCode,
+      userType,
+      groupId,
+      permissions = [],
+    }) => {
+      const hasRole =
+        module.exports.HELPERS.isSystemAdminRole(roleName) ||
+        module.exports.HELPERS.isSystemAdminRole(roleCode);
+      const hasPerm = permissions.some((p) =>
+        module.exports.HELPERS.isSystemAdminPermission(p)
+      );
+      const inAirQo = module.exports.HELPERS.isSystemAdminGroup(groupId);
+      const isSu = module.exports.HELPERS.isSystemAdminUserType(userType);
+      return inAirQo && isSu && (hasRole || hasPerm);
     },
   },
 };

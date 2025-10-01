@@ -954,39 +954,54 @@ const cleanupDuplicateRolePrefixes = async (tenant) => {
   try {
     const allRoles = await RoleModel(tenant)
       .find({})
-      .select("_id role_name")
+      .select("_id role_name role_code")
       .lean();
     const rolesToDelete = [];
 
+    const dupPrefixRegex = /^([A-Z0-9]+)_\1_/i; // e.g., AIRQO_AIRQO_
     for (const role of allRoles) {
-      const name = role.role_name;
-      if (!name) continue;
-
-      // Efficiently check for repeating prefixes (e.g., "PREFIX_PREFIX_")
-      // by finding the middle point of the string.
-      const mid = Math.floor(name.length / 2);
-      for (let i = 1; i <= mid; i++) {
-        const prefix = name.substring(0, i);
-        if (name.startsWith(prefix + prefix)) {
-          rolesToDelete.push(role);
-          break; // Found a duplicate prefix, no need to check further for this role
-        }
+      const name = role.role_name || "";
+      const code = role.role_code || "";
+      if (dupPrefixRegex.test(name) || dupPrefixRegex.test(code)) {
+        rolesToDelete.push(role);
       }
     }
 
     if (rolesToDelete.length > 0) {
-      const roleIdsToDelete = rolesToDelete.map((role) => role._id);
+      // Skip roles referenced by any user to avoid orphaning assignments
+      const roleIdsToDelete = [];
+      for (const r of rolesToDelete) {
+        const inUse = await UserModel(tenant).exists({
+          $or: [{ "group_roles.role": r._id }, { "network_roles.role": r._id }],
+        });
+        if (!inUse) roleIdsToDelete.push(r._id);
+      }
+      if (roleIdsToDelete.length === 0) {
+        logger.info(
+          "[RBAC Cleanup] No deletions performed; duplicates are in use."
+        );
+        return;
+      }
+
       logger.info(
         `[RBAC Cleanup] Found ${
-          rolesToDelete.length
+          roleIdsToDelete.length
         } roles with duplicate prefixes to delete: ${rolesToDelete
           .map((r) => r.role_name)
           .join(", ")}`
       );
-      await RoleModel(tenant).deleteMany({ _id: { $in: roleIdsToDelete } });
-      logger.info(
-        `[RBAC Cleanup] Successfully deleted roles with duplicate prefixes.`
-      );
+      // Gate deletion behind a flag for safety
+      if (process.env.RBAC_CLEANUP_DUP_PREFIX === "true") {
+        await RoleModel(tenant).deleteMany({ _id: { $in: roleIdsToDelete } });
+        logger.info(
+          `[RBAC Cleanup] Successfully deleted roles with duplicate prefixes.`
+        );
+      } else {
+        logger.info(
+          "[RBAC Cleanup] Skipping deletion (RBAC_CLEANUP_DUP_PREFIX != 'true')."
+        );
+        return;
+      }
     }
   } catch (error) {
     logger.error(

@@ -4,7 +4,7 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- rbac-service`
 );
 
-const { logTex, logObject } = require("@utils/shared");
+const { logText, logObject } = require("@utils/shared");
 
 class RBACService {
   constructor(tenant = "airqo") {
@@ -959,11 +959,11 @@ class RBACService {
   // In rbac.service.js, modify the isSystemSuperAdmin method:
   async isSystemSuperAdmin(userId) {
     try {
-      const user = await this.userModel.findById(userId).lean();
+      const user = await this.getUserModel().findById(userId).lean();
       if (!user) return false;
 
       // Check 1: Direct system permissions
-      const systemPermissions = await this.permissionModel
+      const systemPermissions = await this.getPermissionModel()
         .find({
           _id: { $in: user.permissions || [] },
           permission: { $in: constants.SYSTEM_ADMIN_PERMISSIONS },
@@ -990,10 +990,12 @@ class RBACService {
       }
 
       // Check 3: Explicit system admin role names
-      const userRoleIds =
-        user.group_roles?.map((gr) => gr.role).filter(Boolean) || [];
+      const userRoleIds = [
+        ...(user.group_roles?.map((gr) => gr.role).filter(Boolean) || []),
+        ...(user.network_roles?.map((nr) => nr.role).filter(Boolean) || []),
+      ];
       if (userRoleIds.length > 0) {
-        const systemAdminRoles = await this.roleModel
+        const systemAdminRoles = await this.getRoleModel()
           .find({
             _id: { $in: userRoleIds },
             $or: [

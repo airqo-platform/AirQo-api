@@ -1,6 +1,6 @@
 // admin.util.js
 const UserModel = require("@models/User");
-const RBACService = require("@services/rbac.service");
+const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
@@ -8,6 +8,7 @@ const { logObject, logText, HttpError } = require("@utils/shared");
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const RBACService = require("@services/rbac.service");
 const { ObjectId } = require("mongoose").Types;
 const mongoose = require("mongoose");
 const log4js = require("log4js");
@@ -92,7 +93,6 @@ const admin = {
       }
 
       const targetUserId = user_id;
-      const RoleModel = require("@models/Role");
       const rolePermissionsUtil = require("@utils/role-permissions.util");
       let superAdminRole;
 
