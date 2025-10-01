@@ -5098,107 +5098,19 @@ const createEvent = {
 
       return await ActivityLogger.trackOperation(
         async () => {
-          const CHUNK_SIZE = 25;
-          const OPERATION_TIMEOUT = 120000; // 2 minutes
+          // Direct call - no chunking, no timeout
+          const result = await createEvent.insertMeasurements_v3(
+            tenant,
+            measurements,
+            next
+          );
 
-          const chunks = [];
-          for (let i = 0; i < measurements.length; i += CHUNK_SIZE) {
-            chunks.push(measurements.slice(i, i + CHUNK_SIZE));
-          }
-
-          let aggregatedResult = {
-            success: true,
-            message: "Batch processing completed",
-            data: [],
-            deployment_stats: {
-              total_measurements: measurements.length,
-              static_device_measurements: 0,
-              mobile_device_measurements: 0,
-              successful_insertions: 0,
-              failed_insertions: 0,
-              transformation_failures: 0,
-            },
-            eventsAdded: [],
-            eventsRejected: [],
-            errors: [],
-            status: httpStatus.OK,
-          };
-
-          for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
-
-            try {
-              const result = await Promise.race([
-                createEvent.insertMeasurements_v3(tenant, chunk, next),
-                new Promise((_, reject) =>
-                  setTimeout(
-                    () => reject(new Error("Insert operation timeout")),
-                    OPERATION_TIMEOUT
-                  )
-                ),
-              ]);
-
-              if (result.deployment_stats) {
-                aggregatedResult.deployment_stats.static_device_measurements +=
-                  result.deployment_stats.static_device_measurements || 0;
-                aggregatedResult.deployment_stats.mobile_device_measurements +=
-                  result.deployment_stats.mobile_device_measurements || 0;
-                aggregatedResult.deployment_stats.successful_insertions +=
-                  result.deployment_stats.successful_insertions || 0;
-                aggregatedResult.deployment_stats.failed_insertions +=
-                  result.deployment_stats.failed_insertions || 0;
-                aggregatedResult.deployment_stats.transformation_failures +=
-                  result.deployment_stats.transformation_failures || 0;
-              }
-
-              if (result.eventsAdded) {
-                aggregatedResult.eventsAdded.push(...result.eventsAdded);
-              }
-              if (result.eventsRejected) {
-                aggregatedResult.eventsRejected.push(...result.eventsRejected);
-              }
-              if (result.errors && Array.isArray(result.errors)) {
-                aggregatedResult.errors.push(...result.errors);
-              }
-              if (result.data && Array.isArray(result.data)) {
-                aggregatedResult.data.push(...result.data);
-              }
-
-              if (!result.success) {
-                aggregatedResult.success = false;
-                aggregatedResult.message = "Some chunks failed processing";
-              }
-            } catch (chunkError) {
-              logger.error(
-                `Chunk ${i + 1}/${chunks.length} failed: ${chunkError.message}`
-              );
-              aggregatedResult.success = false;
-              aggregatedResult.deployment_stats.failed_insertions +=
-                chunk.length;
-              aggregatedResult.errors.push({
-                chunk: i + 1,
-                message: chunkError.message,
-                measurements_count: chunk.length,
-              });
-            }
-          }
-
-          if (
-            aggregatedResult.deployment_stats.failed_insertions ===
-            measurements.length
-          ) {
-            aggregatedResult.status = httpStatus.INTERNAL_SERVER_ERROR;
-            aggregatedResult.message = "All measurements failed";
-          } else if (aggregatedResult.deployment_stats.failed_insertions > 0) {
-            aggregatedResult.status = httpStatus.PARTIAL_CONTENT;
-            aggregatedResult.message = "Partially completed with some failures";
-          }
-
+          // Return result with activity logger metadata
           return {
-            ...aggregatedResult,
+            ...result,
             records_successful:
-              aggregatedResult.deployment_stats.successful_insertions,
-            records_failed: aggregatedResult.deployment_stats.failed_insertions,
+              result.deployment_stats?.successful_insertions || 0,
+            records_failed: result.deployment_stats?.failed_insertions || 0,
           };
         },
         {
@@ -5210,9 +5122,44 @@ const createEvent = {
           metadata: {
             tenant: tenant,
             total_measurements: measurements.length,
-            processing_mode: "chunked",
+            processing_mode: "direct",
           },
         }
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  v0_addValuesWithStats: async (tenant, measurements, next) => {
+    try {
+      if (!Array.isArray(measurements)) {
+        return {
+          success: false,
+          message: "Measurements must be an array",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const MAX_BATCH_SIZE = 100;
+      if (measurements.length > MAX_BATCH_SIZE) {
+        return {
+          success: false,
+          message: `Batch size too large. Maximum allowed: ${MAX_BATCH_SIZE}`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Just call the function directly
+      return await createEvent.insertMeasurements_v3(
+        tenant,
+        measurements,
+        next
       );
     } catch (error) {
       logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
