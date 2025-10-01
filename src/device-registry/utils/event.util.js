@@ -4721,58 +4721,39 @@ const createEvent = {
     }
   },
   insertMeasurements_v3: async (tenant, measurements, next) => {
-    try {
-      let nAdded = 0;
-      let eventsAdded = [];
-      let eventsRejected = [];
-      let errors = [];
-      let mobileDeviceCount = 0;
-      let staticDeviceCount = 0;
-
-      const deviceIdentifiers = measurements
-        .map(({ device_id, device, device_number }) => {
-          if (device_id) return { _id: device_id };
-          if (device) return { name: device };
-          if (device_number) return { device_number: device_number };
-          return null;
-        })
-        .filter(Boolean);
-
-      const uniqueDeviceIdentifiers = deviceIdentifiers.reduce(
-        (acc, current) => {
-          const key = JSON.stringify(current);
-          if (!acc.find((item) => JSON.stringify(item) === key)) {
-            acc.push(current);
-          }
-          return acc;
-        },
-        []
-      );
-
-      let deviceContexts = new Map();
-      if (uniqueDeviceIdentifiers.length > 0) {
-        try {
-          const devices = await DeviceModel(tenant)
-            .find({ $or: uniqueDeviceIdentifiers })
-            .select(
-              "_id name device_number deployment_type site_id grid_id mobility isActive"
-            )
-            .lean();
-
-          devices.forEach((device) => {
-            deviceContexts.set(device._id.toString(), device);
-            deviceContexts.set(device.name, device);
-            if (device.device_number) {
-              deviceContexts.set(device.device_number.toString(), device);
-            }
-          });
-        } catch (dbError) {
-          logger.error(
-            `Database error pre-fetching devices: ${dbError.message}`
-          );
-        }
+    // Helper function to create a summarized, user-friendly error from a bulk write error
+    const parseBulkWriteErrors = (bulkError) => {
+      if (!bulkError || !bulkError.writeErrors) {
+        return [{ message: "An unknown bulk write error occurred." }];
       }
 
+      return bulkError.writeErrors.map((err) => {
+        const errorDetails = {
+          type: "WRITE_ERROR",
+          index: err.index,
+          code: err.code,
+          message: "The operation failed.",
+          details: {},
+        };
+
+        // Specifically handle duplicate key errors (E11000)
+        if (err.code === 11000) {
+          errorDetails.type = "DUPLICATE_KEY_ERROR";
+          errorDetails.message =
+            "A measurement with the same time, device, and site already exists.";
+          // Extract key fields from the failed operation for context
+          if (err.op && err.op.q) {
+            errorDetails.details = {
+              day: err.op.q.day,
+              device_id: err.op.q.device_id,
+              site_id: err.op.q.site_id,
+            };
+          }
+        }
+        return errorDetails;
+      });
+    };
+    try {
       const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
         measurements,
         next
@@ -4786,178 +4767,153 @@ const createEvent = {
         return responseFromTransformMeasurements;
       }
 
-      if (responseFromTransformMeasurements.failed_count > 0) {
-        const transformationErrors = responseFromTransformMeasurements.failed_transformations.map(
-          (failure) => ({
-            type: "TRANSFORMATION_FAILURE",
-            message: failure.message || "Measurement transformation failed",
-            details: failure.errors,
-            device_id: failure.original_measurement?.device_id,
-          })
-        );
-        errors.push(...transformationErrors);
+      const transformedMeasurements = responseFromTransformMeasurements.data;
+      const transformationFailures =
+        responseFromTransformMeasurements.failed_transformations;
+
+      const bulkOps = [];
+      let mobileDeviceCount = 0;
+      let staticDeviceCount = 0;
+
+      for (const measurement of transformedMeasurements) {
+        if (measurement.deployment_type === "mobile") {
+          mobileDeviceCount++;
+        } else {
+          staticDeviceCount++;
+        }
+
+        // This filter finds the correct daily bucket for the device/site
+        // AND ensures the specific measurement (by time) is not already in the 'values' array.
+        const eventsFilter = {
+          day: measurement.day,
+          device_id: measurement.device_id,
+          "values.time": { $ne: measurement.time }, // Prevents adding duplicate measurement
+        };
+
+        if (measurement.deployment_type === "static" && measurement.site_id) {
+          eventsFilter.site_id = measurement.site_id;
+        } else if (
+          measurement.deployment_type === "mobile" &&
+          measurement.grid_id
+        ) {
+          eventsFilter.grid_id = measurement.grid_id;
+        }
+
+        // This update pushes the new measurement into the 'values' array.
+        // Using $addToSet is safer than $push to prevent duplicates if the time filter fails,
+        // but the primary prevention is the filter itself.
+        const eventsUpdate = {
+          $addToSet: { values: measurement },
+          $min: { first: measurement.time },
+          $max: { last: measurement.time },
+          $inc: { nValues: 1 },
+          $set: {
+            device_id: measurement.device_id,
+            deployment_type: measurement.deployment_type,
+          },
+        };
+
+        if (measurement.site_id) {
+          eventsUpdate.$set.site_id = measurement.site_id;
+        }
+        if (measurement.grid_id) {
+          eventsUpdate.$set.grid_id = measurement.grid_id;
+        }
+
+        bulkOps.push({
+          updateOne: {
+            filter: eventsFilter,
+            update: eventsUpdate,
+            upsert: true, // Create a new daily document if one doesn't exist
+          },
+        });
       }
 
-      const measurementsWithContext = responseFromTransformMeasurements.data.map(
-        (m) => {
-          const identifier = m.device_id
-            ? m.device_id.toString()
-            : m.device || (m.device_number ? m.device_number.toString() : null);
-          const context = deviceContexts.get(identifier);
-          if (context) {
-            return { ...m, ...context };
-          }
-          return m;
-        }
-      );
+      let bulkWriteResult = {
+        nUpserted: 0,
+        nModified: 0,
+        writeErrors: [],
+      };
 
-      for (const measurement of measurementsWithContext) {
+      if (bulkOps.length > 0) {
         try {
-          if (measurement.deployment_type === "mobile") {
-            mobileDeviceCount++;
-          } else {
-            staticDeviceCount++;
-          }
-
-          let eventsFilter = {
-            day: measurement.day,
-            device_id: measurement.device_id,
-            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
-            $or: [
-              { "values.time": { $ne: measurement.time } },
-              { "values.device": { $ne: measurement.device } },
-              { "values.frequency": { $ne: measurement.frequency } },
-              { "values.device_id": { $ne: measurement.device_id } },
-              { day: { $ne: measurement.day } },
-            ],
-          };
-
-          if (measurement.deployment_type === "static" && measurement.site_id) {
-            eventsFilter.site_id = measurement.site_id;
-            eventsFilter.$or.push({
-              "values.site_id": { $ne: measurement.site_id },
-            });
-          } else if (
-            measurement.deployment_type === "mobile" &&
-            measurement.grid_id
-          ) {
-            eventsFilter.grid_id = measurement.grid_id;
-            eventsFilter.$or.push({
-              "values.grid_id": { $ne: measurement.grid_id },
-            });
-          }
-
-          const eventsUpdate = {
-            $push: { values: measurement },
-            $min: { first: measurement.time },
-            $max: { last: measurement.time },
-            $inc: { nValues: 1 },
-          };
-
-          if (measurement.deployment_type === "static") {
-            eventsUpdate.$set = {
-              site_id: measurement.site_id,
-              device_id: measurement.device_id,
-              deployment_type: "static",
-            };
-          } else if (measurement.deployment_type === "mobile") {
-            eventsUpdate.$set = {
-              grid_id: measurement.grid_id,
-              device_id: measurement.device_id,
-              deployment_type: "mobile",
-            };
-            if (measurement.site_id) {
-              eventsUpdate.$set.site_id = measurement.site_id;
-            }
-          }
-
-          const addedEvents = await EventModel(tenant).updateOne(
-            eventsFilter,
-            eventsUpdate,
-            { upsert: true }
+          bulkWriteResult = await EventModel(tenant).bulkWrite(bulkOps, {
+            ordered: false,
+          });
+        } catch (bulkError) {
+          // This block executes when some or all operations in the bulk write fail.
+          logger.error(
+            `Bulk write operation encountered errors: ${bulkError.message}`
           );
 
-          if (addedEvents) {
-            nAdded += 1;
-            eventsAdded.push(measurement);
-          } else {
-            eventsRejected.push(measurement);
-            let errMsg = {
-              msg: "Unable to add the events",
-              deployment_type: measurement.deployment_type,
-              record: {
-                ...(measurement.device ? { device: measurement.device } : {}),
-                ...(measurement.frequency
-                  ? { frequency: measurement.frequency }
-                  : {}),
-                ...(measurement.time ? { time: measurement.time } : {}),
-                ...(measurement.device_id
-                  ? { device_id: measurement.device_id }
-                  : {}),
-                ...(measurement.site_id
-                  ? { site_id: measurement.site_id }
-                  : {}),
-                ...(measurement.grid_id
-                  ? { grid_id: measurement.grid_id }
-                  : {}),
-              },
-            };
-            errors.push(errMsg);
+          // The bulkError object contains information about which operations succeeded.
+          // We need to account for them to give an accurate report.
+          if (bulkError.result) {
+            bulkWriteResult.nUpserted = bulkError.result.nUpserted || 0;
+            bulkWriteResult.nModified = bulkError.result.nModified || 0;
           }
-        } catch (e) {
-          eventsRejected.push(measurement);
-          let errMsg = {
-            msg:
-              "System conflict detected, most likely a cast error or duplicate record",
-            more: e.message,
-            deployment_type: measurement.deployment_type,
-            record: {
-              ...(measurement.device ? { device: measurement.device } : {}),
-              ...(measurement.frequency
-                ? { frequency: measurement.frequency }
-                : {}),
-              ...(measurement.time ? { time: measurement.time } : {}),
-              ...(measurement.device_id
-                ? { device_id: measurement.device_id }
-                : {}),
-              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
-              ...(measurement.grid_id ? { grid_id: measurement.grid_id } : {}),
-            },
-          };
-          errors.push(errMsg);
+
+          // Use the custom parser to create a clean error report.
+          bulkWriteResult.writeErrors = parseBulkWriteErrors(bulkError);
         }
       }
+
+      // Correctly calculate success and failures.
+      // nModified means a measurement was successfully added to an existing document.
+      // nUpserted means a new document was created for the day with the measurement.
+      const successfulInsertions =
+        (bulkWriteResult.nModified || 0) + (bulkWriteResult.nUpserted || 0);
+      const failedInsertions =
+        transformedMeasurements.length - successfulInsertions;
 
       const deploymentStats = {
         total_measurements: measurements.length,
         static_device_measurements: staticDeviceCount,
         mobile_device_measurements: mobileDeviceCount,
-        successful_insertions: nAdded,
-        failed_insertions: eventsRejected.length,
-        transformation_failures: responseFromTransformMeasurements.failed_count,
+        successful_insertions: successfulInsertions,
+        failed_insertions: failedInsertions,
+        transformation_failures: transformationFailures.length,
       };
 
-      if (errors.length > 0 && nAdded === 0) {
+      const errors = [
+        ...transformationFailures,
+        ...(bulkWriteResult.writeErrors || []),
+      ];
+
+      if (successfulInsertions === 0 && measurements.length > 0) {
+        // Determine the correct status code based on the errors
+        const allDuplicates =
+          errors.length > 0 &&
+          errors.every(
+            (err) => err.code === 11000 || err.type === "DUPLICATE_KEY_ERROR"
+          );
+
+        const finalStatus = allDuplicates
+          ? httpStatus.CONFLICT
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
         logTextWithTimestamp(
-          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+          "API: failed to store measurements, most likely all were duplicates or there were DB errors"
         );
         return {
           success: false,
-          message: "finished the operation with some errors",
+          message: allDuplicates
+            ? "All measurements were duplicates."
+            : "All event insertions failed.",
           deployment_stats: deploymentStats,
           errors,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      } else {
-        logTextWithTimestamp("API: successfully added the events");
-        return {
-          success: true,
-          message: "successfully added the events",
-          deployment_stats: deploymentStats,
-          status: httpStatus.OK,
-          errors: errors.length > 0 ? errors : undefined,
+          status: finalStatus,
         };
       }
+
+      logTextWithTimestamp("API: successfully processed the events");
+      return {
+        success: true,
+        message: "Events processed successfully.",
+        deployment_stats: deploymentStats,
+        status: httpStatus.OK,
+        errors: errors.length > 0 ? errors : undefined,
+      };
     } catch (error) {
       logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -5187,8 +5143,28 @@ const createEvent = {
             aggregatedResult.deployment_stats.failed_insertions ===
             measurements.length
           ) {
-            aggregatedResult.status = httpStatus.INTERNAL_SERVER_ERROR;
-            aggregatedResult.message = "All measurements failed";
+            // If all insertions failed, determine the most appropriate status code.
+            // If any of the chunks returned a CONFLICT, use that. Otherwise, default to INTERNAL_SERVER_ERROR.
+            const hasConflict = aggregatedResult.errors.some(
+              (err) =>
+                err &&
+                (err.code === 11000 || err.type === "DUPLICATE_KEY_ERROR")
+            );
+            const hasTransformationError = aggregatedResult.errors.some(
+              (err) => err && err.success === false
+            );
+
+            if (hasTransformationError) {
+              aggregatedResult.status = httpStatus.BAD_REQUEST;
+              aggregatedResult.message =
+                "All measurements failed due to invalid data (e.g., device not found).";
+            } else if (hasConflict) {
+              aggregatedResult.status = httpStatus.CONFLICT;
+              aggregatedResult.message = "All measurements were duplicates.";
+            } else {
+              aggregatedResult.status = httpStatus.INTERNAL_SERVER_ERROR;
+              aggregatedResult.message = "All measurements failed";
+            }
           } else if (aggregatedResult.deployment_stats.failed_insertions > 0) {
             aggregatedResult.status = httpStatus.PARTIAL_CONTENT;
             aggregatedResult.message = "Partially completed with some failures";
