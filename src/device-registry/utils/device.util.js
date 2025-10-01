@@ -751,21 +751,13 @@ const deviceUtil = {
         );
       } else {
         // Full detail level (existing complex aggregation)
-        const maxActivities = parseInt(request.query.maxActivities) || 500;
-
         pipeline.push(
           {
             $lookup: {
               from: "sites",
               localField: "site_id",
               foreignField: "_id",
-              as: "site",
-            },
-          },
-          {
-            $unwind: {
-              path: "$site",
-              preserveNullAndEmptyArrays: true,
+              as: "siteInfo",
             },
           },
           {
@@ -773,7 +765,7 @@ const deviceUtil = {
               from: "hosts",
               localField: "host_id",
               foreignField: "_id",
-              as: "host",
+              as: "hostInfo",
             },
           },
           {
@@ -781,7 +773,7 @@ const deviceUtil = {
               from: "sites",
               localField: "previous_sites",
               foreignField: "_id",
-              as: "previous_sites",
+              as: "previousSitesInfo",
             },
           },
           {
@@ -789,15 +781,22 @@ const deviceUtil = {
               from: "cohorts",
               localField: "cohorts",
               foreignField: "_id",
-              as: "cohorts",
+              as: "cohortsInfo",
             },
           },
           {
             $lookup: {
               from: "grids",
-              localField: "site.grids",
-              foreignField: "_id",
-              as: "grids",
+              let: {
+                gridIds: {
+                  $ifNull: [{ $arrayElemAt: ["$siteInfo.grids", 0] }, []],
+                },
+              },
+              pipeline: [
+                { $match: { $expr: { $in: ["$_id", "$$gridIds"] } } },
+                { $project: { _id: 1, name: 1, admin_level: 1, long_name: 1 } },
+              ],
+              as: "gridsInfo",
             },
           },
           {
@@ -805,75 +804,55 @@ const deviceUtil = {
               from: "grids",
               localField: "grid_id",
               foreignField: "_id",
-              as: "assigned_grid",
+              as: "assignedGridInfo",
             },
           }
         );
 
-        if (useCache === "true") {
-          // Use cached activity data
-          pipeline.push({
-            $addFields: {
-              total_activities: { $ifNull: ["$cached_total_activities", 0] },
-              activities_by_type: {
-                $ifNull: ["$cached_activities_by_type", {}],
-              },
-              latest_activities_by_type: {
-                $ifNull: ["$cached_latest_activities_by_type", {}],
-              },
-              latest_deployment_activity: "$cached_latest_deployment_activity",
-              latest_maintenance_activity:
-                "$cached_latest_maintenance_activity",
-              latest_recall_activity: "$cached_latest_recall_activity",
-            },
-          });
-        } else {
-          // Real-time activity aggregation (expensive)
-          pipeline.push({
-            $lookup: {
-              from: activitiesColl,
-              let: { deviceName: "$name", deviceId: "$_id" },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                        {
-                          $eq: [
-                            { $toString: "$device_id" },
-                            { $toString: "$$deviceId" },
-                          ],
-                        },
-                      ],
-                    },
-                  },
-                },
-                { $sort: { createdAt: -1 } },
-                {
-                  $project: {
-                    _id: 1,
-                    site_id: 1,
-                    device_id: 1,
-                    device: 1,
-                    activityType: 1,
-                    maintenanceType: 1,
-                    recallType: 1,
-                    date: 1,
-                    description: 1,
-                    nextMaintenance: 1,
-                    createdAt: 1,
-                    tags: 1,
-                  },
-                },
-                { $limit: maxActivities },
+        // Replace multiple lookups with a single $addFields stage for better readability and potential optimization
+        pipeline.push({
+          $addFields: {
+            site: {
+              $cond: [
+                { $gt: [{ $size: "$siteInfo" }, 0] },
+                { $arrayElemAt: ["$siteInfo", 0] },
+                null,
               ],
-              as: "activities",
             },
-          });
-        }
-        pipeline.push({ $project: constants.DEVICES_INCLUSION_PROJECTION });
+            host: {
+              $cond: [
+                { $gt: [{ $size: "$hostInfo" }, 0] },
+                { $arrayElemAt: ["$hostInfo", 0] },
+                null,
+              ],
+            },
+            previous_sites: "$previousSitesInfo",
+            cohorts: "$cohortsInfo",
+            grids: "$gridsInfo",
+            assigned_grid: {
+              $cond: [
+                { $gt: [{ $size: "$assignedGridInfo" }, 0] },
+                { $arrayElemAt: ["$assignedGridInfo", 0] },
+                null,
+              ],
+            },
+            total_activities: { $ifNull: ["$cached_total_activities", 0] },
+            activities_by_type: {
+              $ifNull: ["$cached_activities_by_type", {}],
+            },
+            latest_activities_by_type: {
+              $ifNull: ["$cached_latest_activities_by_type", {}],
+            },
+            latest_deployment_activity: "$cached_latest_deployment_activity",
+            latest_maintenance_activity: "$cached_latest_maintenance_activity",
+            latest_recall_activity: "$cached_latest_recall_activity",
+          },
+        });
+
+        pipeline.push({
+          $project: constants.DEVICES_INCLUSION_PROJECTION,
+        });
+
         pipeline.push({
           $project: constants.DEVICES_EXCLUSION_PROJECTION("full"),
         });
@@ -901,60 +880,6 @@ const deviceUtil = {
       const total = results[0].totalCount[0]
         ? results[0].totalCount[0].count
         : 0;
-
-      // Process activities for non-cached full detail requests
-      if (
-        !isEmpty(paginatedResults) &&
-        detailLevel === "full" &&
-        useCache === "false"
-      ) {
-        paginatedResults.forEach((device) => {
-          if (device.activities && device.activities.length > 0) {
-            const activitiesByType = {};
-            const latestActivitiesByType = {};
-
-            device.activities.forEach((activity) => {
-              const type = activity.activityType || "unknown";
-              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
-
-              if (
-                !latestActivitiesByType[type] ||
-                new Date(activity.createdAt) >
-                  new Date(latestActivitiesByType[type].createdAt)
-              ) {
-                latestActivitiesByType[type] = activity;
-              }
-            });
-
-            device.activities_by_type = activitiesByType;
-            device.latest_activities_by_type = latestActivitiesByType;
-            device.latest_deployment_activity =
-              latestActivitiesByType.deployment || null;
-            device.latest_maintenance_activity =
-              latestActivitiesByType.maintenance || null;
-            device.latest_recall_activity =
-              latestActivitiesByType.recall ||
-              latestActivitiesByType.recallment ||
-              null;
-          } else {
-            device.activities_by_type = {};
-            device.latest_activities_by_type = {};
-          }
-
-          // Process assigned_grid
-          if (device.assigned_grid && device.assigned_grid.length > 0) {
-            const grid = device.assigned_grid[0];
-            device.assigned_grid = {
-              _id: grid._id,
-              name: grid.name,
-              admin_level: grid.admin_level,
-              long_name: grid.long_name,
-            };
-          } else {
-            device.assigned_grid = null;
-          }
-        });
-      }
 
       const baseUrl =
         typeof request.protocol === "string" &&
