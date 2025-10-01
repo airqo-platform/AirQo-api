@@ -32,7 +32,7 @@ const KEY_PREFIX = `${(constants.ENVIRONMENT || "unknown")
   .toLowerCase()}:`;
 
 // --- START: Log Throttling ---
-const LOGGING_WINDOW_SECONDS = 10; // Only log in the first 10 seconds of each hour
+const LOGGING_WINDOW_SECONDS = 2; // Only log in the first 2 seconds of each hour
 
 const logThrottledOperationError = (operation, key, error) => {
   const now = new Date();
