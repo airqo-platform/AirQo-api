@@ -11,6 +11,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
+const DeviceModel = require("@models/Device");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
