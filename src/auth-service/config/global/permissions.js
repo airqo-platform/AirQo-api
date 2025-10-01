@@ -400,6 +400,9 @@ const SYSTEM_ADMIN_CONSTANTS = {
   // Role names that grant system-wide administrative privileges
   SYSTEM_ADMIN_ROLE_NAMES: ["AIRQO_SUPER_ADMIN", "SYSTEM_ADMIN", "SUPER_ADMIN"],
 
+  // Role codes that grant system-wide administrative privileges
+  SYSTEM_ADMIN_ROLE_CODES: ["AIRQO_SUPER_ADMIN", "SYSTEM_ADMIN", "SUPER_ADMIN"],
+
   // User types in the AirQo group that grant system-wide privileges
   SYSTEM_ADMIN_USER_TYPES: ["admin", "super_admin"],
 
