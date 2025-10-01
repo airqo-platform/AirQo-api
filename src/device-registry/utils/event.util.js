@@ -5098,12 +5098,22 @@ const createEvent = {
 
       return await ActivityLogger.trackOperation(
         async () => {
-          // Direct call - no chunking, no timeout
           const result = await createEvent.insertMeasurements_v3(
             tenant,
             measurements,
             next
           );
+
+          // ✅ Guard against undefined result
+          if (!result) {
+            return {
+              success: false,
+              message: "Insertion did not return a response",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              records_successful: 0,
+              records_failed: measurements.length,
+            };
+          }
 
           // Return result with activity logger metadata
           return {
@@ -5136,6 +5146,7 @@ const createEvent = {
       };
     }
   },
+
   v0_addValuesWithStats: async (tenant, measurements, next) => {
     try {
       if (!Array.isArray(measurements)) {
@@ -5155,14 +5166,32 @@ const createEvent = {
         };
       }
 
-      // Just call the function directly
-      return await createEvent.insertMeasurements_v3(
+      // Call the function directly
+      const result = await createEvent.insertMeasurements_v3(
         tenant,
         measurements,
         next
       );
+
+      // Guard against undefined result from insertMeasurements_v3 catch block
+      if (!result) {
+        return {
+          success: false,
+          message: "Insertion did not return a response",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "insertMeasurements_v3 returned undefined" },
+          deployment_stats: {
+            total_measurements: measurements.length,
+            successful_insertions: 0,
+            failed_insertions: measurements.length,
+            transformation_failures: 0,
+          },
+        };
+      }
+
+      return result;
     } catch (error) {
-      logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
+      logger.error(`🐛🐛 v0 Add Values With Stats Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
