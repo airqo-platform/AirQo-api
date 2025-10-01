@@ -82,7 +82,7 @@ RoleSchema.pre(["findOneAndRemove", "remove"], async function (next) {
   if (docToDelete.is_default) {
     return next(
       new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-        message: "Cannot delete default/system groups",
+        message: "Cannot delete default/system roles",
       })
     );
   }

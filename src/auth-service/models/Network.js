@@ -297,7 +297,7 @@ NetworkSchema.pre(["findOneAndRemove", "remove"], async function (next) {
   if (defaultIds.includes(docToDelete._id.toString())) {
     return next(
       new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-        message: "Cannot delete configured default groups",
+        message: "Cannot delete configured default networks",
       })
     );
   }
