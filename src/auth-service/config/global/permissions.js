@@ -395,23 +395,10 @@ const permissionsExport = {
 // Step 5: System Administration Constants
 const SYSTEM_ADMIN_CONSTANTS = {
   // The master AirQo group ID - users with admin roles in this group have system-wide privileges
-  AIRQO_GROUP_ID: "652ee1f0c619ed8f6e08eec2", // Your AirQo group ID from the profile
+  AIRQO_GROUP_ID: "652ee1f0c619ed8f6e08eec2",
 
   // Role names that grant system-wide administrative privileges
-  SYSTEM_ADMIN_ROLE_NAMES: [
-    "AIRQO_SUPER_ADMIN",
-    "AIRQO_ADMIN",
-    "SYSTEM_ADMIN",
-    "SUPER_ADMIN",
-  ],
-
-  // Role codes that grant system-wide administrative privileges
-  SYSTEM_ADMIN_ROLE_CODES: [
-    "AIRQO_SUPER_ADMIN",
-    "AIRQO_ADMIN",
-    "SYSTEM_ADMIN",
-    "SUPER_ADMIN",
-  ],
+  SYSTEM_ADMIN_ROLE_NAMES: ["AIRQO_SUPER_ADMIN", "SYSTEM_ADMIN", "SUPER_ADMIN"],
 
   // User types in the AirQo group that grant system-wide privileges
   SYSTEM_ADMIN_USER_TYPES: ["admin", "super_admin"],
