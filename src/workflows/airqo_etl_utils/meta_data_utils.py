@@ -98,6 +98,7 @@ class MetaDataUtils:
                 "city",
                 "region",
                 "country",
+                "weather_stations",
             ]
         ]
 
