@@ -309,6 +309,10 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     return createFailureUpdate(device, "decryption_error");
   }
 
+  // Skip devices that are in the exclusion list
+  if (constants.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB.includes(device.name)) {
+    return null;
+  }
   // Fetch data from ThingSpeak with timeout
   try {
     const request = {

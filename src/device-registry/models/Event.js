@@ -742,7 +742,7 @@ async function fetchData(model, filter) {
     page,
     active,
     internal,
-    isHistorical = false, // New parameter
+    isHistorical = false,
   } = filter;
 
   // Validate and sanitize input parameters
@@ -780,13 +780,11 @@ async function fetchData(model, filter) {
   let s1_pm10 = "$pm10";
   let elementAtIndex0 = elementAtIndexName(metadata, recent);
 
-  // Start with base projection
   let projection = { _id: 0 };
   let siteProjection = {};
   let deviceProjection = {};
   let sort = { time: -1 };
 
-  // Clean up search filter
   delete search["external"];
   delete search["frequency"];
   delete search["metadata"];
@@ -801,14 +799,13 @@ async function fetchData(model, filter) {
   delete search["skip"];
   delete search["active"];
   delete search["internal"];
-  delete search["isHistorical"]; // Clean up our new flag
+  delete search["isHistorical"];
 
   if (tenant !== "airqo") {
     pm2_5 = "$pm2_5";
     pm10 = "$pm10";
   }
 
-  // Apply existing external/brief projections first (unchanged from original)
   if (external === "yes" || brief === "yes") {
     const excludeFields = [
       "s2_pm10",
@@ -859,7 +856,6 @@ async function fetchData(model, filter) {
     excludeFields.forEach((field) => (projection[field] = 0));
   }
 
-  // Configure metadata-specific settings (always use constants.EVENTS_METADATA_PROJECTION)
   if (!metadata || metadata === "device" || metadata === "device_id") {
     idField = "$device";
     groupId = "$" + (metadata || "device");
@@ -875,7 +871,6 @@ async function fetchData(model, filter) {
     as = "deviceDetails";
     elementAtIndex0 = elementAtIndexName(metadata, recent);
 
-    // Always use the centralized projection configuration
     deviceProjection = constants.EVENTS_METADATA_PROJECTION("device", as);
     Object.assign(projection, deviceProjection);
   }
@@ -895,7 +890,6 @@ async function fetchData(model, filter) {
     as = "siteDetails";
     elementAtIndex0 = elementAtIndexName(metadata, recent);
 
-    // Always use the centralized projection configuration
     if (brief === "yes") {
       siteProjection = constants.EVENTS_METADATA_PROJECTION("brief_site", as);
     } else {
@@ -904,7 +898,6 @@ async function fetchData(model, filter) {
     Object.assign(projection, siteProjection);
   }
 
-  // Apply historical optimization for expensive computed fields only
   if (isHistorical) {
     const historicalExclusions = getHistoricalComputedFieldsExclusion(
       isHistorical
@@ -912,7 +905,6 @@ async function fetchData(model, filter) {
     Object.assign(projection, historicalExclusions);
   }
 
-  // Special handling for running devices
   if (running === "yes" && !isHistorical) {
     const runningFields = [
       "site_image",
@@ -974,7 +966,6 @@ async function fetchData(model, filter) {
 
   if (!recent || recent === "yes") {
     try {
-      // Build the count pipeline stages as an array first
       const countPipelineStages = [
         { $match: search },
         { $unwind: "$values" },
@@ -982,10 +973,8 @@ async function fetchData(model, filter) {
         { $replaceRoot: { newRoot: "$values" } },
       ];
 
-      // Track whether we've added device lookup to avoid duplicates
       let hasDeviceLookup = false;
 
-      // Add active device filtering if needed
       if (active === "yes") {
         if (!hasDeviceLookup) {
           countPipelineStages.push({
@@ -1003,7 +992,6 @@ async function fetchData(model, filter) {
         });
       }
 
-      // Add visibility filtering for non-internal requests
       if (internal !== "yes") {
         if (!hasDeviceLookup) {
           countPipelineStages.push({
@@ -1029,31 +1017,19 @@ async function fetchData(model, filter) {
         );
       }
 
-      // Add the final count stages
       countPipelineStages.push(
         { $group: { _id: idField } },
         { $count: "device" }
       );
 
-      // Execute the count pipeline with timeout
-      const COUNT_TIMEOUT = 15000; // 15 seconds
-      const totalCountResult = await Promise.race([
-        model
-          .aggregate(countPipelineStages)
-          .allowDiskUse(true)
-          .exec(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Count query timeout")),
-            COUNT_TIMEOUT
-          )
-        ),
-      ]);
+      const totalCountResult = await model
+        .aggregate(countPipelineStages)
+        .allowDiskUse(true)
+        .exec();
 
       const totalCount =
         totalCountResult.length > 0 ? totalCountResult[0].device : 0;
 
-      // Build main aggregation pipeline with optimizations
       let pipeline = model.aggregate([
         { $match: search },
         { $unwind: "$values" },
@@ -1061,7 +1037,6 @@ async function fetchData(model, filter) {
         { $replaceRoot: { newRoot: "$values" } },
       ]);
 
-      // Conditionally add lookups based on historical flag
       if (!isHistorical) {
         pipeline = pipeline.append([
           {
@@ -1086,7 +1061,6 @@ async function fetchData(model, filter) {
         },
       ]);
 
-      // Add conditional stages based on requirements
       if (active === "yes") {
         pipeline = pipeline.append([
           { $match: { "device_details.isActive": true } },
@@ -1110,7 +1084,6 @@ async function fetchData(model, filter) {
         ]);
       }
 
-      // Add lookup for metadata
       pipeline = pipeline.lookup({
         from,
         localField,
@@ -1118,7 +1091,6 @@ async function fetchData(model, filter) {
         as,
       });
 
-      // Conditionally add health tips lookup for non-historical data
       if (!isHistorical) {
         pipeline = pipeline.lookup({
           from: "healthtips",
@@ -1139,7 +1111,6 @@ async function fetchData(model, filter) {
         });
       }
 
-      // Continue with grouping and projections
       let groupStage = {
         _id: idField,
         device: { $first: "$device" },
@@ -1185,7 +1156,6 @@ async function fetchData(model, filter) {
         [as]: elementAtIndex0,
       };
 
-      // Add fields that are only needed for non-historical data
       if (!isHistorical) {
         groupStage.site_image = {
           $first: { $arrayElemAt: ["$site_images.image_url", 0] },
@@ -1200,7 +1170,6 @@ async function fetchData(model, filter) {
 
       pipeline = pipeline.sort(sort).group(groupStage);
 
-      // Conditionally add expensive fields for non-historical data
       if (!isHistorical) {
         pipeline = pipeline.addFields({
           timeDifferenceHours: {
@@ -1209,7 +1178,6 @@ async function fetchData(model, filter) {
         });
       }
 
-      // Clean up health tips projection for non-historical data
       if (!isHistorical) {
         pipeline = pipeline
           .project({
@@ -1236,7 +1204,6 @@ async function fetchData(model, filter) {
 
       pipeline = pipeline.project(projection);
 
-      // Add AQI fields only for non-historical data
       if (!isHistorical) {
         pipeline = pipeline
           .addFields({
@@ -1245,23 +1212,12 @@ async function fetchData(model, filter) {
           .addFields(generateAqiAddFields().$addFields);
       }
 
-      // Apply timeout for main data query
-      const DATA_TIMEOUT = isHistorical ? 45000 : 30000; // Longer timeout for historical
-      const data = await Promise.race([
-        pipeline
-          .skip(skip)
-          .limit(limit)
-          .allowDiskUse(true)
-          .exec(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Data query timeout")),
-            DATA_TIMEOUT
-          )
-        ),
-      ]);
+      const data = await pipeline
+        .skip(skip)
+        .limit(limit)
+        .allowDiskUse(true)
+        .exec();
 
-      // Construct the response format
       const meta = {
         total: totalCount,
         skip: skip,
@@ -1275,7 +1231,6 @@ async function fetchData(model, filter) {
 
       return [{ meta, data }];
     } catch (error) {
-      // Log error and return empty result rather than failing completely
       logger.error(
         `Error in fetchData ${isHistorical ? "historical" : "current"} query: ${
           error.message
@@ -1300,38 +1255,26 @@ async function fetchData(model, filter) {
     }
   }
 
-  // Historical data processing (recent === "no") - similar optimizations would apply
   if (recent === "no") {
     try {
-      // Similar timeout and optimization patterns for historical data
-      const HISTORICAL_TIMEOUT = 45000; // 45 seconds for larger historical queries
-
-      const totalCountResult = await Promise.race([
-        model
-          .aggregate([
-            { $match: search },
-            { $unwind: "$values" },
-            { $match: { "values.time": search["values.time"] } },
-            { $replaceRoot: { newRoot: "$values" } },
-            {
-              $lookup: {
-                from,
-                localField,
-                foreignField,
-                as,
-              },
+      const totalCountResult = await model
+        .aggregate([
+          { $match: search },
+          { $unwind: "$values" },
+          { $match: { "values.time": search["values.time"] } },
+          { $replaceRoot: { newRoot: "$values" } },
+          {
+            $lookup: {
+              from,
+              localField,
+              foreignField,
+              as,
             },
-            { $count: "device" },
-          ])
-          .allowDiskUse(true)
-          .exec(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Historical count timeout")),
-            HISTORICAL_TIMEOUT
-          )
-        ),
-      ]);
+          },
+          { $count: "device" },
+        ])
+        .allowDiskUse(true)
+        .exec();
 
       const totalCount =
         totalCountResult.length > 0 ? totalCountResult[0].device : 0;
@@ -1352,7 +1295,6 @@ async function fetchData(model, filter) {
         { $sort: sort },
       ];
 
-      // Add timeDifferenceHours only for non-historical
       if (!isHistorical) {
         histPipeline.push({
           $addFields: {
@@ -1363,7 +1305,6 @@ async function fetchData(model, filter) {
         });
       }
 
-      // Simplified projection for historical data
       histPipeline.push({
         $project: {
           _device: "$device",
@@ -1382,7 +1323,6 @@ async function fetchData(model, filter) {
           _site: "$site",
           _device_number: "$device_number",
           [_as]: elementAtIndex0,
-          // Only include these for non-historical data
           ...(isHistorical
             ? {}
             : {
@@ -1433,7 +1373,6 @@ async function fetchData(model, filter) {
           s2_pm10: "$_s2_pm10",
           frequency: "$_frequency",
           [as]: "$" + _as,
-          // Only include these for non-historical data
           ...(isHistorical
             ? {}
             : {
@@ -1472,18 +1411,10 @@ async function fetchData(model, filter) {
         { $limit: limit }
       );
 
-      const data = await Promise.race([
-        model
-          .aggregate(histPipeline)
-          .allowDiskUse(true)
-          .exec(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Historical data timeout")),
-            HISTORICAL_TIMEOUT
-          )
-        ),
-      ]);
+      const data = await model
+        .aggregate(histPipeline)
+        .allowDiskUse(true)
+        .exec();
 
       const meta = {
         total: totalCount,
