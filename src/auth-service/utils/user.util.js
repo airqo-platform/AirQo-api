@@ -5706,12 +5706,17 @@ const createUserModule = {
             strategy,
             { autoVerify: shouldAutoVerify }
           );
-          await UserModel(dbTenant).findOneAndUpdate(
+          const updatedUser = await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
             updatePayload,
             { new: true, upsert: false, runValidators: true }
           );
-          await createUserModule.ensureDefaultAirqoRole(user, dbTenant);
+          if (updatedUser) {
+            await createUserModule.ensureDefaultAirqoRole(
+              updatedUser,
+              dbTenant
+            );
+          }
         } catch (updateError) {
           logger.error(
             `Login stats/roles update error: ${updateError.message}`
