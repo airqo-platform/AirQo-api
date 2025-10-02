@@ -2,7 +2,6 @@ import pytest
 import pandas as pd
 import json
 from unittest.mock import patch, MagicMock
-from datetime import datetime
 from airqo_etl_utils.meta_data_utils import MetaDataUtils
 from airqo_etl_utils.constants import (
     MetaDataType,
@@ -33,13 +32,13 @@ def mock_extract_devices_df():
             "active": [True, True, False],
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
-            "site_id": ["site1", "site2", "site3"],
+            "site_id": ["site1", "site2", None],
             "device_number": [1, 2, 3],
             "description": ["desc1", "desc2", "desc3"],
             "device_manufacturer": ["manufacturer1", "manufacturer2", "manufacturer3"],
             "device_category": ["lowcost", "lowcost", "general"],
-            "mount_type": ["pole", "wall", "roof"],
-            "mobility": ["stationary", "stationary", "vehicle"],
+            "mount_type": ["vehicle", "wall", "vehicle"],
+            "mobility": [True, False, True],
             "device_maintenance": [
                 "2023-01-01 13:00:00Z",
                 "2023-01-02 13:00:00Z",
@@ -60,14 +59,14 @@ def mock_devices_df():
             "isActive": [True, True, False],
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
-            "site_id": ["site1", "site2", "site3"],
+            "site_id": ["site1", "site2", None],
             "device_id": ["device1", "device2", "device3"],
             "device_number": [1, 2, 3],
             "description": ["desc1", "desc2", "desc3"],
             "device_manufacturer": ["manufacturer1", "manufacturer2", "manufacturer3"],
             "device_category": ["lowcost", "lowcost", "general"],
-            "mountType": ["pole", "wall", "roof"],
-            "mobility": ["stationary", "stationary", "vehicle"],
+            "mountType": ["vehicle", "wall", "vehicle"],
+            "mobility": [True, False, True],
             "device_maintenance": [
                 "2023-01-01 13:00:00Z",
                 "2023-01-02 13:00:00Z",
@@ -83,10 +82,21 @@ def mock_sites_df():
     return pd.DataFrame(
         {
             "site_id": ["site1", "site2", "site3"],
-            "device_id": ["Site 1", "Site 2", "Site 3"],
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "network": ["airqo", "airqo", "other"],
+            "weather_station": [
+                [],
+                [{"station_code": "station1"}],
+                [{"station_code": "station2"}],
+            ],
+            "name": ["Site 1", "Site 2", "Site 3"],
+            "display_name": ["Display Site 1", "Display Site 2", "Display Site 3"],
+            "display_location": ["Location 1", "Location 2", "Location 3"],
+            "description": ["Description 1", "Description 2", "Description 3"],
+            "city": ["city1", "city2", "city3"],
+            "region": ["region1", "region2", "region3"],
+            "country": ["country1", "country2", "country3"],
         }
     )
 
@@ -162,24 +172,6 @@ def mock_devices_data():
     )
 
 
-@pytest.fixture
-def mock_sites_data():
-    """Fixture providing mock sites data."""
-    return pd.DataFrame(
-        {
-            "network": ["airqo", "airqo"],
-            "site_id": ["site1", "site2"],
-            "latitude": [0.315, 0.316],
-            "longitude": [32.581, 32.582],
-            "name": ["Site 1", "Site 2"],
-            "description": ["desc1", "desc2"],
-            "city": ["city1", "city2"],
-            "region": ["region1", "region2"],
-            "country": ["country1", "country2"],
-        }
-    )
-
-
 class TestMetaDataUtils:
     def test_extract_devices(self, mock_extract_devices_df):
         """Test the extract_devices method."""
@@ -210,13 +202,10 @@ class TestMetaDataUtils:
             for col in expected_columns:
                 assert col in result.columns
 
-            # Check that isActive was correctly renamed to active
             assert result["active"].tolist() == [True, True, False]
 
-            # Check that mountType was correctly renamed to mount_type
-            assert result["mount_type"].tolist() == ["pole", "wall", "roof"]
+            assert result["mount_type"].tolist() == ["vehicle", "wall", "vehicle"]
 
-            # Check that device_id matches name
             assert result["device_id"].tolist() == result["device_id"].tolist()
 
     @patch("airqo_etl_utils.meta_data_utils.MetaDataUtils.extract_devices")
@@ -405,10 +394,10 @@ class TestMetaDataUtils:
 
     @patch("airqo_etl_utils.meta_data_utils.MetaDataUtils.extract_sites")
     def test_extract_transform_and_decrypt_metadata_sites(
-        self, mock_extract_sites, mock_sites_data
+        self, mock_extract_sites, mock_sites_df
     ):
         """Test extract_transform_and_decrypt_metadata for sites."""
-        mock_extract_sites.return_value = mock_sites_data
+        mock_extract_sites.return_value = mock_sites_df
 
         metadata_utils = MetaDataUtils()
         result = metadata_utils.extract_transform_and_decrypt_metadata(
@@ -417,7 +406,7 @@ class TestMetaDataUtils:
 
         assert isinstance(result, pd.DataFrame)
         assert not result.empty
-        assert result.equals(mock_sites_data)
+        assert result.equals(mock_sites_df)
 
         mock_extract_sites.assert_called_once()
 
