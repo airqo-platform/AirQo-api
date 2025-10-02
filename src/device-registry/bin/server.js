@@ -389,12 +389,6 @@ const createServer = () => {
     setTimeout(() => {
       const jobStats = global.jobMetrics.getStats();
       const cronJobs = global.cronJobs ? Object.keys(global.cronJobs) : [];
-      console.log(
-        `📋 Background jobs initialized: ${cronJobs.length} cron jobs registered`
-      );
-      logger.info(
-        `📋 Background jobs initialized: ${cronJobs.length} cron jobs registered`
-      );
       if (isDev) {
         console.log(`📊 Job names: [${cronJobs.join(", ")}]`);
       }
