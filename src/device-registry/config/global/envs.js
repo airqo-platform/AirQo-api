@@ -7,6 +7,11 @@ const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const envs = {
+  DEVICE_NAMES_TO_EXCLUDE_FROM_JOB: process.env.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB
+    ? process.env.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   TIMEZONE: moment.tz.guess(),
   SESSION_SECRET: process.env.SESSION_SECRET,
   NETWORKS: process.env.NETWORKS
