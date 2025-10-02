@@ -6,6 +6,11 @@ const adminValidations = require("@validators/admin.validators");
 const constants = require("@config/constants");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { requirePermissions } = require("@middleware/permissionAuth");
+const {
+  requireGroupAdminAccess,
+  requireGroupAdmin,
+  requireSuperAdminAccess,
+} = require("@middleware/groupNetworkAuth");
 
 const { validate, headers, pagination } = require("@validators/common");
 
@@ -16,7 +21,7 @@ router.post(
   "/super-admin",
   adminValidations.setupSuperAdmin,
   enhancedJWTAuth,
-  requirePermissions([constants.SUPER_ADMIN, constants.SYSTEM_ADMIN]),
+  requireSuperAdminAccess,
   createAdminController.setupSuperAdmin
 );
 
@@ -24,7 +29,7 @@ router.post(
   "/super-admin/enhanced",
   adminValidations.enhancedSetupSuperAdmin,
   enhancedJWTAuth,
-  requirePermissions([constants.SUPER_ADMIN, constants.SYSTEM_ADMIN]),
+  requireSuperAdminAccess,
   createAdminController.enhancedSetupSuperAdmin
 );
 
@@ -57,7 +62,7 @@ router.get(
   "/system-diagnostics",
   adminValidations.getSystemDiagnostics,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN]),
+  requirePermissions([constants.SUPER_ADMIN]),
   createAdminController.getSystemDiagnostics
 );
 
@@ -66,7 +71,7 @@ router.post(
   adminValidations.bulkAdminOperations,
   adminValidations.batchOperationValidation,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN]),
+  requirePermissions([constants.SUPER_ADMIN]),
   createAdminController.bulkAdminOperations
 );
 
@@ -75,7 +80,7 @@ router.get(
   adminValidations.auditValidation,
   adminValidations.userSearchValidation,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
+  requirePermissions([constants.SUPER_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditUsers
 );
 
@@ -83,7 +88,7 @@ router.get(
   "/audit/roles",
   adminValidations.auditValidation,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
+  requirePermissions([constants.SUPER_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditRoles
 );
 
@@ -91,7 +96,7 @@ router.get(
   "/audit/permissions",
   adminValidations.auditValidation,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
+  requirePermissions([constants.SUPER_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditPermissions
 );
 
@@ -99,7 +104,7 @@ router.post(
   "/maintenance/cache-clear",
   adminValidations.cacheManagement,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN]),
+  requirePermissions([constants.SUPER_ADMIN]),
   createAdminController.clearCache
 );
 
@@ -108,7 +113,7 @@ router.post(
   adminValidations.databaseCleanup,
   adminValidations.validateProductionSafety,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN, constants.DATABASE_ADMIN]),
+  requirePermissions([constants.SUPER_ADMIN, constants.DATABASE_ADMIN]),
   createAdminController.databaseCleanup
 );
 
@@ -124,7 +129,7 @@ router.get(
   "/migration/deprecated-fields-status",
   adminValidations.auditValidation,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN]),
+  requirePermissions([constants.SUPER_ADMIN]),
   createAdminController.getDeprecatedFieldsStatus
 );
 
@@ -134,14 +139,14 @@ router.post(
   adminValidations.validateProductionSafety,
   adminValidations.batchOperationValidation,
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN]),
+  requirePermissions([constants.SUPER_ADMIN]),
   createAdminController.migrateDeprecatedFields
 );
 
 router.get(
   "/config/current",
   enhancedJWTAuth,
-  requirePermissions([constants.SYSTEM_ADMIN]),
+  requirePermissions([constants.SUPER_ADMIN]),
   createAdminController.getCurrentConfig
 );
 

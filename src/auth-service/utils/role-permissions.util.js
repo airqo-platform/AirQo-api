@@ -946,6 +946,71 @@ const updateTenantSettingsWithDefaultRoles = async (tenant) => {
 };
 
 /**
+ * Cleanup legacy roles with any duplicated prefix (e.g., "MYORG_MYORG_...").
+ * This is done efficiently in-memory after a single database query.
+ * @param {string} tenant - The tenant identifier.
+ */
+const cleanupDuplicateRolePrefixes = async (tenant) => {
+  try {
+    const allRoles = await RoleModel(tenant)
+      .find({})
+      .select("_id role_name role_code")
+      .lean();
+    const rolesToDelete = [];
+
+    const dupPrefixRegex = /^([A-Z0-9]+)_\1_/i; // e.g., AIRQO_AIRQO_
+    for (const role of allRoles) {
+      const name = role.role_name || "";
+      const code = role.role_code || "";
+      if (dupPrefixRegex.test(name) || dupPrefixRegex.test(code)) {
+        rolesToDelete.push(role);
+      }
+    }
+
+    if (rolesToDelete.length > 0) {
+      // Skip roles referenced by any user to avoid orphaning assignments
+      const roleIdsToDelete = [];
+      for (const r of rolesToDelete) {
+        const inUse = await UserModel(tenant).exists({
+          $or: [{ "group_roles.role": r._id }, { "network_roles.role": r._id }],
+        });
+        if (!inUse) roleIdsToDelete.push(r._id);
+      }
+      if (roleIdsToDelete.length === 0) {
+        logger.info(
+          "[RBAC Cleanup] No deletions performed; duplicates are in use."
+        );
+        return;
+      }
+
+      logger.info(
+        `[RBAC Cleanup] Found ${
+          roleIdsToDelete.length
+        } roles with duplicate prefixes to delete: ${rolesToDelete
+          .map((r) => r.role_name)
+          .join(", ")}`
+      );
+      // Gate deletion behind a flag for safety
+      if (process.env.RBAC_CLEANUP_DUP_PREFIX === "true") {
+        await RoleModel(tenant).deleteMany({ _id: { $in: roleIdsToDelete } });
+        logger.info(
+          `[RBAC Cleanup] Successfully deleted roles with duplicate prefixes.`
+        );
+      } else {
+        logger.info(
+          "[RBAC Cleanup] Skipping deletion (RBAC_CLEANUP_DUP_PREFIX != 'true')."
+        );
+        return;
+      }
+    }
+  } catch (error) {
+    logger.error(
+      `[RBAC Cleanup] Error during duplicate prefix role cleanup: ${error}`
+    );
+  }
+};
+
+/**
  * Setup default permissions and roles for the system
  * Called at application startup
  */
@@ -1028,6 +1093,9 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
     logText(
       `🚀 Setting up default permissions and roles for tenant: ${tenant}`
     );
+
+    // Run cleanup for legacy roles first
+    await cleanupDuplicateRolePrefixes(tenant);
 
     // Step 1: Synchronize all permissions
     const allPermissionsList = constants.ALL.map((p) => ({
@@ -4093,23 +4161,6 @@ const rolePermissionUtil = {
           })
         );
       }
-
-      // --- START OF FIX ---
-      // Run data cleanup before proceeding to ensure data integrity.
-      // This will consolidate any duplicate role assignments for the same group/network.
-      const userForCleanup = await UserModel(actualTenant).findById(userId);
-      if (!userForCleanup) {
-        return next(
-          new HttpError("User not found", httpStatus.BAD_REQUEST, {
-            message: `User ${userId} not found`,
-          })
-        );
-      }
-      await rolePermissionUtil.ensureDefaultAirqoRole(
-        userForCleanup,
-        actualTenant
-      );
-      // --- END OF FIX ---
 
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,

@@ -422,7 +422,7 @@ class AirQualityGrids(BaseAirQoAPI):
         """
         self.logger.info("Fetching grid polygons...")
         payload = self._get_json(
-            path="/api/v2/devices/grids",
+            path="/api/v2/devices/grids?limit=10000",
             validator=self._is_valid_grids,
             cache_key=self.REDIS_KEY,
             use_cache_on_error=True,

@@ -32,11 +32,15 @@ const KEY_PREFIX = `${(constants.ENVIRONMENT || "unknown")
   .toLowerCase()}:`;
 
 // --- START: Log Throttling ---
-const LOGGING_WINDOW_MINUTES = 5; // Only log in the first 5 minutes of each hour
+const LOGGING_WINDOW_SECONDS = 2; // Only log in the first 2 seconds of each hour
 
 const logThrottledOperationError = (operation, key, error) => {
-  const currentMinute = new Date().getMinutes();
-  if (currentMinute < LOGGING_WINDOW_MINUTES) {
+  const now = new Date();
+  const currentMinute = now.getMinutes();
+  const currentSecond = now.getSeconds();
+
+  // Only log in first minute (minute 0) and first 20 seconds
+  if (currentMinute === 0 && currentSecond < LOGGING_WINDOW_SECONDS) {
     logger.warn(
       `Redis ${operation} failed for ${key}: ${error.message} - using fallback`
     );
@@ -46,8 +50,11 @@ const logThrottledOperationError = (operation, key, error) => {
 
 // --- START: Connection Error Log Throttling ---
 const logThrottledConnectionError = (error) => {
-  const currentMinute = new Date().getMinutes();
-  if (currentMinute < LOGGING_WINDOW_MINUTES) {
+  const now = new Date();
+  const currentMinute = now.getMinutes();
+  const currentSecond = now.getSeconds();
+
+  if (currentMinute === 0 && currentSecond < LOGGING_WINDOW_SECONDS) {
     const errorMessage = error.message.toLowerCase();
     if (
       error.code === "ECONNREFUSED" ||

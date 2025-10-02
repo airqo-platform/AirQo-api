@@ -4,6 +4,8 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- rbac-service`
 );
 
+const { logText, logObject } = require("@utils/shared");
+
 class RBACService {
   constructor(tenant = "airqo") {
     this.tenant = tenant;
@@ -954,43 +956,61 @@ class RBACService {
     }
   }
 
+  // In rbac.service.js, modify the isSystemSuperAdmin method:
   async isSystemSuperAdmin(userId) {
     try {
       const user = await this.getUserModel().findById(userId).lean();
       if (!user) return false;
 
-      // A system super admin is defined as a user having the AIRQO_SUPER_ADMIN role
-      // within the main "airqo" group.
+      // Check 1: Direct system permissions
+      const systemPermissions = await this.getPermissionModel()
+        .find({
+          _id: { $in: user.permissions || [] },
+          permission: { $in: constants.SYSTEM_ADMIN_PERMISSIONS },
+        })
+        .lean();
 
-      if (!user.group_roles || user.group_roles.length === 0) {
-        return false;
+      if (systemPermissions.length > 0) {
+        return true;
       }
 
-      // Find the AirQo group ID
-      const airqoGroup = await this.getGroupModel()
-        .findOne({ grp_title: { $regex: /^airqo$/i } })
-        .select("_id")
-        .lean();
+      // Check 2: AIRQO_SUPER_ADMIN role or admin user type in AirQo group
+      const hasAirqoAdminRole = user.group_roles?.some((gr) => {
+        const isAirqoGroup = constants.HELPERS.isSystemAdminGroup(
+          gr.group?.toString()
+        );
+        const isAdminUserType = constants.HELPERS.isSystemAdminUserType(
+          gr.userType
+        );
+        return isAirqoGroup && isAdminUserType;
+      });
 
-      if (!airqoGroup) return false;
+      if (hasAirqoAdminRole) {
+        return true;
+      }
 
-      // Check if the user has the AIRQO_SUPER_ADMIN role in that specific group
-      const airqoSuperAdminRole = await this.getRoleModel()
-        .findOne({ role_code: "AIRQO_SUPER_ADMIN", group_id: airqoGroup._id })
-        .select("_id")
-        .lean();
+      // Check 3: Explicit system admin role names
+      const userRoleIds = [
+        ...(user.group_roles?.map((gr) => gr.role).filter(Boolean) || []),
+        ...(user.network_roles?.map((nr) => nr.role).filter(Boolean) || []),
+      ];
+      if (userRoleIds.length > 0) {
+        const systemAdminRoles = await this.getRoleModel()
+          .find({
+            _id: { $in: userRoleIds },
+            $or: [
+              { role_name: { $in: constants.SYSTEM_ADMIN_ROLE_NAMES } },
+              { role_code: { $in: constants.SYSTEM_ADMIN_ROLE_CODES } },
+            ],
+          })
+          .lean();
 
-      if (!airqoSuperAdminRole) return false;
+        return systemAdminRoles.length > 0;
+      }
 
-      return user.group_roles.some(
-        (gr) =>
-          gr.group.toString() === airqoGroup._id.toString() &&
-          gr.role.toString() === airqoSuperAdminRole._id.toString()
-      );
+      return false;
     } catch (error) {
-      logger.error(
-        `Error checking system super admin status: ${error.message}`
-      );
+      console.error("Error in isSystemSuperAdmin:", error);
       return false;
     }
   }
