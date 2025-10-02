@@ -1,7 +1,0 @@
-,tenant,site_id,device_number,device_id,timestamp,latitude,longitude,realtime_conc,hourly_conc,short_time_conc,air_flow,wind_speed,wind_direction,temperature,humidity,barometric_pressure,filter_temperature,filter_humidity,status,network,device_category
-0,,skVJdbywYE7chQWz,10000001,xxxx_01,2025-05-07 10:00:00+00:00,6.52039,1.40032,13.9,14.8,15.2,16.59,0.0,0.0,31.5,71.0,760.2,42.4,30.0,0,xxxx,bam
-1,,AbEMRQTyS2av6FHu,20000001,xxxx_01,2025-05-07 07:00:00+00:00,5.92032,2.40032,22.0,25.0,25.4,16.59,0.0,0.0,28.3,83.0,758.9,40.0,35.0,0,xxxx,bam
-2,,P9vWuc8nLDhk3QNrXKM,30000001,xxxx_01,2025-05-07 08:00:00+00:00,4.52092,3.40032,24.8,23.6,23.9,16.59,0.0,0.0,29.1,81.0,759.4,40.4,34.0,0,xxxx,bam
-3,,kvGeXR7gsP2E9bJy,40000001,xxxx_01,2025-05-07 09:00:00+00:00,3.92032,4.40032,18.6,17.1,17.5,16.6,0.0,0.0,30.3,76.0,760.0,41.3,32.0,0,xxxx,bam
-4,,qYQv95jcKy6rTsBA,50000001,cc_v01,2025-05-07 07:00:00+00:00,1.399513850978,5.56452821896,39.1,36.6,41.4,16.59,0.8,274.0,20.2,92.0,661.2,27.1,42.0,0,xxxx,bam
-5,,hnNrTHQxVgeJP4Ep,60000001,cc_v0_1,2025-05-07 08:00:00+00:00,2.391190859895,6.56480820196,34.1,37.0,41.9,16.59,1.0,284.0,20.5,90.0,660.4,26.9,43.0,0,xxxx,bam

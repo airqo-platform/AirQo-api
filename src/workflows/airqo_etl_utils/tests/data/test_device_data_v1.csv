@@ -1,7 +1,0 @@
-,site_id,device_category,_id,status,isActive,name,network,longitude,latitude,device_number,key
-0,r8Qn65qyg9RHevhwfbB,lowcost,ma9pMkjs7cYb6B4tKX,deployed,True,33_22_lw,xxxx,32.9284726,0.1425362,-1,UZv7psG4uFbmNDkf26Y
-1,r8Qn65q4G9RHevhweyud,lowcost,majs7cYET2Db6B4tSX,deployed,True,0123lw,zzzz,3.9036253,1.4895023,1122222,
-2,,lowcost,NG9pMkjs7cYETB4tKX,recalled,False,airqo_9876lw,airqo,22.9837123,43.9872473,5555666,
-3,r8Qn65Pyg9sdfdwfbB,lowcost,NG9pMkjs7cYEO4tKX,deployed,True,44_21lw,zzzz,36.9837663,7.9884673,7777666,qhpdmXnxTGyjzVu5H8W
-4,r8Qn65q4GPypepffbB,bam,NG9pMkjsEET2Db6B4tKX,not deployed,False,99_33bm,cccc,18.9837123,41.4372563,-1,
-5,r8Qn6443rfypepf7hw,lowcost,NG9pMkjs44R77e66nE,deployed,True,55_32lw,xxxx,81.9845133,14.4375553,-1,
