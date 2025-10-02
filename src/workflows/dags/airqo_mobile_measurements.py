@@ -47,6 +47,9 @@ def airqo_raw_data_measurements_mobile():
         doc_md=clean_data_raw_data_doc,
     )
     def clean_data_raw_data(data: pd.DataFrame):
+        if data.empty:
+            # Mark the dag run as successful and exit
+            return pd.DataFrame()
         return DataUtils.clean_low_cost_sensor_data(
             data=data, device_category=DeviceCategory.MOBILE, data_type=DataType.RAW
         )
@@ -54,6 +57,9 @@ def airqo_raw_data_measurements_mobile():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_raw_measurements_to_api(data: pd.DataFrame):
         # Pause sending of raw mobile data to api
+        # if data.empty:
+        # Mark the dag run as successful and exit
+        # return
         # data = DataUtils.process_data_for_api(data, frequency=Frequency.RAW)
         # data_api = DataApi()
         # data_api.save_events(measurements=data)
@@ -63,13 +69,13 @@ def airqo_raw_data_measurements_mobile():
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
-    def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
-
-        data, table = DataUtils.format_data_for_bigquery(
-            airqo_data, DataType.RAW, DeviceCategory.MOBILE, Frequency.RAW
-        )
-        big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=table)
+    def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame, **kwargs):
+        if not airqo_data.empty:
+            data, table = DataUtils.format_data_for_bigquery(
+                airqo_data, DataType.RAW, DeviceCategory.MOBILE, Frequency.RAW
+            )
+            big_query_api = BigQueryApi()
+            big_query_api.load_data(data, table=table)
 
     raw_data = extract_raw_data()
     cleaned_data = clean_data_raw_data(raw_data)
