@@ -85,7 +85,7 @@ def mock_sites_df():
             "latitude": [0.315, 0.316, 0.317],
             "longitude": [32.581, 32.582, 32.583],
             "network": ["airqo", "airqo", "other"],
-            "weather_station": [
+            "weather_stations": [
                 [],
                 [{"station_code": "station1"}],
                 [{"station_code": "station2"}],
