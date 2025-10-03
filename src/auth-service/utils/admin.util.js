@@ -80,17 +80,37 @@ const admin = {
         );
       }
 
+      const SUPER_ADMIN_EMAIL_ALLOWLIST = [
+        "martin@airqo.net",
+        "belindamarion@airqo.net ",
+      ];
+
       if (
-        !isProductionOperationAllowed("super-admin", user_id, currentUser?._id)
+        process.env.NODE_ENV === "production" &&
+        user_id !== currentUser?._id?.toString() &&
+        !SUPER_ADMIN_EMAIL_ALLOWLIST.includes(currentUser?.email)
       ) {
         logText("Production operation not allowed. Exiting.");
         return {
           success: false,
-          message: "Production setup only allowed for current user",
+          message:
+            "Production setup only allowed for current user or allowlisted emails",
           status: httpStatus.FORBIDDEN,
           errors: { message: "Operation not permitted in production" },
         };
       }
+
+      // if (
+      //   !isProductionOperationAllowed("super-admin", user_id, currentUser?._id)
+      // ) {
+      //   logText("Production operation not allowed. Exiting.");
+      //   return {
+      //     success: false,
+      //     message: "Production setup only allowed for current user",
+      //     status: httpStatus.FORBIDDEN,
+      //     errors: { message: "Operation not permitted in production" },
+      //   };
+      // }
 
       const targetUserId = user_id;
       const rolePermissionsUtil = require("@utils/role-permissions.util");
