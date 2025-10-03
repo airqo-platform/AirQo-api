@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const staticLists = {
+  SUPER_ADMIN_EMAIL_ALLOWLIST: process.env.SUPER_ADMIN_EMAIL_ALLOWLIST
+    ? process.env.SUPER_ADMIN_EMAIL_ALLOWLIST.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   VALID_ORGANIZATION_TYPES: [
     "academic",
     "government",
