@@ -89,10 +89,9 @@ const admin = {
         );
       }
 
-      const SUPER_ADMIN_ALLOWLIST = (SUPER_ADMIN_EMAIL_ALLOWLIST || "")
-        .split(",")
-        .map((email) => email.trim())
-        .filter(Boolean);
+      const SUPER_ADMIN_ALLOWLIST = Array.isArray(SUPER_ADMIN_EMAIL_ALLOWLIST)
+        ? SUPER_ADMIN_EMAIL_ALLOWLIST
+        : [];
 
       if (
         process.env.NODE_ENV === "production" &&
