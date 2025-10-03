@@ -21,9 +21,11 @@ const MANUAL_SUPER_ADMIN_EMAILS = [
   "belindamarion@airqo.net",
 ].map((email) => email.trim());
 
-const SUPER_ADMIN_EMAIL_ALLOWLIST = constants.SUPER_ADMIN_EMAIL_ALLOWLIST
-  ? constants.SUPER_ADMIN_EMAIL_ALLOWLIST
-  : MANUAL_SUPER_ADMIN_EMAILS;
+// const SUPER_ADMIN_EMAIL_ALLOWLIST = constants.SUPER_ADMIN_EMAIL_ALLOWLIST
+//   ? constants.SUPER_ADMIN_EMAIL_ALLOWLIST
+//   : MANUAL_SUPER_ADMIN_EMAILS;
+
+const SUPER_ADMIN_EMAIL_ALLOWLIST = MANUAL_SUPER_ADMIN_EMAILS;
 
 const __rbacInstances = new Map();
 // Helper function to validate setup secret
@@ -95,8 +97,13 @@ const admin = {
 
       if (
         process.env.NODE_ENV === "production" &&
-        user_id !== currentUser?._id?.toString() &&
-        !SUPER_ADMIN_ALLOWLIST.includes(currentUser?.email)
+        user_id !==
+          (currentUser && currentUser._id
+            ? currentUser._id.toString()
+            : null) &&
+        !SUPER_ADMIN_ALLOWLIST.includes(
+          currentUser && currentUser.email ? currentUser.email : null
+        )
       ) {
         logText("Production operation not allowed. Exiting.");
         return {
