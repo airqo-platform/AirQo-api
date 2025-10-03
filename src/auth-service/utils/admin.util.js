@@ -16,6 +16,15 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
 const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
 
+const MANUAL_SUPER_ADMIN_EMAILS = [
+  "martin@airqo.net",
+  "belindamarion@airqo.net",
+].map((email) => email.trim());
+
+const SUPER_ADMIN_EMAIL_ALLOWLIST = constants.SUPER_ADMIN_EMAIL_ALLOWLIST
+  ? constants.SUPER_ADMIN_EMAIL_ALLOWLIST
+  : MANUAL_SUPER_ADMIN_EMAILS;
+
 const __rbacInstances = new Map();
 // Helper function to validate setup secret
 const validateSetupSecret = (secret) => {
@@ -80,13 +89,20 @@ const admin = {
         );
       }
 
+      const SUPER_ADMIN_ALLOWLIST = Array.isArray(SUPER_ADMIN_EMAIL_ALLOWLIST)
+        ? SUPER_ADMIN_EMAIL_ALLOWLIST
+        : [];
+
       if (
-        !isProductionOperationAllowed("super-admin", user_id, currentUser?._id)
+        process.env.NODE_ENV === "production" &&
+        user_id !== currentUser?._id?.toString() &&
+        !SUPER_ADMIN_ALLOWLIST.includes(currentUser?.email)
       ) {
         logText("Production operation not allowed. Exiting.");
         return {
           success: false,
-          message: "Production setup only allowed for current user",
+          message:
+            "Production setup only allowed for current user or allowlisted emails",
           status: httpStatus.FORBIDDEN,
           errors: { message: "Operation not permitted in production" },
         };
