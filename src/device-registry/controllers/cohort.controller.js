@@ -343,6 +343,17 @@ const createCohort = {
       handleError(error, next);
     }
   },
+  listSitesByCohort: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.listSites(request, next);
+      handleResponse({ res, result, key: "sites" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
 };
 
 module.exports = createCohort;
