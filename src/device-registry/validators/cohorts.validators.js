@@ -477,6 +477,20 @@ const cohortValidations = {
       .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
     handleValidationErrors,
   ],
+
+  listSites: [
+    validateTenant,
+    body("cohort_ids")
+      .exists()
+      .withMessage("cohort_ids are required")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+    body("cohort_ids.*")
+      .isMongoId()
+      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    handleValidationErrors,
+  ],
 };
 
 module.exports = {

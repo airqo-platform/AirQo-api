@@ -144,6 +144,13 @@ router.post(
 );
 
 router.post(
+  "/sites",
+  cohortValidations.listSites,
+  pagination(),
+  createCohortController.listSitesByCohort
+);
+
+router.post(
   "/devices",
   cohortValidations.listDevices,
   pagination(),
