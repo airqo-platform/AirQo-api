@@ -1,4 +1,3 @@
-// src/auth-service/models/EmailLog.js
 const mongoose = require("mongoose");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
@@ -16,12 +15,7 @@ const EmailLogSchema = new mongoose.Schema(
     emailType: {
       type: String,
       required: true,
-      enum: [
-        "compromisedToken",
-        "expiredToken",
-        "expiringToken",
-        // Add other types as needed
-      ],
+      enum: ["compromisedToken", "expiredToken", "expiringToken"],
       index: true,
     },
     lastSentAt: {
@@ -36,7 +30,6 @@ const EmailLogSchema = new mongoose.Schema(
     },
     sentCount: {
       type: Number,
-      default: 1,
     },
   },
   {
@@ -44,18 +37,23 @@ const EmailLogSchema = new mongoose.Schema(
   }
 );
 
-// Compound index for efficient lookups
 EmailLogSchema.index({ email: 1, emailType: 1 });
 
-// TTL index to auto-cleanup old records (optional, keeps DB clean)
 EmailLogSchema.index(
   { lastSentAt: 1 },
   { expireAfterSeconds: 60 * 60 * 24 * 90 }
-); // 90 days
+);
 
 EmailLogSchema.statics = {
   async canSendEmail({ email, emailType, cooldownDays = 30 } = {}) {
     try {
+      if (!email || typeof email !== "string") {
+        return {
+          canSend: true,
+          error: "Invalid email parameter",
+        };
+      }
+
       const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
       const now = new Date();
       const cooldownDate = new Date(now.getTime() - cooldownMs);
@@ -89,7 +87,6 @@ EmailLogSchema.statics = {
         canSend: true,
       };
     } catch (error) {
-      // On error, fail open (allow sending) to avoid blocking critical emails
       console.error(`Error checking email cooldown: ${error.message}`);
       return {
         canSend: true,
@@ -100,6 +97,13 @@ EmailLogSchema.statics = {
 
   async logEmailSent({ email, emailType, metadata = {} } = {}) {
     try {
+      if (!email || typeof email !== "string") {
+        return {
+          success: false,
+          error: "Invalid email parameter",
+        };
+      }
+
       const result = await this.findOneAndUpdate(
         {
           email: email.toLowerCase().trim(),
@@ -109,6 +113,9 @@ EmailLogSchema.statics = {
           $set: {
             lastSentAt: new Date(),
             metadata,
+          },
+          $setOnInsert: {
+            sentCount: 0,
           },
           $inc: {
             sentCount: 1,
