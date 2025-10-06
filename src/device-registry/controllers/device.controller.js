@@ -759,8 +759,8 @@ const deviceController = {
         ? defaultTenant
         : req.query.tenant;
 
-      // Force mobility filter
-      request.query.mobility = "true";
+      // Force mobility filter with boolean value
+      request.query.mobility = true; // Changed from "true"
 
       const result = await createDeviceUtil.list(request, next);
 
@@ -1014,9 +1014,10 @@ const deviceController = {
         ? defaultTenant
         : req.query.tenant;
 
-      // Force static filters
-      request.query.mobility = "false";
-      request.query.deployment_type = "static";
+      // Use boolean values instead of strings
+      request.query.mobility = false; // Changed from "false"
+      // For deployment_type, handle both explicit "static" and missing/null values
+      request.query.deployment_type_include_legacy = true; // Signal to include legacy devices
 
       const result = await createDeviceUtil.list(request, next);
 

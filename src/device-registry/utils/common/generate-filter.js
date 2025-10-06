@@ -1033,6 +1033,7 @@ const generateFilter = {
       serial_number,
       mobility,
       authRequired,
+      deployment_type_include_legacy,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -1082,6 +1083,20 @@ const generateFilter = {
       if (boolValue !== undefined) {
         filter.visibility = boolValue;
       }
+    }
+
+    if (
+      deployment_type_include_legacy === true ||
+      deployment_type_include_legacy === "true"
+    ) {
+      // Include both explicit "static" and missing/null deployment_type
+      filter.$or = filter.$or || [];
+      filter.$or.push(
+        { deployment_type: "static" },
+        { deployment_type: { $exists: false } },
+        { deployment_type: null }
+      );
+      delete filter.deployment_type;
     }
 
     if (primary !== undefined) {

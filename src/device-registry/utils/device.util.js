@@ -47,6 +47,127 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+// Add this helper function near the top of device.util.js, after the imports
+
+/**
+ * Builds the MongoDB aggregation stage for computing device_categories
+ * Single source of truth for category computation logic
+ * @returns {Object} MongoDB $addFields stage
+ */
+const getDeviceCategoriesAddFieldsStage = () => {
+  return {
+    $addFields: {
+      device_categories: {
+        primary_category: { $ifNull: ["$category", "lowcost"] },
+        deployment_category: { $ifNull: ["$deployment_type", "static"] },
+        is_mobile: {
+          $or: [
+            { $eq: ["$mobility", true] },
+            { $eq: ["$deployment_type", "mobile"] },
+          ],
+        },
+        is_static: {
+          $or: [
+            { $eq: ["$mobility", false] },
+            { $eq: ["$deployment_type", "static"] },
+          ],
+        },
+        is_lowcost: { $eq: ["$category", "lowcost"] },
+        is_bam: { $eq: ["$category", "bam"] },
+        is_gas: { $eq: ["$category", "gas"] },
+        all_categories: {
+          $concatArrays: [
+            [{ $ifNull: ["$category", "lowcost"] }],
+            [{ $ifNull: ["$deployment_type", "static"] }],
+          ],
+        },
+        category_hierarchy: [
+          {
+            level: "equipment",
+            category: { $ifNull: ["$category", "lowcost"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$category", "lowcost"] },
+                    then: "Low-cost sensor device",
+                  },
+                  {
+                    case: { $eq: ["$category", "bam"] },
+                    then: "Beta Attenuation Monitor (reference-grade)",
+                  },
+                  {
+                    case: { $eq: ["$category", "gas"] },
+                    then: "Gas sensor device",
+                  },
+                ],
+                default: "Low-cost sensor device",
+              },
+            },
+          },
+          {
+            level: "deployment",
+            category: { $ifNull: ["$deployment_type", "static"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "Mobile deployment (vehicle-mounted, grid-based)",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "Static deployment (fixed location, site-based)",
+                  },
+                ],
+                default: "Static deployment (fixed location, site-based)",
+              },
+            },
+          },
+        ],
+        category_relationships: {
+          $cond: [
+            {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
+            {
+              type: "mobile",
+              note: {
+                $concat: [
+                  "This is a mobile ",
+                  { $ifNull: ["$category", "lowcost"] },
+                  " device. Mobile devices can belong to any equipment category (lowcost, bam, or gas) and use grid-based deployment.",
+                ],
+              },
+              belongs_to_equipment_category: {
+                $ifNull: ["$category", "lowcost"],
+              },
+              deployment_method: "grid-based",
+            },
+            {
+              type: "static",
+              note: {
+                $concat: [
+                  "This is a static ",
+                  { $ifNull: ["$category", "lowcost"] },
+                  " device deployed at a fixed location using site-based deployment.",
+                ],
+              },
+              belongs_to_equipment_category: {
+                $ifNull: ["$category", "lowcost"],
+              },
+              deployment_method: "site-based",
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
 const deviceUtil = {
   getDeviceCountSummary: async (request, next) => {
     try {
@@ -698,37 +819,7 @@ const deviceUtil = {
       if (detailLevel === "minimal") {
         // Minimal data for performance-critical scenarios
         pipeline.push(
-          {
-            $addFields: {
-              device_categories: {
-                primary_category: { $ifNull: ["$category", "lowcost"] },
-                deployment_category: {
-                  $ifNull: ["$deployment_type", "static"],
-                },
-                is_mobile: {
-                  $or: [
-                    { $eq: ["$mobility", true] },
-                    { $eq: ["$deployment_type", "mobile"] },
-                  ],
-                },
-                is_static: {
-                  $or: [
-                    { $eq: ["$mobility", false] },
-                    { $eq: ["$deployment_type", "static"] },
-                  ],
-                },
-                is_lowcost: { $eq: ["$category", "lowcost"] },
-                is_bam: { $eq: ["$category", "bam"] },
-                is_gas: { $eq: ["$category", "gas"] },
-                all_categories: {
-                  $concatArrays: [
-                    [{ $ifNull: ["$category", "lowcost"] }],
-                    [{ $ifNull: ["$deployment_type", "static"] }],
-                  ],
-                },
-              },
-            },
-          },
+          getDeviceCategoriesAddFieldsStage(), // Use helper
           {
             $project: {
               _id: 1,
@@ -770,120 +861,9 @@ const deviceUtil = {
               pipeline: [{ $project: { _id: 1, name: 1, admin_level: 1 } }],
             },
           },
+          getDeviceCategoriesAddFieldsStage(), // Use helper
           {
             $addFields: {
-              device_categories: {
-                primary_category: { $ifNull: ["$category", "lowcost"] },
-                deployment_category: {
-                  $ifNull: ["$deployment_type", "static"],
-                },
-                is_mobile: {
-                  $or: [
-                    { $eq: ["$mobility", true] },
-                    { $eq: ["$deployment_type", "mobile"] },
-                  ],
-                },
-                is_static: {
-                  $or: [
-                    { $eq: ["$mobility", false] },
-                    { $eq: ["$deployment_type", "static"] },
-                  ],
-                },
-                is_lowcost: { $eq: ["$category", "lowcost"] },
-                is_bam: { $eq: ["$category", "bam"] },
-                is_gas: { $eq: ["$category", "gas"] },
-                all_categories: {
-                  $concatArrays: [
-                    [{ $ifNull: ["$category", "lowcost"] }],
-                    [{ $ifNull: ["$deployment_type", "static"] }],
-                  ],
-                },
-                category_hierarchy: [
-                  {
-                    level: "equipment",
-                    category: { $ifNull: ["$category", "lowcost"] },
-                    description: {
-                      $switch: {
-                        branches: [
-                          {
-                            case: { $eq: ["$category", "lowcost"] },
-                            then: "Low-cost sensor device",
-                          },
-                          {
-                            case: { $eq: ["$category", "bam"] },
-                            then: "Beta Attenuation Monitor (reference-grade)",
-                          },
-                          {
-                            case: { $eq: ["$category", "gas"] },
-                            then: "Gas sensor device",
-                          },
-                        ],
-                        default: "Low-cost sensor device",
-                      },
-                    },
-                  },
-                  {
-                    level: "deployment",
-                    category: { $ifNull: ["$deployment_type", "static"] },
-                    description: {
-                      $switch: {
-                        branches: [
-                          {
-                            case: { $eq: ["$deployment_type", "mobile"] },
-                            then:
-                              "Mobile deployment (vehicle-mounted, grid-based)",
-                          },
-                          {
-                            case: { $eq: ["$deployment_type", "static"] },
-                            then:
-                              "Static deployment (fixed location, site-based)",
-                          },
-                        ],
-                        default:
-                          "Static deployment (fixed location, site-based)",
-                      },
-                    },
-                  },
-                ],
-                category_relationships: {
-                  $cond: [
-                    {
-                      $or: [
-                        { $eq: ["$mobility", true] },
-                        { $eq: ["$deployment_type", "mobile"] },
-                      ],
-                    },
-                    {
-                      type: "mobile",
-                      note: {
-                        $concat: [
-                          "This is a mobile ",
-                          { $ifNull: ["$category", "lowcost"] },
-                          " device. Mobile devices can belong to any equipment category (lowcost, bam, or gas) and use grid-based deployment.",
-                        ],
-                      },
-                      belongs_to_equipment_category: {
-                        $ifNull: ["$category", "lowcost"],
-                      },
-                      deployment_method: "grid-based",
-                    },
-                    {
-                      type: "static",
-                      note: {
-                        $concat: [
-                          "This is a static ",
-                          { $ifNull: ["$category", "lowcost"] },
-                          " device deployed at a fixed location using site-based deployment.",
-                        ],
-                      },
-                      belongs_to_equipment_category: {
-                        $ifNull: ["$category", "lowcost"],
-                      },
-                      deployment_method: "site-based",
-                    },
-                  ],
-                },
-              },
               total_activities: { $ifNull: ["$cached_total_activities", 0] },
               activities_by_type: {
                 $ifNull: ["$cached_activities_by_type", {}],
@@ -960,133 +940,25 @@ const deviceUtil = {
 
         if (useCache === "true") {
           // Use cached activity data
-          pipeline.push({
-            $addFields: {
-              device_categories: {
-                primary_category: { $ifNull: ["$category", "lowcost"] },
-                deployment_category: {
-                  $ifNull: ["$deployment_type", "static"],
+          pipeline.push(
+            getDeviceCategoriesAddFieldsStage(), // Use helper
+            {
+              $addFields: {
+                total_activities: { $ifNull: ["$cached_total_activities", 0] },
+                activities_by_type: {
+                  $ifNull: ["$cached_activities_by_type", {}],
                 },
-                is_mobile: {
-                  $or: [
-                    { $eq: ["$mobility", true] },
-                    { $eq: ["$deployment_type", "mobile"] },
-                  ],
+                latest_activities_by_type: {
+                  $ifNull: ["$cached_latest_activities_by_type", {}],
                 },
-                is_static: {
-                  $or: [
-                    { $eq: ["$mobility", false] },
-                    { $eq: ["$deployment_type", "static"] },
-                  ],
-                },
-                is_lowcost: { $eq: ["$category", "lowcost"] },
-                is_bam: { $eq: ["$category", "bam"] },
-                is_gas: { $eq: ["$category", "gas"] },
-                all_categories: {
-                  $concatArrays: [
-                    [{ $ifNull: ["$category", "lowcost"] }],
-                    [{ $ifNull: ["$deployment_type", "static"] }],
-                  ],
-                },
-                category_hierarchy: [
-                  {
-                    level: "equipment",
-                    category: { $ifNull: ["$category", "lowcost"] },
-                    description: {
-                      $switch: {
-                        branches: [
-                          {
-                            case: { $eq: ["$category", "lowcost"] },
-                            then: "Low-cost sensor device",
-                          },
-                          {
-                            case: { $eq: ["$category", "bam"] },
-                            then: "Beta Attenuation Monitor (reference-grade)",
-                          },
-                          {
-                            case: { $eq: ["$category", "gas"] },
-                            then: "Gas sensor device",
-                          },
-                        ],
-                        default: "Low-cost sensor device",
-                      },
-                    },
-                  },
-                  {
-                    level: "deployment",
-                    category: { $ifNull: ["$deployment_type", "static"] },
-                    description: {
-                      $switch: {
-                        branches: [
-                          {
-                            case: { $eq: ["$deployment_type", "mobile"] },
-                            then:
-                              "Mobile deployment (vehicle-mounted, grid-based)",
-                          },
-                          {
-                            case: { $eq: ["$deployment_type", "static"] },
-                            then:
-                              "Static deployment (fixed location, site-based)",
-                          },
-                        ],
-                        default:
-                          "Static deployment (fixed location, site-based)",
-                      },
-                    },
-                  },
-                ],
-                category_relationships: {
-                  $cond: [
-                    {
-                      $or: [
-                        { $eq: ["$mobility", true] },
-                        { $eq: ["$deployment_type", "mobile"] },
-                      ],
-                    },
-                    {
-                      type: "mobile",
-                      note: {
-                        $concat: [
-                          "This is a mobile ",
-                          { $ifNull: ["$category", "lowcost"] },
-                          " device. Mobile devices can belong to any equipment category (lowcost, bam, or gas) and use grid-based deployment.",
-                        ],
-                      },
-                      belongs_to_equipment_category: {
-                        $ifNull: ["$category", "lowcost"],
-                      },
-                      deployment_method: "grid-based",
-                    },
-                    {
-                      type: "static",
-                      note: {
-                        $concat: [
-                          "This is a static ",
-                          { $ifNull: ["$category", "lowcost"] },
-                          " device deployed at a fixed location using site-based deployment.",
-                        ],
-                      },
-                      belongs_to_equipment_category: {
-                        $ifNull: ["$category", "lowcost"],
-                      },
-                      deployment_method: "site-based",
-                    },
-                  ],
-                },
+                latest_deployment_activity:
+                  "$cached_latest_deployment_activity",
+                latest_maintenance_activity:
+                  "$cached_latest_maintenance_activity",
+                latest_recall_activity: "$cached_latest_recall_activity",
               },
-              total_activities: { $ifNull: ["$cached_total_activities", 0] },
-              activities_by_type: {
-                $ifNull: ["$cached_activities_by_type", {}],
-              },
-              latest_activities_by_type: {
-                $ifNull: ["$cached_latest_activities_by_type", {}],
-              },
-              latest_deployment_activity: "$cached_latest_deployment_activity",
-              latest_maintenance_activity:
-                "$cached_latest_maintenance_activity",
-              latest_recall_activity: "$cached_latest_recall_activity",
-            },
-          });
+            }
+          );
         } else {
           // Real-time activity aggregation (expensive)
           pipeline.push(
@@ -1133,123 +1005,7 @@ const deviceUtil = {
                 as: "activities",
               },
             },
-            {
-              $addFields: {
-                device_categories: {
-                  primary_category: { $ifNull: ["$category", "lowcost"] },
-                  deployment_category: {
-                    $ifNull: ["$deployment_type", "static"],
-                  },
-                  is_mobile: {
-                    $or: [
-                      { $eq: ["$mobility", true] },
-                      { $eq: ["$deployment_type", "mobile"] },
-                    ],
-                  },
-                  is_static: {
-                    $or: [
-                      { $eq: ["$mobility", false] },
-                      { $eq: ["$deployment_type", "static"] },
-                    ],
-                  },
-                  is_lowcost: { $eq: ["$category", "lowcost"] },
-                  is_bam: { $eq: ["$category", "bam"] },
-                  is_gas: { $eq: ["$category", "gas"] },
-                  all_categories: {
-                    $concatArrays: [
-                      [{ $ifNull: ["$category", "lowcost"] }],
-                      [{ $ifNull: ["$deployment_type", "static"] }],
-                    ],
-                  },
-                  category_hierarchy: [
-                    {
-                      level: "equipment",
-                      category: { $ifNull: ["$category", "lowcost"] },
-                      description: {
-                        $switch: {
-                          branches: [
-                            {
-                              case: { $eq: ["$category", "lowcost"] },
-                              then: "Low-cost sensor device",
-                            },
-                            {
-                              case: { $eq: ["$category", "bam"] },
-                              then:
-                                "Beta Attenuation Monitor (reference-grade)",
-                            },
-                            {
-                              case: { $eq: ["$category", "gas"] },
-                              then: "Gas sensor device",
-                            },
-                          ],
-                          default: "Low-cost sensor device",
-                        },
-                      },
-                    },
-                    {
-                      level: "deployment",
-                      category: { $ifNull: ["$deployment_type", "static"] },
-                      description: {
-                        $switch: {
-                          branches: [
-                            {
-                              case: { $eq: ["$deployment_type", "mobile"] },
-                              then:
-                                "Mobile deployment (vehicle-mounted, grid-based)",
-                            },
-                            {
-                              case: { $eq: ["$deployment_type", "static"] },
-                              then:
-                                "Static deployment (fixed location, site-based)",
-                            },
-                          ],
-                          default:
-                            "Static deployment (fixed location, site-based)",
-                        },
-                      },
-                    },
-                  ],
-                  category_relationships: {
-                    $cond: [
-                      {
-                        $or: [
-                          { $eq: ["$mobility", true] },
-                          { $eq: ["$deployment_type", "mobile"] },
-                        ],
-                      },
-                      {
-                        type: "mobile",
-                        note: {
-                          $concat: [
-                            "This is a mobile ",
-                            { $ifNull: ["$category", "lowcost"] },
-                            " device. Mobile devices can belong to any equipment category (lowcost, bam, or gas) and use grid-based deployment.",
-                          ],
-                        },
-                        belongs_to_equipment_category: {
-                          $ifNull: ["$category", "lowcost"],
-                        },
-                        deployment_method: "grid-based",
-                      },
-                      {
-                        type: "static",
-                        note: {
-                          $concat: [
-                            "This is a static ",
-                            { $ifNull: ["$category", "lowcost"] },
-                            " device deployed at a fixed location using site-based deployment.",
-                          ],
-                        },
-                        belongs_to_equipment_category: {
-                          $ifNull: ["$category", "lowcost"],
-                        },
-                        deployment_method: "site-based",
-                      },
-                    ],
-                  },
-                },
-              },
-            }
+            getDeviceCategoriesAddFieldsStage() // Use helper
           );
         }
         pipeline.push({ $project: constants.DEVICES_INCLUSION_PROJECTION });
@@ -3529,4 +3285,7 @@ const deviceUtil = {
   },
 };
 
-module.exports = deviceUtil;
+module.exports = {
+  ...deviceUtil,
+  getDeviceCategoriesAddFieldsStage,
+};

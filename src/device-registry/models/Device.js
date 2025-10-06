@@ -51,6 +51,24 @@ const DEVICE_CATEGORIES = Object.freeze({
   BAM: "bam",
 });
 
+// Helper functions
+function getCategoryDescription(category) {
+  const descriptions = {
+    lowcost: "Low-cost sensor device",
+    bam: "Beta Attenuation Monitor (reference-grade)",
+    gas: "Gas sensor device",
+  };
+  return descriptions[category] || "Unknown category";
+}
+
+function getDeploymentDescription(deploymentType) {
+  const descriptions = {
+    mobile: "Mobile deployment (vehicle-mounted, grid-based)",
+    static: "Static deployment (fixed location, site-based)",
+  };
+  return descriptions[deploymentType] || "Unknown deployment type";
+}
+
 const deviceSchema = new mongoose.Schema(
   {
     cohorts: {
@@ -708,24 +726,40 @@ deviceSchema.methods = {
       device_categories: this.getDeviceCategories(),
     };
   },
+  /**
+   * Instance method that delegates to the static method
+   * Ensures single source of truth
+   */
   getDeviceCategories() {
+    // Delegate to static method
+    return this.constructor.computeDeviceCategories(this);
+  },
+};
+
+deviceSchema.statics = {
+  /**
+   * Static method to compute device categories from a device document or plain object.
+   * This is the single source of truth for category logic used by both instance methods
+   * and aggregation pipelines.
+   * @param {Object} deviceDoc - The device document (Mongoose doc or plain object)
+   * @returns {Object} categories
+   */
+  computeDeviceCategories(deviceDoc) {
+    const doc = deviceDoc.toObject ? deviceDoc.toObject() : deviceDoc;
+
     const categories = {
       // Primary equipment category
-      primary_category: this.category || "lowcost",
-
+      primary_category: doc.category || "lowcost",
       // Deployment category
-      deployment_category: this.deployment_type || "static",
-
+      deployment_category: doc.deployment_type || "static",
       // Boolean flags for easy frontend checking
-      is_mobile: this.mobility === true || this.deployment_type === "mobile",
-      is_static: this.mobility === false || this.deployment_type === "static",
-      is_lowcost: this.category === "lowcost",
-      is_bam: this.category === "bam",
-      is_gas: this.category === "gas",
-
+      is_mobile: doc.mobility === true || doc.deployment_type === "mobile",
+      is_static: doc.mobility === false || doc.deployment_type === "static",
+      is_lowcost: doc.category === "lowcost",
+      is_bam: doc.category === "bam",
+      is_gas: doc.category === "gas",
       // All applicable categories (handles subcategories)
       all_categories: [],
-
       // Descriptive information
       category_hierarchy: [],
     };
@@ -738,15 +772,13 @@ deviceSchema.methods = {
     categories.category_hierarchy.push({
       level: "equipment",
       category: categories.primary_category,
-      description: this._getCategoryDescription(categories.primary_category),
+      description: getCategoryDescription(categories.primary_category),
     });
 
     categories.category_hierarchy.push({
       level: "deployment",
       category: categories.deployment_category,
-      description: this._getDeploymentDescription(
-        categories.deployment_category
-      ),
+      description: getDeploymentDescription(categories.deployment_category),
     });
 
     // Add metadata about category relationships
@@ -760,24 +792,6 @@ deviceSchema.methods = {
 
     return categories;
   },
-  _getCategoryDescription(category) {
-    const descriptions = {
-      lowcost: "Low-cost sensor device",
-      bam: "Beta Attenuation Monitor (reference-grade)",
-      gas: "Gas sensor device",
-    };
-    return descriptions[category] || "Unknown category";
-  },
-  _getDeploymentDescription(deploymentType) {
-    const descriptions = {
-      mobile: "Mobile deployment (vehicle-mounted, grid-based)",
-      static: "Static deployment (fixed location, site-based)",
-    };
-    return descriptions[deploymentType] || "Unknown deployment type";
-  },
-};
-
-deviceSchema.statics = {
   async register(args, next) {
     try {
       logObject("args", args);
@@ -849,7 +863,6 @@ deviceSchema.statics = {
       return next(new HttpError(message, httpStatus.CONFLICT, response));
     }
   },
-
   async list({ _skip = 0, _limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
