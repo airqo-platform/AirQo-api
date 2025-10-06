@@ -51,7 +51,11 @@ const DEVICE_CATEGORIES = Object.freeze({
   BAM: "bam",
 });
 
-// Helper functions
+/**
+ * Get category description - module-level helper
+ * @param {string} category
+ * @returns {string}
+ */
 function getCategoryDescription(category) {
   const descriptions = {
     lowcost: "Low-cost sensor device",
@@ -61,12 +65,73 @@ function getCategoryDescription(category) {
   return descriptions[category] || "Unknown category";
 }
 
+/**
+ * Get deployment description - module-level helper
+ * @param {string} deploymentType
+ * @returns {string}
+ */
 function getDeploymentDescription(deploymentType) {
   const descriptions = {
     mobile: "Mobile deployment (vehicle-mounted, grid-based)",
     static: "Static deployment (fixed location, site-based)",
   };
   return descriptions[deploymentType] || "Unknown deployment type";
+}
+
+/**
+ * Compute device categories from a device document.
+ * This is the single source of truth for category logic.
+ * @param {Object} deviceDoc - The device document (can be a Mongoose doc or plain object)
+ * @returns {Object} categories
+ */
+function computeDeviceCategories(deviceDoc) {
+  // Handle both Mongoose documents and plain objects
+  const doc = deviceDoc.toObject ? deviceDoc.toObject() : deviceDoc;
+
+  const categories = {
+    // Primary equipment category
+    primary_category: doc.category || "lowcost",
+    // Deployment category
+    deployment_category: doc.deployment_type || "static",
+    // Boolean flags for easy frontend checking
+    is_mobile: doc.mobility === true || doc.deployment_type === "mobile",
+    is_static: doc.mobility === false || doc.deployment_type === "static",
+    is_lowcost: doc.category === "lowcost",
+    is_bam: doc.category === "bam",
+    is_gas: doc.category === "gas",
+    // All applicable categories (handles subcategories)
+    all_categories: [],
+    // Descriptive information
+    category_hierarchy: [],
+  };
+
+  // Build all_categories array
+  categories.all_categories.push(categories.primary_category);
+  categories.all_categories.push(categories.deployment_category);
+
+  // Build hierarchy showing relationships
+  categories.category_hierarchy.push({
+    level: "equipment",
+    category: categories.primary_category,
+    description: getCategoryDescription(categories.primary_category),
+  });
+
+  categories.category_hierarchy.push({
+    level: "deployment",
+    category: categories.deployment_category,
+    description: getDeploymentDescription(categories.deployment_category),
+  });
+
+  // Add metadata about category relationships
+  categories.category_relationships = {
+    note:
+      "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+    mobile_is_subcategory_of: categories.is_mobile
+      ? categories.primary_category
+      : null,
+  };
+
+  return categories;
 }
 
 const deviceSchema = new mongoose.Schema(
@@ -745,52 +810,7 @@ deviceSchema.statics = {
    * @returns {Object} categories
    */
   computeDeviceCategories(deviceDoc) {
-    const doc = deviceDoc.toObject ? deviceDoc.toObject() : deviceDoc;
-
-    const categories = {
-      // Primary equipment category
-      primary_category: doc.category || "lowcost",
-      // Deployment category
-      deployment_category: doc.deployment_type || "static",
-      // Boolean flags for easy frontend checking
-      is_mobile: doc.mobility === true || doc.deployment_type === "mobile",
-      is_static: doc.mobility === false || doc.deployment_type === "static",
-      is_lowcost: doc.category === "lowcost",
-      is_bam: doc.category === "bam",
-      is_gas: doc.category === "gas",
-      // All applicable categories (handles subcategories)
-      all_categories: [],
-      // Descriptive information
-      category_hierarchy: [],
-    };
-
-    // Build all_categories array
-    categories.all_categories.push(categories.primary_category);
-    categories.all_categories.push(categories.deployment_category);
-
-    // Build hierarchy showing relationships
-    categories.category_hierarchy.push({
-      level: "equipment",
-      category: categories.primary_category,
-      description: getCategoryDescription(categories.primary_category),
-    });
-
-    categories.category_hierarchy.push({
-      level: "deployment",
-      category: categories.deployment_category,
-      description: getDeploymentDescription(categories.deployment_category),
-    });
-
-    // Add metadata about category relationships
-    categories.category_relationships = {
-      note:
-        "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
-      mobile_is_subcategory_of: categories.is_mobile
-        ? categories.primary_category
-        : null,
-    };
-
-    return categories;
+    return computeDeviceCategories(deviceDoc);
   },
   async register(args, next) {
     try {
