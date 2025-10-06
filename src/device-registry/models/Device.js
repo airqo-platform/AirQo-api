@@ -705,7 +705,75 @@ deviceSchema.methods = {
       grid_id: this.grid_id,
       deployment_type: this.deployment_type,
       mobility_metadata: this.mobility_metadata,
+      device_categories: this.getDeviceCategories(),
     };
+  },
+  getDeviceCategories() {
+    const categories = {
+      // Primary equipment category
+      primary_category: this.category || "lowcost",
+
+      // Deployment category
+      deployment_category: this.deployment_type || "static",
+
+      // Boolean flags for easy frontend checking
+      is_mobile: this.mobility === true || this.deployment_type === "mobile",
+      is_static: this.mobility === false || this.deployment_type === "static",
+      is_lowcost: this.category === "lowcost",
+      is_bam: this.category === "bam",
+      is_gas: this.category === "gas",
+
+      // All applicable categories (handles subcategories)
+      all_categories: [],
+
+      // Descriptive information
+      category_hierarchy: [],
+    };
+
+    // Build all_categories array
+    categories.all_categories.push(categories.primary_category);
+    categories.all_categories.push(categories.deployment_category);
+
+    // Build hierarchy showing relationships
+    categories.category_hierarchy.push({
+      level: "equipment",
+      category: categories.primary_category,
+      description: this._getCategoryDescription(categories.primary_category),
+    });
+
+    categories.category_hierarchy.push({
+      level: "deployment",
+      category: categories.deployment_category,
+      description: this._getDeploymentDescription(
+        categories.deployment_category
+      ),
+    });
+
+    // Add metadata about category relationships
+    categories.category_relationships = {
+      note:
+        "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+      mobile_is_subcategory_of: categories.is_mobile
+        ? categories.primary_category
+        : null,
+    };
+
+    return categories;
+  },
+  _getCategoryDescription(category) {
+    const descriptions = {
+      lowcost: "Low-cost sensor device",
+      bam: "Beta Attenuation Monitor (reference-grade)",
+      gas: "Gas sensor device",
+    };
+    return descriptions[category] || "Unknown category";
+  },
+  _getDeploymentDescription(deploymentType) {
+    const descriptions = {
+      mobile: "Mobile deployment (vehicle-mounted, grid-based)",
+      static: "Static deployment (fixed location, site-based)",
+    };
+    return descriptions[deploymentType] || "Unknown deployment type";
   },
 };
 
@@ -882,7 +950,6 @@ deviceSchema.statics = {
           ],
           as: "activities",
         })
-        // Simple latest deployment lookup
         .lookup({
           from: "activities",
           let: { deviceName: "$name", deviceId: "$_id" },
@@ -961,6 +1028,91 @@ deviceSchema.statics = {
           as: "latest_recall_activity",
         })
         .addFields({
+          device_categories: {
+            primary_category: { $ifNull: ["$category", "lowcost"] },
+            deployment_category: { $ifNull: ["$deployment_type", "static"] },
+            is_mobile: {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
+            is_static: {
+              $or: [
+                { $eq: ["$mobility", false] },
+                { $eq: ["$deployment_type", "static"] },
+              ],
+            },
+            is_lowcost: { $eq: ["$category", "lowcost"] },
+            is_bam: { $eq: ["$category", "bam"] },
+            is_gas: { $eq: ["$category", "gas"] },
+            all_categories: {
+              $concatArrays: [
+                [{ $ifNull: ["$category", "lowcost"] }],
+                [{ $ifNull: ["$deployment_type", "static"] }],
+              ],
+            },
+            category_hierarchy: [
+              {
+                level: "equipment",
+                category: { $ifNull: ["$category", "lowcost"] },
+                description: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: { $eq: ["$category", "lowcost"] },
+                        then: "Low-cost sensor device",
+                      },
+                      {
+                        case: { $eq: ["$category", "bam"] },
+                        then: "Beta Attenuation Monitor (reference-grade)",
+                      },
+                      {
+                        case: { $eq: ["$category", "gas"] },
+                        then: "Gas sensor device",
+                      },
+                    ],
+                    default: "Low-cost sensor device",
+                  },
+                },
+              },
+              {
+                level: "deployment",
+                category: { $ifNull: ["$deployment_type", "static"] },
+                description: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: { $eq: ["$deployment_type", "mobile"] },
+                        then: "Mobile deployment (vehicle-mounted, grid-based)",
+                      },
+                      {
+                        case: { $eq: ["$deployment_type", "static"] },
+                        then: "Static deployment (fixed location, site-based)",
+                      },
+                    ],
+                    default: "Static deployment (fixed location, site-based)",
+                  },
+                },
+              },
+            ],
+            category_relationships: {
+              note:
+                "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+              mobile_is_subcategory_of: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ["$mobility", true] },
+                      { $eq: ["$deployment_type", "mobile"] },
+                    ],
+                  },
+                  { $ifNull: ["$category", "lowcost"] },
+                  null,
+                ],
+              },
+            },
+          },
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
@@ -974,10 +1126,8 @@ deviceSchema.statics = {
 
       const response = await pipeline;
 
-      // Process activities for consistency
       if (!isEmpty(response)) {
         response.forEach((device) => {
-          // Process latest activities to extract single objects
           device.latest_deployment_activity =
             device.latest_deployment_activity &&
             device.latest_deployment_activity.length > 0
@@ -996,7 +1146,6 @@ deviceSchema.statics = {
               ? device.latest_recall_activity[0]
               : null;
 
-          // Create activities by type mapping
           if (device.activities && device.activities.length > 0) {
             const activitiesByType = {};
             const latestActivitiesByType = {};
@@ -1021,7 +1170,6 @@ deviceSchema.statics = {
             device.latest_activities_by_type = {};
           }
 
-          // Process assigned_grid to extract single object
           if (device.assigned_grid && device.assigned_grid.length > 0) {
             const grid = device.assigned_grid[0];
             device.assigned_grid = {
@@ -1061,8 +1209,6 @@ deviceSchema.statics = {
       );
     }
   },
-
-  // ... (rest of the static methods remain the same with minimal changes)
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");
@@ -1115,8 +1261,6 @@ deviceSchema.statics = {
       );
     }
   },
-
-  // ... (other methods remain the same)
   async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
     try {
       // Sanitize update object
@@ -1182,8 +1326,6 @@ deviceSchema.statics = {
       );
     }
   },
-
-  // ... (rest of the methods remain largely the same)
   async encryptKeys({ filter = {}, update = {} } = {}, next) {
     try {
       logObject("the filter", filter);
@@ -1241,7 +1383,6 @@ deviceSchema.statics = {
       );
     }
   },
-
   async remove({ filter = {} } = {}, next) {
     try {
       let options = {
