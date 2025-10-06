@@ -1033,6 +1033,7 @@ const generateFilter = {
       serial_number,
       mobility,
       authRequired,
+      deployment_type_include_legacy,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -1082,6 +1083,34 @@ const generateFilter = {
       if (boolValue !== undefined) {
         filter.visibility = boolValue;
       }
+    }
+    if (
+      deployment_type_include_legacy === true ||
+      deployment_type_include_legacy === "true"
+    ) {
+      // Create a separate clause for legacy deployment types
+      const legacyDeploymentClause = {
+        $or: [
+          { deployment_type: "static" },
+          { deployment_type: { $exists: false } },
+          { deployment_type: null },
+        ],
+      };
+
+      // If there's already an $or (e.g., from search), preserve it by using $and
+      if (filter.$or) {
+        const existingOr = filter.$or;
+        delete filter.$or;
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: existingOr });
+        filter.$and.push(legacyDeploymentClause);
+      } else {
+        // No existing $or, just add the legacy clause via $and
+        filter.$and = filter.$and || [];
+        filter.$and.push(legacyDeploymentClause);
+      }
+
+      delete filter.deployment_type;
     }
 
     if (primary !== undefined) {
