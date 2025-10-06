@@ -47,6 +47,127 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+// Add this helper function near the top of device.util.js, after the imports
+
+/**
+ * Builds the MongoDB aggregation stage for computing device_categories
+ * Single source of truth for category computation logic
+ * @returns {Object} MongoDB $addFields stage
+ */
+const getDeviceCategoriesAddFieldsStage = () => {
+  return {
+    $addFields: {
+      device_categories: {
+        primary_category: { $ifNull: ["$category", "lowcost"] },
+        deployment_category: { $ifNull: ["$deployment_type", "static"] },
+        is_mobile: {
+          $or: [
+            { $eq: ["$mobility", true] },
+            { $eq: ["$deployment_type", "mobile"] },
+          ],
+        },
+        is_static: {
+          $or: [
+            { $eq: ["$mobility", false] },
+            { $eq: ["$deployment_type", "static"] },
+          ],
+        },
+        is_lowcost: { $eq: ["$category", "lowcost"] },
+        is_bam: { $eq: ["$category", "bam"] },
+        is_gas: { $eq: ["$category", "gas"] },
+        all_categories: {
+          $concatArrays: [
+            [{ $ifNull: ["$category", "lowcost"] }],
+            [{ $ifNull: ["$deployment_type", "static"] }],
+          ],
+        },
+        category_hierarchy: [
+          {
+            level: "equipment",
+            category: { $ifNull: ["$category", "lowcost"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$category", "lowcost"] },
+                    then: "Low-cost sensor device",
+                  },
+                  {
+                    case: { $eq: ["$category", "bam"] },
+                    then: "Beta Attenuation Monitor (reference-grade)",
+                  },
+                  {
+                    case: { $eq: ["$category", "gas"] },
+                    then: "Gas sensor device",
+                  },
+                ],
+                default: "Low-cost sensor device",
+              },
+            },
+          },
+          {
+            level: "deployment",
+            category: { $ifNull: ["$deployment_type", "static"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "Mobile deployment (vehicle-mounted, grid-based)",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "Static deployment (fixed location, site-based)",
+                  },
+                ],
+                default: "Static deployment (fixed location, site-based)",
+              },
+            },
+          },
+        ],
+        category_relationships: {
+          $cond: [
+            {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
+            {
+              type: "mobile",
+              note: {
+                $concat: [
+                  "This is a mobile ",
+                  { $ifNull: ["$category", "lowcost"] },
+                  " device. Mobile devices can belong to any equipment category (lowcost, bam, or gas) and use grid-based deployment.",
+                ],
+              },
+              belongs_to_equipment_category: {
+                $ifNull: ["$category", "lowcost"],
+              },
+              deployment_method: "grid-based",
+            },
+            {
+              type: "static",
+              note: {
+                $concat: [
+                  "This is a static ",
+                  { $ifNull: ["$category", "lowcost"] },
+                  " device deployed at a fixed location using site-based deployment.",
+                ],
+              },
+              belongs_to_equipment_category: {
+                $ifNull: ["$category", "lowcost"],
+              },
+              deployment_method: "site-based",
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
 const deviceUtil = {
   getDeviceCountSummary: async (request, next) => {
     try {
@@ -697,20 +818,26 @@ const deviceUtil = {
 
       if (detailLevel === "minimal") {
         // Minimal data for performance-critical scenarios
-        pipeline.push({
-          $project: {
-            _id: 1,
-            name: 1,
-            long_name: 1,
-            status: 1,
-            isActive: 1,
-            network: 1,
-            category: 1,
-            device_number: 1,
-            createdAt: 1,
-            cached_total_activities: 1,
-          },
-        });
+        pipeline.push(
+          getDeviceCategoriesAddFieldsStage(), // Use helper
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              long_name: 1,
+              status: 1,
+              isActive: 1,
+              network: 1,
+              category: 1,
+              deployment_type: 1,
+              mobility: 1,
+              device_number: 1,
+              createdAt: 1,
+              cached_total_activities: 1,
+              device_categories: 1,
+            },
+          }
+        );
       } else if (detailLevel === "summary") {
         // Summary with essential relations and cached data
         pipeline.push(
@@ -734,6 +861,7 @@ const deviceUtil = {
               pipeline: [{ $project: { _id: 1, name: 1, admin_level: 1 } }],
             },
           },
+          getDeviceCategoriesAddFieldsStage(), // Use helper
           {
             $addFields: {
               total_activities: { $ifNull: ["$cached_total_activities", 0] },
@@ -812,66 +940,73 @@ const deviceUtil = {
 
         if (useCache === "true") {
           // Use cached activity data
-          pipeline.push({
-            $addFields: {
-              total_activities: { $ifNull: ["$cached_total_activities", 0] },
-              activities_by_type: {
-                $ifNull: ["$cached_activities_by_type", {}],
+          pipeline.push(
+            getDeviceCategoriesAddFieldsStage(), // Use helper
+            {
+              $addFields: {
+                total_activities: { $ifNull: ["$cached_total_activities", 0] },
+                activities_by_type: {
+                  $ifNull: ["$cached_activities_by_type", {}],
+                },
+                latest_activities_by_type: {
+                  $ifNull: ["$cached_latest_activities_by_type", {}],
+                },
+                latest_deployment_activity:
+                  "$cached_latest_deployment_activity",
+                latest_maintenance_activity:
+                  "$cached_latest_maintenance_activity",
+                latest_recall_activity: "$cached_latest_recall_activity",
               },
-              latest_activities_by_type: {
-                $ifNull: ["$cached_latest_activities_by_type", {}],
-              },
-              latest_deployment_activity: "$cached_latest_deployment_activity",
-              latest_maintenance_activity:
-                "$cached_latest_maintenance_activity",
-              latest_recall_activity: "$cached_latest_recall_activity",
-            },
-          });
+            }
+          );
         } else {
           // Real-time activity aggregation (expensive)
-          pipeline.push({
-            $lookup: {
-              from: activitiesColl,
-              let: { deviceName: "$name", deviceId: "$_id" },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                        {
-                          $eq: [
-                            { $toString: "$device_id" },
-                            { $toString: "$$deviceId" },
-                          ],
-                        },
-                      ],
+          pipeline.push(
+            {
+              $lookup: {
+                from: activitiesColl,
+                let: { deviceName: "$name", deviceId: "$_id" },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                          {
+                            $eq: [
+                              { $toString: "$device_id" },
+                              { $toString: "$$deviceId" },
+                            ],
+                          },
+                        ],
+                      },
                     },
                   },
-                },
-                { $sort: { createdAt: -1 } },
-                {
-                  $project: {
-                    _id: 1,
-                    site_id: 1,
-                    device_id: 1,
-                    device: 1,
-                    activityType: 1,
-                    maintenanceType: 1,
-                    recallType: 1,
-                    date: 1,
-                    description: 1,
-                    nextMaintenance: 1,
-                    createdAt: 1,
-                    tags: 1,
+                  { $sort: { createdAt: -1 } },
+                  {
+                    $project: {
+                      _id: 1,
+                      site_id: 1,
+                      device_id: 1,
+                      device: 1,
+                      activityType: 1,
+                      maintenanceType: 1,
+                      recallType: 1,
+                      date: 1,
+                      description: 1,
+                      nextMaintenance: 1,
+                      createdAt: 1,
+                      tags: 1,
+                    },
                   },
-                },
-                { $limit: maxActivities },
-              ],
-              as: "activities",
+                  { $limit: maxActivities },
+                ],
+                as: "activities",
+              },
             },
-          });
+            getDeviceCategoriesAddFieldsStage() // Use helper
+          );
         }
         pipeline.push({ $project: constants.DEVICES_INCLUSION_PROJECTION });
         pipeline.push({
@@ -3150,4 +3285,7 @@ const deviceUtil = {
   },
 };
 
-module.exports = deviceUtil;
+module.exports = {
+  ...deviceUtil,
+  getDeviceCategoriesAddFieldsStage,
+};

@@ -212,6 +212,15 @@ router.get(
   deviceController.listMobile
 );
 
+// LIST STATIC DEVICES
+router.get(
+  "/static",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listStatic
+);
+
 // LIST LOWCOST DEVICES
 router.get(
   "/lowcost",
