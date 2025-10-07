@@ -202,7 +202,6 @@ try {
   console.log("ℹ️  Attempting to start job with default behavior...");
   try {
     require("@bin/jobs/precompute-activities-job");
-    console.log("✅ precompute-activities-job started (fallback)");
   } catch (jobError) {
     console.error(`❌ Job failed to start: ${jobError.message}`);
     // Continue - server stays up
