@@ -244,7 +244,8 @@ def cache_devices_data():
 def compute_store_devices_metadata():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_compute_devices_metadata() -> pd.DataFrame:
-        return MetaDataUtils.compute_device_site_metadata(
+        metadata_utils = MetaDataUtils()
+        return metadata_utils.compute_device_site_metadata(
             DataType.AVERAGED,
             DeviceCategory.LOWCOST,
             MetaDataType.DEVICES,
@@ -283,7 +284,8 @@ def compute_store_devices_metadata():
 def compute_store_devices_metadata_monthly():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_compute_devices_metadata() -> pd.DataFrame:
-        return MetaDataUtils.compute_device_site_metadata(
+        metadata_utils = MetaDataUtils()
+        return metadata_utils.compute_device_site_metadata(
             DataType.AVERAGED,
             DeviceCategory.LOWCOST,
             MetaDataType.DEVICES,
