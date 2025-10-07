@@ -25,6 +25,10 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+const BACK_FILL_BATCH_SIZE = 1000;
+const UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE = 50;
+const FETCH_DEVICES_WITH_ACTIVITIES_LIMIT = 100;
+
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -2184,7 +2188,7 @@ const createActivity = {
       // Build filter for activities without device_id but WITH a valid device name
       const filter = {
         $or: [{ device_id: null }, { device_id: { $exists: false } }],
-        device: { $exists: true, $nin: [null, ""] }, // Fix: Use $nin instead of duplicate $ne
+        device: { $exists: true, $nin: [null, ""] },
       };
 
       // Get total count for reporting
@@ -2317,9 +2321,9 @@ const createActivity = {
         );
 
         // Safety check: prevent infinite loops
-        if (batchNumber > 10000) {
+        if (batchNumber > BACK_FILL_BATCH_SIZE) {
           logger.warn(
-            "Safety limit reached (10000 batches), stopping backfill"
+            `Safety limit reached (${BACK_FILL_BATCH_SIZE} batches), stopping backfill`
           );
           break;
         }
@@ -2335,7 +2339,10 @@ const createActivity = {
         );
 
         // Update cache for devices (limit to first 50 to avoid timeout)
-        const devicesToUpdate = updatedDeviceNames.slice(0, 50);
+        const devicesToUpdate = updatedDeviceNames.slice(
+          0,
+          UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
+        );
 
         Promise.all(
           devicesToUpdate.map(async (deviceName) => {
@@ -2386,7 +2393,7 @@ const createActivity = {
             [...deviceCache.keys()].filter(
               (name) => deviceCache.get(name) !== null
             ).length,
-            50
+            UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
           ),
         },
         status: httpStatus.OK,
@@ -2463,7 +2470,7 @@ const createActivity = {
         // Get all devices with activities
         const devicesWithActivities = await DeviceModel(tenant)
           .find({ cached_total_activities: { $gte: 0 } })
-          .limit(100) // Safety limit
+          .limit(FETCH_DEVICES_WITH_ACTIVITIES_LIMIT) // Safety limit
           .lean();
 
         for (const device of devicesWithActivities) {
