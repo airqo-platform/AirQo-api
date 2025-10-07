@@ -1253,11 +1253,10 @@ const createCohort = {
         limit,
         skip,
         activities_limit,
-        category,
         sortBy,
         order,
       } = request.query;
-      const { cohort_ids } = request.body;
+      const { cohort_ids, category } = { ...request.body, ...request.query };
 
       // Pagination and activities controls
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
@@ -1283,7 +1282,7 @@ const createCohort = {
 
       // Add category filter if provided
       if (category) {
-        const validCategories = ["lowcost", "bam", "gas"];
+        const validCategories = constants.DEVICE_FILTER_TYPES;
         if (!validCategories.includes(category.toLowerCase())) {
           return {
             success: false,
@@ -1294,7 +1293,13 @@ const createCohort = {
             },
           };
         }
-        filter.category = category.toLowerCase();
+        if (category.toLowerCase() === "mobile") {
+          filter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          filter.$or = [{ mobility: { $exists: false } }, { mobility: false }];
+        } else {
+          filter.category = category.toLowerCase();
+        }
       }
 
       // Get total count for pagination metadata before applying limit and skip
@@ -1618,8 +1623,8 @@ const createCohort = {
   },
   listSites: async (request, next) => {
     try {
-      const { tenant, limit, skip, category, sortBy, order } = request.query;
-      const { cohort_ids } = request.body;
+      const { tenant, limit, skip, sortBy, order } = request.query;
+      const { cohort_ids, category } = { ...request.body, ...request.query };
 
       // Pagination controls
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
@@ -1639,7 +1644,7 @@ const createCohort = {
 
       // Add category filter if provided
       if (category) {
-        const validCategories = ["lowcost", "bam", "gas"];
+        const validCategories = constants.DEVICE_FILTER_TYPES;
         if (!validCategories.includes(category.toLowerCase())) {
           return {
             success: false,
@@ -1650,7 +1655,16 @@ const createCohort = {
             },
           };
         }
-        deviceFilter.category = category.toLowerCase();
+        if (category.toLowerCase() === "mobile") {
+          deviceFilter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          deviceFilter.$or = [
+            { mobility: { $exists: false } },
+            { mobility: false },
+          ];
+        } else {
+          deviceFilter.category = category.toLowerCase();
+        }
       }
 
       // Find all devices belonging to the provided cohorts (with optional category filter)

@@ -611,8 +611,6 @@ const startJob = () => {
         }
       },
     };
-
-    console.log(`✅ ${JOB_NAME} started with non-blocking patterns`);
   } catch (error) {
     logger.error(`💥 Failed to initialize ${JOB_NAME}: ${error.message}`);
   }

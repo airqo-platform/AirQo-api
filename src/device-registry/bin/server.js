@@ -175,13 +175,51 @@ require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
-if (constants.PRECOMPUTE_ACTIVITIES_JOB_ENABLED) {
+
+// Defensively load precompute activities job
+// Default behavior: ENABLED (runs unless explicitly disabled)
+try {
+  // Helper function to normalize flag values to boolean
+  const normalizeFlag = (value) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const lower = value.toLowerCase().trim();
+      return lower !== "false" && lower !== "0" && lower !== "";
+    }
+    return !!value; // Coerce other types to boolean
+  };
+
+  // Check constants first, then fall back to env var
+  let isEnabled;
+  if (constants?.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== undefined) {
+    isEnabled = normalizeFlag(constants.PRECOMPUTE_ACTIVITIES_JOB_ENABLED);
+  } else {
+    isEnabled = normalizeFlag(
+      process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED ?? true
+    );
+  }
+
+  if (isEnabled) {
+    try {
+      require("@bin/jobs/precompute-activities-job");
+    } catch (jobError) {
+      global.dedupLogger.error(
+        `❌ precompute-activities-job failed: ${jobError.message}`
+      );
+      // Continue - don't crash the server
+    }
+  } else {
+    logger.info("ℹ️  precompute-activities-job disabled");
+  }
+} catch (error) {
+  // Ultimate fallback - if everything fails, try to run the job anyway
+  console.warn(`⚠️  Error checking job config: ${error.message}`);
+  console.log("ℹ️  Attempting to start job with default behavior...");
   try {
     require("@bin/jobs/precompute-activities-job");
-  } catch (err) {
-    global.dedupLogger.error(
-      `Failed to start precompute-activities-job: ${err.message}`
-    );
+  } catch (jobError) {
+    console.error(`❌ Job failed to start: ${jobError.message}`);
+    // Continue - server stays up
   }
 }
 

@@ -177,7 +177,7 @@ const createMailerFunction = (
         "fieldActivity",
         "existingUserAccessRequest",
         "clientActivationRequest",
-        // "existingUserRegistrationRequest",
+        "existingUserRegistrationRequest",
       ].includes(functionName);
 
       if (shouldProcessBcc) {
