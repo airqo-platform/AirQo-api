@@ -108,7 +108,7 @@ jobs:
             if [[ $file == k8s/device-registry/* ]]; then
               echo "run_device_registry=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == src/beacon-api/* ]]; then
               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
             fi
@@ -352,6 +352,12 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/auth-service/
@@ -490,6 +496,12 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/device-registry/
@@ -548,6 +560,12 @@ jobs:
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Update the corresponding k8s configmap(s)
         run: |
@@ -639,6 +657,12 @@ jobs:
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Update the corresponding k8s configmap(s)
         run: |
@@ -780,6 +804,12 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/meta-data/
@@ -844,6 +874,12 @@ jobs:
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Update the corresponding k8s configmap(s)
         run: |
@@ -921,6 +957,12 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/calibrate/
@@ -965,6 +1007,7 @@ jobs:
           context: src/predict/api
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:latest
+
       - name: Build and push predict places image
         uses: docker/build-push-action@v3
         with:
@@ -991,6 +1034,12 @@ jobs:
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Update the corresponding k8s configmap(s)
         run: |
@@ -1041,6 +1090,12 @@ jobs:
 
       - name: Setup gcloud CLI
         uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Update the corresponding k8s configmap(s) for Superset (e.g., credentials, secrets)
         run: |
@@ -1153,6 +1208,12 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/spatial/
@@ -1235,6 +1296,12 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/website/
@@ -1271,4 +1338,4 @@ jobs:
           echo "Deploying Redis to production..."
           helm upgrade --install redis k8s/redis \
             --namespace production \
-            --values k8s/redis/values-prod.yaml \
+            --values k8s/redis/values-prod.yaml
