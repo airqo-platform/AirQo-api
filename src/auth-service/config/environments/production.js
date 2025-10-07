@@ -15,7 +15,7 @@ const prodConfig = {
   MONGO_URI: process.env.MONGO_PROD_URI,
   COMMAND_MONGO_URI: process.env.COMMAND_MONGO_PROD_URI,
   QUERY_MONGO_URI: process.env.QUERY_MONGO_PROD_URI,
-  DB_NAME: process.env.MONGO_PROD,
+  DB_NAME: process.env.MONGO_PROD || "auth_prod",
   PWD_RESET: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`,
