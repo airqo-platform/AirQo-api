@@ -45,25 +45,28 @@ class DataUtils:
         preferred_source: Optional[str] = "cache",
     ) -> pd.DataFrame:
         """
-        Retrieve devices data and associated keys for a given device network and category.
+        Retrieve devices data for specified device network and category.
 
-        This function attempts to load devices data from a cached CSV file located at a predetermined
-        local path. If cached data is available, missing values in the "device_number" column are filled
-        with -1. If the cache is empty, the function fetches devices data and corresponding keys via the
-        API. If both the cache and the API fail to return any devices data, a RuntimeError is raised.
+        Attempts to load devices data from either cached CSV file or API. The function
+        prioritizes cached data for performance, falling back to API if cache is unavailable.
+        In production environment, only deployed devices are returned.
 
         Args:
-            device_network (DeviceNetwork): The device network for which devices data is required.
-            device_category (DeviceCategory): The category of devices to filter the retrieved data.
-            preferred_source (str, optional): Preferred source for fetching devices data. Defaults to "cache". Other option is "api".
+            device_category (Optional[DeviceCategory]): Category of devices to filter by. If None, returns all categories.
+            device_network (Optional[DeviceNetwork]): Network of devices to filter by. If None, returns all networks.
+            preferred_source (Optional[str]): Data source preference. Defaults to "cache". Options: "cache", "api".
 
         Returns:
-            Tuple[pd.DataFrame, Dict]: A tuple where:
-                - The first element is a pandas DataFrame containing the devices data.
-                - The second element is a dictionary mapping device numbers to their corresponding keys.
+            pd.DataFrame: DataFrame containing device information including device_number,
+                         network, device_category, deployed status, and other metadata.
+                         Empty DataFrame if no devices match the criteria.
 
         Raises:
-            RuntimeError: If devices data cannot be obtained from either the cache or the API.
+            RuntimeError: If devices data cannot be obtained from either cache or API.
+
+        Note:
+            In production environment, automatically filters to deployed=True devices only.
+            Device numbers with missing values are filled with -1 in cached data.
         """
         # TODO: Add bigquery as a source of devices as a 3rd option and also centralize any device cleaning logic
         # There might be some repeated devices data cleaning/column renaming/normalization logic in other places
@@ -103,8 +106,24 @@ class DataUtils:
 
         return devices
 
+    @staticmethod
     def _load_devices_from_cache(file_path: str) -> pd.DataFrame:
-        """Loads devices data from the local cache."""
+        """
+        Load devices data from local cache file.
+
+        Attempts to read devices data from the specified cache file path.
+        Handles various file-related exceptions gracefully with appropriate logging.
+
+        Args:
+            file_path (str): Path to the cached devices CSV file
+
+        Returns:
+            pd.DataFrame: Loaded devices data or empty DataFrame if loading fails
+
+        Note:
+            Logs informational messages for common issues like missing files or empty data.
+            Uses MetaDataType.DEVICES.str for data loading configuration.
+        """
         devices: pd.DataFrame = pd.DataFrame()
         try:
             devices = DataUtils.load_cached_data(file_path, MetaDataType.DEVICES.str)
@@ -116,12 +135,30 @@ class DataUtils:
             logger.exception(f"Error loading devices from cache: {e}")
         return devices
 
+    @staticmethod
     def _process_cached_devices(
         devices: pd.DataFrame,
         device_category: Optional[DeviceCategory] = None,
         device_network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
-        """Processes the DataFrame loaded from the cache."""
+        """
+        Process and filter cached devices data.
+
+        Cleans device_number column by filling missing values with -1 and converting
+        to integer type. Applies optional filtering by device category and network.
+
+        Args:
+            devices (pd.DataFrame): Raw devices DataFrame from cache
+            device_category (Optional[DeviceCategory]): Category filter to apply
+            device_network (Optional[DeviceNetwork]): Network filter to apply
+
+        Returns:
+            pd.DataFrame: Processed and filtered devices DataFrame with clean device_number
+                         column and applied filters.
+
+        Note:
+            Missing device numbers are standardized to -1 before conversion to int type.
+        """
 
         devices["device_number"] = devices["device_number"].fillna(-1).astype(int)
 
@@ -133,8 +170,25 @@ class DataUtils:
 
         return devices
 
-    def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict:
-        """Extracts and match device numbers and keys from file."""
+    @staticmethod
+    def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict[int, str]:
+        """
+        Extract device number to key mapping from devices DataFrame.
+
+        Creates a dictionary mapping device numbers to their corresponding keys
+        for devices in the specified network. Used for device authentication
+        and identification purposes.
+
+        Args:
+            devices (pd.DataFrame): Devices DataFrame containing device_number and key columns
+            network (DeviceNetwork): Network to filter devices by
+
+        Returns:
+            Dict[int, str]: Mapping of device numbers to their corresponding keys for devices in the specified network.
+
+        Note:
+            Only processes devices that belong to the specified network.
+        """
         keys = dict(
             zip(
                 devices.loc[devices.network == network.str, "device_number"].to_numpy(),
@@ -149,17 +203,28 @@ class DataUtils:
         preferred_source: Optional[str] = "cache",
     ) -> pd.DataFrame:
         """
-        Retrieve sites data.
+        Retrieve monitoring sites data for specified network.
 
-        This function attempts to load sites data from a cached CSV file located at a predetermined
-        local path. If the cache is empty, the function tries to fetche sites data via the API.
-        If both the cache and the API fail to return any sites data, a RuntimeError is raised.
+        Attempts to load sites data from cached CSV file or API. Prioritizes
+        cached data for performance, falling back to API if cache is unavailable.
+        Sites can be filtered by network if specified.
+
+        Args:
+            network (Optional[DeviceNetwork]): Network to filter sites by.
+                                             If None, returns sites from all networks.
+            preferred_source (Optional[str]): Data source preference. Defaults to "cache".
+                                             Options: "cache", "api".
 
         Returns:
-            sites(pd.DataFrame):A pandas DataFrame containing the sites data.
+            pd.DataFrame: DataFrame containing site information including site_id,
+                         network, location coordinates, and other site metadata.
+                         Empty DataFrame if no sites match the criteria.
 
         Raises:
-            RuntimeError: If sites data cannot be obtained from either the cache or the API.
+            RuntimeError: If sites data cannot be obtained from either cache or API.
+
+        Note:
+            Uses local cache at /tmp/sites.csv for performance optimization.
         """
         local_file_path = "/tmp/sites.csv"
         sites: pd.DataFrame = pd.DataFrame()
@@ -191,18 +256,18 @@ class DataUtils:
         """
         Fetch all site metadata from the external API.
 
-        This function:
-            - Calls the `DataApi.get_sites()` endpoint to retrieve site information.
-            - Converts the API response into a pandas DataFrame.
-            - Logs an exception and returns an empty DataFrame if the API call fails.
+        Retrieves site information from the DataApi endpoint and converts the response
+        into a normalized pandas DataFrame. Applies site metadata normalization and
+        handles API failures gracefully.
 
         Returns:
-            pd.DataFrame
-                A DataFrame containing site metadata fetched from the API.
-                Returns an empty DataFrame if the API request fails or no data is available.
+            pd.DataFrame: DataFrame containing site metadata including site_id, network,
+                         coordinates, names, and other site attributes. Returns empty
+                         DataFrame if API call fails.
 
-        Raises:
-            Logs exceptions internally and does not propagate errors.
+        Note:
+            Logs exceptions internally without propagating errors. Uses
+            sites_metadata_normalizer() for data standardization.
         """
         data_api: DataApi = DataApi()
         sites_data: pd.DataFrame = pd.DataFrame()
@@ -225,16 +290,29 @@ class DataUtils:
         device_ids: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
-        Extracts sensor measurements from network devices recorded between specified date and time ranges.
+        Extract sensor measurements from network devices for specified time range.
 
-        Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
-        Optionally filters data by specific device numbers and removes outliers if requested.
+        Retrieves air quality measurements from ThingSpeak API for devices in the specified
+        category. Supports filtering by device IDs and handles mobile device categorization.
+        Uses parallel processing for efficient data extraction from multiple devices.
 
         Args:
-            start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
-            end_date_time (str): End date and time (ISO 8601 format) for data extraction.
-            device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
-            device_ids(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
+            start_date_time (str): Start date and time in ISO 8601 format
+            end_date_time (str): End date and time in ISO 8601 format
+            device_category (DeviceCategory): Category of devices (BAM, LOWCOST, or MOBILE)
+            device_network (Optional[DeviceNetwork]): Network filter for devices
+            resolution (Frequency): Data frequency/resolution. Defaults to RAW.
+            device_ids (Optional[List[str]]): Specific device IDs to extract. If None,
+                                            extracts from all devices in category.
+
+        Returns:
+            pd.DataFrame: Combined measurements DataFrame from all specified devices.
+                         Includes timestamp, device metadata, and sensor readings.
+                         Empty DataFrame if no data found.
+
+        Note:
+            MOBILE category is internally mapped to LOWCOST devices with mobility=True
+            and mount_type='vehicle'. Uses ThreadPoolExecutor for parallel processing.
         """
         # Temporary fix for mobile devices - TODO: Fix after requirements review
         is_mobile_category = device_category == DeviceCategory.MOBILE
@@ -292,28 +370,33 @@ class DataUtils:
             # ]
         return devices_data
 
+    @staticmethod
     def __per_device_data(
         device: Dict[str, Any],
         dates: List[str],
         config: Dict[str, Any],
         resolution: Frequency,
-    ):
+    ) -> Optional[pd.DataFrame]:
         """
-        Fetches, processes, and returns device-specific data for a given date range.
+        Fetch and process data for a single device across specified dates.
 
-        This method performs the following steps:
-        1. Extracts raw data and metadata for the given device using the provided configuration and date range.
-        2. If data is returned and valid, it is processed and enriched.
-        3. Returns the processed DataFrame or None if no valid data was available.
+        Extracts raw data from device API, processes it according to the provided
+        configuration, and enriches it with metadata. Used internally by
+        extract_devices_data() for parallel processing of multiple devices.
 
         Args:
-            device(Dict[str, Any]): Device information (must include identifiers used in extraction).
-            dates(List[str]): List of date strings to extract data for.
-            config(Dict[str, Any]): Configuration parameters for data extraction and processing.
-            resolution(Frequency): Data resolution or granularity (e.g., hourly, daily).
+            device (Dict[str, Any]): Device metadata including identifiers and configuration
+            dates (List[str]): List of date strings for data extraction period
+            config (Dict[str, Any]): Device category configuration parameters
+            resolution (Frequency): Data granularity (RAW, HOURLY, DAILY, etc.)
 
         Returns:
-            Optional[pd.DataFrame]: Processed device data as a DataFrame, or None if no data was returned.
+            Optional[pd.DataFrame]: Processed device data with metadata enrichment.
+                                   None if no valid data available for the device.
+
+        Note:
+            This is a private method used internally for parallel device processing.
+            Handles data extraction, processing, and metadata enrichment in sequence.
         """
         data, meta_data = DataUtils._extract_device_api_data(
             device, dates, config, resolution
@@ -338,25 +421,29 @@ class DataUtils:
         frequency: Optional[Frequency] = Frequency.WEEKLY,
     ) -> pd.DataFrame:
         """
-        Computes metadata for devices or sites based on the specified parameters.
+        Compute metadata for devices or sites within a maintenance-based time window.
 
-        This method retrieves and processes metadata for a given device or site, using the provided table, unique identifier, and column.
-        It calculates the metadata within a 30-day window starting from the most recent maintenance or offset date.
+        Calculates metadata for a specific device or site by querying BigQuery within
+        a 30-day window from the most recent maintenance or offset date. Used for
+        data quality assessment and device performance monitoring.
 
         Args:
-            table(str): The BigQuery table to query for metadata.
-            unique_id(str): The unique identifier for the entity (e.g., "device_id" or "site_id").
-            entity(Dict[str, Any]): A dictionary containing entity details, including:
-                - "device_maintenance" (str): The last maintenance date.
-                - "next_offset_date" (str): The previous offset date.
-                - The unique identifier (e.g., "device_id" or "site_id").
-            column(str): The column to compute metadata for (e.g., pollutant type).
-            frequency(Optional[Frequency], default=Frequency.WEEKLY): The frequency for metadata computation. Defaults to weekly.
+            table (str): BigQuery table name to query for metadata
+            unique_id (str): Unique identifier column name (e.g., "device_id", "site_id")
+            entity (Dict[str, Any]): Entity details containing:
+                                   - device_maintenance: Last maintenance date
+                                   - next_offset_date: Previous offset date
+                                   - Unique identifier value
+            column (Dict[str, Any]): Column configuration for metadata computation
+            frequency (Optional[Frequency]): Computation frequency. Defaults to WEEKLY.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the computed metadata. If the end date is in the future, an empty DataFrame is returned.
+            pd.DataFrame: Computed metadata DataFrame. Returns empty DataFrame if
+                         end date is in the future or no data available.
 
-        Note: Supported frequencies are: weekly, monthly, yearly. For other frequencies, this method may return empty or incorrect data.
+        Note:
+            Supports weekly, monthly, and yearly frequencies. Uses 30-day window
+            from maintenance/offset date for calculation period.
         """
         device_maintenance = entity.get("device_maintenance", None)
         if device_maintenance is None or pd.isna(device_maintenance):
@@ -406,7 +493,29 @@ class DataUtils:
 
     @staticmethod
     def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
-        """Download and load the cached CSV from GCS if available."""
+        """
+        Download and load cached CSV data from Google Cloud Storage.
+
+        Attempts to download the specified cached file from GCS and load it as
+        a pandas DataFrame. If the local file doesn't exist, downloads from GCS.
+        Handles file loading with appropriate error handling and logging.
+
+        Args:
+            local_file_path (str): Local file system path for the cached file
+            file_name (str): Name of the file in GCS bucket (used for download)
+
+        Returns:
+            pd.DataFrame: Loaded cached data. Returns empty DataFrame if
+                         file doesn't exist or loading fails.
+
+        Raises:
+            FileNotFoundError: If neither local cache nor GCS file exists
+            Exception: For other file loading or download errors
+
+        Note:
+            Downloads from GCS only if local cache file is not available.
+            Uses download_file_from_gcs() utility for GCS operations.
+        """
         try:
             file = Path(local_file_path)
             if not file.exists() or file.stat().st_size == 0:
@@ -424,22 +533,23 @@ class DataUtils:
 
     @staticmethod
     def fetch_devices_from_api() -> pd.DataFrame:
-        """Fetch devices from the external device registry API.
+        """
+        Fetch device metadata from the external device registry API.
 
-        This method:
-            - Retrieves a list of devices from the API using the provided `device_network` and `device_category`.
-            - Converts the response into a pandas DataFrame.
-            - Ensures that any missing `device_number` values are filled with `-1`.
-            - Fetches associated read keys for the filtered devices.
-            - Returns both the complete devices DataFrame and a dictionary of read keys.
-
-        If the API request or processing fails, it logs the exception and returns an empty DataFrame and an empty dictionary.
+        Retrieves comprehensive device information from the DataApi endpoint and
+        converts it to a normalized pandas DataFrame. Fills missing device_number
+        values with -1 for consistency.
 
         Returns:
-            pd.DataFrame: pandas DataFrame containing device metadata. Always includes a `device_number` column with missing values filled as `-1`.
+            pd.DataFrame: DataFrame containing device metadata including device_id,
+                         device_number, network, device_category, deployed status,
+                         and other device attributes. Returns empty DataFrame if
+                         API call fails.
 
-        Raises:
-            Logs exceptions internally and returns empty outputs rather than propagating errors.
+        Note:
+            Logs exceptions internally without propagating errors. Ensures device_number
+            consistency by filling missing values with -1. Used as fallback when
+            cached device data is unavailable.
         """
         data_api: DataApi = DataApi()
         devices: pd.DataFrame = pd.DataFrame()
@@ -465,19 +575,23 @@ class DataUtils:
     @staticmethod
     def device_metadata_normalizer(devices: pd.DataFrame) -> None:
         """
-        Normalize and clean device metadata DataFrame.
+        Normalize and clean device metadata DataFrame in-place.
 
-        This function performs the following operations on the input devices DataFrame:
-        - Renames columns to standardize naming conventions.
-        - Converts specific columns to appropriate data types (e.g., boolean, integer).
-        - Parses string representations of lists into actual list objects.
-        - Fills missing values in the `device_number` column with `-1` and ensures it is of integer type.
-        - Removes duplicate entries based on the `device_id` column, keeping the first occurrence.
+        Standardizes device metadata by renaming columns, converting data types,
+        and cleaning values. Handles status mapping, type conversions, and
+        removes duplicates to ensure consistent device data structure.
 
         Args:
-            devices(pd.DataFrame): A pandas DataFrame containing raw device metadata.
+            devices(pd.DataFrame): Raw device metadata DataFrame to normalize
+
         Returns:
-            pd.DataFrame: A cleaned and normalized DataFrame with standardized column names and types.
+            None: Modifies the DataFrame in-place
+
+        Note:
+            - Maps status values: "deployed"->True, "not deployed"/"recalled"->False
+            - Renames columns to snake_case convention
+            - Removes duplicates based on device_id column
+            - Modifies the original DataFrame rather than returning a new one
         """
         devices.rename(
             columns={
@@ -500,18 +614,23 @@ class DataUtils:
     @staticmethod
     def sites_metadata_normalizer(sites: pd.DataFrame) -> None:
         """
-        Normalize and clean site metadata DataFrame.
+        Normalize and clean site metadata DataFrame in-place.
 
-        This function performs the following operations on the input sites DataFrame:
-        - Renames columns to standardize naming conventions.
-        - Converts specific columns to appropriate data types (e.g., boolean, integer).
-        - Parses string representations of lists into actual list objects.
-        - Removes duplicate entries based on the `site_id` column, keeping the first occurrence.
+        Standardizes site metadata by renaming columns to snake_case convention,
+        converting data types, parsing list fields, and removing duplicates.
+        Ensures consistent site data structure across the application.
 
         Args:
-            sites(pd.DataFrame): A pandas DataFrame containing raw site metadata.
+            sites (pd.DataFrame): Raw site metadata DataFrame to normalize
+
         Returns:
-            None.
+            None: Modifies the DataFrame in-place
+
+        Note:
+            - Renames columns to snake_case convention (e.g., createdAt -> created_at)
+            - Parses string representations of lists into actual list objects
+            - Removes duplicate entries based on site_id column
+            - Modifies the original DataFrame rather than returning a new one
         """
         sites.rename(
             columns={
@@ -525,51 +644,37 @@ class DataUtils:
         if "id" in sites.columns:
             sites.drop_duplicates(subset=["id"], keep="first", inplace=True)
 
+    @staticmethod
     def _extract_device_api_data(
         device: pd.Series,
         dates: List[Tuple[str, str]],
         config: dict,
         resolution: Frequency,
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, dict]:
         """
-        Extract and normalize API data for a single device based on its network type.
+        Extract and normalize API data for a single device based on network type.
 
-        This function:
-        - Determines the device's network and retrieves time-series data accordingly.
-        - For `DeviceNetwork.AIRQO`, it iterates through a list of date ranges, fetches raw data using the appropriate read key, and aggregates all available API responses.
-        - For `DeviceNetwork.IQAIR`, it fetches data using the IQAir API endpoint for the given resolution.
-        - Maps the raw API response into a standardized DataFrame format using network-specific mappings.
+        Retrieves time-series data from device APIs according to the device's network
+        (AirQo ThingSpeak or IQAir). Handles network-specific data fetching patterns
+        and applies appropriate field mappings to normalize the response data.
 
         Args:
-            device(pd.Series): A pandas Series containing device metadata (e.g., `device_number`, `network`, `key`).
-            dates(List[Tuple[str, str]]): A list of (start_date, end_date) tuples specifying the time ranges for data extraction.
-            config(dict): Configuration dictionary containing:
-                        - `mapping`: a mapping of network names to their data field mapping rules.
-            resolution(Frequency): Data resolution (e.g., hourly, daily) used when querying certain networks (like `DeviceNetwork.IQAIR`).
+            device (pd.Series): Device metadata including device_number, network, and key
+            dates (List[Tuple[str, str]]): List of (start_date, end_date) tuples for data extraction
+            config (dict): Configuration with network-specific field mappings under "mapping" key
+            resolution (Frequency): Data resolution for certain networks (used by IQAir)
 
         Returns:
-            Tuple[pd.DataFrame, dict]
-                - **data**: A pandas DataFrame containing mapped and normalized API data.
-                Returns an empty DataFrame if no data is found.
-                - **meta_data**: A dictionary containing metadata returned by the API (may be empty for some networks).
+            Tuple[pd.DataFrame, dict]:
+                - Normalized DataFrame with mapped API data
+                - Metadata dictionary from API response (may be empty)
+                Returns (empty DataFrame, empty dict) if extraction fails.
 
-        Workflow:
-            1. If the device belongs to `DeviceNetwork.AIRQO`:
-                - Iterate through each date range, fetch API data, and aggregate results.
-                - If data is available, apply the mapping rules from `config["mapping"][network]`.
-            2. If the device belongs to `DeviceNetwork.IQAIR`:
-                - Fetch data via `data_source_api.iqair()`, then apply mapping rules.
-            3. If neither condition is met or an error occurs:
-                - Return `(empty DataFrame, empty dict)`.
-
-        Raises:
-            Logs exceptions internally (does not raise).
-            - If an API request fails, logs an exception with the device name and returns empty results.
-
-        Notes:
-            - Requires a valid `device_number` (non-null, non-NaN) for `DeviceNetwork.AIRQO`.
-            - Uses either `device["key"]` or a fallback key from the `keys` dictionary.
-            - Mapping logic depends on the `config["mapping"]` structure.
+        Note:
+            - AirQo devices: Iterates through date ranges, aggregates ThingSpeak responses
+            - IQAir devices: Single API call with resolution parameter
+            - Requires valid device_number for AirQo networks
+            - Logs exceptions without propagating errors
         """
         device_number = device.get("device_number")
         key = device.get("key")
@@ -612,36 +717,33 @@ class DataUtils:
                 return pd.DataFrame(), {}
         return pd.DataFrame(), {}
 
+    @staticmethod
     def _process_and_append_device_data(
         device: pd.Series, data: pd.DataFrame, meta_data: dict, config: dict
-    ) -> pd.DataFrame:
+    ) -> Optional[pd.DataFrame]:
         """
-        Process incoming API data, ensure required columns exist, and enrich it with device metadata.
+        Process and enrich device API data with metadata and required columns.
 
-        This function:
-        - Ensures all required columns are present in the DataFrame by filling missing ones.
-        - Appends device details (category, ID, site, network).
-        - Replaces latitude/longitude values of `0.0` or NaN with fallback values from the device metadata or global `meta_data`.
+        Ensures all required columns exist, enriches data with device metadata,
+        and corrects location coordinates using fallback values. Handles both
+        stationary and mobile device data processing.
 
-        Args
-            device(pd.Series): A pandas Series containing device-specific metadata (e.g., device_id, site_id, latitude).
-            data(pd.DataFrame): The raw API data for the device. Can be empty.
-            meta_data(dict): Global metadata dictionary providing fallback latitude/longitude if the device data is incomplete.
-            config(dict): Configuration dictionary with expected columns:
-                        - `field_8_cols` : list of extra required field names.
-                        - `other_fields_cols` : list of additional required field names.
+        Args:
+            device (pd.Series): Device metadata including device_id, site_id, coordinates
+            data (pd.DataFrame): Raw API data from device. Can be empty.
+            meta_data (dict): Global metadata providing fallback coordinates
+            config (dict): Configuration with required column lists:
+                          - field_8_cols: Extra required field names
+                          - other_fields_cols: Additional required field names
 
-        Returns
-            pd.DataFrame
-                A DataFrame with:
-                - Required columns ensured.
-                - Device metadata appended.
-                - Latitude/longitude corrected (0.0 or NaN replaced by fallback values).
-                Returns `None` if the input DataFrame is empty.
+        Returns:
+            Optional[pd.DataFrame]: Enriched DataFrame with device metadata and corrected
+                                   coordinates. None if input data is empty.
 
-        Notes
-            - Latitude/longitude will NOT be overwritten if valid (non-zero, non-null) values exist.
-            - If no valid fallback latitude/longitude is found in `device` or `meta_data`, the 0.0 values remain unchanged.
+        Note:
+            - Replaces 0.0 or NaN coordinates with fallback values from device/meta_data
+            - Mobile devices use device coordinates as fallback
+            - Stationary devices prefer meta_data coordinates over device coordinates
         """
         is_mobile = device.get("mobility", False)
         if data.empty:
@@ -700,25 +802,34 @@ class DataUtils:
         use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
-        Extracts data from BigQuery within a specified time range and frequency,
-        with an optional filter for the device network. The data is cleaned to remove outliers.
+        Extract air quality data from BigQuery with filtering and cleaning options.
+
+        Queries BigQuery tables for air quality measurements within specified time range
+        and applies optional filtering, aggregation, and outlier removal. Supports
+        different data types, frequencies, and device categories.
 
         Args:
-            datatype(DataType): The type of data to extract determined by the source data asset.
-            start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
-            end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
-            frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
-            device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
-            dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
-            remove_outliers(bool, optional): If True, removes outliers from the extracted data. Defaults to True.
-            data_filter(Dict, optional): A column filter with it's values i.e {"device_id":["aq_001", "aq_002"]}
-            use_cach(bool, optional): Use biqquery cache
+            datatype (DataType): Type of data to extract from source asset
+            start_date_time (str): Start of time range in ISO 8601 format
+            end_date_time (str): End of time range in ISO 8601 format
+            frequency (Frequency): Data frequency (RAW, HOURLY, etc.)
+            device_category (DeviceCategory): Category of devices to query
+            device_network (Optional[DeviceNetwork]): Network filter for devices
+            dynamic_query (Optional[bool]): If True, returns aggregated data grouped
+                                          by device identifiers. Defaults to False.
+            remove_outliers (Optional[bool]): Whether to remove outliers. Defaults to True.
+            data_filter (Optional[Dict[str, Any]]): Column filters e.g. {"device_id": ["aq_001"]}
+            use_cache (Optional[bool]): Whether to use BigQuery cache. Defaults to False.
 
         Returns:
-            pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
+            pd.DataFrame: Cleaned DataFrame containing air quality data. Returns empty
+                         DataFrame if no data found or extraction fails.
 
         Raises:
-            ValueError: If the frequency is unsupported or no table is associated with it.
+            ValueError: If frequency is unsupported or no table mapping found.
+
+        Note:
+            LOWCOST category is automatically mapped to GENERAL category for table lookup.
         """
         bigquery_api = BigQueryApi()
         table: str = None
@@ -795,14 +906,24 @@ class DataUtils:
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         """
-        Extracts PurpleAir sensor data for all NASA network devices between specified datetime ranges.
+        Extract PurpleAir sensor data from NASA network devices for specified time range.
+
+        Queries PurpleAir sensors deployed in the NASA network to collect air quality
+        measurements. Enriches the data with device metadata including location
+        coordinates and device identifiers.
 
         Args:
-            start_date_time(str): The start datetime in ISO 8601 format.
-            end_date_time(str): The end datetime in ISO 8601 format.
+            start_date_time (str): Start datetime in ISO 8601 format
+            end_date_time (str): End datetime in ISO 8601 format
 
         Returns:
-            pd.DataFrame: A DataFrame containing aggregated sensor readings along with metadata (device number, location, and ID).
+            pd.DataFrame: Combined DataFrame containing sensor readings with metadata
+                         (device_number, device_id, latitude, longitude). Returns
+                         empty DataFrame if no data available for the time range.
+
+        Note:
+            Uses DataSource.PURPLE_AIR for date range splitting and processes
+            data from all NASA network devices in parallel queries.
         """
         all_data: List[Any] = []
         devices = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
@@ -841,15 +962,24 @@ class DataUtils:
         start_date_time: str, end_date_time: str, device_number: int
     ) -> pd.DataFrame:
         """
-        Queries the PurpleAir API for a specific sensor and time range.
+        Query PurpleAir API for specific sensor data within time range.
+
+        Retrieves air quality measurements from a specific PurpleAir sensor
+        using the DataApi interface. Converts the API response into a
+        standardized pandas DataFrame format.
 
         Args:
-            start_date_time (str): The start datetime in ISO 8601 format.
-            end_date_time (str): The end datetime in ISO 8601 format.
-            device_number (int): The PurpleAir sensor ID to query.
+            start_date_time (str): Start datetime in ISO 8601 format
+            end_date_time (str): End datetime in ISO 8601 format
+            device_number (int): PurpleAir sensor ID to query
 
         Returns:
-            pd.DataFrame: A DataFrame with the queried data. Returns an empty DataFrame if no data is found.
+            pd.DataFrame: DataFrame with sensor measurements using API response
+                         fields as columns. Returns empty DataFrame if no data found.
+
+        Note:
+            Response format includes 'fields' (column names) and 'data' (measurements)
+            which are converted into a structured DataFrame.
         """
         data_api = DataApi()
         response = data_api.extract_purpleair_data(
@@ -869,27 +999,30 @@ class DataUtils:
         timestamp_col: str,
         id_col: str,
         group_col: str,
-        exclude_cols: Optional[list] = None,
+        exclude_cols: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
-        Removes duplicate rows from a pandas DataFrame based on unique identifiers while
-        ensuring missing values are filled and non-duplicated data is retained.
+        Remove duplicate rows and fill missing values using intelligent grouping.
 
-        Steps:
-        1. Drops rows where all non-essential columns (excluding specified columns) are NaN.
-        2. Identifies duplicate rows based on the provided ID and timestamp columns.
-        3. Fills missing values for duplicates within each group using forward and backward filling.
-        4. Retains only the first occurrence of duplicates.
+        Identifies and handles duplicate records based on ID and timestamp columns.
+        For duplicates, fills missing values using forward/backward filling within
+        groups, then retains only the first occurrence. Non-essential NaN rows are dropped.
 
         Args:
-            data(pd.DataFrame): The input DataFrame.
-            timestamp_col(str): The name of the column containing timestamps.
-            id_col(str): The name of the column used for identifying duplicates (e.g., 'device_id' or 'station_code').
-            group_col(str): The name of the column to group by for filling missing values (e.g., 'site_id' or 'station_code').
-            exclude_cols(list, optional): A list of columns to exclude from forward and backward filling.
+            data (pd.DataFrame): Input DataFrame to process
+            timestamp_col (str): Column name containing timestamps for duplicate detection
+            id_col (str): Column name for identifying duplicates (e.g., 'device_id')
+            group_col (str): Column name for grouping during value filling (e.g., 'site_id')
+            exclude_cols (Optional[List[str]]): Columns to exclude from forward/backward filling
 
         Returns:
-            pd.DataFrame: A cleaned DataFrame with duplicates handled and missing values filled.
+            pd.DataFrame: Cleaned DataFrame with duplicates removed and missing values filled
+                         intelligently within groups.
+
+        Note:
+            - Drops rows where all non-essential columns are NaN
+            - Uses forward and backward filling within groups for duplicates
+            - Preserves first occurrence of duplicate records after filling
         """
         data[timestamp_col] = pd.to_datetime(data[timestamp_col])
 

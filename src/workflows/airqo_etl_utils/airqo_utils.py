@@ -36,8 +36,7 @@ class AirQoDataUtils:
         Flags devices with correlation faults or missing data faults.
 
         Args:
-            df (pd.DataFrame): DataFrame containing device data with s1_pm2_5 and s2_pm2_5 columns
-                              and device_name column.
+            df (pd.DataFrame): DataFrame containing device data with s1_pm2_5 and s2_pm2_5 columns and device_name column.
 
         Returns:
             pd.DataFrame: DataFrame with device_name, correlation_fault, missing_data_fault, and created_at columns.
@@ -103,20 +102,29 @@ class AirQoDataUtils:
         dynamic_query: bool = False,
     ) -> pd.DataFrame:
         """
-        Extract data from BigQuery based on the given parameters.
+        Extract and resample raw air quality measurement data from BigQuery.
 
-        This is a wrapper around DataUtils.extract_data_from_bigquery that handles
-        additional processing for raw data.
+        This method queries raw measurement data from BigQuery and performs hourly
+        resampling by taking the mean of all numeric measurements grouped by
+        timestamp (floored to hour), site_id, and device_number.
 
         Args:
-            data_type: Type of data to extract (RAW, AVERAGED, etc.)
-            start_date_time: Start date and time in ISO 8601 format
-            end_date_time: End date and time in ISO 8601 format
-            frequency: Frequency of data to extract (HOURLY, DAILY, etc.)
-            dynamic_query: Whether to use dynamic query generation
+            data_type (DataType): Type of data to extract (currently only processes RAW data)
+            start_date_time (str): Start date and time in ISO 8601 format
+            end_date_time (str): End date and time in ISO 8601 format
+            frequency (Frequency): Frequency of data to extract (parameter not used in current implementation)
+            dynamic_query (bool, optional): Whether to use dynamic query generation (parameter not used). Defaults to False.
 
         Returns:
-            DataFrame containing the extracted data
+            pd.DataFrame: Resampled DataFrame with hourly averaged measurements,
+                         including columns for timestamp (floored to hour), site_id,
+                         device_number, and averaged numeric measurements.
+                         Returns empty DataFrame if no data found.
+
+        Note:
+            Despite the generic parameter names, this implementation specifically
+            queries the raw_measurements_table and always performs hourly resampling
+            regardless of the frequency parameter.
         """
         # Get raw data from BigQuery
         bigquery_api = BigQueryApi()
@@ -174,6 +182,26 @@ class AirQoDataUtils:
     def extract_uncalibrated_data(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
+        """
+        Extract uncalibrated hourly measurement data from BigQuery for AirQo network devices.
+
+        Queries the hourly measurements table for records where pm2_5_calibrated_value
+        is null, indicating uncalibrated data that needs processing. The data is filtered
+        to only include AirQo network devices and outliers are removed.
+
+        Args:
+            start_date_time (str): Start date and time in ISO 8601 format
+            end_date_time (str): End date and time in ISO 8601 format
+
+        Returns:
+            pd.DataFrame: Cleaned DataFrame containing uncalibrated hourly measurements
+                         from AirQo devices with outliers removed. Returns empty DataFrame
+                         if no uncalibrated data found for the specified period.
+
+        Note:
+            This method specifically targets data that requires calibration processing
+            by filtering for null pm2_5_calibrated_value fields.
+        """
         bigquery_api = BigQueryApi()
 
         hourly_uncalibrated_data = bigquery_api.query_data(
@@ -188,6 +216,27 @@ class AirQoDataUtils:
 
     @staticmethod
     def flatten_meta_data(meta_data: list) -> list:
+        """
+        Flatten metadata by expanding device_numbers array into separate records.
+
+        Takes metadata records that contain arrays of device_numbers and creates
+        individual records for each device, preserving all other metadata fields.
+        This is useful for creating device-specific records from site metadata.
+
+        Args:
+            meta_data (list): List of metadata dictionaries, each potentially
+                            containing a "device_numbers" key with array values
+
+        Returns:
+            list: Flattened list where each device gets its own record with
+                  "device_number" field instead of "device_numbers" array.
+                  Non-device fields are preserved in each record.
+
+        Example:
+            Input: [{"site_id": "s1", "device_numbers": [1, 2]}]
+            Output: [{"site_id": "s1", "device_number": 1},
+                    {"site_id": "s1", "device_number": 2}]
+        """
         data = []
         for item in meta_data:
             item = dict(item)
@@ -202,6 +251,27 @@ class AirQoDataUtils:
     def extract_mobile_low_cost_sensors_data(
         meta_data: list, resolution: Frequency
     ) -> pd.DataFrame:
+        """
+        Extract and aggregate mobile low-cost sensor data from multiple devices.
+
+        Processes metadata for mobile devices to extract measurement data at specified
+        resolution and adds location information (latitude/longitude) to each record.
+        Combines data from all devices into a single DataFrame.
+
+        Args:
+            meta_data (list): List of metadata dictionaries containing device_number,
+                             start_date_time, end_date_time, latitude, and longitude
+            resolution (Frequency): Time resolution for data extraction (e.g., hourly, daily)
+
+        Returns:
+            pd.DataFrame: Combined DataFrame containing measurements from all mobile
+                         low-cost sensors with latitude and longitude columns added.
+                         Returns empty DataFrame if no valid data found.
+
+        Note:
+            Uses DataUtils.extract_devices_data() internally and filters for
+            DeviceCategory.LOWCOST devices only.
+        """
         data = pd.DataFrame()
 
         for value in meta_data:
@@ -225,6 +295,26 @@ class AirQoDataUtils:
     def extract_aggregated_mobile_devices_weather_data(
         data: pd.DataFrame,
     ) -> pd.DataFrame:
+        """
+        Extract and aggregate weather data for mobile devices based on their locations.
+
+        Groups mobile device data by location coordinates and extracts corresponding
+        weather information. This is used to correlate air quality measurements
+        with local weather conditions for mobile monitoring devices.
+
+        Args:
+            data (pd.DataFrame): DataFrame containing mobile device data with
+                               latitude and longitude columns
+
+        Returns:
+            pd.DataFrame: Aggregated weather data corresponding to the mobile
+                         device locations. Returns empty DataFrame if no weather
+                         data available for the locations.
+
+        Note:
+            Groups data by location coordinates to avoid duplicate weather
+            queries for devices at the same location.
+        """
         weather_data = pd.DataFrame()
         for _, station_data in data.groupby(
             by=["station_code", "start_date_time", "end_date_time"]
@@ -271,6 +361,29 @@ class AirQoDataUtils:
     def merge_aggregated_mobile_devices_data_and_weather_data(
         measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
+        """
+        Merge mobile device measurements with corresponding weather data.
+
+        Combines air quality measurements from mobile devices with weather data
+        by timestamp and device_number. Handles column name conflicts by prefixing
+        measurement columns with "device_reading_" when similar columns exist
+        in both datasets.
+
+        Args:
+            measurements (pd.DataFrame): Mobile device air quality measurements
+                                       with timestamp and device_number columns
+            weather_data (pd.DataFrame): Weather data with timestamp and
+                                       device_number columns
+
+        Returns:
+            pd.DataFrame: Merged DataFrame containing both air quality measurements
+                         and weather data, joined on timestamp and device_number.
+                         Conflicting column names are prefixed appropriately.
+
+        Note:
+            Preserves timestamp and device_number as common join keys while
+            renaming other intersecting columns to avoid conflicts.
+        """
         airqo_data_cols = measurements.columns.to_list()
         weather_data_cols = weather_data.columns.to_list()
         intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
@@ -307,6 +420,24 @@ class AirQoDataUtils:
 
     @staticmethod
     def restructure_airqo_mobile_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Restructure mobile device data to match BigQuery table schema.
+
+        Prepares AirQo mobile measurement data for BigQuery ingestion by adding
+        required columns and ensuring schema compatibility with the target table.
+
+        Args:
+            data (pd.DataFrame): Raw mobile device measurement data
+
+        Returns:
+            pd.DataFrame: Restructured DataFrame with proper columns and data types
+                         matching BigQuery airqo_mobile_measurements_table schema.
+                         Missing columns are added with appropriate default values.
+
+        Note:
+            Automatically adds 'network' column set to DeviceNetwork.AIRQO and
+            fills any missing columns based on target BigQuery table schema.
+        """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["network"] = DeviceNetwork.AIRQO.str
         big_query_api = BigQueryApi()
@@ -319,6 +450,27 @@ class AirQoDataUtils:
     def process_latest_data(
         data: pd.DataFrame, device_category: DeviceCategory
     ) -> pd.DataFrame:
+        """
+        Process and standardize latest measurement data based on device category.
+
+        Transforms raw measurement data by adding missing columns and creating
+        standardized field mappings specific to different device types (BAM vs LOWCOST).
+        Ensures consistent data structure for downstream processing.
+
+        Args:
+            data (pd.DataFrame): Raw measurement data from devices
+            device_category (DeviceCategory): Type of device (BAM or LOWCOST)
+                                            determining processing rules
+
+        Returns:
+            pd.DataFrame: Processed DataFrame with standardized columns including
+                         pm2_5_raw_value, pm2_5_calibrated_value, and device-specific
+                         mappings. Missing pollutant columns are added with None values.
+
+        Note:
+            BAM devices get additional pm10 and no2 handling, while LOWCOST devices
+            get different calibration field mappings.
+        """
         cols = data.columns.to_list()
         if device_category == DeviceCategory.BAM:
             if "pm2_5" not in cols:
@@ -457,16 +609,24 @@ class AirQoDataUtils:
         device_measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
         """
-        Merges PM2.5 sensor data with weather data from selected weather stations. This method combines air quality measurements from devices with weather data
-        from nearby weather stations. It ensures that the weather data is matched to the corresponding site and timestamp of the device measurements. The method also handles
-        potential data inconsistencies and fills missing values where necessary.
+        Alternative implementation for merging device measurements with weather data.
+
+        This is an alternative version of merge_aggregated_weather_data with enhanced
+        error handling for timestamp conversion. Combines air quality measurements
+        from devices with weather data from nearby weather stations using improved
+        data validation and error handling.
+
         Args:
-            device_measurements(pd.DataFrame): A DataFrame containing device measurements with columns such as 'timestamp' and 'site_id'.
-            weather_data (pd.DataFrame): A DataFrame containing weather data with columns such as 'timestamp', 'station_code', and other weather-related metrics.
+            device_measurements (pd.DataFrame): Device measurements with timestamp and site_id columns
+            weather_data (pd.DataFrame): Weather data with timestamp, station_code, and weather metrics
+
         Returns:
-            pd.DataFrame: A DataFrame containing the merged data, with weather data matched to
-            the corresponding device measurements based on site and timestamp. Rows with
-            invalid data are dropped.
+            pd.DataFrame: Merged DataFrame with weather data matched to device measurements
+                         by site and timestamp. Invalid data rows are dropped.
+
+        Note:
+            This method includes enhanced error handling with errors="coerce" for
+            timestamp conversion and improved performance considerations.
         """
 
         if weather_data.empty:
