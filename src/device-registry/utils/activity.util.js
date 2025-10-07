@@ -105,13 +105,26 @@ const updateActivityCache = async (
             const siteCreation =
               latestActivitiesByType["site-creation"] || null;
 
-            // Update site document ONLY if our snapshot is newer than stored cache
+            // Update site document with race-condition protection
+            // Uses both timestamp AND count comparison for tie-breaking
             const result = await SiteModel(tenant).findOneAndUpdate(
               {
                 _id: ObjectId(site_id),
                 $or: [
+                  // Case 1: No cache exists yet
                   { activities_cache_updated_at: { $exists: false } },
+                  // Case 2: Our snapshot is definitively newer
                   { activities_cache_updated_at: { $lt: cacheStamp } },
+                  // Case 3: Timestamps tie, but we have more activities (fresher data)
+                  {
+                    activities_cache_updated_at: cacheStamp,
+                    $or: [
+                      { cached_total_activities: { $exists: false } },
+                      {
+                        cached_total_activities: { $lt: siteActivities.length },
+                      },
+                    ],
+                  },
                 ],
               },
               {
@@ -228,13 +241,27 @@ const updateActivityCache = async (
               deviceFilter.name = deviceName;
             }
 
-            // Update device document ONLY if our snapshot is newer than stored cache
+            // Update device document with race-condition protection
             const result = await DeviceModel(tenant).findOneAndUpdate(
               {
                 ...deviceFilter,
                 $or: [
+                  // Case 1: No cache exists yet
                   { activities_cache_updated_at: { $exists: false } },
+                  // Case 2: Our snapshot is definitively newer
                   { activities_cache_updated_at: { $lt: cacheStamp } },
+                  // Case 3: Timestamps tie, but we have more activities (fresher data)
+                  {
+                    activities_cache_updated_at: cacheStamp,
+                    $or: [
+                      { cached_total_activities: { $exists: false } },
+                      {
+                        cached_total_activities: {
+                          $lt: deviceActivities.length,
+                        },
+                      },
+                    ],
+                  },
                 ],
               },
               {

@@ -179,10 +179,25 @@ require("@bin/jobs/site-categorization-notification-job");
 // Defensively load precompute activities job
 // Default behavior: ENABLED (runs unless explicitly disabled)
 try {
-  // Use optional chaining and nullish coalescing for safe defaults
-  const isEnabled =
-    constants?.PRECOMPUTE_ACTIVITIES_JOB_ENABLED ??
-    process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== "false";
+  // Helper function to normalize flag values to boolean
+  const normalizeFlag = (value) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const lower = value.toLowerCase().trim();
+      return lower !== "false" && lower !== "0" && lower !== "";
+    }
+    return !!value; // Coerce other types to boolean
+  };
+
+  // Check constants first, then fall back to env var
+  let isEnabled;
+  if (constants?.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== undefined) {
+    isEnabled = normalizeFlag(constants.PRECOMPUTE_ACTIVITIES_JOB_ENABLED);
+  } else {
+    isEnabled = normalizeFlag(
+      process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED ?? true
+    );
+  }
 
   if (isEnabled) {
     try {
