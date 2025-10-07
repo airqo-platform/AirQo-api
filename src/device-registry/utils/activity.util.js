@@ -134,7 +134,7 @@ const updateActivityCache = async (
             );
 
             if (result) {
-              logger.info(
+              logText(
                 `Updated cache for site ${site_id}: ${siteActivities.length} activities`
               );
             }
@@ -269,7 +269,7 @@ const updateActivityCache = async (
             );
 
             if (result) {
-              logger.info(
+              logText(
                 `Updated cache for device ${device_id || deviceName}: ${
                   deviceActivities.length
                 } activities`
@@ -2179,18 +2179,18 @@ const createActivity = {
       const { tenant } = request.query;
       const { dry_run = false, batch_size = 100 } = request.body;
 
-      logger.info(`Starting device_id backfill for tenant: ${tenant}`);
+      logText(`Starting device_id backfill for tenant: ${tenant}`);
 
-      // Build filter for activities without device_id
+      // Build filter for activities without device_id but WITH a valid device name
       const filter = {
         $or: [{ device_id: null }, { device_id: { $exists: false } }],
-        device: { $exists: true, $ne: null, $ne: "" },
+        device: { $exists: true, $nin: [null, ""] }, // Fix: Use $nin instead of duplicate $ne
       };
 
       // Get total count for reporting
       const totalCount = await ActivityModel(tenant).countDocuments(filter);
 
-      logger.info(`Found ${totalCount} activities needing backfill`);
+      logText(`Found ${totalCount} activities needing backfill`);
 
       if (dry_run) {
         // For dry run, get a small sample with minimal projection
@@ -2230,26 +2230,24 @@ const createActivity = {
       let totalBackfilled = 0;
       const notFound = [];
       const deviceCache = new Map();
+      let batchNumber = 0;
 
-      // Process in batches using cursor
-      let hasMore = true;
-      let skip = 0;
-
-      while (hasMore) {
-        logger.info(
-          `Processing batch starting at skip=${skip}, batch_size=${batch_size}`
-        );
+      // Process in batches - NO SKIP, filter naturally shrinks as we update
+      while (true) {
+        batchNumber++;
+        logText(`Processing batch #${batchNumber} (batch_size=${batch_size})`);
 
         // Fetch batch with minimal projection
+        // No skip needed - updated documents automatically drop out of filter
         const batchActivities = await ActivityModel(tenant)
           .find(filter)
           .select("_id device activityType date")
-          .skip(skip)
           .limit(batch_size)
           .lean();
 
+        // Exit loop when no more activities match the filter
         if (batchActivities.length === 0) {
-          hasMore = false;
+          logText("No more activities to process - backfill complete");
           break;
         }
 
@@ -2305,29 +2303,31 @@ const createActivity = {
             ordered: false,
           });
           totalBackfilled += batchResult.modifiedCount;
-          logger.info(`Batch updated: ${batchResult.modifiedCount} activities`);
+          logText(
+            `Batch #${batchNumber} updated: ${batchResult.modifiedCount} activities`
+          );
         }
 
         processedCount += batchActivities.length;
-        skip += batch_size;
 
         // Log progress
-        logger.info(
-          `Progress: ${processedCount}/${totalCount} activities processed (${Math.round(
-            (processedCount / totalCount) * 100
-          )}%)`
+        const progressPercent = Math.round((processedCount / totalCount) * 100);
+        logText(
+          `Progress: ${processedCount}/${totalCount} activities processed (${progressPercent}%)`
         );
 
-        // Safety check: if we've processed more than expected, break
-        if (skip > totalCount + batch_size) {
-          logger.warn("Safety limit reached, stopping backfill");
-          hasMore = false;
+        // Safety check: prevent infinite loops
+        if (batchNumber > 10000) {
+          logger.warn(
+            "Safety limit reached (10000 batches), stopping backfill"
+          );
+          break;
         }
       }
 
       // After successful backfill, trigger cache recalculation for affected devices
       if (totalBackfilled > 0) {
-        logger.info("Triggering cache updates for affected devices...");
+        logText("Triggering cache updates for affected devices...");
 
         // Get unique device names that were updated
         const updatedDeviceNames = [...deviceCache.keys()].filter(
@@ -2358,7 +2358,7 @@ const createActivity = {
           })
         )
           .then(() => {
-            logger.info(
+            logText(
               `Cache updates completed for ${devicesToUpdate.length} devices`
             );
           })
@@ -2377,7 +2377,7 @@ const createActivity = {
           not_found_details: notFound.slice(0, 20),
           total_not_found: notFound.length,
           unique_devices_cached: deviceCache.size,
-          batches_processed: Math.ceil(processedCount / batch_size),
+          batches_processed: batchNumber,
           batch_size: batch_size,
           tenant: tenant,
           backfill_completed_at: new Date(),
