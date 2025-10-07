@@ -443,10 +443,18 @@ const createServer = () => {
         console.log("Closing Redis connection...");
 
         try {
-          if (typeof global.redisClient.quit === "function") {
+          // Prefer quit() for a graceful shutdown, but fallback to disconnect()
+          if (
+            global.redisClient &&
+            typeof global.redisClient.quit === "function"
+          ) {
             await global.redisClient.quit();
             console.log("✅ Redis connection closed");
-          } else if (typeof global.redisClient.disconnect === "function") {
+          } else if (
+            global.redisClient &&
+            typeof global.redisClient.disconnect === "function"
+          ) {
+            // disconnect() is less graceful but better than nothing
             await global.redisClient.disconnect();
             console.log("✅ Redis connection disconnected");
           }
@@ -458,7 +466,7 @@ const createServer = () => {
 
       // Close Firebase connections if they exist
       if (global.firebaseApp) {
-        console.log("Closing Firebase connections...");
+        console.log("Closing Firebase connection...");
         try {
           // Firebase cleanup if needed
           console.log("✅ Firebase connections closed");
