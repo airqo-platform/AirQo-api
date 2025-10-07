@@ -108,7 +108,7 @@ jobs:
             if [[ $file == k8s/device-registry/* ]]; then
               echo "run_device_registry=true" >>$GITHUB_OUTPUT
             fi
-
+            
             if [[ $file == src/beacon-api/* ]]; then
               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
             fi
@@ -351,12 +351,6 @@ jobs:
 
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Update the corresponding k8s configmap(s)
         run: |
