@@ -2179,124 +2179,172 @@ const createActivity = {
       const { tenant } = request.query;
       const { dry_run = false, batch_size = 100 } = request.body;
 
-      logText(`Starting device_id backfill for tenant: ${tenant}`);
+      logger.info(`Starting device_id backfill for tenant: ${tenant}`);
 
-      // Find activities without device_id but with device name
-      const activitiesWithoutDeviceId = await ActivityModel(tenant)
-        .find({
-          $or: [{ device_id: null }, { device_id: { $exists: false } }],
-          device: { $exists: true, $ne: null, $ne: "" },
-        })
-        .lean();
+      // Build filter for activities without device_id
+      const filter = {
+        $or: [{ device_id: null }, { device_id: { $exists: false } }],
+        device: { $exists: true, $ne: null, $ne: "" },
+      };
 
-      logText(
-        `Found ${activitiesWithoutDeviceId.length} activities to backfill`
-      );
+      // Get total count for reporting
+      const totalCount = await ActivityModel(tenant).countDocuments(filter);
+
+      logger.info(`Found ${totalCount} activities needing backfill`);
 
       if (dry_run) {
-        // Get sample of device names for preview
+        // For dry run, get a small sample with minimal projection
+        const sampleActivities = await ActivityModel(tenant)
+          .find(filter)
+          .select("_id device activityType date device_id")
+          .limit(10)
+          .lean();
+
         const sampleDeviceNames = [
-          ...new Set(
-            activitiesWithoutDeviceId.slice(0, 10).map((a) => a.device)
-          ),
+          ...new Set(sampleActivities.map((a) => a.device)),
         ];
 
         return {
           success: true,
           message: "Dry run completed - no changes made",
           data: {
-            activities_needing_backfill: activitiesWithoutDeviceId.length,
+            total_activities_needing_backfill: totalCount,
             sample_device_names: sampleDeviceNames,
-            sample_activities: activitiesWithoutDeviceId
-              .slice(0, 5)
-              .map((a) => ({
-                _id: a._id,
-                device: a.device,
-                activityType: a.activityType,
-                date: a.date,
-                device_id: a.device_id,
-              })),
+            sample_activities: sampleActivities.map((a) => ({
+              _id: a._id,
+              device: a.device,
+              activityType: a.activityType,
+              date: a.date,
+              device_id: a.device_id,
+            })),
+            batch_size: batch_size,
+            estimated_batches: Math.ceil(totalCount / batch_size),
             dry_run: true,
           },
           status: httpStatus.OK,
         };
       }
 
-      const bulkOps = [];
+      // Actual backfill using cursor-based batching
+      let processedCount = 0;
+      let totalBackfilled = 0;
       const notFound = [];
-      const deviceCache = new Map(); // Cache device lookups
+      const deviceCache = new Map();
 
-      for (const activity of activitiesWithoutDeviceId) {
-        try {
-          let device;
+      // Process in batches using cursor
+      let hasMore = true;
+      let skip = 0;
 
-          // Check cache first
-          if (deviceCache.has(activity.device)) {
-            device = deviceCache.get(activity.device);
-          } else {
-            // Find the device by name
-            device = await DeviceModel(tenant)
-              .findOne({ name: activity.device })
-              .select("_id name")
-              .lean();
+      while (hasMore) {
+        logger.info(
+          `Processing batch starting at skip=${skip}, batch_size=${batch_size}`
+        );
 
-            // Cache the result (even if null)
-            deviceCache.set(activity.device, device);
-          }
+        // Fetch batch with minimal projection
+        const batchActivities = await ActivityModel(tenant)
+          .find(filter)
+          .select("_id device activityType date")
+          .skip(skip)
+          .limit(batch_size)
+          .lean();
 
-          if (device) {
-            bulkOps.push({
-              updateOne: {
-                filter: { _id: activity._id },
-                update: { $set: { device_id: device._id } },
-              },
-            });
-          } else {
+        if (batchActivities.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const bulkOps = [];
+
+        // Process each activity in the batch
+        for (const activity of batchActivities) {
+          try {
+            let device;
+
+            // Check cache first
+            if (deviceCache.has(activity.device)) {
+              device = deviceCache.get(activity.device);
+            } else {
+              // Find the device by name with minimal projection
+              device = await DeviceModel(tenant)
+                .findOne({ name: activity.device })
+                .select("_id name")
+                .lean();
+
+              // Cache the result (even if null)
+              deviceCache.set(activity.device, device);
+            }
+
+            if (device) {
+              bulkOps.push({
+                updateOne: {
+                  filter: { _id: activity._id },
+                  update: { $set: { device_id: device._id } },
+                },
+              });
+            } else {
+              notFound.push({
+                activity_id: activity._id,
+                device_name: activity.device,
+                activityType: activity.activityType,
+                date: activity.date,
+                reason: "Device not found in database",
+              });
+            }
+          } catch (error) {
             notFound.push({
               activity_id: activity._id,
               device_name: activity.device,
-              activityType: activity.activityType,
-              date: activity.date,
-              reason: "Device not found in database",
+              error: error.message,
             });
           }
-        } catch (error) {
-          notFound.push({
-            activity_id: activity._id,
-            device_name: activity.device,
-            error: error.message,
+        }
+
+        // Execute bulk update for this batch
+        if (bulkOps.length > 0) {
+          const batchResult = await ActivityModel(tenant).bulkWrite(bulkOps, {
+            ordered: false,
           });
+          totalBackfilled += batchResult.modifiedCount;
+          logger.info(`Batch updated: ${batchResult.modifiedCount} activities`);
+        }
+
+        processedCount += batchActivities.length;
+        skip += batch_size;
+
+        // Log progress
+        logger.info(
+          `Progress: ${processedCount}/${totalCount} activities processed (${Math.round(
+            (processedCount / totalCount) * 100
+          )}%)`
+        );
+
+        // Safety check: if we've processed more than expected, break
+        if (skip > totalCount + batch_size) {
+          logger.warn("Safety limit reached, stopping backfill");
+          hasMore = false;
         }
       }
 
-      let backfillResult = null;
-      if (bulkOps.length > 0) {
-        backfillResult = await ActivityModel(tenant).bulkWrite(bulkOps, {
-          ordered: false,
-        });
-        logText(
-          `Backfilled ${backfillResult.modifiedCount} activities with device_id`
-        );
-      }
-
       // After successful backfill, trigger cache recalculation for affected devices
-      if (backfillResult && backfillResult.modifiedCount > 0) {
-        logText("Triggering cache updates for affected devices...");
+      if (totalBackfilled > 0) {
+        logger.info("Triggering cache updates for affected devices...");
 
         // Get unique device names that were updated
         const updatedDeviceNames = [...deviceCache.keys()].filter(
           (name) => deviceCache.get(name) !== null
         );
 
-        // Update cache for each device (run in background, don't block response)
+        // Update cache for devices (limit to first 50 to avoid timeout)
+        const devicesToUpdate = updatedDeviceNames.slice(0, 50);
+
         Promise.all(
-          updatedDeviceNames.slice(0, 50).map(async (deviceName) => {
+          devicesToUpdate.map(async (deviceName) => {
             try {
               const device = deviceCache.get(deviceName);
               if (device) {
                 await updateActivityCache(
                   tenant,
-                  null, // site_id not needed for this update
+                  null,
                   device._id,
                   deviceName,
                   next
@@ -2310,7 +2358,9 @@ const createActivity = {
           })
         )
           .then(() => {
-            logText("Cache updates completed for backfilled devices");
+            logger.info(
+              `Cache updates completed for ${devicesToUpdate.length} devices`
+            );
           })
           .catch((error) => {
             logger.error(`Cache update error: ${error.message}`);
@@ -2321,16 +2371,23 @@ const createActivity = {
         success: true,
         message: "Device ID backfill completed successfully",
         data: {
-          activities_backfilled: backfillResult?.modifiedCount || 0,
-          activities_matched: backfillResult?.matchedCount || 0,
+          total_activities_processed: processedCount,
+          activities_backfilled: totalBackfilled,
           devices_not_found: notFound.length,
-          not_found_details: notFound.slice(0, 20), // Limit to first 20 for response size
+          not_found_details: notFound.slice(0, 20),
           total_not_found: notFound.length,
-          total_processed: activitiesWithoutDeviceId.length,
           unique_devices_cached: deviceCache.size,
+          batches_processed: Math.ceil(processedCount / batch_size),
+          batch_size: batch_size,
           tenant: tenant,
           backfill_completed_at: new Date(),
-          cache_update_triggered: backfillResult?.modifiedCount > 0,
+          cache_update_triggered: totalBackfilled > 0,
+          cache_updates_queued: Math.min(
+            [...deviceCache.keys()].filter(
+              (name) => deviceCache.get(name) !== null
+            ).length,
+            50
+          ),
         },
         status: httpStatus.OK,
       };
@@ -2343,7 +2400,6 @@ const createActivity = {
       );
     }
   },
-  // Add this to the createActivity object
   refreshActivityCaches: async (request, next) => {
     try {
       const { tenant } = request.query;
