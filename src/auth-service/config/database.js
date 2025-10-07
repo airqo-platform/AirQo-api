@@ -291,11 +291,7 @@ function getQueryTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (queryMongoDB) {
     const db = queryMongoDB.useDb(dbName, { useCache: true });
-    try {
-      db.model(modelName);
-    } catch {
-      db.model(modelName, schema);
-    }
+    db.model(modelName, schema);
     return db;
   }
   throw new Error("Query database connection not established");
