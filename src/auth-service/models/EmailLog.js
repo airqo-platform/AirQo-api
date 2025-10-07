@@ -144,8 +144,11 @@ EmailLogSchema.statics = {
 const EmailLogModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-  return getModelByTenant(dbTenant, "email_log", EmailLogSchema);
+  try {
+    return mongoose.model("email_logs");
+  } catch (error) {
+    return getModelByTenant(dbTenant, "email_log", EmailLogSchema);
+  }
 };
 
 module.exports = EmailLogModel;
