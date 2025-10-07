@@ -818,26 +818,23 @@ const deviceUtil = {
 
       if (detailLevel === "minimal") {
         // Minimal data for performance-critical scenarios
-        pipeline.push(
-          getDeviceCategoriesAddFieldsStage(), // Use helper
-          {
-            $project: {
-              _id: 1,
-              name: 1,
-              long_name: 1,
-              status: 1,
-              isActive: 1,
-              network: 1,
-              category: 1,
-              deployment_type: 1,
-              mobility: 1,
-              device_number: 1,
-              createdAt: 1,
-              cached_total_activities: 1,
-              device_categories: 1,
-            },
-          }
-        );
+        pipeline.push(getDeviceCategoriesAddFieldsStage(), {
+          $project: {
+            _id: 1,
+            name: 1,
+            long_name: 1,
+            status: 1,
+            isActive: 1,
+            network: 1,
+            category: 1,
+            deployment_type: 1,
+            mobility: 1,
+            device_number: 1,
+            createdAt: 1,
+            cached_total_activities: 1,
+            device_categories: 1,
+          },
+        });
       } else if (detailLevel === "summary") {
         // Summary with essential relations and cached data
         pipeline.push(
@@ -861,7 +858,7 @@ const deviceUtil = {
               pipeline: [{ $project: { _id: 1, name: 1, admin_level: 1 } }],
             },
           },
-          getDeviceCategoriesAddFieldsStage(), // Use helper
+          getDeviceCategoriesAddFieldsStage(),
           {
             $addFields: {
               total_activities: { $ifNull: ["$cached_total_activities", 0] },
@@ -939,26 +936,28 @@ const deviceUtil = {
         );
 
         if (useCache === "true") {
-          // Use cached activity data
-          pipeline.push(
-            getDeviceCategoriesAddFieldsStage(), // Use helper
-            {
-              $addFields: {
-                total_activities: { $ifNull: ["$cached_total_activities", 0] },
-                activities_by_type: {
-                  $ifNull: ["$cached_activities_by_type", {}],
-                },
-                latest_activities_by_type: {
-                  $ifNull: ["$cached_latest_activities_by_type", {}],
-                },
-                latest_deployment_activity:
-                  "$cached_latest_deployment_activity",
-                latest_maintenance_activity:
-                  "$cached_latest_maintenance_activity",
-                latest_recall_activity: "$cached_latest_recall_activity",
+          // Use cached activity data - NO activities lookup
+          pipeline.push(getDeviceCategoriesAddFieldsStage(), {
+            $addFields: {
+              // Map cached fields to expected output fields
+              total_activities: { $ifNull: ["$cached_total_activities", 0] },
+              activities_by_type: {
+                $ifNull: ["$cached_activities_by_type", {}],
               },
-            }
-          );
+              latest_activities_by_type: {
+                $ifNull: ["$cached_latest_activities_by_type", {}],
+              },
+              latest_deployment_activity: {
+                $ifNull: ["$cached_latest_deployment_activity", null],
+              },
+              latest_maintenance_activity: {
+                $ifNull: ["$cached_latest_maintenance_activity", null],
+              },
+              latest_recall_activity: {
+                $ifNull: ["$cached_latest_recall_activity", null],
+              },
+            },
+          });
         } else {
           // Real-time activity aggregation (expensive)
           pipeline.push(
@@ -1005,9 +1004,22 @@ const deviceUtil = {
                 as: "activities",
               },
             },
-            getDeviceCategoriesAddFieldsStage() // Use helper
+            getDeviceCategoriesAddFieldsStage(),
+            {
+              $addFields: {
+                // Calculate total from activities array
+                total_activities: {
+                  $cond: [
+                    { $isArray: "$activities" },
+                    { $size: "$activities" },
+                    0,
+                  ],
+                },
+              },
+            }
           );
         }
+
         pipeline.push({ $project: constants.DEVICES_INCLUSION_PROJECTION });
         pipeline.push({
           $project: constants.DEVICES_EXCLUSION_PROJECTION("full"),
@@ -1037,46 +1049,72 @@ const deviceUtil = {
         ? results[0].totalCount[0].count
         : 0;
 
-      // Process activities for non-cached full detail requests
-      if (
-        !isEmpty(paginatedResults) &&
-        detailLevel === "full" &&
-        useCache === "false"
-      ) {
+      // **CRITICAL FIX: Post-process for BOTH cached and non-cached results**
+      if (!isEmpty(paginatedResults) && detailLevel === "full") {
         paginatedResults.forEach((device) => {
-          if (device.activities && device.activities.length > 0) {
-            const activitiesByType = {};
-            const latestActivitiesByType = {};
+          // Process activities for non-cached (real-time) results
+          if (useCache === "false" && device.activities) {
+            if (device.activities.length > 0) {
+              const activitiesByType = {};
+              const latestActivitiesByType = {};
 
-            device.activities.forEach((activity) => {
-              const type = activity.activityType || "unknown";
-              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+              device.activities.forEach((activity) => {
+                const type = activity.activityType || "unknown";
+                activitiesByType[type] = (activitiesByType[type] || 0) + 1;
 
-              if (
-                !latestActivitiesByType[type] ||
-                new Date(activity.createdAt) >
-                  new Date(latestActivitiesByType[type].createdAt)
-              ) {
-                latestActivitiesByType[type] = activity;
-              }
-            });
+                if (
+                  !latestActivitiesByType[type] ||
+                  new Date(activity.createdAt) >
+                    new Date(latestActivitiesByType[type].createdAt)
+                ) {
+                  latestActivitiesByType[type] = activity;
+                }
+              });
 
-            device.activities_by_type = activitiesByType;
-            device.latest_activities_by_type = latestActivitiesByType;
-            device.latest_deployment_activity =
-              latestActivitiesByType.deployment || null;
-            device.latest_maintenance_activity =
-              latestActivitiesByType.maintenance || null;
-            device.latest_recall_activity =
-              latestActivitiesByType.recall ||
-              latestActivitiesByType.recallment ||
-              null;
-          } else {
-            device.activities_by_type = {};
-            device.latest_activities_by_type = {};
+              device.activities_by_type = activitiesByType;
+              device.latest_activities_by_type = latestActivitiesByType;
+              device.latest_deployment_activity =
+                latestActivitiesByType.deployment || null;
+              device.latest_maintenance_activity =
+                latestActivitiesByType.maintenance || null;
+              device.latest_recall_activity =
+                latestActivitiesByType.recall ||
+                latestActivitiesByType.recallment ||
+                null;
+            } else {
+              device.activities_by_type = {};
+              device.latest_activities_by_type = {};
+            }
           }
 
-          // Process assigned_grid
+          // **FIX: Ensure total_activities is set correctly for cached results**
+          // This handles cases where projection might have modified the field
+          if (useCache === "true") {
+            // Ensure the field exists and has the right value
+            if (
+              device.total_activities === undefined ||
+              device.total_activities === null
+            ) {
+              device.total_activities = device.cached_total_activities || 0;
+            }
+
+            // Ensure other cached fields are properly mapped
+            if (
+              !device.activities_by_type &&
+              device.cached_activities_by_type
+            ) {
+              device.activities_by_type = device.cached_activities_by_type;
+            }
+            if (
+              !device.latest_activities_by_type &&
+              device.cached_latest_activities_by_type
+            ) {
+              device.latest_activities_by_type =
+                device.cached_latest_activities_by_type;
+            }
+          }
+
+          // **FIX: Process assigned_grid for BOTH cached and non-cached**
           if (device.assigned_grid && device.assigned_grid.length > 0) {
             const grid = device.assigned_grid[0];
             device.assigned_grid = {
