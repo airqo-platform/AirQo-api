@@ -27,9 +27,9 @@ const kafka = new Kafka({
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
-// Add after your imports, around line 50
 /**
  * Updates the cached activity fields for sites and devices
+ * Race-condition safe: Only updates if cache is older than snapshot time
  * @param {string} tenant - The tenant identifier
  * @param {ObjectId} site_id - The site ID to update cache for
  * @param {ObjectId} device_id - The device ID to update cache for
@@ -51,6 +51,9 @@ const updateActivityCache = async (
       updatePromises.push(
         (async () => {
           try {
+            // Capture timestamp BEFORE querying activities
+            const cacheStamp = new Date();
+
             // Get all activities for this site
             const siteActivities = await ActivityModel(tenant)
               .find({ site_id: ObjectId(site_id) })
@@ -102,23 +105,41 @@ const updateActivityCache = async (
             const siteCreation =
               latestActivitiesByType["site-creation"] || null;
 
-            // Update site document
-            await SiteModel(tenant).findByIdAndUpdate(site_id, {
-              $set: {
-                cached_total_activities: siteActivities.length,
-                cached_activities_by_type: activitiesByType,
-                cached_latest_activities_by_type: latestActivitiesByType,
-                cached_latest_deployment_activity: latestDeployment,
-                cached_latest_maintenance_activity: latestMaintenance,
-                cached_latest_recall_activity: latestRecall,
-                cached_site_creation_activity: siteCreation,
-                activities_cache_updated_at: new Date(),
+            // Update site document ONLY if our snapshot is newer than stored cache
+            const result = await SiteModel(tenant).findOneAndUpdate(
+              {
+                _id: ObjectId(site_id),
+                $or: [
+                  { activities_cache_updated_at: { $exists: false } },
+                  { activities_cache_updated_at: { $lt: cacheStamp } },
+                ],
               },
-            });
-
-            logger.info(
-              `Updated cache for site ${site_id}: ${siteActivities.length} activities`
+              {
+                $set: {
+                  cached_total_activities: siteActivities.length,
+                  cached_activities_by_type: activitiesByType,
+                  cached_latest_activities_by_type: latestActivitiesByType,
+                  cached_latest_deployment_activity: latestDeployment,
+                  cached_latest_maintenance_activity: latestMaintenance,
+                  cached_latest_recall_activity: latestRecall,
+                  cached_site_creation_activity: siteCreation,
+                  activities_cache_updated_at: cacheStamp,
+                },
+              },
+              { new: true }
             );
+
+            if (result) {
+              logger.info(
+                `Updated cache for site ${site_id}: ${
+                  siteActivities.length
+                } activities at ${cacheStamp.toISOString()}`
+              );
+            } else {
+              logger.debug(
+                `Skipped site ${site_id} cache update - newer cache already exists`
+              );
+            }
           } catch (error) {
             logger.error(
               `Failed to update site cache for ${site_id}: ${error.message}`
@@ -133,6 +154,9 @@ const updateActivityCache = async (
       updatePromises.push(
         (async () => {
           try {
+            // Capture timestamp BEFORE querying activities
+            const cacheStamp = new Date();
+
             // Build query to find activities by device_id or name
             const deviceQuery = { $or: [] };
             if (device_id) {
@@ -196,32 +220,49 @@ const updateActivityCache = async (
               latestActivitiesByType.recallment ||
               null;
 
-            // Find the device to update
+            // Find the device filter
             let deviceFilter = {};
             if (device_id) {
-              deviceFilter = { _id: ObjectId(device_id) };
+              deviceFilter._id = ObjectId(device_id);
             } else if (deviceName) {
-              deviceFilter = { name: deviceName };
+              deviceFilter.name = deviceName;
             }
 
-            // Update device document
-            await DeviceModel(tenant).findOneAndUpdate(deviceFilter, {
-              $set: {
-                cached_total_activities: deviceActivities.length,
-                cached_activities_by_type: activitiesByType,
-                cached_latest_activities_by_type: latestActivitiesByType,
-                cached_latest_deployment_activity: latestDeployment,
-                cached_latest_maintenance_activity: latestMaintenance,
-                cached_latest_recall_activity: latestRecall,
-                activities_cache_updated_at: new Date(),
+            // Update device document ONLY if our snapshot is newer than stored cache
+            const result = await DeviceModel(tenant).findOneAndUpdate(
+              {
+                ...deviceFilter,
+                $or: [
+                  { activities_cache_updated_at: { $exists: false } },
+                  { activities_cache_updated_at: { $lt: cacheStamp } },
+                ],
               },
-            });
-
-            logger.info(
-              `Updated cache for device ${device_id || deviceName}: ${
-                deviceActivities.length
-              } activities`
+              {
+                $set: {
+                  cached_total_activities: deviceActivities.length,
+                  cached_activities_by_type: activitiesByType,
+                  cached_latest_activities_by_type: latestActivitiesByType,
+                  cached_latest_deployment_activity: latestDeployment,
+                  cached_latest_maintenance_activity: latestMaintenance,
+                  cached_latest_recall_activity: latestRecall,
+                  activities_cache_updated_at: cacheStamp,
+                },
+              },
+              { new: true }
             );
+
+            if (result) {
+              logger.info(
+                `Updated cache for device ${device_id || deviceName}: ${
+                  deviceActivities.length
+                } activities at ${cacheStamp.toISOString()}`
+              );
+            } else {
+              logger.debug(
+                `Skipped device ${device_id ||
+                  deviceName} cache update - newer cache already exists`
+              );
+            }
           } catch (error) {
             logger.error(
               `Failed to update device cache for ${device_id || deviceName}: ${

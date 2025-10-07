@@ -175,7 +175,39 @@ require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
-require("@bin/jobs/precompute-activities-job");
+
+// Defensively load precompute activities job
+// Default behavior: ENABLED (runs unless explicitly disabled)
+try {
+  // Use optional chaining and nullish coalescing for safe defaults
+  const isEnabled =
+    constants?.PRECOMPUTE_ACTIVITIES_JOB_ENABLED ??
+    process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== "false";
+
+  if (isEnabled) {
+    try {
+      require("@bin/jobs/precompute-activities-job");
+    } catch (jobError) {
+      global.dedupLogger.error(
+        `❌ precompute-activities-job failed: ${jobError.message}`
+      );
+      // Continue - don't crash the server
+    }
+  } else {
+    logger.info("ℹ️  precompute-activities-job disabled");
+  }
+} catch (error) {
+  // Ultimate fallback - if everything fails, try to run the job anyway
+  console.warn(`⚠️  Error checking job config: ${error.message}`);
+  console.log("ℹ️  Attempting to start job with default behavior...");
+  try {
+    require("@bin/jobs/precompute-activities-job");
+    console.log("✅ precompute-activities-job started (fallback)");
+  } catch (jobError) {
+    console.error(`❌ Job failed to start: ${jobError.message}`);
+    // Continue - server stays up
+  }
+}
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
