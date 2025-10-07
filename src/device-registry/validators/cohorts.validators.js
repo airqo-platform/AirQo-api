@@ -480,7 +480,7 @@ const cohortValidations = {
       .optional()
       .trim()
       .toLowerCase()
-      .isIn(["lowcost", "bam", "gas", "mobile"])
+      .isIn(constants.DEVICE_CATEGORIES)
       .withMessage("category must be one of: lowcost, bam, gas, mobile"),
     handleValidationErrors,
   ],
@@ -500,7 +500,7 @@ const cohortValidations = {
       .optional()
       .trim()
       .toLowerCase()
-      .isIn(["lowcost", "bam", "gas", "mobile"])
+      .isIn(constants.DEVICE_CATEGORIES)
       .withMessage("category must be one of: lowcost, bam, gas, mobile"),
     handleValidationErrors,
   ],

@@ -1282,7 +1282,7 @@ const createCohort = {
 
       // Add category filter if provided
       if (category) {
-        const validCategories = ["lowcost", "bam", "gas", "mobile"];
+        const validCategories = constants.DEVICE_CATEGORIES;
         if (!validCategories.includes(category.toLowerCase())) {
           return {
             success: false,
@@ -1295,6 +1295,8 @@ const createCohort = {
         }
         if (category.toLowerCase() === "mobile") {
           filter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          filter.$or = [{ mobility: { $exists: false } }, { mobility: false }];
         } else {
           filter.category = category.toLowerCase();
         }
@@ -1642,7 +1644,7 @@ const createCohort = {
 
       // Add category filter if provided
       if (category) {
-        const validCategories = ["lowcost", "bam", "gas", "mobile"];
+        const validCategories = constants.DEVICE_CATEGORIES;
         if (!validCategories.includes(category.toLowerCase())) {
           return {
             success: false,
@@ -1655,6 +1657,11 @@ const createCohort = {
         }
         if (category.toLowerCase() === "mobile") {
           deviceFilter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          deviceFilter.$or = [
+            { mobility: { $exists: false } },
+            { mobility: false },
+          ];
         } else {
           deviceFilter.category = category.toLowerCase();
         }

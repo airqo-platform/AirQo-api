@@ -15,5 +15,6 @@ const staticLists = {
     "testing",
     "not deployed",
   ],
+  DEVICE_CATEGORIES: ["lowcost", "gas", "bam", "static", "mobile"],
 };
 module.exports = staticLists;
