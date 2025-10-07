@@ -338,7 +338,9 @@ class BigQueryApi:
         )
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+        up_to_date_data.drop_duplicates(
+            subset=["grid_id", "site_id"], inplace=True, keep="first"
+        )
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
