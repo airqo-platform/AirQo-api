@@ -15,6 +15,6 @@ const staticLists = {
     "testing",
     "not deployed",
   ],
-  DEVICE_CATEGORIES: ["lowcost", "gas", "bam", "static", "mobile"],
+  DEVICE_FILTER_TYPES: ["lowcost", "gas", "bam", "static", "mobile"],
 };
 module.exports = staticLists;

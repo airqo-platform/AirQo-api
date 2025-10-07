@@ -1282,7 +1282,7 @@ const createCohort = {
 
       // Add category filter if provided
       if (category) {
-        const validCategories = constants.DEVICE_CATEGORIES;
+        const validCategories = constants.DEVICE_FILTER_TYPES;
         if (!validCategories.includes(category.toLowerCase())) {
           return {
             success: false,
@@ -1644,7 +1644,7 @@ const createCohort = {
 
       // Add category filter if provided
       if (category) {
-        const validCategories = constants.DEVICE_CATEGORIES;
+        const validCategories = constants.DEVICE_FILTER_TYPES;
         if (!validCategories.includes(category.toLowerCase())) {
           return {
             success: false,

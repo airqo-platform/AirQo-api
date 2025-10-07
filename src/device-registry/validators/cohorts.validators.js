@@ -480,8 +480,10 @@ const cohortValidations = {
       .optional()
       .trim()
       .toLowerCase()
-      .isIn(constants.DEVICE_CATEGORIES)
-      .withMessage("category must be one of: lowcost, bam, gas, mobile"),
+      .isIn(constants.DEVICE_FILTER_TYPES)
+      .withMessage(
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+      ),
     handleValidationErrors,
   ],
 
@@ -500,8 +502,10 @@ const cohortValidations = {
       .optional()
       .trim()
       .toLowerCase()
-      .isIn(constants.DEVICE_CATEGORIES)
-      .withMessage("category must be one of: lowcost, bam, gas, mobile"),
+      .isIn(constants.DEVICE_FILTER_TYPES)
+      .withMessage(
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+      ),
     handleValidationErrors,
   ],
 };
