@@ -462,6 +462,8 @@ deviceSchema.plugin(uniqueValidator, {
 });
 
 deviceSchema.index({ site_id: 1 });
+deviceSchema.index({ mobility: 1 });
+deviceSchema.index({ mobility: 1, cohorts: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
