@@ -696,6 +696,35 @@ const commonValidations = {
 };
 
 const activitiesValidations = {
+  refreshCaches: [
+    ...commonValidations.tenant,
+    body("device_names")
+      .optional()
+      .isArray()
+      .withMessage("device_names must be an array"),
+    body("site_ids")
+      .optional()
+      .isArray()
+      .withMessage("site_ids must be an array"),
+    body("refresh_all")
+      .optional()
+      .isBoolean()
+      .withMessage("refresh_all must be a boolean")
+      .toBoolean(),
+  ],
+  backfillDeviceIds: [
+    ...commonValidations.tenant,
+    body("dry_run")
+      .optional()
+      .isBoolean()
+      .withMessage("dry_run must be a boolean value (true or false)")
+      .toBoolean(),
+    body("batch_size")
+      .optional()
+      .isInt({ min: 10, max: 1000 })
+      .withMessage("batch_size must be an integer between 10 and 1000")
+      .toInt(),
+  ],
   recallActivity: [
     ...commonValidations.tenant,
     ...commonValidations.deviceName,
@@ -1084,4 +1113,5 @@ module.exports = {
   validateTenantQuery,
   enhancedDeployActivity: activitiesValidations.enhancedDeployActivity,
   validateDeployOwnedDevice: activitiesValidations.validateDeployOwnedDevice,
+  backfillDeviceIds: activitiesValidations.backfillDeviceIds,
 };

@@ -442,7 +442,19 @@ class ProjectionFactory {
             ],
           },
           total_activities: {
-            $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            $cond: [
+              // If cached_total_activities exists, use it
+              { $gt: [{ $ifNull: ["$cached_total_activities", -1] }, -1] },
+              "$cached_total_activities",
+              // Otherwise calculate from activities array
+              {
+                $cond: [
+                  { $isArray: "$activities" },
+                  { $size: "$activities" },
+                  0,
+                ],
+              },
+            ],
           },
           assigned_grid: {
             $cond: [
