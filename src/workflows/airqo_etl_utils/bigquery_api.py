@@ -303,6 +303,31 @@ class BigQueryApi:
         logger.info(f"Total rows after load :  {destination_table.num_rows}")
 
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        """
+        Updates the AirQlouds-Sites mapping table by merging new data with existing records.
+
+        This method performs an upsert operation on the AirQlouds-Sites table by:
+        1. Validating the input DataFrame against the table schema
+        2. Retrieving all existing data from the target table
+        3. Concatenating existing and new data
+        4. Removing duplicates (keeping first occurrence)
+        5. Overwriting the entire table with the merged dataset
+
+        Args:
+            dataframe (pd.DataFrame): DataFrame containing AirQloud-Site mapping data to be updated. Must conform to the target table's schema.
+            table (Optional[str]): Fully qualified BigQuery table name. If None, uses the default self.airqlouds_sites_table. Defaults to None.
+
+        Returns:
+            None: Performs database operations in-place without returning data.
+
+        Raises:
+            Exception: If DataFrame validation fails due to missing required columns or invalid data types.
+            google.cloud.exceptions.GoogleCloudError: If BigQuery operations (query or load) fail.
+
+        Note:
+            This operation uses OVERWRITE mode, so the entire table is replaced with the merged data.
+            Duplicate detection is performed across all columns.
+        """
         if table is None:
             table = self.airqlouds_sites_table
 
@@ -324,6 +349,31 @@ class BigQueryApi:
         )
 
     def update_grids_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        """
+        Updates the Grids-Sites mapping table by merging new data with existing records.
+
+        This method performs an upsert operation on the Grids-Sites table by:
+        1. Validating the input DataFrame against the table schema
+        2. Retrieving all existing data from the target table
+        3. Concatenating existing and new data
+        4. Removing duplicates based on grid_id and site_id combination
+        5. Overwriting the entire table with the merged dataset
+
+        Args:
+            dataframe (pd.DataFrame): DataFrame containing Grid-Site mapping data to be updated. Must include 'grid_id' and 'site_id' columns and conform to the target table's schema.
+            table (Optional[str]): Fully qualified BigQuery table name. If None, uses the default self.grids_sites_table. Defaults to None.
+
+        Returns:
+            None: Performs database operations in-place without returning data.
+
+        Raises:
+            Exception: If DataFrame validation fails due to missing required columns or invalid data types.
+            google.cloud.exceptions.GoogleCloudError: If BigQuery operations (query or load) fail.
+
+        Note:
+            This operation uses OVERWRITE mode, so the entire table is replaced with the merged data.
+            Duplicate detection is performed specifically on ['grid_id', 'site_id'] combination.
+        """
         if table is None:
             table = self.grids_sites_table
 
@@ -346,6 +396,31 @@ class BigQueryApi:
         )
 
     def update_cohorts_devices_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        """
+        Updates the Cohorts-Devices mapping table by merging new data with existing records.
+
+        This method performs an upsert operation on the Cohorts-Devices table by:
+        1. Validating the input DataFrame against the table schema
+        2. Retrieving all existing data from the target table
+        3. Concatenating existing and new data
+        4. Removing duplicates (keeping first occurrence)
+        5. Overwriting the entire table with the merged dataset
+
+        Args:
+            dataframe (pd.DataFrame): DataFrame containing Cohort-Device mapping data to be updated. Must conform to the target table's schema.
+            table (Optional[str]): Fully qualified BigQuery table name. If None, uses the default self.cohorts_devices_table. Defaults to None.
+
+        Returns:
+            None: Performs database operations in-place without returning data.
+
+        Raises:
+            Exception: If DataFrame validation fails due to missing required columns or invalid data types.
+            google.cloud.exceptions.GoogleCloudError: If BigQuery operations (query or load) fail.
+
+        Note:
+            This operation uses OVERWRITE mode, so the entire table is replaced with the merged data.
+            Duplicate detection is performed across all columns.
+        """
         if table is None:
             table = self.cohorts_devices_table
 
