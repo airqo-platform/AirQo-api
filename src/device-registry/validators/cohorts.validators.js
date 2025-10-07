@@ -1,6 +1,7 @@
 // cohorts.validators.js
 const {
   oneOf,
+  check,
   query,
   body,
   param,
@@ -475,6 +476,12 @@ const cohortValidations = {
     body("cohort_ids.*")
       .isMongoId()
       .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("category")
+      .optional()
+      .trim()
+      .toLowerCase()
+      .isIn(["lowcost", "bam", "gas", "mobile"])
+      .withMessage("category must be one of: lowcost, bam, gas, mobile"),
     handleValidationErrors,
   ],
 
@@ -489,6 +496,12 @@ const cohortValidations = {
     body("cohort_ids.*")
       .isMongoId()
       .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("category")
+      .optional()
+      .trim()
+      .toLowerCase()
+      .isIn(["lowcost", "bam", "gas", "mobile"])
+      .withMessage("category must be one of: lowcost, bam, gas, mobile"),
     handleValidationErrors,
   ],
 };
