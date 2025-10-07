@@ -1,6 +1,7 @@
 // cohorts.validators.js
 const {
   oneOf,
+  check,
   query,
   body,
   param,
@@ -475,6 +476,36 @@ const cohortValidations = {
     body("cohort_ids.*")
       .isMongoId()
       .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("category")
+      .optional()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.DEVICE_FILTER_TYPES)
+      .withMessage(
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+      ),
+    handleValidationErrors,
+  ],
+
+  listSites: [
+    validateTenant,
+    body("cohort_ids")
+      .exists()
+      .withMessage("cohort_ids are required")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+    body("cohort_ids.*")
+      .isMongoId()
+      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("category")
+      .optional()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.DEVICE_FILTER_TYPES)
+      .withMessage(
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+      ),
     handleValidationErrors,
   ],
 };

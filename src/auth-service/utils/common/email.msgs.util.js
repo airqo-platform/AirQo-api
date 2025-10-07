@@ -838,7 +838,10 @@ module.exports = {
     </tr>
   `;
 
-    return constants.EMAIL_BODY({ email: "support@airqo.net", content });
+    return constants.EMAIL_BODY({
+      email: constants.SUPPORT_EMAIL || "support@airqo.net",
+      content,
+    });
   },
 
   confirmOrgRequestReceived: ({

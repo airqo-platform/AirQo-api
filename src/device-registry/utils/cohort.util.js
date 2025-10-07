@@ -1,5 +1,6 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
+const SiteModel = require("@models/Site");
 const qs = require("qs");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
@@ -1247,8 +1248,15 @@ const createCohort = {
   },
   listDevices: async (request, next) => {
     try {
-      const { tenant, limit, skip, activities_limit } = request.query;
-      const { cohort_ids } = request.body;
+      const {
+        tenant,
+        limit,
+        skip,
+        activities_limit,
+        sortBy,
+        order,
+      } = request.query;
+      const { cohort_ids, category } = { ...request.body, ...request.query };
 
       // Pagination and activities controls
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
@@ -1258,19 +1266,48 @@ const createCohort = {
         500
       );
 
+      // Sorting controls
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         "full"
       );
 
-      const filter = { cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) } };
+      // Build filter
+      const filter = {
+        cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) },
+      };
+
+      // Add category filter if provided
+      if (category) {
+        const validCategories = constants.DEVICE_FILTER_TYPES;
+        if (!validCategories.includes(category.toLowerCase())) {
+          return {
+            success: false,
+            message: "Invalid category",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Category must be one of: ${validCategories.join(", ")}`,
+            },
+          };
+        }
+        if (category.toLowerCase() === "mobile") {
+          filter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          filter.$or = [{ mobility: { $exists: false } }, { mobility: false }];
+        } else {
+          filter.category = category.toLowerCase();
+        }
+      }
 
       // Get total count for pagination metadata before applying limit and skip
       const total = await DeviceModel(tenant).countDocuments(filter);
 
       const pipeline = [
         { $match: filter },
-        { $sort: { createdAt: -1 } },
+        { $sort: { [sortField]: sortOrder } },
         { $skip: _skip },
         { $limit: _limit },
         {
@@ -1569,6 +1606,358 @@ const createCohort = {
       return {
         success: true,
         message: "Successfully retrieved devices for the provided cohorts",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listSites: async (request, next) => {
+    try {
+      const { tenant, limit, skip, sortBy, order } = request.query;
+      const { cohort_ids, category } = { ...request.body, ...request.query };
+
+      // Pagination controls
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 50, 200));
+
+      // Sorting controls
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
+      // Convert cohort_ids to ObjectIds
+      const cohortObjectIds = cohort_ids.map((id) => ObjectId(id));
+
+      // Step 1: Build device filter
+      const deviceFilter = {
+        cohorts: { $in: cohortObjectIds },
+      };
+
+      // Add category filter if provided
+      if (category) {
+        const validCategories = constants.DEVICE_FILTER_TYPES;
+        if (!validCategories.includes(category.toLowerCase())) {
+          return {
+            success: false,
+            message: "Invalid category",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Category must be one of: ${validCategories.join(", ")}`,
+            },
+          };
+        }
+        if (category.toLowerCase() === "mobile") {
+          deviceFilter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          deviceFilter.$or = [
+            { mobility: { $exists: false } },
+            { mobility: false },
+          ];
+        } else {
+          deviceFilter.category = category.toLowerCase();
+        }
+      }
+
+      // Find all devices belonging to the provided cohorts (with optional category filter)
+      const devicesInCohorts = await DeviceModel(tenant)
+        .find(deviceFilter)
+        .select("site_id deployment_type")
+        .lean();
+
+      // Step 2: Extract unique site IDs (only for static deployments with sites)
+      const siteIds = [
+        ...new Set(
+          devicesInCohorts
+            .filter(
+              (device) =>
+                device.site_id &&
+                (!device.deployment_type || device.deployment_type === "static")
+            )
+            .map((device) => device.site_id.toString())
+        ),
+      ].map((id) => ObjectId(id));
+
+      if (siteIds.length === 0) {
+        return {
+          success: true,
+          message: category
+            ? `No sites found for the provided cohorts with category: ${category}`
+            : "No sites found for the provided cohorts",
+          data: [],
+          status: httpStatus.OK,
+          meta: {
+            total: 0,
+            limit: _limit,
+            skip: _skip,
+            page: 1,
+            totalPages: 0,
+          },
+        };
+      }
+
+      // Step 3: Get total count for pagination
+      const total = siteIds.length;
+
+      // Step 4: Build aggregation pipeline for sites with summary projection
+      const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
+        "summary"
+      );
+
+      const pipeline = [
+        {
+          $match: {
+            _id: { $in: siteIds },
+          },
+        },
+        { $sort: { [sortField]: sortOrder } },
+        { $skip: _skip },
+        { $limit: _limit },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "site_id",
+            as: "devices",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grids",
+            foreignField: "_id",
+            as: "grids",
+          },
+        },
+        {
+          $lookup: {
+            from: "airqlouds",
+            localField: "airqlouds",
+            foreignField: "_id",
+            as: "airqlouds",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 100 },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                },
+              },
+            ],
+            as: "activities",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      { $eq: ["$activityType", "maintenance"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_maintenance_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      {
+                        $or: [
+                          { $eq: ["$activityType", "recall"] },
+                          { $eq: ["$activityType", "recallment"] },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_recall_activity",
+          },
+        },
+        {
+          $addFields: {
+            total_activities: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
+          },
+        },
+        { $project: inclusionProjection },
+        { $project: exclusionProjection },
+      ];
+
+      const paginatedResults = await SiteModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      // Post-processing for consistency
+      paginatedResults.forEach((site) => {
+        site.latest_deployment_activity =
+          site.latest_deployment_activity &&
+          site.latest_deployment_activity.length > 0
+            ? site.latest_deployment_activity[0]
+            : null;
+
+        site.latest_maintenance_activity =
+          site.latest_maintenance_activity &&
+          site.latest_maintenance_activity.length > 0
+            ? site.latest_maintenance_activity[0]
+            : null;
+
+        site.latest_recall_activity =
+          site.latest_recall_activity && site.latest_recall_activity.length > 0
+            ? site.latest_recall_activity[0]
+            : null;
+
+        if (site.activities && site.activities.length > 0) {
+          const activitiesByType = {};
+          const latestActivitiesByType = {};
+
+          site.activities.forEach((activity) => {
+            const type = activity.activityType || "unknown";
+            activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+            if (
+              !latestActivitiesByType[type] ||
+              new Date(activity.createdAt) >
+                new Date(latestActivitiesByType[type].createdAt)
+            ) {
+              latestActivitiesByType[type] = activity;
+            }
+          });
+
+          site.activities_by_type = activitiesByType;
+          site.latest_activities_by_type = latestActivitiesByType;
+
+          const deviceActivitySummary = site.devices.map((device) => {
+            const deviceActivities = site.activities.filter(
+              (activity) =>
+                activity.device === device.name ||
+                (activity.device_id &&
+                  activity.device_id.toString() === device._id.toString())
+            );
+            return {
+              device_id: device._id,
+              device_name: device.name,
+              activity_count: deviceActivities.length,
+            };
+          });
+          site.device_activity_summary = deviceActivitySummary;
+        } else {
+          site.activities_by_type = {};
+          site.latest_activities_by_type = {};
+          site.device_activity_summary = site.devices.map((device) => ({
+            device_id: device._id,
+            device_name: device.name,
+            activity_count: 0,
+          }));
+        }
+      });
+
+      // Build pagination metadata
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: category
+          ? `Successfully retrieved sites for the provided cohorts with category: ${category}`
+          : "Successfully retrieved sites for the provided cohorts",
         data: paginatedResults,
         status: httpStatus.OK,
         meta,
