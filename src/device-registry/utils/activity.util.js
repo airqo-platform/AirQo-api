@@ -27,6 +27,220 @@ const kafka = new Kafka({
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+// Add after your imports, around line 50
+/**
+ * Updates the cached activity fields for sites and devices
+ * @param {string} tenant - The tenant identifier
+ * @param {ObjectId} site_id - The site ID to update cache for
+ * @param {ObjectId} device_id - The device ID to update cache for
+ * @param {string} deviceName - The device name (for legacy lookup)
+ * @param {function} next - Error handler
+ */
+const updateActivityCache = async (
+  tenant,
+  site_id,
+  device_id,
+  deviceName,
+  next
+) => {
+  try {
+    const updatePromises = [];
+
+    // Update site cache if site_id exists
+    if (site_id) {
+      updatePromises.push(
+        (async () => {
+          try {
+            // Get all activities for this site
+            const siteActivities = await ActivityModel(tenant)
+              .find({ site_id: ObjectId(site_id) })
+              .sort({ createdAt: -1 })
+              .lean();
+
+            if (!siteActivities || siteActivities.length === 0) {
+              logger.info(`No activities found for site ${site_id}`);
+              return;
+            }
+
+            // Build activity summaries
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            siteActivities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = {
+                  _id: activity._id,
+                  activityType: activity.activityType,
+                  maintenanceType: activity.maintenanceType,
+                  recallType: activity.recallType,
+                  date: activity.date,
+                  description: activity.description,
+                  nextMaintenance: activity.nextMaintenance,
+                  createdAt: activity.createdAt,
+                  device_id: activity.device_id,
+                  device: activity.device,
+                  site_id: activity.site_id,
+                };
+              }
+            });
+
+            // Prepare backward compatibility fields
+            const latestDeployment = latestActivitiesByType.deployment || null;
+            const latestMaintenance =
+              latestActivitiesByType.maintenance || null;
+            const latestRecall =
+              latestActivitiesByType.recall ||
+              latestActivitiesByType.recallment ||
+              null;
+            const siteCreation =
+              latestActivitiesByType["site-creation"] || null;
+
+            // Update site document
+            await SiteModel(tenant).findByIdAndUpdate(site_id, {
+              $set: {
+                cached_total_activities: siteActivities.length,
+                cached_activities_by_type: activitiesByType,
+                cached_latest_activities_by_type: latestActivitiesByType,
+                cached_latest_deployment_activity: latestDeployment,
+                cached_latest_maintenance_activity: latestMaintenance,
+                cached_latest_recall_activity: latestRecall,
+                cached_site_creation_activity: siteCreation,
+                activities_cache_updated_at: new Date(),
+              },
+            });
+
+            logger.info(
+              `Updated cache for site ${site_id}: ${siteActivities.length} activities`
+            );
+          } catch (error) {
+            logger.error(
+              `Failed to update site cache for ${site_id}: ${error.message}`
+            );
+          }
+        })()
+      );
+    }
+
+    // Update device cache if device_id or deviceName exists
+    if (device_id || deviceName) {
+      updatePromises.push(
+        (async () => {
+          try {
+            // Build query to find activities by device_id or name
+            const deviceQuery = { $or: [] };
+            if (device_id) {
+              deviceQuery.$or.push(
+                { device_id: ObjectId(device_id) },
+                { device_id: device_id.toString() }
+              );
+            }
+            if (deviceName) {
+              deviceQuery.$or.push({ device: deviceName });
+            }
+
+            // Get all activities for this device
+            const deviceActivities = await ActivityModel(tenant)
+              .find(deviceQuery)
+              .sort({ createdAt: -1 })
+              .lean();
+
+            if (!deviceActivities || deviceActivities.length === 0) {
+              logger.info(
+                `No activities found for device ${device_id || deviceName}`
+              );
+              return;
+            }
+
+            // Build activity summaries
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            deviceActivities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = {
+                  _id: activity._id,
+                  activityType: activity.activityType,
+                  maintenanceType: activity.maintenanceType,
+                  recallType: activity.recallType,
+                  date: activity.date,
+                  description: activity.description,
+                  nextMaintenance: activity.nextMaintenance,
+                  createdAt: activity.createdAt,
+                  device_id: activity.device_id,
+                  device: activity.device,
+                  site_id: activity.site_id,
+                };
+              }
+            });
+
+            // Prepare backward compatibility fields
+            const latestDeployment = latestActivitiesByType.deployment || null;
+            const latestMaintenance =
+              latestActivitiesByType.maintenance || null;
+            const latestRecall =
+              latestActivitiesByType.recall ||
+              latestActivitiesByType.recallment ||
+              null;
+
+            // Find the device to update
+            let deviceFilter = {};
+            if (device_id) {
+              deviceFilter = { _id: ObjectId(device_id) };
+            } else if (deviceName) {
+              deviceFilter = { name: deviceName };
+            }
+
+            // Update device document
+            await DeviceModel(tenant).findOneAndUpdate(deviceFilter, {
+              $set: {
+                cached_total_activities: deviceActivities.length,
+                cached_activities_by_type: activitiesByType,
+                cached_latest_activities_by_type: latestActivitiesByType,
+                cached_latest_deployment_activity: latestDeployment,
+                cached_latest_maintenance_activity: latestMaintenance,
+                cached_latest_recall_activity: latestRecall,
+                activities_cache_updated_at: new Date(),
+              },
+            });
+
+            logger.info(
+              `Updated cache for device ${device_id || deviceName}: ${
+                deviceActivities.length
+              } activities`
+            );
+          } catch (error) {
+            logger.error(
+              `Failed to update device cache for ${device_id || deviceName}: ${
+                error.message
+              }`
+            );
+          }
+        })()
+      );
+    }
+
+    // Execute all updates in parallel
+    await Promise.all(updatePromises);
+  } catch (error) {
+    logger.error(`updateActivityCache failed: ${error.message}`);
+    // Don't throw - cache update failure shouldn't break the main operation
+  }
+};
+
 const getValidDate = (dateInput) => {
   // If no date is provided, return null.
   if (!dateInput) {
@@ -621,6 +835,16 @@ const createActivity = {
 
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
+
+          // **NEW: Update activity cache immediately**
+          await updateActivityCache(
+            tenant,
+            activityBody.site_id,
+            activityBody.device_id || updatedDevice._id,
+            activityBody.device || deviceBody.query.name,
+            next
+          );
+
           const data = {
             createdActivity: {
               activity_codes: createdActivity.activity_codes,
@@ -1120,7 +1344,6 @@ const createActivity = {
     }
   },
 
-  // Existing functions remain largely unchanged
   recall: async (request, next) => {
     try {
       const { query, body } = request;
@@ -1201,6 +1424,7 @@ const createActivity = {
           description: "device recalled",
           activityType: "recallment",
           recallType,
+          site_id: previousSiteId, // Keep for cache update
         };
 
         let deviceBody = {
@@ -1214,10 +1438,10 @@ const createActivity = {
             longitude: "",
             isActive: false,
             status: "recalled",
-            deployment_type: "static", // Reset to default
+            deployment_type: "static",
             mobility: false,
             site_id: null,
-            grid_id: null, // ENHANCED: Clear grid_id on recall
+            grid_id: null,
             host_id: null,
             previous_sites: previousSiteId ? [previousSiteId] : [],
             recall_date: new Date(),
@@ -1228,7 +1452,6 @@ const createActivity = {
           },
         };
 
-        // Add previous grid to a potential previous_grids array if needed
         if (previousGridId) {
           deviceBody.body.previous_grids = [previousGridId];
         }
@@ -1247,6 +1470,17 @@ const createActivity = {
 
           if (responseFromUpdateDevice.success === true) {
             const updatedDevice = responseFromUpdateDevice.data;
+
+            // **NEW: Update activity cache immediately**
+            // Use previousSiteId since device is being unassigned
+            await updateActivityCache(
+              tenant,
+              previousSiteId,
+              updatedDevice._id,
+              deviceName,
+              next
+            );
+
             const data = {
               createdActivity: {
                 _id: createdActivity._id,
@@ -1322,7 +1556,9 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
     }
@@ -1337,7 +1573,7 @@ const createActivity = {
         tags,
         description,
         site_id,
-        grid_id, // ENHANCED: Support maintenance activities for mobile devices
+        grid_id,
         maintenanceType,
         network,
         user_id,
@@ -1376,6 +1612,7 @@ const createActivity = {
           },
         };
       }
+
       const siteActivityBody = {
         device: deviceName,
         user_id: user_id ? user_id : null,
@@ -1406,12 +1643,24 @@ const createActivity = {
 
       if (responseFromRegisterActivity.success === true) {
         const createdActivity = responseFromRegisterActivity.data;
+
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
           next
         );
+
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
+
+          // **NEW: Update activity cache immediately**
+          await updateActivityCache(
+            tenant,
+            siteActivityBody.site_id,
+            deviceDetails._id,
+            deviceName,
+            next
+          );
+
           const data = {
             createdActivity: {
               activity_codes: createdActivity.activity_codes,
@@ -1422,7 +1671,7 @@ const createActivity = {
               description: createdActivity.description,
               activityType: createdActivity.activityType,
               site_id: createdActivity.site_id,
-              grid_id: createdActivity.grid_id, // ENHANCED: Include grid_id
+              grid_id: createdActivity.grid_id,
               deployment_type: createdActivity.deployment_type,
               host_id: createdActivity.host_id,
               network: createdActivity.network,
@@ -1440,6 +1689,7 @@ const createActivity = {
             },
             user_id: user_id ? user_id : null,
           };
+
           try {
             const kafkaProducer = kafka.producer({
               groupId: constants.UNIQUE_PRODUCER_GROUP,
@@ -1477,7 +1727,9 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
     }

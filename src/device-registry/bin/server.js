@@ -175,15 +175,7 @@ require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
-if (constants.PRECOMPUTE_ACTIVITIES_JOB_ENABLED) {
-  try {
-    require("@bin/jobs/precompute-activities-job");
-  } catch (err) {
-    global.dedupLogger.error(
-      `Failed to start precompute-activities-job: ${err.message}`
-    );
-  }
-}
+require("@bin/jobs/precompute-activities-job");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
