@@ -65,6 +65,9 @@ class MetaDataUtils:
         ]
 
         devices.loc[:, "last_updated"] = datetime.now(timezone.utc)
+        devices.loc[:, "device_maintenance"] = pd.to_datetime(
+            devices["device_maintenance"], errors="coerce"
+        )
 
         return devices
 
@@ -150,7 +153,6 @@ class MetaDataUtils:
             MetaDataType.SITES: lambda: self.extract_sites(preferred_source="api"),
         }
         unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
-
         entities = metadata_method.get(metadata_type)()
         entities = entities[(entities.network == "airqo") & (entities.deployed == True)]
 
@@ -177,7 +179,6 @@ class MetaDataUtils:
         # Compute additional metadata
         computed_data = []
         data_table, _ = DataUtils._get_table(data_type, device_category_, frequency_)
-
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
