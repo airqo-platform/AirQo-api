@@ -971,6 +971,125 @@ class BigQueryApi:
         )
         return result_df
 
+    def fetch_max_min_values_batch(
+        self,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        unique_id: str,
+        filters: List[str],
+        pollutant: Dict[str, str],
+    ) -> pd.DataFrame:
+        """
+        Fetches the maximum, minimum, average, and sample count of specified pollutant columns from a BigQuery table within a given time range, filtered by multiple unique identifiers.
+        Args:
+            table(str): The name of the BigQuery table to query.
+            start_date_time(str): The start datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            end_date_time(str): The end datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            unique_id(str): The column name representing the unique identifier for filtering.
+            filters(List[str]): A list of values to filter the unique identifier by.
+            pollutant(Dict[str, str]): A dictionary of pollutant column names to compute statistics for.
+        Returns:
+            pd.DataFrame: A DataFrame containing the maximum, minimum, average, and sample count for the specified pollutant columns, grouped by the unique identifier.
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+            Exception: For any other errors during query execution.
+        """
+        # WIP
+        job_config = bigquery.QueryJobConfig()
+        query_parts = []
+        pollutants_list = []
+        for _, value in pollutant.items():
+            if isinstance(value, list):
+                for v in value:
+                    query_parts.append(
+                        f"COUNT({v}) AS sample_count_{v}, "
+                        f"MAX({v}) AS maximum_{v}, "
+                        f"MIN({v}) AS minimum_{v}, "
+                        f"AVG({v}) AS average_{v}"
+                    )
+                    pollutants_list.append(v)
+
+        entity_list = [f for f in filters]
+
+        query = f"""
+        SELECT
+        {unique_id},
+        {', '.join(query_parts)}
+        FROM `{table}`
+        WHERE timestamp BETWEEN '{start_date_time}' AND '{end_date_time}'
+        AND {unique_id} IN UNNEST(@filter_value)
+        GROUP BY {unique_id}
+        """
+        query_parameters = [
+            bigquery.ArrayQueryParameter("filter_value", "STRING", entity_list),
+        ]
+        job_config.query_parameters = query_parameters
+        measurements = (
+            self.client.query(query, job_config=job_config).result().to_dataframe()
+        )
+        measurements = self._reshape_max_min_results(
+            unique_id, measurements, pollutants_list
+        )
+        return measurements
+
+    def _reshape_max_min_results(
+        self, unique_id: str, data: pd.DataFrame, pollutants_list: List[str]
+    ) -> pd.DataFrame:
+        """
+        Reshapes a DataFrame containing max/min/avg/sample count statistics for multiple pollutants and entities
+
+        Args:
+            unique_id (str): The column name representing the unique identifier for each entity (e.g., 'device_id').
+            data (pd.DataFrame): Input DataFrame where each row corresponds to an entity and contains columns like 'minimum_<pollutant>', 'maximum_<pollutant>', 'average_<pollutant>', and 'sample_count_<pollutant>' for each pollutant in pollutants_list.
+            pollutants_list (List[str]): List of pollutant names for which statistics are present in data.
+
+        Returns:
+            pd.DataFrame: A DataFrame with columns [unique_id, "pollutant", "minimum", "maximum", "average", "sample_count"],
+                          where each row represents the statistics for a single pollutant and entity.
+
+        Example:
+            Input raw_df columns: ['device_id', 'minimum_pm2_5', 'maximum_pm2_5', 'average_pm2_5', 'sample_count_pm2_5', ...]
+            Output DataFrame columns: ['device_id', 'pollutant', 'minimum', 'maximum', 'average', 'sample_count']
+        """
+        # WIP
+        result_rows = []
+        if data.empty:
+            return pd.DataFrame(
+                columns=[
+                    unique_id,
+                    "pollutant",
+                    "minimum",
+                    "maximum",
+                    "average",
+                    "sample_count",
+                ]
+            )
+        for _, row in data.iterrows():
+            unique_id_val = row[unique_id]
+            for key in pollutants_list:
+                result_rows.append(
+                    {
+                        f"{unique_id}": unique_id_val,
+                        "pollutant": key,
+                        "minimum": row.get(f"minimum_{key}", None),
+                        "maximum": row.get(f"maximum_{key}", None),
+                        "average": row.get(f"average_{key}", None),
+                        "sample_count": row.get(f"sample_count_{key}", None),
+                    }
+                )
+        return pd.DataFrame(
+            result_rows,
+            columns=[
+                unique_id,
+                "pollutant",
+                "minimum",
+                "maximum",
+                "average",
+                "sample_count",
+            ],
+        )
+
     def fetch_most_recent_record(
         self,
         table: str,
