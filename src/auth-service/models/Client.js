@@ -256,13 +256,7 @@ ClientSchema.methods = {
 const ClientModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    let clients = mongoose.model("clients");
-    return clients;
-  } catch (error) {
-    let clients = getModelByTenant(dbTenant, "client", ClientSchema);
-    return clients;
-  }
+  return getModelByTenant(dbTenant, "client", ClientSchema);
 };
 
 module.exports = ClientModel;

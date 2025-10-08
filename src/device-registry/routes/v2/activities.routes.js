@@ -105,6 +105,18 @@ router.put(
 );
 
 router.post(
+  "/backfill-device-ids",
+  activitiesValidations.backfillDeviceIds,
+  activityController.backfillDeviceIds
+);
+
+router.post(
+  "/refresh-caches",
+  activitiesValidations.refreshCaches,
+  activityController.refreshCaches
+);
+
+router.post(
   "/bulk/",
   activitiesValidations.bulkAddActivities,
   activityController.bulkAdd

@@ -294,6 +294,7 @@ function getQueryTenantDB(tenantId, modelName, schema) {
     try {
       db.model(modelName);
     } catch {
+      // Model doesn't exist, register it
       db.model(modelName, schema);
     }
     return db;
