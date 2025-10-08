@@ -1647,13 +1647,7 @@ UserSchema.methods.addNetworkRole = function (
 const UserModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    let users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(dbTenant, "user", UserSchema);
-    return users;
-  }
+  return getModelByTenant(dbTenant, "user", UserSchema);
 };
 
 module.exports = UserModel;
