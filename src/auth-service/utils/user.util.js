@@ -1835,9 +1835,6 @@ const createUserModule = {
         deletionToken: token,
         deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
       };
-      logObject("request body in confirmAccountDeletion", request.body);
-      logObject("query in confirmAccountDeletion", request.query);
-      logObject("the filter in confirmAccountDeletion", filter);
 
       const user = await UserModel(tenant).findOne(filter).lean();
 
