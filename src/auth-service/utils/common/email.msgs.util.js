@@ -1048,4 +1048,93 @@ module.exports = {
 
     return constants.EMAIL_BODY({ email: contact_email, content, name });
   },
+  inactiveAccount: ({ firstName, email }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We've missed you on AirQo!
+                                    <br />
+                                    It's been a while since you last logged in. There are new features and updated air quality data waiting for you.
+                                    <br /><br />
+                                    Come back and see what's new.
+                                    <br /><br />
+                                    <a href="${constants.LOGIN_PAGE}" target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Log In
+                                            </div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    We look forward to seeing you again.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  accountDeletionConfirmation: ({ firstName, email, token, tenant }) => {
+    const name = firstName;
+    const url = `${constants.ANALYTICS_BASE_URL}/users/delete/confirm/${token}?tenant=${tenant}`;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We have received a request to delete your AirQo account.
+                                    <br /><br />
+                                    <strong>This action is irreversible and will permanently delete all your data.</strong>
+                                    <br /><br />
+                                    To confirm that you want to permanently delete your account, please click the button below. This link is valid for 1 hour.
+                                    <br /><br />
+                                    <a href="${url}" target="_blank">
+                                        <div
+                                            style="width: 30%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #D92D20; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Confirm Account Deletion
+                                            </div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    If you did not request this, you can safely ignore this email. Your account will not be deleted.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  accountDeletionSuccess: ({ firstName, email }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    Your AirQo account has been successfully deleted.
+                                    <br /><br />
+                                    All your data has been permanently removed from our systems. We're sorry to see you go.
+                                    <br /><br />
+                                    If you have any feedback, we'd love to hear it.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  mobileAccountDeletionCode: ({ firstName, email, token }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We have received a request to delete your AirQo account.
+                                    <br /><br />
+                                    <strong>This action is irreversible and will permanently delete all your data.</strong>
+                                    <br /><br />
+                                    To confirm, please enter the following code in the AirQo mobile app. This code is valid for 1 hour.
+                                    <br /><br />
+                                    <h1 style="font-size: 36px; font-weight: bold; margin: 20px 0; color: #D92D20; text-align: center;">${token}</h1>
+                                    <br />
+                                    If you did not request this, you can safely ignore this email. Your account will not be deleted.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
 };
