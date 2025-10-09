@@ -640,6 +640,37 @@ router.delete(
   userController.delete
 );
 
+router.post(
+  "/delete/initiate",
+  enhancedJWTAuth,
+  userValidations.initiateAccountDeletion,
+  validate,
+  userController.initiateAccountDeletion
+);
+
+router.get(
+  "/delete/confirm/:token",
+  userValidations.confirmAccountDeletion,
+  validate,
+  userController.confirmAccountDeletion
+);
+
+router.post(
+  "/delete/mobile/initiate",
+  enhancedJWTAuth,
+  userValidations.initiateAccountDeletion, // Can reuse the same validation
+  validate,
+  userController.initiateMobileAccountDeletion
+);
+
+router.post(
+  "/delete/mobile/confirm",
+  enhancedJWTAuth, // User must be logged in to confirm with a code
+  userValidations.confirmMobileAccountDeletion,
+  validate,
+  userController.confirmMobileAccountDeletion
+);
+
 router.delete(
   "/:user_id",
   userValidations.deleteUserById,

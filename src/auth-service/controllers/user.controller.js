@@ -1392,6 +1392,53 @@ const userController = {
     }
   },
 
+  initiateAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.initiateAccountDeletion(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  confirmAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.confirmAccountDeletion(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  initiateMobileAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.initiateMobileAccountDeletion(
+        request,
+        next
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  confirmMobileAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.confirmMobileAccountDeletion(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   /**
    * Legacy login compatibility endpoint
    * @route POST /api/v2/users/login

@@ -1677,6 +1677,217 @@ const createUserModule = {
     }
   },
 
+  initiateAccountDeletion: async (request, next) => {
+    try {
+      logObject("the request query in initiateAccountDeletion", request.query);
+      const { tenant } = request.query;
+      const { email } = request.body;
+      const user = request.user;
+
+      logObject("the tenant in initiateAccountDeletion", tenant);
+
+      if (user.email.toLowerCase() !== email.toLowerCase()) {
+        return {
+          success: false,
+          message: "Forbidden",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: "You can only initiate deletion for your own account.",
+          },
+        };
+      }
+
+      const responseFromGenerateResetToken =
+        createUserModule.generateResetToken();
+      if (!responseFromGenerateResetToken.success) {
+        return responseFromGenerateResetToken;
+      }
+
+      const token = responseFromGenerateResetToken.data;
+      const update = {
+        deletionToken: token,
+        deletionTokenExpires: Date.now() + 3600000, // 1 hour
+      };
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { _id: user._id },
+          update,
+        },
+        next
+      );
+
+      if (responseFromModifyUser.success) {
+        const mailerResponse = await mailer.sendAccountDeletionConfirmation({
+          email: user.email,
+          token,
+          tenant,
+          firstName: user.firstName,
+        });
+
+        if (mailerResponse.success) {
+          return {
+            success: true,
+            message:
+              "Account deletion process initiated. Please check your email for a confirmation link.",
+            status: httpStatus.OK,
+          };
+        } else {
+          return mailerResponse;
+        }
+      } else {
+        return responseFromModifyUser;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in initiateAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  initiateMobileAccountDeletion: async (request, next) => {
+    try {
+      const { tenant: tenantFromQuery } = request.query;
+      const tenant = tenantFromQuery || constants.DEFAULT_TENANT;
+      const { email } = request.body;
+      const user = request.user;
+
+      if (user.email.toLowerCase() !== email.toLowerCase()) {
+        return {
+          success: false,
+          message: "Forbidden",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: "You can only initiate deletion for your own account.",
+          },
+        };
+      }
+
+      const token = generateNumericToken(5); // 5-digit code
+      const update = {
+        deletionToken: token,
+        deletionTokenExpires: Date.now() + 3600000, // 1 hour
+      };
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { _id: user._id },
+          update,
+        },
+        next
+      );
+
+      if (responseFromModifyUser.success) {
+        const mailerResponse = await mailer.sendMobileAccountDeletionCode({
+          email: user.email,
+          token,
+          firstName: user.firstName,
+        });
+
+        if (mailerResponse.success) {
+          return {
+            success: true,
+            message:
+              "Account deletion process initiated. Please check your email for a 5-digit confirmation code.",
+            status: httpStatus.OK,
+          };
+        } else {
+          return mailerResponse;
+        }
+      } else {
+        return responseFromModifyUser;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in initiateMobileAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  confirmMobileAccountDeletion: async (request, next) => {
+    // This re-uses the logic from the web confirmation, but is called from a different route.
+    // The logic is identical because it just needs a token and tenant.
+    // The mobile app will pass the numeric code as the token.
+    return createUserModule.confirmAccountDeletion(request, next);
+  },
+
+  confirmAccountDeletion: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const token = request.params.token || request.body.token;
+      const timeZone = moment.tz.guess();
+
+      const filter = {
+        deletionToken: token,
+        deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
+      };
+      logObject("request body in confirmAccountDeletion", request.body);
+      logObject("query in confirmAccountDeletion", request.query);
+      logObject("the filter in confirmAccountDeletion", filter);
+
+      const user = await UserModel(tenant).findOne(filter).lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "Invalid or expired token",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Your account deletion token is invalid or has expired. Please try again.",
+          },
+        };
+      }
+
+      const deleteRequest = {
+        query: { tenant, id: user._id.toString() },
+      };
+
+      const deletionResult = await createUserModule.delete(deleteRequest);
+
+      if (deletionResult.success) {
+        await mailer.sendAccountDeletionSuccess({
+          email: user.email,
+          firstName: user.firstName,
+        });
+        return {
+          success: true,
+          message: "Your account has been successfully deleted.",
+          status: httpStatus.OK,
+        };
+      } else {
+        return deletionResult;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in confirmAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
   delete: async (request) => {
     try {
       const { tenant } = request.query;

@@ -274,7 +274,7 @@ const createMailerFunction = (
         },
         to: email,
         subject: getEmailSubject(functionName, otherParams),
-        html: emailMessageFunction({ email, ...otherParams }),
+        html: emailMessageFunction({ email, tenant, ...otherParams }),
         bcc: subscribedBccEmails || undefined,
         attachments: attachments,
       };
@@ -510,6 +510,10 @@ const getEmailSubject = (functionName, params) => {
     updateProfileReminder:
       "Your AirQo Account: Update Your Name to Enhance Your Experience",
     sendPollutionAlert: params.subject || "AirQo Pollution Alert",
+    inactiveAccount: "We've Missed You on AirQo!",
+    sendAccountDeletionConfirmation: "Confirm Your AirQo Account Deletion",
+    sendAccountDeletionSuccess: "Your AirQo Account Has Been Deleted",
+    sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
   };
 
   return subjects[functionName] || `AirQo Account Notification`;
@@ -528,6 +532,10 @@ const EMAIL_CATEGORIES = {
     "updateKnownPassword",
     "signInWithEmailLink",
     "deleteMobileAccountEmail",
+    "inactiveAccount",
+    "sendAccountDeletionConfirmation",
+    "sendAccountDeletionSuccess",
+    "sendMobileAccountDeletionCode",
     "authenticateEmail",
     "compromisedToken",
     "expiredToken",
@@ -1787,6 +1795,47 @@ const mailer = {
         contact_name: params.contact_name,
         contact_email: params.contact_email,
         login_url: params.login_url,
+      })
+  ),
+  inactiveAccount: createMailerFunction(
+    "inactiveAccount",
+    "OPTIONAL",
+    (params) =>
+      msgs.inactiveAccount({
+        firstName: params.firstName,
+        email: params.email,
+      })
+  ),
+  sendAccountDeletionConfirmation: createMailerFunction(
+    "sendAccountDeletionConfirmation",
+    "CORE_CRITICAL",
+    (params) => {
+      logObject("params", params);
+      return msgs.accountDeletionConfirmation({
+        firstName: params.firstName,
+        email: params.email,
+        token: params.token,
+        tenant: params.tenant,
+      });
+    }
+  ),
+  sendAccountDeletionSuccess: createMailerFunction(
+    "sendAccountDeletionSuccess",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.accountDeletionSuccess({
+        firstName: params.firstName,
+        email: params.email,
+      })
+  ),
+  sendMobileAccountDeletionCode: createMailerFunction(
+    "sendMobileAccountDeletionCode",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.mobileAccountDeletionCode({
+        firstName: params.firstName,
+        email: params.email,
+        token: params.token,
       })
   ),
 };
