@@ -13,8 +13,9 @@ const reminderCooldownInDays = 90; // Don't send reminders more than once every 
 const sendInactivityReminders = async () => {
   try {
     logger.info("Starting job: sendInactivityReminders");
+    const tenant = (constants.DEFAULT_TENANT || "airqo").toLowerCase();
+    const now = new Date();
     const batchSize = 100;
-    let skip = 0;
 
     const inactiveThresholdDate = new Date();
     inactiveThresholdDate.setDate(
@@ -27,7 +28,7 @@ const sendInactivityReminders = async () => {
     );
 
     while (true) {
-      const inactiveUsers = await UserModel("airqo")
+      const inactiveUsers = await UserModel(tenant)
         .find({
           lastLogin: { $lt: inactiveThresholdDate },
           isActive: true, // Only target active users
@@ -37,7 +38,7 @@ const sendInactivityReminders = async () => {
           ],
         })
         .limit(batchSize)
-        .skip(skip)
+        .sort({ _id: 1 })
         .select("_id email firstName")
         .lean();
 
@@ -47,17 +48,23 @@ const sendInactivityReminders = async () => {
       }
 
       for (const user of inactiveUsers) {
-        await mailer.inactiveAccount({
-          email: user.email,
-          firstName: user.firstName,
-        });
-        await UserModel("airqo").findByIdAndUpdate(user._id, {
-          last_inactive_reminder_sent_at: new Date(),
-        });
-        logger.info(`Inactivity reminder sent to ${user.email}`);
+        try {
+          await mailer.inactiveAccount({
+            email: user.email,
+            firstName: user.firstName,
+          });
+          await UserModel(tenant).findByIdAndUpdate(user._id, {
+            last_inactive_reminder_sent_at: now,
+          });
+          logger.info(`Inactivity reminder sent to ${user.email}`);
+        } catch (err) {
+          logger.warn(
+            `Failed processing inactivity reminder for ${
+              user.email
+            }: ${stringify(err)}`
+          );
+        }
       }
-
-      skip += batchSize;
     }
     logger.info("Finished job: sendInactivityReminders");
   } catch (error) {

@@ -1322,7 +1322,7 @@ const confirmMobileAccountDeletion = [
   [
     body("token")
       .exists()
-      .withMessage("The deletion code is missing in the request")
+      .withMessage("The deletion token is missing in the request")
       .bail()
       .notEmpty()
       .withMessage("token should not be empty")

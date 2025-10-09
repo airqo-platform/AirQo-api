@@ -1810,7 +1810,6 @@ const mailer = {
     "sendAccountDeletionConfirmation",
     "CORE_CRITICAL",
     (params) => {
-      logObject("params", params);
       return msgs.accountDeletionConfirmation({
         firstName: params.firstName,
         email: params.email,

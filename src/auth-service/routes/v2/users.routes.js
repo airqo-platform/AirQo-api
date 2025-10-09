@@ -648,7 +648,7 @@ router.post(
   userController.initiateAccountDeletion
 );
 
-router.get(
+router.post(
   "/delete/confirm/:token",
   userValidations.confirmAccountDeletion,
   validate,

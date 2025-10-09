@@ -2192,7 +2192,8 @@ const createUserModule = {
                 email: normalizedEmail,
                 userId,
                 tenant,
-                emailError: emailResult?.message || "Unknown email error",
+                emailError:
+                  (emailResult && emailResult.message) || "Unknown email error",
               });
 
               return {
@@ -2208,7 +2209,8 @@ const createUserModule = {
                   },
                   verificationEmailSent: false,
                   emailError:
-                    emailResult?.message || "Email service unavailable",
+                    (emailResult && emailResult.message) ||
+                    "Email service unavailable",
                 },
               };
             }
@@ -2220,7 +2222,7 @@ const createUserModule = {
                 userId,
                 tenant,
                 error: emailError.message,
-                stack: emailError.stack?.substring(0, 500),
+                stack: emailError.stack && emailError.stack.substring(0, 500),
               }
             );
 
@@ -2244,16 +2246,17 @@ const createUserModule = {
           logger.error("Mobile user creation failed", {
             email: normalizedEmail,
             tenant,
-            error: newUserResponse?.message || "Unknown creation error",
-            errors: newUserResponse?.errors,
+            error:
+              (newUserResponse && newUserResponse.message) ||
+              "Unknown creation error",
+            errors: newUserResponse && newUserResponse.errors,
           });
-
-          return (
-            newUserResponse || {
-              success: false,
-              message: "Failed to create mobile user account",
-            }
-          );
+          return newUserResponse && Object.keys(newUserResponse).length > 0
+            ? newUserResponse
+            : newUserResponse || {
+                success: false,
+                message: "Failed to create mobile user account",
+              };
         }
       } finally {
         // ✅ STEP 8: Always cleanup the lock
@@ -2264,7 +2267,10 @@ const createUserModule = {
         email: request.body?.email,
         tenant: request.query?.tenant,
         stack: error.stack,
-        userAgent: request.headers?.["user-agent"]?.substring(0, 100),
+        userAgent:
+          request.headers &&
+          request.headers["user-agent"] &&
+          request.headers["user-agent"].substring(0, 100),
       });
 
       return {
@@ -2694,7 +2700,7 @@ const createUserModule = {
               email: normalizedEmail,
               userId: user._id,
               tenant,
-              emailError: emailResponse?.message,
+              emailError: emailResponse && emailResponse.message,
             });
             return (
               emailResponse || {
@@ -3712,7 +3718,7 @@ const createUserModule = {
             email: normalizedEmail,
             tenant,
             lockExists: true,
-            requestedBy: request.user?.email || "unknown",
+            requestedBy: (request.user && request.user.email) || "unknown",
           }
         );
 
@@ -3730,7 +3736,7 @@ const createUserModule = {
       // Set lock with automatic cleanup
       registrationLocks.set(lockKey, {
         createdAt: Date.now(),
-        createdBy: request.user?.email || "unknown",
+        createdBy: (request.user && request.user.email) || "unknown",
       });
 
       setTimeout(() => {
@@ -3824,7 +3830,7 @@ const createUserModule = {
           ...(request.body.country && { country: request.body.country }),
           // Add metadata for admin-created users
           createdByAdmin: true,
-          adminCreatorEmail: request.user?.email || "unknown",
+          adminCreatorEmail: (request.user && request.user.email) || "unknown",
         };
 
         // ✅ STEP 5: Create user with enhanced error handling
@@ -3941,7 +3947,7 @@ const createUserModule = {
       logger.error(`🐛🐛 Admin registration error: ${error.message}`, {
         email: request.body?.email,
         tenant: request.query?.tenant,
-        requestedBy: request.user?.email || "unknown",
+        requestedBy: (request.user && request.user.email) || "unknown",
         stack: error.stack,
       });
 
@@ -4127,7 +4133,7 @@ const createUserModule = {
     try {
       const { old_password, password: new_password } = request.body || {};
       const { tenant } = request.query || {};
-      const userId = request.user?._id;
+      const userId = request.user && request.user._id;
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       if (!old_password || !new_password) {
@@ -4477,7 +4483,7 @@ const createUserModule = {
     }
   },
 
-  generateResetToken: (next) => {
+  generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
       return {
@@ -4487,13 +4493,14 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
     }
   },
   isPasswordTokenValid: async (
@@ -6028,9 +6035,9 @@ const createUserModule = {
 
       console.log("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: authResponse.permissions?.length || 0, // Safely access length
-        groupMemberships: authResponse.groupMemberships?.length || 0,
-        networkMemberships: authResponse.networkMemberships?.length || 0,
+        permissionsCount: (authResponse.permissions || []).length,
+        groupMemberships: (authResponse.groupMemberships || []).length,
+        networkMemberships: (authResponse.networkMemberships || []).length,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });
@@ -6074,15 +6081,17 @@ const createUserModule = {
       }
 
       // ✅ OPTIMIZATION 1: Collect all IDs upfront for batch queries
-      const permissionIds = userObj.permissions?.filter(Boolean) || [];
+      const permissionIds = (userObj.permissions || []).filter(Boolean);
       const groupIds =
-        userObj.group_roles?.map((gr) => gr.group).filter(Boolean) || [];
+        (userObj.group_roles || []).map((gr) => gr.group).filter(Boolean) || [];
       const networkIds =
-        userObj.network_roles?.map((nr) => nr.network).filter(Boolean) || [];
+        (userObj.network_roles || []).map((nr) => nr.network).filter(Boolean) ||
+        [];
       const groupRoleIds =
-        userObj.group_roles?.map((gr) => gr.role).filter(Boolean) || [];
+        (userObj.group_roles || []).map((gr) => gr.role).filter(Boolean) || [];
       const networkRoleIds =
-        userObj.network_roles?.map((nr) => nr.role).filter(Boolean) || [];
+        (userObj.network_roles || []).map((nr) => nr.role).filter(Boolean) ||
+        [];
       const allRoleIds = [...new Set([...groupRoleIds, ...networkRoleIds])]; // Remove duplicates
 
       // ✅ OPTIMIZATION 2: Prepare all queries for parallel execution
@@ -6197,7 +6206,7 @@ const createUserModule = {
       userObj.permissions = permissions;
 
       // ✅ OPTIMIZATION 6: Use optional chaining and map lookups
-      if (userObj.group_roles?.length > 0) {
+      if (userObj.group_roles && userObj.group_roles.length > 0) {
         userObj.group_roles = userObj.group_roles.map((groupRole) => ({
           ...groupRole,
           group: groupRole.group
@@ -6226,7 +6235,7 @@ const createUserModule = {
         }));
       }
 
-      if (userObj.network_roles?.length > 0) {
+      if (userObj.network_roles && userObj.network_roles.length > 0) {
         userObj.network_roles = userObj.network_roles.map((networkRole) => ({
           ...networkRole,
           network: networkRole.network
@@ -6313,7 +6322,7 @@ const createUserModule = {
           token: `JWT ${token}`,
           strategy: tokenStrategy,
           size: Buffer.byteLength(token, "utf8"),
-          expiresIn: options?.expiresIn || "24h",
+          expiresIn: (options && options.expiresIn) || "24h",
         },
         status: httpStatus.OK,
       };
