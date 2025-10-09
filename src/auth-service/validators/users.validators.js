@@ -1284,6 +1284,56 @@ const debugPermissions = [
   ],
 ];
 
+const initiateAccountDeletion = [
+  validateTenant,
+  [
+    body("email")
+      .exists()
+      .withMessage("email is required")
+      .bail()
+      .notEmpty()
+      .withMessage("email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("Invalid email format")
+      .trim(),
+  ],
+];
+
+const confirmAccountDeletion = [
+  validateTenant,
+  [
+    param("token")
+      .exists()
+      .withMessage("The deletion token is missing in the request")
+      .bail()
+      .notEmpty()
+      .withMessage("token should not be empty")
+      .trim()
+      .isHexadecimal()
+      .withMessage("token must be a hexadecimal string")
+      .isLength({ min: 40, max: 40 })
+      .withMessage("token must be 40 characters long"),
+  ],
+];
+
+const confirmMobileAccountDeletion = [
+  validateTenant,
+  [
+    body("token")
+      .exists()
+      .withMessage("The deletion token is missing in the request")
+      .bail()
+      .notEmpty()
+      .withMessage("token should not be empty")
+      .trim()
+      .isNumeric()
+      .withMessage("token must be a numeric string")
+      .isLength({ min: 5, max: 5 })
+      .withMessage("token must be 5 characters long"),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -1333,4 +1383,7 @@ module.exports = {
   analyzeTokenStrategies,
   getContextPermissions,
   debugPermissions,
+  initiateAccountDeletion,
+  confirmAccountDeletion,
+  confirmMobileAccountDeletion,
 };

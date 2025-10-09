@@ -405,6 +405,15 @@ const UserSchema = new Schema(
       maxLength: [1000, "Interests description cannot exceed 1000 characters"],
       trim: true,
     },
+    deletionToken: {
+      type: String,
+    },
+    deletionTokenExpires: {
+      type: Date,
+    },
+    last_inactive_reminder_sent_at: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
