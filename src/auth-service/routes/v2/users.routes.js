@@ -665,7 +665,6 @@ router.post(
 
 router.post(
   "/delete/mobile/confirm",
-  enhancedJWTAuth, // User must be logged in to confirm with a code
   userValidations.confirmMobileAccountDeletion,
   validate,
   userController.confirmMobileAccountDeletion

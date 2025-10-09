@@ -1829,12 +1829,21 @@ const createUserModule = {
     try {
       const { tenant } = request.query;
       const token = request.params.token || request.body.token;
+      const authenticatedUser = request.user; // This may be undefined for mobile flow
       const timeZone = moment.tz.guess();
 
-      const filter = {
-        deletionToken: token,
-        deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
-      };
+      // If user is authenticated (web flow), verify the token belongs to them.
+      // Otherwise (mobile flow), just find a valid token.
+      const filter = authenticatedUser
+        ? {
+            _id: authenticatedUser._id,
+            deletionToken: token,
+            deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
+          }
+        : {
+            deletionToken: token,
+            deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
+          };
 
       const user = await UserModel(tenant).findOne(filter).lean();
 
