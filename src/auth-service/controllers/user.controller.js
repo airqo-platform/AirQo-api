@@ -1393,6 +1393,31 @@ const userController = {
     }
   },
 
+  getDashboardAnalyticsFromCache: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getDashboardAnalyticsFromCache(
+        request,
+        next
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  getDashboardAnalyticsDirect: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getDashboardAnalyticsDirect(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   initiateAccountDeletion: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

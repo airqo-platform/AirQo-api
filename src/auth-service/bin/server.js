@@ -34,6 +34,7 @@ require("@bin/jobs/inactive-users-job");
 require("@bin/jobs/token-expiration-job");
 require("@bin/jobs/incomplete-profile-job");
 require("@bin/jobs/preferences-log-job");
+require("@bin/jobs/dashboard-analytics-job");
 require("@bin/jobs/preferences-update-job");
 require("@bin/jobs/profile-picture-update-job");
 
