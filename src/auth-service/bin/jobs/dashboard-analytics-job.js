@@ -122,34 +122,38 @@ const calculateAndCacheAnalytics = async () => {
     const totalUsers = analytics.totalUsers[0]?.count || 0;
     const dau = analytics.dailyActiveUsers[0]?.count || 0;
     const dauTwoMonthsAgo =
-      analytics.dailyActiveUsersTwoMonthsAgo[0]?.count || 1; // Avoid division by zero
-    const featureAdoption = analytics.featureAdoption[0] || {};
-    const userContribution = analytics.userContribution[0] || {};
-    const sessionProxy = analytics.sessionDurationProxy[0] || {};
+      analytics.dailyActiveUsersTwoMonthsAgo[0]?.count || 0;
+    const { withInterests = 0 } = analytics.featureAdoption[0] || {};
+    const { withProfilePicture = 0, withDescription = 0 } =
+      analytics.userContribution[0] || {};
+    const { averageLoginCount = 0 } = analytics.sessionDurationProxy[0] || {};
     const userSegments = analytics.userSegments || [];
     const behavioralInsights = analytics.behavioralInsights[0] || {};
 
+    const dauChange =
+      dauTwoMonthsAgo > 0
+        ? ((dau - dauTwoMonthsAgo) / dauTwoMonthsAgo) * 100
+        : dau > 0
+        ? 100
+        : 0;
+
     const response = {
-      userSatisfaction: 8.5, // Placeholder
+      userSatisfaction: null, // Placeholder
       dailyActiveUsers: dau,
-      dailyActiveUsersChange: ((dau - dauTwoMonthsAgo) / dauTwoMonthsAgo) * 100,
+      dailyActiveUsersChange: dauChange,
       featureAdoptionRate:
-        totalUsers > 0 ? (featureAdoption.withInterests / totalUsers) * 100 : 0,
-      // Placeholder for feature adoption change, as historical interest data isn't tracked
-      featureAdoptionRateChange: 5.5,
-      extendedUserSessionDuration: sessionProxy.averageLoginCount || 0,
+        totalUsers > 0 ? (withInterests / totalUsers) * 100 : 0,
+      featureAdoptionRateChange: null, // Placeholder
+      extendedUserSessionDuration: averageLoginCount,
       increasedUserDataContribution:
         totalUsers > 0
-          ? ((userContribution.withProfilePicture +
-              userContribution.withDescription) /
-              (totalUsers * 2)) *
-            100
+          ? ((withProfilePicture + withDescription) / (totalUsers * 2)) * 100
           : 0,
-      stakeholderDecisionMaking: 75, // Placeholder
+      stakeholderDecisionMaking: null, // Placeholder
       userSegments: userSegments.map((segment) => ({
         segment: segment._id,
         userCount: segment.count,
-        engagementScore: segment.averageLoginCount, // Using login count as proxy
+        engagementScore: segment.averageLoginCount || 0, // Using login count as proxy
         trends: "Stable", // Placeholder for trend analysis
         recommendations: `Target ${segment._id} with specific content.`, // Placeholder
       })),

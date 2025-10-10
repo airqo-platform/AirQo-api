@@ -33,7 +33,11 @@ DashboardAnalyticsSchema.statics = {
         new: true,
         setDefaultsOnInsert: true,
       };
-      return await this.findOneAndUpdate({ tenant }, data, options);
+      return await this.findOneAndUpdate(
+        { tenant },
+        { $set: { ...data, tenant } },
+        { ...options, runValidators: true }
+      );
     } catch (error) {
       throw error;
     }
