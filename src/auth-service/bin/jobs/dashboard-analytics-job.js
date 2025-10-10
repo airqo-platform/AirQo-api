@@ -179,7 +179,7 @@ const calculateAndCacheAnalytics = async () => {
   }
 };
 
-cron.schedule("0 */6 * * *", calculateAndCacheAnalytics, {
+cron.schedule("15 */6 * * *", calculateAndCacheAnalytics, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });
