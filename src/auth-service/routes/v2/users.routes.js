@@ -335,6 +335,33 @@ router.get(
 );
 
 // ================================
+// DASHBOARD & ANALYTICS ROUTES
+// ================================
+
+/**
+ * @route GET /api/v2/users/dashboard/analytics
+ * @desc Get key metrics for the dashboard presentation
+ * @access Private - Admin only
+ */
+router.get(
+  "/dashboard/analytics",
+  enhancedJWTAuth,
+  requirePermissions(["SYSTEM_ADMIN"]),
+  userController.getDashboardAnalyticsFromCache
+);
+
+/**
+ * @route GET /api/v2/users/dashboard/analytics/live
+ * @desc Get key metrics directly from the database (slower, but reliable)
+ * @access Private - Admin only
+ */
+router.get(
+  "/dashboard/analytics/live",
+  enhancedJWTAuth,
+  requirePermissions(["SYSTEM_ADMIN"]),
+  userController.getDashboardAnalyticsDirect
+);
+// ================================
 // ADMIN & DEBUG ROUTES
 // ================================
 
