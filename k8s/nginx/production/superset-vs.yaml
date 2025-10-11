@@ -11,9 +11,13 @@ spec:
       port: 8088
   routes:
     - path: /
-      locationSnippets: |
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP $remote_addr;
       action:
-        pass: superset-upstream
+        proxy:
+          upstream: superset-upstream
+          requestHeaders:
+            - name: X-Forwarded-Proto
+              value: https
+            - name: X-Forwarded-For
+              value: ${proxy_add_x_forwarded_for}
+            - name: X-Real-IP
+              value: ${remote_addr}
