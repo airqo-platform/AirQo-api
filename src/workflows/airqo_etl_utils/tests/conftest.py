@@ -334,7 +334,7 @@ def sites_data():
             "region": ["region1", "region2", "region3"],
             "city": ["city1", "city2", "city3"],
             "site_id": ["e00137667aaf86", "67aa5555af169", "67aa67aaf1423"],
-            "weather_stations": [],
+            "weather_stations": [[], [], []],
         }
     )
 
