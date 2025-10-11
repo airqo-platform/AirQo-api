@@ -249,7 +249,6 @@ class DataUtils:
 
         if sites.empty:
             raise RuntimeError("Failed to retrieve cached/api sites data.")
-
         return sites
 
     def fetch_sites_from_api(self) -> pd.DataFrame:
@@ -454,19 +453,19 @@ class DataUtils:
         start_date = max(
             device_maintenance,
             device_maintenance
-            if device_previous_offset is None or np.isnan(device_previous_offset)
+            if device_previous_offset is None or pd.isna(device_previous_offset)
             else device_previous_offset,
         )
         entity_id = entity.get(unique_id)
         extra_id = entity.get("site_id") if unique_id == "device_id" else None
-        end_date = str_to_date(start_date) + timedelta(days=frequency.value)
-        if end_date > datetime.today():
-            logger.info(f"End date {end_date} cannot be in the future.")
+        end_date = start_date + timedelta(days=frequency.value)
+        if end_date > datetime.now(timezone.utc):
+            logger.info("End date cannot be in the future.")
             return pd.DataFrame()
 
+        start_date = date_to_str(start_date)
         end_date = date_to_str(end_date)
         big_query_api = BigQueryApi()
-
         data = big_query_api.fetch_max_min_values(
             table=table,
             start_date_time=start_date,
@@ -481,15 +480,41 @@ class DataUtils:
             if extra_id:
                 data["site_id"] = extra_id
             data["created"] = datetime.now(timezone.utc)
-            data["recent_maintenance_date"] = date_to_str(
-                str_to_date(device_maintenance)
-            )
+            data["recent_maintenance_date"] = device_maintenance
             data.dropna(
                 inplace=True,
                 how="any",
                 subset=["pollutant", "minimum", "maximum", "average", "site_id"],
             )
         return data
+
+    @staticmethod
+    def compute_device_site_metadata_batch(
+        table: str,
+        entity_list: List[Dict[str, Any]],
+        pollutants_list: List[str],
+        unique_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> pd.DataFrame:
+        """
+        Computes metadata for all devices or sites by batching the computation process.
+        Args:
+            table (str): BigQuery table name to query for metadata
+            entity_list (List[Dict[str, Any]]): List of entities (devices or sites) with their details
+            pollutants_list (List[str]): List of pollutants to compute metadata for
+            unique_id (str): Unique identifier column name (e.g., "device_id", "site_id")
+            start_date (str): Start date for the metadata computation period in ISO 8601 format
+            end_date (str): End date for the metadata computation period in ISO 8601 format
+        Returns:
+            pd.DataFrame: Computed metadata DataFrame. Returns empty DataFrame if
+                         end date is in the future or no data available.
+        Raises:
+            RuntimeError: If metadata computation fails for all entities
+            google.api_core.exceptions.GoogleAPIError: If BigQuery API call fails
+        """
+        # Figure out how to batch the computation given different maintenance dates
+        pass
 
     @staticmethod
     def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
