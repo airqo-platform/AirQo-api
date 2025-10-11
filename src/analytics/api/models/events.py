@@ -20,25 +20,6 @@ class EventsModel(BasePyMongoModel):
     and airqloud information for specified pollutants and weather fields.
     """
 
-    BIGQUERY_AIRQLOUDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS_SITES}`"
-    BIGQUERY_AIRQLOUDS = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS}`"
-    BIGQUERY_GRIDS = f"`{CONFIGURATIONS.BIGQUERY_GRIDS}`"
-    BIGQUERY_GRIDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_GRIDS_SITES}`"
-    BIGQUERY_COHORTS = f"`{CONFIGURATIONS.BIGQUERY_COHORTS}`"
-    BIGQUERY_COHORTS_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_COHORTS_DEVICES}`"
-    BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES_SITES}`"
-    BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES_DEVICES}`"
-    DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
-    DATA_EXPORT_LIMIT = CONFIGURATIONS.DATA_EXPORT_LIMIT
-    BIGQUERY_MOBILE_EVENTS = CONFIGURATIONS.BIGQUERY_MOBILE_EVENTS
-
-    BIGQUERY_RAW_DATA = f"`{CONFIGURATIONS.BIGQUERY_RAW_DATA}`"
-    BIGQUERY_HOURLY_DATA = f"`{CONFIGURATIONS.BIGQUERY_HOURLY_DATA}`"
-    BIGQUERY_BAM_DATA = f"`{CONFIGURATIONS.BIGQUERY_BAM_DATA}`"
-    BIGQUERY_DAILY_DATA = f"`{CONFIGURATIONS.BIGQUERY_DAILY_DATA}`"
-
-    DEVICES_SUMMARY_TABLE = CONFIGURATIONS.DEVICES_SUMMARY_TABLE
-
     def __init__(self, network):
         """
         Initializes the EventsModel with default settings and mappings for limit thresholds,
@@ -55,8 +36,13 @@ class EventsModel(BasePyMongoModel):
         self.airqlouds_sites_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS_SITES)
         self.devices_table = Utils.table_name(Config.BIGQUERY_DEVICES_DEVICES)
         self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
-        self.bam_data_table = Utils.table_name(Config.BIGQUERY_BAM_DATA)
+        self.bam_data_table = Utils.table_name(Config.BIGQUERY_BAM_HOURLY_DATA)
         self.bigquery_events = Utils.table_name(Config.BIGQUERY_HOURLY_DATA)
+        self.grids_table = Utils.table_name(Config.BIGQUERY_GRIDS)
+        self.grids_sites_table = Utils.table_name(Config.BIGQUERY_GRIDS_SITES)
+        self.cohorts_table = Utils.table_name(Config.BIGQUERY_COHORTS)
+        self.cohorts_devices_table = Utils.table_name(Config.BIGQUERY_COHORTS_DEVICES)
+        self.export_decimal_places = Config.DATA_EXPORT_DECIMAL_PLACES
         super().__init__(network, collection_name="events")
 
     def data_export_query(
@@ -69,7 +55,7 @@ class EventsModel(BasePyMongoModel):
         frequency,
         pollutants,
     ) -> str:
-        decimal_places = self.DATA_EXPORT_DECIMAL_PLACES
+        decimal_places = self.export_decimal_places
 
         if frequency.value == "raw":
             data_table = self.raw_data_table
@@ -303,22 +289,21 @@ class EventsModel(BasePyMongoModel):
         )
         job.result()
 
-    @classmethod
     @cache.memoize()
     def get_devices_summary(
-        cls, airqloud, start_date_time, end_date_time, grid: str, cohort: str
+        self, airqloud, start_date_time, end_date_time, grid: str, cohort: str
     ) -> list:
         data_table = Utils.table_name(Config.DEVICES_SUMMARY_TABLE)
 
         # Data sources
-        sites_table = cls.BIGQUERY_SITES
-        airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
-        airqlouds_table = cls.BIGQUERY_AIRQLOUDS
-        grids_table = cls.BIGQUERY_GRIDS
-        grids_sites_table = cls.BIGQUERY_GRIDS_SITES
-        cohorts_devices_table = cls.BIGQUERY_COHORTS_DEVICES
-        cohorts_table = cls.BIGQUERY_COHORTS
-        devices_table = cls.BIGQUERY_DEVICES
+        sites_table = self.sites_table
+        airqlouds_sites_table = self.airqlouds_sites_table
+        airqlouds_table = self.airqlouds_table
+        grids_table = self.grids_table
+        grids_sites_table = self.grids_sites_table
+        cohorts_devices_table = self.cohorts_devices_table
+        cohorts_table = self.cohorts_table
+        devices_table = self.devices_table
 
         data_query = (
             f" SELECT {data_table}.device ,  "

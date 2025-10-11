@@ -1,12 +1,14 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const createUserUtil = require("@utils/user.util");
+const userUtil = require("@utils/user.util");
+const { AbstractTokenFactory } = require("@services/atf.service");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
+const PermissionModel = require("@models/Permission");
 const { mailer, stringify, winstonLogger } = require("@utils/common");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
@@ -24,18 +26,36 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`
 );
 
+// --- Token Lifecycle Configuration ---
+const TOKEN_LIFE_SECONDS = constants.JWT_EXPIRES_IN_SECONDS;
+const REFRESH_WINDOW_SECONDS = constants.JWT_REFRESH_WINDOW_SECONDS;
+const GRACE_PERIOD_SECONDS = constants.JWT_GRACE_PERIOD_SECONDS;
+
 const setLocalOptions = (req, res, next) => {
   try {
-    const userName = req.body.userName;
+    const rawUserName = req.body && req.body.userName;
+    const userName =
+      typeof rawUserName === "string" ? rawUserName.trim() : rawUserName;
+    if (typeof userName === "string") {
+      // normalize for downstream consumers
+      req.body.userName = userName;
+    }
 
-    if (Validator.isEmpty(userName)) {
+    // The validator library expects a string.
+    // We check for existence first, then validate.
+    if (
+      !userName ||
+      typeof userName !== "string" ||
+      Validator.isEmpty(userName)
+    ) {
       throw new HttpError(
-        "the userName field is missing",
+        "the userName field is missing or empty",
         httpStatus.BAD_REQUEST
       );
     }
 
     const authenticationFields = {};
+    // Use the trimmed value for validation
     if (Validator.isEmail(userName)) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
@@ -87,25 +107,40 @@ const jwtOpts = {
  * @returns
  */
 const useLocalStrategy = (tenant, req, res, next) => {
-  let localOptions = setLocalOptions(req, res, next);
-  logObject("the localOptions", localOptions);
-  if (localOptions.success === true) {
-    logText("success state is true");
-    let { usernameField } = localOptions.authenticationFields;
-    logElement("the username field", usernameField);
-    if (usernameField === "email") {
-      req.body.email = req.body.userName;
-      logText("we are using email");
-      return useEmailWithLocalStrategy(tenant, req, res, next);
-    } else if (usernameField === "userName") {
-      logText("we are using username");
-      return useUsernameWithLocalStrategy(tenant, req, res, next);
+  try {
+    const localOptions = setLocalOptions(req, res, next);
+    logObject("the localOptions", localOptions);
+
+    // If setLocalOptions calls next(error), it returns undefined.
+    // The error is already passed to the express error handler, so we just stop.
+    if (!localOptions) {
+      return;
     }
-  } else if (localOptions.success === false) {
-    logText("success state is false");
-    return localOptions;
+
+    if (localOptions.success === true) {
+      logText("success state is true");
+      const { usernameField } = localOptions.authenticationFields;
+      logElement("the username field", usernameField);
+      if (usernameField === "email") {
+        req.body.email = String(req.body.userName).trim();
+        logText("we are using email");
+        return useEmailWithLocalStrategy(tenant, req, res, next);
+      } else if (usernameField === "userName") {
+        logText("we are using username");
+        req.body.userName = String(req.body.userName).trim();
+        return useUsernameWithLocalStrategy(tenant, req, res, next);
+      }
+    }
+  } catch (error) {
+    logger.error(`Critical error in useLocalStrategy: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
+
 const useEmailWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithEmailOptions,
@@ -138,79 +173,27 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
-        } else if (user.analyticsVersion === 3 && user.verified === false) {
-          const tenantValue = tenant || "airqo";
-          const verificationRequest = {
-            tenant: tenantValue,
-            email: user.email,
-          };
+        }
+
+        // Centralized verification check
+        const verificationResult = userUtil._handleVerification(user);
+        if (!verificationResult.shouldProceed) {
           try {
-            const verificationEmailResponse =
-              await createUserUtil.verificationReminder(
-                verificationRequest,
+            if (verificationResult.requiresV3Reminder) {
+              await userUtil.verificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
-            if (
-              !verificationEmailResponse ||
-              verificationEmailResponse.success === false
-            ) {
-              logger.error(
-                `Internal Server Error --- ${stringify(
-                  verificationEmailResponse || "No Response"
-                )}`
+            } else if (verificationResult.requiresV4Reminder) {
+              await userUtil.mobileVerificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
+                next
               );
             }
           } catch (error) {
             logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN
-            )
-          );
-          return;
-        } else if (user.analyticsVersion === 4 && !user.verified) {
-          await createUserUtil
-            .mobileVerificationReminder({ tenant, email: user.email }, next)
-            .then((verificationResponse) => {
-              if (
-                !verificationResponse ||
-                verificationResponse.success === false
-              ) {
-                logger.error(
-                  `Verification reminder failed: ${
-                    verificationResponse
-                      ? verificationResponse.message
-                      : "No response"
-                  }`
-                );
-              }
-            })
-            .catch((err) => {
-              logger.error(
-                `Error sending verification reminder: ${err.message}`
-              );
-            });
-
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN,
-              {
-                message:
-                  "account not verified, verification email has been sent to your email",
-              }
-            )
-          );
+          next(new HttpError(verificationResult.message, httpStatus.FORBIDDEN));
           return;
         }
         req.auth.success = true;
@@ -240,25 +223,52 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             );
           }
         }
-        const currentDate = new Date();
+
+        // Fire-and-forget permission update
+        (async () => {
+          try {
+            const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
+            const existingPermissions = await PermissionModel(
+              tenant.toLowerCase()
+            )
+              .find({ permission: { $in: DEFAULT_PERMISSIONS } })
+              .select("_id")
+              .lean();
+
+            if (existingPermissions.length > 0) {
+              const permissionIds = existingPermissions.map((p) => p._id);
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                {
+                  $addToSet: { permissions: { $each: permissionIds } },
+                }
+              );
+              logger.info(`Updated default permissions for user ${user.email}`);
+            }
+          } catch (permError) {
+            logger.error(
+              `Error updating default permissions for user ${user.email}: ${permError.message}`
+            );
+          }
+        })();
 
         try {
+          // Decide if auto-verification should happen.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
+          const updatePayload = userUtil._constructLoginUpdate(user, null, {
+            autoVerify: shouldAutoVerify,
+          });
           await UserModel(tenant.toLowerCase())
-            .findOneAndUpdate(
-              { _id: user._id },
-              {
-                $set: { lastLogin: currentDate, isActive: true },
-                $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 && user.verified === false
-                  ? { $set: { verified: true } }
-                  : {}),
-              },
-              {
-                new: true,
-                upsert: false,
-                runValidators: true,
-              }
-            )
+            .findOneAndUpdate({ _id: user._id }, updatePayload, {
+              new: true,
+              upsert: false,
+              runValidators: true,
+            })
             .then(() => {})
             .catch((error) => {
               logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -266,6 +276,8 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         } catch (error) {
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
+        // Ensure user's default role is correctly assigned before proceeding
+        await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -287,6 +299,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithUsernameOptions,
@@ -321,79 +334,27 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
-        } else if (user.analyticsVersion === 3 && user.verified === false) {
+        }
+
+        // Centralized verification check
+        const verificationResult = userUtil._handleVerification(user);
+        if (!verificationResult.shouldProceed) {
           try {
-            const tenantValue = tenant || "airqo";
-            const verificationRequest = {
-              tenant: tenantValue,
-              email: user.email,
-            };
-            const verificationEmailResponse =
-              await createUserUtil.verificationReminder(
-                verificationRequest,
+            if (verificationResult.requiresV3Reminder) {
+              await userUtil.verificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
                 next
               );
-            if (
-              !verificationEmailResponse ||
-              verificationEmailResponse.success === false
-            ) {
-              logger.error(
-                `Internal Server Error --- ${stringify(
-                  verificationEmailResponse || "No Response"
-                )}`
+            } else if (verificationResult.requiresV4Reminder) {
+              await userUtil.mobileVerificationReminder(
+                { tenant: tenant.toLowerCase(), email: user.email },
+                next
               );
             }
           } catch (error) {
             logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN
-            )
-          );
-          return;
-        } else if (user.analyticsVersion === 4 && !user.verified) {
-          createUserUtil
-            .mobileVerificationReminder({ tenant, email: user.email }, next)
-            .then((verificationResponse) => {
-              if (
-                !verificationResponse ||
-                verificationResponse.success === false
-              ) {
-                logger.error(
-                  `Verification reminder failed: ${
-                    verificationResponse
-                      ? verificationResponse.message
-                      : "No response"
-                  }`
-                );
-              }
-            })
-            .catch((err) => {
-              logger.error(
-                `Error sending verification reminder: ${err.message}`
-              );
-            });
-
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          req.auth.status = httpStatus.FORBIDDEN;
-          next(
-            new HttpError(
-              "account not verified, verification email has been sent to your email",
-              httpStatus.FORBIDDEN,
-              {
-                message:
-                  "account not verified, verification email has been sent to your email",
-              }
-            )
-          );
+          next(new HttpError(verificationResult.message, httpStatus.FORBIDDEN));
           return;
         }
         req.auth.success = true;
@@ -423,25 +384,51 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           }
         }
 
-        const currentDate = new Date();
+        // Fire-and-forget permission update
+        (async () => {
+          try {
+            const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
+            const existingPermissions = await PermissionModel(
+              tenant.toLowerCase()
+            )
+              .find({ permission: { $in: DEFAULT_PERMISSIONS } })
+              .select("_id")
+              .lean();
+
+            if (existingPermissions.length > 0) {
+              const permissionIds = existingPermissions.map((p) => p._id);
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                {
+                  $addToSet: { permissions: { $each: permissionIds } },
+                }
+              );
+              logger.info(`Updated default permissions for user ${user.email}`);
+            }
+          } catch (permError) {
+            logger.error(
+              `Error updating default permissions for user ${user.email}: ${permError.message}`
+            );
+          }
+        })();
 
         try {
+          // Decide if auto-verification should happen.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
+          const updatePayload = userUtil._constructLoginUpdate(user, null, {
+            autoVerify: shouldAutoVerify,
+          });
           await UserModel(tenant.toLowerCase())
-            .findOneAndUpdate(
-              { _id: user._id },
-              {
-                $set: { lastLogin: currentDate, isActive: true },
-                $inc: { loginCount: 1 },
-                ...(user.analyticsVersion !== 3 && user.verified === false
-                  ? { $set: { verified: true } }
-                  : {}),
-              },
-              {
-                new: true,
-                upsert: false,
-                runValidators: true,
-              }
-            )
+            .findOneAndUpdate({ _id: user._id }, updatePayload, {
+              new: true,
+              upsert: false,
+              runValidators: true,
+            })
             .then(() => {})
             .catch((error) => {
               logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -450,12 +437,15 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
 
+        // Ensure user's default role is correctly assigned before proceeding
+        await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
+
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
             username: user.userName,
             email: user.email,
-            service: service ? service : "none",
+            service: service ? service : "unknown",
           }
         );
         return done(null, user);
@@ -470,6 +460,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useGoogleStrategy = (tenant, req, res, next) =>
   new GoogleStrategy(
     {
@@ -519,6 +510,9 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             }
           }
 
+          // Role check and fix
+          await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
+
           winstonLogger.info(
             `successful login through ${service ? service : "unknown"} service`,
             {
@@ -564,24 +558,17 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
-            const currentDate = new Date();
             try {
+              // New user from Google should be auto-verified.
+              const updatePayload = userUtil._constructLoginUpdate(user, null, {
+                autoVerify: true,
+              });
               await UserModel(tenant.toLowerCase())
-                .findOneAndUpdate(
-                  { _id: user._id },
-                  {
-                    $set: { lastLogin: currentDate, isActive: true },
-                    $inc: { loginCount: 1 },
-                    ...(user.analyticsVersion !== 3 && user.verified === false
-                      ? { $set: { verified: true } }
-                      : {}),
-                  },
-                  {
-                    new: true,
-                    upsert: false,
-                    runValidators: true,
-                  }
-                )
+                .findOneAndUpdate({ _id: user._id }, updatePayload, {
+                  new: true,
+                  upsert: false,
+                  runValidators: true,
+                })
                 .then(() => {})
                 .catch((error) => {
                   logger.error(
@@ -609,6 +596,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       }
     }
   );
+
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
@@ -1138,25 +1126,17 @@ const useJWTStrategy = (tenant, req, res, next) =>
         }
       });
 
-      const currentDate = new Date();
-
       try {
+        // Only update login stats; do not flip verification state here.
+        const updatePayload = userUtil._constructLoginUpdate(user, null, {
+          autoVerify: false,
+        });
         await UserModel(tenant.toLowerCase())
-          .findOneAndUpdate(
-            { _id: user._id },
-            {
-              $set: { lastLogin: currentDate, isActive: true },
-              $inc: { loginCount: 1 },
-              ...(user.analyticsVersion !== 3 && user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
-            },
-            {
-              new: true,
-              upsert: false,
-              runValidators: true,
-            }
-          )
+          .findOneAndUpdate({ _id: user._id }, updatePayload, {
+            new: true,
+            upsert: false,
+            runValidators: true,
+          })
           .then(() => {})
           .catch((error) => {
             logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -1164,6 +1144,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
       } catch (error) {
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
       }
+
+      // Ensure user's default role is correctly assigned before proceeding
+      await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
 
       winstonLogger.info(userAction, {
         username: user.userName,
@@ -1181,6 +1164,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
       return done(e, false);
     }
   });
+
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
@@ -1239,7 +1223,10 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
  * @param {*} next
  */
 const setLocalStrategy = (tenant, req, res, next) => {
-  passport.use("user-local", useLocalStrategy(tenant, req, res, next));
+  const strategy = useLocalStrategy(tenant, req, res, next);
+  if (strategy) {
+    passport.use("user-local", strategy);
+  }
 };
 
 const setGoogleStrategy = (tenant, req, res, next) => {
@@ -1373,6 +1360,131 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+const enhancedJWTAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Authorization header is missing",
+        })
+      );
+    }
+
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i); //NOSONAR
+    if (!match || !match[2]) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message:
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'", //NOSONAR
+        })
+      );
+    }
+
+    const token = match[2].trim();
+    if (!token) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Token is missing from Authorization header",
+        })
+      );
+    }
+
+    jwt.verify(
+      token,
+      constants.JWT_SECRET,
+      { ignoreExpiration: true },
+      async (err, decoded) => {
+        if (err) {
+          // This handles malformed tokens, but not expiration
+          return next(
+            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+              message: `Invalid token: ${err.message}`,
+            })
+          );
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+
+        // 1. Check if token is fully expired (past grace period)
+        if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
+          return next(
+            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+              message: "Your session has expired. Please log in again.",
+            })
+          );
+        }
+
+        const tenantRaw =
+          req.query.tenant ||
+          req.body.tenant ||
+          constants.DEFAULT_TENANT ||
+          "airqo";
+        const tenant = String(tenantRaw).toLowerCase();
+
+        // 2. Check if a refresh is needed (proactive sliding window OR reactive grace period)
+        if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
+          logger.info(
+            `Token for user ${
+              decoded.email || decoded.id
+            } is eligible for refresh.`
+          );
+          try {
+            const userIdForRefresh = decoded.id || decoded._id;
+            const userForRefresh = await UserModel(tenant)
+              .findById(userIdForRefresh)
+              .lean();
+
+            if (userForRefresh) {
+              const tokenFactory = new AbstractTokenFactory(tenant);
+              const strategy =
+                userUtil._getEffectiveTokenStrategy(userForRefresh);
+              const newToken = await tokenFactory.createToken(
+                userForRefresh,
+                strategy,
+                { expiresIn: `${TOKEN_LIFE_SECONDS}s` }
+              );
+
+              res.set("X-Access-Token", `JWT ${newToken}`);
+              res.set("Access-Control-Expose-Headers", "X-Access-Token");
+            }
+          } catch (refreshError) {
+            logger.error(
+              `Failed to refresh token for user ${decoded.id || decoded._id}: ${
+                refreshError.message
+              }`
+            );
+            // Do not fail the request, just log the error. The current token is still valid (or within grace).
+          }
+        }
+
+        // 3. Attach user info to the request and proceed
+        const userId = decoded.userId || decoded.id || decoded._id;
+        const user = await UserModel(tenant).findById(userId).lean();
+
+        if (!user) {
+          return next(
+            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+              message: "User from token no longer exists",
+            })
+          );
+        }
+
+        // For compatibility, merge DB user data with token claims
+        req.user = { ...user, ...decoded };
+        next();
+      }
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 Enhanced JWT Auth Error: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 function authenticateJWT(req, res, next) {
   try {
     if (req.body && req.body.user_id) {
@@ -1406,5 +1518,6 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  enhancedJWTAuth,
   authenticateJWT,
 };

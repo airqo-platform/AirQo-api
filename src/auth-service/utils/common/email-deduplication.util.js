@@ -87,16 +87,21 @@ class EmailDeduplicator {
     try {
       const key = this.generateEmailKey(emailData);
 
-      // Use ioredis SET with NX (only set if not exists) and EX (expiration)
-      // ioredis syntax: set(key, value, 'EX', seconds, 'NX')
-      const result = await redisClient.set(
-        key,
-        "1",
-        "EX",
-        this.ttlSeconds,
-        "NX"
+      // ✅ ADD CONNECTION CHECK before Redis operation
+      if (!redisClient.isOpen) {
+        logger.warn(
+          "Redis client not connected, bypassing deduplication check"
+        );
+        return true; // Allow email to be sent
+      }
+
+      // Use ioredis SET with timeout
+      const setPromise = redisClient.set(key, "1", "EX", this.ttlSeconds, "NX");
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Redis SET timeout")), 2000)
       );
 
+      const result = await Promise.race([setPromise, timeoutPromise]);
       const shouldSend = result === "OK";
 
       // Track metrics if enabled
@@ -111,18 +116,20 @@ class EmailDeduplicator {
         }
       }
 
-      // If result is 'OK', the key was set (email not sent recently)
-      // If result is null, the key already exists (duplicate email)
       return shouldSend;
     } catch (error) {
-      logger.error("Error in email deduplication check:", error);
+      logger.error("Redis deduplication error, allowing email:", {
+        error: error.message,
+        to: emailData.to,
+        subject: emailData.subject,
+      });
 
       // Track Redis errors if metrics enabled
       if (this.enableMetrics) {
         this.metrics.redisErrors++;
       }
 
-      // In case of Redis error, allow email to be sent (fail open)
+      // ✅ FAIL OPEN: Allow email to be sent on Redis errors
       return true;
     }
   }
@@ -386,25 +393,49 @@ async function sendMailWithDeduplication(
   try {
     // Skip deduplication check if explicitly disabled
     if (!skipDeduplication) {
-      const shouldSend = await emailDeduplicator.checkAndMarkEmail(mailOptions);
+      try {
+        // ✅ ADD TIMEOUT for Redis operations
+        const shouldSendPromise =
+          emailDeduplicator.checkAndMarkEmail(mailOptions);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Redis timeout")), 3000)
+        );
 
-      if (!shouldSend) {
-        const message = `Duplicate email prevented: ${mailOptions.to} - ${mailOptions.subject}`;
+        const shouldSend = await Promise.race([
+          shouldSendPromise,
+          timeoutPromise,
+        ]);
 
-        if (logDuplicates) {
-          logger.info(message);
+        if (!shouldSend) {
+          const message = `Duplicate email prevented: ${mailOptions.to} - ${mailOptions.subject}`;
+
+          if (logDuplicates) {
+            logger.info(message);
+          }
+
+          if (throwOnDuplicate) {
+            throw new Error(message);
+          }
+
+          return {
+            success: false,
+            message: "Email not sent - duplicate detected",
+            duplicate: true,
+            data: null,
+          };
         }
+      } catch (redisError) {
+        // ✅ REDIS FAILURE HANDLING: Log error but continue with email sending
+        logger.warn(
+          `Redis deduplication check failed, sending email anyway: ${redisError.message}`,
+          {
+            email: mailOptions.to,
+            subject: mailOptions.subject,
+            redisError: redisError.message,
+          }
+        );
 
-        if (throwOnDuplicate) {
-          throw new Error(message);
-        }
-
-        return {
-          success: false,
-          message: "Email not sent - duplicate detected",
-          duplicate: true,
-          data: null,
-        };
+        // Continue to send email - better to have duplicate than no email
       }
     }
 
@@ -418,13 +449,32 @@ async function sendMailWithDeduplication(
       data: result,
     };
   } catch (error) {
-    // If sending fails, remove the deduplication key to allow retry
+    // If sending fails, try to remove the deduplication key (if Redis is working)
     if (!skipDeduplication) {
-      await emailDeduplicator.removeEmailKey(mailOptions);
-      logger.warn(
-        `Email send failed, removed deduplication key for retry: ${mailOptions.to}`
-      );
+      try {
+        await emailDeduplicator.removeEmailKey(mailOptions);
+        logger.warn(
+          `Email send failed, removed deduplication key for retry: ${mailOptions.to}`
+        );
+      } catch (removeError) {
+        logger.warn(
+          `Failed to remove deduplication key after send failure: ${removeError.message}`
+        );
+      }
     }
+
+    // ✅ ENHANCED ERROR LOGGING for Gmail issues
+    logger.error("Email send failed", {
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      error: error.message,
+      code: error.code,
+      response: error.response,
+      responseCode: error.responseCode,
+      // Gmail-specific error details
+      isGmailRecipient: mailOptions.to.includes("@gmail.com"),
+      stack: error.stack?.substring(0, 500),
+    });
 
     throw error;
   }

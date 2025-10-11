@@ -3,6 +3,7 @@ const UserModel = require("@models/User");
 const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
+const NetworkModel = require("@models/Network");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- rbac-migration`
@@ -10,6 +11,19 @@ const logger = require("log4js").getLogger(
 const { logObject } = require("@utils/shared");
 
 class RBACMigrationUtility {
+  normalizeName(name) {
+    if (!name || typeof name !== "string") {
+      return "";
+    }
+    return name
+      .normalize("NFKD") // decompose accents
+      .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "_") // any non-alnum → underscore
+      .replace(/_+/g, "_") // collapse
+      .replace(/^_+|_+$/g, ""); // trim edges
+  }
+
   constructor(tenant = "airqo") {
     this.tenant = tenant;
     this.results = {
@@ -75,117 +89,16 @@ class RBACMigrationUtility {
    * @param {boolean} dryRun - Whether to actually create permissions
    */
   async createDefaultPermissions(dryRun = false) {
-    logger.info("Creating default permissions...");
+    logger.info("Creating default permissions from single source of truth...");
+    const PERMISSION_DEFINITIONS = constants.PERMISSION_DEFINITIONS || [];
 
-    const defaultPermissions = [
-      // Group permissions
-      {
-        permission: "GROUP_VIEW",
-        description: "View group information and basic details",
-      },
-      { permission: "GROUP_CREATE", description: "Create new groups" },
-      {
-        permission: "GROUP_EDIT",
-        description: "Edit group settings and information",
-      },
-      { permission: "GROUP_DELETE", description: "Delete groups" },
-      {
-        permission: "GROUP_MANAGEMENT",
-        description: "Full group management access",
-      },
-
-      // Member permissions
-      { permission: "MEMBER_VIEW", description: "View group members" },
-      {
-        permission: "MEMBER_INVITE",
-        description: "Invite new members to group",
-      },
-      { permission: "MEMBER_REMOVE", description: "Remove members from group" },
-      { permission: "MEMBER_SEARCH", description: "Search group members" },
-      { permission: "MEMBER_EXPORT", description: "Export member data" },
-
-      // User management permissions
-      { permission: "USER_VIEW", description: "View user information" },
-      { permission: "USER_CREATE", description: "Create new users" },
-      { permission: "USER_EDIT", description: "Edit user information" },
-      { permission: "USER_DELETE", description: "Delete users" },
-      {
-        permission: "USER_MANAGEMENT",
-        description: "Full user management access",
-      },
-      {
-        permission: "GROUP_USER_ASSIGN",
-        description: "Assign users to groups",
-      },
-
-      // Role and permission management
-      {
-        permission: "ROLE_VIEW",
-        description: "View roles and their permissions",
-      },
-      { permission: "ROLE_CREATE", description: "Create new roles" },
-      { permission: "ROLE_EDIT", description: "Edit existing roles" },
-      { permission: "ROLE_DELETE", description: "Delete roles" },
-      { permission: "ROLE_ASSIGNMENT", description: "Assign roles to users" },
-
-      // Dashboard and analytics
-      { permission: "DASHBOARD_VIEW", description: "View dashboard" },
-      {
-        permission: "ANALYTICS_VIEW",
-        description: "View analytics and reports",
-      },
-      { permission: "ANALYTICS_EXPORT", description: "Export analytics data" },
-
-      // Settings permissions
-      {
-        permission: "SETTINGS_VIEW",
-        description: "View system and group settings",
-      },
-      {
-        permission: "SETTINGS_EDIT",
-        description: "Edit system and group settings",
-      },
-      {
-        permission: "GROUP_SETTINGS",
-        description: "Manage group-specific settings",
-      },
-
-      // System administration
-      {
-        permission: "SYSTEM_ADMIN",
-        description: "System administration access",
-      },
-      {
-        permission: "DATABASE_ADMIN",
-        description: "Database administration access",
-      },
-      { permission: "SUPER_ADMIN", description: "Super administrator access" },
-
-      // Content and moderation
-      { permission: "CONTENT_VIEW", description: "View content" },
-      { permission: "CONTENT_CREATE", description: "Create content" },
-      { permission: "CONTENT_EDIT", description: "Edit content" },
-      { permission: "CONTENT_DELETE", description: "Delete content" },
-      { permission: "CONTENT_MODERATION", description: "Moderate content" },
-
-      // Activity and audit
-      { permission: "ACTIVITY_VIEW", description: "View activity logs" },
-      { permission: "AUDIT_VIEW", description: "View audit trails" },
-      { permission: "REPORT_GENERATE", description: "Generate reports" },
-
-      // Network permissions (for future use)
-      { permission: "NETWORK_VIEW", description: "View network information" },
-      { permission: "NETWORK_CREATE", description: "Create new networks" },
-      { permission: "NETWORK_EDIT", description: "Edit network settings" },
-      { permission: "NETWORK_DELETE", description: "Delete networks" },
-      {
-        permission: "NETWORK_MANAGEMENT",
-        description: "Full network management access",
-      },
-    ];
-
-    for (const permissionData of defaultPermissions) {
+    for (const permissionDef of PERMISSION_DEFINITIONS) {
       try {
+        const permissionData = {
+          permission: permissionDef.name,
+          description: permissionDef.description,
+        };
+
         const existingPermission = await PermissionModel(this.tenant)
           .findOne({ permission: permissionData.permission })
           .lean();
@@ -222,7 +135,9 @@ class RBACMigrationUtility {
    * @param {boolean} dryRun - Whether to actually create roles
    */
   async createDefaultRoles(dryRun = false) {
-    logger.info("Creating default roles for groups...");
+    logger.info(
+      "Creating default roles for all organizations (groups and networks)..."
+    );
 
     const groups = await GroupModel(this.tenant).find({}).lean();
 
@@ -241,84 +156,132 @@ class RBACMigrationUtility {
         );
       }
     }
+
+    const networks = await NetworkModel(this.tenant).find({}).lean();
+    for (const network of networks) {
+      try {
+        await this.createNetworkDefaultRoles(network, dryRun);
+        this.results.groups.processed++; // Using 'groups' for general org count
+      } catch (error) {
+        this.results.groups.errors.push({
+          networkId: network._id,
+          networkName: network.net_name,
+          error: error.message,
+        });
+        logger.error(
+          `Error creating roles for network ${network.net_name}: ${error.message}`
+        );
+      }
+    }
   }
 
-  /**
-   * Create default roles for a specific group
-   * @param {Object} group - Group object
-   * @param {boolean} dryRun - Whether to actually create roles
-   */
-  async createGroupDefaultRoles(group, dryRun = false) {
-    const organizationName = group.grp_title.toUpperCase();
+  async _createOrganizationDefaultRoles(organization, orgType, dryRun = false) {
+    const PERMISSION_DEFINITIONS = constants.PERMISSION_DEFINITIONS || [];
+    const allPermissionNames = PERMISSION_DEFINITIONS.map((p) => p.name);
+    const devicePerms = allPermissionNames.filter((p) =>
+      p.startsWith("DEVICE_")
+    );
+    const sitePerms = allPermissionNames.filter((p) => p.startsWith("SITE_"));
 
-    const defaultRoles = [
+    const isGroup = orgType === "group";
+    const orgId = organization._id;
+    const orgTitle = isGroup ? organization.grp_title : organization.net_name;
+    const orgSlug = isGroup
+      ? organization.organization_slug
+      : organization.net_acronym;
+
+    const organizationName =
+      this.normalizeName(orgTitle) ||
+      this.normalizeName(orgSlug) ||
+      `${orgType.toUpperCase()}_${orgId.toString().slice(-6).toUpperCase()}`;
+
+    const roleTemplates = [
       {
-        role_name: `${organizationName}_SUPER_ADMIN`,
-        role_code: `${organizationName}_SUPER_ADMIN`,
-        role_description: `Super Administrator for ${group.grp_title}`,
+        type: "SUPER_ADMIN",
+        description: `Super Administrator for ${orgTitle}`,
         permissions: [
-          "GROUP_MANAGEMENT",
-          "USER_MANAGEMENT",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_EDIT",
-          "ANALYTICS_VIEW",
-          "SYSTEM_ADMIN",
-          "SUPER_ADMIN",
+          isGroup ? constants.GROUP_MANAGEMENT : constants.NETWORK_MANAGEMENT,
+          constants.ORG_USER_ASSIGN,
+          constants.USER_MANAGEMENT,
+          constants.ROLE_ASSIGNMENT,
+          constants.SETTINGS_EDIT,
+          constants.ANALYTICS_VIEW,
         ],
       },
       {
-        role_name: `${organizationName}_GROUP_ADMIN`,
-        role_code: `${organizationName}_GROUP_ADMIN`,
-        role_description: `Group Administrator for ${group.grp_title}`,
+        type: "ADMIN",
+        description: `Administrator for ${orgTitle}`,
         permissions: [
-          "GROUP_EDIT",
-          "USER_MANAGEMENT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "SETTINGS_VIEW",
-          "ANALYTICS_VIEW",
-          "ROLE_VIEW",
+          isGroup ? constants.GROUP_VIEW : constants.NETWORK_VIEW,
+          isGroup ? constants.GROUP_EDIT : constants.NETWORK_EDIT,
+          constants.ORG_USER_ASSIGN,
+          constants.USER_MANAGEMENT,
+          constants.MEMBER_VIEW,
+          constants.MEMBER_INVITE,
+          constants.MEMBER_REMOVE,
+          constants.SETTINGS_VIEW,
+          ...(isGroup && constants.GROUP_SETTINGS
+            ? [constants.GROUP_SETTINGS]
+            : []),
+          constants.ROLE_VIEW,
+          // DEVICE
+          ...devicePerms,
+          // SITE
+          ...sitePerms,
+          // ANALYTICS
+          constants.DASHBOARD_VIEW,
+          constants.ANALYTICS_VIEW,
+          constants.ANALYTICS_EXPORT,
+          constants.DATA_VIEW,
+          constants.DATA_EXPORT,
+          constants.DATA_COMPARE,
         ],
       },
       {
-        role_name: `${organizationName}_GROUP_MANAGER`,
-        role_code: `${organizationName}_GROUP_MANAGER`,
-        role_description: `Group Manager for ${group.grp_title}`,
+        type: "MANAGER",
+        description: `Manager for ${orgTitle}`,
         permissions: [
-          "GROUP_VIEW",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "DASHBOARD_VIEW",
-          "ANALYTICS_VIEW",
-          "SETTINGS_VIEW",
-          "CONTENT_MODERATION",
+          isGroup ? constants.GROUP_VIEW : constants.NETWORK_VIEW,
+          constants.MEMBER_VIEW,
+          constants.ORG_USER_ASSIGN,
+          constants.MEMBER_INVITE,
+          constants.DASHBOARD_VIEW,
+          constants.ANALYTICS_VIEW,
+          constants.SETTINGS_VIEW,
+          ...(isGroup ? [constants.CONTENT_MODERATION] : []),
         ],
       },
       {
-        role_name: `${organizationName}_DEFAULT_MEMBER`,
-        role_code: `${organizationName}_DEFAULT_MEMBER`,
-        role_description: `Default Member role for ${group.grp_title}`,
+        type: "DEFAULT_MEMBER",
+        description: `Default Member role for ${orgTitle}`,
         permissions: [
-          "GROUP_VIEW",
-          "MEMBER_VIEW",
-          "DASHBOARD_VIEW",
-          "CONTENT_VIEW",
+          isGroup ? constants.GROUP_VIEW : constants.NETWORK_VIEW,
+          constants.MEMBER_VIEW,
+          constants.DASHBOARD_VIEW,
+          ...(isGroup ? [constants.CONTENT_VIEW] : []),
         ],
       },
     ];
 
-    for (const roleData of defaultRoles) {
+    for (const template of roleTemplates) {
+      const roleData = {
+        role_name: `${organizationName}_${template.type}`,
+        role_code: `${organizationName}_${template.type}`,
+        role_description: template.description,
+        permissions: template.permissions,
+      };
+
       try {
+        const existingRoleFilter = {
+          role_name: roleData.role_name,
+          [isGroup ? "group_id" : "network_id"]: orgId,
+        };
+
         const existingRole = await RoleModel(this.tenant)
-          .findOne({
-            role_name: roleData.role_name,
-            group_id: group._id,
-          })
+          .findOne(existingRoleFilter)
           .lean();
 
         if (existingRole) {
-          // Update existing role with new permissions if needed
           if (!dryRun) {
             await this.updateRolePermissions(
               existingRole,
@@ -330,41 +293,50 @@ class RBACMigrationUtility {
         }
 
         if (!dryRun) {
-          // Get permission IDs
           const permissions = await PermissionModel(this.tenant)
             .find({ permission: { $in: roleData.permissions } })
             .select("_id")
             .lean();
-
           const permissionIds = permissions.map((p) => p._id);
 
-          // Create role
-          const newRole = await RoleModel(this.tenant).create({
-            role_name: roleData.role_name,
-            role_code: roleData.role_code,
-            role_description: roleData.role_description,
-            group_id: group._id,
+          await RoleModel(this.tenant).create({
+            ...roleData,
+            [isGroup ? "group_id" : "network_id"]: orgId,
             role_permissions: permissionIds,
-            role_status: "ACTIVE",
           });
-
-          logger.debug(
-            `Created role: ${roleData.role_name} for group: ${group.grp_title}`
-          );
         }
 
         this.results.roles.created++;
       } catch (error) {
         this.results.roles.errors.push({
           roleName: roleData.role_name,
-          groupId: group._id,
+          orgId: orgId,
           error: error.message,
         });
         logger.error(
-          `Error creating role ${roleData.role_name}: ${error.message}`
+          `Error creating role ${roleData.role_name} for ${orgType} ${orgTitle}: ${error.message}`
         );
       }
     }
+  }
+
+  /**
+   * Create default roles for a specific group
+   * @param {Object} organization - Group or Network object
+   * @param {string} orgType - 'group' or 'network'
+   * @param {boolean} dryRun - Whether to actually create roles
+   */
+  async createGroupDefaultRoles(group, dryRun = false) {
+    await this._createOrganizationDefaultRoles(group, "group", dryRun);
+  }
+
+  /**
+   * Create default roles for a specific network
+   * @param {Object} network - Network object
+   * @param {boolean} dryRun - Whether to actually create roles
+   */
+  async createNetworkDefaultRoles(network, dryRun = false) {
+    await this._createOrganizationDefaultRoles(network, "network", dryRun);
   }
 
   /**
@@ -429,9 +401,11 @@ class RBACMigrationUtility {
               // Get group from our pre-fetched map
               const group = groupMap.get(groupRole.group.toString());
               if (group) {
-                const organizationName = group.grp_title.toUpperCase();
+                const organizationName = this.normalizeName(group.grp_title);
                 const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
-                const roleKey = `${groupRole.group}_${defaultRoleName}`;
+                const roleKey = `${groupRole.group}_${this.normalizeName(
+                  defaultRoleName
+                )}`;
                 const defaultRole = roleMap.get(roleKey);
 
                 if (defaultRole) {
@@ -503,7 +477,7 @@ class RBACMigrationUtility {
         return null;
       }
 
-      const organizationName = group.grp_title.toUpperCase();
+      const organizationName = this.normalizeName(group.grp_title);
       const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
 
       const defaultRole = await RoleModel(this.tenant)

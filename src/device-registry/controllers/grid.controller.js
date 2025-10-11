@@ -11,738 +11,229 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grid-controller`);
 const isEmpty = require("is-empty");
-function handleResponse({
-  result,
-  key = "data",
-  errorKey = "errors",
-  res,
-} = {}) {
-  if (!result) {
+
+const handleRequest = (req, next) => {
+  const errors = extractErrorsFromRequest(req);
+  if (errors) {
+    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+    return null;
+  }
+  const request = req;
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  request.query.tenant = isEmpty(req.query.tenant)
+    ? defaultTenant
+    : req.query.tenant;
+  return request;
+};
+
+const handleError = (error, next) => {
+  logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: error.message,
+    })
+  );
+};
+
+function handleResponse({ res, result, key = "data" }) {
+  if (!result || res.headersSent) {
     return;
   }
 
-  const isSuccess = result.success;
-  const defaultStatus = isSuccess
-    ? httpStatus.OK
-    : httpStatus.INTERNAL_SERVER_ERROR;
+  const { success, status, data, message, errors, ...rest } = result;
 
-  const defaultMessage = isSuccess
-    ? "Operation Successful"
-    : "Internal Server Error";
+  const responseStatus =
+    status || (success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
 
-  const status = result.status !== undefined ? result.status : defaultStatus;
-  const message =
-    result.message !== undefined ? result.message : defaultMessage;
-  const data = result.data !== undefined ? result.data : [];
-  const errors = isSuccess
-    ? undefined
-    : result.errors !== undefined
-    ? result.errors
-    : { message: "Internal Server Error" };
-
-  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+  if (success) {
+    const responseBody = {
+      success: true,
+      message: message || "Operation Successful",
+      ...rest,
+    };
+    if (data !== undefined) {
+      responseBody[key] = data;
+    }
+    return res.status(responseStatus).json(responseBody);
+  } else {
+    return res.status(responseStatus).json({
+      success: false,
+      message: message || "An unexpected error occurred.",
+      errors: errors || { message: "An unexpected error occurred." },
+    });
+  }
 }
 
 const createGrid = {
   /***************** admin levels associated with Grids ****************/
   listAdminLevels: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.listAdminLevels(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          admin_levels: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "admin_levels" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   updateAdminLevel: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.updateAdminLevel(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result in controller", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_admin_level: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "updated_admin_level" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   deleteAdminLevel: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.deleteAdminLevel(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          admin_levels: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "admin_levels" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   createAdminLevel: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.createAdminLevel(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      logObject("result in controller", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          admin_levels: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "admin_levels" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   /******************* Grids ************************************************/
   create: async (req, res, next) => {
     logText("registering grid.............");
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.create(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      // logObject("result in controller", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          grid: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "grid" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   calculateGeographicalCenter: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.calculateGeographicalCenter(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        logObject("result", result);
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          center_point: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        const errors = result.errors
-          ? result.errors
-          : { message: "Internal Server Error" };
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors,
-        });
-      }
+      handleResponse({ res, result, key: "center_point" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   delete: async (req, res, next) => {
     try {
       logText(".................................................");
       logText("inside delete grid............");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.delete(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          grid: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "grid" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   refresh: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.refresh(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          refreshed_grid: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "refreshed_grid" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   findSites: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.findSites(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          sites: result.data,
-          message: result.message,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "sites" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   update: async (req, res, next) => {
     try {
       logText("updating grid................");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.update(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          grid: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "grid" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   list: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all grids by query params provided");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.list(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          grids: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "grids" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listSummary: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all grids by query params provided");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      request.query.path = "summary";
+      request.query.detailLevel = "summary";
 
       const result = await gridUtil.list(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          grids: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "grids" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listDashboard: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all grids by query params provided");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
+      const request = handleRequest(req, next);
+      if (!request) return;
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      request.query.dashboard = "yes";
+      request.query.detailLevel = "full";
 
       const result = await gridUtil.list(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          grids: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "grids" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
+    }
+  },
+  updateShape: async (req, res, next) => {
+    try {
+      logText("updating grid shape................");
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await gridUtil.updateShape(request, next);
+      handleResponse({ res, result, key: "grid" });
+    } catch (error) {
+      handleError(error, next);
     }
   },
 
@@ -751,369 +242,103 @@ const createGrid = {
     try {
       logText(".....................................");
       logText("findGridUsingGPSCoordinates............");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.findGridUsingGPSCoordinates(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      } else {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          message: result.message,
-          grid: result.data,
-        });
-      }
+      handleResponse({ res, result, key: "grid" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   createGridFromShapefile: async (req, res, next) => {
     try {
-      return res.status(httpStatus.NOT_IMPLEMENTED).json({
-        success: false,
-        message: "Not Yet Implemented",
-        errors: { message: "Not Yet Implemented" },
-      });
       logText("uploading the shapefile.....");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await gridUtil.createGridFromShapefile(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json(result);
-      }
+      // This functionality is not yet implemented.
+      return handleResponse({
+        res,
+        result: {
+          success: false,
+          message: "NOT YET IMPLEMENTED",
+          status: httpStatus.NOT_IMPLEMENTED,
+          errors: { message: "NOT YET IMPLEMENTED" },
+        },
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listAvailableSites: async (req, res, next) => {
     try {
       logText("listing available grids....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.listAvailableSites(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          available_grids: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "available_grids" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listAssignedSites: async (req, res, next) => {
     try {
       logText("listing assigned grids....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.listAssignedSites(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        if (result.data.length === 0) {
-          return res.status(status).json({
-            success: true,
-            message: `no assigned sites to this grid ${req.params.grid_id}`,
-            assigned_grids: [],
-          });
-        }
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          assigned_grids: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "assigned_grids" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   getSiteAndDeviceIds: async (req, res, next) => {
     try {
       logText("generate Sites and Devices from provided Grid ID....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.getSiteAndDeviceIds(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          sites_and_devices: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "sites_and_devices" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   filterOutPrivateSites: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.filterOutPrivateSites(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      const status =
-        result.status ||
-        (result.success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
-
-      res.status(status).json({
-        success: result.success,
-        message: result.message,
-        ...(result.success
-          ? { sites: result.data }
-          : {
-              errors: result.errors || {
-                message: "Internal Server Error",
-              },
-            }),
-      });
+      handleResponse({ res, result, key: "sites" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   findNearestCountry: async (req, res, next) => {
     try {
       logText("finding nearest country based on GPS coordinates...");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       const result = await gridUtil.findNearestCountry(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          nearest_countries: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleResponse({ res, result, key: "nearest_countries" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
+    }
+  },
+  listCountries: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await gridUtil.listCountries(request, next);
+      handleResponse({ res, result, key: "countries" });
+    } catch (error) {
+      handleError(error, next);
     }
   },
 };

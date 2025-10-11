@@ -1,5 +1,6 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
+const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
 const geolib = require("geolib");
@@ -87,6 +88,13 @@ const createGrid = {
         return responseFromCalculateGeographicalCenter;
       } else {
         modifiedBody["centers"] = responseFromCalculateGeographicalCenter.data;
+
+        if (
+          modifiedBody.admin_level &&
+          modifiedBody.admin_level.toLowerCase() === "country"
+        ) {
+          modifiedBody.flag_url = constants.getFlagUrl(modifiedBody.name);
+        }
         // logObject("modifiedBody", modifiedBody);
 
         const responseFromRegisterGrid = await GridModel(tenant).register(
@@ -480,22 +488,213 @@ const createGrid = {
       return;
     }
   },
+  // Replace the existing 'list' function with this one:
+
   list: async (request, next) => {
     try {
-      const { tenant, limit, path, skip } = request.query;
+      const {
+        tenant,
+        limit,
+        skip,
+        detailLevel = "full",
+        sortBy,
+        order,
+      } = request.query;
       const filter = generateFilter.grids(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
+
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
+      const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
+        detailLevel
+      );
+      let pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+      ];
+
+      if (detailLevel === "full") {
+        pipeline.push({
+          $lookup: {
+            from: "devices",
+            localField: "activeMobileDevices.device_id",
+            foreignField: "_id",
+            as: "mobileDevices",
+          },
+        });
       }
-      const responseFromListGrid = await GridModel(tenant).list(
+
+      pipeline.push(
+        { $project: constants.GRIDS_INCLUSION_PROJECTION },
+        { $project: exclusionProjection }
+      );
+
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await GridModel(tenant)
+        .aggregate(facetPipeline)
+        .allowDiskUse(true);
+
+      const agg =
+        Array.isArray(results) && results[0]
+          ? results[0]
+          : { paginatedResults: [], totalCount: [] };
+      const paginatedResults = agg.paginatedResults || [];
+      const total =
+        Array.isArray(agg.totalCount) && agg.totalCount[0]
+          ? agg.totalCount[0].count
+          : 0;
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved grids",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateShape: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const { shape, update_reason } = body;
+
+      const filter = generateFilter.grids(request, next);
+      if (filter.success && filter.success === "false") {
+        return filter;
+      }
+
+      // First, get the existing grid to validate it exists
+      const existingGrid = await GridModel(tenant)
+        .findOne(filter)
+        .lean();
+      if (!existingGrid) {
+        return {
+          success: false,
+          message: "Grid not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "The specified grid does not exist" },
+        };
+      }
+
+      // Calculate new centers for the updated shape
+      const modifiedRequest = {
+        ...request,
+        body: { shape },
+      };
+
+      const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
+        modifiedRequest,
+        next
+      );
+
+      if (responseFromCalculateGeographicalCenter.success === false) {
+        return responseFromCalculateGeographicalCenter;
+      }
+
+      const newCenters = responseFromCalculateGeographicalCenter.data;
+
+      // Prepare the update object with shape and recalculated centers
+      const update = {
+        shape,
+        centers: newCenters,
+        $push: {
+          shape_update_history: {
+            updated_at: new Date(),
+            reason: update_reason,
+            previous_shape: existingGrid.shape,
+            previous_centers: existingGrid.centers,
+          },
+        },
+      };
+
+      const responseFromUpdateGridShape = await GridModel(tenant).modifyShape(
         {
           filter,
-          limit,
-          skip,
+          update,
         },
         next
       );
-      return responseFromListGrid;
+
+      if (responseFromUpdateGridShape.success === true) {
+        // Refresh the grid to update associated sites with new boundaries
+        try {
+          const refreshRequest = {
+            ...request,
+            params: { grid_id: existingGrid._id.toString() },
+          };
+          await createGrid.refresh(refreshRequest, next);
+        } catch (refreshError) {
+          logger.error(
+            `Grid shape updated but refresh failed: ${refreshError.message}`
+          );
+        }
+      }
+
+      return responseFromUpdateGridShape;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -513,11 +712,14 @@ const createGrid = {
     try {
       const { tenant, limit, skip } = request.query;
       const filter = generateFilter.admin_levels(request, next);
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+
       const responseFromListAdminLevels = await AdminLevelModel(tenant).list(
         {
           filter,
-          limit,
-          skip,
+          limit: _limit,
+          skip: _skip,
         },
         next
       );
@@ -993,6 +1195,59 @@ const createGrid = {
         success: true,
         message: "Successfully found nearest country(ies)",
         data: nearestCountries,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listCountries: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const pipeline = [
+        {
+          $match: { admin_level: "country" },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            country: "$name",
+            sites: { $size: "$sites" },
+          },
+        },
+        {
+          $sort: {
+            country: 1,
+          },
+        },
+      ];
+
+      const results = await GridModel(tenant).aggregate(pipeline);
+
+      const countriesWithFlags = results.map((countryData) => ({
+        ...countryData,
+        flag_url: constants.getFlagUrl(countryData.country),
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved countries and site counts.",
+        data: countriesWithFlags,
         status: httpStatus.OK,
       };
     } catch (error) {

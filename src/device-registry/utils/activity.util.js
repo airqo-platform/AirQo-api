@@ -1,11 +1,13 @@
 const ActivityModel = require("@models/Activity");
-const { HttpError } = require("@utils/shared");
+const qs = require("qs");
+const { HttpError, logObject, logText } = require("@utils/shared");
 const createDeviceUtil = require("@utils/device.util");
 const createSiteUtil = require("@utils/site.util");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const GridModel = require("@models/Grid");
 const constants = require("@config/constants");
+
 const {
   distance,
   generateFilter,
@@ -23,20 +25,292 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+const BACK_FILL_BATCH_SIZE = 1000;
+const UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE = 50;
+const FETCH_DEVICES_WITH_ACTIVITIES_LIMIT = 100;
+
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+/**
+ * Updates the cached activity fields for sites and devices
+ * Race-condition safe: Only updates if cache is older than snapshot time
+ * @param {string} tenant - The tenant identifier
+ * @param {ObjectId} site_id - The site ID to update cache for
+ * @param {ObjectId} device_id - The device ID to update cache for
+ * @param {string} deviceName - The device name (for legacy lookup)
+ * @param {function} next - Error handler
+ */
+const updateActivityCache = async (
+  tenant,
+  site_id,
+  device_id,
+  deviceName,
+  next
+) => {
+  try {
+    const updatePromises = [];
+
+    // Update site cache if site_id exists
+    if (site_id) {
+      updatePromises.push(
+        (async () => {
+          try {
+            const cacheStamp = new Date();
+
+            const siteActivities = await ActivityModel(tenant)
+              .find({ site_id: ObjectId(site_id) })
+              .sort({ createdAt: -1 })
+              .lean();
+
+            if (!siteActivities || siteActivities.length === 0) {
+              return;
+            }
+
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            siteActivities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = {
+                  _id: activity._id,
+                  activityType: activity.activityType,
+                  maintenanceType: activity.maintenanceType,
+                  recallType: activity.recallType,
+                  date: activity.date,
+                  description: activity.description,
+                  nextMaintenance: activity.nextMaintenance,
+                  createdAt: activity.createdAt,
+                  device_id: activity.device_id,
+                  device: activity.device,
+                  site_id: activity.site_id,
+                };
+              }
+            });
+
+            const latestDeployment = latestActivitiesByType.deployment || null;
+            const latestMaintenance =
+              latestActivitiesByType.maintenance || null;
+            const latestRecall =
+              latestActivitiesByType.recall ||
+              latestActivitiesByType.recallment ||
+              null;
+            const siteCreation =
+              latestActivitiesByType["site-creation"] || null;
+
+            const result = await SiteModel(tenant).findOneAndUpdate(
+              {
+                _id: ObjectId(site_id),
+                $or: [
+                  { activities_cache_updated_at: { $exists: false } },
+                  { activities_cache_updated_at: { $lt: cacheStamp } },
+                  {
+                    activities_cache_updated_at: cacheStamp,
+                    $or: [
+                      { cached_total_activities: { $exists: false } },
+                      {
+                        cached_total_activities: { $lt: siteActivities.length },
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                $set: {
+                  cached_total_activities: siteActivities.length,
+                  cached_activities_by_type: activitiesByType,
+                  cached_latest_activities_by_type: latestActivitiesByType,
+                  cached_latest_deployment_activity: latestDeployment,
+                  cached_latest_maintenance_activity: latestMaintenance,
+                  cached_latest_recall_activity: latestRecall,
+                  cached_site_creation_activity: siteCreation,
+                  activities_cache_updated_at: cacheStamp,
+                },
+              },
+              { new: true }
+            );
+
+            if (result) {
+              logText(
+                `Updated cache for site ${site_id}: ${siteActivities.length} activities`
+              );
+            }
+          } catch (error) {
+            logger.error(
+              `Failed to update site cache for ${site_id}: ${error.message}`
+            );
+          }
+        })()
+      );
+    }
+
+    // Update device cache if device_id or deviceName exists
+    if (device_id || deviceName) {
+      updatePromises.push(
+        (async () => {
+          try {
+            const cacheStamp = new Date();
+
+            // Build comprehensive query that handles missing device_id
+            const deviceQuery = {};
+
+            if (device_id && deviceName) {
+              deviceQuery.$or = [
+                { device_id: ObjectId(device_id) },
+                { device_id: device_id.toString() },
+                { device: deviceName },
+                {
+                  $and: [
+                    { device: deviceName },
+                    {
+                      $or: [
+                        { device_id: null },
+                        { device_id: { $exists: false } },
+                      ],
+                    },
+                  ],
+                },
+              ];
+            } else if (device_id) {
+              deviceQuery.$or = [
+                { device_id: ObjectId(device_id) },
+                { device_id: device_id.toString() },
+              ];
+            } else if (deviceName) {
+              deviceQuery.device = deviceName;
+            }
+
+            const deviceActivities = await ActivityModel(tenant)
+              .find(deviceQuery)
+              .sort({ createdAt: -1 })
+              .lean();
+
+            if (!deviceActivities || deviceActivities.length === 0) {
+              return;
+            }
+
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            deviceActivities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = {
+                  _id: activity._id,
+                  activityType: activity.activityType,
+                  maintenanceType: activity.maintenanceType,
+                  recallType: activity.recallType,
+                  date: activity.date,
+                  description: activity.description,
+                  nextMaintenance: activity.nextMaintenance,
+                  createdAt: activity.createdAt,
+                  device_id: activity.device_id,
+                  device: activity.device,
+                  site_id: activity.site_id,
+                };
+              }
+            });
+
+            const latestDeployment = latestActivitiesByType.deployment || null;
+            const latestMaintenance =
+              latestActivitiesByType.maintenance || null;
+            const latestRecall =
+              latestActivitiesByType.recall ||
+              latestActivitiesByType.recallment ||
+              null;
+
+            let deviceFilter = {};
+            if (device_id) {
+              deviceFilter._id = ObjectId(device_id);
+            } else if (deviceName) {
+              deviceFilter.name = deviceName;
+            }
+
+            const result = await DeviceModel(tenant).findOneAndUpdate(
+              {
+                ...deviceFilter,
+                $or: [
+                  { activities_cache_updated_at: { $exists: false } },
+                  { activities_cache_updated_at: { $lt: cacheStamp } },
+                  {
+                    activities_cache_updated_at: cacheStamp,
+                    $or: [
+                      { cached_total_activities: { $exists: false } },
+                      {
+                        cached_total_activities: {
+                          $lt: deviceActivities.length,
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                $set: {
+                  cached_total_activities: deviceActivities.length,
+                  cached_activities_by_type: activitiesByType,
+                  cached_latest_activities_by_type: latestActivitiesByType,
+                  cached_latest_deployment_activity: latestDeployment,
+                  cached_latest_maintenance_activity: latestMaintenance,
+                  cached_latest_recall_activity: latestRecall,
+                  activities_cache_updated_at: cacheStamp,
+                },
+              },
+              { new: true }
+            );
+
+            if (result) {
+              logText(
+                `Updated cache for device ${device_id || deviceName}: ${
+                  deviceActivities.length
+                } activities`
+              );
+            }
+          } catch (error) {
+            logger.error(
+              `Failed to update device cache for ${device_id || deviceName}: ${
+                error.message
+              }`
+            );
+          }
+        })()
+      );
+    }
+
+    await Promise.all(updatePromises);
+  } catch (error) {
+    logger.error(`updateActivityCache failed: ${error.message}`);
+  }
+};
+
 const getValidDate = (dateInput) => {
+  // If no date is provided, return null.
   if (!dateInput) {
-    return new Date(); // Current date if no input
+    return null;
   }
 
   const parsedDate = new Date(dateInput);
+
+  // If the provided date string is invalid, return null.
   if (isNaN(parsedDate.getTime())) {
-    console.warn("Invalid date provided, using current date:", dateInput);
-    return new Date(); // Current date if invalid input
+    logger.warn(`Invalid date string provided: "${dateInput}". Skipping.`);
+    return null;
   }
 
+  // Otherwise, return the valid Date object.
   return parsedDate;
 };
 
@@ -67,22 +341,98 @@ const getNextMaintenanceDate = (dateInput, months = 3) => {
 const createActivity = {
   list: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant, limit, skip, path } = query;
+      const { tenant, limit, skip, path, sortBy, order } = request.query;
       const filter = generateFilter.activities(request, next);
       if (!isEmpty(path)) {
         filter.path = path;
       }
 
-      const responseFromListActivity = await ActivityModel(tenant).list(
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
+      const pipeline = [
+        { $match: filter },
         {
-          filter,
-          limit,
-          skip,
+          $project: {
+            _id: 1,
+            device: 1,
+            device_id: 1,
+            activityType: 1,
+            maintenanceType: 1,
+            recallType: 1,
+            date: 1,
+            description: 1,
+            nextMaintenance: 1,
+            createdAt: 1,
+            site_id: 1,
+            grid_id: 1,
+            deployment_type: 1,
+            host_id: 1,
+            network: 1,
+            tags: 1,
+          },
         },
-        next
-      );
-      return responseFromListActivity;
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await ActivityModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved activities",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -523,7 +873,28 @@ const createActivity = {
     next
   ) => {
     try {
-      // Register activity
+      // **STEP 1**: Get device first to capture device_id BEFORE creating activity
+      const filter = generateFilter.devices(
+        { query: { tenant, name: deviceBody.query.name } },
+        next
+      );
+      const existingDevice = await DeviceModel(tenant)
+        .findOne(filter)
+        .lean();
+
+      if (!existingDevice) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Device does not exist" },
+        };
+      }
+
+      // **CRITICAL**: Add device_id to activity body BEFORE creating
+      activityBody.device_id = existingDevice._id;
+
+      // **STEP 2**: Register activity WITH device_id
       const responseFromRegisterActivity = await ActivityModel(tenant).register(
         activityBody,
         next
@@ -532,7 +903,7 @@ const createActivity = {
       if (responseFromRegisterActivity.success === true) {
         const createdActivity = responseFromRegisterActivity.data;
 
-        // Update device
+        // **STEP 3**: Update device
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
           next
@@ -540,12 +911,23 @@ const createActivity = {
 
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
+
+          // **STEP 4**: Update activity cache immediately with correct device_id
+          await updateActivityCache(
+            tenant,
+            activityBody.site_id,
+            existingDevice._id, // Use the device_id we retrieved
+            activityBody.device,
+            next
+          );
+
           const data = {
             createdActivity: {
               activity_codes: createdActivity.activity_codes,
               tags: createdActivity.tags,
               _id: createdActivity._id,
               device: createdActivity.device,
+              device_id: createdActivity.device_id, // Now populated!
               date: createdActivity.date,
               description: createdActivity.description,
               activityType: createdActivity.activityType,
@@ -1039,7 +1421,6 @@ const createActivity = {
     }
   },
 
-  // Existing functions remain largely unchanged
   recall: async (request, next) => {
     try {
       const { query, body } = request;
@@ -1120,6 +1501,7 @@ const createActivity = {
           description: "device recalled",
           activityType: "recallment",
           recallType,
+          site_id: previousSiteId, // Keep for cache update
         };
 
         let deviceBody = {
@@ -1133,10 +1515,10 @@ const createActivity = {
             longitude: "",
             isActive: false,
             status: "recalled",
-            deployment_type: "static", // Reset to default
+            deployment_type: "static",
             mobility: false,
             site_id: null,
-            grid_id: null, // ENHANCED: Clear grid_id on recall
+            grid_id: null,
             host_id: null,
             previous_sites: previousSiteId ? [previousSiteId] : [],
             recall_date: new Date(),
@@ -1147,7 +1529,6 @@ const createActivity = {
           },
         };
 
-        // Add previous grid to a potential previous_grids array if needed
         if (previousGridId) {
           deviceBody.body.previous_grids = [previousGridId];
         }
@@ -1166,6 +1547,17 @@ const createActivity = {
 
           if (responseFromUpdateDevice.success === true) {
             const updatedDevice = responseFromUpdateDevice.data;
+
+            // **NEW: Update activity cache immediately**
+            // Use previousSiteId since device is being unassigned
+            await updateActivityCache(
+              tenant,
+              previousSiteId,
+              updatedDevice._id,
+              deviceName,
+              next
+            );
+
             const data = {
               createdActivity: {
                 _id: createdActivity._id,
@@ -1241,7 +1633,9 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
     }
@@ -1256,7 +1650,7 @@ const createActivity = {
         tags,
         description,
         site_id,
-        grid_id, // ENHANCED: Support maintenance activities for mobile devices
+        grid_id,
         maintenanceType,
         network,
         user_id,
@@ -1280,8 +1674,28 @@ const createActivity = {
         };
       }
 
+      // **CRITICAL**: Get full device details to capture device_id
+      const deviceDetails = await DeviceModel(tenant)
+        .findOne({
+          name: deviceName,
+        })
+        .lean();
+
+      if (!deviceDetails || deviceDetails.status !== "deployed") {
+        return {
+          success: false,
+          message: "Maintenance can only be recorded for deployed devices",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Device ${deviceName} is not currently deployed.`,
+          },
+        };
+      }
+
+      // **CRITICAL**: Include device_id in activity body
       const siteActivityBody = {
         device: deviceName,
+        device_id: deviceDetails._id, // Add device_id!
         user_id: user_id ? user_id : null,
         date: (date && new Date(date)) || new Date(),
         description: description,
@@ -1310,23 +1724,36 @@ const createActivity = {
 
       if (responseFromRegisterActivity.success === true) {
         const createdActivity = responseFromRegisterActivity.data;
+
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
           next
         );
+
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
+
+          // **NEW: Update activity cache immediately**
+          await updateActivityCache(
+            tenant,
+            siteActivityBody.site_id,
+            deviceDetails._id,
+            deviceName,
+            next
+          );
+
           const data = {
             createdActivity: {
               activity_codes: createdActivity.activity_codes,
               tags: createdActivity.tags,
               _id: createdActivity._id,
               device: createdActivity.device,
+              device_id: createdActivity.device_id, // Now populated!
               date: createdActivity.date,
               description: createdActivity.description,
               activityType: createdActivity.activityType,
               site_id: createdActivity.site_id,
-              grid_id: createdActivity.grid_id, // ENHANCED: Include grid_id
+              grid_id: createdActivity.grid_id,
               deployment_type: createdActivity.deployment_type,
               host_id: createdActivity.host_id,
               network: createdActivity.network,
@@ -1344,6 +1771,7 @@ const createActivity = {
             },
             user_id: user_id ? user_id : null,
           };
+
           try {
             const kafkaProducer = kafka.producer({
               groupId: constants.UNIQUE_PRODUCER_GROUP,
@@ -1381,7 +1809,9 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
     }
@@ -1576,6 +2006,511 @@ const createActivity = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+    }
+  },
+  recalculateNextMaintenance: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { dry_run = false } = request.body;
+
+      const maintenanceActivities = await ActivityModel(tenant)
+        .find({ activityType: "maintenance" })
+        .select("_id device date nextMaintenance")
+        .lean();
+
+      if (isEmpty(maintenanceActivities)) {
+        return {
+          success: true,
+          message: "No maintenance activities found to process.",
+          data: {
+            total_maintenance_activities_checked: 0,
+            activities_to_update: 0,
+            updated_activities: 0,
+            updated_devices: 0,
+            dry_run,
+            changes: [],
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      let updatedActivitiesCount = 0;
+      let updatedDevicesCount = 0;
+      const changes = [];
+      const activityBulkOps = [];
+      // Validate dates and track invalid rows
+      const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
+      const invalidActivities = [];
+      // Build latest maintenance date per device across ALL maintenance activities
+      const latestMaintenanceDateByDevice = new Map();
+      for (const a of maintenanceActivities) {
+        if (!isValidDate(a.date)) {
+          invalidActivities.push(a);
+          continue; // Skip invalid activities from being processed
+        }
+        const prev = latestMaintenanceDateByDevice.get(a.device);
+        const currDate = new Date(a.date);
+        if (!prev || currDate > new Date(prev)) {
+          latestMaintenanceDateByDevice.set(a.device, a.date);
+        }
+      }
+      const devicesWithChangedActivities = new Set();
+
+      for (const activity of maintenanceActivities) {
+        if (!isValidDate(activity.date)) {
+          // Already tracked above, just skip processing
+          continue;
+        }
+        const correctNextMaintenance = getNextMaintenanceDate(activity.date, 3);
+
+        if (
+          !activity.nextMaintenance ||
+          new Date(activity.nextMaintenance).getTime() !==
+            correctNextMaintenance.getTime()
+        ) {
+          changes.push({
+            activity_id: activity._id,
+            device_name: activity.device,
+            activity_date: activity.date,
+            old_next_maintenance: activity.nextMaintenance,
+            new_next_maintenance: correctNextMaintenance,
+          });
+
+          activityBulkOps.push({
+            updateOne: {
+              filter: { _id: activity._id },
+              update: { $set: { nextMaintenance: correctNextMaintenance } },
+            },
+          });
+          // Mark device as needing nextMaintenance re-evaluation
+          devicesWithChangedActivities.add(activity.device);
+        }
+      }
+
+      if (!dry_run && activityBulkOps.length > 0) {
+        const activityResult = await ActivityModel(tenant).bulkWrite(
+          activityBulkOps,
+          { ordered: false }
+        );
+        updatedActivitiesCount = activityResult.modifiedCount;
+
+        // Prepare bulk operations for devices
+        const deviceBulkOps = [];
+        const deviceNamesToUpdate = Array.from(devicesWithChangedActivities);
+
+        if (deviceNamesToUpdate.length > 0) {
+          const devices = await DeviceModel(tenant)
+            .find({ name: { $in: deviceNamesToUpdate } })
+            .select("_id name nextMaintenance")
+            .lean();
+
+          for (const device of devices) {
+            const latestMaintenanceDate = latestMaintenanceDateByDevice.get(
+              device.name
+            );
+            if (!latestMaintenanceDate) continue;
+            const latestCorrectNextMaintenance = getNextMaintenanceDate(
+              latestMaintenanceDate,
+              3
+            );
+            // Only update when it actually changes
+            if (
+              !device.nextMaintenance ||
+              new Date(device.nextMaintenance).getTime() !==
+                latestCorrectNextMaintenance.getTime()
+            ) {
+              deviceBulkOps.push({
+                updateOne: {
+                  filter: { _id: device._id },
+                  update: {
+                    $set: { nextMaintenance: latestCorrectNextMaintenance },
+                  },
+                },
+              });
+            }
+          }
+
+          if (deviceBulkOps.length > 0) {
+            const deviceResult = await DeviceModel(tenant).bulkWrite(
+              deviceBulkOps,
+              { ordered: false }
+            );
+            updatedDevicesCount = deviceResult.modifiedCount || 0;
+          }
+        }
+      }
+
+      const summary = {
+        total_maintenance_activities_checked: maintenanceActivities.length,
+        activities_to_update: changes.length,
+        updated_activities: updatedActivitiesCount,
+        updated_devices: dry_run ? 0 : updatedDevicesCount,
+        invalid_activities_skipped: invalidActivities.length,
+        dry_run,
+        changes: changes,
+        invalid_activities: invalidActivities.map((a) => ({
+          activity_id: a._id,
+          device_name: a.device,
+          invalid_date: a.date,
+        })),
+      };
+
+      return {
+        success: true,
+        message: dry_run
+          ? "Dry run completed. No changes were made."
+          : "Recalculation completed successfully.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+  backfillDeviceIds: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { dry_run = false, batch_size = 100 } = request.body;
+
+      logText(`Starting device_id backfill for tenant: ${tenant}`);
+
+      // Build filter for activities without device_id but WITH a valid device name
+      const filter = {
+        $or: [{ device_id: null }, { device_id: { $exists: false } }],
+        device: { $exists: true, $nin: [null, ""] },
+      };
+
+      // Get total count for reporting
+      const totalCount = await ActivityModel(tenant).countDocuments(filter);
+
+      logText(`Found ${totalCount} activities needing backfill`);
+
+      if (dry_run) {
+        // For dry run, get a small sample with minimal projection
+        const sampleActivities = await ActivityModel(tenant)
+          .find(filter)
+          .select("_id device activityType date device_id")
+          .limit(10)
+          .lean();
+
+        const sampleDeviceNames = [
+          ...new Set(sampleActivities.map((a) => a.device)),
+        ];
+
+        return {
+          success: true,
+          message: "Dry run completed - no changes made",
+          data: {
+            total_activities_needing_backfill: totalCount,
+            sample_device_names: sampleDeviceNames,
+            sample_activities: sampleActivities.map((a) => ({
+              _id: a._id,
+              device: a.device,
+              activityType: a.activityType,
+              date: a.date,
+              device_id: a.device_id,
+            })),
+            batch_size: batch_size,
+            estimated_batches: Math.ceil(totalCount / batch_size),
+            dry_run: true,
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      // Actual backfill using cursor-based batching
+      let processedCount = 0;
+      let totalBackfilled = 0;
+      const notFound = [];
+      const deviceCache = new Map();
+      let batchNumber = 0;
+
+      // Process in batches - NO SKIP, filter naturally shrinks as we update
+      while (true) {
+        batchNumber++;
+        logText(`Processing batch #${batchNumber} (batch_size=${batch_size})`);
+
+        // Fetch batch with minimal projection
+        // No skip needed - updated documents automatically drop out of filter
+        const batchActivities = await ActivityModel(tenant)
+          .find(filter)
+          .select("_id device activityType date")
+          .limit(batch_size)
+          .lean();
+
+        // Exit loop when no more activities match the filter
+        if (batchActivities.length === 0) {
+          logText("No more activities to process - backfill complete");
+          break;
+        }
+
+        const bulkOps = [];
+
+        // Process each activity in the batch
+        for (const activity of batchActivities) {
+          try {
+            let device;
+
+            // Check cache first
+            if (deviceCache.has(activity.device)) {
+              device = deviceCache.get(activity.device);
+            } else {
+              // Find the device by name with minimal projection
+              device = await DeviceModel(tenant)
+                .findOne({ name: activity.device })
+                .select("_id name")
+                .lean();
+
+              // Cache the result (even if null)
+              deviceCache.set(activity.device, device);
+            }
+
+            if (device) {
+              bulkOps.push({
+                updateOne: {
+                  filter: { _id: activity._id },
+                  update: { $set: { device_id: device._id } },
+                },
+              });
+            } else {
+              notFound.push({
+                activity_id: activity._id,
+                device_name: activity.device,
+                activityType: activity.activityType,
+                date: activity.date,
+                reason: "Device not found in database",
+              });
+            }
+          } catch (error) {
+            notFound.push({
+              activity_id: activity._id,
+              device_name: activity.device,
+              error: error.message,
+            });
+          }
+        }
+
+        // Execute bulk update for this batch
+        if (bulkOps.length > 0) {
+          const batchResult = await ActivityModel(tenant).bulkWrite(bulkOps, {
+            ordered: false,
+          });
+          totalBackfilled += batchResult.modifiedCount;
+          logText(
+            `Batch #${batchNumber} updated: ${batchResult.modifiedCount} activities`
+          );
+        }
+
+        processedCount += batchActivities.length;
+
+        // Log progress
+        const progressPercent = Math.round((processedCount / totalCount) * 100);
+        logText(
+          `Progress: ${processedCount}/${totalCount} activities processed (${progressPercent}%)`
+        );
+
+        // Safety check: prevent infinite loops
+        if (batchNumber > BACK_FILL_BATCH_SIZE) {
+          logger.warn(
+            `Safety limit reached (${BACK_FILL_BATCH_SIZE} batches), stopping backfill`
+          );
+          break;
+        }
+      }
+
+      // After successful backfill, trigger cache recalculation for affected devices
+      if (totalBackfilled > 0) {
+        logText("Triggering cache updates for affected devices...");
+
+        // Get unique device names that were updated
+        const updatedDeviceNames = [...deviceCache.keys()].filter(
+          (name) => deviceCache.get(name) !== null
+        );
+
+        // Update cache for devices (limit to first 50 to avoid timeout)
+        const devicesToUpdate = updatedDeviceNames.slice(
+          0,
+          UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
+        );
+
+        Promise.all(
+          devicesToUpdate.map(async (deviceName) => {
+            try {
+              const device = deviceCache.get(deviceName);
+              if (device) {
+                await updateActivityCache(
+                  tenant,
+                  null,
+                  device._id,
+                  deviceName,
+                  next
+                );
+              }
+            } catch (error) {
+              logger.error(
+                `Failed to update cache for ${deviceName}: ${error.message}`
+              );
+            }
+          })
+        )
+          .then(() => {
+            logText(
+              `Cache updates completed for ${devicesToUpdate.length} devices`
+            );
+          })
+          .catch((error) => {
+            logger.error(`Cache update error: ${error.message}`);
+          });
+      }
+
+      return {
+        success: true,
+        message: "Device ID backfill completed successfully",
+        data: {
+          total_activities_processed: processedCount,
+          activities_backfilled: totalBackfilled,
+          devices_not_found: notFound.length,
+          not_found_details: notFound.slice(0, 20),
+          total_not_found: notFound.length,
+          unique_devices_cached: deviceCache.size,
+          batches_processed: batchNumber,
+          batch_size: batch_size,
+          tenant: tenant,
+          backfill_completed_at: new Date(),
+          cache_update_triggered: totalBackfilled > 0,
+          cache_updates_queued: Math.min(
+            [...deviceCache.keys()].filter(
+              (name) => deviceCache.get(name) !== null
+            ).length,
+            UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
+          ),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Backfill Error ${error.message}`);
+      next(
+        new HttpError("Backfill Failed", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+  refreshActivityCaches: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { device_names, site_ids, refresh_all = false } = request.body;
+
+      logText(`Starting manual cache refresh for tenant: ${tenant}`);
+
+      const refreshedDevices = [];
+      const refreshedSites = [];
+      const errors = [];
+
+      // Refresh specific devices
+      if (device_names && device_names.length > 0) {
+        for (const deviceName of device_names) {
+          try {
+            const device = await DeviceModel(tenant)
+              .findOne({ name: deviceName })
+              .lean();
+
+            if (device) {
+              await updateActivityCache(
+                tenant,
+                device.site_id,
+                device._id,
+                deviceName,
+                next
+              );
+              refreshedDevices.push(deviceName);
+            } else {
+              errors.push({
+                device_name: deviceName,
+                error: "Device not found",
+              });
+            }
+          } catch (error) {
+            errors.push({ device_name: deviceName, error: error.message });
+          }
+        }
+      }
+
+      // Refresh specific sites
+      if (site_ids && site_ids.length > 0) {
+        for (const site_id of site_ids) {
+          try {
+            await updateActivityCache(
+              tenant,
+              ObjectId(site_id),
+              null,
+              null,
+              next
+            );
+            refreshedSites.push(site_id);
+          } catch (error) {
+            errors.push({ site_id: site_id, error: error.message });
+          }
+        }
+      }
+
+      // Refresh all (use with caution for large datasets)
+      if (refresh_all) {
+        // Get all devices with activities
+        const devicesWithActivities = await DeviceModel(tenant)
+          .find({ cached_total_activities: { $gte: 0 } })
+          .limit(FETCH_DEVICES_WITH_ACTIVITIES_LIMIT) // Safety limit
+          .lean();
+
+        for (const device of devicesWithActivities) {
+          try {
+            await updateActivityCache(
+              tenant,
+              device.site_id,
+              device._id,
+              device.name,
+              next
+            );
+            refreshedDevices.push(device.name);
+          } catch (error) {
+            errors.push({ device_name: device.name, error: error.message });
+          }
+        }
+      }
+
+      return {
+        success: true,
+        message: "Cache refresh completed",
+        data: {
+          devices_refreshed: refreshedDevices.length,
+          sites_refreshed: refreshedSites.length,
+          errors: errors.length,
+          error_details: errors,
+          tenant: tenant,
+          refreshed_at: new Date(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Cache Refresh Error ${error.message}`);
+      next(
+        new HttpError(
+          "Cache Refresh Failed",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
     }

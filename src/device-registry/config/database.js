@@ -45,6 +45,7 @@ const createQueryConnection = () =>
 // Store database connections
 let commandDB = null;
 let queryDB = null;
+let isConnected = false;
 
 // Helper function to set up connection event handlers
 const setupConnectionHandlers = (db, dbType) => {
@@ -66,6 +67,10 @@ const setupConnectionHandlers = (db, dbType) => {
 };
 
 const connectToMongoDB = () => {
+  if (isConnected) {
+    return { commandDB, queryDB };
+  }
+
   try {
     // Establish command database connection
     commandDB = createCommandConnection();
@@ -84,6 +89,7 @@ const connectToMongoDB = () => {
       logger.error("There was an uncaught error", err);
     });
 
+    isConnected = true;
     return { commandDB, queryDB };
   } catch (error) {
     logger.error(`Database connection error: ${error.message}`);
@@ -91,16 +97,13 @@ const connectToMongoDB = () => {
   }
 };
 
-// Initialize both database connections
-const { commandDB: commandMongoDB, queryDB: queryMongoDB } = connectToMongoDB();
-
 /**
  * Get a tenant-specific command database (for write operations)
  */
 function getCommandTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_command_${tenantId}`;
-  if (commandMongoDB) {
-    const db = commandMongoDB.useDb(dbName, { useCache: true });
+  if (commandDB) {
+    const db = commandDB.useDb(dbName, { useCache: true });
     db.model(modelName, schema);
     return db;
   }
@@ -113,8 +116,8 @@ function getCommandTenantDB(tenantId, modelName, schema) {
 function getQueryTenantDB(tenantId, modelName, schema) {
   // const dbName = `${constants.DB_NAME}_query_${tenantId}`;
   const dbName = `${constants.DB_NAME}_${tenantId}`;
-  if (queryMongoDB) {
-    const db = queryMongoDB.useDb(dbName, { useCache: true });
+  if (queryDB) {
+    const db = queryDB.useDb(dbName, { useCache: true });
     db.model(modelName, schema);
     return db;
   }
@@ -174,8 +177,7 @@ function getRawTenantDB(tenantId, operationType = "query") {
       ? `${constants.DB_NAME}_command_${tenantId}`
       : `${constants.DB_NAME}_${tenantId}`;
 
-  const connection =
-    operationType === "command" ? commandMongoDB : queryMongoDB;
+  const connection = operationType === "command" ? commandDB : queryDB;
 
   if (!connection) {
     throw new Error(`${operationType} database connection not established`);

@@ -1,24 +1,33 @@
 import pandas as pd
+import numpy as np
+import os
 import ast
+import hashlib
 from typing import Optional, Callable, List, Dict, Any
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from airqo_etl_utils.data_api import DataApi
+from .data_api import DataApi
+from .date import frequency_to_dates
 from .bigquery_api import BigQueryApi
-from .constants import DeviceNetwork
 from .datautils import DataUtils
 from .data_validator import DataValidationUtils
+from .airqo_data_drift_compute import AirQoDataDriftCompute
 from .weather_data_utils import WeatherDataUtils
-from .constants import MetaDataType
+from .constants import MetaDataType, DataType, DeviceCategory, Frequency, DeviceNetwork
+from .config import configuration as Config
 
 import logging
 
 logger = logging.getLogger("airflow.task")
 
+cpu_count = os.cpu_count() or 2
+max_workers = min(20, cpu_count * 10)
+
 
 class MetaDataUtils:
     @staticmethod
-    def extract_devices() -> pd.DataFrame:
+    def extract_devices(preferred_source: Optional[str] = "cache") -> pd.DataFrame:
         """
         Extracts and processes device information into a structured Pandas DataFrame.
 
@@ -28,32 +37,275 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing device information.
         """
-        devices, _ = DataUtils.get_devices()
-        devices["status"] = devices["status"].replace(
-            {"deployed": True, "not deployed": False}
-        )
+        devices = DataUtils.get_devices(preferred_source=preferred_source)
         devices = devices[
             [
                 "network",
-                "status",
-                "isActive",
+                "deployed",
+                "active",
                 "latitude",
                 "longitude",
                 "site_id",
-                "name",
+                "id",
+                "auth_required",
+                "device_id",
                 "device_number",
                 "description",
                 "device_manufacturer",
                 "device_category",
+                "mount_type",
+                "mobility",
+                "device_maintenance",
+                "assigned_grid",
+                "power_type",
+                "api_code",
+                "key",
+                "created_at",
             ]
         ]
-        devices.rename(
-            columns={"isActive": "active", "status": "deployed"}, inplace=True
-        )
-        devices["device_id"] = devices["name"]
-        devices["last_updated"] = datetime.now(timezone.utc)
+
+        devices.loc[:, "last_updated"] = datetime.now(timezone.utc)
 
         return devices
+
+    @staticmethod
+    def extract_sites(preferred_source: Optional[str] = "cache") -> pd.DataFrame:
+        """
+        Extracts site information for a given device network and standardizes the data format.
+
+        This function retrieves site data, selects relevant columns, renames certain fields
+        for consistency, and adds a timestamp indicating when the data was last updated.
+
+        Args:
+            network (Optional[DeviceNetwork]): The device network to filter sites by. If None, data for all networks is retrieved.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the extracted site information with standardized columns.
+        """
+        sites = DataUtils.get_sites(preferred_source=preferred_source)
+        sites = sites[
+            [
+                "network",
+                "id",
+                "latitude",
+                "longitude",
+                "approximate_latitude",
+                "approximate_longitude",
+                "name",
+                "display_name",
+                "display_location",
+                "description",
+                "city",
+                "region",
+                "country",
+                "weather_stations",
+            ]
+        ]
+
+        sites["last_updated"] = datetime.now(timezone.utc)
+
+        return sites
+
+    def compute_device_site_metadata(
+        self,
+        data_type: DataType,
+        device_category: DeviceCategory,
+        metadata_type: MetaDataType,
+        frequency: Frequency,
+    ) -> pd.DataFrame:
+        """
+        Computes additional metadata for devices or sites based on the specified parameters.
+
+        This function retrieves metadata for devices or sites, merges it with recent readings,
+        and computes additional metadata using a thread pool for parallel processing.
+
+        Args:
+            data_type (DataType): The type of data to process (e.g., air quality, weather).
+            device_category (DeviceCategory): The category of the device (e.g., LOWCOST, GENERAL).
+            metadata_type (MetaDataType): The type of metadata to compute (e.g., DEVICES, SITES).
+            frequency (Frequency): The frequency of the data (e.g., hourly, daily).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the computed metadata.
+        """
+        frequency_: Frequency = frequency
+        # Adjust frequency for extra time grouping scenarios
+        if frequency.str in Config.extra_time_grouping:
+            # Use hourly for better data granularity
+            frequency_ = Frequency.HOURLY
+
+        exclude_column = "site_id" if metadata_type == MetaDataType.DEVICES else None
+        device_category_ = (
+            DeviceCategory.GENERAL
+            if device_category == DeviceCategory.LOWCOST
+            else None
+        )
+        # Uses the device category passed to the function to get pollutants
+        pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
+            data_type.str, None
+        )
+
+        metadata_method: Dict[str, Callable[[], Any]] = {
+            MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
+            MetaDataType.SITES: lambda: self.extract_sites(preferred_source="api"),
+        }
+        unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
+
+        entities = metadata_method.get(metadata_type)()
+        entities = entities[(entities.network == "airqo") & (entities.deployed == True)]
+
+        # Fetch recent readings and merge with entities
+        pollutants_ = (
+            [p for _, pollutant in pollutants.items() for p in pollutant]
+            if pollutants
+            else None
+        )
+        recent_readings = DataUtils.extract_most_recent_metadata_record(
+            MetaDataType.DEVICES,
+            "device_id",
+            "next_offset_date",
+            filter={"pollutant": pollutants_},
+        )
+
+        if exclude_column:
+            recent_readings.drop(
+                columns=[exclude_column], inplace=True, errors="ignore"
+            )
+        entities = pd.merge(entities, recent_readings, how="left", on=unique_id)
+        entities.fillna(np.nan, inplace=True)
+
+        # Compute additional metadata
+        computed_data = []
+        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency_)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    DataUtils.compute_device_site_metadata_per_device,
+                    data_table,
+                    unique_id,
+                    entity,
+                    pollutants,
+                    frequency,
+                )
+                for _, entity in entities.iterrows()
+            ]
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    computed_data.append(result)
+
+        computed_data = (
+            pd.concat(computed_data, ignore_index=True)
+            if computed_data
+            else pd.DataFrame()
+        )
+        if not computed_data.empty:
+            computed_data["data_resolution"] = frequency_.str
+            computed_data["baseline_type"] = frequency.str
+        return computed_data
+
+    @staticmethod
+    def compute_device_site_baseline(
+        data_type: DataType,
+        device_category: DeviceCategory,
+        device_network: DeviceNetwork,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        frequency: Optional[Frequency] = Frequency.WEEKLY,
+    ) -> pd.DataFrame:
+        """
+        Computes baseline statistics for devices or sites based on the specified parameters.
+        This function retrieves data for devices or sites, and computes baseline statistics
+        using a thread pool for parallel processing.
+        Args:
+            data_type (DataType): The type of data to process (e.g., air quality, weather).
+            device_category (DeviceCategory): The category of the device (e.g., LOWCOST, GENERAL).
+            device_network (DeviceNetwork): The network of the device (e.g., AIRQO, OTHER).
+            start_date (str): The start date for the baseline computation in ISO 8601 format.
+            end_date (str): The end date for the baseline computation in ISO 8601 format.
+            frequency (Frequency): The frequency of the data (e.g., HOURLY, DAILY, WEEKLY).
+        Returns:
+            pd.DataFrame: A DataFrame containing the computed baseline statistics. If no data is found, returns an empty DataFrame.
+        Raises:
+            ValueError: If no data is found for the specified parameters.
+        """
+        frequency_: Frequency = frequency
+        if start_date is None or end_date is None:
+            start_date, end_date = frequency_to_dates(frequency)
+
+        # Uses the device category passed to the function to get pollutants
+        pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
+            data_type.str, None
+        )
+        pollutants_ = (
+            [p for _, pollutant in pollutants.items() for p in pollutant]
+            if pollutants
+            else None
+        )
+
+        device_metadata = DataUtils.extract_most_recent_metadata_record(
+            MetaDataType.DEVICES,
+            "device_id",
+            "next_offset_date",
+            filter={"pollutant": pollutants_},
+        )
+
+        if frequency.str in Config.extra_time_grouping:
+            frequency_ = Frequency.HOURLY
+
+        if device_metadata.empty:
+            logger.warning("No device metadata returned")
+            return pd.DataFrame()
+
+        devices = {
+            "device_id": [
+                device_id
+                for device_id in device_metadata["device_id"].unique()
+                if device_id
+            ]
+        }
+
+        data = DataUtils.extract_data_from_bigquery(
+            data_type,
+            start_date,
+            end_date,
+            frequency,
+            device_category,
+            device_network,
+            data_filter=devices,
+        )
+
+        # TODO: Come up with a structure for pollutants for multi-sensor devices. Currently, only one pollutant is considered.
+        # pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(data_type.str, None)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    AirQoDataDriftCompute.compute_baseline,
+                    data_type,
+                    data.loc[data.device_id == device_data["device_id"]],
+                    device_data,
+                    [device_data["pollutant"]],
+                    data_resolution=frequency_,
+                    baseline_type=frequency,
+                    window_start=start_date,
+                    window_end=end_date,
+                    region_min=device_data["minimum"],
+                    region_max=device_data["maximum"],
+                )
+                for _, device_data in device_metadata.iterrows()
+            ]
+            results = []
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        results.extend(result)
+                except Exception as e:
+                    logger.exception(f"Exception in baseline computation: {e}")
+
+        return pd.DataFrame(results)
 
     @staticmethod
     def extract_airqlouds_from_api(
@@ -195,51 +447,6 @@ class MetaDataUtils:
         return merged_data
 
     @staticmethod
-    def extract_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
-        """
-        Extracts site information for a given device network and standardizes the data format.
-
-        This function retrieves site data, selects relevant columns, renames certain fields
-        for consistency, and adds a timestamp indicating when the data was last updated.
-
-        Args:
-            network (Optional[DeviceNetwork]): The device network to filter sites by. If None, data for all networks is retrieved.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing the extracted site information with standardized columns.
-        """
-        sites = DataUtils.get_sites(network=network)
-        sites = sites[
-            [
-                "network",
-                "site_id",
-                "latitude",
-                "longitude",
-                "approximate_latitude",
-                "approximate_longitude",
-                "name",
-                "search_name",
-                "location_name",
-                "description",
-                "city",
-                "region",
-                "country",
-            ]
-        ]
-
-        sites.rename(
-            columns={
-                "search_name": "display_name",
-                "site_id": "id",
-                "location_name": "display_location",
-            },
-            inplace=True,
-        )
-        sites["last_updated"] = datetime.now(timezone.utc)
-
-        return sites
-
-    @staticmethod
     def extract_sites_meta_data(
         network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
@@ -258,6 +465,7 @@ class MetaDataUtils:
             pd.DataFrame: A DataFrame containing the extracted site metadata with the correct schema.
         """
         sites = DataUtils.get_sites(network=network)
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.sites_meta_data_table)
         sites = DataValidationUtils.fill_missing_columns(data=sites, cols=cols)
@@ -284,6 +492,7 @@ class MetaDataUtils:
         sites_data = DataUtils.get_sites(network=network)
         sites_data.rename(
             columns={
+                "id": "site_id",
                 "approximate_latitude": "latitude",
                 "approximate_longitude": "longitude",
             },
@@ -316,6 +525,7 @@ class MetaDataUtils:
         """
         data_api = DataApi()
         sites = DataUtils.get_sites(network=network)
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         updated_sites = []
         for _, site in sites.iterrows():
             latitude = site.get("approximate_latitude", None)
@@ -343,22 +553,44 @@ class MetaDataUtils:
 
     @staticmethod
     def refresh_airqlouds(network: DeviceNetwork) -> None:
+        """
+        Refreshes all AirQlouds for the specified device network.
+
+        This method retrieves all AirQlouds associated with the given network and triggers a refresh
+        operation for each AirQloud using the DataApi.
+
+        Args:
+            network (DeviceNetwork): The device network for which to refresh AirQlouds.
+
+        Returns:
+            None
+        """
         data_api = DataApi()
         airqlouds = data_api.get_airqlouds(network=network)
-
         for airqloud in airqlouds:
             data_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
 
     @staticmethod
     def refresh_grids(network: DeviceNetwork) -> None:
+        """
+        Refreshes all grids for the specified device network.
+
+        This method retrieves all grids associated with the given network and triggers a refresh
+        operation for each grid using the DataApi.
+
+        Args:
+            network (DeviceNetwork): The device network for which to refresh grids.
+
+        Returns:
+            None
+        """
         data_api = DataApi()
         grids = data_api.get_grids(network=network)
-
         for grid in grids:
             data_api.refresh_grid(grid_id=grid.get("id"))
 
     def extract_transform_and_decrypt_metadata(
-        metadata_type: MetaDataType,
+        self, metadata_type: MetaDataType
     ) -> pd.DataFrame:
         """
         Extracts, transforms, and decrypts metadata for a given type.
@@ -374,27 +606,17 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
         """
-        data_api = DataApi()
         endpoints: Dict[str, Callable[[], Any]] = {
-            "devices": lambda: data_api.get_devices_by_network(),
-            "sites": lambda: data_api.get_sites(),
+            MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
+            MetaDataType.SITES: lambda: self.extract_sites(preferred_source="api"),
         }
         result: pd.DataFrame = pd.DataFrame()
         match metadata_type:
             case MetaDataType.DEVICES:
-                devices_raw = endpoints.get(metadata_type.str)()
-                if devices_raw:
-                    devices_df = pd.DataFrame(devices_raw)
-                    keys = data_api.get_thingspeak_read_keys(devices_df)
-                    if keys:
-                        devices_df["key"] = (
-                            devices_df["device_number"].map(keys).fillna(-1)
-                        )
-                    result = devices_df
+                result = endpoints.get(metadata_type)()
             case MetaDataType.SITES:
-                sites_raw = endpoints.get(metadata_type.str)()
-                if sites_raw:
-                    result = pd.DataFrame(sites_raw)
+                result = endpoints.get(metadata_type)()
+
         return result
 
     def transform_devices(devices: List[Dict[str, Any]], taskinstance) -> pd.DataFrame:
@@ -411,8 +633,6 @@ class MetaDataUtils:
             pd.DataFrame: Transformed DataFrame if the devices data has changed since
                         the last execution; otherwise, an empty DataFrame.
         """
-        import hashlib
-
         devices = pd.DataFrame(devices)
         devices.rename(
             columns={

@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const { Schema } = mongoose;
 var uniqueValidator = require("mongoose-unique-validator");
 const constants = require("@config/constants");
@@ -99,6 +99,16 @@ const GroupSchema = new Schema(
           "Profile picture URL must be a valid URL & must not exceed 200 characters.",
       },
     },
+    cohorts: [
+      {
+        type: ObjectId,
+      },
+    ],
+    is_default: {
+      type: Boolean,
+      default: false,
+      immutable: true,
+    },
   },
   {
     timestamps: true,
@@ -181,6 +191,52 @@ GroupSchema.pre(
   }
 );
 
+// Pre-remove hook
+GroupSchema.pre(
+  [
+    "findOneAndRemove",
+    "remove",
+    "findOneAndDelete",
+    "findByIdAndDelete",
+    "deleteOne",
+    "deleteMany",
+  ],
+  async function (next) {
+    const query = this.getQuery ? this.getQuery() : { _id: this._id };
+    const Model = this.model || this.constructor;
+    const docToDelete =
+      typeof this.getQuery === "function" ? await Model.findOne(query) : this;
+
+    if (!docToDelete) {
+      return next();
+    }
+
+    // Check is_default flag
+    if (docToDelete.is_default) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete default/system groups",
+        })
+      );
+    }
+
+    // Check against environment default IDs
+    const defaultIds = [constants.DEFAULT_GROUP]
+      .filter(Boolean)
+      .map((id) => id.toString());
+
+    if (defaultIds.includes(docToDelete._id.toString())) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete configured default groups",
+        })
+      );
+    }
+
+    next();
+  }
+);
+
 GroupSchema.methods = {
   toJSON() {
     return {
@@ -202,6 +258,7 @@ GroupSchema.methods = {
       grp_country: this.grp_country,
       grp_timezone: this.grp_timezone,
       grp_image: this.grp_image,
+      cohorts: this.cohorts,
     };
   },
 };

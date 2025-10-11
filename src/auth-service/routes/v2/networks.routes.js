@@ -3,29 +3,32 @@ const express = require("express");
 const router = express.Router();
 const createNetworkController = require("@controllers/network.controller");
 const networkValidations = require("@validators/networks.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
+const {
+  requirePermissions,
+  requireNetworkPermissions,
+} = require("@middleware/permissionAuth");
+const constants = require("@config/constants");
 
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
 router.use(headers);
 router.use(networkValidations.pagination);
 
 router.put(
   "/:net_id/assign-user/:user_id",
   networkValidations.assignOneUser,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.ORG_USER_ASSIGN], "net_id"),
   createNetworkController.assignOneUser
 );
 
-router.get("/", networkValidations.list, createNetworkController.list);
+router.get(
+  "/",
+  networkValidations.list,
+  enhancedJWTAuth,
+  // requirePermissions([constants.NETWORK_VIEW]),
+  createNetworkController.list
+);
 
 router.get(
   "/summary",
@@ -36,98 +39,106 @@ router.get(
 router.put(
   "/:net_id/set-manager/:user_id",
   networkValidations.setManager,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions(
+    [constants.NETWORK_MANAGEMENT, constants.USER_MANAGEMENT],
+    "net_id"
+  ),
   createNetworkController.setManager
 );
 
 router.get(
   "/:net_id/assigned-users",
   networkValidations.listAssignedUsers,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.MEMBER_VIEW], "net_id"),
   createNetworkController.listAssignedUsers
 );
 
 router.get(
   "/:net_id/available-users",
   networkValidations.listAvailableUsers,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.ORG_USER_ASSIGN], "net_id"),
   createNetworkController.listAvailableUsers
 );
 
 router.post(
   "/",
   networkValidations.create,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.NETWORK_CREATE, constants.SYSTEM_ADMIN]),
   createNetworkController.create
 );
 
 router.post(
   "/:net_id/assign-users",
   networkValidations.assignUsers,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.ORG_USER_ASSIGN], "net_id"),
   createNetworkController.assignUsers
 );
 
 router.post(
   "/find",
   networkValidations.getNetworkFromEmail,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createNetworkController.getNetworkFromEmail
 );
 
 router.delete(
   "/:net_id/unassign-many-users",
   networkValidations.unAssignManyUsers,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.ORG_USER_ASSIGN], "net_id"),
   createNetworkController.unAssignManyUsers
 );
 
 router.delete(
   "/:net_id/unassign-user/:user_id",
   networkValidations.unAssignUser,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.ORG_USER_ASSIGN], "net_id"),
   createNetworkController.unAssignUser
 );
 
 router.get(
   "/:net_id/roles",
   networkValidations.listRolesForNetwork,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.ROLE_VIEW], "net_id"),
   createNetworkController.listRolesForNetwork
 );
 
 router.get(
   "/:net_id",
   networkValidations.getNetworkById,
+  enhancedJWTAuth,
+  // requireNetworkPermissions([constants.NETWORK_VIEW], "net_id"),
   createNetworkController.list
 );
 
 router.delete(
   "/:net_id",
   networkValidations.deleteNetwork,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.NETWORK_DELETE, constants.SYSTEM_ADMIN]),
   createNetworkController.delete
 );
 
 router.put(
   "/:net_id",
   networkValidations.update,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.NETWORK_EDIT], "net_id"),
   createNetworkController.update
 );
 
 router.patch(
   "/:net_id",
   networkValidations.refresh,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requireNetworkPermissions([constants.NETWORK_EDIT], "net_id"),
   createNetworkController.refresh
 );
 

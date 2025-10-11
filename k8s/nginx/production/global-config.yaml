@@ -152,15 +152,6 @@ data:
     location /airqo-rest-api-documentation { return 302 /#/api/; }
     location /airqo-application-documentations { return 302 /#/mobile_app/privacy_policy; }
     location /airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3 { return 302 /#/platform/terms_and_conditions; }
-    location /superset/ {
-      proxy_pass http://superset-svc.superset.svc.cluster.local:8088/;
-      proxy_set_header Host $host;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto https;
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection 'upgrade';
-    }
 
     location = /auth {
       if ($request_uri ~ '/api/(v1|v2)/users') { return 200; }

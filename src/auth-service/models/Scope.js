@@ -1,7 +1,7 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
 const log4js = require("log4js");

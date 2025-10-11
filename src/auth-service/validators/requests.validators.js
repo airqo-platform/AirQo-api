@@ -83,7 +83,7 @@ const acceptInvitation = [
       .withMessage("the email should be provided")
       .bail()
       .notEmpty()
-      .withMessage("the emails should not be empty")
+      .withMessage("the email should not be empty")
       .bail()
       .isEmail()
       .withMessage("the email is not valid"),
@@ -98,6 +98,25 @@ const acceptInvitation = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+
+    body("firstName")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 50 })
+      .withMessage("firstName must be between 1 and 50 characters"),
+    body("lastName")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 50 })
+      .withMessage("lastName must be between 1 and 50 characters"),
+    body("password")
+      .optional()
+      .isLength({ min: 6 })
+      .withMessage("password must be at least 6 characters")
+      .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+      .withMessage(
+        "password must contain at least one letter and one number, and only allowed special characters: @#?!$%^&*,."
+      ),
   ],
 ];
 

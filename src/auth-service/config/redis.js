@@ -1,5 +1,5 @@
-//config/redis.js
-const Redis = require("redis");
+// src/auth-service/config/redis.js - Redis v4 with Simple Function Exports
+const { createClient } = require("redis");
 const constants = require("./constants");
 
 const REDIS_SERVER = constants.REDIS_SERVER;
@@ -7,43 +7,28 @@ const REDIS_PORT = constants.REDIS_PORT;
 
 console.log(`Redis connecting to: ${REDIS_SERVER}:${REDIS_PORT}`);
 
-// Fixed Redis configuration
-const redis = Redis.createClient({
-  host: REDIS_SERVER,
-  port: REDIS_PORT,
+// Redis v4 configuration
+const redis = createClient({
+  url: `redis://${REDIS_SERVER}:${REDIS_PORT}`,
+  socket: {
+    connectTimeout: 10000, // 10 seconds
+    commandTimeout: 5000, // 5 seconds
+    reconnectStrategy: (retries) => {
+      if (retries > 3) {
+        console.error("Redis maximum retry attempts reached");
+        return new Error("Max retry attempts exceeded");
+      }
 
-  // Improved retry strategy
-  retry_strategy: (options) => {
-    if (options.error && options.error.code === "ECONNREFUSED") {
-      console.error(
-        `Redis connection refused to ${REDIS_SERVER}:${REDIS_PORT}`
-      );
-    }
-
-    if (options.total_retry_time > 1000 * 60 * 2) {
-      // 2 minutes max
-      console.error("Redis retry time exhausted");
-      return new Error("Retry time exhausted");
-    }
-
-    if (options.attempt > 3) {
-      // Max 3 attempts
-      console.error("Redis maximum retry attempts reached");
-      return new Error("Max retry attempts exceeded");
-    }
-
-    const delay = Math.min(options.attempt * 1000, 5000); // Max 5s delay
-    console.log(`Redis retry attempt ${options.attempt} in ${delay}ms`);
-    return delay;
+      const delay = Math.min(retries * 1000, 5000); // Max 5s delay
+      console.log(`Redis retry attempt ${retries} in ${delay}ms`);
+      return delay;
+    },
   },
-
-  // Additional connection options
-  connect_timeout: 10000, // 10 seconds
-  command_timeout: 5000, // 5 seconds
-  enable_offline_queue: false,
+  // Disable offline queue to prevent memory buildup
+  disableOfflineQueue: true,
 });
 
-// Simple event handlers
+// Event handlers for Redis v4
 redis.on("connect", () => {
   console.log(`Redis connected to ${REDIS_SERVER}:${REDIS_PORT}`);
 });
@@ -62,7 +47,10 @@ redis.on("error", (error) => {
   } else if (error.code === "ENOTFOUND") {
     console.error(`Redis host not found: ${REDIS_SERVER}`);
   } else {
-    console.error(`Redis error: ${error.message}`);
+    console.error(`Redis error: ${error.message}`, {
+      code: error.code,
+      stack: error.stack?.substring(0, 500), // Limit stack trace
+    });
   }
 });
 
@@ -70,8 +58,168 @@ redis.on("end", () => {
   console.log("Redis connection ended");
 });
 
-redis.on("reconnecting", (delay, attempt) => {
-  console.log(`Redis reconnecting... Attempt ${attempt}, delay: ${delay}ms`);
+redis.on("reconnecting", () => {
+  console.log("Redis reconnecting...");
 });
 
+// Initialize connection
+(async () => {
+  try {
+    await redis.connect();
+    console.log("Redis client connected successfully");
+  } catch (error) {
+    console.error("Failed to connect to Redis:", error.message);
+  }
+})();
+
+// Simple Redis v4 wrapper functions (replacing the old promisify approach)
+const redisGetAsync = async (key) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for GET ${key}`);
+    return null;
+  }
+  try {
+    return await redis.get(key);
+  } catch (error) {
+    console.error(`Redis GET failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
+const redisSetAsync = async (key, value, ttlSeconds = null) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for SET ${key}`);
+    return null;
+  }
+  try {
+    if (ttlSeconds) {
+      return await redis.setEx(key, ttlSeconds, value);
+    } else {
+      return await redis.set(key, value);
+    }
+  } catch (error) {
+    console.error(`Redis SET failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
+const redisExpireAsync = async (key, seconds) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for EXPIRE ${key}`);
+    return 0;
+  }
+  try {
+    return await redis.expire(key, seconds);
+  } catch (error) {
+    console.error(`Redis EXPIRE failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
+const redisDelAsync = async (key) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for DEL ${key}`);
+    return 0;
+  }
+  try {
+    return await redis.del(key);
+  } catch (error) {
+    console.error(`Redis DEL failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
+// Additional functions for mobile user cache (replacing ioredis usage)
+const redisSetWithTTLAsync = async (key, value, ttlSeconds) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for SETEX ${key}`);
+    return null;
+  }
+  try {
+    // Use setEx for setting value with TTL in one command
+    return await redis.setEx(key, ttlSeconds, value);
+  } catch (error) {
+    console.error(`Redis SETEX failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
+const redisPingAsync = async (timeout = 3000) => {
+  if (!redis.isOpen) {
+    throw new Error("Redis not available");
+  }
+  try {
+    return await Promise.race([
+      redis.ping(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Ping timeout")), timeout)
+      ),
+    ]);
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Simple utility functions
+const redisUtils = {
+  isAvailable: () => redis.isOpen && redis.isReady,
+
+  getStatus: () => ({
+    connected: redis.isOpen,
+    ready: redis.isReady,
+    server: `${REDIS_SERVER}:${REDIS_PORT}`,
+  }),
+
+  ping: async (timeout = 3000) => {
+    if (!redis.isOpen) {
+      return false;
+    }
+    try {
+      const result = await Promise.race([
+        redis.ping(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Ping timeout")), timeout)
+        ),
+      ]);
+      return result === "PONG";
+    } catch (error) {
+      console.warn(`Redis ping failed: ${error.message}`);
+      return false;
+    }
+  },
+};
+
+// Graceful shutdown handling
+process.on("SIGINT", async () => {
+  console.log("Gracefully shutting down Redis connection...");
+  try {
+    if (redis.isOpen) {
+      await redis.disconnect();
+      console.log("Redis disconnected");
+    }
+  } catch (error) {
+    console.error("Error during Redis disconnect:", error.message);
+  }
+});
+
+// Export everything needed
 module.exports = redis;
+module.exports.redisGetAsync = redisGetAsync;
+module.exports.redisSetAsync = redisSetAsync;
+module.exports.redisExpireAsync = redisExpireAsync;
+module.exports.redisDelAsync = redisDelAsync;
+module.exports.redisPingAsync = redisPingAsync;
+module.exports.redisUtils = redisUtils;
+module.exports.redisSetWithTTLAsync = redisSetWithTTLAsync;
+
+// Compatibility exports for direct redis.method() usage
+module.exports.set = async (key, value, ttlType, ttlValue) => {
+  // Compatible with ioredis.set(key, value, 'EX', seconds) pattern
+  if (ttlType === "EX" && typeof ttlValue === "number") {
+    return await redisSetWithTTLAsync(key, value, ttlValue);
+  } else {
+    return await redisSetAsync(key, value);
+  }
+};
+module.exports.get = redisGetAsync;
+module.exports.del = redisDelAsync;

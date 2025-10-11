@@ -1,8 +1,14 @@
 import overpy
 from geopy.distance import geodesic
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+import time
+
 
 # Initialize the Overpass API
 api = overpy.Overpass()
+# Initialize Nominatim geocoder
+geolocator = Nominatim(user_agent="site_categorization_app")
 
 
 class SiteCategoryModel:
@@ -10,32 +16,42 @@ class SiteCategoryModel:
         # Initialize the class with an optional category
         self.category = category
 
+    def get_location_name(self, latitude, longitude, retries=3, delay=2):
+        """
+        Use Nominatim to get a human-readable name for the location.
+        Retries a few times in case of timeout or service error.
+        """
+        for attempt in range(retries):
+            try:
+                location = geolocator.reverse((latitude, longitude), exactly_one=True)
+                if location:
+                    return location.address
+                return None
+            except (GeocoderTimedOut, GeocoderServiceError) as e:
+                print(f"Geocoding error: {e}, retry {attempt+1}/{retries}")
+                time.sleep(delay * (2**attempt))  # exponential backoff
+            except Exception as e:
+                print(f"Unexpected geocoding error: {e}")
+                return None
+        return None
+
     def categorize_site_osm(self, latitude, longitude):
-        # Define search radii for querying OSM data
+        # Define search radii
         search_radii = [50, 100, 250]
-        # Define categories with corresponding OSM tags
+
+        # Define categories
         categories = {
-            "Urban Background": ["residential", "urban"],
+            "Urban Background": ["residential", "urban", "mine", "quarry"],
             "Urban Commercial": ["commercial", "retail", "industrial"],
             "Background Site": [
-                "forest",
-                "farmland",
-                "grass",
-                "meadow",
-                "wetland",
-                "park",
+                "forest", "farmland", "grass", "meadow", "vineyard",
+                "wetland", "park", "scrub", "heath", "bare_rock", "orchard",
             ],
-            "Water Body": ["river", "stream", "lake", "canal", "ditch"],
+            "Water Body": ["river", "stream", "lake", "canal", "reservoir", "ditch"],
             "Major Highway": ["motorway", "trunk", "primary", "secondary", "service"],
-            "Residential Road": [
-                "residential",
-                "living_street",
-                "unclassified",
-                "tertiary",
-            ],
+            "Residential Road": ["residential", "living_street", "unclassified", "tertiary"],
         }
 
-        # Priority list of categories to check in case of unknown
         # Priority order of categories for determining the site type
         priority_categories = [
             "Major Highway",
@@ -45,20 +61,27 @@ class SiteCategoryModel:
             "Residential Road",
             "Water Body",
         ]
+
         # Initialize variables to track the nearest categorization
         nearest_categorization = None
         nearest_distance = float("inf")
         nearest_area_name = None
-        # Variables to store additional information about the area
         landuse_info = None
         natural_info = None
         waterway_info = None
         highway_info = None
-        # For debugging purposes, collect information about the query process
         debug_info = []
-        # Loop through each search radius to query OSM data
+
+        # Cache for reverse-geocoded name
+        location_name_cache = {"value": None}
+
+        def fallback_name():
+            if location_name_cache["value"] is None:
+                location_name_cache["value"] = self.get_location_name(latitude, longitude)
+            return location_name_cache["value"]
+
+        # Loop through search radii
         for radius in search_radii:
-        # Define the Overpass API query for multiple tags around the location
             query = f"""
             [out:json];
             (
@@ -79,15 +102,12 @@ class SiteCategoryModel:
             """
 
             try:
-                # Query the Overpass API
                 result = api.query(query)
             except Exception as e:
-                # Add error information to debug info if the query fails
                 debug_info.append(f"Error querying OSM: {e}")
                 continue
-            # Loop through results (ways) returned by the query
+
             for way in result.ways:
-            # Extract tags and relevant information from each way
                 tags = way.tags
                 landuse = tags.get("landuse", "unknown")
                 natural = tags.get("natural", "unknown")
@@ -97,7 +117,6 @@ class SiteCategoryModel:
                 center_lon = way.center_lon
                 area_name = tags.get("name", "Unnamed")
 
-                # Append debug information for the current way
                 debug_info.append(f"Found OSM data:")
                 debug_info.append(f"  Landuse: {landuse}")
                 debug_info.append(f"  Natural: {natural}")
@@ -107,38 +126,27 @@ class SiteCategoryModel:
                 debug_info.append(f"  Area Name: {area_name}")
                 # Calculate the distance from the query point to the OSM way center
                 if center_lat and center_lon:
-                    distance = geodesic(
-                        (latitude, longitude), (center_lat, center_lon)
-                    ).meters
+                    distance = geodesic((latitude, longitude), (center_lat, center_lon)).meters
 
-                    # Check for industrial landuse first
+                    # Industrial shortcut
                     if landuse == "industrial":
                         return (
                             "Urban Commercial",
                             distance,
-                            area_name,
-                            landuse,
-                            natural,
-                            waterway,
-                            highway,
-                            debug_info,
+                            area_name if area_name != "Unnamed" else fallback_name(),
+                            landuse, natural, waterway, highway, debug_info
                         )
 
-                    # Check for major highways within 50 m
+                    #  Check for major highways within 50 m
                     if distance < 50 and highway in categories["Major Highway"]:
                         return (
                             "Urban Commercial",
                             distance,
-                            area_name,
-                            landuse,
-                            natural,
-                            waterway,
-                            highway,
-                            debug_info,
+                            area_name if area_name != "Unnamed" else fallback_name(),
+                            landuse, natural, waterway, highway, debug_info
                         )
 
-                    # Update nearest_categorization based on landuse and highway tags
-                    # Update the nearest categorization based on tags and distance
+                    # Priority categories
                     for category in priority_categories:
                         if category == "Urban Background" and (
                             landuse in categories["Urban Background"]
@@ -148,24 +156,15 @@ class SiteCategoryModel:
                             if distance < nearest_distance:
                                 nearest_categorization = "Urban Background"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
-                                landuse_info = landuse
-                                natural_info = natural
-                                waterway_info = waterway
-                                highway_info = highway
+                                nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
+                                landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
 
-                        elif (
-                            category == "Urban Commercial"
-                            and landuse in categories["Urban Commercial"]
-                        ):
+                        elif category == "Urban Commercial" and landuse in categories["Urban Commercial"]:
                             if distance < nearest_distance:
                                 nearest_categorization = "Urban Commercial"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
-                                landuse_info = landuse
-                                natural_info = natural
-                                waterway_info = waterway
-                                highway_info = highway
+                                nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
+                                landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
 
                         elif category == "Background Site" and (
                             landuse in categories["Background Site"]
@@ -176,68 +175,30 @@ class SiteCategoryModel:
                             if distance < nearest_distance:
                                 nearest_categorization = "Background Site"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
-                                landuse_info = landuse
-                                natural_info = natural
-                                waterway_info = waterway
-                                highway_info = highway
+                                nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
+                                landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
 
-                        elif category == "Water Body" and (
-                            waterway in categories["Water Body"] or natural == "water"
-                        ):
+                        elif category == "Water Body" and (waterway in categories["Water Body"] or natural == "water"):
                             if distance < nearest_distance:
                                 nearest_categorization = "Water Body"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
-                                landuse_info = landuse
-                                natural_info = natural
-                                waterway_info = waterway
-                                highway_info = highway
+                                nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
+                                landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
 
-        # Fallback if no categorization was found, but area name is available
+        # Fallbacks
         if nearest_categorization is None and nearest_area_name:
+            nearest_area_name = nearest_area_name if nearest_area_name != "Unnamed" else fallback_name()
             if "forest" in nearest_area_name.lower():
-                return (
-                    "Background Site",
-                    None,
-                    nearest_area_name,
-                    landuse_info,
-                    natural_info,
-                    waterway_info,
-                    highway_info,
-                    debug_info,
-                )
+                return ("Background Site", None, nearest_area_name, landuse_info, natural_info, waterway_info, highway_info, debug_info)
             elif "urban" in nearest_area_name.lower():
-                return (
-                    "Urban Background",
-                    None,
-                    nearest_area_name,
-                    landuse_info,
-                    natural_info,
-                    waterway_info,
-                    highway_info,
-                    debug_info,
-                )
+                return ("Urban Background", None, nearest_area_name, landuse_info, natural_info, waterway_info, highway_info, debug_info)
             elif "water" in nearest_area_name.lower():
-                return (
-                    "Water Body",
-                    None,
-                    nearest_area_name,
-                    landuse_info,
-                    natural_info,
-                    waterway_info,
-                    highway_info,
-                    debug_info,
-                )
+                return ("Water Body", None, nearest_area_name, landuse_info, natural_info, waterway_info, highway_info, debug_info)
 
-        # Final return if no suitable categorization was found
+        # Final return
         return (
             nearest_categorization if nearest_categorization else "Unknown_Category",
             nearest_distance if nearest_categorization else None,
-            nearest_area_name,
-            landuse_info,
-            natural_info,
-            waterway_info,
-            highway_info,
-            debug_info,
+            nearest_area_name if nearest_area_name and nearest_area_name != "Unnamed" else fallback_name(),
+            landuse_info, natural_info, waterway_info, highway_info, debug_info
         )

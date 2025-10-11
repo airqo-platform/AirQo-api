@@ -14,6 +14,7 @@ from .constants import (
     DeviceNetwork,
     QueryType,
     MetaDataType,
+    Frequency,
 )
 from .date import date_to_str
 from .utils import Utils
@@ -191,7 +192,8 @@ class BigQueryApi:
             if integer_columns
             else self.get_columns(table=table, column_type=[ColumnDataType.INTEGER])
         )
-
+        # Importing here to avoid circular import issues
+        # TODO: Refactor to avoid circular imports
         from .data_validator import DataValidationUtils
 
         dataframe = DataValidationUtils.format_data_types(
@@ -200,8 +202,14 @@ class BigQueryApi:
             integers=integer_columns,
             timestamps=date_time_columns,
         )
+        # Ensure this does not raise an exception for complex data types i.e objects like lists and dicts
+        # TODO : Handle complex data types properly
+        try:
+            dataframe.drop_duplicates(keep="first", inplace=True)
+        except Exception as e:
+            logger.exception(f"Error formatting complex data types: {e}")
 
-        return dataframe.drop_duplicates(keep="first")
+        return dataframe
 
     def get_columns(
         self,
@@ -285,7 +293,6 @@ class BigQueryApi:
         job_config = bigquery.LoadJobConfig(
             write_disposition=job_action.get_name(),
         )
-
         job = self.client.load_table_from_dataframe(
             dataframe, table, job_config=job_config
         )
@@ -296,6 +303,31 @@ class BigQueryApi:
         logger.info(f"Total rows after load :  {destination_table.num_rows}")
 
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        """
+        Updates the AirQlouds-Sites mapping table by merging new data with existing records.
+
+        This method performs an upsert operation on the AirQlouds-Sites table by:
+        1. Validating the input DataFrame against the table schema
+        2. Retrieving all existing data from the target table
+        3. Concatenating existing and new data
+        4. Removing duplicates (keeping first occurrence)
+        5. Overwriting the entire table with the merged dataset
+
+        Args:
+            dataframe (pd.DataFrame): DataFrame containing AirQloud-Site mapping data to be updated. Must conform to the target table's schema.
+            table (Optional[str]): Fully qualified BigQuery table name. If None, uses the default self.airqlouds_sites_table. Defaults to None.
+
+        Returns:
+            None: Performs database operations in-place without returning data.
+
+        Raises:
+            Exception: If DataFrame validation fails due to missing required columns or invalid data types.
+            google.cloud.exceptions.GoogleCloudError: If BigQuery operations (query or load) fail.
+
+        Note:
+            This operation uses OVERWRITE mode, so the entire table is replaced with the merged data.
+            Duplicate detection is performed across all columns.
+        """
         if table is None:
             table = self.airqlouds_sites_table
 
@@ -317,6 +349,31 @@ class BigQueryApi:
         )
 
     def update_grids_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        """
+        Updates the Grids-Sites mapping table by merging new data with existing records.
+
+        This method performs an upsert operation on the Grids-Sites table by:
+        1. Validating the input DataFrame against the table schema
+        2. Retrieving all existing data from the target table
+        3. Concatenating existing and new data
+        4. Removing duplicates based on grid_id and site_id combination
+        5. Overwriting the entire table with the merged dataset
+
+        Args:
+            dataframe (pd.DataFrame): DataFrame containing Grid-Site mapping data to be updated. Must include 'grid_id' and 'site_id' columns and conform to the target table's schema.
+            table (Optional[str]): Fully qualified BigQuery table name. If None, uses the default self.grids_sites_table. Defaults to None.
+
+        Returns:
+            None: Performs database operations in-place without returning data.
+
+        Raises:
+            Exception: If DataFrame validation fails due to missing required columns or invalid data types.
+            google.cloud.exceptions.GoogleCloudError: If BigQuery operations (query or load) fail.
+
+        Note:
+            This operation uses OVERWRITE mode, so the entire table is replaced with the merged data.
+            Duplicate detection is performed specifically on ['grid_id', 'site_id'] combination.
+        """
         if table is None:
             table = self.grids_sites_table
 
@@ -331,12 +388,39 @@ class BigQueryApi:
         )
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+        up_to_date_data.drop_duplicates(
+            subset=["grid_id", "site_id"], inplace=True, keep="first"
+        )
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
 
     def update_cohorts_devices_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        """
+        Updates the Cohorts-Devices mapping table by merging new data with existing records.
+
+        This method performs an upsert operation on the Cohorts-Devices table by:
+        1. Validating the input DataFrame against the table schema
+        2. Retrieving all existing data from the target table
+        3. Concatenating existing and new data
+        4. Removing duplicates (keeping first occurrence)
+        5. Overwriting the entire table with the merged dataset
+
+        Args:
+            dataframe (pd.DataFrame): DataFrame containing Cohort-Device mapping data to be updated. Must conform to the target table's schema.
+            table (Optional[str]): Fully qualified BigQuery table name. If None, uses the default self.cohorts_devices_table. Defaults to None.
+
+        Returns:
+            None: Performs database operations in-place without returning data.
+
+        Raises:
+            Exception: If DataFrame validation fails due to missing required columns or invalid data types.
+            google.cloud.exceptions.GoogleCloudError: If BigQuery operations (query or load) fail.
+
+        Note:
+            This operation uses OVERWRITE mode, so the entire table is replaced with the merged data.
+            Duplicate detection is performed across all columns.
+        """
         if table is None:
             table = self.cohorts_devices_table
 
@@ -377,7 +461,7 @@ class BigQueryApi:
         dataframe = self.validate_data(dataframe=dataframe, table=table)
         unique_ids = {
             "sites": ["id"],
-            "devices": ["device_id"],
+            "devices": ["device_id", "device_number", "network"],
             "grids": ["id", "network"],
             "airqlouds": ["id", "network"],
             "cohorts": ["id", "network"],
@@ -388,7 +472,7 @@ class BigQueryApi:
         if unique_id is None:
             raise Exception(f"Invalid metadata component: {component.str}")
 
-        dataframe.drop_duplicates(subset=[unique_id[0]], inplace=True, keep="first")
+        dataframe.drop_duplicates(subset=unique_id, inplace=True, keep="first")
 
         q = f"SELECT * FROM `{table}` "
 
@@ -398,13 +482,52 @@ class BigQueryApi:
         available_data = self.client.query(query=q).result().to_dataframe()
 
         if not available_data.empty:
+            # TODO: Include update some fields of existing data as well as adding new ones
+            # Update device_maintenance, site_id, deployed, key, active, assigned_grid, mount_type, mobility if changed.
             available_data.drop_duplicates(subset=unique_id, inplace=True, keep="first")
             data_not_for_updating = available_data.loc[
                 ~available_data[unique_id[0]].isin(dataframe[unique_id[0]].to_list())
             ]
+            if component == MetaDataType.DEVICES:
+                # Update dynamic fields in existing data before merging with new data
+                self.update_dynamic_metadata_fields(
+                    new_data=dataframe, existing_data=data_not_for_updating
+                )
             dataframe = pd.concat([data_not_for_updating, dataframe], ignore_index=True)
 
         self.load_data(dataframe=dataframe, table=table, job_action=JobAction.OVERWRITE)
+
+    def update_dynamic_metadata_fields(
+        self, new_data: pd.DataFrame, existing_data: pd.DataFrame
+    ) -> None:
+        """
+        Updates dynamic metadata fields in existing_data with values from new_data for matching device_id.
+        This function modifies existing_data in place and does not return a value.
+
+        Args:
+            new_data (pd.DataFrame): DataFrame containing new metadata values.
+            existing_data (pd.DataFrame): DataFrame to be updated.
+        """
+        columns_to_update = [
+            "device_number",
+            "site_id",
+            "device_maintenance",
+            "deployed",
+            "key",
+            "active",
+            "assigned_grid",
+            "mount_type",
+            "mobility",
+        ]
+
+        existing_data.set_index("device_id", inplace=True)
+        new_data.set_index("device_id", inplace=True)
+
+        existing_data.update(new_data[columns_to_update])
+
+        # Reset the index for both DataFrames
+        existing_data.reset_index(inplace=True)
+        new_data.reset_index(inplace=True)
 
     def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
         """
@@ -765,6 +888,151 @@ class BigQueryApi:
         query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
 
         return query
+
+    def fetch_max_min_values(
+        self,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        unique_id: str,
+        filter: str,
+        pollutant: Dict[str, str],
+    ) -> pd.DataFrame:
+        """
+        Fetches the maximum, minimum, average, and sample count of specified pollutant columns
+        from a BigQuery table within a given time range, filtered by a unique identifier.
+
+        Args:
+            table(str): The name of the BigQuery table to query.
+            start_date_time(str): The start datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            end_date_time(str): The end datetime in ISO format (YYYY-MM-DD HH:MM:SSZ).
+            unique_id(str): The column name representing the unique identifier for filtering.
+            filter(str): The value to filter the unique identifier by.
+            pollutant(Dict[str, str]): A dictionary of pollutant column names to compute statistics for.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the maximum, minimum, average, and sample count
+                          for the specified pollutant columns.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+            Exception: For any other errors during query execution.
+        """
+        query_parts = []
+        pollutants_list = []
+        for _, value in pollutant.items():
+            if isinstance(value, list):
+                for v in value:
+                    query_parts.append(
+                        f"COUNT({v}) AS sample_count_{v}, "
+                        f"MAX({v}) AS maximum_{v}, "
+                        f"MIN({v}) AS minimum_{v}, "
+                        f"AVG({v}) AS average_{v}"
+                    )
+                    pollutants_list.append(v)
+
+        query = (
+            "SELECT " + ", ".join(query_parts) + f" FROM `{table}` "
+            f"WHERE timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
+            f"AND {unique_id} = '{filter}' "
+        )
+        try:
+            raw_df = self.client.query(query=query).result().to_dataframe()
+        except Exception as e:
+            logger.exception(f"Error fetching max/min values from BigQuery: {e}")
+            raise
+
+        # Reshape the result to have columns: minimum, maximum, pollutant
+        # This is O(P) where P is the number of pollutants, and is optimal for small P.
+        # For large P, consider generating the SQL to return the desired format directly.
+        result_rows = []
+        for key in pollutants_list:
+            if not raw_df.empty:
+                result_rows.append(
+                    {
+                        "pollutant": key,
+                        "minimum": raw_df[f"minimum_{key}"].iloc[0]
+                        if f"minimum_{key}" in raw_df
+                        else None,
+                        "maximum": raw_df[f"maximum_{key}"].iloc[0]
+                        if f"maximum_{key}" in raw_df
+                        else None,
+                        "average": raw_df[f"average_{key}"].iloc[0]
+                        if f"average_{key}" in raw_df
+                        else None,
+                        "sample_count": raw_df[f"sample_count_{key}"].iloc[0]
+                        if f"sample_count_{key}" in raw_df
+                        else None,
+                    }
+                )
+        result_df = pd.DataFrame(
+            result_rows,
+            columns=["pollutant", "minimum", "maximum", "average", "sample_count"],
+        )
+        return result_df
+
+    def fetch_most_recent_record(
+        self,
+        table: str,
+        unique_id: str,
+        offset_column: Optional[str] = "timestamp",
+        columns: Optional[List[str]] = None,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> pd.DataFrame:
+        """
+        Fetches the most recent record for each unique identifier from a specified BigQuery table.
+
+        Args:
+            table (str): The name of the BigQuery table to query.
+            unique_id (str): The column name representing the unique identifier for partitioning.
+            offset_column (str): The column name used to determine the most recent record (e.g., a timestamp column).
+            columns (Optional[List[str]]): A list of column names to include in the query. If None, selects all columns.
+            filter (Optional[Dict[str, Any]]): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the most recent record for each unique identifier.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+        """
+        where_clause: str = ""
+        query_params: list = []
+        filter, filter_val = next(iter(filter.items()))
+        if filter:
+            if isinstance(filter_val, str):
+                where_clause = f"WHERE {filter} = @filter_value"
+                query_params.append(
+                    bigquery.ScalarQueryParameter("filter_value", "STRING", filter_val)
+                )
+            elif isinstance(filter_val, list):
+                for val in filter_val:
+                    if not isinstance(val, str):
+                        raise ValueError("Filter values must be strings.")
+                    where_clause += f"WHERE {filter} = @filter_value OR "
+                    query_params.append(
+                        bigquery.ScalarQueryParameter("filter_value", "STRING", val)
+                    )
+                where_clause = where_clause.rstrip(" OR ")
+
+        selected_columns = ", ".join(columns) if columns else "*"
+
+        query = f"""
+        SELECT {selected_columns}
+        FROM `{table}`
+        {where_clause}
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY {unique_id} ORDER BY {offset_column} DESC) = 1;
+        """
+
+        try:
+            job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+            return (
+                self.client.query(query=query, job_config=job_config)
+                .result()
+                .to_dataframe()
+            )
+        except Exception as e:
+            logger.exception(f"Error fetching most recent record from BigQuery: {e}")
+            raise
 
     def fetch_raw_readings(self) -> pd.DataFrame:
         """

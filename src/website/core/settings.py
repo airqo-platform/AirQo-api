@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import cast
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -75,6 +76,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'nested_admin',
     'drf_yasg',
+    'drf_spectacular',
     'django_quill',
 
     # Custom Apps
@@ -91,6 +93,7 @@ INSTALLED_APPS = [
     'apps.partners',
     'apps.board',
     'apps.team',
+    'apps.api',  # V2 API with universal slug support
 ]
 
 # ---------------------------------------------------------
@@ -154,21 +157,66 @@ TEMPLATES = [
 # Database Configuration
 # ---------------------------------------------------------
 DATABASE_URL = os.getenv('DATABASE_URL')
+
 if DATABASE_URL:
+    # if DEBUG is True, disable SSL; otherwise require SSL
+    ssl_is_required = not DEBUG
+
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
             conn_max_age=600,
-            ssl_require=True
+            ssl_require=ssl_is_required
         )
     }
+
+    # PostgreSQL-specific connection options: set sslmode to match behavior
+    # Use the detected ENGINE from dj_database_url.parse to decide
+    engine = DATABASES['default'].get('ENGINE', '')
+    if engine.endswith('postgresql') or 'postgresql' in DATABASE_URL:
+        # Use a local variable and cast to avoid TypedDict access errors by static checkers
+        options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
+        options['sslmode'] = 'require' if ssl_is_required else 'disable'
+    elif 'mysql' in DATABASE_URL:
+        options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
+        options.update({
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+            'autocommit': True,
+        })
 else:
+    # Fallback for development if DATABASE_URL not set
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': os.getenv('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
+            'OPTIONS': {'timeout': 600},
         }
     }
+
+# ---------------------------------------------------------
+# Cache Configuration
+# ---------------------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'airqo-website-cache',
+        'TIMEOUT': 300,  # 5 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# Cache time for different types of data
+CACHE_TTL = {
+    'default': 300,      # 5 minutes
+    'static_content': 3600,  # 1 hour for relatively static content
+    'dynamic_content': 60,   # 1 minute for dynamic content
+    'list_views': 300,       # 5 minutes for list views
+    'detail_views': 600,     # 10 minutes for detail views
+}
 
 # ---------------------------------------------------------
 # Password Validation
@@ -196,14 +244,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Cloudinary Configuration
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
-    'API_SECRET': require_env_var('CLOUDINARY_API_SECRET'),
-    'SECURE': True,
-    'TIMEOUT': 600,
-}
+# Cloudinary Configuration - Moved to File Upload Settings section above
+# This configuration supports large file uploads up to 30MB
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # ---------------------------------------------------------
@@ -221,6 +263,35 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Throttling removed - handled at nginx level
+}
+
+# ---------------------------------------------------------
+# DRF Spectacular (OpenAPI 3.0) Settings
+# ---------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'AirQo Website API',
+    'DESCRIPTION': 'API documentation for AirQo Website - providing access to air quality data, events, team information, publications, and more.',
+    'VERSION': '2.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': r'/website/api/v[0-9]',
+    'SERVERS': [
+        {'url': 'http://127.0.0.1:8000', 'description': 'Development server'},
+        {'url': 'https://platform.airqo.net',
+            'description': 'Production server'},
+    ],
+    'TAGS': [
+        {'name': 'v1', 'description': 'Legacy API endpoints (v1)'},
+        {'name': 'v2',
+            'description': 'Enhanced API endpoints (v2) with improved performance and features'},
+        {'name': 'Team', 'description': 'Team member and biography endpoints'},
+        {'name': 'Events', 'description': 'Event management and listing endpoints'},
+        {'name': 'Publications', 'description': 'Research publications and resources'},
+        {'name': 'Clean Air', 'description': 'Clean air resources and forum events'},
+        {'name': 'Partners', 'description': 'Organization partners and descriptions'},
     ],
 }
 
@@ -275,9 +346,27 @@ QUILL_CONFIGS = {
 # ---------------------------------------------------------
 # File Upload Settings
 # ---------------------------------------------------------
-# Increase these values as needed to handle larger uploads
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
+# Support up to 30MB uploads for images and files
+FILE_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB (30 * 1024 * 1024)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB
+FILE_UPLOAD_TEMP_DIR = None  # Use system default temp directory
+FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
+
+# Additional upload configurations
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000  # Maximum number of fields in form data
+DATA_UPLOAD_MAX_NUMBER_FILES = 100    # Maximum number of files in upload
+
+# Cloudinary specific timeout (10 minutes for large uploads)
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
+    'API_SECRET': require_env_var('CLOUDINARY_API_SECRET'),
+    'SECURE': True,
+    'TIMEOUT': 600,  # 10 minutes for large file uploads
+    'EAGER_ASYNC': True,  # Process transformations asynchronously
+    'EAGER_NOTIFICATION_URL': None,  # Set if you want upload notifications
+}
 
 # ---------------------------------------------------------
 # SSL and Proxy Settings (if behind a reverse proxy)

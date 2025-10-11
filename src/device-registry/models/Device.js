@@ -51,6 +51,89 @@ const DEVICE_CATEGORIES = Object.freeze({
   BAM: "bam",
 });
 
+/**
+ * Get category description - module-level helper
+ * @param {string} category
+ * @returns {string}
+ */
+function getCategoryDescription(category) {
+  const descriptions = {
+    lowcost: "Low-cost sensor device",
+    bam: "Beta Attenuation Monitor (reference-grade)",
+    gas: "Gas sensor device",
+  };
+  return descriptions[category] || "Unknown category";
+}
+
+/**
+ * Get deployment description - module-level helper
+ * @param {string} deploymentType
+ * @returns {string}
+ */
+function getDeploymentDescription(deploymentType) {
+  const descriptions = {
+    mobile: "Mobile deployment (vehicle-mounted, grid-based)",
+    static: "Static deployment (fixed location, site-based)",
+  };
+  return descriptions[deploymentType] || "Unknown deployment type";
+}
+
+/**
+ * Compute device categories from a device document.
+ * This is the single source of truth for category logic.
+ * @param {Object} deviceDoc - The device document (can be a Mongoose doc or plain object)
+ * @returns {Object} categories
+ */
+function computeDeviceCategories(deviceDoc) {
+  // Handle both Mongoose documents and plain objects
+  const doc = deviceDoc.toObject ? deviceDoc.toObject() : deviceDoc;
+
+  const categories = {
+    // Primary equipment category
+    primary_category: doc.category || "lowcost",
+    // Deployment category
+    deployment_category: doc.deployment_type || "static",
+    // Boolean flags for easy frontend checking
+    is_mobile: doc.mobility === true || doc.deployment_type === "mobile",
+    is_static: doc.mobility === false || doc.deployment_type === "static",
+    is_lowcost: doc.category === "lowcost",
+    is_bam: doc.category === "bam",
+    is_gas: doc.category === "gas",
+    // All applicable categories (handles subcategories)
+    all_categories: [],
+    // Descriptive information
+    category_hierarchy: [],
+  };
+
+  // Build all_categories array
+  categories.all_categories.push(categories.primary_category);
+  categories.all_categories.push(categories.deployment_category);
+
+  // Build hierarchy showing relationships
+  categories.category_hierarchy.push({
+    level: "equipment",
+    category: categories.primary_category,
+    description: getCategoryDescription(categories.primary_category),
+  });
+
+  categories.category_hierarchy.push({
+    level: "deployment",
+    category: categories.deployment_category,
+    description: getDeploymentDescription(categories.deployment_category),
+  });
+
+  // Add metadata about category relationships
+  categories.category_relationships = {
+    note:
+      "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+    mobile_is_subcategory_of: categories.is_mobile
+      ? categories.primary_category
+      : null,
+  };
+
+  return categories;
+}
+
 const deviceSchema = new mongoose.Schema(
   {
     cohorts: {
@@ -143,6 +226,16 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       default: false,
     },
+    rawOnlineStatus: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
+    lastRawData: {
+      type: Date,
+      trim: true,
+      default: null,
+    },
     generation_version: {
       type: Number,
     },
@@ -206,7 +299,7 @@ const deviceSchema = new mongoose.Schema(
       type: ObjectId,
     },
 
-    // ENHANCED: Add support for grid-based deployments
+    //support for grid-based deployments
     grid_id: {
       type: ObjectId,
       ref: "grid",
@@ -277,16 +370,34 @@ const deviceSchema = new mongoose.Schema(
 
     assigned_organization_id: {
       type: ObjectId,
-      ref: "group",
       default: null,
       index: true,
+    },
+
+    assigned_organization: {
+      id: {
+        type: ObjectId,
+        default: null,
+        index: true,
+      },
+      name: {
+        type: String,
+        trim: true,
+      },
+      type: {
+        type: String,
+        trim: true,
+      },
+      updated_at: {
+        type: Date,
+        default: Date.now,
+      },
     },
 
     organization_assigned_at: {
       type: Date,
     },
 
-    // ENHANCED: Add mobility-specific metadata
     mobility_metadata: {
       route_id: { type: String, trim: true },
       coverage_area: { type: String, trim: true },
@@ -295,6 +406,51 @@ const deviceSchema = new mongoose.Schema(
       max_speed: { type: Number },
       typical_locations: [{ type: String, trim: true }],
     },
+
+    onlineStatusAccuracy: {
+      // Old fields for backward compatibility
+      totalAttempts: { type: Number, default: 0 },
+      successfulUpdates: { type: Number, default: 0 },
+      failedUpdates: { type: Number, default: 0 },
+      lastUpdate: { type: Date },
+      lastSuccessfulUpdate: { type: Date },
+      lastFailureReason: { type: String },
+      successPercentage: { type: Number, default: 0 },
+      failurePercentage: { type: Number, default: 0 },
+
+      // New, more descriptive fields for "truthfulness"
+      totalChecks: { type: Number, default: 0 },
+      correctChecks: { type: Number, default: 0 },
+      incorrectChecks: { type: Number, default: 0 },
+      lastCheck: { type: Date },
+      lastCorrectCheck: { type: Date },
+      lastIncorrectCheck: { type: Date },
+      lastIncorrectReason: { type: String },
+      accuracyPercentage: { type: Number, default: 0 },
+    },
+    // Precomputed activity fields for performance
+    cached_activities_by_type: {
+      type: Object,
+      default: {},
+    },
+    cached_latest_activities_by_type: {
+      type: Object,
+      default: {},
+    },
+    cached_total_activities: {
+      type: Number,
+      default: 0,
+    },
+    cached_latest_deployment_activity: {
+      type: Object,
+    },
+    cached_latest_maintenance_activity: {
+      type: Object,
+    },
+    cached_latest_recall_activity: {
+      type: Object,
+    },
+    activities_cache_updated_at: { type: Date },
   },
   {
     timestamps: true,
@@ -304,6 +460,10 @@ const deviceSchema = new mongoose.Schema(
 deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
+
+deviceSchema.index({ site_id: 1 });
+deviceSchema.index({ mobility: 1 });
+deviceSchema.index({ mobility: 1, cohorts: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
@@ -319,130 +479,133 @@ const checkDuplicates = (arr, fieldName) => {
   return null;
 };
 
-// ENHANCED: Add validation for deployment type consistency
 deviceSchema.pre(
-  [
-    "update",
-    "findByIdAndUpdate",
-    "updateMany",
-    "updateOne",
-    "save",
-    "findOneAndUpdate",
-  ],
+  ["save", "findOneAndUpdate", "update", "updateOne", "updateMany"],
   async function(next) {
     try {
-      // Determine if this is a new document or an update
-      const isNew = this.isNew;
-      const updateData = this.getUpdate ? this.getUpdate() : this;
+      const isQuery = typeof this.getUpdate === "function";
+      const isNew = this.isNew === true; // only true for pre('save') on new docs
+      const update = isQuery ? this.getUpdate() : null;
+      const doc = isQuery ? update.$set || update : this;
+      if (isQuery) {
+        this.setOptions({ runValidators: true, context: "query" });
+      }
 
-      // ENHANCED: Validate deployment type consistency
-      if (isNew) {
-        // For new documents, set deployment_type based on provided data
-        if (!this.deployment_type) {
-          if (this.grid_id) {
-            this.deployment_type = "mobile";
-            this.mobility = true; // Set mobility flag for mobile devices
-          } else if (this.site_id) {
-            this.deployment_type = "static";
-            this.mobility = false;
+      if (!doc) return next();
+
+      // --- Mobility and Deployment Type Logic ---
+      // Rule 1: `mobility` is the source of truth.
+      if (typeof doc.mobility === "boolean") {
+        if (doc.mobility === true) {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), deployment_type: "mobile" };
+            update.$unset = { ...(update.$unset || {}), site_id: "" };
+            if (update.$set) delete update.$set.site_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.site_id;
           } else {
-            this.deployment_type = "static"; // default
+            this.deployment_type = "mobile";
+            this.site_id = undefined;
+          }
+        } else {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), deployment_type: "static" };
+            update.$unset = { ...(update.$unset || {}), grid_id: "" };
+            if (update.$set) delete update.$set.grid_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.grid_id;
+          } else {
+            this.deployment_type = "static";
+            this.grid_id = undefined;
+          }
+        }
+      }
+      // Rule 2: If mobility is not set, infer from deployment_type.
+      else if (doc.deployment_type) {
+        if (doc.deployment_type === "mobile") {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), mobility: true };
+            update.$unset = { ...(update.$unset || {}), site_id: "" };
+            if (update.$set) delete update.$set.site_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.site_id;
+          } else {
+            this.mobility = true;
+            this.site_id = undefined;
+          }
+        } else if (doc.deployment_type === "static") {
+          if (isQuery) {
+            update.$set = { ...(update.$set || {}), mobility: false };
+            update.$unset = { ...(update.$unset || {}), grid_id: "" };
+            if (update.$set) delete update.$set.grid_id;
+            if (update.$setOnInsert) delete update.$setOnInsert.grid_id;
+          } else {
             this.mobility = false;
-          }
-        }
-
-        // Validate deployment type consistency
-        if (this.deployment_type === "mobile") {
-          if (this.site_id && !this.grid_id) {
-            return next(
-              new Error(
-                "Mobile devices should be associated with grids, not sites"
-              )
-            );
-          }
-          this.mobility = true;
-        } else if (this.deployment_type === "static") {
-          if (this.grid_id && !this.site_id) {
-            return next(
-              new Error(
-                "Static devices should be associated with sites, not grids"
-              )
-            );
-          }
-          this.mobility = false;
-        }
-      } else {
-        // For updates, validate deployment type changes
-        if ("deployment_type" in updateData) {
-          if (updateData.deployment_type === "mobile") {
-            updateData.mobility = true;
-          } else if (updateData.deployment_type === "static") {
-            updateData.mobility = false;
-          }
-        }
-
-        // Validate location reference changes
-        if ("grid_id" in updateData && "site_id" in updateData) {
-          if (updateData.grid_id && updateData.site_id) {
-            return next(
-              new Error(
-                "Device cannot be associated with both site and grid simultaneously"
-              )
-            );
+            this.grid_id = undefined;
           }
         }
       }
-
-      // Handle category field for both new documents and updates
-      if (isNew) {
-        // For new documents
-        if ("category" in this) {
-          if (this.category === null) {
-            delete this.category;
-          } else if (
-            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(this.category)
-          ) {
-            return next(
-              new HttpError(
-                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
-                  ", "
-                )}`,
-                httpStatus.BAD_REQUEST
-              )
-            );
-          }
+      // Rule 3: If neither is set, infer from location reference for new documents.
+      else if (isNew && typeof doc.mobility === "undefined") {
+        if (doc.grid_id) {
+          doc.deployment_type = "mobile";
+          doc.mobility = true;
+        } else {
+          doc.deployment_type = "static";
+          doc.mobility = false;
         }
-      } else {
-        // For updates
-        if ("category" in updateData) {
-          if (updateData.category === null) {
-            delete updateData.category;
-          } else if (
-            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(updateData.category)
-          ) {
+      }
+
+      // --- Business Rule Enforcement ---
+      if (doc.mobility === true || doc.deployment_type === "mobile") {
+        if (!doc.mountType) {
+          if (isNew) doc.mountType = "vehicle";
+          else
             return next(
-              new HttpError(
-                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
-                  ", "
-                )}`,
-                httpStatus.BAD_REQUEST
-              )
+              new Error("Mobile devices must include mountType 'vehicle'")
             );
-          }
+        } else if (doc.mountType !== "vehicle") {
+          return next(
+            new Error("Mobile devices must have mountType 'vehicle'")
+          );
+        }
+        if (!doc.powerType) {
+          if (isNew) doc.powerType = "alternator";
+          else
+            return next(
+              new Error("Mobile devices must include powerType 'alternator'")
+            );
+        } else if (doc.powerType !== "alternator") {
+          return next(
+            new Error("Mobile devices must have powerType 'alternator'")
+          );
+        }
+      }
+
+      // --- Other existing logic from the old hook ---
+
+      // Category validation
+      if ("category" in doc) {
+        if (doc.category === null) {
+          delete doc.category;
+        } else if (!DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(doc.category)) {
+          return next(
+            new HttpError(
+              `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                ", "
+              )}`,
+              httpStatus.BAD_REQUEST
+            )
+          );
         }
       }
 
       if (isNew) {
-        // Set default network if not provided
         if (!this.network) {
           this.network = constants.DEFAULT_NETWORK;
         }
 
-        // Manage serial_number based on device_number and network
         if (this.network === "airqo" && this.device_number) {
-          this.serial_number = String(this.device_number); // Assign device_number as a string
+          this.serial_number = String(this.device_number);
         } else if (!this.serial_number && this.network !== "airqo") {
-          next(
+          return next(
             new HttpError(
               "Devices not part of the AirQo network must include a serial_number as a string.",
               httpStatus.BAD_REQUEST
@@ -450,22 +613,8 @@ deviceSchema.pre(
           );
         }
 
-        // Generate name based on generation version and count
         if (this.generation_version && this.generation_count) {
           this.name = `aq_g${this.generation_version}_${this.generation_count}`;
-        }
-
-        // Handle alias generation
-        if (!this.alias && (this.long_name || this.name)) {
-          this.alias = (this.long_name || this.name).trim().replace(/ /g, "_");
-          if (!this.alias) {
-            return next(
-              new HttpError(
-                "Unable to generate ALIAS for the device.",
-                httpStatus.INTERNAL_SERVER_ERROR
-              )
-            );
-          }
         }
 
         if (!this.name && !this.long_name) {
@@ -479,25 +628,27 @@ deviceSchema.pre(
 
         if (this.name) {
           this.name = sanitizeName(this.name);
-        } else {
-          // Use long_name if name is not provided
-          this.name = sanitizeName(this.long_name);
-        }
+        } else this.name = sanitizeName(this.long_name);
 
         if (this.long_name) {
           this.long_name = sanitizeName(this.long_name);
-        } else {
-          // Use name if long_name is not provided
-          this.long_name = this.name;
+        } else this.long_name = this.name;
+
+        if (!this.alias) {
+          this.alias = (this.long_name || this.name).trim().replace(/ /g, "_");
         }
 
-        // Encrypt keys if modified
-        if (this.isModified("name") && this.writeKey && this.readKey) {
+        const writeChanged =
+          typeof this.isModified === "function" && this.isModified("writeKey");
+        const readChanged =
+          typeof this.isModified === "function" && this.isModified("readKey");
+        if (writeChanged && this.writeKey) {
           this.writeKey = this._encryptKey(this.writeKey);
+        }
+        if (readChanged && this.readKey) {
           this.readKey = this._encryptKey(this.readKey);
         }
 
-        // Generate device codes
         this.device_codes = [this._id, this.name];
         if (this.device_number) {
           this.device_codes.push(this.device_number);
@@ -509,56 +660,62 @@ deviceSchema.pre(
           this.device_codes.push(this.serial_number);
         }
 
-        // Check for duplicates in cohorts
         const cohortsDuplicateError = checkDuplicates(this.cohorts, "cohorts");
         if (cohortsDuplicateError) {
           return next(cohortsDuplicateError);
         }
 
-        // Check for duplicates in groups
         const groupsDuplicateError = checkDuplicates(this.groups, "groups");
         if (groupsDuplicateError) {
           return next(groupsDuplicateError);
         }
       }
 
-      // Handling the network condition
-      if (updateData.network === "airqo") {
-        if (updateData.device_number) {
-          updateData.serial_number = String(updateData.device_number);
-        } else if (updateData.serial_number) {
-          updateData.device_number = Number(updateData.serial_number);
+      if (isQuery && update) {
+        if (doc.network === "airqo") {
+          if (doc.device_number) doc.serial_number = String(doc.device_number);
+          else if (doc.serial_number)
+            doc.device_number = Number(doc.serial_number);
+        } else if (doc.network && doc.network !== "airqo") {
+          const existingDevice = await this.model
+            .findOne(this.getQuery())
+            .lean();
+          const hasExistingSerial =
+            existingDevice &&
+            typeof existingDevice.serial_number === "string" &&
+            existingDevice.serial_number.length > 0;
+          if (!doc.serial_number && !hasExistingSerial) {
+            return next(
+              new HttpError(
+                "Devices not part of the AirQo network must include a serial_number as a string.",
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
         }
-      }
 
-      // Sanitize name if modified
-      if (updateData.name) {
-        updateData.name = sanitizeName(updateData.name);
-      }
+        if (doc.name) doc.name = sanitizeName(doc.name);
 
-      // Generate access code if present in update
-      if (updateData.access_code) {
-        const access_code = accessCodeGenerator.generate({
-          length: 16,
-          excludeSimilarCharacters: true,
+        if (doc.access_code) {
+          doc.access_code = accessCodeGenerator
+            .generate({ length: 16, excludeSimilarCharacters: true })
+            .toUpperCase();
+        }
+
+        const arrayFieldsToAddToSet = [
+          "device_codes",
+          "previous_sites",
+          "groups",
+          "pictures",
+        ];
+        arrayFieldsToAddToSet.forEach((field) => {
+          if (doc[field]) {
+            update.$addToSet = update.$addToSet || {};
+            update.$addToSet[field] = { $each: doc[field] };
+            delete doc[field];
+          }
         });
-        updateData.access_code = access_code.toUpperCase();
       }
-
-      // Handle array fields using $addToSet
-      const arrayFieldsToAddToSet = [
-        "device_codes",
-        "previous_sites",
-        "groups",
-        "pictures",
-      ];
-      arrayFieldsToAddToSet.forEach((field) => {
-        if (updateData[field]) {
-          updateData.$addToSet = updateData.$addToSet || {};
-          updateData.$addToSet[field] = { $each: updateData[field] };
-          delete updateData[field];
-        }
-      });
 
       next();
     } catch (error) {
@@ -610,6 +767,8 @@ deviceSchema.methods = {
       writeKey: this.writeKey,
       lastActive: this.lastActive,
       isOnline: this.isOnline,
+      rawOnlineStatus: this.rawOnlineStatus,
+      lastRawData: this.lastRawData,
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,
@@ -623,16 +782,38 @@ deviceSchema.methods = {
       owner_id: this.owner_id,
       claim_status: this.claim_status,
       claimed_at: this.claimed_at,
-      assigned_organization_id: this.assigned_organization_id,
+      assigned_organization_id:
+        this.assigned_organization_id || this.assigned_organization?.id || null,
+      assigned_organization: this.assigned_organization,
       organization_assigned_at: this.organization_assigned_at,
+      onlineStatusAccuracy: this.onlineStatusAccuracy,
       grid_id: this.grid_id,
       deployment_type: this.deployment_type,
       mobility_metadata: this.mobility_metadata,
+      device_categories: this.getDeviceCategories(),
     };
+  },
+  /**
+   * Instance method that delegates to the static method
+   * Ensures single source of truth
+   */
+  getDeviceCategories() {
+    // Delegate to static method
+    return this.constructor.computeDeviceCategories(this);
   },
 };
 
 deviceSchema.statics = {
+  /**
+   * Static method to compute device categories from a device document or plain object.
+   * This is the single source of truth for category logic used by both instance methods
+   * and aggregation pipelines.
+   * @param {Object} deviceDoc - The device document (Mongoose doc or plain object)
+   * @returns {Object} categories
+   */
+  computeDeviceCategories(deviceDoc) {
+    return computeDeviceCategories(deviceDoc);
+  },
   async register(args, next) {
     try {
       logObject("args", args);
@@ -704,7 +885,6 @@ deviceSchema.statics = {
       return next(new HttpError(message, httpStatus.CONFLICT, response));
     }
   },
-
   async list({ _skip = 0, _limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
@@ -721,6 +901,15 @@ deviceSchema.statics = {
       }
       if (!isEmpty(filter.summary)) {
         delete filter.summary;
+      }
+
+      let maxActivities = 500;
+      if (!isEmpty(filter.maxActivities)) {
+        const rawMax = Number(filter.maxActivities);
+        if (Number.isFinite(rawMax) && rawMax > 0) {
+          maxActivities = Math.min(rawMax, 1000);
+        }
+        delete filter.maxActivities;
       }
 
       const pipeline = await this.aggregate()
@@ -761,6 +950,208 @@ deviceSchema.statics = {
           foreignField: "_id",
           as: "assigned_grid",
         })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name", deviceId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: ["$device", "$$deviceName"] },
+                    { $eq: ["$device_id", "$$deviceId"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            {
+              $project: {
+                _id: 1,
+                site_id: 1,
+                device_id: 1,
+                device: 1,
+                activityType: 1,
+                maintenanceType: 1,
+                recallType: 1,
+                date: 1,
+                description: 1,
+                nextMaintenance: 1,
+                createdAt: 1,
+                tags: 1,
+              },
+            },
+            { $limit: maxActivities },
+          ],
+          as: "activities",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name", deviceId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $or: [
+                        { $eq: ["$device", "$$deviceName"] },
+                        { $eq: ["$device_id", "$$deviceId"] },
+                      ],
+                    },
+                    { $eq: ["$activityType", "deployment"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_deployment_activity",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name", deviceId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $or: [
+                        { $eq: ["$device", "$$deviceName"] },
+                        { $eq: ["$device_id", "$$deviceId"] },
+                      ],
+                    },
+                    { $eq: ["$activityType", "maintenance"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_maintenance_activity",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name", deviceId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $or: [
+                        { $eq: ["$device", "$$deviceName"] },
+                        { $eq: ["$device_id", "$$deviceId"] },
+                      ],
+                    },
+                    {
+                      $or: [
+                        { $eq: ["$activityType", "recall"] },
+                        { $eq: ["$activityType", "recallment"] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_recall_activity",
+        })
+        .addFields({
+          device_categories: {
+            primary_category: { $ifNull: ["$category", "lowcost"] },
+            deployment_category: { $ifNull: ["$deployment_type", "static"] },
+            is_mobile: {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
+            is_static: {
+              $or: [
+                { $eq: ["$mobility", false] },
+                { $eq: ["$deployment_type", "static"] },
+              ],
+            },
+            is_lowcost: { $eq: ["$category", "lowcost"] },
+            is_bam: { $eq: ["$category", "bam"] },
+            is_gas: { $eq: ["$category", "gas"] },
+            all_categories: {
+              $concatArrays: [
+                [{ $ifNull: ["$category", "lowcost"] }],
+                [{ $ifNull: ["$deployment_type", "static"] }],
+              ],
+            },
+            category_hierarchy: [
+              {
+                level: "equipment",
+                category: { $ifNull: ["$category", "lowcost"] },
+                description: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: { $eq: ["$category", "lowcost"] },
+                        then: "Low-cost sensor device",
+                      },
+                      {
+                        case: { $eq: ["$category", "bam"] },
+                        then: "Beta Attenuation Monitor (reference-grade)",
+                      },
+                      {
+                        case: { $eq: ["$category", "gas"] },
+                        then: "Gas sensor device",
+                      },
+                    ],
+                    default: "Low-cost sensor device",
+                  },
+                },
+              },
+              {
+                level: "deployment",
+                category: { $ifNull: ["$deployment_type", "static"] },
+                description: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: { $eq: ["$deployment_type", "mobile"] },
+                        then: "Mobile deployment (vehicle-mounted, grid-based)",
+                      },
+                      {
+                        case: { $eq: ["$deployment_type", "static"] },
+                        then: "Static deployment (fixed location, site-based)",
+                      },
+                    ],
+                    default: "Static deployment (fixed location, site-based)",
+                  },
+                },
+              },
+            ],
+            category_relationships: {
+              note:
+                "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+              mobile_is_subcategory_of: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ["$mobility", true] },
+                      { $eq: ["$deployment_type", "mobile"] },
+                    ],
+                  },
+                  { $ifNull: ["$category", "lowcost"] },
+                  null,
+                ],
+              },
+            },
+          },
+          total_activities: {
+            $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+          },
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
@@ -769,7 +1160,64 @@ deviceSchema.statics = {
         .allowDiskUse(true);
 
       const response = await pipeline;
+
       if (!isEmpty(response)) {
+        response.forEach((device) => {
+          device.latest_deployment_activity =
+            device.latest_deployment_activity &&
+            device.latest_deployment_activity.length > 0
+              ? device.latest_deployment_activity[0]
+              : null;
+
+          device.latest_maintenance_activity =
+            device.latest_maintenance_activity &&
+            device.latest_maintenance_activity.length > 0
+              ? device.latest_maintenance_activity[0]
+              : null;
+
+          device.latest_recall_activity =
+            device.latest_recall_activity &&
+            device.latest_recall_activity.length > 0
+              ? device.latest_recall_activity[0]
+              : null;
+
+          if (device.activities && device.activities.length > 0) {
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            device.activities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = activity;
+              }
+            });
+
+            device.activities_by_type = activitiesByType;
+            device.latest_activities_by_type = latestActivitiesByType;
+          } else {
+            device.activities_by_type = {};
+            device.latest_activities_by_type = {};
+          }
+
+          if (device.assigned_grid && device.assigned_grid.length > 0) {
+            const grid = device.assigned_grid[0];
+            device.assigned_grid = {
+              _id: grid._id,
+              name: grid.name,
+              admin_level: grid.admin_level,
+              long_name: grid.long_name,
+            };
+          } else {
+            device.assigned_grid = null;
+          }
+        });
+
         return {
           success: true,
           message: "successfully retrieved the device details",
@@ -796,8 +1244,6 @@ deviceSchema.statics = {
       );
     }
   },
-
-  // ... (rest of the static methods remain the same with minimal changes)
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");
@@ -850,8 +1296,6 @@ deviceSchema.statics = {
       );
     }
   },
-
-  // ... (other methods remain the same)
   async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
     try {
       // Sanitize update object
@@ -917,8 +1361,6 @@ deviceSchema.statics = {
       );
     }
   },
-
-  // ... (rest of the methods remain largely the same)
   async encryptKeys({ filter = {}, update = {} } = {}, next) {
     try {
       logObject("the filter", filter);
@@ -976,7 +1418,6 @@ deviceSchema.statics = {
       );
     }
   },
-
   async remove({ filter = {} } = {}, next) {
     try {
       let options = {

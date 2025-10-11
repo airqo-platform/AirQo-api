@@ -2,7 +2,7 @@ import logging
 from django.db import models
 from django.contrib.auth import get_user_model
 from django_quill.fields import QuillField
-from utils.models import BaseModel
+from utils.models import BaseModel, SlugBaseModel
 from cloudinary.models import CloudinaryField
 from cloudinary.uploader import destroy
 
@@ -10,7 +10,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class Event(BaseModel):
+class Event(SlugBaseModel):
     title = models.CharField(max_length=100)
     title_subtext = models.CharField(max_length=90)
     start_date = models.DateField()
@@ -18,6 +18,12 @@ class Event(BaseModel):
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
     registration_link = models.URLField(null=True, blank=True)
+
+    # Slug configuration
+    SLUG_SOURCE_FIELD = 'title'
+    SLUG_USE_DATE = True
+    SLUG_USE_LOCATION = True
+    SLUG_MAX_LENGTH = 80
 
     class WebsiteCategory(models.TextChoices):
         AIRQO = "airqo", "AirQo"
@@ -84,11 +90,45 @@ class Event(BaseModel):
     event_details = QuillField(default="No details available yet.")
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(SlugBaseModel.Meta):
         ordering = ["order", "-start_date"]
 
     def __str__(self):
         return self.title
+
+    def get_event_status(self):
+        """Return the event status based on dates"""
+        from django.utils import timezone
+        now = timezone.now().date()
+
+        # Treat events with no end_date as single-day events (end_date == start_date)
+        effective_end = self.end_date or self.start_date
+
+        # If the event starts in the future -> upcoming
+        if self.start_date > now:
+            return 'upcoming'
+
+        # If the effective end is before today -> past
+        if effective_end < now:
+            return 'past'
+
+        # Otherwise it's ongoing (includes single-day events happening today)
+        return 'ongoing'
+
+    def is_virtual_event(self):
+        """Check if event is virtual based on location"""
+        if not self.location_name:
+            return False
+        location_text = str(self.location_name).lower()
+        virtual_keywords = ['virtual', 'online',
+                            'zoom', 'webinar', 'digital', 'remote']
+        return any(keyword in location_text for keyword in virtual_keywords)
+
+    def get_duration_days(self):
+        """Get event duration in days"""
+        if not self.end_date:
+            return 1
+        return (self.end_date - self.start_date).days + 1
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -119,8 +159,9 @@ class Event(BaseModel):
                 logger.error(
                     f"Error deleting background_image from Cloudinary: {e}")
 
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Event: ID={self.pk}, Title={self.title}")
+        return result
 
 
 class Inquiry(BaseModel):
@@ -136,7 +177,7 @@ class Inquiry(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -155,8 +196,9 @@ class Inquiry(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+        return result
 
 
 class Program(BaseModel):
@@ -171,7 +213,7 @@ class Program(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -188,8 +230,9 @@ class Program(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Program: ID={self.pk}, Date={self.date}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Program: ID={self.pk}, Date={self.date}")
+        return result
 
 
 class Session(BaseModel):
@@ -207,7 +250,7 @@ class Session(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -226,9 +269,10 @@ class Session(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Session: ID={self.pk}, Title={self.session_title}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(
             f"Deleted Session: ID={self.pk}, Title={self.session_title}")
+        return result
 
 
 class PartnerLogo(BaseModel):
@@ -250,7 +294,7 @@ class PartnerLogo(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -276,8 +320,9 @@ class PartnerLogo(BaseModel):
             except Exception as e:
                 logger.error(
                     f"Error deleting partner_logo from Cloudinary: {e}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted PartnerLogo: ID={self.pk}, Name={self.name}")
+        return result
 
 
 class Resource(BaseModel):
@@ -300,7 +345,7 @@ class Resource(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ["order"]
 
     def __str__(self):
@@ -325,5 +370,6 @@ class Resource(BaseModel):
                     f"Deleted resource from Cloudinary: {self.resource.public_id}")
             except Exception as e:
                 logger.error(f"Error deleting resource from Cloudinary: {e}")
-        super().delete(*args, **kwargs)
+        result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Resource: ID={self.pk}, Title={self.title}")
+        return result

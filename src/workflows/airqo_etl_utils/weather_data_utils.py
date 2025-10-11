@@ -138,6 +138,7 @@ class WeatherDataUtils:
         """
         if not station_codes:
             sites = DataUtils.get_sites()
+            sites.rename(columns={"id": "site_id"}, inplace=True)
             station_codes = []
             for _, site in sites.iterrows():
                 weather_stations = ast.literal_eval(site.get("weather_stations", []))

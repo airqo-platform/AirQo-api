@@ -170,26 +170,48 @@ const deviceStatusHourlyCheck = async () => {
   }
 };
 
+let isJobRunning = false;
+let currentJobPromise = null;
+
+const jobWrapper = async () => {
+  if (isJobRunning) {
+    logger.warn(`${JOB_NAME} is already running, skipping this execution.`);
+    return;
+  }
+
+  isJobRunning = true;
+  currentJobPromise = deviceStatusHourlyCheck();
+  try {
+    await currentJobPromise;
+  } catch (error) {
+    logger.error(`🐛🐛 Error during ${JOB_NAME} execution: ${error.message}`);
+  } finally {
+    isJobRunning = false;
+    currentJobPromise = null;
+  }
+};
+
 // Create and register the job
 const startJob = () => {
-  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
-  const cronJobInstance = cron.schedule(JOB_SCHEDULE, deviceStatusHourlyCheck, {
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
     scheduled: true,
     timezone: TIMEZONE,
   });
 
-  // Initialize global registry
   if (!global.cronJobs) {
     global.cronJobs = {};
   }
 
-  // Register for cleanup 👇 USING cronJobInstance HERE!
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
     stop: async () => {
-      cronJobInstance.stop(); // 👈 Stop scheduling
-      cronJobInstance.destroy(); // 👈 Clean up resources
-      delete global.cronJobs[JOB_NAME]; // 👈 Remove from registry
+      logText(`🛑 Stopping ${JOB_NAME}...`);
+      cronJobInstance.stop();
+      logText(`📅 ${JOB_NAME} schedule stopped.`);
+      if (currentJobPromise) {
+        await currentJobPromise;
+      }
+      delete global.cronJobs[JOB_NAME];
     },
   };
 

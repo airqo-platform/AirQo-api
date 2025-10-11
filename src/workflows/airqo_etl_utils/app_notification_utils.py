@@ -18,6 +18,7 @@ from firebase_admin.exceptions import NotFoundError
 from airqo_etl_utils.data_api import DataApi
 from .config import configuration as Config
 from .datautils import DataUtils
+from .meta_data_utils import MetaDataUtils
 
 from .date import get_utc_offset_for_hour
 from .email_templates import forecast_email
@@ -121,7 +122,8 @@ def get_random_measurement() -> Tuple[
             - place_id (Optional[str]): The site's identifier.
     """
     try:
-        sites = DataUtils.get_sites()
+        sites = MetaDataUtils.extract_sites()
+        sites.rename(columns={"id": "site_id"}, inplace=True)
         data_api = DataApi()
         max_attempts = len(sites)
         attempt = 0
@@ -129,8 +131,8 @@ def get_random_measurement() -> Tuple[
 
         while (pm_value is None or pd.isna(pm_value)) and attempt < max_attempts:
             target_place = sites.sample(n=1).iloc[0]
-            name = target_place.get("search_name")
-            location = target_place.get("location_name")
+            name = target_place.get("display_name")
+            location = target_place.get("display_location")
             place_id = target_place.get("site_id")
             pm_value = data_api.get_site_measurement(place_id)
             attempt += 1

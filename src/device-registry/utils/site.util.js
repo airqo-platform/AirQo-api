@@ -1,5 +1,9 @@
 const SiteModel = require("@models/Site");
+const qs = require("qs");
 const ActivityModel = require("@models/Activity");
+const DeviceModel = require("@models/Device");
+const GridModel = require("@models/Grid");
+const AirQloudModel = require("@models/Airqloud");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
@@ -27,57 +31,42 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+const mongoose = require("mongoose");
+const { isValidObjectId } = mongoose;
+const ObjectId = mongoose.Types.ObjectId;
 
 const createSite = {
   getSiteById: async (req, next) => {
     try {
       const { id } = req.params;
-      const { tenant } = req.query;
 
-      const site = await SiteModel(tenant.toLowerCase())
-        .findById(id)
-        .lean(); // Use lean() for faster query
-
-      if (!site) {
-        throw new HttpError("site not found", httpStatus.NOT_FOUND);
+      if (!isValidObjectId(id)) {
+        throw new HttpError("Invalid site id", httpStatus.BAD_REQUEST);
       }
 
-      // Define the device projection
-      const deviceProjection = {
-        _id: 1,
-        cohorts: 1,
-        groups: 1,
-        authRequired: 1,
-        isOnline: 1,
-        device_codes: 1,
-        previous_sites: 1,
-        status: 1,
-        category: 1,
-        isActive: 1,
-        long_name: 1,
-        network: 1,
-        description: 1,
-        serial_number: 1,
-        name: 1,
-        createdAt: 1,
-        latitude: 1,
-        longitude: 1,
-        grids: 1,
+      // Create a new request object for the list function
+      const listRequest = {
+        ...req,
+        query: {
+          ...req.query,
+          id: req.params.id, // Pass the ID from params into the query for the list function
+        },
       };
 
-      // Fetch devices associated with the site, applying the projection
-      const DeviceModel = require("@models/Device"); // Import Device model here to avoid circular dependency
-      const devices = await DeviceModel(tenant.toLowerCase())
-        .find({ site_id: id }, deviceProjection)
-        .lean(); // Use lean() for faster query
+      // Call the list function
+      const listResponse = await createSite.list(listRequest, next);
 
-      const siteWithDevices = { ...site, devices };
+      if (!listResponse.success || isEmpty(listResponse.data)) {
+        throw new HttpError("Site not found", httpStatus.NOT_FOUND);
+      }
 
       return {
         success: true,
-        message: "site details fetched successfully",
-        data: siteWithDevices,
+        message:
+          "Site details with activities and devices fetched successfully",
+        data: listResponse.data[0],
         status: httpStatus.OK,
+        meta: listResponse.meta,
       };
     } catch (error) {
       if (error instanceof HttpError) {
@@ -94,6 +83,7 @@ const createSite = {
       );
     }
   },
+
   fetchSiteDetails: async (tenant, req, next) => {
     const filter = generateFilter.sites(req, next);
     logObject("the filter being used to filter", filter);
@@ -184,6 +174,9 @@ const createSite = {
   },
   hasWhiteSpace: (name, next) => {
     try {
+      if (!name || typeof name !== "string") {
+        return false;
+      }
       return name.indexOf(" ") >= 0;
     } catch (error) {
       logger.error(
@@ -193,6 +186,9 @@ const createSite = {
   },
   checkStringLength: (name, next) => {
     try {
+      if (!name || typeof name !== "string") {
+        return false;
+      }
       //check if name has only white spaces
       name = name.trim();
       let length = name.length;
@@ -731,6 +727,9 @@ const createSite = {
   },
   sanitiseName: (name, next) => {
     try {
+      if (!name || typeof name !== "string") {
+        return "";
+      }
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
       let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
       let trimmedName = shortenedName.trim();
@@ -1006,30 +1005,254 @@ const createSite = {
   },
   list: async (request, next) => {
     try {
-      const { skip, limit, tenant, path } = request.query;
-      const filter = generateFilter.sites(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
-      const responseFromListSite = await SiteModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
-        next
+      const {
+        skip,
+        limit,
+        tenant: rawTenant,
+        useCache = "true",
+        detailLevel = "full",
+        sortBy,
+        order,
+      } = request.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const devicesColl = DeviceModel(tenant).collection.name;
+      const gridsColl = GridModel(tenant).collection.name;
+      const airqloudsColl = AirQloudModel(tenant).collection.name;
+      const activitiesColl = ActivityModel(tenant).collection.name;
+      const MAX_LIMIT =
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+      const filter = generateFilter.sites(request, next);
+      filter.lat_long = { $ne: "4_4" };
 
-      if (responseFromListSite.success === false) {
-        return responseFromListSite;
+      let pipeline = [];
+
+      // Base match
+      pipeline.push({ $match: filter });
+
+      if (detailLevel === "minimal") {
+        pipeline.push({
+          $project: {
+            _id: 1,
+            name: 1,
+            generated_name: 1,
+            latitude: 1,
+            longitude: 1,
+            network: 1,
+            createdAt: 1,
+          },
+        });
+      } else if (detailLevel === "summary") {
+        pipeline.push(
+          {
+            $addFields: {
+              total_devices: { $ifNull: ["$cached_total_devices", 0] },
+              total_activities: { $ifNull: ["$cached_total_activities", 0] },
+              activities_by_type: {
+                $ifNull: ["$cached_activities_by_type", {}],
+              },
+              latest_deployment_activity: "$cached_latest_deployment_activity",
+            },
+          },
+          { $project: constants.SITES_INCLUSION_PROJECTION },
+          { $project: constants.SITES_EXCLUSION_PROJECTION("summary") }
+        );
+      } else {
+        // Full detail level
+        pipeline.push(
+          {
+            $lookup: {
+              from: devicesColl,
+              localField: "_id",
+              foreignField: "site_id",
+              as: "devices",
+            },
+          },
+          {
+            $lookup: {
+              from: gridsColl,
+              localField: "grids",
+              foreignField: "_id",
+              as: "grids",
+            },
+          },
+          {
+            $lookup: {
+              from: airqloudsColl,
+              localField: "airqlouds",
+              foreignField: "_id",
+              as: "airqlouds",
+            },
+          }
+        );
+
+        if (useCache === "true") {
+          pipeline.push({
+            $addFields: {
+              total_activities: { $ifNull: ["$cached_total_activities", 0] },
+              activities_by_type: {
+                $ifNull: ["$cached_activities_by_type", {}],
+              },
+              latest_activities_by_type: {
+                $ifNull: ["$cached_latest_activities_by_type", {}],
+              },
+              latest_deployment_activity: "$cached_latest_deployment_activity",
+              latest_maintenance_activity:
+                "$cached_latest_maintenance_activity",
+              latest_recall_activity: "$cached_latest_recall_activity",
+              site_creation_activity: "$cached_site_creation_activity",
+            },
+          });
+        } else {
+          // Real-time aggregation (expensive)
+          pipeline.push({
+            $lookup: {
+              from: activitiesColl,
+              let: { siteId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $or: [
+                        { $eq: ["$site_id", "$$siteId"] },
+                        {
+                          $eq: [
+                            { $toString: "$site_id" },
+                            { $toString: "$$siteId" },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+                { $sort: { createdAt: -1 } },
+                {
+                  $project: {
+                    _id: 1,
+                    activityType: 1,
+                    maintenanceType: 1,
+                    recallType: 1,
+                    date: 1,
+                    description: 1,
+                    nextMaintenance: 1,
+                    createdAt: 1,
+                    device_id: 1,
+                    device: 1,
+                    site_id: 1,
+                  },
+                },
+                { $limit: 500 },
+              ],
+              as: "activities",
+            },
+          });
+        }
+        pipeline.push({ $project: constants.SITES_INCLUSION_PROJECTION });
+        pipeline.push({
+          $project: constants.SITES_EXCLUSION_PROJECTION("full"),
+        });
       }
 
-      const modifiedResponseFromListSite = {
-        ...responseFromListSite,
-        data: responseFromListSite.data.filter((obj) => obj.lat_long !== "4_4"),
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await SiteModel(tenant)
+        .aggregate(facetPipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      // Post-processing for non-cached full detail
+      if (
+        !isEmpty(paginatedResults) &&
+        detailLevel === "full" &&
+        useCache === "false"
+      ) {
+        paginatedResults.forEach((site) => {
+          if (site.activities && site.activities.length > 0) {
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+            site.activities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = activity;
+              }
+            });
+            site.activities_by_type = activitiesByType;
+            site.latest_activities_by_type = latestActivitiesByType;
+          } else {
+            site.activities_by_type = {};
+            site.latest_activities_by_type = {};
+          }
+        });
+      }
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        totalResults: paginatedResults.length,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+        detailLevel,
+        usedCache: useCache === "true",
       };
 
-      return modifiedResponseFromListSite;
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "successfully retrieved the site details",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1041,6 +1264,7 @@ const createSite = {
       );
     }
   },
+
   listAirQoActive: async (request, next) => {
     try {
       const { skip, limit, tenant } = request.query;

@@ -139,7 +139,7 @@ const createClient = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await clientUtil.listClient(request, next);
+      const result = await clientUtil.listClients(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;

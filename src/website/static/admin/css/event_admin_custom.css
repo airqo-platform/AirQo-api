@@ -1,0 +1,126 @@
+/* Event Admin Custom Styles */
+
+/* Make the admin fieldsets more visually appealing */
+.form-row {
+  margin-bottom: 15px;
+}
+
+.fieldset {
+  margin-bottom: 20px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  background: transparent;
+}
+
+.fieldset h2 {
+  background: transparent;
+  color: #333;
+  margin: -15px -15px 15px -15px;
+  padding: 10px 15px;
+  border-radius: 5px 5px 0 0;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Style the image previews */
+.field-preview_event_image img,
+.field-preview_background_image img,
+.field-preview_logo img {
+  border: 2px solid #ddd;
+  border-radius: 5px;
+  box-shadow: none;
+  transition: none;
+}
+
+/* Style the inline forms */
+.inline-group {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  background: transparent;
+}
+
+.inline-group .module h2 {
+  background: transparent;
+  color: #333;
+  padding: 10px 15px;
+  margin: 0;
+  border-radius: 5px 5px 0 0;
+}
+
+/* Style the change list */
+.change-list .results table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.change-list .results table thead th {
+  background: transparent;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+}
+
+.change-list .results table tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+.change-list .results table tbody tr:hover {
+  background: transparent;
+}
+
+/* Style status badges */
+.event-status-past,
+.event-status-upcoming,
+.event-status-ongoing {
+  background: #e9ecef;
+  color: #333;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: normal;
+}
+
+/* Style the action buttons */
+.submit-row {
+  padding: 15px 0;
+  border-top: 1px solid #ddd;
+  margin-top: 20px;
+}
+
+.submit-row input[type="submit"] {
+  background: transparent;
+  border: 1px solid #ddd;
+  color: #333;
+  padding: 10px 20px;
+  border-radius: 5px;
+  font-weight: normal;
+  cursor: default;
+  transition: none;
+}
+
+/* Style the search and filter areas */
+.changelist-search {
+  background: transparent;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.changelist-filter {
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.changelist-filter h3 {
+  background: transparent;
+  color: #333;
+  margin: 0;
+  padding: 10px 15px;
+  border-radius: 5px 5px 0 0;
+}

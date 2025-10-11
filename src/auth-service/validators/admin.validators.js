@@ -39,23 +39,20 @@ const validateUserIdParam = oneOf([
 ]);
 
 const validateSecretField = body("secret")
-  .exists()
-  .withMessage("Setup secret is required")
-  .bail()
+  .optional()
   .notEmpty()
-  .withMessage("Secret must not be empty")
-  .bail()
-  .isString()
-  .withMessage("Secret must be a string");
+  .withMessage("the secret should not be empty if provided");
 
 const setupSuperAdmin = [
   validateTenant,
   [
     validateSecretField,
     body("user_id")
-      .optional()
+      .exists()
+      .withMessage("user_id is required in the request body")
+      .bail()
       .notEmpty()
-      .withMessage("user_id must not be empty if provided")
+      .withMessage("user_id must not be empty")
       .bail()
       .trim()
       .isMongoId()

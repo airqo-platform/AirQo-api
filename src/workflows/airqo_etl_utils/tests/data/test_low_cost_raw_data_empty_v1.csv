@@ -1,1 +1,0 @@
-,tenant,timestamp,site_id,device_number,device_id,latitude,longitude,pm2_5,s1_pm2_5,s2_pm2_5,pm10,s1_pm10,s2_pm10,no2,pm1,s1_pm1,s2_pm1,pressure,s1_pressure,s2_pressure,temperature,humidity,voc,s1_voc,s2_voc,wind_speed,altitude,satellites,hdop,device_temperature,device_humidity,battery,co,nh3,co2,hcho,tvoc,intaketemperature,intakehumidity,network,device_category

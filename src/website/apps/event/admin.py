@@ -1,10 +1,21 @@
 from django.contrib import admin
-import nested_admin
+from typing import TYPE_CHECKING
 from django.utils.html import format_html
+
+if TYPE_CHECKING:
+    # Provide symbols to static type checkers
+    from nested_admin import NestedTabularInline, NestedStackedInline, NestedModelAdmin  # type: ignore
+else:
+    try:
+        from nested_admin import NestedTabularInline, NestedStackedInline, NestedModelAdmin  # type: ignore
+    except Exception:
+        # Fallbacks for runtime if nested_admin isn't available
+        NestedTabularInline = admin.TabularInline  # type: ignore
+        NestedStackedInline = admin.StackedInline  # type: ignore
+        NestedModelAdmin = admin.ModelAdmin  # type: ignore
 import logging
 
-from django.core.exceptions import ValidationError  # Import ValidationError
-# Import IntegrityError for database errors
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 
@@ -14,7 +25,7 @@ logger = logging.getLogger(__name__)
 # -------- Inline Classes --------
 
 
-class InquiryInline(nested_admin.NestedTabularInline):
+class InquiryInline(NestedTabularInline):
     model = Inquiry
     extra = 0
     sortable_field_name = 'order'
@@ -22,25 +33,25 @@ class InquiryInline(nested_admin.NestedTabularInline):
     ordering = ['order']
 
 
-class PartnerLogoInline(nested_admin.NestedTabularInline):
+class PartnerLogoInline(NestedTabularInline):
     model = PartnerLogo
     extra = 0
     sortable_field_name = 'order'
     fields = ('name', 'partner_logo', 'order', 'preview_logo')
     readonly_fields = ('preview_logo',)
 
+    @admin.display(description="Preview Logo")
     def preview_logo(self, obj):
         return preview_image(obj.partner_logo, obj.name, "Partner Logo", (100, 150))
 
-    preview_logo.short_description = "Preview Logo"
 
-
-class ResourceInline(nested_admin.NestedTabularInline):
+class ResourceInline(NestedTabularInline):
     model = Resource
     extra = 0
     fields = ('title', 'link', 'resource', 'order', 'download_link')
     readonly_fields = ('download_link',)
 
+    @admin.display(description="Resource Download Link")
     def download_link(self, obj):
         if not obj.resource:
             return "No resource uploaded."
@@ -54,10 +65,10 @@ class ResourceInline(nested_admin.NestedTabularInline):
                 f"Error generating download link for Resource '{obj.title}': {e}")
             return "Error generating link."
 
-    download_link.short_description = "Resource Download Link"
+    # description is provided via @admin.display
 
 
-class SessionInline(nested_admin.NestedTabularInline):
+class SessionInline(NestedTabularInline):
     model = Session
     extra = 0
     fields = ('session_title', 'start_time', 'end_time',
@@ -66,7 +77,7 @@ class SessionInline(nested_admin.NestedTabularInline):
     ordering = ['order']
 
 
-class ProgramInline(nested_admin.NestedStackedInline):
+class ProgramInline(NestedStackedInline):
     model = Program
     extra = 0
     fields = ('date', 'program_details', 'order')
@@ -95,22 +106,42 @@ def preview_image(image_field, obj_name, alt_text, max_dimensions):
 
 
 @admin.register(Event)
-class EventAdmin(nested_admin.NestedModelAdmin):
+class EventAdmin(NestedModelAdmin):
     list_display = (
         'title',
+        'event_status_display',
         'start_date',
         'end_date',
         'website_category',
         'event_category',
+        'event_tag',
+        'location_name',
         'order',
         'preview_event_image',
         'preview_background_image'
     )
-    search_fields = ('title', 'location_name')
+    search_fields = ('title', 'title_subtext',
+                     'location_name', 'event_details')
+    list_filter = (
+        'website_category',
+        'event_category',
+        'event_tag',
+        'start_date',
+        'end_date',
+        ('start_date', admin.DateFieldListFilter),
+    )
     list_editable = ('order',)
     ordering = ('order', '-start_date')
-    list_per_page = 10
-    readonly_fields = ('preview_event_image', 'preview_background_image')
+    list_per_page = 15
+    date_hierarchy = 'start_date'
+    readonly_fields = (
+        'preview_event_image',
+        'preview_background_image',
+        'event_status_display',
+        'slug',
+        'created',
+        'modified'
+    )
     inlines = [
         InquiryInline,
         ProgramInline,
@@ -119,31 +150,79 @@ class EventAdmin(nested_admin.NestedModelAdmin):
     ]
     fieldsets = (
         ("Basic Information", {
-            "fields": ('title', 'title_subtext', 'start_date', 'end_date', 'start_time', 'end_time')
+            "fields": ('title', 'title_subtext', 'slug'),
+            "classes": ('wide',),
         }),
-        ("Location", {
-            "fields": ('location_name', 'location_link')
+        ("Schedule", {
+            "fields": ('start_date', 'end_date', 'start_time', 'end_time', 'event_status_display'),
+            "classes": ('wide',),
+        }),
+        ("Location & Registration", {
+            "fields": ('location_name', 'location_link', 'registration_link'),
+            "classes": ('wide',),
         }),
         ("Details", {
-            "fields": ('event_details', 'registration_link')
+            "fields": ('event_details',),
+            "classes": ('wide',),
         }),
         ("Images", {
-            "fields": ('event_image', 'preview_event_image', 'background_image', 'preview_background_image')
+            "fields": (
+                ('event_image', 'preview_event_image'),
+                ('background_image', 'preview_background_image')
+            ),
+            "classes": ('wide',),
         }),
-        ("Categorization", {
-            "fields": ('website_category', 'event_category', 'event_tag', 'order')
+        ("Categorization & Ordering", {
+            "fields": ('website_category', 'event_category', 'event_tag', 'order'),
+            "classes": ('wide',),
+        }),
+        ("Metadata", {
+            "fields": ('created', 'modified'),
+            "classes": ('collapse',),
         }),
     )
 
+    class Media:
+        css = {
+            'all': ('admin/css/event_admin_custom.css',)
+        }
+
+    @admin.display(description="Event Image")
     def preview_event_image(self, obj):
         """Preview event image."""
         return preview_image(obj.event_image, obj.title, "Event Image", (150, 300))
-    preview_event_image.short_description = "Event Image"
 
+    @admin.display(description="Background Image")
     def preview_background_image(self, obj):
         """Preview background image."""
         return preview_image(obj.background_image, obj.title, "Background Image", (150, 300))
-    preview_background_image.short_description = "Background Image"
+
+    @admin.display(description="Status", ordering='start_date')
+    def event_status_display(self, obj):
+        """Display event status with color coding."""
+        from django.utils import timezone
+        now = timezone.now().date()
+
+        # Treat missing end_date as single-day event
+        effective_end = obj.end_date or obj.start_date
+
+        # Upcoming if start_date is in the future
+        if obj.start_date and obj.start_date > now:
+            status = 'UPCOMING'
+            color = '#28a745'  # Green
+        # Past if the effective end is before today
+        elif effective_end and effective_end < now:
+            status = 'PAST'
+            color = '#dc3545'  # Red
+        else:
+            # Otherwise it's ongoing (includes single-day events happening today)
+            status = 'ONGOING'
+            color = '#ffc107'  # Yellow
+
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color, status
+        )
 
     def save_model(self, request, obj, form, change):
         """Override save_model to handle image uploads and database errors gracefully."""

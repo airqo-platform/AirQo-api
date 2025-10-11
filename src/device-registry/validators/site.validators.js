@@ -169,7 +169,7 @@ function validateCategoryField(value) {
         return;
       }
     } else if (field === "search_radius") {
-      if (numValue <= 0) {
+      if (numValue < 0) {
         isValid = false;
         return;
       }
@@ -180,13 +180,12 @@ function validateCategoryField(value) {
   if ("tags" in value && !Array.isArray(value.tags)) {
     return false;
   }
-  value.tags.forEach((tag) => {
-    if (
-      !value.tags.every((tag) => typeof tag === "string" && tag.trim() !== "")
-    ) {
-      return false;
-    }
-  });
+
+  if (
+    !value.tags.every((tag) => typeof tag === "string" && tag.trim() !== "")
+  ) {
+    return false;
+  }
 
   // All validations passed
   return isValid;
@@ -273,6 +272,17 @@ const validateSiteQueryParams = oneOf([
     )
     .bail()
     .toDate(),
+  query("sortBy")
+    .optional()
+    .notEmpty()
+    .trim(),
+  query("order")
+    .optional()
+    .notEmpty()
+    .trim()
+    .toLowerCase()
+    .isIn(["asc", "desc"])
+    .withMessage("the order value is not among the expected ones"),
 ]);
 
 const validateMandatorySiteIdentifier = oneOf([

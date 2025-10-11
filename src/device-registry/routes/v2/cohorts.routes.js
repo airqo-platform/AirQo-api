@@ -14,6 +14,12 @@ router.delete(
 );
 
 router.put(
+  "/:cohort_id/name",
+  cohortValidations.updateCohortName,
+  createCohortController.updateName
+);
+
+router.put(
   "/:cohort_id",
   cohortValidations.updateCohort,
   createCohortController.update
@@ -130,6 +136,25 @@ router.get(
   cohortValidations.verifyCohort,
   pagination(),
   createCohortController.verify
+);
+router.post(
+  "/from-cohorts",
+  cohortValidations.createFromCohorts,
+  createCohortController.createFromCohorts
+);
+
+router.post(
+  "/sites",
+  cohortValidations.listSites,
+  pagination(),
+  createCohortController.listSitesByCohort
+);
+
+router.post(
+  "/devices",
+  cohortValidations.listDevices,
+  pagination(),
+  createCohortController.listDevicesByCohort
 );
 
 router.get(

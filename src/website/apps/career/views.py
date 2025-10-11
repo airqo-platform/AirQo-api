@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
 from .models import Career, Department
 from .serializers import CareerSerializer, DepartmentSerializer
+from apps.api.v2.mixins import SlugModelViewSetMixin
 
 
 class BaseViewSet(viewsets.ReadOnlyModelViewSet):
@@ -13,6 +14,6 @@ class DepartmentViewSet(BaseViewSet):
     serializer_class = DepartmentSerializer
 
 
-class CareerViewSet(BaseViewSet):
+class CareerViewSet(SlugModelViewSetMixin, BaseViewSet):
     queryset = Career.objects.all()
     serializer_class = CareerSerializer

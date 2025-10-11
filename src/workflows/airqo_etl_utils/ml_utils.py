@@ -12,9 +12,10 @@ import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-
+from pathlib import Path
 from .config import configuration, db
 from .constants import Frequency
+from .commons import download_file_from_gcs
 
 import logging
 
@@ -40,7 +41,7 @@ class GCSUtils:
     def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
         """
         Retrieves a trained model from Google Cloud Storage (GCS). If the specified model file
-        does not exist, a default model is returned based on the pollutant type.
+        does not exist, an exception is raised.
 
         Args:
             project_name (str): The GCP project name.
@@ -51,27 +52,34 @@ class GCSUtils:
             object: The trained model loaded using joblib.
 
         Raises:
-            FileNotFoundError: If neither the requested model nor the default model exists.
+            FileNotFoundError: If the requested model does not exist.
         """
-        fs = gcsfs.GCSFileSystem(project=project_name)
-
-        # Store the original requested model name
-        original_model = source_blob_name
-
-        if not fs.exists(f"{bucket_name}/{source_blob_name}"):
-            default_model = (
-                "default_pm2_5.pkl"
-                if "pm2_5" in source_blob_name
-                else "default_pm10.pkl"
+        file_path = None
+        try:
+            if not Path(source_blob_name).exists():
+                file_path = download_file_from_gcs(
+                    bucket_name, source_blob_name, source_blob_name
+                )
+        except FileNotFoundError as e:
+            logger.warning(
+                f"Requested model '{source_blob_name}' not found in '{bucket_name}': {e}"
             )
-            source_blob_name = default_model
+            raise
+        except Exception as e:
+            logger.warning(
+                f"Error loading requested model '{source_blob_name}' from '{bucket_name}': {e}"
+            )
+            raise
 
-            logger.exception(f"Model '{original_model}' not found in '{bucket_name}'")
+        try:
+            file_path = source_blob_name if file_path is None else file_path
+            with open(file_path, "rb") as file:
+                model = joblib.load(file)
+        except Exception as e:
+            logger.error(f"Error loading model from file '{file_path}': {e}")
+            raise
 
-        with fs.open(f"{bucket_name}/{source_blob_name}", "rb") as handle:
-            job = joblib.load(handle)
-
-        return job
+        return model
 
     @staticmethod
     def upload_trained_model_to_gcs(

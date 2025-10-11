@@ -78,9 +78,93 @@ const {
 } = require("@utils/shared");
 const { stringify } = require("@utils/common");
 
+// Enhanced event loop monitoring for development
+if (isDev) {
+  // Monitor event loop lag
+  const lagMonitor = setInterval(() => {
+    const start = process.hrtime.bigint();
+    setImmediate(() => {
+      const lag = Number(process.hrtime.bigint() - start) / 1e6; // Convert to milliseconds
+      if (lag > 100) {
+        // Alert if lag is over 100ms
+        console.warn(`⚠️  Event loop lag detected: ${lag.toFixed(2)}ms`);
+        logger.warn(`⚠️  Event loop lag detected: ${lag.toFixed(2)}ms`);
+      }
+    });
+  }, 5000); // Check every 5 seconds
+
+  // Clear interval on shutdown
+  process.on("exit", () => {
+    clearInterval(lagMonitor);
+  });
+}
+
+// Initialize job monitoring
+global.jobMetrics = {
+  activeJobs: new Set(),
+  jobStartTimes: new Map(),
+  maxConcurrentJobs: 0,
+  totalJobRuns: 0,
+
+  startJob: (jobName) => {
+    global.jobMetrics.activeJobs.add(jobName);
+    global.jobMetrics.jobStartTimes.set(jobName, Date.now());
+    global.jobMetrics.totalJobRuns++;
+
+    const currentConcurrent = global.jobMetrics.activeJobs.size;
+    if (currentConcurrent > global.jobMetrics.maxConcurrentJobs) {
+      global.jobMetrics.maxConcurrentJobs = currentConcurrent;
+    }
+
+    if (isDev && currentConcurrent > 3) {
+      console.warn(
+        `⚠️  High job concurrency: ${currentConcurrent} jobs running simultaneously`
+      );
+    }
+  },
+
+  endJob: (jobName) => {
+    global.jobMetrics.activeJobs.delete(jobName);
+    const startTime = global.jobMetrics.jobStartTimes.get(jobName);
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      global.jobMetrics.jobStartTimes.delete(jobName);
+
+      if (isDev && duration > 30000) {
+        // Alert if job takes longer than 30 seconds
+        console.warn(
+          `⚠️  Long-running job detected: ${jobName} took ${duration}ms`
+        );
+      }
+    }
+  },
+
+  getStats: () => ({
+    activeJobs: Array.from(global.jobMetrics.activeJobs),
+    activeJobCount: global.jobMetrics.activeJobs.size,
+    maxConcurrentJobs: global.jobMetrics.maxConcurrentJobs,
+    totalJobRuns: global.jobMetrics.totalJobRuns,
+  }),
+};
+
 // Initialize all background jobs
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
+try {
+  require("@bin/jobs/update-raw-online-status-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `update-raw-online-status-job failed to start: ${err.message}`
+  );
+}
+require("@bin/jobs/update-grid-flags-job");
+try {
+  require("@bin/jobs/update-online-status-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `update-online-status-job failed to start: ${err.message}`
+  );
+}
 require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
@@ -88,6 +172,56 @@ require("@bin/jobs/check-unassigned-sites-job");
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
 require("@bin/jobs/health-tip-checker-job");
+require("@bin/jobs/daily-activity-summary-job");
+require("@bin/jobs/site-categorization-job");
+require("@bin/jobs/site-categorization-notification-job");
+
+// Defensively load precompute activities job
+// Default behavior: ENABLED (runs unless explicitly disabled)
+try {
+  // Helper function to normalize flag values to boolean
+  const normalizeFlag = (value) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const lower = value.toLowerCase().trim();
+      return lower !== "false" && lower !== "0" && lower !== "";
+    }
+    return !!value; // Coerce other types to boolean
+  };
+
+  // Check constants first, then fall back to env var
+  let isEnabled;
+  if (constants?.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== undefined) {
+    isEnabled = normalizeFlag(constants.PRECOMPUTE_ACTIVITIES_JOB_ENABLED);
+  } else {
+    isEnabled = normalizeFlag(
+      process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED ?? true
+    );
+  }
+
+  if (isEnabled) {
+    try {
+      require("@bin/jobs/precompute-activities-job");
+    } catch (jobError) {
+      global.dedupLogger.error(
+        `❌ precompute-activities-job failed: ${jobError.message}`
+      );
+      // Continue - don't crash the server
+    }
+  } else {
+    logger.info("ℹ️  precompute-activities-job disabled");
+  }
+} catch (error) {
+  // Ultimate fallback - if everything fails, try to run the job anyway
+  console.warn(`⚠️  Error checking job config: ${error.message}`);
+  console.log("ℹ️  Attempting to start job with default behavior...");
+  try {
+    require("@bin/jobs/precompute-activities-job");
+  } catch (jobError) {
+    console.error(`❌ Job failed to start: ${jobError.message}`);
+    // Continue - server stays up
+  }
+}
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -288,6 +422,15 @@ const createServer = () => {
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+
+    // Log job initialization status
+    setTimeout(() => {
+      const jobStats = global.jobMetrics.getStats();
+      const cronJobs = global.cronJobs ? Object.keys(global.cronJobs) : [];
+      if (isDev) {
+        console.log(`📊 Job names: [${cronJobs.join(", ")}]`);
+      }
+    }, 2000); // Give jobs time to initialize
   });
 
   // Enhanced graceful shutdown handler
@@ -298,112 +441,86 @@ const createServer = () => {
     // Set global shutdown flag to signal running jobs to stop
     global.isShuttingDown = true;
 
+    // Log current job status
+    const activeJobs = global.jobMetrics.getStats().activeJobs;
+    if (activeJobs.length > 0) {
+      console.log(
+        `⏳ Waiting for ${
+          activeJobs.length
+        } active jobs to complete: [${activeJobs.join(", ")}]`
+      );
+      logger.info(
+        `⏳ Waiting for ${
+          activeJobs.length
+        } active jobs to complete: [${activeJobs.join(", ")}]`
+      );
+    }
+
     // Close the server first to stop accepting new connections
     server.close(async () => {
       console.log("HTTP server closed");
       logger.info("HTTP server closed");
 
-      // Enhanced cron job shutdown handling
+      // Stop cron jobs
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
+        const jobNames = Object.keys(global.cronJobs);
         console.log(
-          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`
         );
         logger.info(
-          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`
         );
 
-        // Stop each job individually with error handling
-        for (const [jobName, jobObj] of Object.entries(global.cronJobs)) {
-          try {
-            console.log(`Stopping cron job: ${jobName}`);
-            logger.info(`Stopping cron job: ${jobName}`);
-
-            // Enhanced pattern: Use the async stop method if available
-            if (jobObj.stop && typeof jobObj.stop === "function") {
-              await jobObj.stop();
-              console.log(`✅ Successfully stopped cron job: ${jobName}`);
-              logger.info(`✅ Successfully stopped cron job: ${jobName}`);
-            }
-            // Legacy pattern: Direct job manipulation
-            else if (jobObj.job) {
-              console.log(`🔄 Using legacy stop method for job: ${jobName}`);
-              logger.info(`🔄 Using legacy stop method for job: ${jobName}`);
-
-              // Stop the schedule
-              if (typeof jobObj.job.stop === "function") {
-                jobObj.job.stop();
-                console.log(`📅 Stopped schedule for job: ${jobName}`);
-              }
-
-              // Try to destroy if method exists
-              if (typeof jobObj.job.destroy === "function") {
-                jobObj.job.destroy();
-                console.log(`💥 Destroyed job: ${jobName}`);
-              } else {
-                console.log(
-                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
-                );
-                logger.warn(
-                  `Job ${jobName} doesn't have destroy method (older node-cron version)`
-                );
-              }
-
-              // Remove from registry
-              delete global.cronJobs[jobName];
-              console.log(
-                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
-              );
-              logger.info(
-                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
-              );
-            }
-            // Simple job pattern (current pattern)
-            else if (typeof jobObj.stop === "function") {
-              jobObj.stop();
-              console.log(
-                `✅ Successfully stopped cron job: ${jobName} (simple mode)`
-              );
-            }
-            // Unknown pattern
-            else {
-              console.warn(
-                `⚠️  Job ${jobName} has unknown structure, skipping`
-              );
-              logger.warn(`Job ${jobName} has unknown structure, skipping`);
-            }
-          } catch (error) {
-            console.error(
-              `❌ Error stopping cron job ${jobName}:`,
-              error.message
-            );
-            logger.error(
-              `❌ Error stopping cron job ${jobName}: ${error.message}`
-            );
-
-            // Try emergency cleanup
+        const stopPromises = Object.entries(global.cronJobs).map(
+          async ([jobName, jobObj]) => {
             try {
-              if (jobObj.job && typeof jobObj.job.stop === "function") {
-                jobObj.job.stop();
-                console.log(`🆘 Emergency stopped job: ${jobName}`);
+              if (jobObj && typeof jobObj.stop === "function") {
+                await jobObj.stop();
+                console.log(`✅ Successfully stopped cron job: ${jobName}`);
+                logger.info(`✅ Successfully stopped cron job: ${jobName}`);
+              } else {
+                console.warn(
+                  `⚠️ Job ${jobName} does not have a 'stop' method.`
+                );
+                logger.warn(`⚠️ Job ${jobName} does not have a 'stop' method.`);
               }
-              delete global.cronJobs[jobName];
-            } catch (emergencyError) {
+            } catch (error) {
               console.error(
-                `💥 Emergency cleanup failed for ${jobName}:`,
-                emergencyError.message
+                `❌ Error stopping cron job ${jobName}:`,
+                error.message
               );
               logger.error(
-                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
+                `❌ Error stopping cron job ${jobName}: ${error.message}`
               );
             }
           }
-        }
+        );
 
-        console.log("All cron jobs stopped");
-        logger.info("All cron jobs stopped");
+        await Promise.all(stopPromises);
+        console.log("All cron jobs have been processed for shutdown.");
+        logger.info("All cron jobs have been processed for shutdown.");
       } else {
-        console.log("No cron jobs to stop");
-        logger.info("No cron jobs to stop");
+        console.log("No cron jobs to stop.");
+        logger.info("No cron jobs to stop.");
+      }
+
+      // Wait for any remaining active jobs to finish
+      let waitCount = 0;
+      while (global.jobMetrics.activeJobs.size > 0 && waitCount < 30) {
+        // Wait up to 30 seconds
+        const remainingJobs = Array.from(global.jobMetrics.activeJobs);
+        console.log(`⏳ Still waiting for jobs: [${remainingJobs.join(", ")}]`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        waitCount++;
+      }
+
+      if (global.jobMetrics.activeJobs.size > 0) {
+        const remainingJobs = Array.from(global.jobMetrics.activeJobs);
+        console.warn(
+          `⚠️ Force stopping with ${
+            remainingJobs.length
+          } jobs still active: [${remainingJobs.join(", ")}]`
+        );
       }
 
       // Close any Redis connections if they exist
@@ -501,7 +618,7 @@ const createServer = () => {
         "Could not close connections in time, forcefully shutting down"
       );
       process.exit(1);
-    }, 15000); // Increased timeout to 15 seconds to allow for async job stopping
+    }, 45000); // Allow up to 45s to cover job wait (30s) + cleanup headroom
   };
 
   // Add signal handlers

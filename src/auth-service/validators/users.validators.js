@@ -1,7 +1,78 @@
 // users.validators.js
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
+const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
+
+const createInterestValidation = () => [
+  body("interests")
+    .optional()
+    .customSanitizer((value) => {
+      let interests = value;
+      if (interests === null || interests === undefined || interests === "") {
+        return [];
+      }
+      if (typeof interests === "string") {
+        interests = interests.trim() ? [interests.trim()] : [];
+      }
+
+      if (!Array.isArray(interests)) {
+        // Let the .isArray() validator catch it if it's not a convertible type
+        return interests;
+      }
+
+      const interestMap = {
+        "Health Professional": "health",
+        "Software Developer": "software developer",
+        "Community Champion": "community champion",
+        "Environmental Scientist": "environmental",
+        Student: "student",
+        "Policy Maker": "policy maker",
+        Researcher: "researcher",
+        "Air Quality Partner": "air quality partner",
+      };
+
+      return interests
+        .map((interest) => {
+          if (typeof interest !== "string") return "";
+          const trimmedInterest = interest.trim();
+          return interestMap[trimmedInterest] || trimmedInterest.toLowerCase();
+        })
+        .filter(Boolean);
+    })
+    .isArray()
+    .withMessage("interests should be an array")
+    .custom((value) => {
+      const validInterests = [
+        "health",
+        "software developer",
+        "community champion",
+        "environmental",
+        "student",
+        "policy maker",
+        "researcher",
+        "air quality partner",
+      ];
+      if (value && Array.isArray(value)) {
+        for (let interest of value) {
+          if (!validInterests.includes(interest)) {
+            throw new Error(`${interest} is not a valid interest option`);
+          }
+        }
+      }
+      return true;
+    }),
+  body("interestsDescription")
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage("Interests description cannot exceed 1000 characters")
+    .trim(),
+  body("country")
+    .optional()
+    .notEmpty()
+    .withMessage("country should not be empty if provided")
+    .trim(),
+];
 
 const validateTenant = oneOf([
   query("tenant")
@@ -55,8 +126,80 @@ const deleteMobileUserData = [
 const login = [
   validateTenant,
   [
-    body("userName").exists().withMessage("the userName must be provided"),
-    body("password").exists().withMessage("the password must be provided"),
+    body("userName")
+      .exists()
+      .withMessage("the userName must be provided")
+      .bail()
+      .notEmpty()
+      .withMessage("userName should not be empty")
+      .trim(),
+    body("password")
+      .exists()
+      .withMessage("the password must be provided")
+      .bail()
+      .notEmpty()
+      .withMessage("password should not be empty"),
+  ],
+];
+
+const loginLegacyCompatible = [
+  validateTenant,
+  [
+    body("email")
+      .exists()
+      .withMessage("email is required")
+      .bail()
+      .notEmpty()
+      .withMessage("email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("Invalid email format")
+      .trim(),
+    body("password")
+      .exists()
+      .withMessage("password is required")
+      .bail()
+      .notEmpty()
+      .withMessage("password should not be empty"),
+  ],
+];
+
+const validStrategies = Object.values(constants.TOKEN_STRATEGIES);
+
+const loginEnhanced = [
+  validateTenant,
+  [
+    body("email")
+      .exists()
+      .withMessage("email is required")
+      .bail()
+      .notEmpty()
+      .withMessage("email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("Invalid email format")
+      .trim(),
+    body("password")
+      .exists()
+      .withMessage("password is required")
+      .bail()
+      .notEmpty()
+      .withMessage("password should not be empty"),
+    body("preferredStrategy")
+      .optional()
+      .notEmpty()
+      .withMessage("preferredStrategy should not be empty if provided")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+    body("includeDebugInfo")
+      .optional()
+      .isBoolean()
+      .withMessage("includeDebugInfo must be a boolean"),
   ],
 ];
 
@@ -396,6 +539,7 @@ const registerUser = [
       .isIn(["admin", "netmanager", "user", "super"])
       .withMessage("the privilege value is not among the expected ones")
       .trim(),
+    ...createInterestValidation(),
   ],
 ];
 
@@ -461,6 +605,7 @@ const createUser = [
       .bail()
       .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
       .withMessage("Password must contain at least one letter and one number"),
+    ...createInterestValidation(),
   ],
 ];
 
@@ -481,17 +626,6 @@ const updatePasswordViaEmail = [
 const updatePassword = [
   validateTenant,
   [
-    query("id")
-      .exists()
-      .withMessage("the user ID must be provided")
-      .trim()
-      .bail()
-      .isMongoId()
-      .withMessage("the user ID must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
     body("old_password")
       .exists()
       .withMessage("the old_password must be provided")
@@ -560,6 +694,7 @@ const updateUser = [
       .optional()
       .isMongoId()
       .withMessage("each network should be an object ID"),
+    ...createInterestValidation(),
   ],
 ];
 
@@ -593,6 +728,7 @@ const updateUserById = [
       .isMongoId()
       .withMessage("each network should be an object ID"),
   ],
+  ...createInterestValidation(),
 ];
 
 const deleteUser = [
@@ -879,6 +1015,23 @@ const getUser = [
   ],
 ];
 
+const getEnhancedProfileForUser = [
+  validateTenant,
+  [
+    param("user_id")
+      .exists()
+      .withMessage("the user ID param is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+];
+
 const resetPasswordRequest = [
   body("email")
     .exists()
@@ -978,6 +1131,7 @@ const registerViaOrgSlug = [
     .optional()
     .notEmpty()
     .withMessage("captchaToken should not be empty if provided"),
+  ...createInterestValidation(),
 ];
 
 const userCleanup = [
@@ -1002,11 +1156,191 @@ const userCleanup = [
   ],
 ];
 
+const generateToken = [
+  validateTenant,
+  [
+    body("userId")
+      .exists()
+      .withMessage("userId is required")
+      .bail()
+      .notEmpty()
+      .withMessage("userId should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    body("strategy")
+      .optional()
+      .notEmpty()
+      .withMessage("strategy should not be empty if provided")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+    body("options")
+      .optional()
+      .isObject()
+      .withMessage("options must be an object"),
+  ],
+];
+
+const updateTokenStrategy = [
+  validateTenant,
+  [
+    body("userId")
+      .optional()
+      .notEmpty()
+      .withMessage("userId should not be empty if provided")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    body("strategy")
+      .exists()
+      .withMessage("strategy is required")
+      .bail()
+      .notEmpty()
+      .withMessage("strategy should not be empty")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+  ],
+];
+
+const refreshPermissions = [
+  validateTenant,
+  [
+    body("userId")
+      .optional()
+      .notEmpty()
+      .withMessage("userId should not be empty if provided")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    body("strategy")
+      .optional()
+      .notEmpty()
+      .withMessage("strategy should not be empty if provided")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+  ],
+];
+
+const analyzeTokenStrategies = [
+  validateTenant,
+  [
+    param("userId")
+      .exists()
+      .withMessage("userId is required")
+      .bail()
+      .notEmpty()
+      .withMessage("userId should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+  ],
+];
+
+const getContextPermissions = [
+  validateTenant,
+  [
+    query("userId")
+      .optional()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    query("contextId")
+      .optional()
+      .isMongoId()
+      .withMessage("contextId must be a valid Mongo ID"),
+    query("contextType")
+      .optional()
+      .isIn(["group", "network"])
+      .withMessage("contextType must be either 'group' or 'network'"),
+  ],
+];
+
+const debugPermissions = [
+  validateTenant,
+  [
+    param("userId")
+      .exists()
+      .withMessage("userId is required")
+      .bail()
+      .notEmpty()
+      .withMessage("userId should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+  ],
+];
+
+const initiateAccountDeletion = [
+  validateTenant,
+  [
+    body("email")
+      .exists()
+      .withMessage("email is required")
+      .bail()
+      .notEmpty()
+      .withMessage("email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("Invalid email format")
+      .trim(),
+  ],
+];
+
+const confirmAccountDeletion = [
+  validateTenant,
+  [
+    param("token")
+      .exists()
+      .withMessage("The deletion token is missing in the request")
+      .bail()
+      .notEmpty()
+      .withMessage("token should not be empty")
+      .trim()
+      .isHexadecimal()
+      .withMessage("token must be a hexadecimal string")
+      .isLength({ min: 40, max: 40 })
+      .withMessage("token must be 40 characters long"),
+  ],
+];
+
+const confirmMobileAccountDeletion = [
+  validateTenant,
+  [
+    body("token")
+      .exists()
+      .withMessage("The deletion token is missing in the request")
+      .bail()
+      .notEmpty()
+      .withMessage("token should not be empty")
+      .trim()
+      .isNumeric()
+      .withMessage("token must be a numeric string")
+      .isLength({ min: 5, max: 5 })
+      .withMessage("token must be 5 characters long"),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
   pagination,
   deleteMobileUserData,
+  loginEnhanced,
+  loginLegacyCompatible,
   login,
   emailLogin,
   emailAuth,
@@ -1036,10 +1370,20 @@ module.exports = {
   unSubscribeFromNotifications,
   notificationStatus,
   getUser,
+  getEnhancedProfileForUser,
   resetPasswordRequest,
   resetPassword,
   verifyMobileEmail,
   getOrganizationBySlug,
   registerViaOrgSlug,
   userCleanup,
+  generateToken,
+  updateTokenStrategy,
+  refreshPermissions,
+  analyzeTokenStrategies,
+  getContextPermissions,
+  debugPermissions,
+  initiateAccountDeletion,
+  confirmAccountDeletion,
+  confirmMobileAccountDeletion,
 };

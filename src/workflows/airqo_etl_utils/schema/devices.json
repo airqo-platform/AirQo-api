@@ -19,6 +19,7 @@
     "type": "STRING",
     "mode": "NULLABLE"
   },
+  { "name": "id", "type": "STRING", "mode": "NULLABLE" },
   {
     "name": "device_id",
     "type": "STRING",
@@ -30,7 +31,7 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "name",
+    "name": "auth_required",
     "type": "STRING",
     "mode": "NULLABLE"
   },
@@ -60,8 +61,48 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "mount_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "mobility",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "last_updated",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "device_maintenance",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "key",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "power_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "assigned_grid",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "api_code",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "created_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   }
 ]

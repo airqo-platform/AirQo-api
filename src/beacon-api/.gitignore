@@ -1,0 +1,168 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+    
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+pgdata/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary Files
+*.tmp
+temp/
+tmp/
+.temp/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Secrets & Security
+*.pem
+*.key
+*.crt
+*.cert
+ssl/
+certificates/
+secrets/
+private/
+
+# Backup Files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Redis
+dump.rdb
+*.rdb
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat.pid
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# Application Specific
+uploads/
+downloads/
+exports/
+static/admin/
+media/
+data/
+*.csv
+*.xlsx
+*.xls
+
+# Docker volumes (local development)
+.docker/
+docker-compose.yml
+docker-compose.yaml
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Alembic local files
+alembic/versions/*.pyc
+
+# Local development
+local_settings.py
+.local/
+
+# Package managers
+Pipfile.lock
+poetry.lock
+package-lock.json
+yarn.lock
+
+# Documentation build
+docs/_build/
+site/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# pytype
+.pytype/
+
+# Cython
+cython_debug/

@@ -29,28 +29,165 @@ const validateDeploymentType = (value) => {
   return true;
 };
 
-// Custom validator to ensure either site_id OR grid_id is provided
+// Custom validator to ensure either site_id OR grid_id is provided -- prevent pole-mobile conflicts + comprehensive business rules
 const validateLocationReference = (value, { req }) => {
-  const { site_id, grid_id, deployment_type } = req.body;
+  const {
+    site_id,
+    grid_id,
+    deployment_type,
+    mountType,
+    powerType,
+    mobility,
+  } = req.body;
 
-  // For mobile deployments, grid_id is required
-  if (deployment_type === "mobile") {
+  // Determine actual deployment type
+  const actualDeploymentType =
+    deployment_type || (grid_id ? "mobile" : "static");
+
+  // If mobility is explicitly provided, it must match the deployment type
+  if (typeof mobility === "boolean") {
+    if (mobility === true && actualDeploymentType !== "mobile") {
+      throw new Error(
+        "mobility=true is only valid for mobile deployments (with a grid_id)."
+      );
+    }
+    if (mobility === false && actualDeploymentType !== "static") {
+      throw new Error(
+        "mobility=false is only valid for static deployments (with a site_id)."
+      );
+    }
+  }
+
+  // MOBILE DEPLOYMENT VALIDATIONS
+  if (actualDeploymentType === "mobile") {
+    // Mobile requires grid_id
     if (!grid_id) {
       throw new Error("grid_id is required for mobile deployments");
     }
     if (site_id) {
       throw new Error("site_id should not be provided for mobile deployments");
     }
+
+    // Mobile devices must be vehicle-mounted
+    if (mountType && mountType !== "vehicle") {
+      throw new Error(
+        `Mobile devices must have mountType 'vehicle', not '${mountType}'`
+      );
+    }
+
+    // Mobile devices must use alternator power
+    if (powerType && powerType !== "alternator") {
+      throw new Error(
+        `Mobile devices must have powerType 'alternator', not '${powerType}'`
+      );
+    }
   }
 
-  // For static deployments, site_id is required
-  if (deployment_type === "static" || !deployment_type) {
+  // STATIC DEPLOYMENT VALIDATIONS
+  if (actualDeploymentType === "static") {
+    // Static requires site_id
     if (!site_id) {
       throw new Error("site_id is required for static deployments");
     }
     if (grid_id) {
       throw new Error("grid_id should not be provided for static deployments");
     }
+
+    // Static devices cannot be vehicle-mounted
+    if (mountType === "vehicle") {
+      throw new Error("Static devices cannot have mountType 'vehicle'");
+    }
+
+    // Static devices should not use alternator power (business rule)
+    if (powerType === "alternator") {
+      throw new Error(
+        "Static devices should use 'solar' or 'mains' power, not 'alternator'"
+      );
+    }
+  }
+
+  // MOUNT TYPE SPECIFIC VALIDATIONS
+  if (mountType === "vehicle" && actualDeploymentType !== "mobile") {
+    throw new Error("Vehicle-mounted devices must be mobile deployments");
+  }
+
+  if (mountType === "pole" && actualDeploymentType !== "static") {
+    throw new Error("Pole-mounted devices must be static deployments");
+  }
+
+  // POWER TYPE SPECIFIC VALIDATIONS
+  if (powerType === "alternator" && actualDeploymentType !== "mobile") {
+    throw new Error("Alternator power is only valid for mobile deployments");
+  }
+
+  return true;
+};
+
+// Enhanced mount type validation with business logic
+const validateMountTypeConsistency = (value, { req }) => {
+  const { deployment_type, grid_id, powerType, mountType } = req.body;
+  const actualDeploymentType =
+    deployment_type || (grid_id ? "mobile" : "static");
+
+  if (mountType === "vehicle") {
+    if (actualDeploymentType !== "mobile") {
+      throw new Error("Vehicle mountType requires mobile deployment");
+    }
+    if (powerType && powerType !== "alternator") {
+      throw new Error("Vehicle mountType requires alternator powerType");
+    }
+  }
+
+  if (
+    actualDeploymentType === "mobile" &&
+    mountType &&
+    mountType !== "vehicle"
+  ) {
+    throw new Error("Mobile deployments require vehicle mountType");
+  }
+
+  if (
+    ["pole", "wall", "faceboard", "rooftop", "suspended"].includes(mountType) &&
+    actualDeploymentType === "mobile"
+  ) {
+    throw new Error(
+      `${mountType} mountType is not valid for mobile deployments`
+    );
+  }
+
+  return true;
+};
+
+// Enhanced power type validation with business logic
+const validatePowerTypeConsistency = (value, { req }) => {
+  const { deployment_type, grid_id, mountType, powerType } = req.body;
+  const actualDeploymentType =
+    deployment_type || (grid_id ? "mobile" : "static");
+
+  if (powerType === "alternator") {
+    if (actualDeploymentType !== "mobile") {
+      throw new Error("Alternator powerType requires mobile deployment");
+    }
+    if (mountType && mountType !== "vehicle") {
+      throw new Error("Alternator powerType requires vehicle mountType");
+    }
+  }
+
+  if (
+    actualDeploymentType === "mobile" &&
+    powerType &&
+    powerType !== "alternator"
+  ) {
+    throw new Error("Mobile deployments require alternator powerType");
+  }
+
+  if (
+    ["solar", "mains"].includes(powerType) &&
+    actualDeploymentType === "mobile"
+  ) {
+    throw new Error(
+      `${powerType} powerType is not typically valid for mobile deployments`
+    );
   }
 
   return true;
@@ -125,7 +262,9 @@ const commonDeployValidations = {
     .bail()
     .customSanitizer((value) => value.toLowerCase())
     .isIn(["solar", "mains", "alternator"])
-    .withMessage("powerType must be one of: solar, mains, alternator"),
+    .withMessage("powerType must be one of: solar, mains, alternator")
+    .bail()
+    .custom(validatePowerTypeConsistency),
 
   mountType: body("mountType")
     .exists()
@@ -139,7 +278,9 @@ const commonDeployValidations = {
     .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
     .withMessage(
       "mountType must be one of: pole, wall, faceboard, rooftop, suspended, vehicle"
-    ),
+    )
+    .bail()
+    .custom(validateMountTypeConsistency),
 
   isPrimaryInLocation: body("isPrimaryInLocation")
     .optional()
@@ -351,7 +492,9 @@ const commonValidations = {
       .isIn(["solar", "mains", "alternator"])
       .withMessage(
         "the powerType value is not among the expected ones which include: solar, mains and alternator"
-      ),
+      )
+      .bail()
+      .custom(validatePowerTypeConsistency),
   ],
   mountType: [
     body("mountType")
@@ -363,7 +506,9 @@ const commonValidations = {
       .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
       .withMessage(
         "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
-      ),
+      )
+      .bail()
+      .custom(validateMountTypeConsistency),
   ],
   height: [
     body("height")
@@ -551,6 +696,35 @@ const commonValidations = {
 };
 
 const activitiesValidations = {
+  refreshCaches: [
+    ...commonValidations.tenant,
+    body("device_names")
+      .optional()
+      .isArray()
+      .withMessage("device_names must be an array"),
+    body("site_ids")
+      .optional()
+      .isArray()
+      .withMessage("site_ids must be an array"),
+    body("refresh_all")
+      .optional()
+      .isBoolean()
+      .withMessage("refresh_all must be a boolean")
+      .toBoolean(),
+  ],
+  backfillDeviceIds: [
+    ...commonValidations.tenant,
+    body("dry_run")
+      .optional()
+      .isBoolean()
+      .withMessage("dry_run must be a boolean value (true or false)")
+      .toBoolean(),
+    body("batch_size")
+      .optional()
+      .isInt({ min: 10, max: 1000 })
+      .withMessage("batch_size must be an integer between 10 and 1000")
+      .toInt(),
+  ],
   recallActivity: [
     ...commonValidations.tenant,
     ...commonValidations.deviceName,
@@ -691,14 +865,56 @@ const activitiesValidations = {
       .trim()
       .toLowerCase()
       .isIn(["solar", "mains", "alternator"])
-      .withMessage("Invalid powerType"),
+      .withMessage("Invalid powerType")
+      .bail()
+      .custom((powerType, { req }) => {
+        // Get the current item being validated
+        const currentItem = req.body.find(
+          (item) => item.powerType === powerType
+        );
+        if (currentItem) {
+          const deploymentType =
+            currentItem.deployment_type ||
+            (currentItem.grid_id ? "mobile" : "static");
+
+          if (powerType === "alternator" && deploymentType !== "mobile") {
+            throw new Error("Alternator powerType requires mobile deployment");
+          }
+
+          if (deploymentType === "mobile" && powerType !== "alternator") {
+            throw new Error("Mobile deployments require alternator powerType");
+          }
+        }
+        return true;
+      }),
     body("*.mountType")
       .exists()
       .withMessage("mountType is required")
       .trim()
       .toLowerCase()
-      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
-      .withMessage("Invalid mountType"),
+      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"]) // ADD "vehicle"
+      .withMessage("Invalid mountType")
+      .bail()
+      .custom((mountType, { req }) => {
+        // Get the current item being validated
+        const currentItem = req.body.find(
+          (item) => item.mountType === mountType
+        );
+        if (currentItem) {
+          const deploymentType =
+            currentItem.deployment_type ||
+            (currentItem.grid_id ? "mobile" : "static");
+
+          if (mountType === "vehicle" && deploymentType !== "mobile") {
+            throw new Error("Vehicle mountType requires mobile deployment");
+          }
+
+          if (deploymentType === "mobile" && mountType !== "vehicle") {
+            throw new Error("Mobile deployments require vehicle mountType");
+          }
+        }
+        return true;
+      }),
     body("*.isPrimaryInLocation")
       .exists()
       .withMessage("isPrimaryInLocation is required")
@@ -768,6 +984,17 @@ const activitiesValidations = {
     commonValidations.objectId("site_id"),
     ...commonValidations.network,
     ...commonValidations.activityCodes,
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
   ],
 
   updateActivity: [
@@ -822,6 +1049,13 @@ const activitiesValidations = {
     commonDeployValidations.date,
     commonDeployValidations.network,
     commonDeployValidations.host_id,
+  ],
+  recalculate: [
+    ...commonValidations.tenant,
+    body("dry_run")
+      .optional()
+      .isBoolean()
+      .withMessage("dry_run must be a boolean value (true or false)"),
   ],
 };
 
@@ -879,4 +1113,5 @@ module.exports = {
   validateTenantQuery,
   enhancedDeployActivity: activitiesValidations.enhancedDeployActivity,
   validateDeployOwnedDevice: activitiesValidations.validateDeployOwnedDevice,
+  backfillDeviceIds: activitiesValidations.backfillDeviceIds,
 };

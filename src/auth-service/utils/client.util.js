@@ -2,7 +2,7 @@ const WhitelistedIPModel = require("@models/WhitelistedIP");
 const ClientModel = require("@models/Client");
 const UserModel = require("@models/User");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const { mailer, stringify, generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
@@ -308,19 +308,10 @@ const client = {
       );
     }
   },
-  listClient: async (request, next) => {
+  listClients: async (request, next) => {
     try {
       const { tenant, limit, skip } = { ...request.query };
       const filter = generateFilter.clients(request, next);
-
-      // CRITICAL: Warn about potentially dangerous operations
-      if (Object.keys(filter).length === 0 && !request.allowBulkOperations) {
-        logger.warn("Potentially unintended bulk operation detected", {
-          endpoint: request.route?.path,
-          query: request.query,
-          params: request.params,
-        });
-      }
       const responseFromListClient = await ClientModel(
         tenant.toLowerCase()
       ).list({ skip, limit, filter }, next);

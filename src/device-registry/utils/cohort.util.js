@@ -1,5 +1,7 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
+const SiteModel = require("@models/Site");
+const qs = require("qs");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -292,6 +294,92 @@ const createCohort = {
       );
     }
   },
+  updateName: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const { name, update_reason } = body;
+
+      const filter = generateFilter.cohorts(request, next);
+      if (filter.success && filter.success === "false") {
+        return filter;
+      }
+
+      // First, get the existing cohort to validate it exists
+      const existingCohort = await CohortModel(tenant)
+        .findOne(filter)
+        .lean();
+      if (!existingCohort) {
+        return {
+          success: false,
+          message: "Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "The specified cohort does not exist" },
+        };
+      }
+
+      // Check if the new name already exists (excluding current cohort)
+      const nameExists = await CohortModel(tenant).findOne({
+        name: name
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .slice(0, 41)
+          .trim()
+          .toLowerCase(),
+        _id: { $ne: existingCohort._id },
+      });
+
+      if (nameExists) {
+        return {
+          success: false,
+          message: "Name already exists",
+          status: httpStatus.CONFLICT,
+          errors: { message: "A cohort with this name already exists" },
+        };
+      }
+
+      // Prepare the processed name and regenerated cohort_codes
+      const processedName = name
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .slice(0, 41)
+        .trim()
+        .toLowerCase();
+
+      const newCohortCodes = [existingCohort._id, processedName];
+
+      // Prepare the update object
+      const update = {
+        name: processedName,
+        cohort_codes: newCohortCodes,
+        $push: {
+          name_update_history: {
+            updated_at: new Date(),
+            reason: update_reason,
+            previous_name: existingCohort.name,
+            previous_cohort_codes: existingCohort.cohort_codes,
+          },
+        },
+      };
+
+      const responseFromUpdateCohortName = await CohortModel(tenant).modifyName(
+        {
+          filter,
+          update,
+        },
+        next
+      );
+
+      return responseFromUpdateCohortName;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   delete: async (request, next) => {
     try {
       return {
@@ -327,20 +415,90 @@ const createCohort = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip, path } = request.query;
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
-      const responseFromListCohort = await CohortModel(tenant).list(
+
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
+      const pipeline = [
+        { $match: filter },
         {
-          filter,
-          limit,
-          skip,
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
         },
-        next
-      );
-      return responseFromListCohort;
+        { $project: constants.COHORTS_INCLUSION_PROJECTION },
+        { $project: constants.COHORTS_EXCLUSION_PROJECTION(detailLevel) },
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await CohortModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const agg =
+        Array.isArray(results) && results[0]
+          ? results[0]
+          : { paginatedResults: [], totalCount: [] };
+      const paginatedResults = agg.paginatedResults || [];
+      const total =
+        Array.isArray(agg.totalCount) && agg.totalCount[0]
+          ? agg.totalCount[0].count
+          : 0;
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved cohorts",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -352,6 +510,7 @@ const createCohort = {
       );
     }
   },
+
   verify: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -939,6 +1098,869 @@ const createCohort = {
         status: httpStatus.OK,
         data: publicDevices,
         message: "operation successful",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  createCohortFromCohortIDs: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const { name, description, cohort_ids } = body;
+
+      // 1. Fetch all source cohorts to validate they exist and get network ID
+      const existingCohorts = await CohortModel(tenant)
+        .find({ _id: { $in: cohort_ids } })
+        .select("network") // only need network
+        .lean();
+
+      logObject("existingCohorts", existingCohorts);
+
+      if (existingCohorts.length !== cohort_ids.length) {
+        const foundIds = existingCohorts.map((c) => c._id.toString());
+        const notFoundIds = cohort_ids.filter((id) => !foundIds.includes(id));
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `The following cohorts were not found: ${notFoundIds.join(
+              ", "
+            )}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // 2. Ensure all cohorts belong to the same network
+      // 2. Ensure all source cohorts belong to the same network
+      if (existingCohorts.length === 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "Cannot create a cohort from an empty list of source cohorts.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const networkId = existingCohorts[0].network;
+      const allSameNetwork = existingCohorts.every(
+        (cohort) =>
+          cohort.network && cohort.network.toString() === networkId.toString()
+      );
+
+      if (!allSameNetwork) {
+        // return {
+        //   success: false,
+        //   message: "Bad Request Error",
+        //   errors: {
+        //     message: "All provided cohorts must belong to the same network.",
+        //   },
+        //   status: httpStatus.BAD_REQUEST,
+        // };
+      }
+
+      // 3. Create the new cohort first to get its ID
+      const newCohortData = {
+        name,
+        description,
+        network: networkId,
+      };
+
+      const newCohortResponse = await CohortModel(tenant).register(
+        newCohortData,
+        next
+      );
+
+      // const newCohort = newCohortResponse.data;
+
+      const newCohort = newCohortResponse && newCohortResponse.data;
+      if (!newCohortResponse?.success || !newCohort) {
+        return {
+          success: false,
+          message: "Failed to create the new cohort",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              newCohortResponse?.errors?.message ||
+              "Cohort registration did not return a valid cohort",
+          },
+        };
+      }
+
+      // 4. Find all unique devices belonging to the source cohorts
+      const devicesToUpdate = await DeviceModel(tenant)
+        .find({ cohorts: { $in: cohort_ids } })
+        .distinct("_id");
+
+      if (devicesToUpdate.length === 0) {
+        // It's not an error if there are no devices, just return the newly created empty cohort.
+        return {
+          success: true,
+          message:
+            "Successfully created an empty cohort as source cohorts have no devices.",
+          data: newCohort,
+          status: httpStatus.CREATED,
+        };
+      }
+
+      // 5. Assign the new cohort to all these devices
+      const updateResult = await DeviceModel(tenant).updateMany(
+        { _id: { $in: devicesToUpdate } },
+        { $addToSet: { cohorts: newCohort._id } }
+      );
+
+      logObject(
+        "updateResult from assigning devices to new cohort",
+        updateResult
+      );
+
+      return {
+        success: true,
+        message: `Successfully created cohort and assigned it to ${updateResult.nModified} devices.`,
+        data: newCohort,
+        status: httpStatus.CREATED,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+  listDevices: async (request, next) => {
+    try {
+      const {
+        tenant,
+        limit,
+        skip,
+        activities_limit,
+        sortBy,
+        order,
+      } = request.query;
+      const { cohort_ids, category } = { ...request.body, ...request.query };
+
+      // Pagination and activities controls
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 50, 200));
+      const activitiesLimit = Math.min(
+        parseInt(activities_limit, 10) || 100,
+        500
+      );
+
+      // Sorting controls
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
+      const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
+        "full"
+      );
+
+      // Build filter
+      const filter = {
+        cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) },
+      };
+
+      // Add category filter if provided
+      if (category) {
+        const validCategories = constants.DEVICE_FILTER_TYPES;
+        if (!validCategories.includes(category.toLowerCase())) {
+          return {
+            success: false,
+            message: "Invalid category",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Category must be one of: ${validCategories.join(", ")}`,
+            },
+          };
+        }
+        if (category.toLowerCase() === "mobile") {
+          filter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          filter.$or = [{ mobility: { $exists: false } }, { mobility: false }];
+        } else {
+          filter.category = category.toLowerCase();
+        }
+      }
+
+      // Get total count for pagination metadata before applying limit and skip
+      const total = await DeviceModel(tenant).countDocuments(filter);
+
+      const pipeline = [
+        { $match: filter },
+        { $sort: { [sortField]: sortOrder } },
+        { $skip: _skip },
+        { $limit: _limit },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "site_id",
+            foreignField: "_id",
+            as: "site",
+          },
+        },
+        // Normalize site array to a single doc for downstream lookups
+        {
+          $addFields: {
+            site: {
+              $cond: [
+                { $gt: [{ $size: "$site" }, 0] },
+                { $arrayElemAt: ["$site", 0] },
+                null,
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "hosts",
+            localField: "host_id",
+            foreignField: "_id",
+            as: "host",
+          },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "previous_sites",
+            foreignField: "_id",
+            as: "previous_sites",
+          },
+        },
+        {
+          $lookup: {
+            from: "cohorts",
+            localField: "cohorts",
+            foreignField: "_id",
+            as: "cohorts",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            let: { gridIds: { $ifNull: ["$site.grids", []] } },
+            pipeline: [
+              { $match: { $expr: { $in: ["$_id", "$$gridIds"] } } },
+              { $project: { _id: 1, name: 1, admin_level: 1, long_name: 1 } },
+            ],
+            as: "grids",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "assigned_grid",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$device_id", "$$deviceId"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                },
+              },
+              { $limit: activitiesLimit },
+            ],
+            as: "activities",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                        ],
+                      },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                        ],
+                      },
+                      { $eq: ["$activityType", "maintenance"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_maintenance_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                        ],
+                      },
+                      {
+                        $or: [
+                          { $eq: ["$activityType", "recall"] },
+                          { $eq: ["$activityType", "recallment"] },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_recall_activity",
+          },
+        },
+        {
+          $addFields: {
+            total_activities: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
+            // explicit metric for the truncated activities array we actually returned
+            activities_loaded: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
+          },
+        },
+        { $project: inclusionProjection },
+        { $project: exclusionProjection },
+      ];
+
+      const paginatedResults = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      // Post-processing for consistency
+      paginatedResults.forEach((device) => {
+        // Process latest activities to extract single objects
+        device.latest_deployment_activity =
+          device.latest_deployment_activity &&
+          device.latest_deployment_activity.length > 0
+            ? device.latest_deployment_activity[0]
+            : null;
+
+        device.latest_maintenance_activity =
+          device.latest_maintenance_activity &&
+          device.latest_maintenance_activity.length > 0
+            ? device.latest_maintenance_activity[0]
+            : null;
+
+        device.latest_recall_activity =
+          device.latest_recall_activity &&
+          device.latest_recall_activity.length > 0
+            ? device.latest_recall_activity[0]
+            : null;
+
+        // Create activities by type mapping
+        if (device.activities && device.activities.length > 0) {
+          const activitiesByType = {};
+          const latestActivitiesByType = {};
+
+          device.activities.forEach((activity) => {
+            const type = activity.activityType || "unknown";
+            activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+            if (
+              !latestActivitiesByType[type] ||
+              new Date(activity.createdAt) >
+                new Date(latestActivitiesByType[type].createdAt)
+            ) {
+              latestActivitiesByType[type] = activity;
+            }
+          });
+
+          device.activities_by_type = activitiesByType;
+          device.latest_activities_by_type = latestActivitiesByType;
+        } else {
+          device.activities_by_type = {};
+          device.latest_activities_by_type = {};
+        }
+
+        // Process assigned_grid to extract single object
+        if (device.assigned_grid && device.assigned_grid.length > 0) {
+          const grid = device.assigned_grid[0];
+          device.assigned_grid = {
+            _id: grid._id,
+            name: grid.name,
+            admin_level: grid.admin_level,
+            long_name: grid.long_name,
+          };
+        } else {
+          device.assigned_grid = null;
+        }
+      });
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved devices for the provided cohorts",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listSites: async (request, next) => {
+    try {
+      const { tenant, limit, skip, sortBy, order } = request.query;
+      const { cohort_ids, category } = { ...request.body, ...request.query };
+
+      // Pagination controls
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 50, 200));
+
+      // Sorting controls
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
+      // Convert cohort_ids to ObjectIds
+      const cohortObjectIds = cohort_ids.map((id) => ObjectId(id));
+
+      // Step 1: Build device filter
+      const deviceFilter = {
+        cohorts: { $in: cohortObjectIds },
+      };
+
+      // Add category filter if provided
+      if (category) {
+        const validCategories = constants.DEVICE_FILTER_TYPES;
+        if (!validCategories.includes(category.toLowerCase())) {
+          return {
+            success: false,
+            message: "Invalid category",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Category must be one of: ${validCategories.join(", ")}`,
+            },
+          };
+        }
+        if (category.toLowerCase() === "mobile") {
+          deviceFilter.mobility = true;
+        } else if (category.toLowerCase() === "static") {
+          deviceFilter.$or = [
+            { mobility: { $exists: false } },
+            { mobility: false },
+          ];
+        } else {
+          deviceFilter.category = category.toLowerCase();
+        }
+      }
+
+      // Find all devices belonging to the provided cohorts (with optional category filter)
+      const devicesInCohorts = await DeviceModel(tenant)
+        .find(deviceFilter)
+        .select("site_id deployment_type")
+        .lean();
+
+      // Step 2: Extract unique site IDs (only for static deployments with sites)
+      const siteIds = [
+        ...new Set(
+          devicesInCohorts
+            .filter(
+              (device) =>
+                device.site_id &&
+                (!device.deployment_type || device.deployment_type === "static")
+            )
+            .map((device) => device.site_id.toString())
+        ),
+      ].map((id) => ObjectId(id));
+
+      if (siteIds.length === 0) {
+        return {
+          success: true,
+          message: category
+            ? `No sites found for the provided cohorts with category: ${category}`
+            : "No sites found for the provided cohorts",
+          data: [],
+          status: httpStatus.OK,
+          meta: {
+            total: 0,
+            limit: _limit,
+            skip: _skip,
+            page: 1,
+            totalPages: 0,
+          },
+        };
+      }
+
+      // Step 3: Get total count for pagination
+      const total = siteIds.length;
+
+      // Step 4: Build aggregation pipeline for sites with summary projection
+      const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
+        "summary"
+      );
+
+      const pipeline = [
+        {
+          $match: {
+            _id: { $in: siteIds },
+          },
+        },
+        { $sort: { [sortField]: sortOrder } },
+        { $skip: _skip },
+        { $limit: _limit },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "site_id",
+            as: "devices",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grids",
+            foreignField: "_id",
+            as: "grids",
+          },
+        },
+        {
+          $lookup: {
+            from: "airqlouds",
+            localField: "airqlouds",
+            foreignField: "_id",
+            as: "airqlouds",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 100 },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                },
+              },
+            ],
+            as: "activities",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      { $eq: ["$activityType", "maintenance"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_maintenance_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      {
+                        $or: [
+                          { $eq: ["$activityType", "recall"] },
+                          { $eq: ["$activityType", "recallment"] },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_recall_activity",
+          },
+        },
+        {
+          $addFields: {
+            total_activities: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
+          },
+        },
+        { $project: inclusionProjection },
+        { $project: exclusionProjection },
+      ];
+
+      const paginatedResults = await SiteModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      // Post-processing for consistency
+      paginatedResults.forEach((site) => {
+        site.latest_deployment_activity =
+          site.latest_deployment_activity &&
+          site.latest_deployment_activity.length > 0
+            ? site.latest_deployment_activity[0]
+            : null;
+
+        site.latest_maintenance_activity =
+          site.latest_maintenance_activity &&
+          site.latest_maintenance_activity.length > 0
+            ? site.latest_maintenance_activity[0]
+            : null;
+
+        site.latest_recall_activity =
+          site.latest_recall_activity && site.latest_recall_activity.length > 0
+            ? site.latest_recall_activity[0]
+            : null;
+
+        if (site.activities && site.activities.length > 0) {
+          const activitiesByType = {};
+          const latestActivitiesByType = {};
+
+          site.activities.forEach((activity) => {
+            const type = activity.activityType || "unknown";
+            activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+            if (
+              !latestActivitiesByType[type] ||
+              new Date(activity.createdAt) >
+                new Date(latestActivitiesByType[type].createdAt)
+            ) {
+              latestActivitiesByType[type] = activity;
+            }
+          });
+
+          site.activities_by_type = activitiesByType;
+          site.latest_activities_by_type = latestActivitiesByType;
+
+          const deviceActivitySummary = site.devices.map((device) => {
+            const deviceActivities = site.activities.filter(
+              (activity) =>
+                activity.device === device.name ||
+                (activity.device_id &&
+                  activity.device_id.toString() === device._id.toString())
+            );
+            return {
+              device_id: device._id,
+              device_name: device.name,
+              activity_count: deviceActivities.length,
+            };
+          });
+          site.device_activity_summary = deviceActivitySummary;
+        } else {
+          site.activities_by_type = {};
+          site.latest_activities_by_type = {};
+          site.device_activity_summary = site.devices.map((device) => ({
+            device_id: device._id,
+            device_name: device.name,
+            activity_count: 0,
+          }));
+        }
+      });
+
+      // Build pagination metadata
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: category
+          ? `Successfully retrieved sites for the provided cohorts with category: ${category}`
+          : "Successfully retrieved sites for the provided cohorts",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

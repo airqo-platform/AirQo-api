@@ -3,81 +3,65 @@ const express = require("express");
 const router = express.Router();
 const createClientController = require("@controllers/client.controller");
 const clientValidations = require("@validators/clients.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
 
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
 router.use(headers);
 router.use(clientValidations.pagination);
 
 router.get(
   "/",
   clientValidations.list,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.list
 );
 
 router.post(
   "/",
   clientValidations.create,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.create
 );
 
 router.patch(
   "/:client_id/secret",
   clientValidations.updateClientSecret,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.updateClientSecret
 );
 
 router.put(
   "/:client_id",
   clientValidations.update,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.update
 );
 
 router.post(
   "/activate/:client_id",
   clientValidations.activateClient,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.activateClient
 );
 
 router.get(
   "/activate-request/:client_id",
   clientValidations.activateClientRequest,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.activateClientRequest
 );
 
 router.delete(
   "/:client_id",
   clientValidations.deleteClient,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.delete
 );
 
 router.get(
   "/:client_id",
   clientValidations.getClientById,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createClientController.getById
 );
 

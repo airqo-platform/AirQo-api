@@ -1,0 +1,43 @@
+app:
+  name: airqo-stage-beacon-api
+  label: sta-beacon-api
+  namespace: staging
+  configmap: env-beacon-staging
+replicaCount: 2
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-stage-beacon-api
+  tag: stage-cb3ca9ee-1756918634
+nameOverride: ''
+fullnameOverride: ''
+podAnnotations: {}
+resources:
+  limits:
+    cpu: 200m
+    memory: 400Mi
+  requests:
+    cpu: 10m
+    memory: 150Mi
+nodeSelector:
+  role: moderate-usage
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - moderate-usage
+        weight: 1
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8000
+  protocol: TCP
+  targetPort: 8000
+  nodePort: 31115
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetMemoryUtilizationPercentage: 80

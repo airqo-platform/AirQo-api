@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const deviceController = require("@controllers/device.controller");
-const { headers, pagination } = require("@validators/common");
+const { headers, pagination, validate } = require("@validators/common");
 const {
   validateTenant,
   validateDeviceIdentifier,
@@ -26,9 +26,9 @@ const {
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
   validateGenerateShippingLabels,
+  validateGetDeviceCountSummary,
 } = require("@validators/device.validators");
-
-const { validate } = require("@validators/common");
+const constants = require("@config/constants");
 
 router.use(headers);
 
@@ -137,6 +137,15 @@ router.get(
   deviceController.getDevicesCount
 );
 
+// NEW COUNT SUMMARY ROUTE
+router.get(
+  "/summary/count",
+  validateTenant,
+  validateGetDeviceCountSummary,
+  validate,
+  deviceController.getDeviceCountSummary
+);
+
 // SUMMARY ROUTE
 router.get(
   "/summary",
@@ -192,6 +201,67 @@ router.put(
   validateTenant,
   validateBulkUpdateDevices,
   deviceController.updateManyDevicesOnPlatform
+);
+
+// LIST MOBILE DEVICES
+router.get(
+  "/mobile",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listMobile
+);
+
+// LIST STATIC DEVICES
+router.get(
+  "/static",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listStatic
+);
+
+// LIST LOWCOST DEVICES
+router.get(
+  "/lowcost",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listLowCost
+);
+
+// LIST BAM DEVICES
+router.get(
+  "/bam",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listBam
+);
+
+// LIST GAS DEVICES
+router.get(
+  "/gas",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.listGas
+);
+
+// =============================================================================
+// DEVICE METADATA CLEANUP ROUTES
+// =============================================================================
+router.get(
+  "/mobile-metadata-analysis",
+  validateTenant,
+  pagination(),
+  deviceController.getMobileDevicesMetadataAnalysis
+);
+
+router.post(
+  "/fix-metadata-conflicts",
+  validateTenant,
+  deviceController.fixMetadataConflicts
 );
 
 // =============================================================================

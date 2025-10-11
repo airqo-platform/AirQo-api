@@ -23,19 +23,15 @@ const pagination = (req, res, next) => {
   next();
 };
 
-const validateGroupIdParam = oneOf([
+const validateGroupIdParam = [
   param("grp_id")
     .exists()
     .withMessage("the group ID parameter is missing in request")
     .bail()
     .trim()
     .isMongoId()
-    .withMessage("the group ID parameter must be an object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
-]);
+    .withMessage("The group ID parameter must be a valid MongoDB ObjectId."),
+];
 
 const validateUserIdParam = oneOf([
   param("user_id")
@@ -1017,6 +1013,40 @@ const updateSlug = [
   ],
 ];
 
+const assignCohortsToGroup = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("cohort_ids")
+      .exists()
+      .withMessage("cohort_ids are required")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("cohort_ids must be a non-empty array"),
+    body("cohort_ids.*")
+      .isMongoId()
+      .withMessage("Each cohort_id must be a valid ObjectId"),
+  ],
+];
+
+const unassignCohortsFromGroup = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("cohort_ids")
+      .exists()
+      .withMessage("cohort_ids are required")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("cohort_ids must be a non-empty array"),
+    body("cohort_ids.*")
+      .isMongoId()
+      .withMessage("Each cohort_id must be a valid ObjectId"),
+  ],
+];
+
+const listGroupCohorts = [validateTenant, validateGroupIdParam];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -1048,4 +1078,7 @@ module.exports = {
   exportGroupData,
   populateSlugs,
   updateSlug,
+  assignCohortsToGroup,
+  unassignCohortsFromGroup,
+  listGroupCohorts,
 };

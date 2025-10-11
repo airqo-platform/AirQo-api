@@ -79,6 +79,12 @@ router.post(
   activityController.maintain
 );
 
+router.post(
+  "/recalculate-next-maintenance",
+  activitiesValidations.recalculate,
+  activityController.recalculateNextMaintenance
+);
+
 router.get(
   "/",
   activitiesValidations.listActivities,
@@ -96,6 +102,18 @@ router.put(
   "/bulk/",
   activitiesValidations.bulkUpdateActivities,
   activityController.bulkUpdate
+);
+
+router.post(
+  "/backfill-device-ids",
+  activitiesValidations.backfillDeviceIds,
+  activityController.backfillDeviceIds
+);
+
+router.post(
+  "/refresh-caches",
+  activitiesValidations.refreshCaches,
+  activityController.refreshCaches
 );
 
 router.post(

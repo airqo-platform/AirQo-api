@@ -6,6 +6,7 @@ const msgs = require("./email.msgs.util");
 const msgTemplates = require("./email.templates.util");
 const httpStatus = require("http-status");
 const path = require("path");
+const EmailLogModel = require("@models/EmailLog");
 const {
   sendMailWithDeduplication,
   emailDeduplicator,
@@ -165,7 +166,7 @@ const createMailerFunction = (
 
       // ✅ STEP 4: Continue with email sending logic
 
-      // ✅ STEP 4a: Process BCC emails with subscription validation (if needed)
+      // ✅ STEP 4a: Process BCC emails with improved subscription validation
       let subscribedBccEmails = "";
 
       const shouldProcessBcc = [
@@ -176,7 +177,7 @@ const createMailerFunction = (
         "fieldActivity",
         "existingUserAccessRequest",
         "clientActivationRequest",
-        // "existingUserRegistrationRequest",
+        "existingUserRegistrationRequest",
       ].includes(functionName);
 
       if (shouldProcessBcc) {
@@ -186,29 +187,67 @@ const createMailerFunction = (
             : constants.REQUEST_ACCESS_EMAILS;
 
         if (bccEmailSource) {
-          const bccEmails = bccEmailSource.split(",");
+          const bccEmails = bccEmailSource
+            .split(",")
+            .map((email) => email.trim())
+            .filter(Boolean);
           const subscribedEmails = [];
 
           const bccCheckPromises = bccEmails.map(async (bccEmail) => {
-            const trimmedEmail = bccEmail.trim();
             try {
               const bccCheckResult = await SubscriptionModel(
                 tenant
               ).checkNotificationStatus({
-                email: trimmedEmail,
+                email: bccEmail,
                 type: "email",
               });
 
-              return bccCheckResult.success ? trimmedEmail : null;
+              // ✅ IMPROVED LOGIC: Handle different scenarios properly
+              if (bccCheckResult.success) {
+                // User is subscribed
+                return bccEmail;
+              } else if (bccCheckResult.status === httpStatus.NOT_FOUND) {
+                // No subscription record - CREATE DEFAULT and INCLUDE
+                logger.info(
+                  `Creating default subscription for BCC recipient: ${bccEmail}`
+                );
+                try {
+                  await SubscriptionModel(tenant).createDefaultSubscription(
+                    bccEmail,
+                    true
+                  ); // isSystemUser = true
+                  return bccEmail; // Include after creating subscription
+                } catch (createError) {
+                  logger.warn(
+                    `Failed to create subscription for BCC ${bccEmail}: ${createError.message}`
+                  );
+                  // ✅ STILL INCLUDE - BCC emails are typically system notifications
+                  return bccEmail;
+                }
+              } else if (bccCheckResult.status === httpStatus.FORBIDDEN) {
+                // User explicitly unsubscribed - RESPECT THEIR CHOICE
+                logger.info(
+                  `BCC recipient ${bccEmail} has unsubscribed - excluding from BCC`
+                );
+                return null;
+              } else {
+                // Other errors - INCLUDE BY DEFAULT (fail open for BCC)
+                logger.warn(
+                  `BCC subscription check uncertain for ${bccEmail}, including anyway`
+                );
+                return bccEmail;
+              }
             } catch (error) {
               logger.error(
-                `BCC subscription check failed for ${trimmedEmail}: ${error.message}`,
+                `BCC subscription check failed for ${bccEmail}: ${error.message}`,
                 {
                   primary_email: email,
                   operation: functionName,
+                  bccEmail: bccEmail,
                 }
               );
-              return null;
+              // ✅ FAIL OPEN: Include in BCC on errors (system notifications are important)
+              return bccEmail;
             }
           });
 
@@ -217,6 +256,13 @@ const createMailerFunction = (
             ...bccResults.filter((email) => email !== null)
           );
           subscribedBccEmails = subscribedEmails.join(",");
+
+          logger.info(`BCC processing for ${functionName}:`, {
+            totalBccEmails: bccEmails.length,
+            subscribedBccEmails: subscribedEmails.length,
+            excludedEmails: bccEmails.length - subscribedEmails.length,
+            finalBccList: subscribedBccEmails,
+          });
         }
       }
 
@@ -228,7 +274,7 @@ const createMailerFunction = (
         },
         to: email,
         subject: getEmailSubject(functionName, otherParams),
-        html: emailMessageFunction({ email, ...otherParams }),
+        html: emailMessageFunction({ email, tenant, ...otherParams }),
         bcc: subscribedBccEmails || undefined,
         attachments: attachments,
       };
@@ -464,6 +510,10 @@ const getEmailSubject = (functionName, params) => {
     updateProfileReminder:
       "Your AirQo Account: Update Your Name to Enhance Your Experience",
     sendPollutionAlert: params.subject || "AirQo Pollution Alert",
+    inactiveAccount: "We've Missed You on AirQo!",
+    sendAccountDeletionConfirmation: "Confirm Your AirQo Account Deletion",
+    sendAccountDeletionSuccess: "Your AirQo Account Has Been Deleted",
+    sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
   };
 
   return subjects[functionName] || `AirQo Account Notification`;
@@ -482,6 +532,10 @@ const EMAIL_CATEGORIES = {
     "updateKnownPassword",
     "signInWithEmailLink",
     "deleteMobileAccountEmail",
+    "inactiveAccount",
+    "sendAccountDeletionConfirmation",
+    "sendAccountDeletionSuccess",
+    "sendMobileAccountDeletionCode",
     "authenticateEmail",
     "compromisedToken",
     "expiredToken",
@@ -523,6 +577,269 @@ const EMAIL_CATEGORIES = {
     "updateProfileReminder",
     "sendPollutionAlert",
   ],
+};
+
+/**
+ * Enhanced wrapper for security-critical emails with cooldown tracking
+ * Extends createMailerFunction with MongoDB-based cooldown checks
+ */
+const createSecurityEmailFunction = (
+  functionName,
+  emailMessageFunction,
+  cooldownConfig = {}
+) => {
+  const { cooldownDays = 30, enableCooldown = true } = cooldownConfig;
+
+  return async (params, next) => {
+    try {
+      const { email, tenant = "airqo", ...otherParams } = params;
+
+      // ✅ STEP 1: Input validation
+      if (!email) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: `Email is required for ${functionName}`,
+          missing: ["email"],
+        });
+        if (next) {
+          next(error);
+          return;
+        }
+        throw error;
+      }
+
+      // ✅ STEP 2: Handle test emails early
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: `Test ${functionName} email bypassed`,
+          data: {
+            email,
+            testBypass: true,
+            functionName,
+            bypassedAt: new Date(),
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      // ✅ STEP 3: MongoDB cooldown check (NEW - SECURITY EMAILS ONLY)
+      if (enableCooldown) {
+        try {
+          const EmailLog = EmailLogModel(tenant);
+          const cooldownCheck = await EmailLog.canSendEmail({
+            email,
+            emailType: functionName,
+            cooldownDays,
+          });
+
+          if (!cooldownCheck.canSend) {
+            logger.info(
+              `${functionName} email blocked due to ${cooldownDays}-day cooldown for ${email}`,
+              {
+                reason: cooldownCheck.reason,
+                lastSentAt: cooldownCheck.lastSentAt,
+                daysRemaining: cooldownCheck.daysRemaining,
+                nextAvailableDate: cooldownCheck.nextAvailableDate,
+              }
+            );
+
+            return {
+              success: true, // Not an error - cooldown is expected behavior
+              message: `Email not sent - ${cooldownDays}-day cooldown period active`,
+              data: {
+                email,
+                blocked: true,
+                cooldownActive: true,
+                cooldownInfo: {
+                  lastSentAt: cooldownCheck.lastSentAt,
+                  daysRemaining: cooldownCheck.daysRemaining,
+                  nextAvailableDate: cooldownCheck.nextAvailableDate,
+                },
+              },
+              status: httpStatus.OK,
+            };
+          }
+        } catch (cooldownError) {
+          // ✅ FAIL OPEN: If cooldown check fails, allow email (better safe than sorry for security alerts)
+          logger.warn(
+            `Cooldown check failed for ${functionName}, proceeding with email send: ${cooldownError.message}`,
+            {
+              email,
+              tenant,
+              functionName,
+            }
+          );
+        }
+      }
+
+      // ✅ STEP 4: Subscription check (SKIP for CORE_CRITICAL security emails)
+      // Security emails are always sent regardless of subscription status
+
+      // ✅ STEP 5: Prepare email content
+      const baseMailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: email,
+        subject: getEmailSubject(functionName, otherParams),
+        html: emailMessageFunction({ email, ...otherParams }),
+        attachments: attachments,
+      };
+
+      // ✅ STEP 6: Send email with existing deduplication (5-minute Redis check)
+      const emailResult = await sendMailWithDeduplication(
+        transporter,
+        baseMailOptions,
+        {
+          skipDeduplication: false,
+          logDuplicates: true,
+          throwOnDuplicate: false,
+        }
+      );
+
+      // ✅ STEP 7: Handle email sending results
+      if (!emailResult.success) {
+        if (emailResult.duplicate) {
+          return {
+            success: true,
+            message: `${functionName} email already sent recently - duplicate prevented`,
+            data: {
+              email,
+              functionName,
+              duplicate: true,
+              preventedAt: new Date(),
+              ...otherParams,
+            },
+            status: httpStatus.OK,
+          };
+        } else {
+          const errorMessage =
+            emailResult.message || `${functionName} email sending failed`;
+          logger.error(
+            `${functionName} email failed for ${email}: ${errorMessage}`,
+            {
+              email,
+              tenant,
+              functionName,
+              error: errorMessage,
+              params: otherParams,
+            }
+          );
+
+          const error = new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Unable to send ${functionName} email at this time`,
+              operation: functionName,
+              emailResults: emailResult,
+            }
+          );
+
+          if (next) {
+            next(error);
+            return;
+          }
+          throw error;
+        }
+      }
+
+      // ✅ STEP 8: Validate successful email delivery
+      const emailData = emailResult.data;
+
+      if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
+        // ✅ STEP 9: Log successful send to MongoDB for cooldown tracking
+        if (enableCooldown) {
+          try {
+            const EmailLog = EmailLogModel(tenant);
+            await EmailLog.logEmailSent({
+              email,
+              emailType: functionName,
+              metadata: {
+                messageId: emailData.messageId,
+                ...otherParams,
+              },
+            });
+          } catch (logError) {
+            // Log error but don't fail the request
+            logger.warn(
+              `Failed to log ${functionName} email send to database: ${logError.message}`
+            );
+          }
+        }
+
+        return {
+          success: true,
+          message: `${functionName} email successfully sent`,
+          data: {
+            email,
+            functionName,
+            messageId: emailData.messageId,
+            emailResults: emailData,
+            duplicate: false,
+            sentAt: new Date(),
+            ...otherParams,
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        logger.error(`${functionName} email partially failed for ${email}:`, {
+          email,
+          functionName,
+          accepted: emailData?.accepted,
+          rejected: emailData?.rejected,
+          tenant,
+          params: otherParams,
+        });
+
+        const error = new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: `${functionName} email delivery failed or partially rejected`,
+            operation: functionName,
+            emailResults: emailData,
+            accepted: emailData?.accepted || [],
+            rejected: emailData?.rejected || [],
+          }
+        );
+
+        if (next) {
+          next(error);
+          return;
+        }
+        throw error;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 ${functionName} error for ${email}: ${error.message}`,
+        {
+          stack: error.stack,
+          email,
+          tenant,
+          functionName,
+          params: otherParams,
+        }
+      );
+
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message: `An unexpected error occurred while processing ${functionName}`,
+          operation: functionName,
+          email,
+        }
+      );
+
+      if (next) {
+        next(httpError);
+        return;
+      }
+      throw httpError;
+    }
+  };
 };
 
 const mailer = {
@@ -1360,37 +1677,46 @@ const mailer = {
       email: params.email,
     })
   ),
-  compromisedToken: createMailerFunction(
+  compromisedToken: createSecurityEmailFunction(
     "compromisedToken",
-    "CORE_CRITICAL",
     (params) =>
       msgs.token_compromised({
         firstName: params.firstName,
         lastName: params.lastName,
         ip: params.ip,
         email: params.email,
-      })
+      }),
+    {
+      cooldownDays: 30, // Once per month
+      enableCooldown: true,
+    }
   ),
-  expiredToken: createMailerFunction(
+  expiredToken: createSecurityEmailFunction(
     "expiredToken",
-    "CORE_CRITICAL",
     (params) =>
       msgs.tokenExpired({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
         token: params.token,
-      })
+      }),
+    {
+      cooldownDays: 30, // Once per month
+      enableCooldown: true,
+    }
   ),
-  expiringToken: createMailerFunction(
+  expiringToken: createSecurityEmailFunction(
     "expiringToken",
-    "CORE_CRITICAL",
     (params) =>
       msgs.tokenExpiringSoon({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-      })
+      }),
+    {
+      cooldownDays: 7, // Once per week (more frequent since it's a reminder)
+      enableCooldown: true,
+    }
   ),
   updateProfileReminder: createMailerFunction(
     "updateProfileReminder",
@@ -1469,6 +1795,46 @@ const mailer = {
         contact_name: params.contact_name,
         contact_email: params.contact_email,
         login_url: params.login_url,
+      })
+  ),
+  inactiveAccount: createMailerFunction(
+    "inactiveAccount",
+    "OPTIONAL",
+    (params) =>
+      msgs.inactiveAccount({
+        firstName: params.firstName,
+        email: params.email,
+      })
+  ),
+  sendAccountDeletionConfirmation: createMailerFunction(
+    "sendAccountDeletionConfirmation",
+    "CORE_CRITICAL",
+    (params) => {
+      return msgs.accountDeletionConfirmation({
+        firstName: params.firstName,
+        email: params.email,
+        token: params.token,
+        tenant: params.tenant,
+      });
+    }
+  ),
+  sendAccountDeletionSuccess: createMailerFunction(
+    "sendAccountDeletionSuccess",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.accountDeletionSuccess({
+        firstName: params.firstName,
+        email: params.email,
+      })
+  ),
+  sendMobileAccountDeletionCode: createMailerFunction(
+    "sendMobileAccountDeletionCode",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.mobileAccountDeletionCode({
+        firstName: params.firstName,
+        email: params.email,
+        token: params.token,
       })
   ),
 };

@@ -1,12 +1,14 @@
 const UserModel = require("@models/User");
 const SubscriptionModel = require("@models/Subscription");
+const DashboardAnalyticsModel = require("@models/DashboardAnalytics");
 const VerifyTokenModel = require("@models/VerifyToken");
 const AccessRequestModel = require("@models/AccessRequest");
 const RoleModel = require("@models/Role");
+const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const bcrypt = require("bcrypt");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
@@ -17,16 +19,19 @@ const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const createGroupUtil = require("@utils/group.util.js");
-
+const registrationLocks = new Map();
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
-const ioredis = require("@config/ioredis");
-const redis = require("@config/redis");
-const util = require("util");
-const redisGetAsync = util.promisify(redis.get).bind(redis);
-const redisSetAsync = util.promisify(redis.set).bind(redis);
-const redisExpireAsync = util.promisify(redis.expire).bind(redis);
+const {
+  redisGetAsync,
+  redisSetAsync,
+  redisExpireAsync,
+  redisDelAsync,
+  redisSetWithTTLAsync,
+} = require("@config/redis");
+const { tokenConfig } = require("@config/tokenStrategyConfig");
+
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user util`);
@@ -38,11 +43,8 @@ const {
   generateDateFormatWithoutHrs,
 } = require("@utils/common");
 
-const EnhancedRBACService = require("@services/enhancedRBAC.service");
-const {
-  EnhancedTokenFactory,
-  TOKEN_STRATEGIES,
-} = require("@services/enhancedTokenFactory.service");
+const RBACService = require("@services/rbac.service");
+const { AbstractTokenFactory } = require("@services/atf.service");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -61,6 +63,18 @@ function generateNumericToken(length) {
 
   return token;
 }
+
+const normalizeName = (name) => {
+  if (!name || typeof name !== "string") {
+    return "";
+  }
+  return name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_\s-]/g, "") // Keep underscores, spaces, hyphens
+    .replace(/[\s-]+/g, "_") // Replace spaces and hyphens with a single underscore
+    .replace(/_+/g, "_"); // Collapse multiple underscores into one
+};
 async function deleteCollection({ db, collectionPath, batchSize } = {}) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
@@ -103,19 +117,18 @@ function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
     .catch(reject);
 }
 
-const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
+const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
   try {
-    const user = await UserModel(tenant.toLowerCase()).findById(userId);
+    const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+    const user = await UserModel(dbTenant).findById(userId).lean();
 
     if (isEmpty(user)) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: `User ${userId} not found in the system`,
-        })
-      );
+      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: `User ${userId} not found in the system`,
+      });
     }
 
-    const updatedGroup = await GroupModel(tenant).updateMany(
+    const updatedGroup = await GroupModel(dbTenant).updateMany(
       { grp_manager: userId },
       {
         $set: {
@@ -135,7 +148,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       );
     }
 
-    const updatedNetwork = await NetworkModel(tenant).updateMany(
+    const updatedNetwork = await NetworkModel(dbTenant).updateMany(
       { net_manager: userId },
       {
         $set: {
@@ -163,13 +176,17 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
     };
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message: error.message,
-      })
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: error.message }
     );
   }
 };
+
 const generateCacheID = (request, next) => {
   const {
     privilege,
@@ -207,8 +224,8 @@ const setCache = async ({ data, request } = {}, next) => {
         data,
       })
     );
-    await redisExpireAsync(cacheID, 0);
-    // 10 mins is 600 seconds
+    // FIX: Change from 0 to 600 (10 minutes = 600 seconds)
+    await redisExpireAsync(cacheID, 600); // 10 minutes = 600 seconds
 
     return {
       success: true,
@@ -264,6 +281,146 @@ const getCache = async (request, next) => {
 };
 
 const createUserModule = {
+  _validatePassword: (password) => {
+    if (!password || !constants.PASSWORD_REGEX.test(password)) {
+      return {
+        isValid: false,
+        error: new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+          message:
+            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one number.",
+        }),
+      };
+    }
+    return { isValid: true };
+  },
+  _getEnhancedProfile: async ({ userId, tenant }, next) => {
+    try {
+      // Get user permissions context
+      const permissionsRequest = {
+        body: { userId },
+        query: { tenant },
+      };
+
+      const permissionsResult =
+        await createUserModule.getUserContextPermissions(
+          permissionsRequest,
+          next
+        );
+
+      if (!permissionsResult.success) {
+        logger.error("Failed to get user permissions for profile", {
+          userId,
+          tenant,
+          error: permissionsResult.message,
+        });
+        return permissionsResult;
+      }
+
+      // Get basic user data
+      const basicUser = await UserModel(tenant)
+        .findById(userId)
+        .select("-password -resetPasswordToken -resetPasswordExpires")
+        .lean();
+
+      if (!basicUser) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User profile not found" },
+        };
+      }
+
+      // Manually populate group_roles.group if they exist
+      let populatedUser = { ...basicUser };
+
+      if (basicUser.group_roles && basicUser.group_roles.length > 0) {
+        try {
+          const GroupModel = require("@models/Group");
+          const groupIds = basicUser.group_roles.map((gr) => gr.group);
+
+          const groups = await GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean();
+
+          populatedUser.group_roles = basicUser.group_roles.map(
+            (groupRole) => ({
+              ...groupRole,
+              group:
+                groups.find(
+                  (g) => g._id.toString() === groupRole.group.toString()
+                ) || groupRole.group,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate group roles: ${error.message}`);
+          populatedUser.group_roles = basicUser.group_roles;
+        }
+      }
+
+      // Manually populate network_roles.network if they exist
+      if (basicUser.network_roles && basicUser.network_roles.length > 0) {
+        try {
+          const NetworkModel = require("@models/Network");
+          const networkIds = basicUser.network_roles.map((nr) => nr.network);
+
+          const networks = await NetworkModel(tenant)
+            .find({ _id: { $in: networkIds } })
+            .select("net_name net_status net_acronym")
+            .lean();
+
+          populatedUser.network_roles = basicUser.network_roles.map(
+            (networkRole) => ({
+              ...networkRole,
+              network:
+                networks.find(
+                  (n) => n._id.toString() === networkRole.network.toString()
+                ) || networkRole.network,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate network roles: ${error.message}`);
+          populatedUser.network_roles = basicUser.network_roles;
+        }
+      }
+
+      const user = populatedUser;
+
+      const enhancedProfile = {
+        ...user,
+        ...permissionsResult.data.permissions,
+        profileLastUpdated: new Date().toISOString(),
+        hasEnhancedPermissions: true,
+        contextSummary: {
+          totalPermissions:
+            permissionsResult.data.permissions?.allPermissions?.length || 0,
+          groupMemberships:
+            permissionsResult.data.permissions?.groupMemberships?.length || 0,
+          networkMemberships:
+            permissionsResult.data.permissions?.networkMemberships?.length || 0,
+          isSuperAdmin:
+            permissionsResult.data.permissions?.isSuperAdmin || false,
+        },
+      };
+
+      return {
+        success: true,
+        message: "Enhanced profile retrieved successfully",
+        data: enhancedProfile,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 _getEnhancedProfile util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve enhanced profile" },
+      };
+    }
+  },
+
   listLogs: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
@@ -309,52 +466,6 @@ const createUserModule = {
           { message: error.message }
         )
       );
-    }
-  },
-  getUserStats: async (request, next) => {
-    try {
-      const { tenant, limit = 1000, skip = 0 } = request.query;
-      const filter = generateFilter.logs(request, next);
-
-      const pipeline = [
-        { $match: filter },
-        {
-          $group: {
-            _id: { email: "$meta.email", endpoint: "$meta.endpoint" },
-            service: { $first: "$meta.service" },
-            username: { $first: "$meta.username" },
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            email: "$_id.email",
-            endpoint: "$_id.endpoint",
-            count: 1,
-            service: "$service",
-            username: "$username",
-          },
-        },
-      ];
-
-      const getUserStatsResponse = await LogModel(tenant).aggregate(pipeline);
-      return {
-        success: true,
-        message: "Successfully retrieved the user statistics",
-        data: getUserStatsResponse,
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
     }
   },
   listStatistics: async (tenant, next) => {
@@ -624,31 +735,76 @@ const createUserModule = {
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
-      const { tenant } = {
-        ...body,
-        ...query,
-        ...params,
-      };
-      const update = body;
+      const { tenant } = { ...body, ...query, ...params };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      if (!isEmpty(update.password)) {
-        delete update.password;
-      }
-      if (!isEmpty(update._id)) {
-        delete update._id;
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
       }
 
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
+      // Fields that should never be updated via this endpoint.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
+
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
+      // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(tenant.toLowerCase())
-        .find(filter)
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
         .lean()
         .select("email firstName lastName");
-      const responseFromModifyUser = await UserModel(
-        tenant.toLowerCase()
-      ).modify(
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      // 3. Perform the database modification.
+      const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
-          update,
+          update: { $set: sanitizedUpdate },
         },
         next
       );
@@ -656,7 +812,12 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
-        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        // 4. Prepare the payload for the email notification.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        const apiResponseData = responseFromModifyUser.data.toJSON
+          ? responseFromModifyUser.data.toJSON()
+          : responseFromModifyUser.data;
 
         if (
           constants.ENVIRONMENT &&
@@ -665,27 +826,32 @@ const createUserModule = {
           return {
             success: true,
             message: responseFromModifyUser.message,
-            data: responseFromModifyUser.data,
+            data: apiResponseData,
           };
         } else {
-          const email = user[0].email;
-          const firstName = user[0].firstName;
-          const lastName = user[0].lastName;
+          const { email, firstName, lastName } = user;
 
           const responseFromSendEmail = await mailer.update(
-            { email, firstName, lastName, updatedUserDetails },
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
             next
           );
-          if (responseFromSendEmail) {
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: responseFromModifyUser.message,
-                data: responseFromModifyUser.data,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
-            }
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
           } else {
             logger.error("mailer.update did not return a response");
             return next(
@@ -697,7 +863,7 @@ const createUserModule = {
             );
           }
         }
-      } else if (responseFromModifyUser.success === false) {
+      } else {
         return responseFromModifyUser;
       }
     } catch (error) {
@@ -712,6 +878,7 @@ const createUserModule = {
       );
     }
   },
+
   lookUpFirebaseUser: async (request, next) => {
     try {
       const { body } = request;
@@ -1086,7 +1253,8 @@ const createUserModule = {
   setMobileUserCache: async ({ data, cacheID } = {}, next) => {
     try {
       logObject("cacheID supplied to setMobileUserCache", cacheID);
-      const result = await ioredis.set(cacheID, stringify(data), "EX", 3600);
+      // Use the consistent wrapper function
+      const result = await redisSetWithTTLAsync(cacheID, stringify(data), 3600);
       return result;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1104,7 +1272,7 @@ const createUserModule = {
       logText("we are getting the cache......");
       logObject("cacheID supplied", cacheID);
 
-      const result = await ioredis.get(cacheID);
+      const result = await redisGetAsync(cacheID);
       logObject("ze result....", result);
       if (isEmpty(result)) {
         next(
@@ -1128,7 +1296,7 @@ const createUserModule = {
   },
   deleteCachedItem: async (cacheID, next) => {
     try {
-      const result = await ioredis.del(cacheID);
+      const result = await redisDelAsync(cacheID);
       return {
         success: true,
         data: { numberOfDeletedKeys: result },
@@ -1510,39 +1678,467 @@ const createUserModule = {
     }
   },
 
-  delete: async (request, next) => {
+  getDashboardAnalyticsFromCache: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const filter = generateFilter.users(request, next);
-      const userId = filter._id;
-      const responseFromCascadeDeletion = await cascadeUserDeletion(
-        { userId, tenant },
+      const analyticsData = await DashboardAnalyticsModel(tenant)
+        .findOne({ tenant })
+        .lean();
+
+      if (analyticsData) {
+        return {
+          success: true,
+          message: "Analytics retrieved successfully",
+          data: analyticsData,
+          status: httpStatus.OK,
+        };
+      } else {
+        // Data is not yet available. The cron job will populate this soon.
+        return next(
+          new HttpError("Service Unavailable", httpStatus.SERVICE_UNAVAILABLE, {
+            message:
+              "Analytics data is currently being generated. Please try again in a few moments.",
+          })
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in getDashboardAnalyticsFromCache: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getDashboardAnalyticsDirect: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const twoMonthsAgo = new Date();
+      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+      const startOfTwoMonthsAgo = new Date(
+        twoMonthsAgo.getFullYear(),
+        twoMonthsAgo.getMonth(),
+        1
+      );
+      const endOfTwoMonthsAgo = new Date(
+        twoMonthsAgo.getFullYear(),
+        twoMonthsAgo.getMonth() + 1,
+        0
+      );
+
+      const aggregationPipeline = [
+        {
+          $facet: {
+            totalUsers: [{ $count: "count" }],
+            dailyActiveUsers: [
+              { $match: { lastLogin: { $gte: twentyFourHoursAgo } } },
+              { $count: "count" },
+            ],
+            dailyActiveUsersTwoMonthsAgo: [
+              {
+                $match: {
+                  lastLogin: {
+                    $gte: startOfTwoMonthsAgo,
+                    $lte: endOfTwoMonthsAgo,
+                  },
+                },
+              },
+              { $count: "count" },
+            ],
+            featureAdoption: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  withInterests: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $gt: [{ $size: { $ifNull: ["$interests", []] } }, 0],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+            userContribution: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  withProfilePicture: {
+                    $sum: {
+                      $cond: [{ $ifNull: ["$profilePicture", false] }, 1, 0],
+                    },
+                  },
+                  withDescription: {
+                    $sum: {
+                      $cond: [{ $ifNull: ["$description", false] }, 1, 0],
+                    },
+                  },
+                },
+              },
+            ],
+            sessionDurationProxy: [
+              {
+                $group: {
+                  _id: null,
+                  averageLoginCount: { $avg: "$loginCount" },
+                },
+              },
+            ],
+            userSegments: [
+              { $unwind: "$interests" },
+              {
+                $group: {
+                  _id: "$interests",
+                  count: { $sum: 1 },
+                  averageLoginCount: { $avg: "$loginCount" },
+                },
+              },
+              { $sort: { count: -1 } },
+            ],
+            behavioralInsights: [
+              {
+                $group: {
+                  _id: null,
+                  usersWithProfilePic: {
+                    $sum: { $cond: ["$profilePicture", 1, 0] },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      const results = await UserModel(tenant).aggregate(aggregationPipeline);
+      const analytics = results[0];
+
+      const totalUsers = analytics.totalUsers[0]?.count || 0;
+      const dau = analytics.dailyActiveUsers[0]?.count || 0;
+      const featureAdoption = analytics.featureAdoption[0] || {};
+      const dauTwoMonthsAgo =
+        analytics.dailyActiveUsersTwoMonthsAgo[0]?.count || 0;
+      const { withInterests = 0 } = analytics.featureAdoption[0] || {};
+      const { withProfilePicture = 0, withDescription = 0 } =
+        analytics.userContribution[0] || {};
+      const { averageLoginCount = 0 } = analytics.sessionDurationProxy[0] || {};
+      const userSegments = analytics.userSegments || [];
+      const behavioralInsights = analytics.behavioralInsights[0] || {};
+
+      const dauChange =
+        dauTwoMonthsAgo > 0
+          ? ((dau - dauTwoMonthsAgo) / dauTwoMonthsAgo) * 100
+          : dau > 0
+          ? 100
+          : 0;
+
+      const response = {
+        userSatisfaction: null, // Placeholder
+        dailyActiveUsers: dau,
+        dailyActiveUsersChange: dauChange,
+        featureAdoptionRate:
+          totalUsers > 0 ? (withInterests / totalUsers) * 100 : 0,
+        featureAdoptionRateChange: null, // Placeholder
+        extendedUserSessionDuration: averageLoginCount,
+        increasedUserDataContribution:
+          totalUsers > 0
+            ? ((withProfilePicture + withDescription) / (totalUsers * 2)) * 100
+            : 0,
+        stakeholderDecisionMaking: null, // Placeholder
+        userSegments: userSegments.map((segment) => ({
+          segment: segment._id,
+          userCount: segment.count,
+          engagementScore: segment.averageLoginCount || 0,
+          trends: "Stable",
+          recommendations: `Target ${segment._id} with specific content.`,
+        })),
+        behavioralInsights: {
+          usersWithProfilePic: behavioralInsights.usersWithProfilePic || 0,
+          profilePicAdoptionRate:
+            totalUsers > 0
+              ? (behavioralInsights.usersWithProfilePic / totalUsers) * 100
+              : 0,
+        },
+      };
+
+      return {
+        success: true,
+        message: "Live dashboard analytics retrieved successfully",
+        data: response,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in getDashboardAnalyticsDirect: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  initiateAccountDeletion: async (request, next) => {
+    try {
+      logObject("the request query in initiateAccountDeletion", request.query);
+      const { tenant } = request.query;
+      const { email } = request.body;
+      const user = request.user;
+
+      logObject("the tenant in initiateAccountDeletion", tenant);
+
+      if (user.email.toLowerCase() !== email.toLowerCase()) {
+        return {
+          success: false,
+          message: "Forbidden",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: "You can only initiate deletion for your own account.",
+          },
+        };
+      }
+
+      const responseFromGenerateResetToken =
+        createUserModule.generateResetToken();
+      if (!responseFromGenerateResetToken.success) {
+        return responseFromGenerateResetToken;
+      }
+
+      const token = responseFromGenerateResetToken.data;
+      const update = {
+        deletionToken: token,
+        deletionTokenExpires: Date.now() + 3600000, // 1 hour
+      };
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { _id: user._id },
+          update,
+        },
         next
       );
+
+      if (responseFromModifyUser.success) {
+        const mailerResponse = await mailer.sendAccountDeletionConfirmation({
+          email: user.email,
+          token,
+          tenant,
+          firstName: user.firstName,
+        });
+
+        if (mailerResponse.success) {
+          return {
+            success: true,
+            message:
+              "Account deletion process initiated. Please check your email for a confirmation link.",
+            status: httpStatus.OK,
+          };
+        } else {
+          return mailerResponse;
+        }
+      } else {
+        return responseFromModifyUser;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in initiateAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  initiateMobileAccountDeletion: async (request, next) => {
+    try {
+      const { tenant: tenantFromQuery } = request.query;
+      const tenant = tenantFromQuery || constants.DEFAULT_TENANT;
+      const { email } = request.body;
+      const user = request.user;
+
+      if (user.email.toLowerCase() !== email.toLowerCase()) {
+        return {
+          success: false,
+          message: "Forbidden",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: "You can only initiate deletion for your own account.",
+          },
+        };
+      }
+
+      const token = generateNumericToken(5); // 5-digit code
+      const update = {
+        deletionToken: token,
+        deletionTokenExpires: Date.now() + 3600000, // 1 hour
+      };
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { _id: user._id },
+          update,
+        },
+        next
+      );
+
+      if (responseFromModifyUser.success) {
+        const mailerResponse = await mailer.sendMobileAccountDeletionCode({
+          email: user.email,
+          token,
+          firstName: user.firstName,
+        });
+
+        if (mailerResponse.success) {
+          return {
+            success: true,
+            message:
+              "Account deletion process initiated. Please check your email for a 5-digit confirmation code.",
+            status: httpStatus.OK,
+          };
+        } else {
+          return mailerResponse;
+        }
+      } else {
+        return responseFromModifyUser;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in initiateMobileAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  confirmMobileAccountDeletion: async (request, next) => {
+    // This re-uses the logic from the web confirmation, but is called from a different route.
+    // The logic is identical because it just needs a token and tenant.
+    // The mobile app will pass the numeric code as the token.
+    return createUserModule.confirmAccountDeletion(request, next);
+  },
+
+  confirmAccountDeletion: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const token = request.params.token || request.body.token;
+      const authenticatedUser = request.user; // This may be undefined for mobile flow
+      const timeZone = moment.tz.guess();
+
+      // If user is authenticated (web flow), verify the token belongs to them.
+      // Otherwise (mobile flow), just find a valid token.
+      const filter = authenticatedUser
+        ? {
+            _id: authenticatedUser._id,
+            deletionToken: token,
+            deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
+          }
+        : {
+            deletionToken: token,
+            deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
+          };
+
+      const user = await UserModel(tenant).findOne(filter).lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "Invalid or expired token",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Your account deletion token is invalid or has expired. Please try again.",
+          },
+        };
+      }
+
+      const deleteRequest = {
+        query: { tenant, id: user._id.toString() },
+      };
+
+      const deletionResult = await createUserModule.delete(deleteRequest);
+
+      if (deletionResult.success) {
+        await mailer.sendAccountDeletionSuccess({
+          email: user.email,
+          firstName: user.firstName,
+        });
+        return {
+          success: true,
+          message: "Your account has been successfully deleted.",
+          status: httpStatus.OK,
+        };
+      } else {
+        return deletionResult;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in confirmAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
+  delete: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+      const filter = generateFilter.users(request);
+      const userId = filter._id;
+      const responseFromCascadeDeletion = await cascadeUserDeletion({
+        userId,
+        tenant,
+      });
       if (
         responseFromCascadeDeletion &&
         responseFromCascadeDeletion.success === true
       ) {
-        const responseFromRemoveUser = await UserModel(
-          tenant.toLowerCase()
-        ).remove(
-          {
-            filter,
-          },
-          next
-        );
+        const responseFromRemoveUser = await UserModel(dbTenant).remove({
+          filter,
+        });
         return responseFromRemoveUser;
       } else {
         return responseFromCascadeDeletion;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
     }
   },
@@ -1585,78 +2181,432 @@ const createUserModule = {
 
   registerMobileUser: async (request, next) => {
     try {
-      const { tenant } = {
+      const { tenant, email, firstName, lastName, password } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      const userData = request.body;
-      const verificationToken = generateNumericToken(5);
-
-      const newUserResponse = await UserModel(tenant).register(userData, next);
-
-      if (newUserResponse && newUserResponse.success === true) {
-        const newUser = newUserResponse.data;
-
-        const tokenExpiry = 86400; //24hrs in seconds.
-
-        const tokenCreationBody = {
-          token: verificationToken,
-          name: newUser.firstName,
-          expires: new Date(Date.now() + tokenExpiry * 1000), // Set token expiry
+      // ✅ STEP 1: Enhanced input validation
+      if (!email || !firstName || !password) {
+        return {
+          success: false,
+          message: "Missing required fields for mobile registration",
+          errors: {
+            email: !email ? "Email is required" : undefined,
+            firstName: !firstName ? "First name is required" : undefined,
+            password: !password ? "Password is required" : undefined,
+          },
         };
+      }
 
-        const verifyTokenResponse = await VerifyTokenModel(
-          tenant.toLowerCase()
-        ).register(tokenCreationBody, next);
+      const normalizedEmail = email.toLowerCase().trim();
 
-        if (verifyTokenResponse && verifyTokenResponse.success === false) {
-          // Consider rolling back user creation
-          logger.error(
-            `Failed to create verification token for user ${newUser.email}: ${verifyTokenResponse.message}`
-          );
+      // ✅ STEP 2: Create mobile registration lock
+      const lockKey = `mobile-reg-${normalizedEmail}-${tenant}`;
 
-          return verifyTokenResponse;
-        }
-
-        await mailer.sendVerificationEmail({
-          email: userData.email,
-          token: verificationToken,
-        });
+      if (registrationLocks.has(lockKey)) {
+        logger.warn(
+          `Duplicate mobile registration attempt blocked for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            lockExists: true,
+            userAgent: request.headers?.["user-agent"]?.substring(0, 100),
+          }
+        );
 
         return {
-          success: true,
-          message: "User registered successfully. Please verify your email.",
-          user: newUser,
+          success: false,
+          message: "Registration already in progress",
+          errors: {
+            email:
+              "A mobile registration for this email is currently being processed. Please wait a moment and try again.",
+          },
         };
-      } else {
-        return newUserResponse;
+      }
+
+      // Set lock with automatic cleanup
+      registrationLocks.set(lockKey, {
+        createdAt: Date.now(),
+        type: "mobile",
+        userAgent: request.headers?.["user-agent"]?.substring(0, 100),
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(lockKey);
+      }, 30000); // 30 second lock
+
+      try {
+        // ✅ STEP 3: Check for existing user with enhanced feedback
+        const existingUser = await UserModel(dbTenant)
+          .findOne({
+            email: normalizedEmail,
+          })
+          .lean();
+
+        if (!isEmpty(existingUser)) {
+          // ✅ Provide specific guidance for mobile users
+          if (existingUser.verified) {
+            // For verified users, direct them to login
+            return {
+              success: false,
+              message: "Account already exists",
+              errors: {
+                email:
+                  "This email is already registered. Please use the login option or 'Forgot Password' if needed.",
+              },
+              data: {
+                accountExists: true,
+                verified: true,
+                shouldLogin: true,
+                userId: existingUser._id,
+              },
+            };
+          } else {
+            // For unverified users, offer to resend verification
+
+            try {
+              await createUserModule.mobileVerificationReminder(
+                {
+                  tenant,
+                  email: normalizedEmail,
+                },
+                next
+              );
+
+              return {
+                success: false,
+                message: "Account exists but not verified",
+                errors: {
+                  email:
+                    "This email is already registered but not verified. A new verification code has been sent to your email.",
+                },
+                data: {
+                  accountExists: true,
+                  verified: false,
+                  verificationEmailSent: true,
+                  userId: existingUser._id,
+                },
+              };
+            } catch (emailError) {
+              logger.error(
+                `Failed to send mobile verification reminder: ${emailError.message}`
+              );
+
+              return {
+                success: false,
+                message: "Account exists but not verified",
+                errors: {
+                  email:
+                    "This email is already registered but not verified. Please check your email for the verification code or contact support.",
+                },
+                data: {
+                  accountExists: true,
+                  verified: false,
+                  verificationEmailFailed: true,
+                },
+              };
+            }
+          }
+        }
+
+        // ✅ STEP 4: Prepare user data for mobile registration
+        const userData = {
+          ...request.body,
+          email: normalizedEmail,
+          userName: normalizedEmail,
+          analyticsVersion: 4, // Mobile users get version 4
+          ...(request.body.interests && { interests: request.body.interests }),
+          ...(request.body.interestsDescription && {
+            interestsDescription: request.body.interestsDescription,
+          }),
+          ...(request.body.country && { country: request.body.country }),
+          // Add mobile-specific metadata
+          registrationSource: "mobile_app",
+          userAgent: request.headers?.["user-agent"]?.substring(0, 200),
+        };
+
+        // ✅ STEP 5: Create user with enhanced error handling
+        const newUserResponse = await UserModel(dbTenant).register(
+          userData,
+          next,
+          {
+            sendDuplicateEmail: false, // Mobile handles its own verification flow
+          }
+        );
+
+        if (newUserResponse && newUserResponse.success === true) {
+          const newUser = newUserResponse.data;
+          const userId = newUser._doc._id;
+
+          // ✅ STEP 6: Generate mobile verification token
+          const verificationToken = generateNumericToken(5);
+          const tokenExpiry = 86400; // 24hrs in seconds
+
+          const tokenCreationBody = {
+            token: verificationToken,
+            name: newUser._doc.firstName,
+            expires: new Date(Date.now() + tokenExpiry * 1000),
+          };
+
+          const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+            tokenCreationBody,
+            next
+          );
+
+          if (verifyTokenResponse && verifyTokenResponse.success === false) {
+            logger.error(
+              `Failed to create verification token for mobile user ${normalizedEmail}: ${verifyTokenResponse.message}`,
+              {
+                email: normalizedEmail,
+                userId,
+                tenant,
+                tokenError: verifyTokenResponse.message,
+              }
+            );
+
+            // Consider rolling back user creation
+            try {
+              await UserModel(dbTenant).findByIdAndDelete(userId);
+              logger.info(
+                `Rolled back user creation due to token failure: ${userId}`
+              );
+            } catch (rollbackError) {
+              logger.error(
+                `Failed to rollback user creation: ${rollbackError.message}`
+              );
+            }
+
+            return verifyTokenResponse;
+          }
+
+          // ✅ STEP 7: Send verification email with enhanced monitoring
+          try {
+            const emailResult = await mailer.sendVerificationEmail({
+              email: normalizedEmail,
+              token: verificationToken,
+              tenant,
+            });
+
+            if (emailResult && emailResult.success === true) {
+              return {
+                success: true,
+                message:
+                  "Mobile user registered successfully. Please verify your email.",
+                data: {
+                  user: {
+                    _id: newUser._doc._id,
+                    email: newUser._doc.email,
+                    firstName: newUser._doc.firstName,
+                    lastName: newUser._doc.lastName,
+                    verified: newUser._doc.verified,
+                    analyticsVersion: newUser._doc.analyticsVersion,
+                  },
+                  verificationEmailSent: true,
+                  nextStep: "Check your email for a 5-digit verification code",
+                },
+              };
+            } else {
+              logger.error("Mobile verification email failed", {
+                email: normalizedEmail,
+                userId,
+                tenant,
+                emailError:
+                  (emailResult && emailResult.message) || "Unknown email error",
+              });
+
+              return {
+                success: false,
+                message: "User created but verification email failed",
+                data: {
+                  user: {
+                    _id: newUser._doc._id,
+                    email: newUser._doc.email,
+                    firstName: newUser._doc.firstName,
+                    lastName: newUser._doc.lastName,
+                    verified: false,
+                  },
+                  verificationEmailSent: false,
+                  emailError:
+                    (emailResult && emailResult.message) ||
+                    "Email service unavailable",
+                },
+              };
+            }
+          } catch (emailError) {
+            logger.error(
+              `Mobile verification email exception: ${emailError.message}`,
+              {
+                email: normalizedEmail,
+                userId,
+                tenant,
+                error: emailError.message,
+                stack: emailError.stack && emailError.stack.substring(0, 500),
+              }
+            );
+
+            return {
+              success: false,
+              message: "User created but email delivery failed",
+              data: {
+                user: {
+                  _id: newUser._doc._id,
+                  email: newUser._doc.email,
+                  firstName: newUser._doc.firstName,
+                  lastName: newUser._doc.lastName,
+                  verified: false,
+                },
+                verificationEmailSent: false,
+                emailError: emailError.message,
+              },
+            };
+          }
+        } else {
+          logger.error("Mobile user creation failed", {
+            email: normalizedEmail,
+            tenant,
+            error:
+              (newUserResponse && newUserResponse.message) ||
+              "Unknown creation error",
+            errors: newUserResponse && newUserResponse.errors,
+          });
+          return newUserResponse && Object.keys(newUserResponse).length > 0
+            ? newUserResponse
+            : newUserResponse || {
+                success: false,
+                message: "Failed to create mobile user account",
+              };
+        }
+      } finally {
+        // ✅ STEP 8: Always cleanup the lock
+        registrationLocks.delete(lockKey);
       }
     } catch (error) {
-      logObject("error in reg", error);
-      return { success: false, message: error.message };
+      logger.error(`🐛🐛 Mobile registration error: ${error.message}`, {
+        email: request.body?.email,
+        tenant: request.query?.tenant,
+        stack: error.stack,
+        userAgent:
+          request.headers &&
+          request.headers["user-agent"] &&
+          request.headers["user-agent"].substring(0, 100),
+      });
+
+      return {
+        success: false,
+        message: "An unexpected error occurred during mobile registration",
+        errors: {
+          server:
+            "Please try again or contact support if the problem persists.",
+        },
+      };
     }
   },
 
   verificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      const user = await UserModel(tenant)
-        .findOne({ email })
-        .select("_id email firstName lastName verified")
-        .lean();
-      logObject("user", user);
-      if (isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not provided or does not exist",
-          })
-        );
+      if (!email) {
+        return {
+          success: false,
+          message: "Email is required for verification reminder",
+          status: httpStatus.BAD_REQUEST,
+          errors: { email: "Email address is required" },
+        };
       }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 1: Rate limiting for verification reminders
+      const reminderKey = `verify-reminder-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(reminderKey)) {
+        const lockData = registrationLocks.get(reminderKey);
+        const timeElapsed = Date.now() - lockData.createdAt;
+        const remainingTime = Math.ceil((300000 - timeElapsed) / 1000); // 5 minutes lock
+
+        logger.warn(
+          `Verification reminder rate limited for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            timeElapsed: timeElapsed / 1000,
+            remainingSeconds: remainingTime,
+          }
+        );
+
+        return {
+          success: false,
+          message: "Please wait before requesting another verification email",
+          status: httpStatus.TOO_MANY_REQUESTS,
+          errors: {
+            rateLimit: `Please wait ${remainingTime} seconds before requesting another verification email.`,
+          },
+        };
+      }
+
+      // Set rate limiting lock
+      registrationLocks.set(reminderKey, {
+        createdAt: Date.now(),
+        type: "verification_reminder",
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(reminderKey);
+      }, 300000); // 5 minute rate limit
+
+      // ✅ STEP 2: Enhanced user lookup with verification status check
+      const user = await UserModel(dbTenant)
+        .findOne({ email: normalizedEmail })
+        .select(
+          "_id email firstName lastName verified createdAt lastLogin analyticsVersion"
+        )
+        .lean();
+
+      if (isEmpty(user)) {
+        logger.warn(
+          `Verification reminder requested for non-existent user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+          }
+        );
+
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            email:
+              "No account found with this email address. Please check the email or register a new account.",
+          },
+        };
+      }
+
+      // ✅ STEP 3: Check if user is already verified
+      if (user.verified) {
+        return {
+          success: false,
+          message: "Account is already verified",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            verification:
+              "Your account is already verified. You can proceed to login.",
+          },
+          data: {
+            alreadyVerified: true,
+            canLogin: true,
+          },
+        };
+      }
+
       const user_id = user._id;
 
+      // ✅ STEP 4: Generate new verification token with enhanced security
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -1666,39 +2616,289 @@ const createUserModule = {
       const tokenCreationBody = {
         token,
         name: user.firstName,
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
-      const responseFromCreateToken = await VerifyTokenModel(
-        tenant.toLowerCase()
-      ).register(tokenCreationBody, next);
 
-      if (!responseFromCreateToken) {
+      // ✅ STEP 5: Create verification token with cleanup of old tokens
+      try {
+        // Clean up any existing tokens for this user first
+        await VerifyTokenModel(dbTenant).deleteMany({
+          name: user.firstName,
+          expires: { $lt: new Date() }, // Delete expired tokens
+        });
+
+        const responseFromCreateToken = await VerifyTokenModel(
+          dbTenant
+        ).register(tokenCreationBody, next);
+
+        if (!responseFromCreateToken) {
+          logger.error(
+            `🐛🐛 Error creating verification reminder token: responseFromCreateToken is undefined`,
+            { email: normalizedEmail, userId: user_id, tenant }
+          );
+          return {
+            success: false,
+            message: "Failed to create verification token",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { token: "Unable to generate verification token" },
+          };
+        }
+
+        if (responseFromCreateToken.success === false) {
+          logger.error("Verification token creation failed", {
+            email: normalizedEmail,
+            userId: user_id,
+            tenant,
+            tokenError: responseFromCreateToken.message,
+          });
+          return responseFromCreateToken;
+        }
+
+        // ✅ STEP 6: Send verification email with enhanced monitoring
+        try {
+          const responseFromSendEmail = await mailer.verifyEmail(
+            {
+              user_id,
+              token,
+              email: normalizedEmail,
+              firstName: user.firstName,
+              category: "reminder", // Mark as reminder for analytics
+            },
+            next
+          );
+
+          if (responseFromSendEmail) {
+            if (responseFromSendEmail.success === true) {
+              const userDetails = {
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                verified: user.verified,
+              };
+
+              return {
+                success: true,
+                message: "Verification email sent successfully",
+                data: {
+                  ...userDetails,
+                  reminderSent: true,
+                  expiresIn: "24 hours",
+                },
+                status: responseFromSendEmail.status || httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              logger.error("Verification reminder email failed", {
+                email: normalizedEmail,
+                userId: user_id,
+                tenant,
+                emailError: responseFromSendEmail.message,
+              });
+              return responseFromSendEmail;
+            }
+          } else {
+            logger.error(
+              "mailer.verifyEmail did not return a response for reminder"
+            );
+            return {
+              success: false,
+              message: "Email service unavailable",
+              status: httpStatus.SERVICE_UNAVAILABLE,
+              errors: {
+                email: "Unable to send verification email at this time",
+              },
+            };
+          }
+        } catch (emailError) {
+          logger.error(
+            `Verification reminder email exception: ${emailError.message}`,
+            {
+              email: normalizedEmail,
+              userId: user_id,
+              tenant,
+              error: emailError.message,
+            }
+          );
+
+          return {
+            success: false,
+            message: "Failed to send verification email",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { email: emailError.message },
+          };
+        }
+      } catch (tokenError) {
         logger.error(
-          `🐛🐛 Error creating verification token: responseFromCreateToken is undefined`
+          `Token creation error for verification reminder: ${tokenError.message}`,
+          {
+            email: normalizedEmail,
+            userId: user_id,
+            tenant,
+            error: tokenError.message,
+          }
         );
-        return next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Failed to create verification token" }
-          )
-        );
+
+        return {
+          success: false,
+          message: "Failed to create verification token",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { token: tokenError.message },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Verification reminder error: ${error.message}`, {
+        email: request.email,
+        tenant: request.tenant,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { server: "An unexpected error occurred" },
+      };
+    }
+  },
+
+  mobileVerificationReminder: async (request, next) => {
+    try {
+      const { tenant, email } = request;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      if (!email) {
+        return {
+          success: false,
+          message: "Email is required for mobile verification reminder",
+          errors: { email: "Email address is required" },
+        };
       }
 
-      if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
-      } else {
-        const responseFromSendEmail = await mailer.verifyEmail(
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 1: Enhanced rate limiting for mobile
+      const reminderKey = `mobile-verify-reminder-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(reminderKey)) {
+        const lockData = registrationLocks.get(reminderKey);
+        const timeElapsed = Date.now() - lockData.createdAt;
+        const remainingTime = Math.ceil((180000 - timeElapsed) / 1000); // 3 minutes lock for mobile
+
+        logger.warn(
+          `Mobile verification reminder rate limited for ${normalizedEmail}`,
           {
-            user_id,
-            token,
-            email,
-          },
-          next
+            email: normalizedEmail,
+            tenant,
+            timeElapsed: timeElapsed / 1000,
+            remainingSeconds: remainingTime,
+          }
         );
 
-        if (responseFromSendEmail) {
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
+        return {
+          success: false,
+          message: "Please wait before requesting another verification code",
+          errors: {
+            rateLimit: `Please wait ${remainingTime} seconds before requesting another code.`,
+          },
+        };
+      }
+
+      // Set rate limiting lock (shorter for mobile UX)
+      registrationLocks.set(reminderKey, {
+        createdAt: Date.now(),
+        type: "mobile_verification_reminder",
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(reminderKey);
+      }, 180000); // 3 minute rate limit for mobile
+
+      // ✅ STEP 2: Enhanced user lookup
+      const user = await UserModel(dbTenant)
+        .findOne({ email: normalizedEmail })
+        .select(
+          "_id email firstName lastName verified analyticsVersion createdAt"
+        )
+        .lean();
+
+      if (isEmpty(user)) {
+        logger.warn(
+          `Mobile verification reminder for non-existent user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+          }
+        );
+
+        return {
+          success: false,
+          message: "User not found",
+          errors: {
+            email:
+              "No mobile account found with this email. Please register first.",
+          },
+        };
+      }
+
+      // ✅ STEP 3: Check verification status
+      if (user.verified) {
+        return {
+          success: false,
+          message: "Account already verified",
+          errors: {
+            verification:
+              "Your mobile account is already verified. You can proceed to login.",
+          },
+          data: {
+            alreadyVerified: true,
+            canLogin: true,
+          },
+        };
+      }
+
+      // ✅ STEP 4: Generate mobile verification token (5-digit numeric)
+      const token = generateNumericToken(5);
+
+      const tokenCreationBody = {
+        token,
+        name: user.firstName,
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      };
+
+      // ✅ STEP 5: Create token with cleanup
+      try {
+        // Clean up old mobile tokens first
+        await VerifyTokenModel(dbTenant).deleteMany({
+          name: user.firstName,
+          token: { $regex: /^\d{5}$/ }, // Delete old 5-digit tokens
+          expires: { $lt: new Date() },
+        });
+
+        const responseFromCreateToken = await VerifyTokenModel(
+          dbTenant
+        ).register(tokenCreationBody, next);
+
+        if (responseFromCreateToken.success === false) {
+          logger.error("Mobile verification token creation failed", {
+            email: normalizedEmail,
+            userId: user._id,
+            tenant,
+            error: responseFromCreateToken.message,
+          });
+          return responseFromCreateToken;
+        }
+
+        // ✅ STEP 6: Send mobile verification email
+        try {
+          const emailResponse = await mailer.sendVerificationEmail(
+            {
+              email: normalizedEmail,
+              token,
+              tenant,
+            },
+            next
+          );
+
+          if (emailResponse && emailResponse.success === true) {
             const userDetails = {
               firstName: user.firstName,
               lastName: user.lastName,
@@ -1708,111 +2908,178 @@ const createUserModule = {
 
             return {
               success: true,
-              message: "An Email sent to your account please verify",
-              data: userDetails,
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
+              message: "Verification code sent to your email.",
+              data: {
+                ...userDetails,
+                reminderSent: true,
+                codeLength: 5,
+                expiresIn: "24 hours",
+              },
             };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
+          } else {
+            logger.error("Mobile verification reminder email failed", {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              emailError: emailResponse && emailResponse.message,
+            });
+            return (
+              emailResponse || {
+                success: false,
+                message: "Failed to send verification code",
+              }
+            );
           }
-        } else {
-          logger.error("mailer.verifyEmail did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send after email verification email" }
-            )
-          );
-        }
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  mobileVerificationReminder: async (request, next) => {
-    try {
-      const { tenant, email } = request;
-
-      const user = await UserModel(tenant)
-        .findOne({ email })
-        .select("_id email firstName lastName verified")
-        .lean();
-
-      if (isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not provided or does not exist",
-          })
-        );
-      }
-
-      const token = generateNumericToken(5);
-
-      const tokenCreationBody = {
-        token,
-        name: user.firstName,
-      };
-      const responseFromCreateToken = await VerifyTokenModel(
-        tenant.toLowerCase()
-      ).register(tokenCreationBody, next);
-
-      if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
-      } else {
-        const emailResponse = await mailer.sendVerificationEmail(
-          { email, token, tenant },
-          next
-        );
-        logObject("emailResponse", emailResponse);
-        if (emailResponse.success === false) {
+        } catch (emailError) {
           logger.error(
-            `Failed to send mobile verification email to user (${email}) with id ${user._id}`
+            `Mobile verification reminder email exception: ${emailError.message}`,
+            {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              error: emailError.message,
+            }
           );
-          return emailResponse;
-        }
 
-        const userDetails = {
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          verified: user.verified,
-        };
+          return {
+            success: false,
+            message: "Email delivery failed",
+            errors: { email: emailError.message },
+          };
+        }
+      } catch (tokenError) {
+        logger.error(
+          `Mobile verification token creation error: ${tokenError.message}`,
+          {
+            email: normalizedEmail,
+            userId: user._id,
+            tenant,
+            error: tokenError.message,
+          }
+        );
+
         return {
-          success: true,
-          message: "Verification code sent to your email.",
-          data: userDetails,
+          success: false,
+          message: "Failed to generate verification code",
+          errors: { token: tokenError.message },
         };
       }
     } catch (error) {
-      logObject("error in mobileVerificationReminder", error);
-
-      logger.error(`Error sending verification reminder: ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      logger.error(
+        `🐛🐛 Mobile verification reminder error: ${error.message}`,
+        {
+          email: request.email,
+          tenant: request.tenant,
+          stack: error.stack,
+        }
       );
+
+      return {
+        success: false,
+        message: "An unexpected error occurred",
+        errors: { server: "Please try again or contact support" },
+      };
     }
   },
+
   verifyMobileEmail: async (request, next) => {
     try {
-      const { email, token, tenant, skip, limit } = {
+      const {
+        email,
+        token,
+        tenant,
+        skip = 0,
+        limit = 1000,
+      } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
+
+      // ✅ STEP 1: Enhanced input validation
+      if (!email || !token) {
+        return {
+          success: false,
+          message: "Email and verification code are required",
+          errors: {
+            email: !email ? "Email is required" : undefined,
+            token: !token ? "Verification code is required" : undefined,
+          },
+        };
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 2: Token format validation for mobile (5-digit numeric)
+      if (!/^\d{5}$/.test(token)) {
+        logger.warn(
+          `Invalid mobile verification token format for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            tokenFormat: "invalid",
+            providedToken: token.replace(/./g, "*"), // Mask token in logs
+          }
+        );
+
+        return {
+          success: false,
+          message: "Invalid verification code format",
+          errors: {
+            token: "Verification code must be a 5-digit number",
+          },
+        };
+      }
+
+      // ✅ STEP 3: Rate limiting for verification attempts
+      const verifyKey = `mobile-verify-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(verifyKey)) {
+        const lockData = registrationLocks.get(verifyKey);
+        const attempts = lockData.attempts || 0;
+
+        if (attempts >= 5) {
+          // Max 5 attempts per 15 minutes
+          const timeElapsed = Date.now() - lockData.createdAt;
+          const remainingTime = Math.ceil((900000 - timeElapsed) / 1000); // 15 minutes
+
+          logger.warn(
+            `Mobile verification rate limited for ${normalizedEmail}`,
+            {
+              email: normalizedEmail,
+              tenant,
+              attempts,
+              remainingSeconds: remainingTime,
+            }
+          );
+
+          return {
+            success: false,
+            message: "Too many verification attempts",
+            errors: {
+              rateLimit: `Please wait ${Math.ceil(
+                remainingTime / 60
+              )} minutes before trying again.`,
+            },
+          };
+        }
+
+        // Increment attempts
+        lockData.attempts = attempts + 1;
+        registrationLocks.set(verifyKey, lockData);
+      } else {
+        // First attempt
+        registrationLocks.set(verifyKey, {
+          createdAt: Date.now(),
+          attempts: 1,
+          type: "mobile_verification",
+        });
+
+        setTimeout(() => {
+          registrationLocks.delete(verifyKey);
+        }, 900000); // 15 minute window
+      }
+
       const timeZone = moment.tz.guess();
       let filter = {
         token,
@@ -1821,24 +3088,57 @@ const createUserModule = {
         },
       };
 
-      const userDetails = await UserModel("airqo")
-        .find({
-          email,
-        })
-        .select("_id firstName lastName userName email verified")
+      // ✅ STEP 4: Enhanced user lookup with verification status
+      const userDetails = await UserModel(tenant)
+        .find({ email: normalizedEmail })
+        .select(
+          "_id firstName lastName userName email verified analyticsVersion"
+        )
         .lean();
 
       const user = userDetails[0];
 
       if (isEmpty(user)) {
+        logger.warn(
+          `Mobile verification attempted for non-existent user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            token: token.replace(/./g, "*"),
+          }
+        );
+
         return {
           success: false,
-          message: "Invalid Verification Token or the User does not exist",
+          message: "User not found",
           errors: {
-            message: "Invalid Verification Token or the User does not exist",
+            email: "No account found with this email address",
           },
         };
       }
+
+      // ✅ STEP 5: Check if already verified
+      if (user.verified) {
+        // Clear rate limiting on successful verification check
+        registrationLocks.delete(verifyKey);
+
+        return {
+          success: true,
+          message: "Account already verified",
+          data: {
+            user: {
+              _id: user._id,
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              verified: true,
+            },
+            alreadyVerified: true,
+          },
+        };
+      }
+
+      // ✅ STEP 6: Validate verification token
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -1849,19 +3149,30 @@ const createUserModule = {
         next
       );
 
-      logObject("responseFromListAccessToken", responseFromListAccessToken);
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          next(
-            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
-              message: "incorrect user or token details provided",
-            })
+          logger.warn(
+            `Invalid or expired mobile verification token for ${normalizedEmail}`,
+            {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              tokenStatus: "not_found_or_expired",
+            }
           );
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          let update = {
-            verified: true,
+
+          return {
+            success: false,
+            message: "Invalid or expired verification code",
+            errors: {
+              token:
+                "The verification code is invalid or has expired. Please request a new code.",
+            },
           };
-          filter = { email };
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          // ✅ STEP 7: Update user as verified
+          filter = { email: normalizedEmail };
+          let update = { verified: true };
 
           const responseFromUpdateUser = await UserModel(tenant).modify(
             {
@@ -1872,84 +3183,247 @@ const createUserModule = {
           );
 
           if (responseFromUpdateUser.success === true) {
-            /**
-             * we shall also need to handle case where there was no update
-             * later...cases where the user never existed in the first place
-             * this will not be necessary if user deletion is cascaded.
-             */
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
 
+            // ✅ STEP 8: Delete verification token
             filter = { token };
-            logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await VerifyTokenModel(
               tenant
             ).remove({ filter }, next);
 
-            logObject("responseFromDeleteToken", responseFromDeleteToken);
-
             if (responseFromDeleteToken.success === true) {
-              logObject("user", user);
-              const responseFromSendEmail = await mailer.afterEmailVerification(
-                {
-                  firstName: user.firstName,
-                  username: user.userName,
-                  email: user.email,
-                  analyticsVersion: 4,
-                },
-                next
-              );
+              // ✅ STEP 9: Send welcome email for mobile users
+              try {
+                const responseFromSendEmail =
+                  await mailer.afterEmailVerification(
+                    {
+                      firstName: user.firstName,
+                      username: user.userName,
+                      email: user.email,
+                      analyticsVersion: user.analyticsVersion || 4,
+                    },
+                    next
+                  );
 
-              if (responseFromSendEmail.success === true) {
+                // Clear rate limiting on successful verification
+                registrationLocks.delete(verifyKey);
+
+                if (
+                  responseFromSendEmail &&
+                  responseFromSendEmail.success === true
+                ) {
+                  return {
+                    success: true,
+                    message: "Email verified successfully! Welcome to AirQo.",
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                        analyticsVersion: user.analyticsVersion,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: true,
+                    },
+                    status: httpStatus.OK,
+                  };
+                } else {
+                  // Verification successful but welcome email failed
+                  return {
+                    success: true,
+                    message: "Email verified successfully!",
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                        analyticsVersion: user.analyticsVersion,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: false,
+                      welcomeEmailError: responseFromSendEmail?.message,
+                    },
+                    status: httpStatus.OK,
+                  };
+                }
+              } catch (emailError) {
+                logger.error(
+                  `Welcome email error after mobile verification: ${emailError.message}`,
+                  {
+                    email: normalizedEmail,
+                    userId: user._id,
+                    tenant,
+                    error: emailError.message,
+                  }
+                );
+
+                // Still return success since verification completed
                 return {
                   success: true,
-                  message: "email verified sucessfully",
+                  message: "Email verified successfully!",
+                  data: {
+                    user: {
+                      _id: user._id,
+                      email: user.email,
+                      firstName: user.firstName,
+                      lastName: user.lastName,
+                      verified: true,
+                    },
+                    verificationCompleted: true,
+                    welcomeEmailSent: false,
+                  },
                   status: httpStatus.OK,
                 };
-              } else if (responseFromSendEmail.success === false) {
-                return responseFromSendEmail;
               }
             } else if (responseFromDeleteToken.success === false) {
-              next(
-                new HttpError(
-                  "unable to verify user",
-                  responseFromDeleteToken.status
-                    ? responseFromDeleteToken.status
-                    : httpStatus.INTERNAL_SERVER_ERROR,
-                  responseFromDeleteToken.errors
-                    ? responseFromDeleteToken.errors
-                    : { message: "internal server errors" }
-                )
+              logger.error(
+                "Failed to delete verification token after mobile verification",
+                {
+                  email: normalizedEmail,
+                  userId: user._id,
+                  tenant,
+                  deleteError: responseFromDeleteToken.message,
+                }
               );
+
+              return {
+                success: false,
+                message: "Verification process incomplete",
+                status:
+                  responseFromDeleteToken.status ||
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                errors: responseFromDeleteToken.errors || {
+                  message: "Token cleanup failed",
+                },
+              };
             }
           } else if (responseFromUpdateUser.success === false) {
-            next(
-              new HttpError(
-                "unable to verify user",
-                responseFromUpdateUser.status
-                  ? responseFromUpdateUser.status
-                  : httpStatus.INTERNAL_SERVER_ERROR,
-                responseFromUpdateUser.errors
-                  ? responseFromUpdateUser.errors
-                  : { message: "internal server errors" }
-              )
-            );
+            logger.error("Failed to update user verification status", {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              updateError: responseFromUpdateUser.message,
+            });
+
+            return {
+              success: false,
+              message: "Failed to update verification status",
+              status:
+                responseFromUpdateUser.status ||
+                httpStatus.INTERNAL_SERVER_ERROR,
+              errors: responseFromUpdateUser.errors || {
+                message: "Database update failed",
+              },
+            };
           }
         }
       } else if (responseFromListAccessToken.success === false) {
+        logger.error("Token lookup failed for mobile verification", {
+          email: normalizedEmail,
+          userId: user._id,
+          tenant,
+          tokenError: responseFromListAccessToken.message,
+        });
+
         return responseFromListAccessToken;
       }
     } catch (error) {
-      return { success: false, message: error.message };
+      logger.error(`🐛🐛 Mobile email verification error: ${error.message}`, {
+        email: request.body?.email,
+        tenant: request.query?.tenant,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "An unexpected error occurred during verification",
+        errors: {
+          server:
+            "Please try again or contact support if the problem persists.",
+        },
+      };
     }
   },
   verifyEmail: async (request, next) => {
     try {
-      const { tenant, limit, skip, user_id, token } = {
+      const {
+        tenant,
+        limit = 1000,
+        skip = 0,
+        user_id,
+        token,
+      } = {
         ...request.query,
         ...request.params,
       };
+
+      // ✅ STEP 1: Enhanced input validation
+      if (!user_id || !token) {
+        return {
+          success: false,
+          message: "User ID and verification token are required",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            user_id: !user_id ? "User ID is required" : undefined,
+            token: !token ? "Verification token is required" : undefined,
+          },
+        };
+      }
+
+      // ✅ STEP 2: Enhanced user lookup
+      const userDetails = await UserModel(tenant)
+        .find({ _id: ObjectId(user_id) })
+        .select(
+          "_id firstName lastName userName email verified analyticsVersion"
+        )
+        .lean();
+
+      if (isEmpty(userDetails)) {
+        logger.warn(
+          `Web verification attempted for non-existent user ID: ${user_id}`,
+          {
+            userId: user_id,
+            tenant,
+            token: token.substring(0, 5) + "...",
+          }
+        );
+
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { user: "User account not found" },
+        };
+      }
+
+      const user = userDetails[0];
+
+      // ✅ STEP 3: Check if already verified
+      if (user.verified) {
+        return {
+          success: true,
+          message: "Account already verified",
+          status: httpStatus.OK,
+          data: {
+            user: {
+              _id: user._id,
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              verified: true,
+            },
+            alreadyVerified: true,
+          },
+        };
+      }
+
+      // ✅ STEP 4: Validate token with expiration check
       const timeZone = moment.tz.guess();
       let filter = {
         token,
@@ -1957,20 +3431,6 @@ const createUserModule = {
           $gt: moment().tz(timeZone).toDate(),
         },
       };
-
-      const userDetails = await UserModel(tenant)
-        .find({
-          _id: ObjectId(user_id),
-        })
-        .lean();
-
-      if (isEmpty(userDetails)) {
-        next(
-          new HttpError("Bad Reqest Error", httpStatus.BAD_REQUEST, {
-            message: "User does not exist",
-          })
-        );
-      }
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -1983,15 +3443,28 @@ const createUserModule = {
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          next(
-            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
-              message: "incorrect user or token details provided",
-            })
+          logger.warn(
+            `Invalid or expired web verification token for user: ${user.email}`,
+            {
+              email: user.email,
+              userId: user_id,
+              tenant,
+              tokenStatus: "not_found_or_expired",
+            }
           );
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          let update = {
-            verified: true,
+
+          return {
+            success: false,
+            message: "Invalid or expired verification link",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              token:
+                "The verification link is invalid or has expired. Please request a new verification email.",
+            },
           };
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          // ✅ STEP 5: Update user as verified
+          let update = { verified: true };
           filter = { _id: user_id };
 
           const responseFromUpdateUser = await UserModel(tenant).modify(
@@ -2003,81 +3476,166 @@ const createUserModule = {
           );
 
           if (responseFromUpdateUser.success === true) {
-            /**
-             * we shall also need to handle case where there was no update
-             * later...cases where the user never existed in the first place
-             * this will not be necessary if user deletion is cascaded.
-             */
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
 
+            // ✅ STEP 6: Delete verification token
             filter = { token };
-            logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await VerifyTokenModel(
               tenant
             ).remove({ filter }, next);
 
-            logObject("responseFromDeleteToken", responseFromDeleteToken);
-
             if (responseFromDeleteToken.success === true) {
-              const responseFromSendEmail = await mailer.afterEmailVerification(
-                {
-                  firstName: userDetails[0].firstName,
-                  username: userDetails[0].userName,
-                  email: userDetails[0].email,
-                },
-                next
-              );
+              // ✅ STEP 7: Send welcome email
+              try {
+                const responseFromSendEmail =
+                  await mailer.afterEmailVerification(
+                    {
+                      firstName: user.firstName,
+                      username: user.userName,
+                      email: user.email,
+                      analyticsVersion: user.analyticsVersion || 3,
+                    },
+                    next
+                  );
 
-              if (responseFromSendEmail.success === true) {
+                if (
+                  responseFromSendEmail &&
+                  responseFromSendEmail.success === true
+                ) {
+                  return {
+                    success: true,
+                    message: "Email verified successfully! Welcome to AirQo.",
+                    status: httpStatus.OK,
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: true,
+                    },
+                  };
+                } else if (
+                  responseFromSendEmail &&
+                  responseFromSendEmail.success === false
+                ) {
+                  // Verification successful but welcome email failed
+                  return {
+                    success: true,
+                    message: "Email verified successfully!",
+                    status: httpStatus.OK,
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: false,
+                    },
+                  };
+                }
+              } catch (emailError) {
+                logger.error(
+                  `Welcome email error after web verification: ${emailError.message}`,
+                  {
+                    email: user.email,
+                    userId: user_id,
+                    tenant,
+                    error: emailError.message,
+                  }
+                );
+
+                // Still return success since verification completed
                 return {
                   success: true,
-                  message: "email verified sucessfully",
+                  message: "Email verified successfully!",
                   status: httpStatus.OK,
+                  data: {
+                    user: {
+                      _id: user._id,
+                      email: user.email,
+                      firstName: user.firstName,
+                      lastName: user.lastName,
+                      verified: true,
+                    },
+                    verificationCompleted: true,
+                    welcomeEmailSent: false,
+                  },
                 };
-              } else if (responseFromSendEmail.success === false) {
-                return responseFromSendEmail;
               }
             } else if (responseFromDeleteToken.success === false) {
-              next(
-                new HttpError(
-                  "unable to verify user",
-                  responseFromDeleteToken.status
-                    ? responseFromDeleteToken.status
-                    : httpStatus.INTERNAL_SERVER_ERROR,
-                  responseFromDeleteToken.errors
-                    ? responseFromDeleteToken.errors
-                    : { message: "internal server errors" }
-                )
+              logger.error(
+                "Failed to delete verification token after web verification",
+                {
+                  email: user.email,
+                  userId: user_id,
+                  tenant,
+                  deleteError: responseFromDeleteToken.message,
+                }
               );
+
+              return {
+                success: false,
+                message: "Verification process incomplete",
+                status:
+                  responseFromDeleteToken.status ||
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                errors: responseFromDeleteToken.errors || {
+                  message: "Token cleanup failed",
+                },
+              };
             }
           } else if (responseFromUpdateUser.success === false) {
-            next(
-              new HttpError(
-                "unable to verify user",
-                responseFromUpdateUser.status
-                  ? responseFromUpdateUser.status
-                  : httpStatus.INTERNAL_SERVER_ERROR,
-                responseFromUpdateUser.errors
-                  ? responseFromUpdateUser.errors
-                  : { message: "internal server errors" }
-              )
-            );
+            logger.error("Failed to update user verification status", {
+              email: user.email,
+              userId: user_id,
+              tenant,
+              updateError: responseFromUpdateUser.message,
+            });
+
+            return {
+              success: false,
+              message: "Failed to update verification status",
+              status:
+                responseFromUpdateUser.status ||
+                httpStatus.INTERNAL_SERVER_ERROR,
+              errors: responseFromUpdateUser.errors || {
+                message: "Database update failed",
+              },
+            };
           }
         }
       } else if (responseFromListAccessToken.success === false) {
+        logger.error("Token lookup failed for web verification", {
+          email: user.email,
+          userId: user_id,
+          tenant,
+          tokenError: responseFromListAccessToken.message,
+        });
+
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      logger.error(`🐛🐛 Web email verification error: ${error.message}`, {
+        userId: request.params?.user_id,
+        tenant: request.query?.tenant,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { server: "An unexpected error occurred during verification" },
+      };
     }
   },
   create: async (request, next) => {
@@ -2087,77 +3645,190 @@ const createUserModule = {
         ...request.query,
         ...request.params,
       };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      const user = await UserModel(tenant).findOne({ email });
-      if (!isEmpty(user)) {
+      // ✅ STEP 1: Create registration lock to prevent race conditions
+      const lockKey = `reg-${email.toLowerCase()}-${tenant}`;
+
+      if (registrationLocks.has(lockKey)) {
+        logger.warn(`Duplicate registration attempt blocked for ${email}`, {
+          email,
+          tenant,
+          lockExists: true,
+        });
+
         return {
           success: false,
-          message: "User is already part of the AirQo platform",
-          status: httpStatus.BAD_REQUEST,
+          message: "Registration already in progress for this email",
+          status: httpStatus.CONFLICT,
           errors: [
             {
               param: "email",
-              message: "User is already part of the AirQo platform",
+              message:
+                "A registration for this email is already being processed. Please wait a moment and try again.",
               location: "body",
             },
           ],
         };
       }
 
-      const userBody = request.body;
-      const newRequest = Object.assign(
-        { userName: email, password, analyticsVersion: 3 },
-        userBody
-      );
+      // Set lock with automatic cleanup
+      registrationLocks.set(lockKey, Date.now());
+      setTimeout(() => {
+        registrationLocks.delete(lockKey);
+      }, 30000); // 30 second lock
 
-      // Pass the sendDuplicateEmail option to true for this specific flow
-      const responseFromCreateUser = await UserModel(tenant).register(
-        newRequest,
-        next,
-        { sendDuplicateEmail: true }
-      );
+      try {
+        // ✅ STEP 2: Check for existing user with enhanced logging
+        const existingUser = await UserModel(dbTenant)
+          .findOne({
+            email: email.toLowerCase(),
+          })
+          .lean();
 
-      if (!responseFromCreateUser) {
-        return {
-          success: false,
-          message: "Failed to create user",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: [{ message: "User creation failed" }],
-        };
-      }
+        if (!isEmpty(existingUser)) {
+          // ✅ ENHANCED RESPONSE: Provide helpful information based on verification status
+          if (existingUser.verified) {
+            // User exists and is verified - send them to login
+            return {
+              success: false,
+              message:
+                "An account with this email already exists and is verified",
+              status: httpStatus.CONFLICT,
+              errors: [
+                {
+                  param: "email",
+                  message:
+                    "This email is already registered. Please use the 'Forgot Password' feature if you need to reset your password.",
+                  location: "body",
+                },
+              ],
+              data: {
+                accountExists: true,
+                verified: true,
+                loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
+                forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
+              },
+            };
+          } else {
+            // User exists but not verified - offer to resend verification
 
-      if (responseFromCreateUser.success === true) {
-        if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
-          return responseFromCreateUser;
+            // Trigger verification email resend
+            try {
+              await createUserModule.verificationReminder(
+                {
+                  tenant,
+                  email: existingUser.email,
+                },
+                next
+              );
+
+              return {
+                success: false,
+                message:
+                  "Account exists but is not verified. A new verification email has been sent.",
+                status: httpStatus.CONFLICT,
+                errors: [
+                  {
+                    param: "email",
+                    message:
+                      "This email is already registered but not verified. We've sent a new verification email.",
+                    location: "body",
+                  },
+                ],
+                data: {
+                  accountExists: true,
+                  verified: false,
+                  verificationEmailSent: true,
+                },
+              };
+            } catch (emailError) {
+              logger.error(
+                `Failed to send verification reminder: ${emailError.message}`
+              );
+
+              return {
+                success: false,
+                message: "Account exists but is not verified",
+                status: httpStatus.CONFLICT,
+                errors: [
+                  {
+                    param: "email",
+                    message:
+                      "This email is already registered but not verified. Please check your email for the verification link or contact support.",
+                    location: "body",
+                  },
+                ],
+              };
+            }
+          }
         }
 
-        const createdUser = await responseFromCreateUser.data;
-        const user_id = createdUser._doc._id;
+        // ✅ STEP 3: Proceed with normal user creation
+        const userBody = request.body;
+        const newRequest = Object.assign(
+          {
+            userName: email,
+            password,
+            analyticsVersion: 3,
+            ...(userBody.interests && { interests: userBody.interests }),
+            ...(userBody.interestsDescription && {
+              interestsDescription: userBody.interestsDescription,
+            }),
+            ...(userBody.country && { country: userBody.country }),
+          },
+          userBody
+        );
 
-        const token = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
-          )
-          .toUpperCase();
+        const responseFromCreateUser = await UserModel(dbTenant).register(
+          newRequest,
+          next,
+          { sendDuplicateEmail: true }
+        );
 
-        const tokenCreationBody = {
-          token,
-          name: createdUser._doc.firstName,
-        };
+        if (!responseFromCreateUser) {
+          return {
+            success: false,
+            message: "Failed to create user",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: [{ message: "User creation failed" }],
+          };
+        }
 
-        const responseFromCreateToken = await VerifyTokenModel(
-          tenant.toLowerCase()
-        ).register(tokenCreationBody, next);
+        if (responseFromCreateUser.success === true) {
+          if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
+            return responseFromCreateUser;
+          }
 
-        if (responseFromCreateToken.success === false) {
-          return responseFromCreateToken;
-        } else {
+          const createdUser = await responseFromCreateUser.data;
+          const user_id = createdUser._doc._id;
+
+          const token = accessCodeGenerator
+            .generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+            )
+            .toUpperCase();
+
+          const tokenCreationBody = {
+            token,
+            name: createdUser._doc.firstName,
+          };
+
+          const responseFromCreateToken = await VerifyTokenModel(
+            dbTenant
+          ).register(tokenCreationBody, next);
+
+          if (responseFromCreateToken.success === false) {
+            return responseFromCreateToken;
+          }
+
+          // ✅ STEP 4: Enhanced email sending with monitoring
           const responseFromSendEmail = await mailer.verifyEmail(
             {
               user_id,
               token,
-              email,
-              firstName,
+              email: createdUser._doc.email,
+              firstName: createdUser._doc.firstName,
               category,
             },
             next
@@ -2174,7 +3845,8 @@ const createUserModule = {
 
               return {
                 success: true,
-                message: "An Email sent to your account please verify",
+                message:
+                  "Registration successful! Please check your email for verification instructions.",
                 data: userDetails,
                 status: responseFromSendEmail.status || httpStatus.OK,
               };
@@ -2185,25 +3857,45 @@ const createUserModule = {
             logger.error("mailer.verifyEmail did not return a response");
             return {
               success: false,
-              message: "Failed to send verification email",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: [{ message: "Failed to send verification email" }],
+              message: "User created but verification email failed to send",
+              status: httpStatus.PARTIAL_CONTENT,
+              errors: [
+                {
+                  message:
+                    "Please contact support to resend verification email",
+                },
+              ],
             };
           }
+        } else if (responseFromCreateUser.success === false) {
+          return responseFromCreateUser;
         }
-      } else if (responseFromCreateUser.success === false) {
-        return responseFromCreateUser;
+      } finally {
+        // ✅ STEP 5: Always cleanup the lock
+        registrationLocks.delete(lockKey);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error in user creation: ${error.message}`,
+        {
+          email: request.body?.email,
+          tenant: request.query?.tenant,
+          stack: error.stack,
+        }
+      );
+
       return {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: [{ message: error.message }],
+        errors: [
+          { message: "An unexpected error occurred during registration" },
+        ],
       };
     }
   },
+
+  // Enhanced register function in user.util.js
   register: async (request, next) => {
     try {
       const {
@@ -2214,82 +3906,281 @@ const createUserModule = {
         long_organization,
         privilege,
         network_id,
-      } = request.body;
-
-      const { tenant } = request.query;
-
-      const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
-      );
-
-      let requestBody = {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        userName: email,
-        password,
-        network_id,
+        tenant,
+      } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
       };
 
-      const responseFromCreateUser = await UserModel(tenant).register(
-        requestBody,
-        next
-      );
-
-      if (responseFromCreateUser.success === true) {
-        const createdUser = await responseFromCreateUser.data;
-        logObject("created user in util", createdUser._doc);
-        const responseFromSendEmail = await mailer.user(
-          {
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            type: "user",
+      // ✅ STEP 1: Input validation and normalization
+      if (!email || !firstName || !lastName) {
+        return {
+          success: false,
+          message: "Missing required fields",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            email: !email ? "Email is required" : undefined,
+            firstName: !firstName ? "First name is required" : undefined,
+            lastName: !lastName ? "Last name is required" : undefined,
           },
-          next
+        };
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 2: Create registration lock to prevent race conditions
+      const lockKey = `admin-reg-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(lockKey)) {
+        logger.warn(
+          `Duplicate admin registration attempt blocked for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            lockExists: true,
+            requestedBy: (request.user && request.user.email) || "unknown",
+          }
         );
 
-        if (responseFromSendEmail) {
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
+        return {
+          success: false,
+          message: "Registration already in progress for this user",
+          status: httpStatus.CONFLICT,
+          errors: {
+            email:
+              "A registration for this email is currently being processed. Please wait and try again.",
+          },
+        };
+      }
+
+      // Set lock with automatic cleanup
+      registrationLocks.set(lockKey, {
+        createdAt: Date.now(),
+        createdBy: (request.user && request.user.email) || "unknown",
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(lockKey);
+      }, 45000); // 45 second lock (longer for admin operations)
+
+      try {
+        // ✅ STEP 3: Enhanced duplicate user checking
+        const existingUser = await UserModel(tenant)
+          .findOne({
+            email: normalizedEmail,
+          })
+          .lean();
+
+        if (!isEmpty(existingUser)) {
+          // ✅ Enhanced response with actionable information
+          if (existingUser.verified && existingUser.isActive) {
             return {
-              success: true,
-              message: "user successfully created",
-              data: createdUser._doc,
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
+              success: false,
+              message: "User already exists and is active",
+              status: httpStatus.CONFLICT,
+              errors: {
+                email:
+                  "This email is already registered with an active, verified account.",
+              },
+              data: {
+                accountExists: true,
+                verified: true,
+                isActive: true,
+                userId: existingUser._id,
+                createdAt: existingUser.createdAt,
+              },
             };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
+          } else if (existingUser.verified && !existingUser.isActive) {
+            // User exists but is inactive - could reactivate
+            return {
+              success: false,
+              message: "User exists but account is inactive",
+              status: httpStatus.CONFLICT,
+              errors: {
+                email:
+                  "This email belongs to an inactive account. Consider reactivating instead of creating new account.",
+              },
+              data: {
+                accountExists: true,
+                verified: true,
+                isActive: false,
+                canReactivate: true,
+                userId: existingUser._id,
+              },
+            };
+          } else {
+            // User exists but not verified - could resend verification
+            return {
+              success: false,
+              message: "User exists but is not verified",
+              status: httpStatus.CONFLICT,
+              errors: {
+                email:
+                  "This email is registered but not verified. Consider resending verification email instead.",
+              },
+              data: {
+                accountExists: true,
+                verified: false,
+                canResendVerification: true,
+                userId: existingUser._id,
+              },
+            };
           }
-        } else {
-          logger.error("mailer.user did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send user creation email" }
-            )
-          );
         }
-      } else if (responseFromCreateUser.success === false) {
-        return responseFromCreateUser;
+
+        // ✅ STEP 4: Generate secure password with enhanced logging
+        const password = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+        );
+
+        const requestBody = {
+          firstName,
+          lastName,
+          email: normalizedEmail,
+          organization,
+          long_organization,
+          privilege,
+          userName: normalizedEmail,
+          password,
+          network_id,
+          ...(request.body.interests && { interests: request.body.interests }),
+          ...(request.body.interestsDescription && {
+            interestsDescription: request.body.interestsDescription,
+          }),
+          ...(request.body.country && { country: request.body.country }),
+          // Add metadata for admin-created users
+          createdByAdmin: true,
+          adminCreatorEmail: (request.user && request.user.email) || "unknown",
+        };
+
+        // ✅ STEP 5: Create user with enhanced error handling
+        const responseFromCreateUser = await UserModel(tenant).register(
+          requestBody,
+          next,
+          { sendDuplicateEmail: false } // Admin creation shouldn't send duplicate emails
+        );
+
+        if (responseFromCreateUser.success === true) {
+          const createdUser = responseFromCreateUser.data;
+
+          // ✅ STEP 6: Enhanced email sending with monitoring
+          try {
+            const responseFromSendEmail = await mailer.user(
+              {
+                firstName,
+                lastName,
+                email: normalizedEmail,
+                password,
+                tenant,
+                type: "user",
+              },
+              next
+            );
+
+            if (responseFromSendEmail) {
+              if (responseFromSendEmail.success === true) {
+                // ✅ Log successful email delivery
+
+                return {
+                  success: true,
+                  message: "User successfully created and welcome email sent",
+                  data: {
+                    user: createdUser._doc,
+                    emailSent: true,
+                    loginUrl: `${constants.LOGIN_PAGE}`,
+                    tempPassword: "Sent via email", // Don't return actual password in response
+                  },
+                  status: responseFromSendEmail.status || httpStatus.OK,
+                };
+              } else if (responseFromSendEmail.success === false) {
+                // User created but email failed
+                logger.error("Admin registration email failed", {
+                  email: normalizedEmail,
+                  userId: createdUser._doc._id,
+                  tenant,
+                  emailError: responseFromSendEmail.message,
+                });
+
+                return {
+                  success: true, // User was created successfully
+                  message: "User created but welcome email failed to send",
+                  data: {
+                    user: createdUser._doc,
+                    emailSent: false,
+                    tempPassword: password, // Return password since email failed
+                    emailError: responseFromSendEmail.message,
+                  },
+                  status: httpStatus.PARTIAL_CONTENT,
+                };
+              }
+            } else {
+              logger.error("mailer.user did not return a response");
+              return {
+                success: true, // User was created
+                message: "User created but email service unavailable",
+                data: {
+                  user: createdUser._doc,
+                  emailSent: false,
+                  tempPassword: password, // Return password since email failed
+                },
+                status: httpStatus.PARTIAL_CONTENT,
+              };
+            }
+          } catch (emailError) {
+            logger.error(
+              `Admin registration email error: ${emailError.message}`,
+              {
+                email: normalizedEmail,
+                userId: createdUser._doc._id,
+                tenant,
+                error: emailError.message,
+              }
+            );
+
+            return {
+              success: true, // User was created successfully
+              message: "User created but email delivery failed",
+              data: {
+                user: createdUser._doc,
+                emailSent: false,
+                tempPassword: password, // Return password since email failed
+                emailError: emailError.message,
+              },
+              status: httpStatus.PARTIAL_CONTENT,
+            };
+          }
+        } else if (responseFromCreateUser.success === false) {
+          logger.error("Admin user creation failed", {
+            email: normalizedEmail,
+            tenant,
+            error: responseFromCreateUser.message,
+            errors: responseFromCreateUser.errors,
+          });
+
+          return responseFromCreateUser;
+        }
+      } finally {
+        // ✅ STEP 7: Always cleanup the lock
+        registrationLocks.delete(lockKey);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      logger.error(`🐛🐛 Admin registration error: ${error.message}`, {
+        email: request.body?.email,
+        tenant: request.query?.tenant,
+        requestedBy: (request.user && request.user.email) || "unknown",
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "Internal Server Error during user registration",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server:
+            "An unexpected error occurred. Please try again or contact support.",
+        },
+      };
     }
   },
   forgotPassword: async (request, next) => {
@@ -2386,173 +4277,67 @@ const createUserModule = {
     try {
       const { resetPasswordToken, password } = request.body;
       const { tenant } = request.query;
+
+      // 1. Manually validate the new password
+      const validationResult = createUserModule._validatePassword(password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
       const timeZone = moment.tz.guess();
-      let filter = {
+      const filter = {
         resetPasswordToken,
         resetPasswordExpires: {
           $gt: moment().tz(timeZone).toDate(),
         },
       };
 
-      logObject("isPasswordTokenValid FILTER", filter);
-      const responseFromCheckTokenValidity =
-        await createUserModule.isPasswordTokenValid(
-          {
-            tenant,
-            filter,
-          },
-          next
-        );
-
-      logObject(
-        "responseFromCheckTokenValidity",
-        responseFromCheckTokenValidity
-      );
-
-      if (responseFromCheckTokenValidity.success === true) {
-        const update = {
-          resetPasswordToken: null,
-          resetPasswordExpires: null,
-          password,
-        };
-        const userDetails = responseFromCheckTokenValidity.data;
-        logObject("userDetails", userDetails);
-        filter = { _id: ObjectId(userDetails._id) };
-        logObject("updateForgottenPassword FILTER", filter);
-        const responseFromModifyUser = await UserModel(tenant).modify(
-          {
-            filter,
-            update,
-          },
-          next
-        );
-
-        if (responseFromModifyUser.success === true) {
-          const { email, firstName, lastName } = userDetails;
-          const responseFromSendEmail = await mailer.updateForgottenPassword(
-            {
-              email,
-              firstName,
-              lastName,
-            },
-            next
-          );
-
-          if (responseFromSendEmail.success === true) {
-            return responseFromModifyUser;
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
-        } else if (responseFromModifyUser.success === false) {
-          return responseFromModifyUser;
-        }
-      } else if (responseFromCheckTokenValidity.success === false) {
-        return responseFromCheckTokenValidity;
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  updateKnownPassword: async (request, next) => {
-    try {
-      const { query, body } = request;
-      const { password, old_password, tenant } = { ...body, ...query };
-      const filter = generateFilter.users(request, next);
-      const user = await UserModel(tenant).find(filter).lean();
-      logObject("the user details with lean(", user);
-
-      if (isEmpty(user)) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
-      }
-
-      if (isEmpty(user[0].password)) {
-        logger.error(` ${user[0].email} --- unable to do password lookup`);
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "unable to do password lookup",
-            }
-          )
-        );
-      }
-
-      const responseFromBcrypt = await bcrypt.compare(
-        old_password,
-        user[0].password
-      );
-
-      if (responseFromBcrypt === false) {
-        logger.error(
-          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
-        );
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          })
-        );
-      }
-
-      const update = {
-        password: password,
-      };
-      const responseFromUpdateUser = await UserModel(
+      const updatedUser = await UserModel(
         tenant.toLowerCase()
-      ).modify(
+      ).findOneAndUpdate(
+        filter,
         {
-          filter,
-          update,
+          $set: {
+            password: password, // pre-hook will hash this
+            resetPasswordToken: null,
+            resetPasswordExpires: null,
+          },
         },
-        next
+        { new: true, context: "query" } // No runValidators
       );
 
-      if (responseFromUpdateUser.success === true) {
-        const { email, firstName, lastName } = user[0];
-        const responseFromSendEmail = await mailer.updateKnownPassword(
+      if (!updatedUser) {
+        // This check now covers both existence and expiration
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Password reset token is invalid or has expired.",
+          })
+        );
+      }
+      // 2. Use findOneAndUpdate WITHOUT runValidators
+      const { email, firstName, lastName } = updatedUser;
+      // Asynchronously send email without blocking the response.
+      mailer
+        .updateForgottenPassword(
           {
             email,
             firstName,
             lastName,
           },
           next
-        );
-
-        if (responseFromSendEmail) {
-          if (responseFromSendEmail.success === true) {
-            return responseFromUpdateUser;
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
-        } else {
-          logger.error("mailer.updateKnownPassword did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send update password email" }
-            )
+        )
+        .catch((error) => {
+          logger.error(
+            `Failed to send password reset confirmation email to ${email}: ${error.message}`
           );
-        }
-      } else if (responseFromUpdateUser.success === false) {
-        return responseFromUpdateUser;
-      }
+        });
+
+      return {
+        success: true,
+        message: "Password has been reset successfully",
+        data: updatedUser.toJSON(),
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -2564,43 +4349,294 @@ const createUserModule = {
       );
     }
   },
-  initiatePasswordReset: async ({ email, token, tenant }, next) => {
-    try {
-      const update = {
-        resetPasswordToken: token,
-        resetPasswordExpires: Date.now() + 3600000,
-      };
-      const responseFromModifyUser = await UserModel(tenant)
-        .findOneAndUpdate({ email }, update, { new: true })
-        .select("firstName lastName email");
 
-      if (isEmpty(responseFromModifyUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.INTERNAL_SERVER_ERROR, {
-            message: "user does not exist, please crosscheck",
+  updateKnownPassword: async (request, next) => {
+    try {
+      const { old_password, password: new_password } = request.body || {};
+      const { tenant } = request.query || {};
+      const userId = request.user && request.user._id;
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      if (!old_password || !new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "old_password and new password are required",
           })
         );
       }
 
-      await mailer.sendPasswordResetEmail({ email, token, tenant });
+      if (!userId) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+
+      // 1. Manually validate the new password
+      const validationResult = createUserModule._validatePassword(new_password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
+      const user = await UserModel(dbTenant).findById(userId);
+
+      if (!user) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if the old password is correct
+      const isPasswordValid = await user.authenticateUser(old_password);
+      if (!isPasswordValid) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Invalid old password",
+          })
+        );
+      }
+
+      if (old_password === new_password) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "New password must be different from old password",
+          })
+        );
+      }
+
+      // 2. Use findOneAndUpdate to avoid .save() validation issues
+      const updatedUser = await UserModel(dbTenant).findByIdAndUpdate(
+        userId,
+        {
+          $set: {
+            password: new_password, // pre-hook will hash this
+            resetPasswordToken: null,
+            resetPasswordExpires: null,
+          },
+        },
+        { new: true, context: "query" } // No runValidators
+      );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Failed to update password",
+            }
+          )
+        );
+      }
 
       return {
         success: true,
-        message: "Password reset email sent successfully",
+        message: "Password updated successfully",
+        status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`
+      );
       next(
         new HttpError(
-          "Unable to initiate password reset",
+          "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
     }
   },
+
+  update: async (request, next) => {
+    try {
+      const { query, body, params } = request;
+      const { tenant } = { ...body, ...query, ...params };
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Drop any keys with undefined values to prevent them from being written to the DB
+      Object.keys(sanitizedUpdate).forEach((key) => {
+        if (sanitizedUpdate[key] === undefined) {
+          delete sanitizedUpdate[key];
+        }
+      });
+
+      // Fields that should never be updated via this endpoint.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id;
+      delete sanitizedUpdate.id;
+      delete sanitizedUpdate.email;
+      delete sanitizedUpdate.userName;
+
+      if (Object.keys(sanitizedUpdate).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Payload contains no mutable fields" },
+        };
+      }
+
+      // 2. Generate the filter to find the user.
+      const filter = generateFilter.users(request, next);
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
+        .lean()
+        .select("email firstName lastName");
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      // 3. Perform the database modification.
+      const responseFromModifyUser = await UserModel(dbTenant).modify(
+        {
+          filter,
+          update: { $set: sanitizedUpdate },
+        },
+        next
+      );
+
+      logObject("responseFromModifyUser", responseFromModifyUser);
+
+      if (responseFromModifyUser.success === true) {
+        // 4. Prepare the payload for the email notification.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        const apiResponseData = responseFromModifyUser.data.toJSON
+          ? responseFromModifyUser.data.toJSON()
+          : responseFromModifyUser.data;
+
+        if (
+          constants.ENVIRONMENT &&
+          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
+        ) {
+          return {
+            success: true,
+            message: responseFromModifyUser.message,
+            data: apiResponseData,
+          };
+        } else {
+          const { email, firstName, lastName } = user;
+
+          const responseFromSendEmail = await mailer.update(
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
+            next
+          );
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
+          } else {
+            logger.error("mailer.update did not return a response");
+            return next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "Failed to send update email" }
+              )
+            );
+          }
+        }
+      } else {
+        return responseFromModifyUser;
+      }
+    } catch (error) {
+      logObject("the util error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  initiatePasswordReset: async ({ email, token, tenant }) => {
+    try {
+      const update = {
+        resetPasswordToken: token,
+        resetPasswordExpires: Date.now() + 3600000, // 1 hour
+      };
+
+      // Use findOneAndUpdate to atomically update the document
+      // This avoids running schema validators on the entire document
+      const updatedUser = await UserModel(tenant)
+        .findOneAndUpdate({ email }, update, { new: true })
+        .lean();
+
+      // If a user was found and updated, send the email.
+      if (updatedUser) {
+        await mailer.sendPasswordResetEmail({
+          email: updatedUser.email,
+          token,
+          tenant,
+        });
+      } else {
+        // Log that the user was not found, but do not throw an error to the client.
+        logger.warn(
+          `Password reset requested for non-existent email: ${email} in tenant: ${tenant}`
+        );
+      }
+
+      // Always return a success message to prevent user enumeration.
+      return {
+        success: true,
+        message:
+          "If an account with that email exists, you will receive a password reset code shortly.",
+      };
+    } catch (error) {
+      // This will catch database errors or mailer errors.
+      logger.error(
+        `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`
+      );
+      // Re-throw a generic error to be handled by the controller.
+      throw new HttpError(
+        "Unable to initiate password reset",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message:
+            "An internal error occurred during the password reset process.",
+        }
+      );
+    }
+  },
+
   resetPassword: async ({ token, password, tenant }, next) => {
     try {
+      // 1. Manually validate the new password
+      const validationResult = createUserModule._validatePassword(password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
       const resetPasswordToken = token;
       const timeZone = moment.tz.guess();
       const filter = {
@@ -2610,57 +4646,51 @@ const createUserModule = {
         },
       };
 
-      const user = await UserModel(tenant).findOne(filter);
-      if (!user) {
-        throw new HttpError(
-          "Password reset token is invalid or has expired.",
-          httpStatus.BAD_REQUEST
-        );
-      }
-      const update = {
-        resetPasswordToken: null,
-        resetPasswordExpires: null,
-        password,
-      };
-
-      const responseFromModifyUser = await UserModel(tenant)
-        .findOneAndUpdate({ _id: ObjectId(user._id) }, update, { new: true })
-        .select("firstName lastName email");
-
-      const { email, firstName, lastName } = responseFromModifyUser._doc;
-
-      const responseFromSendEmail = await mailer.updateForgottenPassword(
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        filter,
         {
-          email,
-          firstName,
-          lastName,
+          $set: {
+            password: password, // pre-hook will hash this
+            resetPasswordToken: null,
+            resetPasswordExpires: null,
+          },
         },
-        next
+        { new: true, context: "query" } // No runValidators
       );
 
-      if (responseFromSendEmail) {
-        logObject("responseFromSendEmail", responseFromSendEmail);
-
-        if (responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "Password reset successful",
-          };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
-        }
-      } else {
-        logger.error(
-          "mailer.updateForgottenPassword did not return a response"
-        );
+      if (!updatedUser) {
+        // This check now covers both existence and expiration
         return next(
           new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Failed to send update password email" }
+            "Password reset token is invalid or has expired.",
+            httpStatus.BAD_REQUEST
           )
         );
       }
+      // 2. Use findOneAndUpdate WITHOUT runValidators
+      const { email, firstName, lastName } = updatedUser;
+      // Asynchronously send email without blocking the response.
+      mailer
+        .updateForgottenPassword(
+          {
+            email,
+            firstName,
+            lastName,
+          },
+          next
+        )
+        .catch((error) => {
+          logger.error(
+            `Failed to send password reset confirmation email to ${email}: ${error.message}`
+          );
+        });
+
+      return {
+        success: true,
+        message: "Password reset successful",
+        data: updatedUser.toJSON(),
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -2673,7 +4703,8 @@ const createUserModule = {
       );
     }
   },
-  generateResetToken: (next) => {
+
+  generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
       return {
@@ -2683,13 +4714,14 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
     }
   },
   isPasswordTokenValid: async (
@@ -2697,7 +4729,8 @@ const createUserModule = {
     next
   ) => {
     try {
-      const responseFromListUser = await UserModel(tenant.toLowerCase()).list(
+      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
+      const responseFromListUser = await UserModel(dbTenant).list(
         {
           filter,
         },
@@ -2736,6 +4769,7 @@ const createUserModule = {
       );
     }
   },
+
   subscribeToNewsLetter: async (request, next) => {
     try {
       const {
@@ -2838,10 +4872,6 @@ const createUserModule = {
 
       logObject("responseFromMailChimp", responseFromMailChimp);
 
-      logger.info(
-        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
-      );
-
       if (responseFromMailChimp.status !== "unsubscribed") {
         return next(
           new HttpError(
@@ -2925,10 +4955,6 @@ const createUserModule = {
       const responseFromMailChimp =
         await mailchimp.lists.deleteListMemberPermanent(listId, subscriberHash);
       logObject("responseFromMailChimp", responseFromMailChimp);
-
-      logger.info(
-        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
-      );
 
       if (responseFromMailChimp.status_code !== 200) {
         logObject("responseFromMailChimp", responseFromMailChimp);
@@ -3232,11 +5258,13 @@ const createUserModule = {
         ...request.params,
       };
 
+      // If user_id is provided, get the email from the user record
       if (!isEmpty(user_id)) {
         const user = await UserModel(tenant)
           .findOne({ _id: user_id })
           .select("email")
           .lean();
+
         if (isEmpty(user)) {
           return {
             success: false,
@@ -3245,36 +5273,39 @@ const createUserModule = {
             errors: { message: `Provided user_id ${user_id} does not exist` },
           };
         }
+
         email = user.email;
       }
 
-      const subscription = await SubscriptionModel(tenant).findOne({ email });
-      if (!subscription.notifications[type]) {
+      // Validate that we have an email
+      if (isEmpty(email)) {
         return {
           success: false,
-          message: `Forbidden`,
-          status: httpStatus.FORBIDDEN,
-          errors: {
-            message: `User is not subscribed to ${type} notifications`,
-          },
-        };
-      } else {
-        return {
-          success: true,
-          message: `User is subscribed to ${type} notifications`,
-          status: httpStatus.OK,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Email or user_id is required" },
         };
       }
+
+      // Use the SubscriptionModel's checkNotificationStatus method
+      const result = await SubscriptionModel(tenant).checkNotificationStatus(
+        {
+          email,
+          type,
+        },
+        next
+      );
+
+      return result;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   getOrganizationBySlug: async (request, next) => {
@@ -3450,15 +5481,480 @@ const createUserModule = {
     }
   },
   /**
+   * Ensures a user has the default AirQo role.
+   * This is a non-blocking operation, intended to be called in a fire-and-forget manner.
+   */
+
+  ensureDefaultAirqoRole: async (user, tenant) => {
+    try {
+      let needsUpdate = false;
+      const updateQuery = {};
+
+      // --- Create mutable copies of the role arrays, preserving ObjectIDs ---
+      const isObjectId = (v) =>
+        v &&
+        (v instanceof mongoose.Types.ObjectId || v._bsontype === "ObjectID");
+      const toObjectId = (v) =>
+        isObjectId(v)
+          ? v
+          : mongoose.Types.ObjectId.isValid(v)
+          ? new mongoose.Types.ObjectId(v)
+          : v;
+
+      // --- 1. Consolidate duplicate roles for all GROUPS (Safer Implementation) ---
+      const groupRoleMap = new Map();
+      (user.group_roles || []).forEach((assignment) => {
+        if (assignment && assignment.group) {
+          const groupId = assignment.group.toString();
+          if (!groupRoleMap.has(groupId)) groupRoleMap.set(groupId, []);
+          groupRoleMap.get(groupId).push(assignment);
+        }
+      });
+
+      const consolidatedGroupRoles = [];
+      for (const [groupId, assignments] of groupRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.info(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
+          );
+          const group = await GroupModel(tenant).findById(groupId).lean();
+          if (!group) {
+            // If group doesn't exist, keep the assignments to be filtered later
+            consolidatedGroupRoles.push(...assignments);
+            continue;
+          }
+
+          let desiredRole;
+          if (group.grp_title.toLowerCase() === "airqo") {
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: groupId })
+              .lean();
+            const superAdminRole = possibleRoles.find(
+              (r) =>
+                r.role_code && r.role_code.toUpperCase() === "AIRQO_SUPER_ADMIN"
+            );
+            const adminRole = possibleRoles.find(
+              (r) => r.role_code && r.role_code.toUpperCase() === "AIRQO_ADMIN"
+            );
+            const defaultUserRole = possibleRoles.find(
+              (r) =>
+                r.role_code &&
+                r.role_code.toUpperCase() === "AIRQO_DEFAULT_USER"
+            );
+            const userRoleIds = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+
+            if (
+              superAdminRole &&
+              userRoleIds.has(superAdminRole._id.toString())
+            ) {
+              desiredRole = superAdminRole;
+            } else if (adminRole && userRoleIds.has(adminRole._id.toString())) {
+              desiredRole = adminRole;
+            } else {
+              desiredRole = defaultUserRole;
+            }
+          } else {
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: mongoose.Types.ObjectId(groupId) })
+              .lean();
+            const present = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+            const prefer = (suffix) =>
+              possibleRoles.find(
+                (r) =>
+                  r.role_code &&
+                  r.role_code.endsWith(suffix) &&
+                  present.has(r._id.toString())
+              );
+            desiredRole =
+              prefer("_SUPER_ADMIN") ||
+              prefer("_ADMIN") ||
+              prefer("_MANAGER") ||
+              prefer("_DEFAULT_MEMBER");
+
+            if (!desiredRole) {
+              const orgName = normalizeName(group.grp_title);
+              const defaultMember = possibleRoles.find(
+                (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+              );
+              desiredRole =
+                defaultMember ||
+                possibleRoles.find((r) => present.has(r._id.toString()));
+            }
+          }
+
+          if (desiredRole) {
+            const earliestCreatedAt = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
+            );
+            consolidatedGroupRoles.push({
+              group: mongoose.Types.ObjectId(groupId),
+              role: desiredRole._id,
+              userType: "user",
+              createdAt: earliestCreatedAt,
+            });
+          } else {
+            // Fallback: if no desired role is found, keep the first one to prevent data loss
+            consolidatedGroupRoles.push(assignments[0]);
+          }
+        } else {
+          // Only one role for this group, keep it.
+          consolidatedGroupRoles.push(assignments[0]);
+        }
+      }
+      let finalGroupRoles = consolidatedGroupRoles;
+
+      // --- 2. Consolidate duplicate roles for NETWORKS ---
+      const networkRoleMap = new Map();
+      (user.network_roles || []).forEach((assignment) => {
+        if (assignment && assignment.network) {
+          const networkId = assignment.network.toString();
+          if (!networkRoleMap.has(networkId)) networkRoleMap.set(networkId, []);
+          networkRoleMap.get(networkId).push(assignment);
+        }
+      });
+
+      const consolidatedNetworkRoles = [];
+      for (const [networkId, assignments] of networkRoleMap.entries()) {
+        if (assignments.length > 1) {
+          logger.info(
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
+          );
+          const network = await NetworkModel(tenant).findById(networkId).lean();
+          if (!network) {
+            consolidatedNetworkRoles.push(...assignments);
+            continue;
+          }
+
+          const possibleRoles = await RoleModel(tenant)
+            .find({ network_id: mongoose.Types.ObjectId(networkId) })
+            .lean();
+          const present = new Set(
+            assignments.map((a) => a.role && a.role.toString())
+          );
+          const prefer = (suffix) =>
+            possibleRoles.find(
+              (r) =>
+                r.role_code &&
+                r.role_code.endsWith(suffix) &&
+                present.has(r._id.toString())
+            );
+          let desiredRole =
+            prefer("_SUPER_ADMIN") ||
+            prefer("_ADMIN") ||
+            prefer("_MANAGER") ||
+            prefer("_DEFAULT_MEMBER");
+
+          if (!desiredRole) {
+            const orgName = normalizeName(network.net_name);
+            const defaultMember = possibleRoles.find(
+              (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+            );
+            desiredRole =
+              defaultMember ||
+              possibleRoles.find((r) => present.has(r._id.toString()));
+          }
+
+          if (desiredRole) {
+            const earliestCreatedAtNet = new Date(
+              Math.min(
+                ...assignments.map((a) =>
+                  new Date(a.createdAt || Date.now()).getTime()
+                )
+              )
+            );
+            consolidatedNetworkRoles.push({
+              network: mongoose.Types.ObjectId(networkId),
+              role: desiredRole._id,
+              userType: "user",
+              createdAt: earliestCreatedAtNet,
+            });
+          } else {
+            consolidatedNetworkRoles.push(assignments[0]);
+          }
+        } else {
+          consolidatedNetworkRoles.push(assignments[0]);
+        }
+      }
+      let finalNetworkRoles = consolidatedNetworkRoles;
+
+      // --- 3. Remove Deprecated Roles ---
+      const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
+      const deprecatedRoles = await RoleModel(tenant)
+        .find({ role_name: { $in: deprecatedRoleNames } })
+        .select("_id")
+        .lean();
+      const deprecatedRoleIds = new Set(
+        deprecatedRoles.map((r) => r._id.toString())
+      );
+
+      if (deprecatedRoleIds.size > 0) {
+        finalGroupRoles = finalGroupRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+        );
+        finalNetworkRoles = finalNetworkRoles.filter(
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+        );
+      }
+
+      // --- 4. Add default AirQo role if missing ---
+      const airqoGroup = await GroupModel(tenant)
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
+        .lean();
+      if (airqoGroup) {
+        const hasAirqoRole = finalGroupRoles.some(
+          (a) => a.group && a.group.toString() === airqoGroup._id.toString()
+        );
+        if (
+          !hasAirqoRole &&
+          (user.organization || "").toLowerCase() === "airqo"
+        ) {
+          const defaultAirqoRole = await RoleModel(tenant)
+            .findOne({
+              role_code: "AIRQO_DEFAULT_USER",
+              group_id: airqoGroup._id,
+            })
+            .lean();
+          if (defaultAirqoRole) {
+            finalGroupRoles.push({
+              group: airqoGroup._id,
+              role: defaultAirqoRole._id,
+              userType: "user",
+              createdAt: new Date(),
+            });
+          }
+        }
+      }
+
+      // --- 5. Compare final arrays with originals to see if an update is needed ---
+      const canonicalize = (arr, type) => {
+        if (!Array.isArray(arr)) {
+          return [];
+        }
+        return arr
+          .map((a) => {
+            if (!a) return null;
+            const ctxId = type === "group" ? a.group : a.network;
+            return {
+              ctx: ctxId ? ctxId.toString() : null,
+              role: a.role ? a.role.toString() : null,
+              userType: a.userType || "user",
+            };
+          })
+          .filter((x) => x && x.ctx && x.role)
+          .sort(
+            (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
+          );
+      };
+
+      const originalGroupCanon = canonicalize(user.group_roles, "group");
+      const finalGroupCanon = canonicalize(finalGroupRoles, "group");
+      const originalNetCanon = canonicalize(user.network_roles, "network");
+      const finalNetCanon = canonicalize(finalNetworkRoles, "network");
+
+      if (
+        JSON.stringify(originalGroupCanon) !==
+          JSON.stringify(finalGroupCanon) ||
+        JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
+      ) {
+        // keep DB arrays deterministically ordered as well
+        finalGroupRoles = finalGroupRoles
+          .filter((r) => r && r.group && r.role)
+          .sort(
+            (a, b) =>
+              a.group.toString().localeCompare(b.group.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
+        finalNetworkRoles = finalNetworkRoles
+          .filter((r) => r && r.network && r.role)
+          .sort(
+            (a, b) =>
+              a.network.toString().localeCompare(b.network.toString()) ||
+              a.role.toString().localeCompare(b.role.toString())
+          );
+        updateQuery.$set = {
+          group_roles: finalGroupRoles,
+          network_roles: finalNetworkRoles,
+        };
+        needsUpdate = true;
+      }
+
+      // --- 6. Handle other cleanups ---
+      if (user.privilege) {
+        updateQuery.$unset = { privilege: "" };
+        needsUpdate = true;
+      }
+
+      // --- 7. Execute the update if anything changed ---
+      if (needsUpdate) {
+        await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery);
+        logger.info(
+          `[Role Cleanup] Successfully consolidated and cleaned roles for user ${user.email}.`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `[Role Cleanup] Error during role cleanup for ${
+          user ? user.email : "unknown user"
+        }: ${error.message}`
+      );
+    }
+  },
+
+  /**
+   * Determines the effective token strategy for a user.
+   * Priority: Request override > User preference > System default.
+   */
+  _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
+    // This function determines the safest and most effective token strategy for a user login.
+    // It prioritizes security and stability by preventing the generation of oversized tokens
+    // that can cause gateway errors (502 Bad Gateway).
+
+    const { tokenConfig } = require("@config/tokenStrategyConfig");
+
+    // Define strategies that are known to be large and should be avoided for login tokens.
+    const DISALLOWED_STRATEGIES = new Set([
+      constants.TOKEN_STRATEGIES.LEGACY,
+      constants.TOKEN_STRATEGIES.STANDARD,
+    ]);
+
+    const SAFE_FALLBACK_STRATEGY =
+      constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
+
+    // Determine the initial desired strategy based on priority:
+    // 1. Strategy passed in the current request body.
+    // 2. User's saved preference in their profile.
+    // 3. System-wide default strategy.
+    let desiredStrategy =
+      preferredStrategyFromRequest ||
+      user.preferredTokenStrategy ||
+      tokenConfig.defaultStrategy;
+
+    // If a global override is active (e.g., for emergency mitigation), it takes highest priority.
+    if (constants.FORCE_SAFE_TOKEN_STRATEGY === true) {
+      if (desiredStrategy !== SAFE_FALLBACK_STRATEGY) {
+        logger.warn(
+          `FORCE_SAFE_TOKEN_STRATEGY is active. Overriding requested strategy '${desiredStrategy}' with '${SAFE_FALLBACK_STRATEGY}' for user ${user.email}.`
+        );
+      }
+      logger.info(
+        `Using forced safe token strategy: ${SAFE_FALLBACK_STRATEGY}`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Validate if the desired strategy is a known, valid strategy.
+    if (!Object.values(constants.TOKEN_STRATEGIES).includes(desiredStrategy)) {
+      logger.warn(
+        `Invalid token strategy '${desiredStrategy}' requested for user ${user.email}. Falling back to '${SAFE_FALLBACK_STRATEGY}'.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // Prevent the use of disallowed large strategies for login.
+    if (DISALLOWED_STRATEGIES.has(desiredStrategy)) {
+      logger.warn(
+        `Disallowed large token strategy '${desiredStrategy}' was requested for user ${user.email}. Overriding with '${SAFE_FALLBACK_STRATEGY}' to prevent potential login issues.`
+      );
+      return SAFE_FALLBACK_STRATEGY;
+    }
+
+    // If the strategy is valid and allowed, use it.
+    logger.info(
+      `Using effective token strategy '${desiredStrategy}' for user ${user.email}.`
+    );
+    return desiredStrategy;
+  },
+  /**
+   * Centralized handler for user verification status.
+   * @param {object} user - The user object to check.
+   * @returns {object} A status object indicating the verification state.
+   */
+  _handleVerification: (user) => {
+    if (!user) {
+      return { shouldProceed: false, message: "User not found" };
+    }
+    if (user.verified) {
+      return { shouldProceed: true };
+    }
+
+    if (user.analyticsVersion === 3) {
+      return {
+        shouldProceed: false,
+        requiresV3Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    if (user.analyticsVersion === 4) {
+      return {
+        shouldProceed: false,
+        requiresV4Reminder: true,
+        message:
+          "Account not verified, verification email has been sent to your email.",
+      };
+    }
+
+    // For other versions (e.g., 2 or undefined), allow login to proceed,
+    // but do NOT auto-verify here. Call-sites must decide explicitly.
+    return { shouldProceed: true };
+  },
+
+  /**
+   * Constructs the standard update payload for a user upon successful login.
+   * @param {object} user - The user object.
+   * @param {object} verificationResult - The result from _handleVerification.
+   * @param {string} [strategy=null] - The token strategy for migration purposes.
+   * @returns {object} The MongoDB update object.
+   */
+  _constructLoginUpdate: (
+    user,
+    strategy = null,
+    { autoVerify = false } = {}
+  ) => {
+    const currentDate = new Date();
+    const updatePayload = {
+      $set: {
+        lastLogin: currentDate,
+        isActive: true,
+      },
+      $inc: { loginCount: 1 },
+    };
+
+    if (autoVerify && user.verified !== true) {
+      updatePayload.$set.verified = true;
+    }
+
+    // Handle one-time token strategy migration (only for enhanced login)
+    if (
+      strategy &&
+      (!user.preferredTokenStrategy ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.LEGACY ||
+        user.preferredTokenStrategy === constants.TOKEN_STRATEGIES.STANDARD)
+    ) {
+      updatePayload.$set.preferredTokenStrategy = strategy;
+      updatePayload.$set.tokenStrategyMigratedAt = new Date();
+    }
+
+    return updatePayload;
+  },
+  /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
   loginWithEnhancedTokens: async (request, next) => {
     try {
-      const { email, password, tenant, preferredStrategy, includeDebugInfo } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { email, password, preferredStrategy, includeDebugInfo } = body;
+      const { tenant } = query;
 
       console.log("🔐 ENHANCED LOGIN:", {
         email,
@@ -3488,10 +5984,10 @@ const createUserModule = {
       if (!user) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            email: "No account found with this email address",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }
@@ -3501,19 +5997,35 @@ const createUserModule = {
       if (!isPasswordValid) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            password: "Incorrect password",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }
 
-      // Check verification status
-      if (!user.verified) {
+      // Centralized verification check
+      const verificationResult = createUserModule._handleVerification(user);
+      if (!verificationResult.shouldProceed) {
+        try {
+          if (verificationResult.requiresV3Reminder) {
+            await createUserModule.verificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          } else if (verificationResult.requiresV4Reminder) {
+            await createUserModule.mobileVerificationReminder(
+              { tenant: dbTenant, email: user.email },
+              next
+            );
+          }
+        } catch (reminderErr) {
+          logger.warn(`Verification reminder failed: ${reminderErr.message}`);
+        }
         return {
           success: false,
-          message: "Please verify your email address first",
+          message: verificationResult.message,
           status: httpStatus.FORBIDDEN,
           errors: {
             verification: "Email not verified",
@@ -3521,17 +6033,8 @@ const createUserModule = {
         };
       }
 
-      // Check account status
-      if (user.analyticsVersion === 3 && user.verified === false) {
-        return {
-          success: false,
-          message: "Account not verified, please check your email",
-          status: httpStatus.FORBIDDEN,
-        };
-      }
-
       // Initialize RBAC service
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       // Get comprehensive permission data
       console.log("🔍 Getting comprehensive permissions for user:", user._id);
@@ -3548,26 +6051,75 @@ const createUserModule = {
       });
 
       // Determine token strategy
-      const strategy =
-        preferredStrategy ||
-        user.preferredTokenStrategy ||
-        TOKEN_STRATEGIES.STANDARD;
+      const strategy = createUserModule._getEffectiveTokenStrategy(
+        user,
+        preferredStrategy
+      );
 
       console.log("🎯 Using token strategy:", strategy);
 
       // Initialize token factory
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
 
       const populatedUser = await createUserModule._populateUserDataManually(
         user,
         dbTenant
       );
 
+      // --- START of new logic ---
+
+      // Define a transition period cutoff date from constants, with fallbacks.
+      let transitionCutoffDate = new Date(
+        (constants.AUTH && constants.AUTH.TOKEN_TRANSITION_CUTOFF_DATE) ||
+          process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
+          "2025-10-15T00:00:00Z"
+      );
+
+      // Validate the date to prevent errors from invalid configuration.
+      if (Number.isNaN(transitionCutoffDate.getTime())) {
+        logger.error(
+          "Invalid TOKEN_TRANSITION_CUTOFF_DATE. Falling back to standard 24h expiration."
+        );
+        transitionCutoffDate = new Date(0); // A date in the past.
+      }
+
+      const now = new Date();
+      const isWithinTransitionPeriod = now < transitionCutoffDate;
+      // Set the default token expiration. This will be used after the transition period ends.
+      let effectiveExpiresIn =
+        (constants.AUTH && constants.AUTH.DEFAULT_TOKEN_EXPIRATION) || "24h";
+
+      /**
+       * Token Expiration Logic:
+       * 1. If we are WITHIN the transition period (before the cutoff date),
+       *    calculate a dynamic expiry to last until the cutoff date. This gives
+       *    all clients, especially mobile apps, a grace period to update.
+       * 2. If we are AFTER the transition period, use the standard default expiration (e.g., "24h").
+       */
+      if (isWithinTransitionPeriod) {
+        const remainingMilliseconds =
+          transitionCutoffDate.getTime() - now.getTime();
+        const remainingDays = Math.ceil(
+          remainingMilliseconds / (1000 * 60 * 60 * 24)
+        );
+        // The token should last for the remaining transition period, but not less than 24 hours.
+        effectiveExpiresIn = `${Math.max(1, remainingDays)}d`;
+      }
+
+      logger.info(`Token generation policy for ${user.email}:`, {
+        isWithinTransitionPeriod,
+        expiresIn: effectiveExpiresIn,
+        transitionCutoff: transitionCutoffDate.toISOString(),
+      });
+
       // Generate enhanced token
       const token = await tokenFactory.createToken(populatedUser, strategy, {
-        expiresIn: "24h",
-        includePermissions: true,
+        expiresIn: effectiveExpiresIn,
+        includePermissions:
+          strategy !== constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       });
+
+      // --- END of new logic ---
 
       if (!token) {
         return {
@@ -3578,61 +6130,77 @@ const createUserModule = {
       }
 
       // Update login statistics
-      const currentDate = new Date();
-      try {
-        await UserModel(dbTenant).findOneAndUpdate(
-          { _id: user._id },
-          {
-            $set: { lastLogin: currentDate, isActive: true },
-            $inc: { loginCount: 1 },
-            ...(user.analyticsVersion !== 3 && user.verified === false
-              ? { $set: { verified: true } }
-              : {}),
-          },
-          {
-            new: true,
-            upsert: false,
-            runValidators: true,
+      (async () => {
+        try {
+          // Decide if auto-verification should happen.
+          // This preserves the original business logic for legacy users.
+          const shouldAutoVerify =
+            verificationResult.shouldProceed &&
+            user.verified !== true &&
+            user.analyticsVersion !== 3 &&
+            user.analyticsVersion !== 4;
+
+          const updatePayload = createUserModule._constructLoginUpdate(
+            user,
+            strategy,
+            { autoVerify: shouldAutoVerify }
+          );
+          const updatedUser = await UserModel(dbTenant).findOneAndUpdate(
+            { _id: user._id },
+            updatePayload,
+            { new: true, upsert: false, runValidators: true }
+          );
+          if (updatedUser) {
+            await createUserModule.ensureDefaultAirqoRole(
+              updatedUser,
+              dbTenant
+            );
           }
-        );
-      } catch (updateError) {
-        logger.error(`Login stats update error: ${updateError.message}`);
-      }
+        } catch (updateError) {
+          logger.error(
+            `Login stats/roles update error: ${updateError.message}`
+          );
+        }
+      })();
 
       // Build comprehensive auth response
       const authResponse = {
         // Basic user info
         _id: user._id,
-        userName: user.userName,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        userType: user.userType,
-        verified: user.verified,
-        isActive: user.isActive,
+        userName: user.userName ?? null,
+        email: user.email ?? null,
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        userType: user.userType ?? null,
+        verified: user.verified ?? false,
+        isActive: user.isActive ?? false,
 
         // Legacy fields for backward compatibility
-        organization: user.organization,
-        long_organization: user.long_organization,
-        privilege: user.privilege,
-        country: user.country,
-        profilePicture: user.profilePicture,
-        phoneNumber: user.phoneNumber,
+        organization: user.organization ?? null,
+        long_organization: user.long_organization ?? null,
+        privilege: user.privilege ?? null,
+        country: user.country ?? null,
+        profilePicture: user.profilePicture ?? null,
+        phoneNumber: user.phoneNumber ?? null,
+        interests: user.interests ?? [],
+        interestsDescription: user.interestsDescription ?? null,
 
         // Enhanced authentication
         token: `JWT ${token}`,
 
-        // Comprehensive permissions
-        permissions: loginPermissions.allPermissions,
-        systemPermissions: loginPermissions.systemPermissions,
-        groupPermissions: loginPermissions.groupPermissions,
-        networkPermissions: loginPermissions.networkPermissions,
+        // --- REMOVED FOR SCALABILITY ---
+        // The following large data fields are removed to prevent oversized login responses
+        // which can cause 502 Bad Gateway errors. Clients should fetch this data
+        // via dedicated endpoints (e.g., /api/v2/users/profile/enhanced) after login.
+        //
+        // permissions: loginPermissions.allPermissions,
+        // systemPermissions: loginPermissions.systemPermissions,
+        // groupPermissions: loginPermissions.groupPermissions,
+        // networkPermissions: loginPermissions.networkPermissions,
+        // groupMemberships: loginPermissions.groupMemberships,
+        // networkMemberships: loginPermissions.networkMemberships,
 
-        // Enhanced memberships with detailed info
-        groupMemberships: loginPermissions.groupMemberships,
-        networkMemberships: loginPermissions.networkMemberships,
-
-        // User flags
+        // User flags (small and useful for initial UI setup)
         isSuperAdmin: loginPermissions.isSuperAdmin,
         hasGroupAccess: loginPermissions.groupMemberships.length > 0,
         hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
@@ -3648,7 +6216,7 @@ const createUserModule = {
             : null,
 
         // Login metadata
-        lastLogin: currentDate,
+        lastLogin: new Date(),
         loginCount: (user.loginCount || 0) + 1,
 
         // Token metadata
@@ -3675,7 +6243,7 @@ const createUserModule = {
                 ),
               },
               tokenCompressionRatio:
-                strategy !== TOKEN_STRATEGIES.LEGACY
+                strategy !== constants.TOKEN_STRATEGIES.LEGACY
                   ? (
                       (1 - Buffer.byteLength(token, "utf8") / 2000) *
                       100
@@ -3688,9 +6256,9 @@ const createUserModule = {
 
       console.log("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: authResponse.permissions.length,
-        groupMemberships: authResponse.groupMemberships.length,
-        networkMemberships: authResponse.networkMemberships.length,
+        permissionsCount: (authResponse.permissions || []).length,
+        groupMemberships: (authResponse.groupMemberships || []).length,
+        networkMemberships: (authResponse.networkMemberships || []).length,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });
@@ -3734,15 +6302,17 @@ const createUserModule = {
       }
 
       // ✅ OPTIMIZATION 1: Collect all IDs upfront for batch queries
-      const permissionIds = userObj.permissions?.filter(Boolean) || [];
+      const permissionIds = (userObj.permissions || []).filter(Boolean);
       const groupIds =
-        userObj.group_roles?.map((gr) => gr.group).filter(Boolean) || [];
+        (userObj.group_roles || []).map((gr) => gr.group).filter(Boolean) || [];
       const networkIds =
-        userObj.network_roles?.map((nr) => nr.network).filter(Boolean) || [];
+        (userObj.network_roles || []).map((nr) => nr.network).filter(Boolean) ||
+        [];
       const groupRoleIds =
-        userObj.group_roles?.map((gr) => gr.role).filter(Boolean) || [];
+        (userObj.group_roles || []).map((gr) => gr.role).filter(Boolean) || [];
       const networkRoleIds =
-        userObj.network_roles?.map((nr) => nr.role).filter(Boolean) || [];
+        (userObj.network_roles || []).map((nr) => nr.role).filter(Boolean) ||
+        [];
       const allRoleIds = [...new Set([...groupRoleIds, ...networkRoleIds])]; // Remove duplicates
 
       // ✅ OPTIMIZATION 2: Prepare all queries for parallel execution
@@ -3857,51 +6427,62 @@ const createUserModule = {
       userObj.permissions = permissions;
 
       // ✅ OPTIMIZATION 6: Use optional chaining and map lookups
-      if (userObj.group_roles?.length > 0) {
+      if (userObj.group_roles && userObj.group_roles.length > 0) {
         userObj.group_roles = userObj.group_roles.map((groupRole) => ({
           ...groupRole,
-          group: groupsMap.get(groupRole.group.toString()) || groupRole.group,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(groupRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return groupRole.role;
-              })()
-            : groupRole.role,
+          group: groupRole.group
+            ? groupsMap.get(groupRole.group.toString()) || groupRole.group
+            : null,
+          role:
+            RoleModel && groupRole.role
+              ? (() => {
+                  const role = rolesMap.get(groupRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return groupRole.role;
+                })()
+              : groupRole.role,
         }));
       }
 
-      if (userObj.network_roles?.length > 0) {
+      if (userObj.network_roles && userObj.network_roles.length > 0) {
         userObj.network_roles = userObj.network_roles.map((networkRole) => ({
           ...networkRole,
-          network:
-            networksMap.get(networkRole.network.toString()) ||
-            networkRole.network,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(networkRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return networkRole.role;
-              })()
-            : networkRole.role,
+          network: networkRole.network
+            ? networksMap.get(networkRole.network.toString()) ||
+              networkRole.network
+            : null,
+          role:
+            RoleModel && networkRole.role
+              ? (() => {
+                  const role = rolesMap.get(networkRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return networkRole.role;
+                })()
+              : networkRole.role,
         }));
       }
 
@@ -3923,22 +6504,14 @@ const createUserModule = {
    */
   generateOptimizedToken: async (request, next) => {
     try {
-      const { userId, tenant, strategy, options } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
-
-      if (!userId) {
-        return {
-          success: false,
-          message: "User ID is required",
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy, options } = body;
+      const { tenant } = query;
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const tokenStrategy = strategy || TOKEN_STRATEGIES.STANDARD;
+      const tokenStrategy =
+        strategy || constants.TOKEN_STRATEGIES.ULTRA_COMPRESSED;
 
       const user = await UserModel(dbTenant).findById(userId).lean();
 
@@ -3956,7 +6529,7 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
       const token = await tokenFactory.createToken(
         populatedUser,
         tokenStrategy,
@@ -3970,7 +6543,7 @@ const createUserModule = {
           token: `JWT ${token}`,
           strategy: tokenStrategy,
           size: Buffer.byteLength(token, "utf8"),
-          expiresIn: options?.expiresIn || "24h",
+          expiresIn: (options && options.expiresIn) || "24h",
         },
         status: httpStatus.OK,
       };
@@ -3992,11 +6565,10 @@ const createUserModule = {
    */
   refreshUserPermissions: async (request, next) => {
     try {
-      const { userId, tenant, strategy } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -4009,7 +6581,7 @@ const createUserModule = {
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
 
       // Clear cache for this user
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
       rbacService.clearUserCache(userId);
 
       // Get fresh permissions
@@ -4030,7 +6602,7 @@ const createUserModule = {
           const populatedUser =
             await createUserModule._populateUserDataManually(user, dbTenant);
 
-          const tokenFactory = new EnhancedTokenFactory(dbTenant);
+          const tokenFactory = new AbstractTokenFactory(dbTenant);
           newToken = await tokenFactory.createToken(populatedUser, strategy);
           tokenInfo = {
             token: `JWT ${newToken}`,
@@ -4067,11 +6639,10 @@ const createUserModule = {
    */
   analyzeTokenStrategies: async (request, next) => {
     try {
-      const { userId, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -4099,8 +6670,9 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
-      const strategies = Object.values(TOKEN_STRATEGIES);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
+      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES
+      const strategies = Object.values(constants.TOKEN_STRATEGIES);
       const results = {};
       let baselineSize = 0;
 
@@ -4109,7 +6681,8 @@ const createUserModule = {
           const token = await tokenFactory.createToken(populatedUser, strategy);
           const size = Buffer.byteLength(token, "utf8");
 
-          if (strategy === TOKEN_STRATEGIES.LEGACY) {
+          // Fix: Use constants.TOKEN_STRATEGIES.LEGACY
+          if (strategy === constants.TOKEN_STRATEGIES.LEGACY) {
             baselineSize = size;
           }
 
@@ -4165,11 +6738,10 @@ const createUserModule = {
    */
   getUserContextPermissions: async (request, next) => {
     try {
-      const { userId, contextId, contextType, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, contextId, contextType } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -4180,7 +6752,7 @@ const createUserModule = {
       }
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       let permissions;
       if (contextId && contextType) {
@@ -4225,11 +6797,10 @@ const createUserModule = {
    */
   updateTokenStrategy: async (request, next) => {
     try {
-      const { userId, strategy, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId || !strategy) {
         return {
@@ -4239,15 +6810,16 @@ const createUserModule = {
         };
       }
 
-      if (!Object.values(TOKEN_STRATEGIES).includes(strategy)) {
+      // Fix: Use constants.TOKEN_STRATEGIES instead ofconstants.TOKEN_STRATEGIES from ATF service
+      if (!Object.values(constants.TOKEN_STRATEGIES).includes(strategy)) {
         return {
           success: false,
           message: "Invalid token strategy",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            strategy: `Must be one of: ${Object.values(TOKEN_STRATEGIES).join(
-              ", "
-            )}`,
+            strategy: `Must be one of: ${Object.values(
+              constants.TOKEN_STRATEGIES
+            ).join(", ")}`,
           },
         };
       }
@@ -4304,8 +6876,9 @@ const createUserModule = {
     const recommended =
       strategies.find(
         ([strategy, _]) =>
-          strategy === TOKEN_STRATEGIES.COMPRESSED ||
-          strategy === TOKEN_STRATEGIES.HASH_BASED
+          // Fix: Use constants.TOKEN_STRATEGIES
+          strategy === constants.TOKEN_STRATEGIES.COMPRESSED ||
+          strategy === constants.TOKEN_STRATEGIES.HASH_BASED
       ) || smallest;
 
     return {
@@ -4633,4 +7206,8 @@ const createUserModule = {
   },
 };
 
-module.exports = { ...createUserModule, generateNumericToken };
+module.exports = {
+  ...createUserModule,
+  generateNumericToken,
+  ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
+};

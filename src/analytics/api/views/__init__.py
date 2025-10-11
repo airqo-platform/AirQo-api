@@ -1,15 +1,4 @@
-from .dashboard import (
-    ExceedancesResource,
-    ExceedancesResource2,
-    DailyAveragesResource,
-    DailyAveragesResource2,
-    ChartDataResource,
-    MonitoringSiteResource,
-)
+from .v2 import rest_api_v2
+from .v3 import rest_api_v3
 
-from .data import (
-    DataExportResource,
-    DataSummaryResource,
-    DataExportV2Resource,
-    RawDataExportResource,
-)
+__all__ = ["rest_api_v2", "rest_api_v3"]

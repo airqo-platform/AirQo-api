@@ -2,39 +2,65 @@ import pandas as pd
 from typing import Dict, List, Any
 from collections import defaultdict
 from api.utils.pollutants.pm_25 import get_pollutant_category, PM_COLOR_CATEGORY
+from config import BaseConfig as Config
+from constants import Frequency
 
 
 class DashboardDataUtils:
-    def processd3data(self, dataframe: pd.DataFrame) -> List[Dict]:
+    def processd3data(
+        self, dataframe: pd.DataFrame, frequency: Frequency
+    ) -> List[Dict]:
         """
-        Processes time-series sensor data.
+        Processes sensor time-series data into a list of records formatted for D3 visualizations.
 
         Args:
-            dataframe(pd.DataFrame): DataFrame containing columns ['site_id', 'name', 'generated_name', 'value', 'time'].
+            dataframe(pd.DataFrame): DataFrame with raw sensor data. Expected columns include: 'pm2_5' or 'pm10', 'datetime', 'site_name', plus optional metadata columns.
 
         Returns:
-            list: A list of dictionaries, each representing a resampled data point with site metadata.
+            List[Dict]: A list of dictionaries where each dictionary represents a sensor data point.
+
+        Raises:
+            ValueError: If neither 'pm2_5' nor 'pm10' columns are present in the DataFrame.
         """
-        dataframe["name"] = dataframe["site_name"]
-        dataframe.rename(
+        supported_pollutants = ["pm2_5", "pm10"]
+
+        pollutant_col = next(
+            (col for col in supported_pollutants if col in dataframe.columns), None
+        )
+        if not pollutant_col:
+            raise ValueError(
+                f"DataFrame must contain one of the following columns: {supported_pollutants}"
+            )
+
+        time_column = Config.download_export_time_fields.get(
+            frequency.value, "datetime"
+        )
+        drop_cols = [
+            "device_name",
+            "timestamp",
+            "network",
+            "frequency",
+            f"{pollutant_col}_calibrated_value",
+        ]
+        if time_column != "datetime":
+            # convert datetime column to string datetime
+            dataframe[time_column] = dataframe[time_column].dt.strftime(
+                "%Y-%m-%d %H:%M:%SZ"
+            )
+
+        renamed_dataframe = dataframe.rename(
             columns={
-                "pm2_5": "value",
-                "datetime": "time",
+                pollutant_col: "value",
+                time_column: "time",
                 "site_name": "generated_name",
-            },
-            inplace=True,
+            }
         )
-        dataframe.drop(
-            columns=[
-                "pm2_5_calibrated_value",
-                "device_name",
-                "network",
-                "timestamp",
-                "frequency",
-            ],
-            inplace=True,
-        )
-        records = dataframe.to_dict(orient="records")
+
+        cleaned_dataframe = renamed_dataframe.drop(columns=drop_cols, errors="ignore")
+
+        cleaned_dataframe["name"] = cleaned_dataframe["generated_name"]
+
+        records = cleaned_dataframe.to_dict(orient="records")
         return records
 
     def __destructure_pie_data(self, generated_data) -> List[List[Dict]]:

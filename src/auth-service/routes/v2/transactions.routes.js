@@ -1,20 +1,14 @@
 const express = require("express");
 const TransactionController = require("@controllers/transaction.controller");
 const transactionValidations = require("@validators/transactions.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const {
+  setJWTAuth,
+  authJWT,
+  enhancedJWTAuth,
+} = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
 
 const router = express.Router();
-
-// CORS headers middleware
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
 
 router.use(headers);
 router.use(transactionValidations.pagination(100, 1000));
@@ -23,8 +17,7 @@ router.use(transactionValidations.pagination(100, 1000));
 router.post(
   "/checkout",
   transactionValidations.checkout,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.createCheckoutSession
 );
 
@@ -40,8 +33,7 @@ router.post(
 router.get(
   "/list",
   transactionValidations.tenantOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.listTransactions
 );
 
@@ -49,8 +41,7 @@ router.get(
 router.patch(
   "/:id/update",
   transactionValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.updateTransaction
 );
 
@@ -58,8 +49,7 @@ router.patch(
 router.get(
   "/stats",
   transactionValidations.tenantOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.getTransactionStats
 );
 
@@ -67,8 +57,7 @@ router.get(
 router.delete(
   "/:id/delete",
   transactionValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.deleteTransaction
 );
 
@@ -76,8 +65,7 @@ router.delete(
 router.post(
   "/:id/enable-auto-renew",
   transactionValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.optInForAutomaticRenewal
 );
 
@@ -85,8 +73,7 @@ router.post(
 router.post(
   "/create-subscription",
   transactionValidations.subscription,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.createSubscriptionTransaction
 );
 
@@ -94,8 +81,7 @@ router.post(
 router.post(
   "/:id/cancel-subscription",
   transactionValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.cancelSubscription
 );
 
@@ -103,8 +89,7 @@ router.post(
 router.post(
   "/pricing/generate",
   transactionValidations.dynamicPrice,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.generateDynamicPrice
 );
 
@@ -112,8 +97,7 @@ router.post(
 router.get(
   "/:id/subscription-status",
   transactionValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.getSubscriptionStatus
 );
 
@@ -121,8 +105,7 @@ router.get(
 router.post(
   "/:id/renew-subscription",
   transactionValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.manualSubscriptionRenewal
 );
 
@@ -130,8 +113,7 @@ router.post(
 router.get(
   "/transaction-history",
   transactionValidations.history,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.getExtendedTransactionHistory
 );
 
@@ -139,8 +121,7 @@ router.get(
 router.get(
   "/reports/financial-report",
   transactionValidations.tenantOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   TransactionController.generateFinancialReport
 );
 

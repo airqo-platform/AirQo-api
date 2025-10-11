@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");

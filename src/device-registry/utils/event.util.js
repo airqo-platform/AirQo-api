@@ -21,6 +21,7 @@ const {
   formatDate,
   translate,
   stringify,
+  ActivityLogger,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
@@ -35,10 +36,11 @@ const { BigQuery } = require("@google-cloud/bigquery");
 const bigquery = new BigQuery();
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
-const util = require("util");
-const redisGetAsync = util.promisify(redis.get).bind(redis);
-const redisSetAsync = util.promisify(redis.set).bind(redis);
-const redisExpireAsync = util.promisify(redis.expire).bind(redis);
+const {
+  redisGetAsync,
+  redisSetAsync,
+  redisExpireAsync,
+} = require("@config/redis");
 const asyncRetry = require("async-retry");
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
 let lastRedisWarning = 0;
@@ -51,6 +53,43 @@ const logRedisWarning = (operation) => {
     logger.warn(`Redis connection not available, skipping cache ${operation}`);
     lastRedisWarning = now;
   }
+};
+
+/**
+ * Determines if a request is for historical measurements that should be optimized
+ * @param {Object} request - The request object
+ * @returns {Boolean} - True if this is a historical measurement request
+ */
+const isHistoricalMeasurement = (request) => {
+  const { query, params } = request;
+  const { startTime, endTime, historical, optimize, recent } = {
+    ...query,
+    ...params,
+  };
+
+  // Check if explicitly marked as historical
+  if (historical === "yes" || optimize === "yes") {
+    return true;
+  }
+
+  // Check if recent is explicitly set to "no"
+  if (recent === "no") {
+    return true;
+  }
+
+  // Check if the time range is more than 7 days old
+  if (startTime && endTime) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // If the entire time range is older than 7 days, consider it historical
+    if (end < sevenDaysAgo) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 const listDevices = async (request, next) => {
@@ -298,6 +337,27 @@ async function processEvent(event, next) {
           value
         )}`
       );
+
+      // Log the rejected event
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "FAILURE",
+        records_attempted: event.values ? event.values.length : 1,
+        records_successful: 0,
+        records_failed: event.values ? event.values.length : 1,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        error_details: "All values zero or negative, discarded",
+        error_code: "INVALID_VALUES",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+          original_values_count: event.values ? event.values.length : 0,
+        },
+      });
+
       return { added: false };
     }
 
@@ -312,6 +372,27 @@ async function processEvent(event, next) {
     );
 
     if (addedEvents) {
+      // Log successful insertion
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "SUCCESS",
+        records_attempted: event.values ? event.values.length : 1,
+        records_successful: validValues.length,
+        records_failed: event.values
+          ? event.values.length - validValues.length
+          : 0,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+          valid_values_count: validValues.length,
+          original_values_count: event.values ? event.values.length : 0,
+        },
+      });
+
       return {
         added: true,
         error: null,
@@ -327,13 +408,32 @@ async function processEvent(event, next) {
           ...(event.site_id ? { site_id: event.site_id } : {}),
         },
       };
+
+      // Log failed insertion
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "FAILURE",
+        records_attempted: validValues.length,
+        records_successful: 0,
+        records_failed: validValues.length,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        error_details: errMsg.message,
+        error_code: "INSERT_FAILED",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+        },
+      });
+
       return {
         added: false,
         error: errMsg,
       };
     }
   } catch (e) {
-    // Removed reference to eventsRejected variable
     let errMsg = {
       message: "System conflict detected, most likely a duplicate record",
       more: e.message,
@@ -345,6 +445,27 @@ async function processEvent(event, next) {
         ...(event.site_id ? { site_id: event.site_id } : {}),
       },
     };
+
+    // Log the exception
+    await ActivityLogger.logActivity({
+      operation_type: "INSERT",
+      entity_type: "EVENT",
+      status: "FAILURE",
+      records_attempted: event.values ? event.values.length : 1,
+      records_successful: 0,
+      records_failed: event.values ? event.values.length : 1,
+      tenant: event.tenant || "airqo",
+      source_function: "processEvent",
+      error_details: errMsg.message,
+      error_code: e.code || e.name || "EXCEPTION",
+      entity_id: event.device_id,
+      metadata: {
+        device: event.device,
+        site_id: event.site_id,
+        exception_details: e.message,
+      },
+    });
+
     return {
       added: false,
       error: errMsg,
@@ -393,6 +514,8 @@ class AirQualityService {
 
   async getAirQualityData(request, next, version = "v1") {
     const { language, site_id } = { ...request.query, ...request.params };
+    const isHistorical = isHistoricalMeasurement(request);
+
     let responseFromListEvents;
 
     try {
@@ -405,22 +528,22 @@ class AirQualityService {
       const versionedFunctions = {
         v2: this.EventModel.v2_getAirQualityAverages,
         v3: this.EventModel.v3_getAirQualityAverages,
-        // Add more versions as needed
       };
 
       const defaultFunction = this.EventModel.getAirQualityAverages;
-
       const getAveragesFunction =
         versionedFunctions[version] || defaultFunction;
 
+      // Pass the historical flag to the model method
       responseFromListEvents = await getAveragesFunction.call(
         this.EventModel,
         site_id,
-        next
-      ); // Use .call to preserve 'this' context
+        next,
+        { isHistorical }
+      );
 
-      // Handle translation if needed (only for v1 as v2 doesn't include health tips)
-      if (version === "v1") {
+      // Handle translation only for current measurements or v1
+      if (!isHistorical && version === "v1") {
         await this.translateHealthTips(responseFromListEvents, language, next);
       }
 
@@ -1242,6 +1365,8 @@ const createEvent = {
       let missingDataMessage = "";
       const { query } = request;
       let { limit, skip, recent } = query;
+      const isHistorical = isHistoricalMeasurement(request);
+
       limit = Number(limit);
       skip = Number(skip);
 
@@ -1257,13 +1382,16 @@ const createEvent = {
       let page = parseInt(query.page);
       const language = request.query.language;
 
-      // if (recent === "yes") {
-      //   logText("Routing recent query to optimized Readings collection");
-      //   return await createEvent.listFromReadings(request, next);
-      // }
+      logText(
+        isHistorical
+          ? "Using optimized historical data query"
+          : "Using standard data query"
+      );
 
-      logText("Using Events collection for historical data");
       const filter = generateFilter.events(request, next);
+
+      // Add historical flag to filter
+      filter.isHistorical = isHistorical;
 
       try {
         const cacheResult = await createEvent.handleCacheOperation(
@@ -1307,7 +1435,9 @@ const createEvent = {
         );
       }
 
+      // Only do translation for non-historical data
       if (
+        !isHistorical &&
         language !== undefined &&
         !isEmpty(responseFromListEvents) &&
         responseFromListEvents.success === true &&
@@ -3170,9 +3300,14 @@ const createEvent = {
         threshold,
         pollutant,
         quality_checks,
+        historical,
+        optimize,
       } = { ...request.query, ...request.params };
+
       const currentTime = new Date().toISOString();
       const day = generateDateFormatWithoutHrs(currentTime);
+      const isHistorical = isHistoricalMeasurement(request);
+
       return `list_events
       _${device ? device : "noDevice"}
       _${tenant}
@@ -3204,6 +3339,7 @@ const createEvent = {
       _${threshold ? threshold : "noThreshold"}
       _${pollutant ? pollutant : "noPollutant"}
       _${quality_checks ? quality_checks : "noQualityChecks"}
+      _${isHistorical ? "historical" : "current"}
       `;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -3218,16 +3354,6 @@ const createEvent = {
   },
   setCache: async (data, request, next) => {
     try {
-      // Simple Redis availability check
-      if (!redis || !redis.connected || !redis.ready) {
-        logRedisWarning("set");
-        return {
-          success: false,
-          message: "Cache unavailable - Redis not connected",
-          status: httpStatus.OK,
-        };
-      }
-
       const cacheID = createEvent.generateCacheID(request, next);
       if (!cacheID) {
         logger.warn("Failed to generate cache ID");
@@ -3300,17 +3426,6 @@ const createEvent = {
   },
   getCache: async (request, next) => {
     try {
-      // Simple Redis availability check
-      if (!redis || !redis.connected || !redis.ready) {
-        logRedisWarning("get");
-        return {
-          success: false,
-          message: "Cache unavailable",
-          errors: { message: "Redis connection not available" },
-          status: httpStatus.OK,
-        };
-      }
-
       const cacheID = createEvent.generateCacheID(request, next);
       if (!cacheID) {
         return {
@@ -3762,163 +3877,7 @@ const createEvent = {
       );
     }
   },
-  insert: async (tenant, measurements, next) => {
-    try {
-      let nAdded = 0;
-      let eventsAdded = [];
-      let eventsRejected = [];
-      let errors = [];
 
-      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
-        measurements,
-        next
-      );
-
-      if (!responseFromTransformMeasurements.success) {
-        logger.error(
-          `internal server error -- unable to transform measurements -- ${
-            responseFromTransformMeasurements.message
-          }, ${stringify(measurements)}`
-        );
-      }
-
-      for (const measurement of responseFromTransformMeasurements.data) {
-        try {
-          // logObject("the measurement in the insertion process", measurement);
-          const eventsFilter = {
-            day: measurement.day,
-            site_id: measurement.site_id,
-            device_id: measurement.device_id,
-            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
-            $or: [
-              { "values.time": { $ne: measurement.time } },
-              { "values.device": { $ne: measurement.device } },
-              { "values.frequency": { $ne: measurement.frequency } },
-              { "values.device_id": { $ne: measurement.device_id } },
-              { "values.site_id": { $ne: measurement.site_id } },
-              { day: { $ne: measurement.day } },
-            ],
-          };
-          let someDeviceDetails = {};
-          someDeviceDetails["device_id"] = measurement.device_id;
-          someDeviceDetails["site_id"] = measurement.site_id;
-          // logObject("someDeviceDetails", someDeviceDetails);
-
-          // logObject("the measurement", measurement);
-
-          const eventsUpdate = {
-            $push: { values: measurement },
-            $min: { first: measurement.time },
-            $max: { last: measurement.time },
-            $inc: { nValues: 1 },
-          };
-          // logObject("eventsUpdate", eventsUpdate);
-          // logObject("eventsFilter", eventsFilter);
-
-          const addedEvents = await EventModel(tenant).updateOne(
-            eventsFilter,
-            eventsUpdate,
-            {
-              upsert: true,
-            }
-          );
-          // logObject("addedEvents", addedEvents);
-          if (addedEvents) {
-            nAdded += 1;
-            eventsAdded.push(measurement);
-          } else if (!addedEvents) {
-            eventsRejected.push(measurement);
-            let errMsg = {
-              msg: "unable to add the events",
-              record: {
-                ...(measurement.device ? { device: measurement.device } : {}),
-                ...(measurement.frequency
-                  ? { frequency: measurement.frequency }
-                  : {}),
-                ...(measurement.time ? { time: measurement.time } : {}),
-                ...(measurement.device_id
-                  ? { device_id: measurement.device_id }
-                  : {}),
-                ...(measurement.site_id
-                  ? { site_id: measurement.site_id }
-                  : {}),
-              },
-            };
-            errors.push(errMsg);
-          } else {
-            eventsRejected.push(measurement);
-            let errMsg = {
-              msg: "unable to add the events",
-              record: {
-                ...(measurement.device ? { device: measurement.device } : {}),
-                ...(measurement.frequency
-                  ? { frequency: measurement.frequency }
-                  : {}),
-                ...(measurement.time ? { time: measurement.time } : {}),
-                ...(measurement.device_id
-                  ? { device_id: measurement.device_id }
-                  : {}),
-                ...(measurement.site_id
-                  ? { site_id: measurement.site_id }
-                  : {}),
-              },
-            };
-            errors.push(errMsg);
-          }
-        } catch (e) {
-          // logger.error(`internal server serror -- ${e.message}`);
-          eventsRejected.push(measurement);
-          let errMsg = {
-            msg:
-              "there is a system conflict, most likely a cast error or duplicate record",
-            more: e.message,
-            record: {
-              ...(measurement.device ? { device: measurement.device } : {}),
-              ...(measurement.frequency
-                ? { frequency: measurement.frequency }
-                : {}),
-              ...(measurement.time ? { time: measurement.time } : {}),
-              ...(measurement.device_id
-                ? { device_id: measurement.device_id }
-                : {}),
-              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
-            },
-          };
-          errors.push(errMsg);
-        }
-      }
-
-      if (errors.length > 0 && isEmpty(eventsAdded)) {
-        logTextWithTimestamp(
-          "API: failed to store measurements, most likely DB cast errors or duplicate records"
-        );
-        return {
-          success: false,
-          message: "finished the operation with some errors",
-          errors,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      } else {
-        logTextWithTimestamp("API: successfully added the events");
-        return {
-          success: true,
-          message: "successfully added the events",
-          status: httpStatus.OK,
-          errors,
-        };
-      }
-    } catch (error) {
-      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
   transformMeasurements: async (device, measurements, next) => {
     let promises = measurements.map(async (measurement) => {
       try {
@@ -4441,6 +4400,14 @@ const createEvent = {
       if (!deviceRecord) {
         throw new HttpError("Device not found", httpStatus.BAD_REQUEST, {
           message: `Device not found: ${device_id || device || device_number}`,
+          hint:
+            "Please verify the device exists in the database and the tenant is correct",
+          provided_identifiers: {
+            device_id: device_id || null,
+            device: device || null,
+            device_number: device_number || null,
+          },
+          tenant: tenant,
         });
       }
 
@@ -4487,8 +4454,6 @@ const createEvent = {
         resolvedGridId: grid_id || deviceRecord.grid_id,
       };
     } catch (error) {
-      logObject("Error resolving device deployment context", error);
-
       // Re-throw HttpErrors as-is
       if (error instanceof HttpError) {
         throw error;
@@ -4511,11 +4476,9 @@ const createEvent = {
           let time = measurement.time;
           const day = generateDateFormatWithoutHrs(time);
 
-          // Initialize transformedMeasurement early to avoid undefined errors
           let transformedMeasurement = {
             day: day,
             ...measurement,
-            // Default deployment type if not specified
             deployment_type: measurement.deployment_type || "static",
           };
 
@@ -4526,71 +4489,46 @@ const createEvent = {
               next
             );
 
-            // Update with enhanced deployment metadata
             transformedMeasurement.deployment_type =
               deploymentContext.actualDeploymentType;
             transformedMeasurement.device_deployment_type =
               deploymentContext.deviceRecord.deployment_type;
 
-            // Handle location references based on deployment type
             if (deploymentContext.actualDeploymentType === "static") {
               transformedMeasurement.site_id = deploymentContext.resolvedSiteId;
-              // Ensure grid_id is not included for static devices
               if (transformedMeasurement.grid_id) {
                 delete transformedMeasurement.grid_id;
               }
             } else if (deploymentContext.actualDeploymentType === "mobile") {
               transformedMeasurement.grid_id = deploymentContext.resolvedGridId;
-
-              // For mobile devices, we can optionally include site_id if the device
-              // happens to be at a known site location, but it's not required
-              if (
-                transformedMeasurement.site_id &&
-                !deploymentContext.resolvedSiteId
-              ) {
-                // If site_id is provided in measurement but device isn't associated with a site
-                logObject("Mobile device measurement includes site_id", {
-                  device: deploymentContext.deviceRecord.name,
-                  provided_site_id: transformedMeasurement.site_id,
-                });
-              }
             }
           } catch (contextError) {
-            // If device context resolution fails, continue with basic transformation
-            logger.warn(
-              `Device context resolution failed for device ${measurement.device_id}: ${contextError.message}`
-            );
-
-            // Use measurement-provided deployment_type or default to static
-            transformedMeasurement.deployment_type =
-              measurement.deployment_type || "static";
-
-            // Ensure required fields are present based on deployment type
-            if (transformedMeasurement.deployment_type === "static") {
-              if (!transformedMeasurement.site_id) {
-                throw new Error(
-                  "Static devices require site_id for measurements"
-                );
-              }
-            } else if (transformedMeasurement.deployment_type === "mobile") {
-              if (!transformedMeasurement.grid_id && !measurement.grid_id) {
-                logger.warn(
-                  `Mobile device ${measurement.device_id} missing grid_id, attempting to use location data`
-                );
-              }
+            // CHANGED: Re-throw with better error details instead of catching
+            if (contextError instanceof HttpError) {
+              // Preserve the detailed error from resolveDeviceDeploymentContext
+              throw new Error(
+                contextError.errors?.message ||
+                  contextError.message ||
+                  "Device validation failed"
+              );
             }
+            throw contextError;
           }
 
           return transformedMeasurement;
         } catch (e) {
-          logObject(
-            `Error transforming measurement: ${e.message}`,
-            measurement
+          // CHANGED: Include more context in the error
+          logger.warn(
+            `Measurement transformation failed: ${e.message} for device ${measurement.device_id}`
           );
+
           return {
             success: false,
-            message: "Server side error during transformation",
-            errors: { message: e.message },
+            message: e.message, // Use actual error message, not generic
+            errors: {
+              message: e.message,
+              device_id: measurement.device_id?.toString(),
+            },
             original_measurement: measurement,
           };
         }
@@ -4598,12 +4536,12 @@ const createEvent = {
 
       const results = await Promise.all(promises);
 
-      // Filter out failed transformations
       const successful = results.filter((result) => result.success !== false);
       const failed = results.filter((result) => result.success === false);
 
       if (failed.length > 0) {
-        logObject("Failed measurement transformations", failed);
+        // Log but don't print to console
+        logger.warn(`${failed.length} measurement transformation(s) failed`);
       }
 
       return {
@@ -4615,14 +4553,169 @@ const createEvent = {
         failed_count: failed.length,
       };
     } catch (error) {
-      logObject("Error in transformMeasurements_v3", error);
+      logger.error(`Error in transformMeasurements_v3: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  insert: async (tenant, measurements, next) => {
+    try {
+      let nAdded = 0;
+      let eventsAdded = [];
+      let eventsRejected = [];
+      let errors = [];
+
+      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
+        measurements,
+        next
+      );
+
+      if (!responseFromTransformMeasurements.success) {
+        logger.error(
+          `internal server error -- unable to transform measurements -- ${
+            responseFromTransformMeasurements.message
+          }, ${stringify(measurements)}`
+        );
+      }
+
+      for (const measurement of responseFromTransformMeasurements.data) {
+        try {
+          // logObject("the measurement in the insertion process", measurement);
+          const eventsFilter = {
+            day: measurement.day,
+            site_id: measurement.site_id,
+            device_id: measurement.device_id,
+            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+            $or: [
+              { "values.time": { $ne: measurement.time } },
+              { "values.device": { $ne: measurement.device } },
+              { "values.frequency": { $ne: measurement.frequency } },
+              { "values.device_id": { $ne: measurement.device_id } },
+              { "values.site_id": { $ne: measurement.site_id } },
+              { day: { $ne: measurement.day } },
+            ],
+          };
+          let someDeviceDetails = {};
+          someDeviceDetails["device_id"] = measurement.device_id;
+          someDeviceDetails["site_id"] = measurement.site_id;
+          // logObject("someDeviceDetails", someDeviceDetails);
+
+          // logObject("the measurement", measurement);
+
+          const eventsUpdate = {
+            $push: { values: measurement },
+            $min: { first: measurement.time },
+            $max: { last: measurement.time },
+            $inc: { nValues: 1 },
+          };
+          // logObject("eventsUpdate", eventsUpdate);
+          // logObject("eventsFilter", eventsFilter);
+
+          const addedEvents = await EventModel(tenant).updateOne(
+            eventsFilter,
+            eventsUpdate,
+            {
+              upsert: true,
+            }
+          );
+          // logObject("addedEvents", addedEvents);
+          if (addedEvents) {
+            nAdded += 1;
+            eventsAdded.push(measurement);
+          } else if (!addedEvents) {
+            eventsRejected.push(measurement);
+            let errMsg = {
+              msg: "unable to add the events",
+              record: {
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+              },
+            };
+            errors.push(errMsg);
+          } else {
+            eventsRejected.push(measurement);
+            let errMsg = {
+              msg: "unable to add the events",
+              record: {
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+              },
+            };
+            errors.push(errMsg);
           }
+        } catch (e) {
+          // logger.error(`internal server serror -- ${e.message}`);
+          eventsRejected.push(measurement);
+          let errMsg = {
+            msg:
+              "there is a system conflict, most likely a cast error or duplicate record",
+            more: e.message,
+            record: {
+              ...(measurement.device ? { device: measurement.device } : {}),
+              ...(measurement.frequency
+                ? { frequency: measurement.frequency }
+                : {}),
+              ...(measurement.time ? { time: measurement.time } : {}),
+              ...(measurement.device_id
+                ? { device_id: measurement.device_id }
+                : {}),
+              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+            },
+          };
+          errors.push(errMsg);
+        }
+      }
+
+      if (errors.length > 0 && isEmpty(eventsAdded)) {
+        logTextWithTimestamp(
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+        );
+        return {
+          success: false,
+          message: "finished the operation with some errors",
+          errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      } else {
+        logTextWithTimestamp("API: successfully added the events");
+        return {
+          success: true,
+          message: "successfully added the events",
+          status: httpStatus.OK,
+          errors,
+        };
+      }
+    } catch (error) {
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
         )
       );
     }
@@ -4635,6 +4728,50 @@ const createEvent = {
       let errors = [];
       let mobileDeviceCount = 0;
       let staticDeviceCount = 0;
+
+      const deviceIdentifiers = measurements
+        .map(({ device_id, device, device_number }) => {
+          if (device_id) return { _id: device_id };
+          if (device) return { name: device };
+          if (device_number) return { device_number: device_number };
+          return null;
+        })
+        .filter(Boolean);
+
+      const uniqueDeviceIdentifiers = deviceIdentifiers.reduce(
+        (acc, current) => {
+          const key = JSON.stringify(current);
+          if (!acc.find((item) => JSON.stringify(item) === key)) {
+            acc.push(current);
+          }
+          return acc;
+        },
+        []
+      );
+
+      let deviceContexts = new Map();
+      if (uniqueDeviceIdentifiers.length > 0) {
+        try {
+          const devices = await DeviceModel(tenant)
+            .find({ $or: uniqueDeviceIdentifiers })
+            .select(
+              "_id name device_number deployment_type site_id grid_id mobility isActive"
+            )
+            .lean();
+
+          devices.forEach((device) => {
+            deviceContexts.set(device._id.toString(), device);
+            deviceContexts.set(device.name, device);
+            if (device.device_number) {
+              deviceContexts.set(device.device_number.toString(), device);
+            }
+          });
+        } catch (dbError) {
+          logger.error(
+            `Database error pre-fetching devices: ${dbError.message}`
+          );
+        }
+      }
 
       const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
         measurements,
@@ -4649,16 +4786,39 @@ const createEvent = {
         return responseFromTransformMeasurements;
       }
 
-      for (const measurement of responseFromTransformMeasurements.data) {
+      if (responseFromTransformMeasurements.failed_count > 0) {
+        const transformationErrors = responseFromTransformMeasurements.failed_transformations.map(
+          (failure) => ({
+            type: "TRANSFORMATION_FAILURE",
+            message: failure.message || "Measurement transformation failed",
+            details: failure.errors,
+            device_id: failure.original_measurement?.device_id,
+          })
+        );
+        errors.push(...transformationErrors);
+      }
+
+      const measurementsWithContext = responseFromTransformMeasurements.data.map(
+        (m) => {
+          const identifier = m.device_id
+            ? m.device_id.toString()
+            : m.device || (m.device_number ? m.device_number.toString() : null);
+          const context = deviceContexts.get(identifier);
+          if (context) {
+            return { ...m, ...context };
+          }
+          return m;
+        }
+      );
+
+      for (const measurement of measurementsWithContext) {
         try {
-          // Track deployment types
           if (measurement.deployment_type === "mobile") {
             mobileDeviceCount++;
           } else {
             staticDeviceCount++;
           }
 
-          // ENHANCED: Create filter based on deployment type
           let eventsFilter = {
             day: measurement.day,
             device_id: measurement.device_id,
@@ -4672,7 +4832,6 @@ const createEvent = {
             ],
           };
 
-          // ENHANCED: Add location-specific filter based on deployment type
           if (measurement.deployment_type === "static" && measurement.site_id) {
             eventsFilter.site_id = measurement.site_id;
             eventsFilter.$or.push({
@@ -4695,7 +4854,6 @@ const createEvent = {
             $inc: { nValues: 1 },
           };
 
-          // ENHANCED: Set metadata based on deployment type
           if (measurement.deployment_type === "static") {
             eventsUpdate.$set = {
               site_id: measurement.site_id,
@@ -4708,7 +4866,6 @@ const createEvent = {
               device_id: measurement.device_id,
               deployment_type: "mobile",
             };
-            // Keep site_id if provided (mobile device at known location)
             if (measurement.site_id) {
               eventsUpdate.$set.site_id = measurement.site_id;
             }
@@ -4769,7 +4926,8 @@ const createEvent = {
           };
           errors.push(errMsg);
         }
-      } // ENHANCED: Include deployment statistics in response
+      }
+
       const deploymentStats = {
         total_measurements: measurements.length,
         static_device_measurements: staticDeviceCount,
@@ -4780,24 +4938,29 @@ const createEvent = {
       };
 
       if (errors.length > 0 && nAdded === 0) {
+        logTextWithTimestamp(
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+        );
         return {
           success: false,
-          message: "Finished the operation with some errors",
-          errors,
+          message: "finished the operation with some errors",
           deployment_stats: deploymentStats,
+          errors,
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       } else {
+        logTextWithTimestamp("API: successfully added the events");
         return {
           success: true,
-          message: "Successfully added the events",
+          message: "successfully added the events",
           deployment_stats: deploymentStats,
           status: httpStatus.OK,
           errors: errors.length > 0 ? errors : undefined,
         };
       }
     } catch (error) {
-      logObject("Error in insertMeasurements_v3", error);
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -4916,29 +5079,63 @@ const createEvent = {
 
   addValuesWithStats: async (tenant, measurements, next) => {
     try {
-      const result = await createEvent.insertMeasurements_v3(
-        tenant,
-        measurements,
-        next
-      );
-
-      if (!result.success) {
+      if (!Array.isArray(measurements)) {
         return {
           success: false,
-          message: "Finished the operation with some errors",
-          errors: result.errors,
-          deployment_stats: result.deployment_stats,
+          message: "Measurements must be an array",
           status: httpStatus.BAD_REQUEST,
         };
-      } else {
+      }
+
+      const MAX_BATCH_SIZE = 100;
+      if (measurements.length > MAX_BATCH_SIZE) {
         return {
-          success: true,
-          message: "Successfully added all the events",
-          deployment_stats: result.deployment_stats,
-          errors: result.errors,
-          status: httpStatus.OK,
+          success: false,
+          message: `Batch size too large. Maximum allowed: ${MAX_BATCH_SIZE}`,
+          status: httpStatus.BAD_REQUEST,
         };
       }
+
+      return await ActivityLogger.trackOperation(
+        async () => {
+          const result = await createEvent.insertMeasurements_v3(
+            tenant,
+            measurements,
+            next
+          );
+
+          // ✅ Guard against undefined result
+          if (!result) {
+            return {
+              success: false,
+              message: "Insertion did not return a response",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              records_successful: 0,
+              records_failed: measurements.length,
+            };
+          }
+
+          // Return result with activity logger metadata
+          return {
+            ...result,
+            records_successful:
+              result.deployment_stats?.successful_insertions || 0,
+            records_failed: result.deployment_stats?.failed_insertions || 0,
+          };
+        },
+        {
+          operation_type: "BULK_INSERT",
+          entity_type: "EVENT",
+          tenant: tenant,
+          source_function: "addValuesWithStats",
+          records_attempted: measurements.length,
+          metadata: {
+            tenant: tenant,
+            total_measurements: measurements.length,
+            processing_mode: "direct",
+          },
+        }
+      );
     } catch (error) {
       logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
       return {
@@ -4950,7 +5147,60 @@ const createEvent = {
     }
   },
 
-  // Helper function to validate and process grid IDs (moved from controller logic)
+  v0_addValuesWithStats: async (tenant, measurements, next) => {
+    try {
+      if (!Array.isArray(measurements)) {
+        return {
+          success: false,
+          message: "Measurements must be an array",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const MAX_BATCH_SIZE = 100;
+      if (measurements.length > MAX_BATCH_SIZE) {
+        return {
+          success: false,
+          message: `Batch size too large. Maximum allowed: ${MAX_BATCH_SIZE}`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Call the function directly
+      const result = await createEvent.insertMeasurements_v3(
+        tenant,
+        measurements,
+        next
+      );
+
+      // Guard against undefined result from insertMeasurements_v3 catch block
+      if (!result) {
+        return {
+          success: false,
+          message: "Insertion did not return a response",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "insertMeasurements_v3 returned undefined" },
+          deployment_stats: {
+            total_measurements: measurements.length,
+            successful_insertions: 0,
+            failed_insertions: measurements.length,
+            transformation_failures: 0,
+          },
+        };
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 v0 Add Values With Stats Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   processLocationIds: async (
     { grid_ids, cohort_ids, airqloud_ids, type },
     request,

@@ -25,11 +25,20 @@ media/
 # Log files
 *.log
 
+# Local caches and tool directories
+.pytest_cache/
+.ruff_cache/
+
+# Application logs directory
+logs/
+
 # IDE and editor settings
 .vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
+.github/
+var/
 
 # OS generated files
 .DS_Store
@@ -42,6 +51,9 @@ __pycache__/
 # Ignore the directory where collectstatic outputs files
 /staticfiles/
 /public/static/
+
+# Local source asset folders (these are developer-local build artifacts; do not commit)
+assets/
 
 # Keep the source static files in your apps (Don't ignore app static folders)
 !myapp/static/

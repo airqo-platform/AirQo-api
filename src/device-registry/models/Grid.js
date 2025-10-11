@@ -11,6 +11,13 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- grid-model`
 );
 const { getModelByTenant } = require("@config/database");
+
+const {
+  validatePolygonClosure,
+  TOLERANCE_LEVELS,
+  validateAndFixPolygon,
+} = require("@validators/common");
+
 const shapeSchema = new Schema(
   {
     type: {
@@ -81,6 +88,11 @@ const gridSchema = new Schema(
       trim: true,
       unique: true,
     },
+    flag_url: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     description: {
       type: String,
       trim: true,
@@ -114,6 +126,22 @@ const gridSchema = new Schema(
       type: shapeSchema,
       required: [true, "shape is required!"],
     },
+    shape_update_history: [
+      {
+        updated_at: {
+          type: Date,
+          default: Date.now,
+        },
+        reason: {
+          type: String,
+          required: true,
+        },
+        previous_shape: {
+          type: shapeSchema,
+        },
+        previous_centers: [centerPointSchema],
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -133,6 +161,22 @@ gridSchema.pre("save", function(next) {
     delete this._id;
   }
   this.grid_codes = [this._id, this.name];
+
+  // Backup validation using geometry utility
+  if ((this.isModified("shape") || this.isNew) && this.shape) {
+    try {
+      const fixed = validateAndFixPolygon(this.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      this.shape = fixed;
+    } catch (error) {
+      return next(
+        new Error(
+          `Invalid polygon detected at model level - route validation may have been bypassed: ${error.message}`
+        )
+      );
+    }
+  }
+
   return next();
 });
 
@@ -141,6 +185,38 @@ gridSchema.pre("update", function(next) {
     delete this._id;
   }
   return next();
+});
+
+gridSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function(next) {
+  const update = this.getUpdate();
+
+  // Check if shape is being updated directly
+  if (update && update.shape) {
+    try {
+      const fixed = validateAndFixPolygon(update.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      update.shape = fixed;
+    } catch (error) {
+      return next(
+        new Error(`Invalid polygon in update operation: ${error.message}`)
+      );
+    }
+  }
+
+  // Check if using $set operator with shape
+  if (update && update.$set && update.$set.shape) {
+    try {
+      const fixed = validateAndFixPolygon(update.$set.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      update.$set.shape = fixed;
+    } catch (error) {
+      return next(
+        new Error(`Invalid polygon in $set update operation: ${error.message}`)
+      );
+    }
+  }
+
+  next();
 });
 
 gridSchema.plugin(uniqueValidator, {
@@ -153,6 +229,7 @@ gridSchema.methods.toJSON = function() {
     name,
     long_name,
     network,
+    flag_url,
     groups,
     visibility,
     description,
@@ -172,6 +249,7 @@ gridSchema.methods.toJSON = function() {
     name,
     visibility,
     long_name,
+    flag_url,
     description,
     grid_tags,
     network,
@@ -597,6 +675,58 @@ gridSchema.statics.getMobileDeviceStats = async function(filter = {}, next) {
       errors: { message: error.message },
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
+  }
+};
+
+gridSchema.statics.modifyShape = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
+  try {
+    const options = {
+      new: true,
+      useFindAndModify: false,
+      projection: { __v: 0 },
+    };
+
+    // Only allow shape, centers, and shape_update_history updates
+    const allowedFields = ["shape", "centers", "$push"];
+    const modifiedUpdateBody = {};
+
+    Object.keys(update).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        modifiedUpdateBody[key] = update[key];
+      }
+    });
+
+    const updatedGrid = await this.findOneAndUpdate(
+      filter,
+      modifiedUpdateBody,
+      options
+    ).exec();
+
+    if (!isEmpty(updatedGrid)) {
+      return {
+        success: true,
+        message: "Successfully updated the grid shape and recalculated centers",
+        data: updatedGrid._doc,
+        status: httpStatus.OK,
+      };
+    } else {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "Grid does not exist, please crosscheck",
+        })
+      );
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

@@ -8,7 +8,7 @@ from conftest import mock_dataframe, mock_aqcsv_globals
 
 
 # TODO: Review this test
-@pytest.mark.parametrize("pollutant", ["pm2_5", "pm10"])
+@pytest.mark.parametrize("pollutants", ["pm2_5", "pm10"])
 @pytest.mark.parametrize("frequency", ["hourly", "daily", "raw"])
 @pytest.mark.xfail
 def test_format_to_aqcsv(

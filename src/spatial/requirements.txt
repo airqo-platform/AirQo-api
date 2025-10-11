@@ -26,5 +26,7 @@ gcsfs~=2024.9.0.post1
 joblib~=1.4.2
 lightgbm~=4.1.0 
 numpy
-google-generativeai 
-
+google-generativeai
+redis
+matplotlib
+pillow

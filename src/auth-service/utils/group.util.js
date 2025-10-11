@@ -4,7 +4,7 @@ const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -33,13 +33,8 @@ const findGroupAssignmentIndex = (user, grp_id) => {
 };
 
 // Improved getSuperAdminPermissions function
-const assignPermissionsToRole = async (tenant, role_id, next) => {
-  const superAdminPermissions = getSuperAdminPermissions(tenant);
-  const permissionIds = await getPermissionIds(
-    tenant,
-    superAdminPermissions,
-    next
-  );
+const assignPermissionsToRole = async (tenant, role_id, permissions, next) => {
+  const permissionIds = await getPermissionIds(tenant, permissions, next);
 
   try {
     await RoleModel(tenant).findByIdAndUpdate(role_id, {
@@ -53,23 +48,6 @@ const assignPermissionsToRole = async (tenant, role_id, next) => {
       { message: errorMessage }
     );
   }
-};
-
-const getSuperAdminPermissions = (tenant) => {
-  const superAdminPermissions = (
-    process.env[`SUPER_ADMIN_PERMISSIONS_${tenant.toUpperCase()}`] ||
-    process.env.SUPER_ADMIN_PERMISSIONS
-  )
-    ?.split(",")
-    .map((p) => p.trim())
-    .filter((p) => p); // Filter out empty strings
-
-  if (!superAdminPermissions || superAdminPermissions.length === 0) {
-    throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-      message: "SUPER_ADMIN_PERMISSIONS environment variable is not set",
-    });
-  }
-  return superAdminPermissions;
 };
 
 const getPermissionIds = async (tenant, permissions, next) => {
@@ -230,7 +208,21 @@ const groupUtil = {
               joined: {
                 $dateToString: {
                   format: "%Y-%m-%d",
-                  date: { $ifNull: ["$group_roles.createdAt", "$_id"] },
+                  // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+                  date: {
+                    $ifNull: [
+                      {
+                        $cond: {
+                          if: {
+                            $eq: [{ $type: "$group_roles.createdAt" }, "date"],
+                          },
+                          then: "$group_roles.createdAt",
+                          else: null,
+                        },
+                      },
+                      { $ifNull: ["$createdAt", { $toDate: "$_id" }] },
+                    ],
+                  },
                 },
               },
             },
@@ -599,12 +591,12 @@ const groupUtil = {
       const { tenant } = request.query;
       const { grp_id } = request.params;
       let { slug, regenerate = false } = request.body;
+
       // normalise regenerate to boolean
       regenerate = ["true", "1", true].includes(regenerate);
 
       // Find the group
       const group = await GroupModel(tenant).findById(grp_id).lean();
-
       if (!group) {
         return {
           success: false,
@@ -629,15 +621,23 @@ const groupUtil = {
       }
 
       let finalSlug;
-
       if (slug) {
-        // Validate provided slug
+        // Validate provided slug format
         const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-        if (!slugRegex.test(slug) || slug.length > SLUG_MAX_LENGTH) {
+        if (!slugRegex.test(slug)) {
           return {
             success: false,
             message:
               "Invalid slug format. Slug must be lowercase alphanumeric with hyphens only",
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        // Validate slug length
+        if (slug.length > SLUG_MAX_LENGTH) {
+          return {
+            success: false,
+            message: `Slug too long. Maximum length is ${SLUG_MAX_LENGTH} characters`,
             status: httpStatus.BAD_REQUEST,
           };
         }
@@ -655,7 +655,6 @@ const groupUtil = {
             status: httpStatus.CONFLICT,
           };
         }
-
         finalSlug = slug;
       } else {
         // Generate slug from title
@@ -666,7 +665,6 @@ const groupUtil = {
             status: httpStatus.BAD_REQUEST,
           };
         }
-
         const baseSlug = groupUtil.generateSlugFromTitle(group.grp_title);
         finalSlug = await groupUtil.generateUniqueSlug(
           tenant,
@@ -773,13 +771,50 @@ const groupUtil = {
         }
       }
 
-      // Generate organization_slug if not provided
+      // ✅ ENHANCED ORGANIZATION SLUG GENERATION
       let organizationSlug = body.organization_slug;
+      let slugWasGenerated = false;
 
-      if (!organizationSlug && body.grp_title) {
-        // Generate slug from title
-        const baseSlug = groupUtil.generateSlugFromTitle(body.grp_title);
-        organizationSlug = await groupUtil.generateUniqueSlug(tenant, baseSlug);
+      // Check if organization_slug needs to be generated
+      if (!organizationSlug || organizationSlug.trim() === "") {
+        if (!body.grp_title || body.grp_title.trim() === "") {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message:
+                "Group title is required for automatic slug generation when organization_slug is not provided",
+            })
+          );
+          return;
+        }
+
+        try {
+          // Generate slug from title
+          const baseSlug = groupUtil.generateSlugFromTitle(body.grp_title);
+          organizationSlug = await groupUtil.generateUniqueSlug(
+            tenant,
+            baseSlug
+          );
+          slugWasGenerated = true;
+
+          logger.info(
+            `Auto-generated organization slug: ${organizationSlug} for group: ${body.grp_title}`
+          );
+        } catch (slugError) {
+          logger.error(
+            `Error generating organization slug: ${slugError.message}`
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Failed to generate organization slug",
+                errors: { slug_generation: slugError.message },
+              }
+            )
+          );
+          return;
+        }
       }
 
       const modifiedBody = {
@@ -818,8 +853,8 @@ const groupUtil = {
       const requestForRole = {
         query: { tenant },
         body: {
-          role_code: "SUPER_ADMIN",
-          role_name: "SUPER_ADMIN",
+          role_code: "ADMIN",
+          role_name: "ADMIN",
           group_id: grp_id,
         },
       };
@@ -850,7 +885,12 @@ const groupUtil = {
 
       try {
         // Attempt to assign permissions; error handling within this function
-        await assignPermissionsToRole(tenant, role_id, next);
+        await assignPermissionsToRole(
+          tenant,
+          role_id,
+          constants.DEFAULTS.DEFAULT_ADMIN,
+          next
+        );
 
         const updatedUser = await UserModel(tenant).findByIdAndUpdate(
           user._id,
@@ -877,6 +917,17 @@ const groupUtil = {
             )
           );
           return;
+        }
+
+        // Add slug generation info to response if applicable
+        if (slugWasGenerated) {
+          responseFromRegisterGroup.organizationSlugGenerated = true;
+          responseFromRegisterGroup.generatedSlug = organizationSlug;
+          if (
+            !responseFromRegisterGroup.message.includes("organization slug")
+          ) {
+            responseFromRegisterGroup.message += ` (organization slug auto-generated: ${organizationSlug})`;
+          }
         }
 
         return responseFromRegisterGroup;
@@ -1147,27 +1198,26 @@ const groupUtil = {
         return;
       }
 
-      // Get user to check current assignments
-      const user = await UserModel(tenant).findById(user_id).lean();
-
-      // Check if already assigned (optional - the new method handles this gracefully)
-      const isAlreadyAssigned = isUserAssignedToGroup(user, grp_id);
-
-      if (isAlreadyAssigned) {
-        return {
-          success: true,
-          message: "User is already assigned to this group",
-          data: user,
-          status: httpStatus.OK,
-        };
+      // Get default group role with error handling
+      let defaultGroupRole;
+      try {
+        defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+          tenant,
+          grp_id
+        );
+      } catch (roleError) {
+        logger.error(`Error getting default role: ${roleError.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Failed to get default role for group",
+            }
+          )
+        );
+        return;
       }
-
-      // Get default group role
-
-      const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
-        tenant,
-        grp_id
-      );
 
       if (!defaultGroupRole || !defaultGroupRole._id) {
         next(
@@ -1178,29 +1228,45 @@ const groupUtil = {
         return;
       }
 
-      // Use the new static method for safe role assignment
+      // Use the safe assignment method
+      try {
+        const assignmentResult = await UserModel(tenant).assignUserToGroup(
+          user_id,
+          grp_id,
+          defaultGroupRole._id,
+          "user"
+        );
 
-      const assignmentResult = await UserModel(tenant).assignUserToGroup(
-        user_id,
-        grp_id,
-        defaultGroupRole._id,
-        "user"
-      );
-
-      if (assignmentResult.success) {
-        return {
-          success: true,
-          message: "User assigned to the Group successfully",
-          data: assignmentResult.data,
-          status: httpStatus.OK,
-        };
-      } else {
+        if (assignmentResult && assignmentResult.success) {
+          return {
+            success: true,
+            message: "User assigned to the Group successfully",
+            data: assignmentResult.data,
+            status: httpStatus.OK,
+          };
+        } else {
+          const errorMessage = assignmentResult
+            ? assignmentResult.message
+            : "Assignment failed";
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Failed to assign user to group: ${errorMessage}`,
+              }
+            )
+          );
+          return;
+        }
+      } catch (assignError) {
+        logger.error(`Assignment error: ${assignError.message}`);
         next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: `Failed to assign user to group: ${assignmentResult.message}`,
+              message: `Assignment operation failed: ${assignError.message}`,
             }
           )
         );
@@ -2162,13 +2228,14 @@ const groupUtil = {
   getManagerPermissions: async (tenant) => {
     try {
       const managerPermissionNames = [
-        "GROUP_MANAGEMENT",
-        "USER_MANAGEMENT",
-        "ROLE_ASSIGNMENT",
-        "GROUP_SETTINGS",
-        "VIEW_ANALYTICS",
-        "MEMBER_INVITES",
-        "CONTENT_MODERATION",
+        constants.GROUP_MANAGEMENT,
+        constants.USER_MANAGEMENT,
+        constants.ROLE_ASSIGNMENT,
+        constants.ORG_USER_ASSIGN,
+        constants.GROUP_SETTINGS,
+        constants.ANALYTICS_VIEW,
+        constants.MEMBER_INVITE,
+        constants.CONTENT_MODERATION,
       ];
 
       const permissions = await PermissionModel(tenant)
@@ -4119,6 +4186,122 @@ const groupUtil = {
     } catch (error) {
       logger.error(`Error getting overview analytics: ${error.message}`);
       return { summary: {}, quick_stats: {}, role_overview: [] };
+    }
+  },
+  assignCohortsToGroup: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { cohort_ids } = request.body;
+      const { tenant } = request.query;
+
+      const group = await GroupModel(tenant).findById(grp_id);
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { $addToSet: { cohorts: { $each: cohort_ids } } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Cohorts assigned to group successfully",
+        data: updatedGroup,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  unassignCohortsFromGroup: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { cohort_ids } = request.body;
+      const { tenant } = request.query;
+
+      const group = await GroupModel(tenant).findById(grp_id);
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { $pullAll: { cohorts: cohort_ids } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Cohorts unassigned from group successfully",
+        data: updatedGroup,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  listGroupCohorts: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { tenant } = request.query;
+
+      const group = await GroupModel(tenant)
+        .findById(grp_id)
+        .select("cohorts")
+        .lean();
+
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved group cohorts",
+        data: group.cohorts || [],
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

@@ -21,11 +21,16 @@ const generateFilter = require("./generate-filter");
 const handleResponse = require("./responseHandler");
 const distance = require("./distance");
 const translate = require("./translate");
+const { getUptimeAccuracyUpdateObject } = require("./uptime.util");
+
 const claimTokenUtil = require("./claimToken.util");
 const { deduplicator } = require("./slack-dedup-utility");
+const ActivityLogger = require("./activity-logger.util");
 
 module.exports = {
   claimTokenUtil,
+  ActivityLogger,
+  getUptimeAccuracyUpdateObject,
   deduplicator,
   translate,
   distance,

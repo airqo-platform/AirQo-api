@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const { Schema } = mongoose;
 const validator = require("validator");
 const uniqueValidator = require("mongoose-unique-validator");
@@ -128,6 +128,11 @@ const NetworkSchema = new Schema(
         message:
           "Profile picture URL must be a valid URL & must not exceed 200 characters.",
       },
+    },
+    is_default: {
+      type: Boolean,
+      default: false,
+      immutable: true,
     },
   },
   {
@@ -263,6 +268,52 @@ NetworkSchema.pre(
     } catch (error) {
       return next(error);
     }
+  }
+);
+
+// Pre-remove hook
+NetworkSchema.pre(
+  [
+    "findOneAndRemove",
+    "remove",
+    "findOneAndDelete",
+    "findByIdAndDelete",
+    "deleteOne",
+    "deleteMany",
+  ],
+  async function (next) {
+    const query = this.getQuery ? this.getQuery() : { _id: this._id };
+    const Model = this.model || this.constructor;
+    const docToDelete =
+      typeof this.getQuery === "function" ? await Model.findOne(query) : this;
+
+    if (!docToDelete) {
+      return next();
+    }
+
+    // Check is_default flag
+    if (docToDelete.is_default) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete default/system networks",
+        })
+      );
+    }
+
+    // Check against environment default IDs
+    const defaultIds = [constants.DEFAULT_NETWORK]
+      .filter(Boolean)
+      .map((id) => id.toString());
+
+    if (defaultIds.includes(docToDelete._id.toString())) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete configured default networks",
+        })
+      );
+    }
+
+    next();
   }
 );
 

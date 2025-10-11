@@ -1,16 +1,22 @@
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from django.db import models
-from utils.models import BaseModel
-import cloudinary
+from utils.models import BaseModel, SlugBaseModel
 
 
-class Publication(BaseModel):
+class Publication(SlugBaseModel):
     class CategoryTypes(models.TextChoices):
         RESEARCH = "research", "Research"
         TECHNICAL = "technical", "Technical"
         POLICY = "policy", "Policy"
         GUIDE = "guide", "Guide"
         MANUAL = "manual", "Manual"
+
+    # Slug configuration
+    SLUG_SOURCE_FIELD = 'title'
+    SLUG_USE_DATE = True
+    SLUG_USE_LOCATION = False
+    SLUG_MAX_LENGTH = 100
 
     title = models.CharField(max_length=255)
     authors = models.TextField(null=True, blank=True)
@@ -36,7 +42,7 @@ class Publication(BaseModel):
     )
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(SlugBaseModel.Meta):
         ordering = ["order", "-id"]
 
     def __str__(self):
@@ -47,6 +53,6 @@ class Publication(BaseModel):
         Override the delete method to remove the associated Cloudinary file before deletion.
         """
         if self.resource_file:
-            cloudinary.uploader.destroy(
-                self.resource_file.public_id, invalidate=True)
-        super().delete(*args, **kwargs)
+            destroy(self.resource_file.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result

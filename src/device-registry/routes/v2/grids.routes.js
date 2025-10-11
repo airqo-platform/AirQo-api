@@ -5,10 +5,21 @@ const createGridController = require("@controllers/grid.controller");
 const gridsValidations = require("@validators/grids.validators");
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
-const { headers, pagination, validate } = require("@validators/common");
+const {
+  headers,
+  pagination,
+  validate,
+  validateAndFixPolygon,
+  ensureClosedRing,
+} = require("@validators/common");
 
 router.use(headers);
 
+router.get(
+  "/countries",
+  gridsValidations.listCountries,
+  createGridController.listCountries
+);
 router.post("/", gridsValidations.createGrid, createGridController.create);
 
 router.get(
@@ -30,6 +41,12 @@ router.delete(
   "/:grid_id",
   gridsValidations.deleteGrid,
   createGridController.delete
+);
+
+router.put(
+  "/:grid_id/shape",
+  gridsValidations.updateGridShape,
+  createGridController.updateShape
 );
 
 router.put(

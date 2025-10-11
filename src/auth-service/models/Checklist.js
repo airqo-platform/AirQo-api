@@ -1,4 +1,4 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");

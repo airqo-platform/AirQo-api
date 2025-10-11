@@ -45,6 +45,27 @@ const cohortSchema = new Schema(
         trim: true,
       },
     ],
+    name_update_history: [
+      {
+        updated_at: {
+          type: Date,
+          default: Date.now,
+        },
+        reason: {
+          type: String,
+          required: true,
+        },
+        previous_name: {
+          type: String,
+          required: true,
+        },
+        previous_cohort_codes: [
+          {
+            type: String,
+          },
+        ],
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -362,6 +383,59 @@ cohortSchema.statics.remove = async function({ filter = {} } = {}, next) {
       };
     }
   } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+cohortSchema.statics.modifyName = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
+  try {
+    const options = {
+      new: true,
+      useFindAndModify: false,
+      projection: { __v: 0 },
+    };
+
+    // Only allow name, cohort_codes, and name_update_history updates
+    const allowedFields = ["name", "cohort_codes", "$push"];
+    const modifiedUpdateBody = {};
+
+    Object.keys(update).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        modifiedUpdateBody[key] = update[key];
+      }
+    });
+
+    const updatedCohort = await this.findOneAndUpdate(
+      filter,
+      modifiedUpdateBody,
+      options
+    ).exec();
+
+    if (!isEmpty(updatedCohort)) {
+      return {
+        success: true,
+        message:
+          "Successfully updated the cohort name and regenerated cohort codes",
+        data: updatedCohort._doc,
+        status: httpStatus.OK,
+      };
+    } else {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "Cohort does not exist, please crosscheck",
+        })
+      );
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

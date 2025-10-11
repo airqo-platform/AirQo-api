@@ -108,6 +108,35 @@ const validateDeviceIdParam = [
     .customSanitizer((value) => ObjectId(value)),
 ];
 
+const getIdFromName = [
+  param("name")
+    .exists()
+    .withMessage("Device name is required in the path")
+    .bail()
+    .notEmpty()
+    .withMessage("Device name must not be empty")
+    .trim(),
+];
+
+const getNameFromId = [
+  param("id")
+    .exists()
+    .withMessage("Device ID is required in the path")
+    .bail()
+    .isMongoId()
+    .withMessage("A valid MongoDB Object ID is required for the device ID"),
+];
+
+const suggestDeviceNames = [
+  query("name")
+    .exists()
+    .withMessage("A 'name' query parameter to search for is required")
+    .bail()
+    .notEmpty()
+    .withMessage("The name must not be empty")
+    .trim(),
+];
+
 const validateCreateDevice = [
   oneOf([
     body("name")
@@ -195,10 +224,26 @@ const validateCreateDevice = [
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
         .withMessage(
-          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
-        ),
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle"
+        )
+        .bail()
+        .custom((mountType, { req }) => {
+          const { mobility } = req.body;
+
+          if (mountType === "vehicle" && !mobility) {
+            throw new Error("Vehicle mountType requires mobility to be true");
+          }
+
+          if (mobility === true && mountType && mountType !== "vehicle") {
+            throw new Error(
+              "Mobile devices (mobility=true) require vehicle mountType"
+            );
+          }
+
+          return true;
+        }),
       body("category")
         .optional()
         .notEmpty()
@@ -220,7 +265,25 @@ const validateCreateDevice = [
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
-        ),
+        )
+        .bail()
+        .custom((powerType, { req }) => {
+          const { mobility } = req.body;
+
+          if (powerType === "alternator" && !mobility) {
+            throw new Error(
+              "Alternator powerType requires mobility to be true"
+            );
+          }
+
+          if (mobility === true && powerType && powerType !== "alternator") {
+            throw new Error(
+              "Mobile devices (mobility=true) require alternator powerType"
+            );
+          }
+
+          return true;
+        }),
       body("latitude")
         .optional()
         .notEmpty()
@@ -410,6 +473,28 @@ const validateCreateDevice = [
 ];
 
 const validateUpdateDevice = [
+  body("mobility")
+    .not()
+    .exists()
+    .withMessage("Cannot directly update mobility. Use deployment activities."),
+  body("isActive")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update isActive. Use deployment/recall activities."
+    ),
+  body("status")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update status. Use deployment/recall activities."
+    ),
+  body("deployment_type")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update deployment_type. Use deployment activities."
+    ),
   body("visibility")
     .optional()
     .notEmpty()
@@ -431,27 +516,58 @@ const validateUpdateDevice = [
   body("mountType")
     .optional()
     .notEmpty()
+    .withMessage("the mountType should not be empty if provided")
+    .bail()
     .trim()
     .toLowerCase()
-    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"]) // ADD "vehicle"
     .withMessage(
-      "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
-    ),
+      "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle"
+    )
+    .bail()
+    .custom((mountType, { req }) => {
+      // Add business logic validation for device creation
+      const { mobility, deployment_type } = req.body;
+
+      if (mountType === "vehicle" && !mobility) {
+        throw new Error("Vehicle mountType requires mobility to be true");
+      }
+
+      if (mobility === true && mountType && mountType !== "vehicle") {
+        throw new Error(
+          "Mobile devices (mobility=true) require vehicle mountType"
+        );
+      }
+
+      return true;
+    }),
   body("powerType")
     .optional()
     .notEmpty()
+    .withMessage("the powerType should not be empty if provided")
+    .bail()
     .trim()
     .toLowerCase()
     .isIn(["solar", "mains", "alternator"])
     .withMessage(
       "the powerType value is not among the expected ones which include: solar, mains and alternator"
-    ),
-  body("isActive")
-    .optional()
-    .notEmpty()
-    .trim()
-    .isBoolean()
-    .withMessage("isActive must be Boolean"),
+    )
+    .bail()
+    .custom((powerType, { req }) => {
+      const { mobility } = req.body;
+
+      if (powerType === "alternator" && !mobility) {
+        throw new Error("Alternator powerType requires mobility to be true");
+      }
+
+      if (mobility === true && powerType && powerType !== "alternator") {
+        throw new Error(
+          "Mobile devices (mobility=true) require alternator powerType"
+        );
+      }
+
+      return true;
+    }),
   body("groups")
     .optional()
     .custom((value) => {
@@ -467,12 +583,6 @@ const validateUpdateDevice = [
     .trim()
     .isBoolean()
     .withMessage("isRetired must be Boolean"),
-  body("mobility")
-    .optional()
-    .notEmpty()
-    .trim()
-    .isBoolean()
-    .withMessage("mobility must be Boolean"),
   body("nextMaintenance")
     .optional()
     .notEmpty()
@@ -663,6 +773,14 @@ const validateListDevices = oneOf([
         "the device name can only contain letters, numbers, spaces, hyphens and underscores"
       )
       .bail(),
+    query("mobility")
+      .optional()
+      .notEmpty()
+      .withMessage("the mobility should not be empty if provided")
+      .bail()
+      .trim()
+      .isBoolean()
+      .withMessage("mobility must be a boolean value (true or false)"),
     query("online_status")
       .optional()
       .notEmpty()
@@ -732,6 +850,17 @@ const validateListDevices = oneOf([
       )
       .bail()
       .toDate(),
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
   ],
 ]);
 
@@ -953,6 +1082,27 @@ const validateOrganizationAssignment = [
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId")
     .customSanitizer((value) => ObjectId(value)),
+
+  body("organization_data")
+    .optional()
+    .custom((value) => {
+      if (typeof value !== "object" || Array.isArray(value)) {
+        throw new Error("organization_data must be an object");
+      }
+      return true;
+    }),
+
+  body("organization_data.name")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("organization name must be between 1 and 100 characters"),
+
+  body("organization_data.type")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("organization type must be between 1 and 50 characters"),
 ];
 
 const validateOrganizationSwitch = [
@@ -1156,6 +1306,30 @@ const validateGenerateShippingLabels = [
     }),
 ];
 
+const validateGetDeviceCountSummary = [
+  query("group_id")
+    .optional()
+    .isString()
+    .withMessage("group_id must be a string")
+    .trim(),
+  query("cohort_id")
+    .optional()
+    .isString()
+    .withMessage("cohort_id must be a string")
+    .custom((value) => {
+      if (value) {
+        const ids = value.split(",");
+        for (const id of ids) {
+          if (!mongoose.Types.ObjectId.isValid(id.trim())) {
+            throw new Error(`Invalid cohort ID format: ${id.trim()}`);
+          }
+        }
+      }
+      return true;
+    })
+    .trim(),
+];
+
 module.exports = {
   validateTenant,
   pagination,
@@ -1181,4 +1355,8 @@ module.exports = {
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
   validateGenerateShippingLabels,
+  getIdFromName,
+  getNameFromId,
+  suggestDeviceNames,
+  validateGetDeviceCountSummary,
 };

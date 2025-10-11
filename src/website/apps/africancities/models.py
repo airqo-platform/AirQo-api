@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.db import models
 from cloudinary.models import CloudinaryField
 from utils.models import BaseModel

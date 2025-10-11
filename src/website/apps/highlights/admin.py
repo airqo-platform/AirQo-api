@@ -25,13 +25,14 @@ class HighlightAdmin(admin.ModelAdmin):
     list_per_page = 10
     fields = ('title', 'tags', 'image', 'link', 'link_title', 'order')
 
+    @admin.display(description='Tags')
     def display_tags(self, obj):
         """
         Display tags in a comma-separated format.
         """
         return ", ".join([tag.name for tag in obj.tags.all()])
-    display_tags.short_description = 'Tags'
 
+    @admin.display(description='Image Preview')
     def image_preview(self, obj):
         """
         Show a preview of the image in the admin list view.
@@ -42,4 +43,3 @@ class HighlightAdmin(admin.ModelAdmin):
                 obj.image.url
             )
         return "No Image"
-    image_preview.short_description = 'Image Preview'

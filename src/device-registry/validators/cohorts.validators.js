@@ -1,6 +1,7 @@
 // cohorts.validators.js
 const {
   oneOf,
+  check,
   query,
   body,
   param,
@@ -22,6 +23,45 @@ const handleValidationErrors = (req, res, next) => {
   }
   next();
 };
+
+const validateTenant = query("tenant")
+  .optional()
+  .notEmpty()
+  .withMessage("tenant should not be empty if provided")
+  .trim()
+  .toLowerCase()
+  .bail()
+  .isIn(constants.NETWORKS)
+  .withMessage("the tenant value is not among the expected ones");
+
+const createFromCohorts = [
+  validateTenant,
+  body("name")
+    .exists()
+    .withMessage("the new cohort's name is required")
+    .bail()
+    .notEmpty()
+    .withMessage("the name must not be empty")
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+  body("description")
+    .optional()
+    .notEmpty()
+    .withMessage("the description must not be empty if provided")
+    .trim(),
+  body("cohort_ids")
+    .exists()
+    .withMessage("cohort_ids are required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+  body("cohort_ids.*")
+    .isMongoId()
+    .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+];
 
 const commonValidations = {
   tenant: [
@@ -213,6 +253,44 @@ const commonValidations = {
 };
 
 const cohortValidations = {
+  createFromCohorts,
+  updateCohortName: [
+    ...commonValidations.tenant,
+    commonValidations.paramObjectId("cohort_id"),
+    body("name")
+      .exists()
+      .withMessage("name is required for name updates")
+      .bail()
+      .notEmpty()
+      .withMessage("name cannot be empty")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
+    body("confirm_update")
+      .exists()
+      .withMessage("confirm_update is required for name updates")
+      .bail()
+      .isBoolean()
+      .withMessage("confirm_update must be a boolean")
+      .bail()
+      .equals("true")
+      .withMessage(
+        "confirm_update must be set to true to proceed with name update"
+      ),
+    body("update_reason")
+      .exists()
+      .withMessage("update_reason is required for name updates")
+      .bail()
+      .notEmpty()
+      .withMessage("update_reason cannot be empty")
+      .bail()
+      .isLength({ min: 10, max: 500 })
+      .withMessage("update_reason must be between 10 and 500 characters"),
+    handleValidationErrors,
+  ],
   deleteCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
@@ -241,6 +319,17 @@ const cohortValidations = {
   listCohorts: [
     ...commonValidations.tenant,
     oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
     handleValidationErrors,
   ],
 
@@ -374,6 +463,49 @@ const cohortValidations = {
   getCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
+    handleValidationErrors,
+  ],
+  listDevices: [
+    validateTenant,
+    body("cohort_ids")
+      .exists()
+      .withMessage("cohort_ids are required")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+    body("cohort_ids.*")
+      .isMongoId()
+      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("category")
+      .optional()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.DEVICE_FILTER_TYPES)
+      .withMessage(
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+      ),
+    handleValidationErrors,
+  ],
+
+  listSites: [
+    validateTenant,
+    body("cohort_ids")
+      .exists()
+      .withMessage("cohort_ids are required")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+    body("cohort_ids.*")
+      .isMongoId()
+      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("category")
+      .optional()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.DEVICE_FILTER_TYPES)
+      .withMessage(
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+      ),
     handleValidationErrors,
   ],
 };

@@ -103,6 +103,7 @@ const healthTipsController = {
         res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           tips: result.data,
         });
       } else if (result.success === false) {
@@ -154,6 +155,7 @@ const healthTipsController = {
         res.status(status).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           updated_tips: result.data,
         });
       } else if (result.success === false) {

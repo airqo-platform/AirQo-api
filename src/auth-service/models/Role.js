@@ -1,13 +1,13 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- role-model`
 );
-const { logObject, logText } = require("@utils/shared");
+const { logObject, logText, HttpError } = require("@utils/shared");
 
 const {
   createSuccessResponse,
@@ -21,7 +21,6 @@ const RoleSchema = new mongoose.Schema(
     role_name: {
       type: String,
       required: [true, "name is required"],
-      unique: true,
     },
     role_description: {
       type: String,
@@ -34,7 +33,6 @@ const RoleSchema = new mongoose.Schema(
     role_code: {
       type: String,
       trim: true,
-      unique: true,
     },
     network_id: {
       type: ObjectId,
@@ -50,6 +48,11 @@ const RoleSchema = new mongoose.Schema(
         ref: "permission",
       },
     ],
+    is_default: {
+      type: Boolean,
+      default: false,
+      immutable: true,
+    },
   },
   { timestamps: true }
 );
@@ -66,13 +69,85 @@ RoleSchema.pre("update", function (next) {
   return next();
 });
 
-RoleSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
-RoleSchema.index(
-  { role_name: 1, role_code: 1, network_id: 1 },
-  { unique: true }
+// Pre-remove hook
+RoleSchema.pre(
+  [
+    "findOneAndRemove",
+    "remove",
+    "findOneAndDelete",
+    "findByIdAndDelete",
+    "deleteOne",
+    "deleteMany",
+  ],
+  async function (next) {
+    const query = this.getQuery ? this.getQuery() : { _id: this._id };
+    const Model = this.model || this.constructor;
+    const docToDelete =
+      typeof this.getQuery === "function" ? await Model.findOne(query) : this;
+
+    if (!docToDelete) {
+      return next();
+    }
+
+    // Check is_default flag
+    if (docToDelete.is_default) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete default/system roles",
+        })
+      );
+    }
+
+    // Check against environment default IDs
+    const defaultIds = [
+      constants.DEFAULT_GROUP_ROLE,
+      constants.DEFAULT_NETWORK_ROLE,
+    ]
+      .filter(Boolean)
+      .map((id) => id.toString());
+
+    if (defaultIds.includes(docToDelete._id.toString())) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "Cannot delete configured default roles",
+        })
+      );
+    }
+
+    next();
+  }
 );
-RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
-RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
+
+// Uniqueness when network scoped
+RoleSchema.index(
+  { role_name: 1, network_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
+  }
+);
+RoleSchema.index(
+  { role_code: 1, network_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
+  }
+);
+// Uniqueness when group scoped
+RoleSchema.index(
+  { role_name: 1, group_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { group_id: { $exists: true, $ne: null } },
+  }
+);
+RoleSchema.index(
+  { role_code: 1, group_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { group_id: { $exists: true, $ne: null } },
+  }
+);
 
 RoleSchema.statics = {
   async register(args, next) {

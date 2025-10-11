@@ -8,9 +8,12 @@ const regexPatterns = require("./regex-patterns");
 const staticLists = require("./static-lists");
 const strings = require("./strings");
 const urls = require("./urls");
+const { getFlagUrl, countryCodes } = require("./country-flags");
 
 const configurations = {
   ...dbProjections,
+  getFlagUrl,
+  countryCodes,
   ...envs,
   ...mappings,
   ...aqiConstants,

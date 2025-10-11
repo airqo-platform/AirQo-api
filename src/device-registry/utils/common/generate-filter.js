@@ -29,8 +29,11 @@ const handlePredefinedValueMatch = (
   if (!value || !allowedValues || !Array.isArray(allowedValues))
     return undefined;
 
+  // Ensure value is a string before calling split - THIS IS THE KEY FIX
+  const stringValue = typeof value === "string" ? value : String(value);
+
   // Split input value by commas and trim whitespace
-  const inputValues = value.split(",").map((v) => v.trim().toLowerCase());
+  const inputValues = stringValue.split(",").map((v) => v.trim().toLowerCase());
 
   // If matchCombinations is false but we received an array of arrays,
   // flatten it to get all possible values
@@ -54,7 +57,7 @@ const handlePredefinedValueMatch = (
       }
     }
 
-    return matchedForms.size > 0 ? { $in: [...matchedForms] } : value;
+    return matchedForms.size > 0 ? { $in: [...matchedForms] } : stringValue;
   }
 
   // Handle single value matching
@@ -78,7 +81,7 @@ const handlePredefinedValueMatch = (
     return { $in: [...allForms] };
   }
 
-  return value;
+  return stringValue;
 };
 
 //startTime=2022-12-20T10:34:15.880Z
@@ -103,6 +106,7 @@ const generateFilter = {
       index,
       running,
       brief,
+      active,
     } = { ...query, ...params };
 
     // Constants for date calculations
@@ -346,6 +350,10 @@ const generateFilter = {
 
     if (brief) {
       filter["brief"] = brief;
+    }
+
+    if (active) {
+      filter["active"] = active;
     }
 
     return filter;
@@ -724,6 +732,8 @@ const generateFilter = {
       page,
       network,
       index,
+      active,
+      internal,
       running,
       brief,
     } = { ...query, ...params };
@@ -977,10 +987,19 @@ const generateFilter = {
       filter["brief"] = brief;
     }
 
+    if (active) {
+      filter["active"] = active;
+    }
+
+    if (internal) {
+      filter["internal"] = internal;
+    }
+
     return filter;
   },
   devices: (req, next) => {
     const {
+      search,
       name,
       channel,
       location,
@@ -1012,10 +1031,22 @@ const generateFilter = {
       last_active_before,
       last_active_after,
       serial_number,
+      mobility,
       authRequired,
+      deployment_type_include_legacy,
     } = { ...req.query, ...req.params };
 
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { long_name: { $regex: search, $options: "i" } },
+        { alias: { $regex: search, $options: "i" } },
+        { serial_number: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
 
     const toBooleanSafe = (value) => {
       if (value === undefined) return undefined;
@@ -1053,11 +1084,46 @@ const generateFilter = {
         filter.visibility = boolValue;
       }
     }
+    if (
+      deployment_type_include_legacy === true ||
+      deployment_type_include_legacy === "true"
+    ) {
+      // Create a separate clause for legacy deployment types
+      const legacyDeploymentClause = {
+        $or: [
+          { deployment_type: "static" },
+          { deployment_type: { $exists: false } },
+          { deployment_type: null },
+        ],
+      };
+
+      // If there's already an $or (e.g., from search), preserve it by using $and
+      if (filter.$or) {
+        const existingOr = filter.$or;
+        delete filter.$or;
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: existingOr });
+        filter.$and.push(legacyDeploymentClause);
+      } else {
+        // No existing $or, just add the legacy clause via $and
+        filter.$and = filter.$and || [];
+        filter.$and.push(legacyDeploymentClause);
+      }
+
+      delete filter.deployment_type;
+    }
 
     if (primary !== undefined) {
       const boolValue = toBooleanSafe(primary);
       if (boolValue !== undefined) {
         filter.primary = boolValue;
+      }
+    }
+
+    if (mobility !== undefined) {
+      const boolValue = toBooleanSafe(mobility);
+      if (boolValue !== undefined) {
+        filter.mobility = boolValue;
       }
     }
 
@@ -1126,10 +1192,6 @@ const generateFilter = {
       filter.serial_number = serial_number;
     }
 
-    // if (authRequired) {
-    //   filter.authRequired = authRequired.toLowerCase() === "yes";
-    // }
-
     if (group) {
       filter.groups = handlePredefinedValueMatch(
         group,
@@ -1174,18 +1236,6 @@ const generateFilter = {
       filter.locationName = mapAddress || map;
     }
 
-    // if (primary) {
-    //   filter.isPrimaryInLocation = primary.toLowerCase() === "yes";
-    // }
-
-    // if (active) {
-    //   filter.isActive = active.toLowerCase() === "yes";
-    // }
-
-    // if (visibility) {
-    //   filter.visibility = visibility.toLowerCase() === "yes";
-    // }
-
     const validStatuses = constants.VALID_DEVICE_STATUSES;
 
     if (status) {
@@ -1209,11 +1259,11 @@ const generateFilter = {
         filter.status = { $in: validStatusArray };
       }
     }
-    logObject("filter", filter);
     return filter;
   },
   sites: (req, next) => {
     const {
+      search,
       lat_long,
       id,
       generated_name,
@@ -1238,6 +1288,21 @@ const generateFilter = {
       last_active_after,
     } = { ...req.query, ...req.params };
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { generated_name: { $regex: search, $options: "i" } },
+        { formatted_name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { location_name: { $regex: search, $options: "i" } },
+        { search_name: { $regex: search, $options: "i" } },
+        { district: { $regex: search, $options: "i" } },
+        { region: { $regex: search, $options: "i" } },
+        { city: { $regex: search, $options: "i" } },
+        { country: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (county) {
       filter["county"] = county;
@@ -1319,6 +1384,7 @@ const generateFilter = {
     }
 
     if (generated_name) {
+      console.log("generated_name", generated_name);
       filter["generated_name"] = generated_name;
     }
 
@@ -1348,8 +1414,10 @@ const generateFilter = {
 
     return filter;
   },
+
   airqlouds: (req, next) => {
     const {
+      search,
       id,
       airqloud_id,
       admin_level,
@@ -1363,6 +1431,14 @@ const generateFilter = {
     } = { ...req.query, ...req.params };
 
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { long_name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (id) {
       filter._id = ObjectId(id);
@@ -1413,8 +1489,12 @@ const generateFilter = {
 
     return filter;
   },
+
+  // Replace the existing 'grids' function with this one:
+
   grids: (req, next) => {
     const {
+      search,
       id,
       admin_level,
       grid_codes,
@@ -1429,6 +1509,13 @@ const generateFilter = {
     };
 
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { long_name: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -1480,8 +1567,10 @@ const generateFilter = {
 
     return filter;
   },
+
   cohorts: (req, next) => {
     const {
+      search,
       id,
       cohort_codes,
       name,
@@ -1495,6 +1584,13 @@ const generateFilter = {
       ...req.params,
     };
     const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -1539,6 +1635,7 @@ const generateFilter = {
 
     return filter;
   },
+
   networks: (req, next) => {
     try {
       const { id, name, network_codes, net_id } = {
@@ -1655,6 +1752,7 @@ const generateFilter = {
   },
   activities: (req, next) => {
     let {
+      search,
       device,
       id,
       activity_type,
@@ -1672,6 +1770,13 @@ const generateFilter = {
     };
 
     let filter = {};
+
+    if (search) {
+      filter.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { device: { $regex: search, $options: "i" } },
+      ];
+    }
 
     if (maintenance_type) {
       filter["maintenanceType"] = maintenance_type;
@@ -1729,6 +1834,7 @@ const generateFilter = {
 
     return filter;
   },
+
   photos: (req, next) => {
     let {
       id,
@@ -1794,12 +1900,20 @@ const generateFilter = {
     return filter;
   },
   tips: (request, next) => {
-    let { id, pm25, pm10 } = {
+    let { search, id, pm25, pm10 } = {
       ...request.query,
       ...request.params,
       ...request.body,
     };
     let filter = {};
+
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
     if (id) {
       filter["_id"] = ObjectId(id);
     }
@@ -1811,6 +1925,7 @@ const generateFilter = {
     }
     return filter;
   },
+
   kyalessons: (request, next) => {
     try {
       const { id, task_id, lesson_id } = {

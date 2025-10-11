@@ -1,6 +1,6 @@
 const httpStatus = require("http-status");
 const AccessTokenModel = require("@models/AccessToken");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(

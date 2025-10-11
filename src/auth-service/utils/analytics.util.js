@@ -2578,9 +2578,33 @@ const analytics = {
       );
     }
   },
+  listStatistics: async (tenant, next) => {
+    try {
+      const responseFromListStatistics = await UserModel(tenant).listStatistics(
+        tenant
+      );
+      return responseFromListStatistics;
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getUserStats: async (request, next) => {
     try {
-      const { tenant, limit = 1000, skip = 0 } = request.query;
+      const { tenant, limit, skip } = request.query;
+      const l = Number.parseInt(limit, 10);
+      const s = Number.parseInt(skip, 10);
+      // limit: [1,100], skip: [0, +inf)
+      const _limit = Number.isInteger(l) ? Math.max(1, Math.min(l, 100)) : 50;
+      const _skip = Number.isInteger(s) ? Math.max(0, s) : 0;
+
       const filter = generateFilter.logs(request, next);
 
       const pipeline = [
@@ -2603,13 +2627,30 @@ const analytics = {
             username: "$username",
           },
         },
+        { $sort: { count: -1 } },
+        {
+          $facet: {
+            paginatedResults: [{ $skip: _skip }, { $limit: _limit }],
+            totalCount: [{ $count: "count" }],
+          },
+        },
       ];
 
-      const getUserStatsResponse = await LogModel(tenant).aggregate(pipeline);
+      const [results] = await LogModel(tenant).aggregate(pipeline);
+      const paginatedResults = results.paginatedResults || [];
+      const totalCount = results.totalCount[0]
+        ? results.totalCount[0].count
+        : 0;
+
       return {
         success: true,
         message: "Successfully retrieved the user statistics",
-        data: getUserStatsResponse,
+        data: paginatedResults,
+        meta: {
+          total: totalCount,
+          limit: _limit,
+          skip: _skip,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -2622,23 +2663,6 @@ const analytics = {
         )
       );
       return;
-    }
-  },
-  listStatistics: async (tenant, next) => {
-    try {
-      const responseFromListStatistics = await UserModel(tenant).listStatistics(
-        tenant
-      );
-      return responseFromListStatistics;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
     }
   },
 };

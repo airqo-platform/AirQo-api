@@ -144,6 +144,7 @@ class DataWarehouseUtils:
         sites = DataUtils.get_sites(network=network)
         sites.rename(
             columns={
+                "id": "site_id",
                 "approximate_latitude": "site_latitude",
                 "approximate_longitude": "site_longitude",
                 "description": "site_description",
@@ -201,7 +202,7 @@ class DataWarehouseUtils:
             low_cost_data["network"] != DeviceNetwork.AIRQO.str
         ]
         airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
-            airqo_data=airqo_data, weather_data=weather_data
+            airqo_data, weather_data=weather_data
         )
 
         devices_data = pd.concat(

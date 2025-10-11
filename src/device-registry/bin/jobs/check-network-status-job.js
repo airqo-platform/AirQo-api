@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/v2-check-network-status-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-network-status-job`
 );
 const DeviceModel = require("@models/Device");
 const NetworkStatusAlertModel = require("@models/NetworkStatusAlert");
@@ -44,7 +44,8 @@ const checkNetworkStatus = async () => {
     const result = await DeviceModel("airqo").aggregate([
       {
         $match: {
-          status: "deployed", // Only consider deployed devices
+          status: "deployed",
+          isActive: true, // Consider only active and deployed devices
         },
       },
       {

@@ -39,7 +39,8 @@ const createFeed = {
     const url = createFeed.readRecentDeviceMeasurementsFromThingspeak({
       request,
     });
-    const response = await axios.get(url);
+    // Add a 15-second timeout to prevent hanging requests
+    const response = await axios.get(url, { timeout: 15000 });
     return response.data;
   },
 
@@ -131,7 +132,6 @@ const createFeed = {
   },
   readRecentDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
-      logObject("the request", request);
       const { channel, api_key, start, end, path } = request;
       if (isEmpty(start) && !isEmpty(end)) {
         return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&end=${end}`;
@@ -188,7 +188,7 @@ const createFeed = {
     }
     return trimmedValues;
   },
-  getAPIKey: async (channel) => {
+  getAPIKey: async (channel, next) => {
     try {
       const tenant = "airqo";
       logText(`getAPIKey util: fetching readKey for channel: ${channel}`);
@@ -199,7 +199,7 @@ const createFeed = {
           device_number: channel,
         },
       };
-      const responseFromListDevice = await createDevice.list(request);
+      const responseFromListDevice = await createDevice.list(request, next);
 
       if (!responseFromListDevice.success) {
         return {
@@ -264,6 +264,7 @@ const createFeed = {
       };
     }
   },
+
   getFieldLabel: (field) => {
     try {
       return constants.FIELDS_AND_LABELS[field];

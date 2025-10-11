@@ -26,62 +26,22 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 │   ├── ansible
 │   └── terraform
 ├── k8s
-│   ├── access-control
 │   ├── analytics
-│   ├── argo-cd
+│   ├── workflows
 │   ├── auth-service
 │   ├── calibrate
 │   ├── cilium
-│   ├── data-mgt
-│   ├── device-monitor
-│   ├── device-registry
-│   ├── device-status
-│   ├── device-uptime
-│   ├── exceedance
-│   ├── gp-model
-│   ├── grafana
-│   ├── incentives
-│   ├── insights
-│   ├── jenkins
-│   ├── kafka
-│   ├── locate
-│   ├── meta-data
-│   ├── mlflow
-│   ├── namespaces
-│   ├── new-relic
-│   ├── nginx
-│   ├── nodes
-│   ├── predict
-│   ├── redis
-│   ├── spatial
-│   ├── streams
-│   ├── view
-│   ├── website
-│   └── workflows
+│   └── *
 └── src
     ├── analytics
     ├── auth-service
-    ├── blog-content-manager
-    ├── calibrate
-    ├── data-mgt
-    ├── data-proxy
-    ├── device-monitoring
     ├── device-registry
-    ├── device-status
-    ├── device-uptime
-    ├── exceedances
-    ├── firebase
-    ├── gp-model
-    ├── incentives
-    ├── insights
-    ├── kafka-connectors
-    ├── locate
-    ├── meta-data
     ├── predict
     ├── spatial
     ├── view
     ├── website
-    └── workflows
+    ├── workflows
+    └── *
 ```
 
 ## Features

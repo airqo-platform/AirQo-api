@@ -1,5 +1,6 @@
 "use strict";
 const DeviceModel = require("@models/Device");
+const ActivityModel = require("@models/Activity");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { isValidObjectId } = require("mongoose");
@@ -13,6 +14,7 @@ const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
 const qs = require("qs");
+const stringSimilarity = require("string-similarity");
 const QRCode = require("qrcode");
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
@@ -45,23 +47,232 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+// Add this helper function near the top of device.util.js, after the imports
+
+/**
+ * Builds the MongoDB aggregation stage for computing device_categories
+ * Single source of truth for category computation logic
+ * @returns {Object} MongoDB $addFields stage
+ */
+const getDeviceCategoriesAddFieldsStage = () => {
+  return {
+    $addFields: {
+      device_categories: {
+        primary_category: { $ifNull: ["$category", "lowcost"] },
+        deployment_category: { $ifNull: ["$deployment_type", "static"] },
+        is_mobile: {
+          $or: [
+            { $eq: ["$mobility", true] },
+            { $eq: ["$deployment_type", "mobile"] },
+          ],
+        },
+        is_static: {
+          $or: [
+            { $eq: ["$mobility", false] },
+            { $eq: ["$deployment_type", "static"] },
+          ],
+        },
+        is_lowcost: { $eq: ["$category", "lowcost"] },
+        is_bam: { $eq: ["$category", "bam"] },
+        is_gas: { $eq: ["$category", "gas"] },
+        all_categories: {
+          $concatArrays: [
+            [{ $ifNull: ["$category", "lowcost"] }],
+            [{ $ifNull: ["$deployment_type", "static"] }],
+          ],
+        },
+        category_hierarchy: [
+          {
+            level: "equipment",
+            category: { $ifNull: ["$category", "lowcost"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$category", "lowcost"] },
+                    then: "Low-cost sensor device",
+                  },
+                  {
+                    case: { $eq: ["$category", "bam"] },
+                    then: "Beta Attenuation Monitor (reference-grade)",
+                  },
+                  {
+                    case: { $eq: ["$category", "gas"] },
+                    then: "Gas sensor device",
+                  },
+                ],
+                default: "Low-cost sensor device",
+              },
+            },
+          },
+          {
+            level: "deployment",
+            category: { $ifNull: ["$deployment_type", "static"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "Mobile deployment (vehicle-mounted, grid-based)",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "Static deployment (fixed location, site-based)",
+                  },
+                ],
+                default: "Static deployment (fixed location, site-based)",
+              },
+            },
+          },
+        ],
+        category_relationships: {
+          $cond: [
+            {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
+            {
+              type: "mobile",
+              note: {
+                $concat: [
+                  "This is a mobile ",
+                  { $ifNull: ["$category", "lowcost"] },
+                  " device. Mobile devices can belong to any equipment category (lowcost, bam, or gas) and use grid-based deployment.",
+                ],
+              },
+              belongs_to_equipment_category: {
+                $ifNull: ["$category", "lowcost"],
+              },
+              deployment_method: "grid-based",
+            },
+            {
+              type: "static",
+              note: {
+                $concat: [
+                  "This is a static ",
+                  { $ifNull: ["$category", "lowcost"] },
+                  " device deployed at a fixed location using site-based deployment.",
+                ],
+              },
+              belongs_to_equipment_category: {
+                $ifNull: ["$category", "lowcost"],
+              },
+              deployment_method: "site-based",
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
 const deviceUtil = {
+  getDeviceCountSummary: async (request, next) => {
+    try {
+      const { tenant, group_id, cohort_id } = request.query;
+
+      // 1. Build the initial filter based on group or cohort
+      const filter = {};
+      if (group_id) {
+        const groupIds = group_id.split(",").map((id) => id.trim());
+        filter.groups = { $in: groupIds };
+      }
+      if (cohort_id) {
+        const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
+        filter.cohorts = { $in: cohortIds };
+      }
+
+      // 2. Create the aggregation pipeline with $facet
+      const pipeline = [
+        { $match: filter },
+        {
+          $facet: {
+            deployed: [{ $match: { status: "deployed" } }, { $count: "count" }],
+            recalled: [{ $match: { status: "recalled" } }, { $count: "count" }],
+            undeployed: [
+              { $match: { status: "not deployed" } },
+              { $count: "count" },
+            ],
+            online: [{ $match: { isOnline: true } }, { $count: "count" }],
+            offline: [{ $match: { isOnline: false } }, { $count: "count" }],
+            maintenance_overdue: [
+              {
+                $match: {
+                  nextMaintenance: { $lt: new Date() },
+                  status: "deployed",
+                },
+              },
+              { $count: "count" },
+            ],
+          },
+        },
+      ];
+
+      // 3. Execute the aggregation
+      const results = await DeviceModel(tenant).aggregate(pipeline);
+
+      // 4. Format the response
+      const counts = results[0];
+      const summary = {
+        deployed: counts.deployed[0] ? counts.deployed[0].count : 0,
+        recalled: counts.recalled[0] ? counts.recalled[0].count : 0,
+        undeployed: counts.undeployed[0] ? counts.undeployed[0].count : 0,
+        online: counts.online[0] ? counts.online[0].count : 0,
+        offline: counts.offline[0] ? counts.offline[0].count : 0,
+        maintenance_overdue: counts.maintenance_overdue[0]
+          ? counts.maintenance_overdue[0].count
+          : 0,
+      };
+
+      return {
+        success: true,
+        message: "Successfully retrieved device count summary.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getDeviceById: async (req, next) => {
     try {
       const { id } = req.params;
-      const { tenant } = req.query;
 
-      const device = await DeviceModel(tenant.toLowerCase()).findById(id);
+      if (!isValidObjectId(id)) {
+        throw new HttpError("Invalid device id", httpStatus.BAD_REQUEST);
+      }
 
-      if (!device) {
+      // Create a new request object for the list function
+      const listRequest = {
+        ...req,
+        query: {
+          ...req.query,
+          id: id, // Pass the ID from params into the query for the list function
+        },
+      };
+
+      // Call the list function
+      const listResponse = await deviceUtil.list(listRequest, next);
+
+      if (!listResponse.success || isEmpty(listResponse.data)) {
         throw new HttpError("Device not found", httpStatus.NOT_FOUND);
       }
 
       return {
         success: true,
-        message: "Device details fetched successfully",
-        data: device,
+        message: "Device details with activities fetched successfully",
+        data: listResponse.data[0],
         status: httpStatus.OK,
+        meta: listResponse.meta,
       };
     } catch (error) {
       if (error instanceof HttpError) {
@@ -107,7 +318,7 @@ const deviceUtil = {
       );
     }
   },
-  doesDeviceExist: async (request) => {
+  doesDeviceExist: async (request, next) => {
     logText("checking device existence...");
     const responseFromList = await deviceUtil.list(request, next);
     if (responseFromList.success === true && responseFromList.data) {
@@ -115,6 +326,7 @@ const deviceUtil = {
     }
     return false;
   },
+
   getDevicesCount: async (request, next) => {
     try {
       const { query } = request;
@@ -577,20 +789,387 @@ const deviceUtil = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, path, limit, skip } = request.query;
-      const filter = generateFilter.devices(request, next);
-      if (!isEmpty(path)) {
-        filter.path = path;
-      }
-      const responseFromListDevice = await DeviceModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
-        next
+      const {
+        tenant: rawTenant,
+        limit,
+        skip,
+        useCache = "true",
+        detailLevel = "full",
+        sortBy,
+        order,
+      } = request.query;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+      const activitiesColl = ActivityModel(tenant).collection.name;
+      const MAX_LIMIT =
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES) || 1000;
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
       );
-      return responseFromListDevice;
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+      const filter = generateFilter.devices(request, next);
+
+      let pipeline = [];
+
+      // Base match
+      pipeline.push({ $match: filter });
+
+      if (detailLevel === "minimal") {
+        // Minimal data for performance-critical scenarios
+        pipeline.push(getDeviceCategoriesAddFieldsStage(), {
+          $project: {
+            _id: 1,
+            name: 1,
+            long_name: 1,
+            status: 1,
+            isActive: 1,
+            network: 1,
+            category: 1,
+            deployment_type: 1,
+            mobility: 1,
+            device_number: 1,
+            createdAt: 1,
+            cached_total_activities: 1,
+            device_categories: 1,
+          },
+        });
+      } else if (detailLevel === "summary") {
+        // Summary with essential relations and cached data
+        pipeline.push(
+          {
+            $lookup: {
+              from: "sites",
+              localField: "site_id",
+              foreignField: "_id",
+              as: "site",
+              pipeline: [
+                { $project: { _id: 1, name: 1, district: 1, country: 1 } },
+              ],
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "grid_id",
+              foreignField: "_id",
+              as: "assigned_grid",
+              pipeline: [{ $project: { _id: 1, name: 1, admin_level: 1 } }],
+            },
+          },
+          getDeviceCategoriesAddFieldsStage(),
+          {
+            $addFields: {
+              total_activities: { $ifNull: ["$cached_total_activities", 0] },
+              activities_by_type: {
+                $ifNull: ["$cached_activities_by_type", {}],
+              },
+              latest_deployment_activity: "$cached_latest_deployment_activity",
+              latest_maintenance_activity:
+                "$cached_latest_maintenance_activity",
+              latest_recall_activity: "$cached_latest_recall_activity",
+            },
+          },
+          { $project: constants.DEVICES_INCLUSION_PROJECTION },
+          { $project: constants.DEVICES_EXCLUSION_PROJECTION("summary") }
+        );
+      } else {
+        // Full detail level (existing complex aggregation)
+        const maxActivities = parseInt(request.query.maxActivities) || 500;
+
+        pipeline.push(
+          {
+            $lookup: {
+              from: "sites",
+              localField: "site_id",
+              foreignField: "_id",
+              as: "site",
+            },
+          },
+          {
+            $unwind: {
+              path: "$site",
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+          {
+            $lookup: {
+              from: "hosts",
+              localField: "host_id",
+              foreignField: "_id",
+              as: "host",
+            },
+          },
+          {
+            $lookup: {
+              from: "sites",
+              localField: "previous_sites",
+              foreignField: "_id",
+              as: "previous_sites",
+            },
+          },
+          {
+            $lookup: {
+              from: "cohorts",
+              localField: "cohorts",
+              foreignField: "_id",
+              as: "cohorts",
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "site.grids",
+              foreignField: "_id",
+              as: "grids",
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "grid_id",
+              foreignField: "_id",
+              as: "assigned_grid",
+            },
+          }
+        );
+
+        if (useCache === "true") {
+          // Use cached activity data - NO activities lookup
+          pipeline.push(getDeviceCategoriesAddFieldsStage(), {
+            $addFields: {
+              // Map cached fields to expected output fields
+              total_activities: { $ifNull: ["$cached_total_activities", 0] },
+              activities_by_type: {
+                $ifNull: ["$cached_activities_by_type", {}],
+              },
+              latest_activities_by_type: {
+                $ifNull: ["$cached_latest_activities_by_type", {}],
+              },
+              latest_deployment_activity: {
+                $ifNull: ["$cached_latest_deployment_activity", null],
+              },
+              latest_maintenance_activity: {
+                $ifNull: ["$cached_latest_maintenance_activity", null],
+              },
+              latest_recall_activity: {
+                $ifNull: ["$cached_latest_recall_activity", null],
+              },
+            },
+          });
+        } else {
+          // Real-time activity aggregation (expensive)
+          pipeline.push(
+            {
+              $lookup: {
+                from: activitiesColl,
+                let: { deviceName: "$name", deviceId: "$_id" },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $or: [
+                          { $eq: ["$device", "$$deviceName"] },
+                          { $eq: ["$device_id", "$$deviceId"] },
+                          {
+                            $eq: [
+                              { $toString: "$device_id" },
+                              { $toString: "$$deviceId" },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                  { $sort: { createdAt: -1 } },
+                  {
+                    $project: {
+                      _id: 1,
+                      site_id: 1,
+                      device_id: 1,
+                      device: 1,
+                      activityType: 1,
+                      maintenanceType: 1,
+                      recallType: 1,
+                      date: 1,
+                      description: 1,
+                      nextMaintenance: 1,
+                      createdAt: 1,
+                      tags: 1,
+                    },
+                  },
+                  { $limit: maxActivities },
+                ],
+                as: "activities",
+              },
+            },
+            getDeviceCategoriesAddFieldsStage(),
+            {
+              $addFields: {
+                // Calculate total from activities array
+                total_activities: {
+                  $cond: [
+                    { $isArray: "$activities" },
+                    { $size: "$activities" },
+                    0,
+                  ],
+                },
+              },
+            }
+          );
+        }
+
+        pipeline.push({ $project: constants.DEVICES_INCLUSION_PROJECTION });
+        pipeline.push({
+          $project: constants.DEVICES_EXCLUSION_PROJECTION("full"),
+        });
+      }
+
+      const facetPipeline = [
+        ...pipeline,
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await DeviceModel(tenant)
+        .aggregate(facetPipeline)
+        .allowDiskUse(true);
+
+      const paginatedResults = results[0].paginatedResults;
+      const total = results[0].totalCount[0]
+        ? results[0].totalCount[0].count
+        : 0;
+
+      // **CRITICAL FIX: Post-process for BOTH cached and non-cached results**
+      if (!isEmpty(paginatedResults) && detailLevel === "full") {
+        paginatedResults.forEach((device) => {
+          // Process activities for non-cached (real-time) results
+          if (useCache === "false" && device.activities) {
+            if (device.activities.length > 0) {
+              const activitiesByType = {};
+              const latestActivitiesByType = {};
+
+              device.activities.forEach((activity) => {
+                const type = activity.activityType || "unknown";
+                activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+                if (
+                  !latestActivitiesByType[type] ||
+                  new Date(activity.createdAt) >
+                    new Date(latestActivitiesByType[type].createdAt)
+                ) {
+                  latestActivitiesByType[type] = activity;
+                }
+              });
+
+              device.activities_by_type = activitiesByType;
+              device.latest_activities_by_type = latestActivitiesByType;
+              device.latest_deployment_activity =
+                latestActivitiesByType.deployment || null;
+              device.latest_maintenance_activity =
+                latestActivitiesByType.maintenance || null;
+              device.latest_recall_activity =
+                latestActivitiesByType.recall ||
+                latestActivitiesByType.recallment ||
+                null;
+            } else {
+              device.activities_by_type = {};
+              device.latest_activities_by_type = {};
+            }
+          }
+
+          // **FIX: Ensure total_activities is set correctly for cached results**
+          // This handles cases where projection might have modified the field
+          if (useCache === "true") {
+            // Ensure the field exists and has the right value
+            if (
+              device.total_activities === undefined ||
+              device.total_activities === null
+            ) {
+              device.total_activities = device.cached_total_activities || 0;
+            }
+
+            // Ensure other cached fields are properly mapped
+            if (
+              !device.activities_by_type &&
+              device.cached_activities_by_type
+            ) {
+              device.activities_by_type = device.cached_activities_by_type;
+            }
+            if (
+              !device.latest_activities_by_type &&
+              device.cached_latest_activities_by_type
+            ) {
+              device.latest_activities_by_type =
+                device.cached_latest_activities_by_type;
+            }
+          }
+
+          // **FIX: Process assigned_grid for BOTH cached and non-cached**
+          if (device.assigned_grid && device.assigned_grid.length > 0) {
+            const grid = device.assigned_grid[0];
+            device.assigned_grid = {
+              _id: grid._id,
+              name: grid.name,
+              admin_level: grid.admin_level,
+              long_name: grid.long_name,
+            };
+          } else {
+            device.assigned_grid = null;
+          }
+        });
+      }
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        totalResults: paginatedResults.length,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+        detailLevel,
+        usedCache: useCache === "true",
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "successfully retrieved the device details",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -602,6 +1181,7 @@ const deviceUtil = {
       );
     }
   },
+
   clear: (request, next) => {
     return {
       success: false,
@@ -1278,12 +1858,145 @@ const deviceUtil = {
       );
     }
   },
+
+  getIdFromName: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { name } = request.params;
+
+      const device = await DeviceModel(tenant)
+        .findOne({ name })
+        .select("_id")
+        .lean();
+
+      if (!device) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `Device with name '${name}' not found` },
+        };
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved device ID",
+        data: { _id: device._id.toString() },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getNameFromId: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { id } = request.params;
+
+      const device = await DeviceModel(tenant)
+        .findById(id)
+        .select("name")
+        .lean();
+
+      if (!device) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `Device with ID '${id}' not found` },
+        };
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved device name",
+        data: { name: device.name },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
+  suggestNames: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { name } = request.query;
+
+      // STEP 1: Narrow the search space using an indexed-friendly query.
+      // This finds names starting with the same first 3 characters.
+      // NOTE: This is a pragmatic approach. For ultimate scalability,
+      // consider a full-text search engine like Atlas Search.
+      const searchRegex = new RegExp(`^${name.substring(0, 3)}`, "i");
+
+      const candidateDevices = await DeviceModel(tenant)
+        .find({ name: searchRegex })
+        .select("name")
+        .limit(500) // Protect against memory overload
+        .lean();
+
+      if (candidateDevices.length === 0) {
+        return {
+          success: true,
+          message: "No similar device names found.",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      const candidateNames = candidateDevices.map((device) => device.name);
+
+      // STEP 2: Find the best match from the candidates using string similarity.
+      const matches = stringSimilarity.findBestMatch(name, candidateNames);
+
+      // Filter and sort the results to return the most relevant suggestions.
+      const suggestions = matches.ratings
+        .filter((match) => match.rating > 0.4) // Only include reasonably good matches
+        .sort((a, b) => b.rating - a.rating) // Sort by best rating
+        .slice(0, 5); // Return up to the top 5 suggestions
+
+      return {
+        success: true,
+        message: "Successfully retrieved device name suggestions.",
+        data: suggestions,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
   getMyDevices: async (request, next) => {
     try {
       const { user_id, organization_id } = request.query;
       const { tenant } = request.query;
 
-      // Step 1: Validate user_id
       if (!user_id) {
         return {
           success: false,
@@ -1302,7 +2015,6 @@ const deviceUtil = {
         };
       }
 
-      // Step 2: Validate organization_id if provided
       if (organization_id && !isValidObjectId(organization_id)) {
         return {
           success: false,
@@ -1314,45 +2026,42 @@ const deviceUtil = {
         };
       }
 
-      // Step 3: Build filter with proper ObjectId creation
+      // Build filter - handle both old and new organization fields
       let filter = {};
-
       if (organization_id) {
-        // Get devices assigned to organization OR owned by user
         filter = {
           $or: [
             { owner_id: new ObjectId(user_id) },
-            {
-              assigned_organization_id: new ObjectId(organization_id),
-            },
+            { assigned_organization_id: new ObjectId(organization_id) },
+            { "assigned_organization.id": new ObjectId(organization_id) },
           ],
         };
       } else {
-        // Get only user's personal devices
         filter = { owner_id: new ObjectId(user_id) };
       }
 
-      // Step 4: Query devices with error handling
+      // Query devices with both organization fields
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name status isActive deployment_date latitude longitude claim_status owner_id assigned_organization_id claimed_at"
+          "name long_name status isActive deployment_date latitude longitude claim_status owner_id assigned_organization_id assigned_organization claimed_at"
         )
-        .populate("assigned_organization_id", "grp_title")
         .sort({ claimed_at: -1 })
-        .lean(); // Use lean() for better performance
+        .lean();
 
       return {
         success: true,
         message: "Devices retrieved successfully",
         data: devices || [],
         status: httpStatus.OK,
+        metadata: {
+          note: "Organization data is managed by the organization microservice",
+        },
       };
     } catch (error) {
       logObject("Get My Devices Error Details:", error);
       logger.error(`🐛🐛 Get My Devices Error ${error.message}`);
 
-      // Handle specific MongoDB errors
       if (error.name === "CastError") {
         return {
           success: false,
@@ -1371,6 +2080,7 @@ const deviceUtil = {
       );
     }
   },
+
   checkDeviceAvailability: async (request, next) => {
     try {
       const { deviceName } = request.params;
@@ -1417,10 +2127,14 @@ const deviceUtil = {
   },
   assignDeviceToOrganization: async (request, next) => {
     try {
-      const { device_name, organization_id, user_id } = request.body;
+      const {
+        device_name,
+        organization_id,
+        user_id,
+        organization_data,
+      } = request.body;
       const { tenant } = request.query;
 
-      // Validate IDs
       if (!user_id || !isValidObjectId(user_id)) {
         return {
           success: false,
@@ -1444,7 +2158,7 @@ const deviceUtil = {
       // Verify user owns the device
       const device = await DeviceModel(tenant).findOne({
         name: device_name,
-        owner_id: new ObjectId(user_id), // Fixed ObjectId usage
+        owner_id: new ObjectId(user_id),
       });
 
       if (!device) {
@@ -1456,13 +2170,21 @@ const deviceUtil = {
         };
       }
 
-      // Update device assignment
+      // Update device with both organization fields
+      const updateData = {
+        assigned_organization_id: new ObjectId(organization_id),
+        assigned_organization: {
+          id: new ObjectId(organization_id),
+          name: organization_data?.name || null,
+          type: organization_data?.type || null,
+          updated_at: new Date(),
+        },
+        organization_assigned_at: new Date(),
+      };
+
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
         { name: device_name, owner_id: new ObjectId(user_id) },
-        {
-          assigned_organization_id: new ObjectId(organization_id), // Fixed ObjectId usage
-          organization_assigned_at: new Date(),
-        },
+        { $set: updateData },
         { new: true }
       );
 
@@ -1472,6 +2194,7 @@ const deviceUtil = {
         data: {
           name: updatedDevice.name,
           assigned_organization_id: updatedDevice.assigned_organization_id,
+          assigned_organization: updatedDevice.assigned_organization,
           organization_assigned_at: updatedDevice.organization_assigned_at,
         },
         status: httpStatus.OK,
@@ -1487,6 +2210,7 @@ const deviceUtil = {
       );
     }
   },
+
   generateClaimQRCode: async (request, next) => {
     try {
       const { deviceName } = request.params;
@@ -1569,7 +2293,6 @@ const deviceUtil = {
       logger.info(`Starting device migration for tenant: ${tenant}`);
 
       if (dry_run) {
-        // Just count how many devices would be updated
         const devicesNeedingMigration = await DeviceModel(
           tenant
         ).countDocuments({
@@ -1588,10 +2311,10 @@ const deviceUtil = {
         };
       }
 
-      // Actual migration
+      // Actual migration - clear both organization fields
       const migrationResult = await DeviceModel(tenant).updateMany(
         {
-          claim_status: { $exists: false }, // Devices without claim_status
+          claim_status: { $exists: false },
         },
         {
           $set: {
@@ -1600,12 +2323,13 @@ const deviceUtil = {
             claimed_at: null,
             claim_token: null,
             assigned_organization_id: null,
+            assigned_organization: null,
             organization_assigned_at: null,
           },
         }
       );
 
-      // Optional: Generate claim tokens for devices that need them
+      // Rest of the migration logic remains the same...
       const { generate_tokens = false } = request.body;
       let tokenGenerationResult = null;
 
@@ -1687,6 +2411,14 @@ const deviceUtil = {
   getUserOrganizations: async (request, next) => {
     try {
       const { user_id } = request.query;
+
+      if (!user_id || !isValidObjectId(user_id)) {
+        return {
+          success: false,
+          message: "Invalid user_id",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       const result = await organizationUtil.getUserOrganizations(user_id);
 
@@ -2000,6 +2732,598 @@ const deviceUtil = {
       );
     }
   },
+  getMobileDevicesMetadataAnalysis: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+
+      // Get all devices (both mobile and static) for comprehensive analysis
+      const allDevices = await DeviceModel(tenant).aggregate([
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment",
+          },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "site_id",
+            foreignField: "_id",
+            as: "site",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "grid",
+          },
+        },
+      ]);
+
+      // Analyze for conflicts with enhanced business rules
+      const conflictingDevices = [];
+      const validMobileDevices = [];
+      const validStaticDevices = [];
+
+      allDevices.forEach((device) => {
+        const conflicts = [];
+        const deviceType = device.deployment_type || "static";
+
+        // MOBILE DEVICE VALIDATIONS
+        if (deviceType === "mobile" || device.mobility === true) {
+          // Mobile must have vehicle mount
+          if (device.mountType && device.mountType !== "vehicle") {
+            conflicts.push({
+              type: "mobile_mount_type_invalid",
+              message: `Mobile device has invalid mountType '${device.mountType}', should be 'vehicle'`,
+              current_value: {
+                mountType: device.mountType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { mountType: "vehicle" },
+            });
+          }
+
+          // Mobile must have alternator power
+          if (device.powerType && device.powerType !== "alternator") {
+            conflicts.push({
+              type: "mobile_power_type_invalid",
+              message: `Mobile device has invalid powerType '${device.powerType}', should be 'alternator'`,
+              current_value: {
+                powerType: device.powerType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { powerType: "alternator" },
+            });
+          }
+
+          // Mobile must have grid_id, not site_id
+          if (device.site_id && !device.grid_id) {
+            conflicts.push({
+              type: "mobile_with_site_not_grid",
+              message: "Mobile device has site_id but should have grid_id",
+              current_value: {
+                site_id: device.site_id,
+                grid_id: device.grid_id,
+              },
+              suggested_fix: { site_id: null, grid_id: "NEEDS_ASSIGNMENT" },
+            });
+          }
+
+          // Mobile must have mobility true
+          if (device.mobility !== true) {
+            conflicts.push({
+              type: "mobile_mobility_false",
+              message: "Mobile device has mobility set to false",
+              current_value: {
+                mobility: device.mobility,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { mobility: true },
+            });
+          }
+        }
+
+        // STATIC DEVICE VALIDATIONS
+        if (deviceType === "static" || device.mobility === false) {
+          // Static cannot have vehicle mount
+          if (device.mountType === "vehicle") {
+            conflicts.push({
+              type: "static_vehicle_mount",
+              message: "Static device cannot have mountType 'vehicle'",
+              current_value: {
+                mountType: device.mountType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: {
+                deployment_type: "mobile",
+                mobility: true,
+                powerType: "alternator",
+              },
+            });
+          }
+
+          // Static should not have alternator power
+          if (device.powerType === "alternator") {
+            conflicts.push({
+              type: "static_alternator_power",
+              message: "Static device should not have powerType 'alternator'",
+              current_value: {
+                powerType: device.powerType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { powerType: "solar" },
+            });
+          }
+
+          // Static must have site_id, not grid_id
+          if (device.grid_id && !device.site_id) {
+            conflicts.push({
+              type: "static_with_grid_not_site",
+              message: "Static device has grid_id but should have site_id",
+              current_value: {
+                site_id: device.site_id,
+                grid_id: device.grid_id,
+              },
+              suggested_fix: { grid_id: null, site_id: "NEEDS_ASSIGNMENT" },
+            });
+          }
+
+          // Static must have mobility false
+          if (device.mobility !== false) {
+            conflicts.push({
+              type: "static_mobility_true",
+              message: "Static device has mobility set to true",
+              current_value: {
+                mobility: device.mobility,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { mobility: false },
+            });
+          }
+        }
+
+        // CROSS-VALIDATION CONFLICTS
+        // Vehicle mount must be mobile
+        if (device.mountType === "vehicle" && deviceType !== "mobile") {
+          conflicts.push({
+            type: "vehicle_mount_not_mobile",
+            message: "Vehicle-mounted device must be mobile deployment",
+            current_value: {
+              mountType: device.mountType,
+              deployment_type: deviceType,
+            },
+            suggested_fix: {
+              deployment_type: "mobile",
+              mobility: true,
+              powerType: "alternator",
+            },
+          });
+        }
+
+        // Pole mount must be static
+        if (
+          device.mountType === "pole" &&
+          (deviceType !== "static" || device.mobility === true)
+        ) {
+          conflicts.push({
+            type: "pole_mount_not_static",
+            message: "Pole-mounted device must be static deployment",
+            current_value: {
+              mountType: device.mountType,
+              deployment_type: deviceType,
+              mobility: device.mobility,
+            },
+            suggested_fix: {
+              deployment_type: "static",
+              mobility: false,
+              grid_id: null,
+            },
+          });
+        }
+
+        // Alternator power must be mobile
+        if (device.powerType === "alternator" && deviceType !== "mobile") {
+          conflicts.push({
+            type: "alternator_power_not_mobile",
+            message: "Alternator-powered device must be mobile deployment",
+            current_value: {
+              powerType: device.powerType,
+              deployment_type: deviceType,
+            },
+            suggested_fix: {
+              deployment_type: "mobile",
+              mobility: true,
+              mountType: "vehicle",
+            },
+          });
+        }
+
+        // Both site_id and grid_id present
+        if (device.site_id && device.grid_id) {
+          conflicts.push({
+            type: "both_site_and_grid",
+            message: "Device cannot have both site_id and grid_id",
+            current_value: { site_id: device.site_id, grid_id: device.grid_id },
+            suggested_fix:
+              deviceType === "mobile" ? { site_id: null } : { grid_id: null },
+          });
+        }
+
+        // Categorize devices
+        if (conflicts.length > 0) {
+          conflictingDevices.push({
+            ...device,
+            conflicts: conflicts,
+            severity: conflicts.some((c) =>
+              [
+                "vehicle_mount_not_mobile",
+                "pole_mount_not_static",
+                "alternator_power_not_mobile",
+              ].includes(c.type)
+            )
+              ? "high"
+              : "medium",
+          });
+        } else {
+          if (deviceType === "mobile") {
+            validMobileDevices.push(device);
+          } else {
+            validStaticDevices.push(device);
+          }
+        }
+      });
+
+      // Enhanced analysis with business rule insights
+      const analysis = {
+        total_devices: allDevices.length,
+        valid_mobile_devices: validMobileDevices.length,
+        valid_static_devices: validStaticDevices.length,
+        conflicting_devices: conflictingDevices.length,
+        high_severity_conflicts: conflictingDevices.filter(
+          (d) => d.severity === "high"
+        ).length,
+
+        conflict_breakdown: {
+          mobile_issues: {
+            invalid_mount_type: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_mount_type_invalid")
+            ).length,
+            invalid_power_type: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_power_type_invalid")
+            ).length,
+            has_site_not_grid: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_with_site_not_grid")
+            ).length,
+            mobility_false: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_mobility_false")
+            ).length,
+          },
+
+          static_issues: {
+            vehicle_mount: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_vehicle_mount")
+            ).length,
+            alternator_power: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_alternator_power")
+            ).length,
+            has_grid_not_site: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_with_grid_not_site")
+            ).length,
+            mobility_true: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_mobility_true")
+            ).length,
+          },
+
+          cross_validation_issues: {
+            vehicle_mount_not_mobile: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "vehicle_mount_not_mobile")
+            ).length,
+            pole_mount_not_static: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "pole_mount_not_static")
+            ).length,
+            alternator_power_not_mobile: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "alternator_power_not_mobile")
+            ).length,
+            both_site_and_grid: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "both_site_and_grid")
+            ).length,
+          },
+        },
+
+        business_rules_summary: {
+          expected_mobile_attributes: {
+            mountType: "vehicle",
+            powerType: "alternator",
+            mobility: true,
+            location_reference: "grid_id",
+          },
+          expected_static_attributes: {
+            mountType: "pole|wall|faceboard|rooftop|suspended",
+            powerType: "solar|mains",
+            mobility: false,
+            location_reference: "site_id",
+          },
+        },
+      };
+
+      return {
+        success: true,
+        message: "Comprehensive device metadata analysis completed",
+        data: {
+          valid_mobile_devices: validMobileDevices,
+          valid_static_devices: validStaticDevices,
+          conflicting_devices: conflictingDevices,
+          analysis: analysis,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Enhanced Metadata Analysis Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  fixMetadataConflicts: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const {
+        dry_run = false,
+        fix_types = ["all"],
+        auto_assign_locations = false,
+      } = body;
+
+      // Get conflicting devices first
+      const analysisResult = await deviceUtil.getMobileDevicesMetadataAnalysis(
+        request,
+        next
+      );
+
+      if (!analysisResult.success) {
+        return analysisResult;
+      }
+
+      const conflictingDevices = analysisResult.data.conflicting_devices;
+      const fixedDevices = [];
+      const failedFixes = [];
+      const manualReviewRequired = [];
+
+      for (const device of conflictingDevices) {
+        try {
+          const fixes = [];
+          let updateData = {};
+          let requiresManualReview = false;
+
+          device.conflicts.forEach((conflict) => {
+            switch (conflict.type) {
+              // MOBILE DEVICE FIXES
+              case "mobile_mount_type_invalid":
+                updateData.mountType = "vehicle";
+                fixes.push("Set mountType to 'vehicle' for mobile device");
+                break;
+
+              case "mobile_power_type_invalid":
+                updateData.powerType = "alternator";
+                fixes.push("Set powerType to 'alternator' for mobile device");
+                break;
+
+              case "mobile_with_site_not_grid":
+                updateData.site_id = null;
+                if (!auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push(
+                    "Cleared site_id - MANUAL: Assign appropriate grid_id"
+                  );
+                }
+                break;
+
+              case "mobile_mobility_false":
+                updateData.mobility = true;
+                fixes.push("Set mobility to true for mobile device");
+                break;
+
+              // STATIC DEVICE FIXES
+              case "static_vehicle_mount":
+                // This is ambiguous - could fix by making mobile OR changing mount
+                requiresManualReview = true;
+                fixes.push(
+                  "MANUAL REVIEW: Vehicle-mounted device marked as static"
+                );
+                break;
+
+              case "static_alternator_power":
+                updateData.powerType = "solar"; // Default to solar for static
+                fixes.push(
+                  "Changed powerType from 'alternator' to 'solar' for static device"
+                );
+                break;
+
+              case "static_with_grid_not_site":
+                updateData.grid_id = null;
+                if (!auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push(
+                    "Cleared grid_id - MANUAL: Assign appropriate site_id"
+                  );
+                }
+                break;
+
+              case "static_mobility_true":
+                updateData.mobility = false;
+                fixes.push("Set mobility to false for static device");
+                break;
+
+              // CROSS-VALIDATION FIXES
+              case "vehicle_mount_not_mobile":
+                // Convert to mobile since vehicle mount strongly indicates mobile
+                updateData.deployment_type = "mobile";
+                updateData.mobility = true;
+                updateData.powerType = "alternator";
+                updateData.site_id = null;
+                fixes.push(
+                  "Converted to mobile deployment (vehicle mount detected)"
+                );
+                if (!device.grid_id && !auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push("MANUAL: Assign grid_id for mobile device");
+                }
+                break;
+
+              case "pole_mount_not_static":
+                // Convert to static since pole mount strongly indicates static
+                updateData.deployment_type = "static";
+                updateData.mobility = false;
+                updateData.grid_id = null;
+                if (device.powerType === "alternator") {
+                  updateData.powerType = "solar";
+                }
+                fixes.push(
+                  "Converted to static deployment (pole mount detected)"
+                );
+                if (!device.site_id && !auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push("MANUAL: Assign site_id for static device");
+                }
+                break;
+
+              case "alternator_power_not_mobile":
+                // Convert to mobile since alternator strongly indicates mobile
+                updateData.deployment_type = "mobile";
+                updateData.mobility = true;
+                updateData.mountType = "vehicle";
+                updateData.site_id = null;
+                fixes.push(
+                  "Converted to mobile deployment (alternator power detected)"
+                );
+                if (!device.grid_id && !auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push("MANUAL: Assign grid_id for mobile device");
+                }
+                break;
+
+              case "both_site_and_grid":
+                // Decide based on deployment type
+                if (
+                  device.deployment_type === "mobile" ||
+                  device.mobility === true
+                ) {
+                  updateData.site_id = null;
+                  fixes.push(
+                    "Removed site_id (kept grid_id for mobile device)"
+                  );
+                } else {
+                  updateData.grid_id = null;
+                  fixes.push(
+                    "Removed grid_id (kept site_id for static device)"
+                  );
+                }
+                break;
+            }
+          });
+
+          // Apply fixes or mark for manual review
+          if (requiresManualReview) {
+            manualReviewRequired.push({
+              device_id: device._id,
+              device_name: device.name,
+              conflicts: device.conflicts,
+              suggested_fixes: fixes,
+              partial_update_data: updateData,
+              status: "requires_manual_review",
+            });
+          } else if (Object.keys(updateData).length > 0) {
+            if (!dry_run) {
+              await DeviceModel(tenant).findOneAndUpdate(
+                { _id: device._id },
+                { $set: updateData }
+              );
+            }
+
+            fixedDevices.push({
+              device_id: device._id,
+              device_name: device.name,
+              conflicts_detected: device.conflicts.length,
+              fixes_applied: fixes,
+              update_data: updateData,
+              status: dry_run ? "would_be_fixed" : "fixed",
+            });
+          }
+        } catch (error) {
+          failedFixes.push({
+            device_id: device._id,
+            device_name: device.name,
+            error: error.message,
+          });
+        }
+      }
+
+      const summary = {
+        total_conflicting_devices: conflictingDevices.length,
+        automatically_fixed: fixedDevices.length,
+        requires_manual_review: manualReviewRequired.length,
+        failed_fixes: failedFixes.length,
+        dry_run: dry_run,
+        timestamp: new Date(),
+        business_rules_applied: {
+          mobile_requirements:
+            "mountType=vehicle, powerType=alternator, mobility=true, grid_id required",
+          static_requirements:
+            "mountType≠vehicle, powerType≠alternator, mobility=false, site_id required",
+        },
+      };
+
+      return {
+        success: true,
+        message: dry_run
+          ? "Dry run completed - no changes made"
+          : "Enhanced metadata cleanup completed",
+        data: {
+          fixed_devices: fixedDevices,
+          manual_review_required: manualReviewRequired,
+          failed_fixes: failedFixes,
+          summary: summary,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Enhanced Fix Metadata Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
-module.exports = deviceUtil;
+module.exports = {
+  ...deviceUtil,
+  getDeviceCategoriesAddFieldsStage,
+};

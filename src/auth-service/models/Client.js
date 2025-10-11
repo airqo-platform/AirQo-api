@@ -1,7 +1,7 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const constants = require("@config/constants");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
@@ -256,13 +256,7 @@ ClientSchema.methods = {
 const ClientModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    let clients = mongoose.model("clients");
-    return clients;
-  } catch (error) {
-    let clients = getModelByTenant(dbTenant, "client", ClientSchema);
-    return clients;
-  }
+  return getModelByTenant(dbTenant, "client", ClientSchema);
 };
 
 module.exports = ClientModel;
