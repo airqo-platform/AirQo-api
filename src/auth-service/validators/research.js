@@ -57,10 +57,18 @@ const validateWithdrawal = [
   param("userId")
     .exists()
     .withMessage("userId is required in the path")
+    .bail()
     .isMongoId()
     .withMessage("userId must be a valid Mongo ID"),
-  body("withdrawalReason").exists().withMessage("withdrawalReason is required"),
+  body("withdrawalReason")
+    .exists()
+    .withMessage("withdrawalReason is required")
+    .trim()
+    .isLength({ min: 1, max: 500 }),
   body("confirmDeletion")
+    .exists()
+    .withMessage("confirmDeletion is required")
+    .bail()
     .isBoolean()
     .withMessage("confirmDeletion must be a boolean"),
 ];

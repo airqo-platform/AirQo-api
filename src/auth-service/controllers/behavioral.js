@@ -79,9 +79,8 @@ const behavioral = {
           pagination: {
             total,
             limit: parseInt(req.query.limit, 10) || 50,
-            offset: parseInt(req.query.offset, 10) || 0,
-            hasMore:
-              (parseInt(req.query.offset, 10) || 0) + data.length < total,
+            skip: parseInt(req.query.skip, 10) || 0,
+            hasMore: (parseInt(req.query.skip, 10) || 0) + data.length < total,
           },
         });
       } else if (result.success === false) {
@@ -129,8 +128,14 @@ const behavioral = {
           success: true,
           stats: result.data,
         });
+      } else if (result.success === false) {
+        const status = result.status ?? httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ?? { message: "Internal Server Error" },
+        });
       }
-      // Handle error case
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

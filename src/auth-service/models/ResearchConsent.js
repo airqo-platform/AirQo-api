@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
-const ObjectId = mongoose.ObjectId;
+const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const { addDays } = require("@utils/common");
 const { getModelByTenant } = require("@config/database");

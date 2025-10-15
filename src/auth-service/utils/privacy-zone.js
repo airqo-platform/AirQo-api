@@ -1,7 +1,7 @@
 const PrivacyZoneModel = require("@models/PrivacyZone");
 const PreferenceModel = require("@models/Preference");
 const LocationDataModel = require("@models/LocationData");
-const { HttpError } = require("@utils/shared");
+const { HttpError, createSuccessResponse } = require("@utils/shared");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -35,7 +35,7 @@ const privacyZone = {
       );
     }
   },
-  listPrivaceZones: async (request, next) => {
+  listPrivacyZones: async (request, next) => {
     try {
       const { query, user } = request;
       const { tenant } = query;
@@ -97,8 +97,15 @@ const privacyZone = {
       if (userPreference && userPreference.locationPreferences) {
         preferences = userPreference.locationPreferences;
       } else {
-        // Return default values if no preference is found
-        preferences = new userPreference.locationPreferences.toJSON();
+        // Return default values from the schema
+        preferences = {
+          trackingEnabled: true,
+          trackingPaused: false,
+          dataRetentionDays: 90,
+          maxHistoryEntries: 10000,
+          allowBackgroundTracking: true,
+          trackingAccuracy: "high",
+        };
       }
 
       return createSuccessResponse("get", preferences, "location preferences");
@@ -155,23 +162,44 @@ const privacyZone = {
   listLocationData: async (request, next) => {
     try {
       const { query, user } = request;
-      const { tenant } = query;
+      const {
+        tenant,
+        skip: skipValue,
+        limit: queryLimit,
+        startDate,
+        endDate,
+        includeSharedOnly,
+      } = query;
       const { _id } = user;
 
-      const filter = { userId: _id };
-      const { limit, skip, startDate, endDate, includeSharedOnly } = query;
+      // Parse pagination parameters with defaults
+      const skip = parseInt(skipValue, 10) || 0;
+      const limit = Math.min(parseInt(queryLimit, 10) || 100, 1000); // Cap at 1000
 
-      if (startDate) {
-        filter.timestamp = { ...filter.timestamp, $gte: new Date(startDate) };
+      // Build filter object
+      const filter = { userId: _id };
+
+      // Add date range filters if provided
+      if (startDate || endDate) {
+        filter.timestamp = {};
+        if (startDate) {
+          filter.timestamp.$gte = new Date(startDate);
+        }
+        if (endDate) {
+          filter.timestamp.$lte = new Date(endDate);
+        }
       }
-      if (endDate) {
-        filter.timestamp = { ...filter.timestamp, $lte: new Date(endDate) };
-      }
+
+      // Add shared filter if specified
       if (includeSharedOnly === "true") {
         filter.isSharedWithResearchers = true;
       }
 
-      return await LocationDataModel(tenant).list({ filter, limit, skip });
+      return await LocationDataModel(tenant).list({
+        filter,
+        skip,
+        limit,
+      });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

@@ -121,8 +121,14 @@ const research = {
           message: result.message,
           updatedConsents: result.data,
         });
+      } else if (result.success === false) {
+        const status = result.status ?? httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ?? { message: "Internal Server Error" },
+        });
       }
-      // Handle error case
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -137,15 +143,29 @@ const research = {
 
   withdrawFromStudy: async (req, res, next) => {
     try {
-      // Implementation similar to updateConsent
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
       const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = request.query.tenant || defaultTenant;
+
       const result = await researchConsentUtil.delete(request, next);
       if (result.success === true) {
-        return res
-          .status(httpStatus.OK)
-          .json({ success: true, ...result.data });
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({ success: true, ...result.data });
+      } else if (result.success === false) {
+        const status = result.status ?? httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ?? { message: "Internal Server Error" },
+        });
       }
-      // Handle error case
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -158,5 +178,7 @@ const research = {
     }
   },
 };
+
+module.exports = research;
 
 module.exports = research;

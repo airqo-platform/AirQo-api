@@ -1,5 +1,4 @@
 const { check, oneOf, query, body, param } = require("express-validator");
-const constants = require("@config/constants");
 
 const validateCreatePrivacyZone = [
   body("name").exists().withMessage("name is missing").trim(),
@@ -24,6 +23,7 @@ const validateUpdatePrivacyZone = [
   param("zoneId")
     .exists()
     .withMessage("zoneId is missing in the path")
+    .bail()
     .isMongoId()
     .withMessage("zoneId must be a valid Mongo ID"),
   // Optional body fields
@@ -47,10 +47,10 @@ const validateListLocationData = [
     .optional()
     .isInt({ min: 1, max: 1000 })
     .withMessage("limit must be an integer between 1 and 1000"),
-  query("offset")
+  query("skip")
     .optional()
     .isInt({ min: 0 })
-    .withMessage("offset must be a non-negative integer"),
+    .withMessage("skip must be a non-negative integer"),
   query("startDate")
     .optional()
     .isISO8601()

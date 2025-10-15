@@ -36,7 +36,11 @@ router.put(
   privacyValidator.validateUpdatePrivacyZone,
   privacyController.updatePrivacyZone
 );
-router.delete("/privacy-zones/:zoneId", privacyController.deletePrivacyZone);
+router.delete(
+  "/privacy-zones/:zoneId",
+  privacyValidator.validateUpdatePrivacyZone,
+  privacyController.deletePrivacyZone
+);
 
 // Location Data Management
 router.get(

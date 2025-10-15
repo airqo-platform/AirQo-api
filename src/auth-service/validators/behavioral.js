@@ -47,10 +47,10 @@ const validateGetUserAlertResponses = [
     .optional()
     .isInt({ min: 1, max: 100 })
     .withMessage("limit must be an integer between 1 and 100"),
-  query("offset")
+  query("skip")
     .optional()
     .isInt({ min: 0 })
-    .withMessage("offset must be a non-negative integer"),
+    .withMessage("skip must be a non-negative integer"),
   query("alertId").optional().isString(),
   query("startDate")
     .optional()

@@ -1,5 +1,4 @@
 const AlertResponseModel = require("@models/AlertResponse");
-const { getModelByTenant } = require("@config/database");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -44,7 +43,7 @@ const alertResponse = {
       return await AlertResponseModel(tenant).list({ filter, limit, skip });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,

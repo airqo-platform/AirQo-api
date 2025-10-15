@@ -269,7 +269,7 @@ const authRoutes = [
     description: "Multi-tenant settings management",
   },
   {
-    path: "/users/privacy",
+    path: "/privacy",
     route: "@routes/v2/privacy",
     name: "privacy",
     description: "User location privacy and analytics settings",
