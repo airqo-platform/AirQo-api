@@ -64,7 +64,22 @@ const privacyZone = {
       const { _id } = user;
 
       const filter = { _id: zoneId, userId: _id };
-      const update = body;
+      const disallowedFields = new Set([
+        "_id",
+        "id",
+        "userId",
+        "user_id",
+        "tenant",
+        "createdAt",
+        "updatedAt",
+      ]);
+      const cleanUpdate = {};
+      for (const [key, value] of Object.entries(body || {})) {
+        if (!disallowedFields.has(key)) {
+          cleanUpdate[key] = value;
+        }
+      }
+      const update = { $set: cleanUpdate };
 
       return await PrivacyZoneModel(tenant).modify({ filter, update });
     } catch (error) {
@@ -79,7 +94,25 @@ const privacyZone = {
     }
   },
   deletePrivacyZone: async (request, next) => {
-    // Implementation for deleting a privacy zone
+    try {
+      const { query, params, user } = request;
+      const { tenant } = query;
+      const { zoneId } = params;
+      const { _id } = user;
+
+      const filter = { _id: zoneId, userId: _id };
+
+      return await PrivacyZoneModel(tenant).remove({ filter });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
   },
   getLocationPreferences: async (request, next) => {
     try {

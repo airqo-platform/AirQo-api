@@ -23,6 +23,10 @@ const behavioral = {
 
       const result = await alertResponseUtil.create(request, next);
 
+      if (!result) {
+        return;
+      }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.CREATED;
         return res.status(status).json({
@@ -69,19 +73,23 @@ const behavioral = {
 
       const result = await alertResponseUtil.list(request, next);
 
+      if (!result) {
+        return;
+      }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         const { data, total } = result.data;
         return res.status(status).json({
           success: true,
           message: result.message,
-          responses: data,
-          pagination: {
+          meta: {
             total,
             limit: parseInt(req.query.limit, 10) || 50,
             skip: parseInt(req.query.skip, 10) || 0,
             hasMore: (parseInt(req.query.skip, 10) || 0) + data.length < total,
           },
+          data,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -121,6 +129,10 @@ const behavioral = {
       request.query.tenant = request.query.tenant || defaultTenant;
 
       const result = await alertResponseUtil.getStats(request, next);
+
+      if (!result) {
+        return;
+      }
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;

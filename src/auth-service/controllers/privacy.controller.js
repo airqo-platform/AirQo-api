@@ -162,6 +162,9 @@ const privacy = {
 
       const result = await privacyZoneUtil.deletePrivacyZone(request, next);
 
+      if (!result) {
+        return;
+      }
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({

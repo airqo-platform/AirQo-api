@@ -24,6 +24,9 @@ const research = {
 
       const result = await researchConsentUtil.create(request, next);
 
+      if (!result) {
+        return;
+      }
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.CREATED;
         return res.status(status).json({
@@ -69,7 +72,9 @@ const research = {
       request.query.tenant = request.query.tenant || defaultTenant;
 
       const result = await researchConsentUtil.list(request, next);
-      logObject("the result", result);
+      if (!result) {
+        return;
+      }
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
@@ -115,6 +120,9 @@ const research = {
 
       const result = await researchConsentUtil.update(request, next);
 
+      if (!result) {
+        return;
+      }
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
@@ -156,6 +164,9 @@ const research = {
       request.query.tenant = request.query.tenant || defaultTenant;
 
       const result = await researchConsentUtil.delete(request, next);
+      if (!result) {
+        return;
+      }
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({ success: true, ...result.data });

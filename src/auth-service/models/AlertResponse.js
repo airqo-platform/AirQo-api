@@ -47,7 +47,6 @@ const AlertResponseSchema = new Schema(
         "reducedOutdoorActivity",
         "closedWindows",
         "other",
-        null,
       ],
     },
     notFollowedReason: {
@@ -60,12 +59,12 @@ const AlertResponseSchema = new Schema(
         "alreadyIndoors",
         "lackResources",
         "other",
-        null,
       ],
     },
     customReason: {
       type: String,
       trim: true,
+      maxlength: 500,
     },
     respondedAt: {
       type: Date,
@@ -80,6 +79,33 @@ const AlertResponseSchema = new Schema(
 
 AlertResponseSchema.index({ userId: 1, respondedAt: -1 });
 AlertResponseSchema.index({ alertId: 1, userId: 1 }, { unique: true });
+
+// Conditional validation for reason fields
+AlertResponseSchema.path("followedReason").validate(function (value) {
+  if (this.responseType === "followed") {
+    return !!value; // Must be provided
+  }
+  return value == null; // Must NOT be provided for other types
+}, "followedReason is only allowed (and required) when responseType is 'followed'");
+
+AlertResponseSchema.path("notFollowedReason").validate(function (value) {
+  if (this.responseType === "notFollowed") {
+    return !!value; // Must be provided
+  }
+  return value == null; // Must NOT be provided for other types
+}, "notFollowedReason is only allowed (and required) when responseType is 'notFollowed'");
+
+AlertResponseSchema.path("customReason").validate(function (value) {
+  const requiresCustomReason =
+    this.followedReason === "other" || this.notFollowedReason === "other";
+
+  if (requiresCustomReason) {
+    return typeof value === "string" && value.trim().length > 0;
+  }
+
+  // If not required, it must be absent
+  return value == null;
+}, "customReason is only allowed (and required) when a reason of 'other' is selected.");
 
 AlertResponseSchema.statics = {
   async register(args) {

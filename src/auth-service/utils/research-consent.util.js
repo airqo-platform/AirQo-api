@@ -1,5 +1,5 @@
 const ResearchConsentModel = require("@models/ResearchConsent");
-const { HttpError } = require("@utils/shared");
+const { HttpError, createSuccessResponse } = require("@utils/shared");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -10,10 +10,18 @@ const logger = log4js.getLogger(
 const researchConsent = {
   create: async (request, next) => {
     try {
-      const { body, query } = request;
+      const { body, query, user } = request;
       const { tenant } = query;
+      if (!user || !user._id) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+      const payload = { ...body, userId: user._id };
 
-      return await ResearchConsentModel(tenant).register(body);
+      return await ResearchConsentModel(tenant).register(payload);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -27,11 +35,27 @@ const researchConsent = {
   },
   list: async (request, next) => {
     try {
-      const { query, params } = request;
+      const { query, params, user } = request;
       const { tenant } = query;
-      const { userId } = params;
+      const requestedUserId = params.userId;
+      const currentUserId = user && (user._id || user.id);
+      if (!currentUserId) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+      // Only allow self-access; expand with role checks as needed
+      if (requestedUserId && requestedUserId !== String(currentUserId)) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "Cannot access other users' consent",
+          })
+        );
+      }
 
-      const filter = { userId };
+      const filter = { userId: currentUserId };
 
       return await ResearchConsentModel(tenant).findConsent({ filter });
     } catch (error) {
@@ -47,11 +71,26 @@ const researchConsent = {
   },
   update: async (request, next) => {
     try {
-      const { query, body, params } = request;
+      const { query, body, params, user } = request;
       const { tenant } = query;
-      const { userId } = params;
+      const requestedUserId = params.userId;
+      const currentUserId = user && (user._id || user.id);
+      if (!currentUserId) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+      if (requestedUserId && requestedUserId !== String(currentUserId)) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "Cannot modify other users' consent",
+          })
+        );
+      }
 
-      const filter = { userId };
+      const filter = { userId: currentUserId };
       const update = { consentTypes: body.consentTypes };
 
       return await ResearchConsentModel(tenant).updateConsent({
@@ -71,11 +110,26 @@ const researchConsent = {
   },
   delete: async (request, next) => {
     try {
-      const { query, body, params } = request;
+      const { query, body, params, user } = request;
       const { tenant } = query;
-      const { userId } = params;
+      const requestedUserId = params.userId;
+      const currentUserId = user && (user._id || user.id);
+      if (!currentUserId) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Missing authenticated user",
+          })
+        );
+      }
+      if (requestedUserId && requestedUserId !== String(currentUserId)) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "Cannot withdraw other users' consent",
+          })
+        );
+      }
 
-      const filter = { userId };
+      const filter = { userId: currentUserId };
       const withdrawalInfo = body;
 
       return await ResearchConsentModel(tenant).withdraw({

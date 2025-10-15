@@ -77,13 +77,23 @@ const validateDeleteLocationDataRange = [
   body("startDate")
     .exists()
     .withMessage("startDate is required")
+    .bail()
     .isISO8601()
-    .withMessage("startDate must be a valid ISO8601 date"),
+    .withMessage("startDate must be a valid ISO8601 date")
+    .toDate(),
   body("endDate")
     .exists()
     .withMessage("endDate is required")
+    .bail()
     .isISO8601()
-    .withMessage("endDate must be a valid ISO8601 date"),
+    .withMessage("endDate must be a valid ISO8601 date")
+    .toDate()
+    .custom((endDate, { req }) => {
+      if (endDate <= req.body.startDate) {
+        throw new Error("endDate must be after startDate");
+      }
+      return true;
+    }),
 ];
 
 module.exports = {
