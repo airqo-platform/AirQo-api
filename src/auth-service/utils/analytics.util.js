@@ -441,6 +441,116 @@ const routesWithService = [
     service: "network-uptime",
     action: "Retrieve Network Uptime Data",
   },
+
+  /*************************** USER-CENTRIC ANALYTICS & PRIVACY APIS ***************************/
+
+  /**** Location Privacy Control: Privacy Zones Management */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/users/analytics/privacy-zones"],
+    service: "privacy-zone-mgt",
+    action: "Create Privacy Zone",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/users/analytics/privacy-zones"],
+    service: "privacy-zone-mgt",
+    action: "Get Privacy Zones",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/users/analytics/privacy-zones"],
+    service: "privacy-zone-mgt",
+    action: "Update Privacy Zone",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/users/analytics/privacy-zones"],
+    service: "privacy-zone-mgt",
+    action: "Delete Privacy Zone",
+  },
+
+  /**** Location Privacy Control: Location Data Management */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/users/analytics/location-data"],
+    service: "location-data-mgt",
+    action: "Get Location History",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/users/analytics/location-data"],
+    service: "location-data-mgt",
+    action: "Delete Location Data",
+  },
+
+  /**** Location Privacy Control: Data Sharing Control */
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/users/analytics/location-data"],
+    service: "data-sharing-control",
+    action: "Update Data Sharing Consent",
+  },
+
+  /**** Location Privacy Control: Location Tracking Preferences */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/users/analytics/location-preferences"],
+    service: "location-preferences",
+    action: "Get Tracking Preferences",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/users/analytics/location-preferences"],
+    service: "location-preferences",
+    action: "Update Tracking Preferences",
+  },
+
+  /**** Behavioral Intervention: Alert Response Management */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/users/alert-responses"],
+    service: "behavioral-intervention",
+    action: "Submit Alert Response",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/users/alert-responses"],
+    service: "behavioral-intervention",
+    action: "Get User Alert Responses",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/research/behavioral-interventions"],
+    service: "behavioral-intervention-research",
+    action: "Get Aggregated Behavioral Data",
+  },
+
+  /**** Research Consent Management */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/research/consent"],
+    service: "research-consent",
+    action: "Create Research Consent",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/research/consent"],
+    service: "research-consent",
+    action: "Get Consent Status",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/research/consent"],
+    service: "research-consent",
+    action: "Update Consent Preferences",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/research/consent"],
+    service: "research-consent",
+    action: "Withdraw from Study",
+  },
 ];
 
 // Helper functions to calculate additional metrics

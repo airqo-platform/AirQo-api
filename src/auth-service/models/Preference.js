@@ -171,6 +171,22 @@ const airqloudSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const locationPreferenceSchema = new mongoose.Schema(
+  {
+    trackingEnabled: { type: Boolean, default: true },
+    trackingPaused: { type: Boolean, default: false },
+    dataRetentionDays: { type: Number, default: 90, min: 0 },
+    maxHistoryEntries: { type: Number, default: 10000, min: 0 },
+    allowBackgroundTracking: { type: Boolean, default: true },
+    trackingAccuracy: {
+      type: String,
+      enum: ["high", "medium", "low", "balanced"],
+      default: "high",
+    },
+  },
+  { _id: false }
+);
+
 const PreferenceSchema = new mongoose.Schema(
   {
     pollutant: {
@@ -297,6 +313,10 @@ const PreferenceSchema = new mongoose.Schema(
     ],
     period: { type: periodSchema, required: [true, "period is required!"] },
     chartConfigurations: [chartConfigSchema],
+    locationPreferences: {
+      type: locationPreferenceSchema,
+      default: () => ({}),
+    },
   },
   {
     timestamps: true,
@@ -444,6 +464,7 @@ PreferenceSchema.methods = {
       selected_devices: this.selected_devices,
       selected_cohorts: this.selected_cohorts,
       selected_airqlouds: this.selected_airqlouds,
+      locationPreferences: this.locationPreferences,
     };
   },
 };
