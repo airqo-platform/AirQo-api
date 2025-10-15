@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const behavioralController = require("@controllers/behavioral");
+const behavioralController = require("@controllers/behavioral.controller");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const behavioralValidator = require("@validators/behavioral");
+const behavioralValidator = require("@validators/behavioral.validators");
 
 const headers = (req, res, next) => {
   res.header(

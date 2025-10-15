@@ -1,5 +1,5 @@
 const AlertResponseModel = require("@models/AlertResponse");
-const { HttpError } = require("@utils/shared");
+const { HttpError, createSuccessResponse } = require("@utils/shared");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -53,7 +53,54 @@ const alertResponse = {
     }
   },
   getStats: async (request, next) => {
-    // Implementation for getting user's alert response statistics
+    try {
+      const { query, user } = request;
+      const { tenant } = query;
+      const { _id } = user;
+
+      const filter = { userId: _id };
+
+      const stats = await AlertResponseModel(tenant).aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: "$responseType",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$count" },
+            types: {
+              $push: {
+                k: "$_id",
+                v: "$count",
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            total: 1,
+            summary: { $arrayToObject: "$types" },
+          },
+        },
+      ]);
+
+      const result = stats[0] || { total: 0, summary: {} };
+      return createSuccessResponse("get", result, "alert response stats");
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
   },
 };
 

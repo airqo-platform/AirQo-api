@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const privacyController = require("@controllers/privacy");
+const privacyController = require("@controllers/privacy.controller");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const privacyValidator = require("@validators/privacy");
+const privacyValidator = require("@validators/privacy.validators");
 
 const headers = (req, res, next) => {
   res.header(

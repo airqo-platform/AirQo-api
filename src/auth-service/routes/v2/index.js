@@ -270,19 +270,19 @@ const authRoutes = [
   },
   {
     path: "/privacy",
-    route: "@routes/v2/privacy",
+    route: "@routes/v2/privacy.routes",
     name: "privacy",
     description: "User location privacy and analytics settings",
   },
   {
     path: "/behavioral",
-    route: "@routes/v2/behavioral",
+    route: "@routes/v2/behavioral.routes",
     name: "behavioral",
     description: "User behavioral intervention responses",
   },
   {
     path: "/research",
-    route: "@routes/v2/research",
+    route: "@routes/v2/research.routes",
     name: "research",
     description: "Research consent and data management",
   },

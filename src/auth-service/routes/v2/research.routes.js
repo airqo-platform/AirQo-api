@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const researchController = require("@controllers/research");
-const behavioralController = require("@controllers/behavioral");
-const { setJWTAuth, authJWT } = require("@middleware/passport"); // Assuming checkAccess exists
-const researchValidator = require("@validators/research");
+const researchController = require("@controllers/research.controller");
+const behavioralController = require("@controllers/behavioral.controller");
+const { setJWTAuth, authJWT } = require("@middleware/passport");
+const researchValidator = require("@validators/research.validators");
 
 const headers = (req, res, next) => {
   res.header(

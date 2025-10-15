@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
-const ObjectId = mongoose.ObjectId;
+const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const {
@@ -85,7 +85,7 @@ LocationDataSchema.statics = {
 
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      const options = { new: true };
+      const options = { new: true, runValidators: true, context: "query" };
       const updatedPoint = await this.findOneAndUpdate(filter, update, options);
       if (!updatedPoint) {
         return createNotFoundResponse("location data point", "update");

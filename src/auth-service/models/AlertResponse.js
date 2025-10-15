@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
-const ObjectId = mongoose.ObjectId;
+const ObjectId = Schema.Types.ObjectId;
 const { createSuccessResponse, createErrorResponse } = require("@utils/shared");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");

@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const privacyZoneUtil = require("@utils/privacy-zone");
+const privacyZoneUtil = require("@utils/privacy-zone.util");
 const { extractErrorsFromRequest, HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const log4js = require("log4js");
