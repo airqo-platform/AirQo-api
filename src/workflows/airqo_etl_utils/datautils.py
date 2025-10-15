@@ -345,6 +345,7 @@ class DataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
         )
+
         data_store: List[pd.DataFrame] = []
 
         with ThreadPoolExecutor(
@@ -400,6 +401,7 @@ class DataUtils:
         data, meta_data = DataUtils._extract_device_api_data(
             device, dates, config, resolution
         )
+
         if isinstance(data, pd.DataFrame) and not data.empty:
             data = DataUtils._process_and_append_device_data(
                 device, data, meta_data, config
@@ -589,6 +591,8 @@ class DataUtils:
                 # It is assumed only airqo devices have keys
                 airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
                 keys = data_api.get_thingspeak_read_keys(airqo_devices)
+                if not keys:
+                    raise ValueError("Failed to retrieve device keys from API.")
                 devices["key"] = devices["device_number"].map(keys)
         except Exception as e:
             logger.exception(
@@ -716,6 +720,7 @@ class DataUtils:
             key = (
                 Utils.decrypt_key(bytes(key, "utf-8")) if isinstance(key, str) else None
             )
+
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
                     device_number=int(device_number),
