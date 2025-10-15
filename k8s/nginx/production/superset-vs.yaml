@@ -15,9 +15,7 @@ spec:
         proxy:
           upstream: superset-upstream
           requestHeaders:
-            - name: X-Forwarded-Proto
-              value: https
-            - name: X-Forwarded-For
-              value: ${proxy_add_x_forwarded_for}
-            - name: X-Real-IP
-              value: ${remote_addr}
+            pass: true
+            set:
+              - name: X-Forwarded-Proto
+                value: https
