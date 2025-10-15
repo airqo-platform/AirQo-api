@@ -15,6 +15,7 @@ from .conftest import (
     mock_fetch_devices_from_api,
     airqo_device_keys,
     mock_fetch_sites_from_api,
+    sites_data,
 )
 from airqo_etl_utils.constants import (
     DataType,
@@ -79,11 +80,32 @@ class TestSites:
         mock_load_devices_or_sites_cached_data,
         mock_fetch_sites_from_api,
     ):
+        # Set up the mock to return the sites_data fixture
         mock_load_devices_or_sites_cached_data.return_value = sites_data
+
+        # Call the actual method
         sites = DataUtils.get_sites()
-        expected_df = sites_data
+
+        # Verify the returned data matches expected
+        expected_df = sites_data.copy()
         pd.testing.assert_frame_equal(sites, expected_df)
+
+        # Verify that the cache was called (not the API)
         mock_fetch_sites_from_api.assert_not_called()
+
+        # Verify that load_cached_data was called with the correct parameters
+        mock_load_devices_or_sites_cached_data.assert_called_once()
+        call_args = mock_load_devices_or_sites_cached_data.call_args
+        assert (
+            call_args[0][0] == "/tmp/sites.csv"
+        )  # First argument should be the file path
+        assert (
+            "sites" in call_args[0][1].lower()
+        )  # Second argument should contain "sites"
+
+        assert (
+            sites is sites_data
+        ), "DataUtils.get_sites() should return the mocked data directly"
 
     def test_successful_fetch_of_sites_from_api(
         self,
@@ -91,12 +113,16 @@ class TestSites:
         mock_load_devices_or_sites_cached_data,
         mock_fetch_sites_from_api,
     ):
+        # When preferred_source="api", cache should not be called
         mock_load_devices_or_sites_cached_data.return_value = pd.DataFrame()
         mock_fetch_sites_from_api.return_value = sites_data
-        sites = DataUtils.get_sites()
+        sites = DataUtils.get_sites(preferred_source="api")
         expected_df = sites_data
         pd.testing.assert_frame_equal(sites, expected_df)
-        mock_load_devices_or_sites_cached_data.assert_called_once()
+        # Cache should not be called when preferred_source="api"
+        mock_load_devices_or_sites_cached_data.assert_not_called()
+        # API should be called
+        mock_fetch_sites_from_api.assert_called_once()
 
     def test_failure_to_retrieve_sites_from_api(
         self, mock_load_devices_or_sites_cached_data, mock_fetch_sites_from_api
@@ -422,7 +448,7 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
         entity = {
             "device_id": "test_device",
             "site_id": "test_site",
-            "device_maintenance": "2023-01-01T00:00:00Z",
+            "device_maintenance": pd.to_datetime("2023-01-01T00:00:00Z"),
             "next_offset_date": np.nan,
         }
         result = DataUtils.compute_device_site_metadata_per_device(
@@ -449,7 +475,7 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
         entity = {
             "device_id": "test_device",
             "site_id": "test_site",
-            "device_maintenance": "2023-01-01T00:00:00Z",
+            "device_maintenance": pd.to_datetime("2023-01-01T00:00:00Z"),
             "next_offset_date": np.nan,
         }
         result = DataUtils.compute_device_site_metadata_per_device(
