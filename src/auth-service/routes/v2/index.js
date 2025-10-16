@@ -268,6 +268,24 @@ const authRoutes = [
     name: "tenant-settings",
     description: "Multi-tenant settings management",
   },
+  {
+    path: "/privacy",
+    route: "@routes/v2/privacy.routes",
+    name: "privacy",
+    description: "User location privacy and analytics settings",
+  },
+  {
+    path: "/behavioral",
+    route: "@routes/v2/behavioral.routes",
+    name: "behavioral",
+    description: "User behavioral intervention responses",
+  },
+  {
+    path: "/research",
+    route: "@routes/v2/research.routes",
+    name: "research",
+    description: "Research consent and data management",
+  },
   // MAIN USERS ROUTE - mounted at root "/" - should be last to avoid catching other routes
   {
     path: "/",

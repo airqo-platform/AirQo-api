@@ -1,0 +1,105 @@
+const { check, oneOf, query, body, param } = require("express-validator");
+
+const validateCreatePrivacyZone = [
+  body("name").exists().withMessage("name is missing").trim(),
+  body("latitude")
+    .exists()
+    .withMessage("latitude is missing")
+    .isFloat({ min: -90, max: 90 })
+    .withMessage("latitude must be a valid number between -90 and 90"),
+  body("longitude")
+    .exists()
+    .withMessage("longitude is missing")
+    .isFloat({ min: -180, max: 180 })
+    .withMessage("longitude must be a valid number between -180 and 180"),
+  body("radius")
+    .exists()
+    .withMessage("radius is missing")
+    .isFloat({ min: 1 })
+    .withMessage("radius must be a number greater than 0"),
+];
+
+const validateUpdatePrivacyZone = [
+  param("zoneId")
+    .exists()
+    .withMessage("zoneId is missing in the path")
+    .bail()
+    .isMongoId()
+    .withMessage("zoneId must be a valid Mongo ID"),
+  // Optional body fields
+  body("name").optional().trim(),
+  body("latitude")
+    .optional()
+    .isFloat({ min: -90, max: 90 })
+    .withMessage("latitude must be a valid number between -90 and 90"),
+  body("longitude")
+    .optional()
+    .isFloat({ min: -180, max: 180 })
+    .withMessage("longitude must be a valid number between -180 and 180"),
+  body("radius")
+    .optional()
+    .isFloat({ min: 1 })
+    .withMessage("radius must be a number greater than 0"),
+];
+
+const validateListLocationData = [
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage("limit must be an integer between 1 and 1000"),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer"),
+  query("startDate")
+    .optional()
+    .isISO8601()
+    .withMessage("startDate must be a valid ISO8601 date"),
+  query("endDate")
+    .optional()
+    .isISO8601()
+    .withMessage("endDate must be a valid ISO8601 date"),
+  query("includeSharedOnly")
+    .optional()
+    .isBoolean()
+    .withMessage("includeSharedOnly must be a boolean value"),
+];
+
+const validateDeleteLocationPoint = [
+  param("pointId")
+    .exists()
+    .withMessage("pointId is missing in the path")
+    .isMongoId()
+    .withMessage("pointId must be a valid Mongo ID"),
+];
+
+const validateDeleteLocationDataRange = [
+  body("startDate")
+    .exists()
+    .withMessage("startDate is required")
+    .bail()
+    .isISO8601()
+    .withMessage("startDate must be a valid ISO8601 date")
+    .toDate(),
+  body("endDate")
+    .exists()
+    .withMessage("endDate is required")
+    .bail()
+    .isISO8601()
+    .withMessage("endDate must be a valid ISO8601 date")
+    .toDate()
+    .custom((endDate, { req }) => {
+      if (endDate <= req.body.startDate) {
+        throw new Error("endDate must be after startDate");
+      }
+      return true;
+    }),
+];
+
+module.exports = {
+  validateCreatePrivacyZone,
+  validateUpdatePrivacyZone,
+  validateListLocationData,
+  validateDeleteLocationPoint,
+  validateDeleteLocationDataRange,
+};
