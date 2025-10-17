@@ -1,6 +1,7 @@
 "use strict";
 const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
+const CohortModel = require("@models/Cohort");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { isValidObjectId } = require("mongoose");
@@ -233,7 +234,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -279,7 +280,7 @@ const deviceUtil = {
         next(error);
         return;
       }
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -308,7 +309,7 @@ const deviceUtil = {
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -340,7 +341,7 @@ const deviceUtil = {
         data: count,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -383,7 +384,7 @@ const deviceUtil = {
         return responseFromListDevice;
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -475,7 +476,7 @@ const deviceUtil = {
         };
       }
 
-      logger.error(`🐛🐛 QR Code Generation Error ${error.message}`);
+      logger.error(`🪲🪲 QR Code Generation Error ${error.message}`);
       next(
         new HttpError(
           "QR Code Generation Failed",
@@ -615,7 +616,7 @@ const deviceUtil = {
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -682,7 +683,7 @@ const deviceUtil = {
         }
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -704,7 +705,7 @@ const deviceUtil = {
       });
       return responseFromEncryptKeys;
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -777,7 +778,7 @@ const deviceUtil = {
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1171,7 +1172,7 @@ const deviceUtil = {
         meta,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1204,13 +1205,42 @@ const deviceUtil = {
       const { tenant } = request.query;
       const { body } = request;
 
+      try {
+        const defaultCohort = await CohortModel(tenant)
+          .findOne({ name: constants.DEFAULT_COHORT_NAME })
+          .select("_id")
+          .lean();
+        if (defaultCohort) {
+          // Initialize cohorts array if it doesn't exist
+          if (!body.cohorts) {
+            body.cohorts = [];
+          }
+
+          // Add airqo cohort if not already present
+          const airqoCohortId = defaultCohort._id.toString();
+          const existingCohortIds = body.cohorts.map((id) => String(id));
+
+          if (!existingCohortIds.includes(airqoCohortId)) {
+            body.cohorts.push(defaultCohort._id);
+            logText(`Added device to default 'airqo' cohort: ${airqoCohortId}`);
+          }
+        } else {
+          logText("💔 No default 'airqo' cohort found.");
+          logger.warn(
+            `💔 Default 'airqo' cohort not found in tenant: ${tenant}. Device will be created without default cohort.`
+          );
+        }
+      } catch (cohortError) {
+        logger.error(
+          `🪲🪲 Error finding default cohort: ${cohortError.message}. Continuing with device creation.`
+        );
+        // Don't fail device creation if cohort lookup fails
+      }
+
       const responseFromRegisterDevice = await DeviceModel(tenant).register(
         body,
         next
       );
-      // logger.info(
-      //   `the responseFromRegisterDevice --${responseFromRegisterDevice} `
-      // );
 
       if (responseFromRegisterDevice.success === true) {
         try {
@@ -1240,7 +1270,7 @@ const deviceUtil = {
         return responseFromRegisterDevice;
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1339,7 +1369,7 @@ const deviceUtil = {
           }
         });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1394,7 +1424,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1429,7 +1459,7 @@ const deviceUtil = {
       );
       return responseFromModifyDevice;
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1514,7 +1544,7 @@ const deviceUtil = {
         },
       };
     } catch (error) {
-      logger.error(`🐛🐛 Bulk Update Error: ${error.message}`);
+      logger.error(`🪲🪲 Bulk Update Error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1559,7 +1589,7 @@ const deviceUtil = {
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1581,7 +1611,7 @@ const deviceUtil = {
       );
       return responseFromRemoveDevice;
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1623,7 +1653,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1657,7 +1687,7 @@ const deviceUtil = {
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1688,7 +1718,7 @@ const deviceUtil = {
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1765,7 +1795,7 @@ const deviceUtil = {
         return responseFromModifyDevice;
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1848,7 +1878,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Claim Device Error ${error.message}`);
+      logger.error(`🪲🪲 Claim Device Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1885,7 +1915,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       return next(
         new HttpError(
           "Internal Server Error",
@@ -1922,7 +1952,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       return next(
         new HttpError(
           "Internal Server Error",
@@ -1979,7 +2009,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2060,7 +2090,7 @@ const deviceUtil = {
       };
     } catch (error) {
       logObject("Get My Devices Error Details:", error);
-      logger.error(`🐛🐛 Get My Devices Error ${error.message}`);
+      logger.error(`🪲🪲 Get My Devices Error ${error.message}`);
 
       if (error.name === "CastError") {
         return {
@@ -2115,7 +2145,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Check Device Availability Error ${error.message}`);
+      logger.error(`🪲🪲 Check Device Availability Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2200,7 +2230,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Assign Device Error ${error.message}`);
+      logger.error(`🪲🪲 Assign Device Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2275,7 +2305,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Generate QR Code Error ${error.message}`);
+      logger.error(`🪲🪲 Generate QR Code Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2374,7 +2404,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Migration Error ${error.message}`);
+      logger.error(`🪲🪲 Migration Error ${error.message}`);
       next(
         new HttpError("Migration Failed", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
@@ -2398,7 +2428,7 @@ const deviceUtil = {
 
       return result;
     } catch (error) {
-      logger.error(`🐛🐛 Switch Context Error ${error.message}`);
+      logger.error(`🪲🪲 Switch Context Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2429,7 +2459,7 @@ const deviceUtil = {
         status: result.success ? httpStatus.OK : httpStatus.BAD_REQUEST,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Get User Organizations Error ${error.message}`);
+      logger.error(`🪲🪲 Get User Organizations Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2517,7 +2547,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Prepare Device Shipping Error ${error.message}`);
+      logger.error(`🪲🪲 Prepare Device Shipping Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2589,7 +2619,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Bulk Prepare Devices Error ${error.message}`);
+      logger.error(`🪲🪲 Bulk Prepare Devices Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2652,7 +2682,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Get Shipping Status Error ${error.message}`);
+      logger.error(`🪲🪲 Get Shipping Status Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2722,7 +2752,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Generate Shipping Labels Error ${error.message}`);
+      logger.error(`🪲🪲 Generate Shipping Labels Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3077,7 +3107,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Enhanced Metadata Analysis Error ${error.message}`);
+      logger.error(`🪲🪲 Enhanced Metadata Analysis Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3311,7 +3341,7 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Enhanced Fix Metadata Error ${error.message}`);
+      logger.error(`🪲🪲 Enhanced Fix Metadata Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
