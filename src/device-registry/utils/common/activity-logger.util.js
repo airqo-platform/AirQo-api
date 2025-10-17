@@ -43,7 +43,6 @@ const ActivityLogger = {
         timestamp: new Date(),
       };
 
-      // Don't await this to avoid blocking main operations
       ActivityLogModel(params.tenant || "airqo")
         .logActivity(activityData)
         .catch((error) => {
@@ -73,7 +72,6 @@ const ActivityLogger = {
     try {
       result = await fn();
 
-      // Determine status based on result
       if (result && result.success === false) {
         status = "FAILURE";
         errorDetails = result.message || "Operation failed";
@@ -92,25 +90,54 @@ const ActivityLogger = {
     } finally {
       const executionTime = Date.now() - startTime;
 
-      // Log the activity
+      let derivedSuccess = 0;
+      let derivedFailed = 0;
+
+      if (result) {
+        if (
+          result.deployment_stats &&
+          typeof result.deployment_stats.successful_insertions === "number"
+        ) {
+          derivedSuccess = result.deployment_stats.successful_insertions;
+        } else if (typeof result.records_successful === "number") {
+          derivedSuccess = result.records_successful;
+        } else if (result.eventsAdded && Array.isArray(result.eventsAdded)) {
+          derivedSuccess = result.eventsAdded.length;
+        } else if (status === "SUCCESS") {
+          derivedSuccess = trackingParams.records_attempted || 1;
+        }
+
+        if (
+          result.deployment_stats &&
+          typeof result.deployment_stats.failed_insertions === "number"
+        ) {
+          derivedFailed = result.deployment_stats.failed_insertions;
+        } else if (typeof result.records_failed === "number") {
+          derivedFailed = result.records_failed;
+        } else if (
+          result.eventsRejected &&
+          Array.isArray(result.eventsRejected)
+        ) {
+          derivedFailed = result.eventsRejected.length;
+        } else if (status === "FAILURE") {
+          derivedFailed = trackingParams.records_attempted || 1;
+        }
+      } else {
+        if (status === "SUCCESS") {
+          derivedSuccess = trackingParams.records_attempted || 1;
+        } else if (status === "FAILURE") {
+          derivedFailed = trackingParams.records_attempted || 1;
+        }
+      }
+
       await this.logActivity({
         ...trackingParams,
         status,
         execution_time_ms: executionTime,
         error_details: errorDetails,
         error_code: errorCode,
-        records_successful:
-          status === "SUCCESS"
-            ? trackingParams.records_attempted || 1
-            : result && result.eventsAdded
-            ? result.eventsAdded.length
-            : 0,
-        records_failed:
-          status === "FAILURE"
-            ? trackingParams.records_attempted || 1
-            : result && result.eventsRejected
-            ? result.eventsRejected.length
-            : 0,
+        records_successful: derivedSuccess,
+        records_failed: derivedFailed,
       });
     }
   },
@@ -124,13 +151,11 @@ const ActivityLogger = {
     return async (req, res, next) => {
       const startTime = Date.now();
 
-      // Store original res.json to intercept response
       const originalJson = res.json;
 
       res.json = function(body) {
         const executionTime = Date.now() - startTime;
 
-        // Determine operation details from request
         const method = req.method;
         const operationType =
           method === "POST"
@@ -150,7 +175,6 @@ const ActivityLogger = {
         const status =
           res.statusCode >= 200 && res.statusCode < 300 ? "SUCCESS" : "FAILURE";
 
-        // Extract records info from response body
         let recordsAttempted = 1;
         let recordsSuccessful = 0;
         let recordsFailed = 0;
@@ -165,7 +189,6 @@ const ActivityLogger = {
           recordsFailed = recordsAttempted;
         }
 
-        // Log the activity asynchronously
         ActivityLogger.logActivity({
           operation_type: operationType,
           entity_type: entityType,
@@ -190,7 +213,6 @@ const ActivityLogger = {
           logger.warn(`Middleware activity logging failed: ${error.message}`);
         });
 
-        // Call original json method
         return originalJson.call(this, body);
       };
 
