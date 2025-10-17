@@ -1205,10 +1205,9 @@ const deviceUtil = {
       const { tenant } = request.query;
       const { body } = request;
 
-      // ✅ FIND AND ADD DEFAULT "AIRQO" COHORT
       try {
         const defaultCohort = await CohortModel(tenant)
-          .findOne({ name: "airqo" })
+          .findOne({ name: constants.DEFAULT_COHORT_NAME })
           .select("_id")
           .lean();
         if (defaultCohort) {
@@ -1219,7 +1218,7 @@ const deviceUtil = {
 
           // Add airqo cohort if not already present
           const airqoCohortId = defaultCohort._id.toString();
-          const existingCohortIds = body.cohorts.map((id) => id.toString());
+          const existingCohortIds = body.cohorts.map((id) => String(id));
 
           if (!existingCohortIds.includes(airqoCohortId)) {
             body.cohorts.push(defaultCohort._id);
