@@ -1158,6 +1158,7 @@ class ProjectionFactory {
             "activities.network": 0,
             "activities.groups": 0,
             "activities.updatedAt": 0,
+            "cohorts.name_update_history": 0,
           },
         },
         public: {

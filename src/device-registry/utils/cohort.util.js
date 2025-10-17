@@ -1256,7 +1256,10 @@ const createCohort = {
         sortBy,
         order,
       } = request.query;
-      const { cohort_ids, category } = { ...request.body, ...request.query };
+      const { cohort_ids } = {
+        ...request.body,
+        ...request.query,
+      };
 
       // Pagination and activities controls
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
@@ -1272,35 +1275,17 @@ const createCohort = {
 
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
-        "full"
+        "summary"
       );
 
-      // Build filter
+      // ✅ Get standard device filter from generateFilter
+      const baseFilter = generateFilter.devices(request, next);
+
+      // ✅ Merge with cohort-specific filter
       const filter = {
+        ...baseFilter,
         cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) },
       };
-
-      // Add category filter if provided
-      if (category) {
-        const validCategories = constants.DEVICE_FILTER_TYPES;
-        if (!validCategories.includes(category.toLowerCase())) {
-          return {
-            success: false,
-            message: "Invalid category",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
-              message: `Category must be one of: ${validCategories.join(", ")}`,
-            },
-          };
-        }
-        if (category.toLowerCase() === "mobile") {
-          filter.mobility = true;
-        } else if (category.toLowerCase() === "static") {
-          filter.$or = [{ mobility: { $exists: false } }, { mobility: false }];
-        } else {
-          filter.category = category.toLowerCase();
-        }
-      }
 
       // Get total count for pagination metadata before applying limit and skip
       const total = await DeviceModel(tenant).countDocuments(filter);
@@ -1624,7 +1609,10 @@ const createCohort = {
   listSites: async (request, next) => {
     try {
       const { tenant, limit, skip, sortBy, order } = request.query;
-      const { cohort_ids, category } = { ...request.body, ...request.query };
+      const { cohort_ids } = {
+        ...request.body,
+        ...request.query,
+      };
 
       // Pagination controls
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
@@ -1637,43 +1625,32 @@ const createCohort = {
       // Convert cohort_ids to ObjectIds
       const cohortObjectIds = cohort_ids.map((id) => ObjectId(id));
 
-      // Step 1: Build device filter
+      // Search should only apply to sites, not devices
+      const deviceFilterRequest = {
+        ...request,
+        query: {
+          ...request.query,
+          search: undefined, // Remove search for device filtering
+        },
+      };
+
+      // Get device filter WITHOUT search parameter
+      const baseDeviceFilter = generateFilter.devices(
+        deviceFilterRequest,
+        next
+      );
       const deviceFilter = {
+        ...baseDeviceFilter,
         cohorts: { $in: cohortObjectIds },
       };
 
-      // Add category filter if provided
-      if (category) {
-        const validCategories = constants.DEVICE_FILTER_TYPES;
-        if (!validCategories.includes(category.toLowerCase())) {
-          return {
-            success: false,
-            message: "Invalid category",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
-              message: `Category must be one of: ${validCategories.join(", ")}`,
-            },
-          };
-        }
-        if (category.toLowerCase() === "mobile") {
-          deviceFilter.mobility = true;
-        } else if (category.toLowerCase() === "static") {
-          deviceFilter.$or = [
-            { mobility: { $exists: false } },
-            { mobility: false },
-          ];
-        } else {
-          deviceFilter.category = category.toLowerCase();
-        }
-      }
-
-      // Find all devices belonging to the provided cohorts (with optional category filter)
+      // Find all devices belonging to the provided cohorts
       const devicesInCohorts = await DeviceModel(tenant)
         .find(deviceFilter)
         .select("site_id deployment_type")
         .lean();
 
-      // Step 2: Extract unique site IDs (only for static deployments with sites)
+      // Extract unique site IDs (only for static deployments with sites)
       const siteIds = [
         ...new Set(
           devicesInCohorts
@@ -1689,9 +1666,8 @@ const createCohort = {
       if (siteIds.length === 0) {
         return {
           success: true,
-          message: category
-            ? `No sites found for the provided cohorts with category: ${category}`
-            : "No sites found for the provided cohorts",
+          message:
+            "No sites found for the provided cohorts with applied filters",
           data: [],
           status: httpStatus.OK,
           meta: {
@@ -1704,21 +1680,23 @@ const createCohort = {
         };
       }
 
-      // Step 3: Get total count for pagination
-      const total = siteIds.length;
+      const baseSiteFilter = generateFilter.sites(request, next);
+      const siteFilter = {
+        ...baseSiteFilter,
+        _id: { $in: siteIds },
+      };
 
-      // Step 4: Build aggregation pipeline for sites with summary projection
+      // Get total count for pagination
+      const total = await SiteModel(tenant).countDocuments(siteFilter);
+
+      // Build aggregation pipeline for sites
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
         "summary"
       );
 
       const pipeline = [
-        {
-          $match: {
-            _id: { $in: siteIds },
-          },
-        },
+        { $match: siteFilter },
         { $sort: { [sortField]: sortOrder } },
         { $skip: _skip },
         { $limit: _limit },
@@ -1955,9 +1933,7 @@ const createCohort = {
 
       return {
         success: true,
-        message: category
-          ? `Successfully retrieved sites for the provided cohorts with category: ${category}`
-          : "Successfully retrieved sites for the provided cohorts",
+        message: "Successfully retrieved sites for the provided cohorts",
         data: paginatedResults,
         status: httpStatus.OK,
         meta,
