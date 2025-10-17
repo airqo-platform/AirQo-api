@@ -313,7 +313,7 @@ const cohortValidations = {
     ...commonValidations.name,
     ...commonValidations.description,
     ...commonValidations.groups,
-    ...commonValidations.network,
+    ...commonValidations.networkOptional,
     handleValidationErrors,
   ],
   listCohorts: [
