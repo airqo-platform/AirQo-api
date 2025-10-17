@@ -1023,27 +1023,31 @@ const isEventTimestampValid = (
     // Check if timestamp is in the future (with 5 minute tolerance for clock skew)
     const futureToleranceMs = 5 * 60 * 1000;
     if (ageMs < -futureToleranceMs) {
+      const futureOffsetHours = (Math.abs(ageMs) / (1000 * 60 * 60)).toFixed(2);
       return {
         valid: false,
-        reason: "Timestamp is in the future",
-        ageHours: (ageMs / (1000 * 60 * 60)).toFixed(2),
-        futureOffsetHours: (Math.abs(ageMs) / (1000 * 60 * 60)).toFixed(2),
+        reason: `Timestamp is ${futureOffsetHours} hours in the future`,
+        futureOffsetHours: parseFloat(futureOffsetHours),
       };
     }
 
     // Check if timestamp is too old
     if (ageMs > maxAgeMs) {
+      const ageHours = (ageMs / (1000 * 60 * 60)).toFixed(2);
+      const maxAgeHours = (maxAgeMs / (1000 * 60 * 60)).toFixed(2);
       return {
         valid: false,
-        reason: "Timestamp exceeds maximum age",
-        ageHours: (ageMs / (1000 * 60 * 60)).toFixed(2),
-        maxAgeHours: (maxAgeMs / (1000 * 60 * 60)).toFixed(2),
+        reason: `Timestamp is ${ageHours} hours old (max allowed: ${maxAgeHours} hours)`,
+        ageHours: parseFloat(ageHours),
+        maxAgeHours: parseFloat(maxAgeHours),
       };
     }
 
+    // Valid timestamp
+    const ageHours = (ageMs / (1000 * 60 * 60)).toFixed(2);
     return {
       valid: true,
-      ageHours: (ageMs / (1000 * 60 * 60)).toFixed(2),
+      ageHours: parseFloat(ageHours),
     };
   } catch (error) {
     return {
