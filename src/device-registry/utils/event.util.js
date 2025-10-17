@@ -5248,7 +5248,7 @@ const createEvent = {
         };
       }
 
-      // **NEW: Filter measurements by timestamp BEFORE processing**
+      // Filter measurements by timestamp BEFORE processing
       const filterResult = await filterMeasurementsByTimestamp(
         measurements,
         next
@@ -5273,6 +5273,8 @@ const createEvent = {
           metadata: {
             timestamp_filter_stats: timestampFilterStats,
             rejection_reasons: timestampFilterStats.rejectionReasons,
+            measurements_received: measurements.length,
+            measurements_after_filter: 0,
           },
         });
 
@@ -5317,13 +5319,22 @@ const createEvent = {
             };
           }
 
-          // Enhance result with timestamp filtering stats
+          // Enhance result with timestamp filtering stats and processing summary
           return {
             ...result,
             records_successful:
               result.deployment_stats?.successful_insertions || 0,
             records_failed: result.deployment_stats?.failed_insertions || 0,
-            timestamp_filter_stats: timestampFilterStats, // Include filter stats in response
+            timestamp_filter_stats: timestampFilterStats,
+            processing_summary: {
+              total_received: measurements.length,
+              rejected_by_timestamp_filter: timestampFilterStats.rejected,
+              passed_timestamp_filter: validMeasurements.length,
+              successfully_inserted:
+                result.deployment_stats?.successful_insertions || 0,
+              failed_at_database:
+                result.deployment_stats?.failed_insertions || 0,
+            },
           };
         },
         {
@@ -5331,12 +5342,16 @@ const createEvent = {
           entity_type: "EVENT",
           tenant: tenant,
           source_function: "addValuesWithStats",
-          records_attempted: validMeasurements.length, // Only count valid measurements
+          records_attempted: measurements.length, // Total received (not filtered count)
           metadata: {
             tenant: tenant,
-            total_measurements_received: measurements.length,
-            measurements_after_timestamp_filter: validMeasurements.length,
+            measurements_received: measurements.length, // Total initially received
+            measurements_after_timestamp_filter: validMeasurements.length, // After filtering
             timestamp_rejected: timestampFilterStats.rejected,
+            timestamp_rejection_rate: `${(
+              (timestampFilterStats.rejected / measurements.length) *
+              100
+            ).toFixed(1)}%`,
             processing_mode: "direct",
             timestamp_filter_stats: timestampFilterStats,
           },
