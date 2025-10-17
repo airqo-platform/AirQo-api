@@ -17,6 +17,7 @@ const numericals = {
   CACHE_TIMEOUT_PERIOD: 10000,
   MAX_EVENT_AGE_HOURS: MAX_EVENT_AGE_HOURS, // Only accept events from last 6 hours
   MAX_EVENT_AGE_MS: MAX_EVENT_AGE_HOURS * 60 * 60 * 1000, // Calculated from constant
+  MAX_REJECTED_LOGS: 10,
 };
 
 module.exports = numericals;

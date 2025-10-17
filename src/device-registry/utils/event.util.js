@@ -1014,6 +1014,9 @@ const isEventTimestampValid = (
     }
 
     const eventTime = new Date(timestamp);
+    if (Number.isNaN(eventTime.getTime())) {
+      return { valid: false, reason: "Invalid timestamp format" };
+    }
     const now = new Date();
     const ageMs = now - eventTime;
 
@@ -1024,6 +1027,7 @@ const isEventTimestampValid = (
         valid: false,
         reason: "Timestamp is in the future",
         ageHours: (ageMs / (1000 * 60 * 60)).toFixed(2),
+        futureOffsetHours: (Math.abs(ageMs) / (1000 * 60 * 60)).toFixed(2),
       };
     }
 
@@ -1093,7 +1097,7 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
         rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
 
         // Log rejected measurement
-        if (rejected.length <= 10) {
+        if (rejected.length <= constants.MAX_REJECTED_LOGS) {
           // Only log first 10 to avoid spam
           logger.warn(
             `Rejected measurement: timestamp ${timestamp}, ` +
