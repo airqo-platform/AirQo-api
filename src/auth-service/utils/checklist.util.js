@@ -93,18 +93,22 @@ const checklists = {
       const filter = { user_id: request.params.user_id };
 
       // Construct the update to modify a specific item in the 'items' array
-      // This assumes the client sends the item's _id and the fields to update.
+      // This now assumes the client sends the item's title to identify it.
       const itemToUpdate = body.items && body.items[0];
-      if (!itemToUpdate || !itemToUpdate._id) {
+      if (!itemToUpdate || !itemToUpdate.title) {
         return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
-            message: "Checklist item with _id is required for update",
+            message: "Checklist item with a 'title' is required for update",
           })
         );
       }
 
+      // Use the title to find the correct item in the array
       const update = { $set: { "items.$[elem]": itemToUpdate } };
-      const options = { arrayFilters: [{ "elem._id": itemToUpdate._id }] };
+      const options = {
+        arrayFilters: [{ "elem.title": itemToUpdate.title }],
+        new: true,
+      };
 
       const modifyResponse = await ChecklistModel(tenant).modify(
         {
@@ -130,24 +134,24 @@ const checklists = {
     try {
       const { query, body } = request;
       const { tenant } = query;
+
+      // The filter will be based on user_id to ensure one checklist per user
       const filter = generateFilter.checklists(request, next);
+      const update = body;
 
-      // Check if a checklist for the user already exists
-      const existingChecklist = await ChecklistModel(tenant)
-        .findOne(filter)
-        .lean();
+      // Options for the modify method: upsert will create if it doesn't exist.
+      const options = { upsert: true, new: true };
 
-      if (isEmpty(existingChecklist)) {
-        // If it doesn't exist, create it.
-        logText("Checklist does not exist, creating a new one...");
-        return checklists.create(request, next);
-      } else {
-        // If it exists, update it.
-        logText("Checklist exists, updating...");
-        // The update validator expects user_id in params, so we adjust the request object.
-        request.params.user_id = body.user_id;
-        return checklists.update(request, next);
-      }
+      const modifyResponse = await ChecklistModel(tenant).modify(
+        {
+          filter,
+          update,
+          options,
+        },
+        next
+      );
+
+      return modifyResponse;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

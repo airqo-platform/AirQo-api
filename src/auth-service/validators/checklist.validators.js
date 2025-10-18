@@ -16,6 +16,22 @@ const validateTenant = oneOf([
     .withMessage("The tenant value is not among the expected ones"),
 ]);
 
+/**
+ * Sanitizer to parse the 'items' field if it's a stringified JSON.
+ * @param {any} value - The input value for the 'items' field.
+ * @returns {any} - The parsed array or the original value if parsing fails or not a string.
+ */
+const parseItemsIfString = (value) => {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (e) {
+      return value; // Let the isArray validator handle the error
+    }
+  }
+  return value;
+};
+
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -41,18 +57,7 @@ const upsert = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    body("items").customSanitizer((value) => {
-      if (typeof value === "string") {
-        try {
-          // Attempt to parse stringified JSON. Replace single quotes for validity.
-          return JSON.parse(value.replace(/'/g, '"'));
-        } catch (e) {
-          // If parsing fails, return the original string to let the isArray validator fail it.
-          return value;
-        }
-      }
-      return value;
-    }),
+    body("items").customSanitizer(parseItemsIfString),
     body("items")
       .exists()
       .withMessage("the items array must be provided")
@@ -63,6 +68,13 @@ const upsert = [
       .custom((items) => {
         if (!Array.isArray(items)) {
           throw new Error("Items must be an array");
+        }
+
+        // Sanitize items to remove _id fields
+        for (let i = 0; i < items.length; i++) {
+          if (items[i] && typeof items[i] === "object" && "_id" in items[i]) {
+            delete items[i]._id;
+          }
         }
 
         return true;
@@ -93,18 +105,7 @@ const update = [
   validateTenant,
   validateUserIdParam,
   [
-    body("items").customSanitizer((value) => {
-      if (typeof value === "string") {
-        try {
-          // Attempt to parse stringified JSON. Replace single quotes for validity.
-          return JSON.parse(value.replace(/'/g, '"'));
-        } catch (e) {
-          // If parsing fails, return the original string to let the isArray validator fail it.
-          return value;
-        }
-      }
-      return value;
-    }),
+    body("items").customSanitizer(parseItemsIfString),
     body("items")
       .exists()
       .withMessage("the items array must be provided")
@@ -116,6 +117,14 @@ const update = [
         if (!Array.isArray(items)) {
           throw new Error("Items must be an array");
         }
+
+        // Sanitize items to remove _id fields
+        for (let i = 0; i < items.length; i++) {
+          if (items[i] && typeof items[i] === "object" && "_id" in items[i]) {
+            delete items[i]._id;
+          }
+        }
+
         return true;
       }),
   ],
@@ -138,18 +147,7 @@ const create = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    body("items").customSanitizer((value) => {
-      if (typeof value === "string") {
-        try {
-          // Attempt to parse stringified JSON. Replace single quotes for validity.
-          return JSON.parse(value.replace(/'/g, '"'));
-        } catch (e) {
-          // If parsing fails, return the original string to let the isArray validator fail it.
-          return value;
-        }
-      }
-      return value;
-    }),
+    body("items").customSanitizer(parseItemsIfString),
     body("items")
       .exists()
       .withMessage("the items array must be provided")
@@ -161,6 +159,7 @@ const create = [
         if (!Array.isArray(items)) {
           throw new Error("Items must be an array");
         }
+
         return true;
       }),
   ],

@@ -650,7 +650,7 @@ const filter = {
 
       // Use 'id' or 'checklist_id' for filtering by the document's _id
       if (id || checklist_id) {
-        filter["_id"] = ObjectId(id);
+        filter["_id"] = ObjectId(id || checklist_id);
       }
 
       return filter;
