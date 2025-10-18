@@ -1,6 +1,7 @@
 // checklist.validators.js
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
+const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
 
 const validateTenant = oneOf([
@@ -11,8 +12,8 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
-    .withMessage("the tenant value is not among the expected ones"),
+    .isIn(constants.NETWORKS)
+    .withMessage("The tenant value is not among the expected ones"),
 ]);
 
 const pagination = (req, res, next) => {
@@ -40,6 +41,18 @@ const upsert = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    body("items").customSanitizer((value) => {
+      if (typeof value === "string") {
+        try {
+          // Attempt to parse stringified JSON. Replace single quotes for validity.
+          return JSON.parse(value.replace(/'/g, '"'));
+        } catch (e) {
+          // If parsing fails, return the original string to let the isArray validator fail it.
+          return value;
+        }
+      }
+      return value;
+    }),
     body("items")
       .exists()
       .withMessage("the items array must be provided")
@@ -80,6 +93,18 @@ const update = [
   validateTenant,
   validateUserIdParam,
   [
+    body("items").customSanitizer((value) => {
+      if (typeof value === "string") {
+        try {
+          // Attempt to parse stringified JSON. Replace single quotes for validity.
+          return JSON.parse(value.replace(/'/g, '"'));
+        } catch (e) {
+          // If parsing fails, return the original string to let the isArray validator fail it.
+          return value;
+        }
+      }
+      return value;
+    }),
     body("items")
       .exists()
       .withMessage("the items array must be provided")
@@ -113,6 +138,18 @@ const create = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    body("items").customSanitizer((value) => {
+      if (typeof value === "string") {
+        try {
+          // Attempt to parse stringified JSON. Replace single quotes for validity.
+          return JSON.parse(value.replace(/'/g, '"'));
+        } catch (e) {
+          // If parsing fails, return the original string to let the isArray validator fail it.
+          return value;
+        }
+      }
+      return value;
+    }),
     body("items")
       .exists()
       .withMessage("the items array must be provided")

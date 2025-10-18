@@ -124,6 +124,15 @@ ChecklistSchema.statics = {
         delete update._id;
       }
 
+      // Ensure 'items' is an object/array, not a string
+      if (update.items && typeof update.items === "string") {
+        try {
+          update.items = JSON.parse(update.items.replace(/'/g, '"'));
+        } catch (parseError) {
+          logger.error(`Error parsing 'items' field: ${parseError.message}`);
+        }
+      }
+
       const updatedChecklist = await this.findOneAndUpdate(
         filter,
         update,
