@@ -658,6 +658,33 @@ eventSchema.index(
   }
 );
 
+eventSchema.index(
+  {
+    "values.time": 1,
+    "values.site_id": 1,
+    "values.device_id": 1,
+    nValues: 1,
+  },
+  {
+    name: "online_status_query_idx",
+    background: true,
+  }
+);
+
+eventSchema.index(
+  {
+    "values.time": 1,
+    "values.site_id": 1,
+  },
+  {
+    name: "recent_status_idx",
+    partialFilterExpression: {
+      nValues: { $gt: 0, $lt: 500 },
+    },
+    background: true,
+  }
+);
+
 eventSchema.pre("save", function(next) {
   // Validate deployment type consistency
   if (this.deployment_type === "static") {
@@ -745,7 +772,6 @@ async function fetchData(model, filter) {
     isHistorical = false,
   } = filter;
 
-  // Validate and sanitize input parameters
   if (typeof limit !== "number" || isNaN(limit) || limit < 0) {
     limit = DEFAULT_LIMIT;
   }
@@ -1025,6 +1051,7 @@ async function fetchData(model, filter) {
       const totalCountResult = await model
         .aggregate(countPipelineStages)
         .allowDiskUse(true)
+        .option("maxTimeMS", 10000)
         .exec();
 
       const totalCount =
@@ -1036,6 +1063,55 @@ async function fetchData(model, filter) {
         { $match: { "values.time": search["values.time"] } },
         { $replaceRoot: { newRoot: "$values" } },
       ]);
+
+      const earlyProjection = {
+        time: 1,
+        device: 1,
+        device_id: 1,
+        device_number: 1,
+        site: 1,
+        site_id: 1,
+        frequency: 1,
+        pm2_5: 1,
+        pm10: 1,
+        average_pm2_5: 1,
+        average_pm10: 1,
+        s1_pm2_5: 1,
+        s2_pm2_5: 1,
+        s1_pm10: 1,
+        s2_pm10: 1,
+        no2: 1,
+        ...(isHistorical
+          ? {}
+          : {
+              battery: 1,
+              location: 1,
+              network: 1,
+              altitude: 1,
+              speed: 1,
+              satellites: 1,
+              hdop: 1,
+              tvoc: 1,
+              hcho: 1,
+              co2: 1,
+              intaketemperature: 1,
+              intakehumidity: 1,
+              internalTemperature: 1,
+              externalTemperature: 1,
+              internalHumidity: 1,
+              externalHumidity: 1,
+              externalAltitude: 1,
+              pm1: 1,
+              rtc_adc: 1,
+              rtc_v: 1,
+              rtc: 1,
+              stc_adc: 1,
+              stc_v: 1,
+              stc: 1,
+            }),
+      };
+
+      pipeline = pipeline.append([{ $project: earlyProjection }]);
 
       if (!isHistorical) {
         pipeline = pipeline.append([
@@ -1216,6 +1292,7 @@ async function fetchData(model, filter) {
         .skip(skip)
         .limit(limit)
         .allowDiskUse(true)
+        .option("maxTimeMS", 25000)
         .exec();
 
       const meta = {
@@ -1274,6 +1351,7 @@ async function fetchData(model, filter) {
           { $count: "device" },
         ])
         .allowDiskUse(true)
+        .option("maxTimeMS", 10000)
         .exec();
 
       const totalCount =
@@ -1284,6 +1362,54 @@ async function fetchData(model, filter) {
         { $unwind: "$values" },
         { $match: { "values.time": search["values.time"] } },
         { $replaceRoot: { newRoot: "$values" } },
+        {
+          $project: {
+            time: 1,
+            device: 1,
+            device_id: 1,
+            device_number: 1,
+            site: 1,
+            site_id: 1,
+            frequency: 1,
+            pm2_5: 1,
+            pm10: 1,
+            average_pm2_5: 1,
+            average_pm10: 1,
+            s1_pm2_5: 1,
+            s2_pm2_5: 1,
+            s1_pm10: 1,
+            s2_pm10: 1,
+            no2: 1,
+            ...(isHistorical
+              ? {}
+              : {
+                  battery: 1,
+                  location: 1,
+                  network: 1,
+                  altitude: 1,
+                  speed: 1,
+                  satellites: 1,
+                  hdop: 1,
+                  tvoc: 1,
+                  hcho: 1,
+                  co2: 1,
+                  intaketemperature: 1,
+                  intakehumidity: 1,
+                  internalTemperature: 1,
+                  externalTemperature: 1,
+                  internalHumidity: 1,
+                  externalHumidity: 1,
+                  externalAltitude: 1,
+                  pm1: 1,
+                  rtc_adc: 1,
+                  rtc_v: 1,
+                  rtc: 1,
+                  stc_adc: 1,
+                  stc_v: 1,
+                  stc: 1,
+                }),
+          },
+        },
         {
           $lookup: {
             from,
@@ -1414,6 +1540,7 @@ async function fetchData(model, filter) {
       const data = await model
         .aggregate(histPipeline)
         .allowDiskUse(true)
+        .option("maxTimeMS", 25000)
         .exec();
 
       const meta = {
