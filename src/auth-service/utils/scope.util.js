@@ -19,13 +19,17 @@ const scope = {
       return responseFromUpdateToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw new Error(`Error processing scope update: ${error.message}`);
+      }
     }
   },
   deleteScope: async (request, next) => {
@@ -39,13 +43,17 @@ const scope = {
       return responseFromDeleteToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw new Error(`Error processing scope deletion: ${error.message}`);
+      }
     }
   },
   listScope: async (request, next) => {
@@ -60,13 +68,17 @@ const scope = {
       return responseFromListToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw new Error(`Error processing scope read: ${error.message}`);
+      }
     }
   },
   createScope: async (request, next) => {
@@ -79,13 +91,17 @@ const scope = {
       return responseFromCreateToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw new Error(`Error processing scope creation: ${error.message}`);
+      }
     }
   },
 };
