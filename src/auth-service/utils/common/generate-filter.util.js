@@ -954,16 +954,15 @@ const filter = {
       };
       let filter = {};
 
+      // Prioritize 'id' over 'scope_id' for filtering by document _id
       if (id) {
         filter["_id"] = ObjectId(id);
+      } else if (scope_id) {
+        filter["_id"] = ObjectId(scope_id); // Use scope_id as a fallback
       }
 
       if (scope) {
         filter["scope"] = scope;
-      }
-
-      if (scope_id) {
-        filter["_id"] = ObjectId(scope_id);
       }
 
       if (network_id) {
@@ -983,6 +982,7 @@ const filter = {
       );
     }
   },
+
   departments: (req, next) => {
     try {
       const {

@@ -20,7 +20,7 @@ const scope = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       if (typeof next === "function") {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -28,7 +28,7 @@ const scope = {
           )
         );
       } else {
-        throw new Error(`Error processing scope update: ${error.message}`);
+        throw error;
       }
     }
   },
@@ -44,7 +44,7 @@ const scope = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       if (typeof next === "function") {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -52,7 +52,7 @@ const scope = {
           )
         );
       } else {
-        throw new Error(`Error processing scope deletion: ${error.message}`);
+        throw error;
       }
     }
   },
@@ -69,7 +69,7 @@ const scope = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       if (typeof next === "function") {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -77,7 +77,7 @@ const scope = {
           )
         );
       } else {
-        throw new Error(`Error processing scope read: ${error.message}`);
+        throw error;
       }
     }
   },
@@ -92,7 +92,7 @@ const scope = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       if (typeof next === "function") {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -100,7 +100,7 @@ const scope = {
           )
         );
       } else {
-        throw new Error(`Error processing scope creation: ${error.message}`);
+        throw error;
       }
     }
   },

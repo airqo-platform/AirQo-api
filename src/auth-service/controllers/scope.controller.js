@@ -36,27 +36,28 @@ const createScopeController = (utilFunction, dataKey) => {
 
       const result = await utilFunction(req, next);
 
+      // If the util function called next(error), it will return undefined. Stop execution here.
+      if (result === undefined || result === null) {
+        return;
+      }
+
+      // Although next(error) doesn't set headers, this is a good safety check
+      // in case a middleware sends a response and doesn't stop the chain.
       if (res.headersSent) {
-        // If the response has already been sent by the utility function (e.g., via next(error)), do nothing.
         return;
       }
 
       if (result && result.success) {
         return res.status(result.status || httpStatus.OK).json({
           success: true,
-          message: result.message,
-          [dataKey]: result.data,
+          message: result.message ?? "Operation successful", // Default message
+          [dataKey]: result.data ?? [],
         });
       } else {
-        return res
-          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
-          .json({
-            success: false,
-            message: result.message,
-            errors: result.errors || {
-              message: "An unexpected error occurred",
-            },
-          });
+        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        const message = result.message || "An unexpected error occurred";
+        const errors = result.errors || { message };
+        return res.status(status).json({ success: false, message, errors });
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
