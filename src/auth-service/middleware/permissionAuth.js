@@ -434,12 +434,18 @@ const requireGroupMembership = (groupIdParam = "grp_id") => {
         );
       }
 
-      const isMember = await isVerifiedGroupMember(user, groupId, tenant);
       const isSuperAdmin = await getRBACService(tenant).isSystemSuperAdmin(
         user._id
       );
 
-      if (!isMember && !isSuperAdmin) {
+      // Super admin bypasses membership check
+      if (isSuperAdmin) {
+        return next();
+      }
+
+      // If not a super admin, check for group membership
+      const isMember = await isVerifiedGroupMember(user, groupId, tenant);
+      if (!isMember) {
         return next(
           new HttpError(
             "Access denied: You are not a member of this group",
