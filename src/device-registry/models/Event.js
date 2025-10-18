@@ -681,7 +681,7 @@ eventSchema.index(
   {
     name: "recent_status_idx",
     partialFilterExpression: {
-      nValues: { $gt: 0, $lt: 500 },
+      nValues: { $gt: 0, $lt: parseInt(constants.N_VALUES || 500) },
     },
   }
 );
