@@ -13,31 +13,35 @@ const {
   createEmptySuccessResponse,
 } = require("@utils/shared");
 
-const checklistItemSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true,
-    default: "no title",
+const checklistItemSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      unique: true, // Ensures title is unique within the array for a user
+      default: "no title",
+    },
+    completed: {
+      type: Boolean,
+      default: false,
+    },
+    status: {
+      type: String,
+      default: "not started",
+      enum: ["not started", "in progress", "completed", "started"],
+    },
+    completionDate: {
+      type: Date,
+    },
+    videoProgress: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
   },
-  completed: {
-    type: Boolean,
-    default: false,
-  },
-  status: {
-    type: String,
-    default: "not started",
-    enum: ["not started", "in progress", "completed", "started"],
-  },
-  completionDate: {
-    type: Date,
-  },
-  videoProgress: {
-    type: Number,
-    default: 0,
-    min: 0,
-    max: 100,
-  },
-});
+  { _id: false }
+);
 
 const ChecklistSchema = new mongoose.Schema(
   {
@@ -115,9 +119,9 @@ ChecklistSchema.statics = {
     }
   },
 
-  async modify({ filter = {}, update = {} } = {}, next) {
+  async modify({ filter = {}, update = {}, options = {} } = {}, next) {
     try {
-      const options = { new: true };
+      const modelOptions = { new: true, ...options };
 
       // Remove _id from update if present
       if (update._id) {
@@ -127,7 +131,7 @@ ChecklistSchema.statics = {
       const updatedChecklist = await this.findOneAndUpdate(
         filter,
         update,
-        options
+        modelOptions
       ).exec();
 
       if (!isEmpty(updatedChecklist)) {
