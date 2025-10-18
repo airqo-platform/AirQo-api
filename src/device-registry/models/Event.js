@@ -27,6 +27,7 @@ const TIMEZONE = moment.tz.guess();
 
 const COUNT_TIMEOUT_MS = 10000;
 const AGGREGATE_TIMEOUT_MS = 25000;
+const SLOW_QUERY_THRESHOLD_MS = 15000;
 
 const AQI_COLORS = constants.AQI_COLORS;
 const AQI_CATEGORIES = constants.AQI_CATEGORIES;
@@ -809,6 +810,27 @@ function buildEarlyProjection(isHistorical) {
   };
 }
 
+function logSlowQuery(queryType, duration, metadata, isHistorical, limit) {
+  if (duration > SLOW_QUERY_THRESHOLD_MS) {
+    logger.warn(
+      `⏱️ Slow ${queryType} query: ${(duration / 1000).toFixed(2)}s | ` +
+        `Metadata: ${metadata || "device"} | ` +
+        `Historical: ${isHistorical} | ` +
+        `Limit: ${limit}`
+    );
+  }
+}
+
+function isTimeoutError(error) {
+  return (
+    error.code === 50 ||
+    error.codeName === "MaxTimeMSExpired" ||
+    error.message.includes("time limit") ||
+    error.message.includes("exceeded") ||
+    error.message.includes("PlanExecutor error")
+  );
+}
+
 async function fetchData(model, filter) {
   let {
     metadata,
@@ -1046,6 +1068,8 @@ async function fetchData(model, filter) {
 
   if (!recent || recent === "yes") {
     try {
+      const countStartTime = Date.now();
+
       const countPipelineStages = [
         { $match: search },
         { $unwind: "$values" },
@@ -1107,8 +1131,13 @@ async function fetchData(model, filter) {
         .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
         .exec();
 
+      const countDuration = Date.now() - countStartTime;
+      logSlowQuery("count", countDuration, metadata, isHistorical, limit);
+
       const totalCount =
         totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+
+      const pipelineStartTime = Date.now();
 
       let pipeline = model.aggregate([
         { $match: search },
@@ -1301,6 +1330,15 @@ async function fetchData(model, filter) {
         .option({ allowDiskUse: true, maxTimeMS: AGGREGATE_TIMEOUT_MS })
         .exec();
 
+      const pipelineDuration = Date.now() - pipelineStartTime;
+      logSlowQuery(
+        "aggregate",
+        pipelineDuration,
+        metadata,
+        isHistorical,
+        limit
+      );
+
       const meta = {
         total: totalCount,
         skip: skip,
@@ -1314,6 +1352,34 @@ async function fetchData(model, filter) {
 
       return [{ meta, data }];
     } catch (error) {
+      if (isTimeoutError(error)) {
+        logger.error(
+          `⏱️ Query timeout (${AGGREGATE_TIMEOUT_MS}ms) | ` +
+            `Metadata: ${metadata || "device"} | ` +
+            `Historical: ${isHistorical} | ` +
+            `Limit: ${limit} | ` +
+            `Suggestion: Use isHistorical=true or reduce date range`
+        );
+        return [
+          {
+            meta: {
+              total: 0,
+              skip: skip,
+              limit: limit,
+              page: 1,
+              pages: 1,
+              startTime,
+              endTime,
+              error:
+                "Query timeout - try using historical mode or reducing date range",
+              optimized: isHistorical,
+              timeoutMs: AGGREGATE_TIMEOUT_MS,
+            },
+            data: [],
+          },
+        ];
+      }
+
       logger.error(
         `Error in fetchData ${isHistorical ? "historical" : "current"} query: ${
           error.message
@@ -1340,6 +1406,8 @@ async function fetchData(model, filter) {
 
   if (recent === "no") {
     try {
+      const countStartTime = Date.now();
+
       const totalCountResult = await model
         .aggregate([
           { $match: search },
@@ -1359,8 +1427,13 @@ async function fetchData(model, filter) {
         .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
         .exec();
 
+      const countDuration = Date.now() - countStartTime;
+      logSlowQuery("count", countDuration, metadata, isHistorical, limit);
+
       const totalCount =
         totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+
+      const pipelineStartTime = Date.now();
 
       const earlyProjection = buildEarlyProjection(isHistorical);
 
@@ -1502,6 +1575,15 @@ async function fetchData(model, filter) {
         .option({ allowDiskUse: true, maxTimeMS: AGGREGATE_TIMEOUT_MS })
         .exec();
 
+      const pipelineDuration = Date.now() - pipelineStartTime;
+      logSlowQuery(
+        "aggregate",
+        pipelineDuration,
+        metadata,
+        isHistorical,
+        limit
+      );
+
       const meta = {
         total: totalCount,
         skip: skip,
@@ -1515,6 +1597,34 @@ async function fetchData(model, filter) {
 
       return [{ meta, data }];
     } catch (error) {
+      if (isTimeoutError(error)) {
+        logger.error(
+          `⏱️ Query timeout (${AGGREGATE_TIMEOUT_MS}ms) | ` +
+            `Metadata: ${metadata || "device"} | ` +
+            `Historical: ${isHistorical} | ` +
+            `Limit: ${limit} | ` +
+            `Suggestion: Use isHistorical=true or reduce date range`
+        );
+        return [
+          {
+            meta: {
+              total: 0,
+              skip: skip,
+              limit: limit,
+              page: 1,
+              pages: 1,
+              startTime,
+              endTime,
+              error:
+                "Query timeout - try using historical mode or reducing date range",
+              optimized: isHistorical,
+              timeoutMs: AGGREGATE_TIMEOUT_MS,
+            },
+            data: [],
+          },
+        ];
+      }
+
       logger.error(`Error in fetchData historical query: ${error.message}`);
       return [
         {
