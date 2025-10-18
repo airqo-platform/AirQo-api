@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-auth-api
-  tag: prod-81cf262d-1760790922
+  tag: prod-c2e78b4b-1760793628
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

@@ -19,13 +19,17 @@ const scope = {
       return responseFromUpdateToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw error;
+      }
     }
   },
   deleteScope: async (request, next) => {
@@ -39,13 +43,17 @@ const scope = {
       return responseFromDeleteToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw error;
+      }
     }
   },
   listScope: async (request, next) => {
@@ -60,13 +68,17 @@ const scope = {
       return responseFromListToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw error;
+      }
     }
   },
   createScope: async (request, next) => {
@@ -79,13 +91,17 @@ const scope = {
       return responseFromCreateToken;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (typeof next === "function") {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      } else {
+        throw error;
+      }
     }
   },
 };

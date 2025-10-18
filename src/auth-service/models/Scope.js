@@ -41,6 +41,7 @@ ScopeSchema.pre("update", function (next) {
 });
 
 ScopeSchema.index({ scope: 1 }, { unique: true });
+ScopeSchema.index({ network_id: 1 });
 
 ScopeSchema.statics = {
   async register(args, next) {

@@ -14,206 +14,67 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 
-const createScope = {
-  create: async (req, res, next) => {
+/**
+ * A higher-order function to create a controller method.
+ * This abstracts away the repetitive try-catch, error handling, and response logic.
+ * @param {Function} utilFunction - The utility function to be called (e.g., scopeUtil.createScope).
+ * @param {string} dataKey - The key to use for the data in the success response (e.g., 'created_scope').
+ * @returns {Function} An Express.js controller function.
+ */
+const createScopeController = (utilFunction, dataKey) => {
+  return async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, errors)
         );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await scopeUtil.createScope(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
       }
 
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
+      req.query.tenant =
+        req.query.tenant || constants.DEFAULT_TENANT || "airqo";
+
+      const result = await utilFunction(req, next);
+
+      // If the util function called next(error), it will return undefined. Stop execution here.
+      if (result === undefined || result === null) {
+        return;
+      }
+
+      // Although next(error) doesn't set headers, this is a good safety check
+      // in case a middleware sends a response and doesn't stop the chain.
+      if (res.headersSent) {
+        return;
+      }
+
+      if (result && result.success) {
+        return res.status(result.status || httpStatus.OK).json({
           success: true,
-          message: result.message ? result.message : "",
-          created_scope: result.data ? result.data : [],
+          message: result.message ?? "Operation successful", // Default message
+          [dataKey]: result.data ?? [],
         });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
+      } else {
+        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        const message = result.message || "An unexpected error occurred";
+        const errors = result.errors || { message };
+        return res.status(status).json({ success: false, message, errors });
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
-      return;
     }
-  },
-  list: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await scopeUtil.listScope(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          scopes: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  delete: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await scopeUtil.deleteScope(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          deleted_scope: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  update: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await scopeUtil.updateScope(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          updated_scope: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
+  };
 };
 
-module.exports = createScope;
+module.exports = {
+  create: createScopeController(scopeUtil.createScope, "created_scope"),
+  list: createScopeController(scopeUtil.listScope, "scopes"),
+  delete: createScopeController(scopeUtil.deleteScope, "deleted_scope"),
+  update: createScopeController(scopeUtil.updateScope, "updated_scope"),
+};

@@ -948,17 +948,17 @@ const filter = {
   },
   scopes: (req, next) => {
     try {
-      const { query, params } = req;
-      const { id, scope } = query;
-      const { scope_id, network_id } = params;
+      const { id, scope, scope_id, network_id } = {
+        ...req.query,
+        ...req.params,
+      };
       let filter = {};
 
+      // Prioritize 'id' over 'scope_id' for filtering by document _id
       if (id) {
         filter["_id"] = ObjectId(id);
-      }
-
-      if (scope_id) {
-        filter["scope"] = scope_id;
+      } else if (scope_id) {
+        filter["_id"] = ObjectId(scope_id); // Use scope_id as a fallback
       }
 
       if (scope) {
@@ -982,6 +982,7 @@ const filter = {
       );
     }
   },
+
   departments: (req, next) => {
     try {
       const {
