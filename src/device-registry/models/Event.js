@@ -25,8 +25,8 @@ const UPTIME_CHECK_THRESHOLD = 168;
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
-const COUNT_TIMEOUT_MS = 10000;
-const AGGREGATE_TIMEOUT_MS = 25000;
+const COUNT_TIMEOUT_MS = 30000;
+const AGGREGATE_TIMEOUT_MS = 90000;
 const SLOW_QUERY_THRESHOLD_MS = 15000;
 
 const AQI_COLORS = constants.AQI_COLORS;
@@ -822,13 +822,51 @@ function logSlowQuery(queryType, duration, metadata, isHistorical, limit) {
 }
 
 function isTimeoutError(error) {
+  if (!error) return false;
+
   return (
     error.code === 50 ||
     error.codeName === "MaxTimeMSExpired" ||
-    error.message.includes("time limit") ||
-    error.message.includes("exceeded") ||
-    error.message.includes("PlanExecutor error")
+    (error.message && error.message.includes("time limit")) ||
+    (error.message && error.message.includes("exceeded")) ||
+    (error.message && error.message.includes("PlanExecutor error"))
   );
+}
+
+function buildTimeoutErrorResponse(
+  skip,
+  limit,
+  startTime,
+  endTime,
+  isHistorical,
+  metadata
+) {
+  logger.error(
+    `⏱️ Query timeout (${AGGREGATE_TIMEOUT_MS}ms) | ` +
+      `Metadata: ${metadata || "device"} | ` +
+      `Historical: ${isHistorical} | ` +
+      `Limit: ${limit} | ` +
+      `Suggestion: Use isHistorical=true or reduce date range`
+  );
+
+  return [
+    {
+      meta: {
+        total: 0,
+        skip: skip,
+        limit: limit,
+        page: 1,
+        pages: 1,
+        startTime,
+        endTime,
+        error:
+          "Query timeout - try using historical mode or reducing date range",
+        optimized: isHistorical,
+        timeoutMs: AGGREGATE_TIMEOUT_MS,
+      },
+      data: [],
+    },
+  ];
 }
 
 async function fetchData(model, filter) {
@@ -1353,31 +1391,14 @@ async function fetchData(model, filter) {
       return [{ meta, data }];
     } catch (error) {
       if (isTimeoutError(error)) {
-        logger.error(
-          `⏱️ Query timeout (${AGGREGATE_TIMEOUT_MS}ms) | ` +
-            `Metadata: ${metadata || "device"} | ` +
-            `Historical: ${isHistorical} | ` +
-            `Limit: ${limit} | ` +
-            `Suggestion: Use isHistorical=true or reduce date range`
+        return buildTimeoutErrorResponse(
+          skip,
+          limit,
+          startTime,
+          endTime,
+          isHistorical,
+          metadata
         );
-        return [
-          {
-            meta: {
-              total: 0,
-              skip: skip,
-              limit: limit,
-              page: 1,
-              pages: 1,
-              startTime,
-              endTime,
-              error:
-                "Query timeout - try using historical mode or reducing date range",
-              optimized: isHistorical,
-              timeoutMs: AGGREGATE_TIMEOUT_MS,
-            },
-            data: [],
-          },
-        ];
       }
 
       logger.error(
@@ -1598,31 +1619,14 @@ async function fetchData(model, filter) {
       return [{ meta, data }];
     } catch (error) {
       if (isTimeoutError(error)) {
-        logger.error(
-          `⏱️ Query timeout (${AGGREGATE_TIMEOUT_MS}ms) | ` +
-            `Metadata: ${metadata || "device"} | ` +
-            `Historical: ${isHistorical} | ` +
-            `Limit: ${limit} | ` +
-            `Suggestion: Use isHistorical=true or reduce date range`
+        return buildTimeoutErrorResponse(
+          skip,
+          limit,
+          startTime,
+          endTime,
+          isHistorical,
+          metadata
         );
-        return [
-          {
-            meta: {
-              total: 0,
-              skip: skip,
-              limit: limit,
-              page: 1,
-              pages: 1,
-              startTime,
-              endTime,
-              error:
-                "Query timeout - try using historical mode or reducing date range",
-              optimized: isHistorical,
-              timeoutMs: AGGREGATE_TIMEOUT_MS,
-            },
-            data: [],
-          },
-        ];
       }
 
       logger.error(`Error in fetchData historical query: ${error.message}`);
