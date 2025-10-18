@@ -25,6 +25,9 @@ const UPTIME_CHECK_THRESHOLD = 168;
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
+const COUNT_TIMEOUT_MS = 10000;
+const AGGREGATE_TIMEOUT_MS = 25000;
+
 const AQI_COLORS = constants.AQI_COLORS;
 const AQI_CATEGORIES = constants.AQI_CATEGORIES;
 const AQI_COLOR_NAMES = constants.AQI_COLOR_NAMES;
@@ -755,6 +758,59 @@ function getHistoricalComputedFieldsExclusion(isHistorical) {
   return exclusions;
 }
 
+function buildEarlyProjection(isHistorical) {
+  const baseProjection = {
+    time: 1,
+    device: 1,
+    device_id: 1,
+    device_number: 1,
+    site: 1,
+    site_id: 1,
+    frequency: 1,
+    pm2_5: 1,
+    pm10: 1,
+    average_pm2_5: 1,
+    average_pm10: 1,
+    s1_pm2_5: 1,
+    s2_pm2_5: 1,
+    s1_pm10: 1,
+    s2_pm10: 1,
+    no2: 1,
+  };
+
+  if (isHistorical) {
+    return baseProjection;
+  }
+
+  return {
+    ...baseProjection,
+    battery: 1,
+    location: 1,
+    network: 1,
+    altitude: 1,
+    speed: 1,
+    satellites: 1,
+    hdop: 1,
+    tvoc: 1,
+    hcho: 1,
+    co2: 1,
+    intaketemperature: 1,
+    intakehumidity: 1,
+    internalTemperature: 1,
+    externalTemperature: 1,
+    internalHumidity: 1,
+    externalHumidity: 1,
+    externalAltitude: 1,
+    pm1: 1,
+    rtc_adc: 1,
+    rtc_v: 1,
+    rtc: 1,
+    stc_adc: 1,
+    stc_v: 1,
+    stc: 1,
+  };
+}
+
 async function fetchData(model, filter) {
   let {
     metadata,
@@ -1050,8 +1106,7 @@ async function fetchData(model, filter) {
 
       const totalCountResult = await model
         .aggregate(countPipelineStages)
-        .allowDiskUse(true)
-        .option("maxTimeMS", 10000)
+        .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
         .exec();
 
       const totalCount =
@@ -1064,53 +1119,7 @@ async function fetchData(model, filter) {
         { $replaceRoot: { newRoot: "$values" } },
       ]);
 
-      const earlyProjection = {
-        time: 1,
-        device: 1,
-        device_id: 1,
-        device_number: 1,
-        site: 1,
-        site_id: 1,
-        frequency: 1,
-        pm2_5: 1,
-        pm10: 1,
-        average_pm2_5: 1,
-        average_pm10: 1,
-        s1_pm2_5: 1,
-        s2_pm2_5: 1,
-        s1_pm10: 1,
-        s2_pm10: 1,
-        no2: 1,
-        ...(isHistorical
-          ? {}
-          : {
-              battery: 1,
-              location: 1,
-              network: 1,
-              altitude: 1,
-              speed: 1,
-              satellites: 1,
-              hdop: 1,
-              tvoc: 1,
-              hcho: 1,
-              co2: 1,
-              intaketemperature: 1,
-              intakehumidity: 1,
-              internalTemperature: 1,
-              externalTemperature: 1,
-              internalHumidity: 1,
-              externalHumidity: 1,
-              externalAltitude: 1,
-              pm1: 1,
-              rtc_adc: 1,
-              rtc_v: 1,
-              rtc: 1,
-              stc_adc: 1,
-              stc_v: 1,
-              stc: 1,
-            }),
-      };
-
+      const earlyProjection = buildEarlyProjection(isHistorical);
       pipeline = pipeline.append([{ $project: earlyProjection }]);
 
       if (!isHistorical) {
@@ -1291,8 +1300,7 @@ async function fetchData(model, filter) {
       const data = await pipeline
         .skip(skip)
         .limit(limit)
-        .allowDiskUse(true)
-        .option("maxTimeMS", 25000)
+        .option({ allowDiskUse: true, maxTimeMS: AGGREGATE_TIMEOUT_MS })
         .exec();
 
       const meta = {
@@ -1350,66 +1358,20 @@ async function fetchData(model, filter) {
           },
           { $count: "device" },
         ])
-        .allowDiskUse(true)
-        .option("maxTimeMS", 10000)
+        .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
         .exec();
 
       const totalCount =
         totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+
+      const earlyProjection = buildEarlyProjection(isHistorical);
 
       let histPipeline = [
         { $match: search },
         { $unwind: "$values" },
         { $match: { "values.time": search["values.time"] } },
         { $replaceRoot: { newRoot: "$values" } },
-        {
-          $project: {
-            time: 1,
-            device: 1,
-            device_id: 1,
-            device_number: 1,
-            site: 1,
-            site_id: 1,
-            frequency: 1,
-            pm2_5: 1,
-            pm10: 1,
-            average_pm2_5: 1,
-            average_pm10: 1,
-            s1_pm2_5: 1,
-            s2_pm2_5: 1,
-            s1_pm10: 1,
-            s2_pm10: 1,
-            no2: 1,
-            ...(isHistorical
-              ? {}
-              : {
-                  battery: 1,
-                  location: 1,
-                  network: 1,
-                  altitude: 1,
-                  speed: 1,
-                  satellites: 1,
-                  hdop: 1,
-                  tvoc: 1,
-                  hcho: 1,
-                  co2: 1,
-                  intaketemperature: 1,
-                  intakehumidity: 1,
-                  internalTemperature: 1,
-                  externalTemperature: 1,
-                  internalHumidity: 1,
-                  externalHumidity: 1,
-                  externalAltitude: 1,
-                  pm1: 1,
-                  rtc_adc: 1,
-                  rtc_v: 1,
-                  rtc: 1,
-                  stc_adc: 1,
-                  stc_v: 1,
-                  stc: 1,
-                }),
-          },
-        },
+        { $project: earlyProjection },
         {
           $lookup: {
             from,
@@ -1539,8 +1501,7 @@ async function fetchData(model, filter) {
 
       const data = await model
         .aggregate(histPipeline)
-        .allowDiskUse(true)
-        .option("maxTimeMS", 25000)
+        .option({ allowDiskUse: true, maxTimeMS: AGGREGATE_TIMEOUT_MS })
         .exec();
 
       const meta = {
