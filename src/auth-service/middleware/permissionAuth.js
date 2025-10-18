@@ -4,6 +4,7 @@ const { HttpError } = require("@utils/shared");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const RBACService = require("@services/rbac.service");
+const { isVerifiedGroupMember } = require("@middleware/groupNetworkAuth");
 
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- permission-auth`);
 
@@ -417,24 +418,34 @@ const requireGroupMembership = (groupIdParam = "grp_id") => {
       const tenant = req.query.tenant || constants.DEFAULT_TENANT;
       const groupId = req.params[groupIdParam] || req.body[groupIdParam];
 
-      if (!user || !user._id || !groupId) {
+      if (!user || !user._id) {
         return next(
-          new HttpError(
-            "Access denied: Group membership required",
-            httpStatus.FORBIDDEN
-          )
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            message: "You must be logged in to access this resource",
+          })
         );
       }
 
-      const rbacService = getRBACService(tenant);
+      if (!groupId) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "Group identifier is required",
+          })
+        );
+      }
 
-      const isGroupMember = await rbacService.isGroupMember(user._id, groupId);
-      const isSuperAdmin = await rbacService.hasRole(user._id, [
-        "SUPER_ADMIN",
-        "super_admin",
-      ]);
+      const isSuperAdmin = await getRBACService(tenant).isSystemSuperAdmin(
+        user._id
+      );
 
-      if (!isGroupMember && !isSuperAdmin) {
+      // Super admin bypasses membership check
+      if (isSuperAdmin) {
+        return next();
+      }
+
+      // If not a super admin, check for group membership
+      const isMember = await isVerifiedGroupMember(user, groupId, tenant);
+      if (!isMember) {
         return next(
           new HttpError(
             "Access denied: You are not a member of this group",
