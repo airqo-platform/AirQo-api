@@ -11,29 +11,42 @@ router.use(checklistValidations.pagination);
 
 router.post(
   "/upsert",
+  enhancedJWTAuth,
   checklistValidations.upsert,
   createChecklistController.upsert
 );
 
 router.put(
   "/:user_id",
+  enhancedJWTAuth,
   checklistValidations.update,
   createChecklistController.update
 );
 
-router.post("/", checklistValidations.create, createChecklistController.create);
+router.post(
+  "/",
+  enhancedJWTAuth,
+  checklistValidations.create,
+  createChecklistController.create
+);
 
-router.get("/", checklistValidations.list, createChecklistController.list);
+router.get(
+  "/",
+  enhancedJWTAuth,
+  checklistValidations.list,
+  createChecklistController.list
+);
 
 router.delete(
   "/:user_id",
-  checklistValidations.deleteChecklist,
   enhancedJWTAuth,
+  checklistValidations.deleteChecklist,
   createChecklistController.delete
 );
 
 router.get(
   "/:user_id",
+  enhancedJWTAuth,
   checklistValidations.getChecklistByUserId,
   createChecklistController.list
 );

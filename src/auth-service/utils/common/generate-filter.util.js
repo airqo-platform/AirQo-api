@@ -636,18 +636,21 @@ const filter = {
   },
   checklists: (req, next) => {
     try {
-      let { id, user_id } = {
+      const { id, user_id, checklist_id } = {
         ...req.body,
         ...req.query,
         ...req.params,
       };
       let filter = {};
 
+      // Prioritize user_id as it's the main identifier for checklists
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
       }
-      if (id) {
-        filter["_id"] = ObjectId(id);
+
+      // Use 'id' or 'checklist_id' for filtering by the document's _id
+      if (id || checklist_id) {
+        filter["_id"] = ObjectId(id || checklist_id);
       }
 
       return filter;

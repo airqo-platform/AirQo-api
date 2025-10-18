@@ -58,7 +58,7 @@ const checklists = {
       const user_id = body.user_id;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "The provided User does not exist",
             value: user_id,
@@ -89,12 +89,32 @@ const checklists = {
         body,
       } = request;
 
-      const filter = generateFilter.checklists(request, next);
-      const update = body;
+      // The filter should target the specific user's checklist
+      const filter = { user_id: request.params.user_id };
+
+      // Construct the update to modify a specific item in the 'items' array
+      // This now assumes the client sends the item's title to identify it.
+      const itemToUpdate = body.items && body.items[0];
+      if (!itemToUpdate || !itemToUpdate.title) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "Checklist item with a 'title' is required for update",
+          })
+        );
+      }
+
+      // Use the title to find the correct item in the array
+      const update = { $set: { "items.$[elem]": itemToUpdate } };
+      const options = {
+        arrayFilters: [{ "elem.title": itemToUpdate.title }],
+        new: true,
+      };
+
       const modifyResponse = await ChecklistModel(tenant).modify(
         {
           filter,
           update,
+          options,
         },
         next
       );
@@ -112,37 +132,26 @@ const checklists = {
   },
   upsert: async (request, next) => {
     try {
-      const {
-        query: { tenant },
-        body,
-      } = request;
+      const { query, body } = request;
+      const { tenant } = query;
 
+      // The filter will be based on user_id to ensure one checklist per user
       const filter = generateFilter.checklists(request, next);
       const update = body;
+
+      // Options for the modify method: upsert will create if it doesn't exist.
       const options = { upsert: true, new: true };
 
-      const modifyResponse = await ChecklistModel(tenant).findOneAndUpdate(
-        filter,
-        update,
-        options
+      const modifyResponse = await ChecklistModel(tenant).modify(
+        {
+          filter,
+          update,
+          options,
+        },
+        next
       );
 
-      if (!isEmpty(modifyResponse)) {
-        return {
-          success: true,
-          message: "successfully created or updated a preference",
-          data: modifyResponse,
-          status: httpStatus.OK,
-        };
-      } else {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "unable to create or update a preference" }
-          )
-        );
-      }
+      return modifyResponse;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
