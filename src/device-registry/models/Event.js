@@ -670,7 +670,6 @@ eventSchema.index(
   },
   {
     name: "online_status_query_idx",
-    background: true,
   }
 );
 
@@ -684,7 +683,6 @@ eventSchema.index(
     partialFilterExpression: {
       nValues: { $gt: 0, $lt: 500 },
     },
-    background: true,
   }
 );
 
