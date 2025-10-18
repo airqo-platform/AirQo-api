@@ -28,6 +28,7 @@ const TIMEZONE = moment.tz.guess();
 const COUNT_TIMEOUT_MS = 30000;
 const AGGREGATE_TIMEOUT_MS = 90000;
 const SLOW_QUERY_THRESHOLD_MS = 15000;
+const SKIP_COUNT_THRESHOLD = 500;
 
 const AQI_COLORS = constants.AQI_COLORS;
 const AQI_CATEGORIES = constants.AQI_CATEGORIES;
@@ -869,6 +870,73 @@ function buildTimeoutErrorResponse(
   ];
 }
 
+function shouldSkipCount(limit, skip) {
+  return limit <= SKIP_COUNT_THRESHOLD && skip === 0;
+}
+
+function buildSimplifiedCountPipeline(search, active, internal) {
+  const pipeline = [
+    { $match: search },
+    { $unwind: "$values" },
+    { $match: { "values.time": search["values.time"] } },
+  ];
+
+  if (active !== "yes" && internal === "yes") {
+    pipeline.push(
+      { $group: { _id: "$values.device_id" } },
+      { $count: "device" }
+    );
+    return pipeline;
+  }
+
+  pipeline.push({ $replaceRoot: { newRoot: "$values" } });
+
+  let hasDeviceLookup = false;
+
+  if (active === "yes") {
+    pipeline.push({
+      $lookup: {
+        from: "devices",
+        localField: "device_id",
+        foreignField: "_id",
+        as: "device_details",
+      },
+    });
+    hasDeviceLookup = true;
+    pipeline.push({
+      $match: { "device_details.isActive": true },
+    });
+  }
+
+  if (internal !== "yes") {
+    if (!hasDeviceLookup) {
+      pipeline.push({
+        $lookup: {
+          from: "devices",
+          localField: "device_id",
+          foreignField: "_id",
+          as: "device_details",
+        },
+      });
+    }
+    pipeline.push(
+      {
+        $lookup: {
+          from: "cohorts",
+          localField: "device_details.cohorts",
+          foreignField: "_id",
+          as: "cohort_details",
+        },
+      },
+      { $match: { "cohort_details.visibility": { $ne: false } } }
+    );
+  }
+
+  pipeline.push({ $group: { _id: "$device_id" } }, { $count: "device" });
+
+  return pipeline;
+}
+
 async function fetchData(model, filter) {
   let {
     metadata,
@@ -1106,74 +1174,34 @@ async function fetchData(model, filter) {
 
   if (!recent || recent === "yes") {
     try {
-      const countStartTime = Date.now();
+      let totalCount = 0;
+      let countSkipped = false;
 
-      const countPipelineStages = [
-        { $match: search },
-        { $unwind: "$values" },
-        { $match: { "values.time": search["values.time"] } },
-        { $replaceRoot: { newRoot: "$values" } },
-      ];
-
-      let hasDeviceLookup = false;
-
-      if (active === "yes") {
-        if (!hasDeviceLookup) {
-          countPipelineStages.push({
-            $lookup: {
-              from: "devices",
-              localField: "device_id",
-              foreignField: "_id",
-              as: "device_details",
-            },
-          });
-          hasDeviceLookup = true;
-        }
-        countPipelineStages.push({
-          $match: { "device_details.isActive": true },
-        });
-      }
-
-      if (internal !== "yes") {
-        if (!hasDeviceLookup) {
-          countPipelineStages.push({
-            $lookup: {
-              from: "devices",
-              localField: "device_id",
-              foreignField: "_id",
-              as: "device_details",
-            },
-          });
-          hasDeviceLookup = true;
-        }
-        countPipelineStages.push(
-          {
-            $lookup: {
-              from: "cohorts",
-              localField: "device_details.cohorts",
-              foreignField: "_id",
-              as: "cohort_details",
-            },
-          },
-          { $match: { "cohort_details.visibility": { $ne: false } } }
+      if (shouldSkipCount(limit, skip)) {
+        countSkipped = true;
+        logText(
+          `Skipping count query for small result set (limit: ${limit}, skip: ${skip})`
         );
+      } else {
+        const countStartTime = Date.now();
+
+        const countPipeline = buildSimplifiedCountPipeline(
+          search,
+          active,
+          internal
+        );
+
+        const totalCountResult = await model
+          .aggregate(countPipeline)
+          .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
+          .exec();
+
+        const countDuration = Date.now() - countStartTime;
+        logSlowQuery("count", countDuration, metadata, isHistorical, limit);
+
+        totalCount =
+          totalCountResult.length > 0 ? totalCountResult[0].device : 0;
       }
-
-      countPipelineStages.push(
-        { $group: { _id: idField } },
-        { $count: "device" }
-      );
-
-      const totalCountResult = await model
-        .aggregate(countPipelineStages)
-        .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
-        .exec();
-
-      const countDuration = Date.now() - countStartTime;
-      logSlowQuery("count", countDuration, metadata, isHistorical, limit);
-
-      const totalCount =
-        totalCountResult.length > 0 ? totalCountResult[0].device : 0;
 
       const pipelineStartTime = Date.now();
 
@@ -1377,15 +1405,18 @@ async function fetchData(model, filter) {
         limit
       );
 
+      const actualTotal = countSkipped ? data.length : totalCount;
+
       const meta = {
-        total: totalCount,
+        total: actualTotal,
         skip: skip,
         limit: limit,
         page: Math.trunc(skip / limit + 1),
-        pages: Math.ceil(totalCount / limit) || 1,
+        pages: countSkipped ? 1 : Math.ceil(totalCount / limit) || 1,
         startTime,
         endTime,
         optimized: isHistorical,
+        countSkipped: countSkipped || undefined,
       };
 
       return [{ meta, data }];
@@ -1427,32 +1458,34 @@ async function fetchData(model, filter) {
 
   if (recent === "no") {
     try {
-      const countStartTime = Date.now();
+      let totalCount = 0;
+      let countSkipped = false;
 
-      const totalCountResult = await model
-        .aggregate([
-          { $match: search },
-          { $unwind: "$values" },
-          { $match: { "values.time": search["values.time"] } },
-          { $replaceRoot: { newRoot: "$values" } },
-          {
-            $lookup: {
-              from,
-              localField,
-              foreignField,
-              as,
-            },
-          },
-          { $count: "device" },
-        ])
-        .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
-        .exec();
+      if (shouldSkipCount(limit, skip)) {
+        countSkipped = true;
+        logText(
+          `Skipping count query for small result set (limit: ${limit}, skip: ${skip})`
+        );
+      } else {
+        const countStartTime = Date.now();
 
-      const countDuration = Date.now() - countStartTime;
-      logSlowQuery("count", countDuration, metadata, isHistorical, limit);
+        const totalCountResult = await model
+          .aggregate([
+            { $match: search },
+            { $unwind: "$values" },
+            { $match: { "values.time": search["values.time"] } },
+            { $group: { _id: "$values.device_id" } },
+            { $count: "device" },
+          ])
+          .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
+          .exec();
 
-      const totalCount =
-        totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+        const countDuration = Date.now() - countStartTime;
+        logSlowQuery("count", countDuration, metadata, isHistorical, limit);
+
+        totalCount =
+          totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+      }
 
       const pipelineStartTime = Date.now();
 
@@ -1605,15 +1638,18 @@ async function fetchData(model, filter) {
         limit
       );
 
+      const actualTotal = countSkipped ? data.length : totalCount;
+
       const meta = {
-        total: totalCount,
+        total: actualTotal,
         skip: skip,
         limit: limit,
         page: Math.trunc(skip / limit + 1),
-        pages: Math.ceil(totalCount / limit) || 1,
+        pages: countSkipped ? 1 : Math.ceil(totalCount / limit) || 1,
         startTime,
         endTime,
         optimized: isHistorical,
+        countSkipped: countSkipped || undefined,
       };
 
       return [{ meta, data }];
