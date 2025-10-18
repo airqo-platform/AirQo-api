@@ -89,12 +89,28 @@ const checklists = {
         body,
       } = request;
 
-      const filter = generateFilter.checklists(request, next);
-      const update = body;
+      // The filter should target the specific user's checklist
+      const filter = { user_id: request.params.user_id };
+
+      // Construct the update to modify a specific item in the 'items' array
+      // This assumes the client sends the item's _id and the fields to update.
+      const itemToUpdate = body.items && body.items[0];
+      if (!itemToUpdate || !itemToUpdate._id) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "Checklist item with _id is required for update",
+          })
+        );
+      }
+
+      const update = { $set: { "items.$[elem]": itemToUpdate } };
+      const options = { arrayFilters: [{ "elem._id": itemToUpdate._id }] };
+
       const modifyResponse = await ChecklistModel(tenant).modify(
         {
           filter,
           update,
+          options,
         },
         next
       );
