@@ -58,7 +58,7 @@ const checklists = {
       const user_id = body.user_id;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "The provided User does not exist",
             value: user_id,
@@ -112,36 +112,25 @@ const checklists = {
   },
   upsert: async (request, next) => {
     try {
-      const {
-        query: { tenant },
-        body,
-      } = request;
-
+      const { query, body } = request;
+      const { tenant } = query;
       const filter = generateFilter.checklists(request, next);
-      const update = body;
-      const options = { upsert: true, new: true };
 
-      const modifyResponse = await ChecklistModel(tenant).findOneAndUpdate(
-        filter,
-        update,
-        options
-      );
+      // Check if a checklist for the user already exists
+      const existingChecklist = await ChecklistModel(tenant)
+        .findOne(filter)
+        .lean();
 
-      if (!isEmpty(modifyResponse)) {
-        return {
-          success: true,
-          message: "successfully created or updated a preference",
-          data: modifyResponse,
-          status: httpStatus.OK,
-        };
+      if (isEmpty(existingChecklist)) {
+        // If it doesn't exist, create it.
+        logText("Checklist does not exist, creating a new one...");
+        return checklists.create(request, next);
       } else {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "unable to create or update a preference" }
-          )
-        );
+        // If it exists, update it.
+        logText("Checklist exists, updating...");
+        // The update validator expects user_id in params, so we adjust the request object.
+        request.params.user_id = body.user_id;
+        return checklists.update(request, next);
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
