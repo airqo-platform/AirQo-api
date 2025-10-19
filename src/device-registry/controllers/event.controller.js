@@ -892,30 +892,12 @@ const createEvent = {
       logObject("the result for listing events", result);
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
-        let measurements;
-        let meta;
-
-        // Check if the response is from the new `readRecentWithFilter` path, which has a top-level 'meta' property.
-        if (result.meta) {
-          // New optimized path: data is a flat array, meta is at the root.
-          measurements = result.data || [];
-          meta = result.meta;
-        } else if (Array.isArray(result.data) && result.data.length > 0) {
-          // Old historical path: data is nested within the first element of the array.
-          measurements = result.data[0]?.data || [];
-          meta = result.data[0]?.meta || {};
-        } else {
-          // Unexpected shape - use safe defaults
-          measurements = [];
-          meta = {};
-        }
-
         res.status(status).json({
           success: true,
           isCache: result.isCache,
           message: result.message,
-          meta,
-          measurements,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
@@ -1338,9 +1320,7 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      // Changed default for 'recent' from 'no' to 'yes' to leverage new optimization:
-      // This ensures the endpoint always returns recent events for all devices,
-      // improving performance and aligning with updated business requirements.
+      request.query.recent = "no";
       request.query.brief = "yes";
       request.query.metadata = "device";
 
@@ -1434,26 +1414,12 @@ const createEvent = {
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
 
-          let measurements;
-          let meta;
-
-          // Handle both new optimized path and old historical path response structures
-          if (result.meta) {
-            // New optimized path: data is a flat array, meta is at the root.
-            measurements = result.data;
-            meta = result.meta;
-          } else {
-            // Old historical path: data is nested.
-            measurements = result.data[0]?.data || [];
-            meta = result.data[0]?.meta || {};
-          }
-
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta,
-            measurements,
+            meta: result.data[0].meta,
+            measurements: result.data[0].data,
           });
         } else if (result.success === false) {
           const status = result.status

@@ -654,62 +654,12 @@ const generateFilter = {
   },
   telemetry: (request) => {
     const { query, params } = request;
-    const {
-      device,
-      device_id,
-      site_id,
-      site,
-      frequency,
-      startTime,
-      endTime,
-      device_number,
-      network,
-      index,
-      running,
-      brief,
-      active,
-    } = {
+    const { device, device_id, site_id, site, frequency } = {
       ...query,
       ...params,
     };
 
     const filter = {};
-
-    // Handle time filtering
-    if (startTime || endTime) {
-      filter.time = {};
-      if (startTime) {
-        filter.time["$gte"] = new Date(startTime);
-      }
-      if (endTime) {
-        filter.time["$lte"] = new Date(endTime);
-      }
-    }
-
-    // Handle index (AQI category) filtering
-    if (index && Object.keys(constants.AQI_INDEX).includes(index)) {
-      const range = constants.AQI_INDEX[index];
-      filter["pm2_5.value"] = {};
-      if (range.min != null) {
-        filter["pm2_5.value"]["$gte"] = range.min;
-      }
-      if (range.max != null) {
-        filter["pm2_5.value"]["$lte"] = range.max;
-      }
-    }
-
-    // Handle network filtering
-    if (network) {
-      filter.network = handlePredefinedValueMatch(
-        network,
-        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
-      );
-    }
-
-    if (device_number) {
-      filter.device_number = { $in: device_number.toString().split(",") };
-    }
 
     if (device) {
       const deviceArray = device
@@ -760,18 +710,6 @@ const generateFilter = {
       filter["frequency"] = "hourly";
     }
 
-    // Handle running, brief, and active properties for consistency
-    if (running) {
-      filter["running"] = running;
-    }
-
-    if (brief) {
-      filter["brief"] = brief;
-    }
-
-    if (active) {
-      filter["isActive"] = active === "yes" ? true : false;
-    }
     return filter;
   },
   fetch: (request, next) => {
