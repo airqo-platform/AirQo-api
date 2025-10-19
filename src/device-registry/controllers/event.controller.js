@@ -898,12 +898,16 @@ const createEvent = {
         // Check if the response is from the new `readRecentWithFilter` path, which has a top-level 'meta' property.
         if (result.meta) {
           // New optimized path: data is a flat array, meta is at the root.
-          measurements = result.data;
+          measurements = result.data || [];
           meta = result.meta;
-        } else {
+        } else if (Array.isArray(result.data) && result.data.length > 0) {
           // Old historical path: data is nested within the first element of the array.
           measurements = result.data[0]?.data || [];
           meta = result.data[0]?.meta || {};
+        } else {
+          // Unexpected shape - use safe defaults
+          measurements = [];
+          meta = {};
         }
 
         res.status(status).json({

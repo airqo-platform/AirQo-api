@@ -2417,6 +2417,11 @@ const createEvent = {
             ? "no measurements for this search"
             : readingsResponse.message,
           data,
+          meta: {
+            total: readingsResponse.data.length,
+            limit: parseInt(limit) || constants.DEFAULT_EVENTS_LIMIT,
+            skip: parseInt(skip) || constants.DEFAULT_EVENTS_SKIP,
+          },
           status: readingsResponse.status || httpStatus.OK,
           isCache: false,
         };
