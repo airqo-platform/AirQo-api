@@ -1519,14 +1519,6 @@ const createEvent = {
       let { limit, skip, recent } = query;
       const isHistorical = isHistoricalMeasurement(request);
 
-      // **OPTIMIZATION: Route recent data requests to the Readings collection**
-      if (!isHistorical) {
-        logText(
-          "Routing recent data request to optimized readRecentWithFilter function"
-        );
-        return await createEvent.readRecentWithFilter(request, next);
-      }
-
       limit = Number(limit);
       skip = Number(skip);
 
@@ -1617,19 +1609,12 @@ const createEvent = {
 
       if (responseFromListEvents.success === true) {
         const data = responseFromListEvents.data;
-        if (data && data[0]) {
-          data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
-        }
+        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
         logText("Setting cache...");
 
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            responseFromListEvents,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -1752,7 +1737,6 @@ const createEvent = {
       if (responseFromListReadings.success === true) {
         const data = responseFromListReadings.data;
 
-        // Suggestion: Cache only the data part for consistency with the historical path.
         try {
           await createEvent.handleCacheOperation(
             "set",
@@ -1766,9 +1750,9 @@ const createEvent = {
 
         return {
           success: true,
-          message: (Array.isArray(data)
-          ? isEmpty(data)
-          : isEmpty(data?.[0]?.data))
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data)
             ? "no measurements for this search"
             : responseFromListReadings.message,
           data,
@@ -2414,12 +2398,7 @@ const createEvent = {
         // Attempt to set cache but don't let failure affect the response
         logText("Attempting to set cache...");
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            readingsResponse,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -2434,11 +2413,6 @@ const createEvent = {
             ? "no measurements for this search"
             : readingsResponse.message,
           data,
-          meta: {
-            total: readingsResponse.data.length,
-            limit: parseInt(limit) || constants.DEFAULT_EVENTS_LIMIT,
-            skip: parseInt(skip) || constants.DEFAULT_EVENTS_SKIP,
-          },
           status: readingsResponse.status || httpStatus.OK,
           isCache: false,
         };
@@ -3542,11 +3516,16 @@ const createEvent = {
         };
       }
 
+      const cacheData = {
+        isCache: true,
+        success: true,
+        message: "Successfully retrieved the measurements",
+        data,
+      };
+
       let serializedData;
       try {
-        // The `data` variable now holds the complete response object.
-        // We just add `isCache: true` before serializing.
-        serializedData = stringify({ ...data, isCache: true });
+        serializedData = stringify(cacheData);
       } catch (serializeError) {
         logger.warn(`Cache serialization error: ${serializeError.message}`);
         return {
@@ -5556,10 +5535,7 @@ const createEvent = {
       return cacheResult;
     } catch (error) {
       logRedisWarning("operation");
-      return Promise.resolve({
-        success: false,
-        message: "Cache operation failed",
-      });
+      return { success: false, message: "Cache operation failed" };
     }
   },
 
