@@ -1617,12 +1617,19 @@ const createEvent = {
 
       if (responseFromListEvents.success === true) {
         const data = responseFromListEvents.data;
-        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
+        if (data && data[0]) {
+          data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
+        }
 
         logText("Setting cache...");
 
         try {
-          await createEvent.handleCacheOperation("set", data, request, next);
+          await createEvent.handleCacheOperation(
+            "set",
+            responseFromListEvents,
+            request,
+            next
+          );
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -1747,7 +1754,12 @@ const createEvent = {
 
         // Suggestion: Cache only the data part for consistency with the historical path.
         try {
-          await createEvent.handleCacheOperation("set", data, request, next);
+          await createEvent.handleCacheOperation(
+            "set",
+            responseFromListReadings,
+            request,
+            next
+          );
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -2402,7 +2414,12 @@ const createEvent = {
         // Attempt to set cache but don't let failure affect the response
         logText("Attempting to set cache...");
         try {
-          await createEvent.handleCacheOperation("set", data, request, next);
+          await createEvent.handleCacheOperation(
+            "set",
+            readingsResponse,
+            request,
+            next
+          );
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -3525,16 +3542,11 @@ const createEvent = {
         };
       }
 
-      const cacheData = {
-        isCache: true,
-        success: true,
-        message: "Successfully retrieved the measurements",
-        data,
-      };
-
       let serializedData;
       try {
-        serializedData = stringify(cacheData);
+        // The `data` variable now holds the complete response object.
+        // We just add `isCache: true` before serializing.
+        serializedData = stringify({ ...data, isCache: true });
       } catch (serializeError) {
         logger.warn(`Cache serialization error: ${serializeError.message}`);
         return {
@@ -5544,7 +5556,10 @@ const createEvent = {
       return cacheResult;
     } catch (error) {
       logRedisWarning("operation");
-      return { success: false, message: "Cache operation failed" };
+      return Promise.resolve({
+        success: false,
+        message: "Cache operation failed",
+      });
     }
   },
 
