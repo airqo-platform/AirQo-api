@@ -1331,6 +1331,7 @@ class ProjectionFactory {
             bearing_in_radians: 0,
             authRequired: 0,
             device_categories: 0,
+            isRetired: 0,
           },
         },
         site: {
