@@ -1428,12 +1428,26 @@ const createEvent = {
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
 
+          let measurements;
+          let meta;
+
+          // Handle both new optimized path and old historical path response structures
+          if (result.meta) {
+            // New optimized path: data is a flat array, meta is at the root.
+            measurements = result.data;
+            meta = result.meta;
+          } else {
+            // Old historical path: data is nested.
+            measurements = result.data[0]?.data || [];
+            meta = result.data[0]?.meta || {};
+          }
+
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta,
+            measurements,
           });
         } else if (result.success === false) {
           const status = result.status
