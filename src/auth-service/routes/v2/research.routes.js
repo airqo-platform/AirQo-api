@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const researchController = require("@controllers/research.controller");
 const behavioralController = require("@controllers/behavioral.controller");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 const researchValidator = require("@validators/research.validators");
 
 const headers = (req, res, next) => {
@@ -15,27 +15,29 @@ const headers = (req, res, next) => {
 };
 
 router.use(headers);
-router.use(setJWTAuth);
-router.use(authJWT);
 
 // Consent Management
 router.post(
   "/consent",
+  enhancedJWTAuth,
   researchValidator.validateCreateConsent,
   researchController.createConsent
 );
 router.get(
   "/consent/:userId",
+  enhancedJWTAuth,
   researchValidator.validateUserIdParam,
   researchController.getConsent
 );
 router.put(
   "/consent/:userId",
+  enhancedJWTAuth,
   researchValidator.validateUpdateConsent,
   researchController.updateConsent
 );
 router.delete(
   "/consent/:userId",
+  enhancedJWTAuth,
   researchValidator.validateWithdrawal,
   researchController.withdrawFromStudy
 );
@@ -43,8 +45,8 @@ router.delete(
 // Researcher-specific endpoints
 router.get(
   "/behavioral-interventions/aggregate",
-  behavioralController.getAggregatedBehavioralData // Assuming this controller function will be created
+  enhancedJWTAuth,
+  behavioralController.getAggregatedBehavioralData
 );
-// Other researcher endpoints like /stats/{userId}, /audit/consent-change, etc. would go here.
 
 module.exports = router;

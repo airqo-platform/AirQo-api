@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const behavioralController = require("@controllers/behavioral.controller");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 const behavioralValidator = require("@validators/behavioral.validators");
 
 const headers = (req, res, next) => {
@@ -14,22 +14,23 @@ const headers = (req, res, next) => {
 };
 
 router.use(headers);
-router.use(setJWTAuth);
-router.use(authJWT);
 
 // Alert Response Management
 router.post(
   "/alert-responses",
+  enhancedJWTAuth,
   behavioralValidator.validateSubmitResponse,
   behavioralController.submitAlertResponse
 );
 router.get(
   "/alert-responses",
+  enhancedJWTAuth,
   behavioralValidator.validateGetUserAlertResponses,
   behavioralController.getUserAlertResponses
 );
 router.get(
   "/alert-responses/stats",
+  enhancedJWTAuth,
   behavioralController.getAlertResponseStats
 );
 
