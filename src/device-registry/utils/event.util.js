@@ -6,6 +6,7 @@ const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
+const { intelligentFetch } = require("@utils/readings/fetch.util");
 const {
   logObject,
   logText,
@@ -1537,12 +1538,10 @@ const createEvent = {
       logText(
         isHistorical
           ? "Using optimized historical data query"
-          : "Using standard data query"
+          : "Using standard data query with intelligent routing"
       );
 
       const filter = generateFilter.events(request, next);
-
-      // Add historical flag to filter
       filter.isHistorical = isHistorical;
 
       try {
@@ -1564,18 +1563,17 @@ const createEvent = {
         skip = parseInt((page - 1) * limit);
       }
 
-      const responseFromListEvents = await EventModel(tenant).list(
-        {
-          skip,
-          limit,
-          filter,
-          page,
-        },
-        next
+      // **PASS LIMIT AND SKIP EXPLICITLY**
+      const responseFromListEvents = await intelligentFetch(
+        tenant,
+        filter,
+        limit,
+        skip,
+        page
       );
 
       if (!responseFromListEvents) {
-        logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
+        logger.error(`🐛🐛 intelligentFetch returned null or undefined`);
         return next(
           new HttpError(
             "Internal Server Error",
@@ -1587,7 +1585,7 @@ const createEvent = {
         );
       }
 
-      // Only do translation for non-historical data
+      // Translation logic (unchanged)
       if (
         !isHistorical &&
         language !== undefined &&
@@ -1908,13 +1906,11 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language, recent },
+        query: { tenant, language, recent, limit, skip },
       } = request;
 
-      // if (recent === "yes") {
-      //   logText("Routing recent view query to optimized Readings collection");
-      //   return await createEvent.viewFromReadings(request, next);
-      // }
+      const actualLimit = Number(limit) || 1000;
+      const actualSkip = Number(skip) || 0;
 
       const filter = generateFilter.readings(request, next);
 
@@ -1933,7 +1929,12 @@ const createEvent = {
         logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
-      const viewEventsResponse = await EventModel(tenant).view(filter, next);
+      const viewEventsResponse = await intelligentFetch(
+        tenant,
+        filter,
+        actualLimit,
+        actualSkip
+      );
 
       if (
         language !== undefined &&
