@@ -1519,6 +1519,14 @@ const createEvent = {
       let { limit, skip, recent } = query;
       const isHistorical = isHistoricalMeasurement(request);
 
+      // **OPTIMIZATION: Route recent data requests to the Readings collection**
+      if (!isHistorical) {
+        logText(
+          "Routing recent data request to optimized readRecentWithFilter function"
+        );
+        return await createEvent.readRecentWithFilter(request, next);
+      }
+
       limit = Number(limit);
       skip = Number(skip);
 
@@ -1737,22 +1745,17 @@ const createEvent = {
       if (responseFromListReadings.success === true) {
         const data = responseFromListReadings.data;
 
+        // Suggestion: Cache only the data part for consistency with the historical path.
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            responseFromListReadings,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
 
         return {
           success: true,
-          message: !isEmpty(missingDataMessage)
-            ? missingDataMessage
-            : isEmpty(data)
+          // Suggestion: Simplify the message check to look directly at the measurements array.
+          message: isEmpty(data[0]?.data)
             ? "no measurements for this search"
             : responseFromListReadings.message,
           data,

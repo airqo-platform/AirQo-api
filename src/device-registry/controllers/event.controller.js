@@ -892,12 +892,26 @@ const createEvent = {
       logObject("the result for listing events", result);
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
+        let measurements;
+        let meta;
+
+        // Check if the response is from the new `readRecentWithFilter` path, which has a top-level 'meta' property.
+        if (result.meta) {
+          // New optimized path: data is a flat array, meta is at the root.
+          measurements = result.data;
+          meta = result.meta;
+        } else {
+          // Old historical path: data is nested within the first element of the array.
+          measurements = result.data[0]?.data || [];
+          meta = result.data[0]?.meta || {};
+        }
+
         res.status(status).json({
           success: true,
           isCache: result.isCache,
           message: result.message,
-          meta: result.data[0].meta,
-          measurements: result.data[0].data,
+          meta,
+          measurements,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
@@ -1320,7 +1334,7 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      request.query.recent = "no";
+      request.query.recent = "yes";
       request.query.brief = "yes";
       request.query.metadata = "device";
 
