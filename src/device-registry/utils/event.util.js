@@ -1754,8 +1754,9 @@ const createEvent = {
 
         return {
           success: true,
-          // Suggestion: Simplify the message check to look directly at the measurements array.
-          message: isEmpty(data[0]?.data)
+          message: (Array.isArray(data)
+          ? isEmpty(data)
+          : isEmpty(data?.[0]?.data))
             ? "no measurements for this search"
             : responseFromListReadings.message,
           data,

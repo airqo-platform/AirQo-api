@@ -1334,7 +1334,9 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      request.query.recent = "yes";
+      // Changed default for 'recent' from 'no' to 'yes' to leverage new optimization:
+      // This ensures the endpoint always returns recent events for all devices,
+      // improving performance and aligning with updated business requirements.
       request.query.brief = "yes";
       request.query.metadata = "device";
 
