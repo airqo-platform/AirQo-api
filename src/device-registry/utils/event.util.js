@@ -1538,10 +1538,12 @@ const createEvent = {
       logText(
         isHistorical
           ? "Using optimized historical data query"
-          : "Using standard data query with intelligent routing"
+          : "Using standard data query"
       );
 
       const filter = generateFilter.events(request, next);
+
+      // Add historical flag to filter
       filter.isHistorical = isHistorical;
 
       try {
@@ -1563,19 +1565,18 @@ const createEvent = {
         skip = parseInt((page - 1) * limit);
       }
 
-      // **PASS LIMIT AND SKIP EXPLICITLY**
-      const responseFromListEvents = await intelligentFetch(
-        tenant,
-        filter,
-        limit,
-        skip,
-        page
+      const responseFromListEvents = await EventModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+          page,
+        },
+        next
       );
 
       if (!responseFromListEvents) {
-        logger.error(
-          "Failed to retrieve data from intelligent routing system: intelligentFetch returned null or undefined."
-        );
+        logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
         return next(
           new HttpError(
             "Internal Server Error",
@@ -1587,7 +1588,7 @@ const createEvent = {
         );
       }
 
-      // Translation logic (unchanged)
+      // Only do translation for non-historical data
       if (
         !isHistorical &&
         language !== undefined &&
@@ -1908,13 +1909,15 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language, recent, limit, skip },
+        query: { tenant, language, recent },
       } = request;
 
-      const actualLimit = Number(limit) || 1000;
-      const actualSkip = Number(skip) || 0;
+      // if (recent === "yes") {
+      //   logText("Routing recent view query to optimized Readings collection");
+      //   return await createEvent.viewFromReadings(request, next);
+      // }
 
-      const filter = generateFilter.events(request, next);
+      const filter = generateFilter.readings(request, next);
 
       try {
         const cacheResult = await createEvent.handleCacheOperation(
@@ -1931,12 +1934,7 @@ const createEvent = {
         logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
-      const viewEventsResponse = await intelligentFetch(
-        tenant,
-        filter,
-        actualLimit,
-        actualSkip
-      );
+      const viewEventsResponse = await EventModel(tenant).view(filter, next);
 
       if (
         language !== undefined &&
