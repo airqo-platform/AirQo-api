@@ -758,12 +758,7 @@ class BigQueryApi:
             )
 
         try:
-            job_config = bigquery.QueryJobConfig(use_query_cache=use_cache)
-            measurements = (
-                self.client.query(query=query, job_config=job_config)
-                .result()
-                .to_dataframe()
-            )
+            measurements = self.execute_data_query(query=query, use_cache=use_cache)
         except google_api_exceptions.GoogleAPIError as e:
             if isinstance(e, google_api_exceptions.NotFound):
                 logger.error(
@@ -1177,9 +1172,7 @@ class BigQueryApi:
            """
         # TODO: May need to review frequency
         try:
-            job_config = bigquery.QueryJobConfig()
-            job_config.use_query_cache = True
-            results = self.client.query(f"{query}", job_config).result().to_dataframe()
+            results = self.execute_data_query(f"{query}")
         except Exception as e:
             logger.exception(f"Error when fetching data from bigquery, {e}")
         else:
@@ -1243,12 +1236,8 @@ class BigQueryApi:
         ORDER BY t1.device_id, t1.timestamp
         """
 
-        job_config = bigquery.QueryJobConfig(use_query_cache=True)
-
         try:
-            return (
-                self.client.query(query, job_config=job_config).result().to_dataframe()
-            )
+            return self.execute_data_query(query)
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
@@ -1301,12 +1290,8 @@ class BigQueryApi:
             t1.device_id,
             timestamp;
         """
-
-        job_config = bigquery.QueryJobConfig(use_query_cache=True)
         try:
-            return (
-                self.client.query(query, job_config=job_config).result().to_dataframe()
-            )
+            return self.execute_data_query(query)
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
@@ -1331,10 +1316,8 @@ class BigQueryApi:
 
         query += "ORDER BY timestamp" ""
 
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
         try:
-            df = self.client.query(query, job_config).result().to_dataframe()
+            df = self.execute_data_query(query)
             return df
         except Exception as e:
             logger.info(f"Error fetching data from bigquery", {e})
@@ -1343,6 +1326,7 @@ class BigQueryApi:
         self,
         date: str,
         table: str,
+        qualifier_fields: List[str],
         network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
     ) -> str:
         """
@@ -1352,11 +1336,13 @@ class BigQueryApi:
             date (str): The target date in 'YYYY-MM-DD' format.
             dataset (str): The name of the BigQuery dataset.
             table (str): The name of the BigQuery table.
+            qualifier_fields (list): Fields that confirm missing data.
             network (str): The network identifier to filter the data.
 
         Returns:
             str: The SQL query as a formatted string.
         """
+        qualifier_query = " AND ".join(f"{field} IS NULL" for field in qualifier_fields)
         query = f"""
             WITH timestamp_hours AS (
             SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp
@@ -1367,11 +1353,7 @@ class BigQueryApi:
             FROM `{table}`
             WHERE
             TIMESTAMP_TRUNC(timestamp, DAY) = '{date}'
-            AND s1_pm2_5 IS NOT NULL
-            AND s2_pm2_5 IS NOT NULL
-            AND s1_pm10 IS NOT NULL
-            AND s2_pm10 IS NOT NULL
-            AND pm2_5_calibrated_value IS NULL
+            AND {qualifier_query}
             AND network = '{network.str}'
             )
             SELECT
@@ -1386,7 +1368,83 @@ class BigQueryApi:
             """
         return query
 
-    def execute_missing_data_query(self, query: str) -> pd.DataFrame:
+    def devices_with_missing_data(
+        self,
+        date: str,
+        table: str,
+        qualifier_fields: List[str],
+        network: DeviceNetwork,
+    ) -> pd.DataFrame:
+        """
+        Identifies devices with missing hourly air quality data for a specified date.
+
+        This method finds device-timestamp combinations where data should exist but is missing
+        by comparing expected hourly data points against actual data in the table.
+
+        Args:
+            date (str): The target date in 'YYYY-MM-DD' format.
+            table (str): The name of the BigQuery table.
+            qualifier_fields (List[str]): Fields that when NULL indicate missing/incomplete data.
+            network (DeviceNetwork, optional): The network identifier to filter the data.
+                                             Defaults to DeviceNetwork.AIRQO.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing device IDs and timestamps with missing data.
+                         Columns: ['device_id', 'missing_timestamp']
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+        """
+        # Build the qualifier condition for missing data
+        qualifier_query = " OR ".join(f"{field} IS NULL" for field in qualifier_fields)
+
+        query = f"""
+            WITH timestamp_hours AS (
+                -- Generate all 24 hourly timestamps for the target date
+                SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp
+                FROM UNNEST(GENERATE_ARRAY(0, 23)) AS n
+            ),
+            deployed_devices AS (
+                -- Get devices that were deployed on the target date
+                SELECT DISTINCT device_id
+                FROM {configuration.BIGQUERY_DEVICES_DEVICES_TABLE}
+                WHERE network = '{network.str}'
+                AND deployed=True AND device_id IS NOT NULL
+            ),
+            expected_data_points AS (
+                -- Create all expected device-hour combinations using CROSS JOIN
+                SELECT
+                    dd.device_id,
+                    th.timestamp
+                FROM deployed_devices dd
+                CROSS JOIN timestamp_hours th
+            ),
+            actual_data AS (
+                -- Get device-timestamp combinations that have complete data
+                SELECT
+                    device_id,
+                    TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
+                FROM `{table}`
+                WHERE TIMESTAMP_TRUNC(timestamp, DAY) = '{date}'
+                AND network = '{network.str}'
+                AND NOT ({qualifier_query})  -- Only records with complete data
+            )
+            -- Find missing data by comparing expected vs actual
+            SELECT
+                edp.device_id,
+                edp.timestamp
+            FROM expected_data_points edp
+            LEFT JOIN actual_data ad
+                ON edp.device_id = ad.device_id
+                AND edp.timestamp = ad.timestamp
+            WHERE ad.device_id IS NULL  -- Only return where there's no match (missing data)
+            ORDER BY edp.device_id, edp.timestamp;
+        """
+        return query
+
+    def execute_data_query(
+        self, query: str, use_cache: Optional[bool] = True
+    ) -> pd.DataFrame:
         """
         Executes the given SQL query using the BigQuery client and returns the result as a Pandas DataFrame.
 
@@ -1399,4 +1457,11 @@ class BigQueryApi:
         Raises:
             google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
-        return self.client.query(query=query).result().to_dataframe()
+        query_config = bigquery.QueryJobConfig()
+        query_config.use_query_cache = use_cache
+        data = (
+            self.client.query(query=query, job_config=query_config)
+            .result()
+            .to_dataframe()
+        )
+        return data
