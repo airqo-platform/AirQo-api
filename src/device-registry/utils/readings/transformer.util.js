@@ -34,9 +34,7 @@ function transformReadingsToEventsFormat(readingsResponse, originalFilter) {
       aqi_color: reading.aqi_color,
       aqi_category: reading.aqi_category,
       aqi_color_name: reading.aqi_color_name,
-      health_tips: Array.isArray(reading.health_tips)
-        ? reading.health_tips
-        : [],
+      health_tips: reading.health_tips || [],
       // Device/Site details
       siteDetails: reading.siteDetails,
       deviceDetails: reading.deviceDetails,
@@ -68,7 +66,9 @@ function ensureMetadataFormat(response, originalFilter) {
 
   // Wrap in meta/data structure
   const total = response.data.length;
-  const limit = originalFilter.limit || 1000;
+
+  //Ensure limit is never zero to prevent division by zero
+  const safeLimit = originalFilter.limit > 0 ? originalFilter.limit : 1000;
   const skip = originalFilter.skip || 0;
 
   return {
@@ -78,9 +78,9 @@ function ensureMetadataFormat(response, originalFilter) {
         meta: {
           total: total,
           skip: skip,
-          limit: limit,
-          page: Math.floor(skip / limit) + 1,
-          pages: Math.ceil(total / limit) || 1,
+          limit: safeLimit,
+          page: safeLimit > 0 ? Math.floor(skip / safeLimit) + 1 : 1,
+          pages: safeLimit > 0 ? Math.ceil(total / safeLimit) || 1 : 1,
           startTime: originalFilter["values.time"]?.$gte,
           endTime: originalFilter["values.time"]?.$lte,
           optimized: true,
