@@ -1226,7 +1226,7 @@ const createGrid = {
         {
           $project: {
             _id: 0,
-            country: "$name",
+            country: { $toLower: "$name" },
             sites: { $size: "$sites" },
           },
         },
@@ -1239,10 +1239,34 @@ const createGrid = {
 
       const results = await GridModel(tenant).aggregate(pipeline);
 
-      const countriesWithFlags = results.map((countryData) => ({
-        ...countryData,
-        flag_url: constants.getFlagUrl(countryData.country),
-      }));
+      const countriesWithFlags = results.map((countryData) => {
+        // Safely handle null or undefined country names
+        const rawCountryName =
+          typeof countryData.country === "string" ? countryData.country : "";
+
+        // Normalize name: handle underscores, hyphens, apostrophes, and extra spaces
+        // before converting to a standardized Title Case format.
+        const formattedCountryName = rawCountryName
+          .replace(/_/g, " ")
+          .split(/(\s+|-|')/) // Split by spaces, hyphens, or apostrophes, keeping delimiters
+          .filter(Boolean) // Remove empty strings from the result
+          .map((part) => {
+            // Only capitalize word parts, not delimiters
+            if (part.match(/^[a-zA-Z0-9]+$/)) {
+              return (
+                part.charAt(0).toLocaleUpperCase() + part.slice(1).toLowerCase()
+              );
+            }
+            return part; // Return delimiters as is
+          })
+          .join("")
+          .trim();
+
+        return {
+          ...countryData,
+          flag_url: constants.getFlagUrl(formattedCountryName),
+        };
+      });
 
       return {
         success: true,
