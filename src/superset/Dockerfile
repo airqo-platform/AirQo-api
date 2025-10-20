@@ -22,7 +22,7 @@ RUN chmod +x /app/docker/*.sh
 # COPY .env /app/.env
 
 # Custom config to use in place of default config
-COPY superset_config.py .
+COPY superset_config.py /app/superset_config.py
 ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
 
 EXPOSE 8088

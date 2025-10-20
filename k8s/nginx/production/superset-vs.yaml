@@ -12,4 +12,14 @@ spec:
   routes:
     - path: /
       action:
-        pass: superset-upstream
+        proxy:
+          upstream: superset-upstream
+          requestHeaders:
+            pass: true
+            set:
+              - name: X-Forwarded-Proto
+                value: https
+              - name: X-Forwarded-Host
+                value: superset.airqo.net
+              - name: X-Forwarded-Port
+                value: "443"

@@ -668,10 +668,8 @@ class BigQueryApi:
             dataframe (pd.DataFrame): The data to be reloaded into the table.
             table (str): The target table in BigQuery.
             network (DeviceNetwork, optional): The network filter to be applied. Defaults to "all".
-            start_date_time (str, optional): The start of the date range for deletion.
-                                            If None, inferred from the DataFrame's earliest timestamp.
-            end_date_time (str, optional): The end of the date range for deletion.
-                                        If None, inferred from the DataFrame's latest timestamp.
+            start_date_time (str, optional): The start of the date range for deletion. If None, inferred from the DataFrame's earliest timestamp.
+            end_date_time (str, optional): The end of the date range for deletion. If None, inferred from the DataFrame's latest timestamp.
             where_fields (dict, optional): Additional fields and values for filtering rows to delete.
             null_cols (list, optional): Columns to filter on `NULL` values during deletion.
 

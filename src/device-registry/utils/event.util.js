@@ -6,6 +6,7 @@ const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
+const { intelligentFetch } = require("@utils/readings/fetch.util");
 const {
   logObject,
   logText,
@@ -1003,6 +1004,158 @@ const processAirQloudIds = async (airqloud_ids, request) => {
     request.query.site_id = validSiteIdResults.join(",");
   }
 };
+
+const isEventTimestampValid = (
+  timestamp,
+  maxAgeMs = constants.MAX_EVENT_AGE_MS
+) => {
+  try {
+    if (!timestamp) {
+      return { valid: false, reason: "Missing timestamp" };
+    }
+
+    const eventTime = new Date(timestamp);
+    if (Number.isNaN(eventTime.getTime())) {
+      return { valid: false, reason: "Invalid timestamp format" };
+    }
+    const now = new Date();
+    const ageMs = now - eventTime;
+
+    // Check if timestamp is in the future (with 5 minute tolerance for clock skew)
+    const futureToleranceMs = 5 * 60 * 1000;
+    if (ageMs < -futureToleranceMs) {
+      const futureOffsetHours = (Math.abs(ageMs) / (1000 * 60 * 60)).toFixed(2);
+      return {
+        valid: false,
+        reason: `Timestamp is ${futureOffsetHours} hours in the future`,
+        futureOffsetHours: parseFloat(futureOffsetHours),
+      };
+    }
+
+    // Check if timestamp is too old
+    if (ageMs > maxAgeMs) {
+      const ageHours = (ageMs / (1000 * 60 * 60)).toFixed(2);
+      const maxAgeHours = (maxAgeMs / (1000 * 60 * 60)).toFixed(2);
+      return {
+        valid: false,
+        reason: `Timestamp is ${ageHours} hours old (max allowed: ${maxAgeHours} hours)`,
+        ageHours: parseFloat(ageHours),
+        maxAgeHours: parseFloat(maxAgeHours),
+      };
+    }
+
+    // Valid timestamp
+    const ageHours = (ageMs / (1000 * 60 * 60)).toFixed(2);
+    return {
+      valid: true,
+      ageHours: parseFloat(ageHours),
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      reason: `Invalid timestamp format: ${error.message}`,
+    };
+  }
+};
+
+const filterMeasurementsByTimestamp = async (measurements, next) => {
+  try {
+    if (!Array.isArray(measurements) || measurements.length === 0) {
+      return {
+        success: true,
+        data: {
+          valid: [],
+          rejected: [],
+          stats: {
+            total: 0,
+            accepted: 0,
+            rejected: 0,
+            rejectionReasons: {},
+          },
+        },
+      };
+    }
+
+    const valid = [];
+    const rejected = [];
+    const rejectionReasons = {};
+
+    for (const measurement of measurements) {
+      const timestamp = measurement.time;
+      const validation = isEventTimestampValid(timestamp);
+
+      if (validation.valid) {
+        valid.push(measurement);
+      } else {
+        rejected.push({
+          measurement: {
+            time: timestamp,
+            device: measurement.device || measurement.device_id,
+            site_id: measurement.site_id,
+          },
+          reason: validation.reason,
+          ageHours: validation.ageHours,
+        });
+
+        // Track rejection reasons
+        const reason = validation.reason;
+        rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
+
+        // Log rejected measurement
+        if (rejected.length <= constants.MAX_REJECTED_LOGS) {
+          // Only log first 10 to avoid spam
+          logger.warn(
+            `Rejected measurement: timestamp ${timestamp}, ` +
+              `age ${validation.ageHours}h, reason: ${validation.reason}`
+          );
+        }
+      }
+    }
+
+    // Log summary if there were rejections
+    if (rejected.length > 0) {
+      logger.info(
+        `Timestamp filtering: ${valid.length} accepted, ${rejected.length} rejected ` +
+          `(${((rejected.length / measurements.length) * 100).toFixed(
+            1
+          )}% rejection rate)`
+      );
+      logObject("Rejection reasons summary", rejectionReasons);
+    }
+
+    return {
+      success: true,
+      data: {
+        valid,
+        rejected,
+        stats: {
+          total: measurements.length,
+          accepted: valid.length,
+          rejected: rejected.length,
+          rejectionReasons,
+        },
+      },
+    };
+  } catch (error) {
+    logger.error(`Error filtering measurements by timestamp: ${error.message}`);
+    // On error, return all measurements to maintain backward compatibility
+    return {
+      success: false,
+      message: "Timestamp filtering failed, proceeding with all measurements",
+      data: {
+        valid: measurements,
+        rejected: [],
+        stats: {
+          total: measurements.length,
+          accepted: measurements.length,
+          rejected: 0,
+          rejectionReasons: { filtering_error: 1 },
+        },
+      },
+    };
+  }
+};
+
 const createEvent = {
   processGridIds,
   processCohortIds,
@@ -5096,31 +5249,93 @@ const createEvent = {
         };
       }
 
+      // Filter measurements by timestamp BEFORE processing
+      const filterResult = await filterMeasurementsByTimestamp(
+        measurements,
+        next
+      );
+      const validMeasurements = filterResult.data.valid;
+      const timestampFilterStats = filterResult.data.stats;
+
+      // If all measurements were rejected, return early
+      if (validMeasurements.length === 0) {
+        await ActivityLogger.logActivity({
+          operation_type: "BULK_INSERT",
+          entity_type: "EVENT",
+          status: "FAILURE",
+          records_attempted: measurements.length,
+          records_successful: 0,
+          records_failed: measurements.length,
+          tenant: tenant,
+          source_function: "addValuesWithStats",
+          error_details:
+            "All measurements rejected due to timestamp validation",
+          error_code: "TIMESTAMP_VALIDATION_FAILED",
+          metadata: {
+            timestamp_filter_stats: timestampFilterStats,
+            rejection_reasons: timestampFilterStats.rejectionReasons,
+            measurements_received: measurements.length,
+            measurements_after_filter: 0,
+          },
+        });
+
+        return {
+          success: false,
+          message: `All ${measurements.length} measurements rejected: timestamps outside acceptable range (last ${constants.MAX_EVENT_AGE_HOURS} hours)`,
+          status: httpStatus.BAD_REQUEST,
+          timestamp_filter_stats: timestampFilterStats,
+          errors: {
+            message: "All measurements have invalid timestamps",
+            details: timestampFilterStats.rejectionReasons,
+          },
+        };
+      }
+
+      // Log if some measurements were filtered
+      if (timestampFilterStats.rejected > 0) {
+        logger.info(
+          `Filtered ${timestampFilterStats.rejected} out of ${timestampFilterStats.total} ` +
+            `measurements (age > ${constants.MAX_EVENT_AGE_HOURS} hours). Processing ${validMeasurements.length} valid measurements.`
+        );
+      }
+
       return await ActivityLogger.trackOperation(
         async () => {
+          // Process only valid measurements
           const result = await createEvent.insertMeasurements_v3(
             tenant,
-            measurements,
+            validMeasurements, // Use filtered measurements
             next
           );
 
-          // ✅ Guard against undefined result
+          // Guard against undefined result
           if (!result) {
             return {
               success: false,
               message: "Insertion did not return a response",
               status: httpStatus.INTERNAL_SERVER_ERROR,
               records_successful: 0,
-              records_failed: measurements.length,
+              records_failed: validMeasurements.length,
+              timestamp_filter_stats: timestampFilterStats,
             };
           }
 
-          // Return result with activity logger metadata
+          // Enhance result with timestamp filtering stats and processing summary
           return {
             ...result,
             records_successful:
               result.deployment_stats?.successful_insertions || 0,
             records_failed: result.deployment_stats?.failed_insertions || 0,
+            timestamp_filter_stats: timestampFilterStats,
+            processing_summary: {
+              total_received: measurements.length,
+              rejected_by_timestamp_filter: timestampFilterStats.rejected,
+              passed_timestamp_filter: validMeasurements.length,
+              successfully_inserted:
+                result.deployment_stats?.successful_insertions || 0,
+              failed_at_database:
+                result.deployment_stats?.failed_insertions || 0,
+            },
           };
         },
         {
@@ -5128,11 +5343,18 @@ const createEvent = {
           entity_type: "EVENT",
           tenant: tenant,
           source_function: "addValuesWithStats",
-          records_attempted: measurements.length,
+          records_attempted: measurements.length, // Total received (not filtered count)
           metadata: {
             tenant: tenant,
-            total_measurements: measurements.length,
+            measurements_received: measurements.length, // Total initially received
+            measurements_after_timestamp_filter: validMeasurements.length, // After filtering
+            timestamp_rejected: timestampFilterStats.rejected,
+            timestamp_rejection_rate: `${(
+              (timestampFilterStats.rejected / measurements.length) *
+              100
+            ).toFixed(1)}%`,
             processing_mode: "direct",
+            timestamp_filter_stats: timestampFilterStats,
           },
         }
       );

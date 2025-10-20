@@ -1,11 +1,7 @@
 const express = require("express");
 const TransactionController = require("@controllers/transaction.controller");
 const transactionValidations = require("@validators/transactions.validators");
-const {
-  setJWTAuth,
-  authJWT,
-  enhancedJWTAuth,
-} = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
 const router = express.Router();

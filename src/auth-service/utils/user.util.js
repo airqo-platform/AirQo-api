@@ -1,5 +1,6 @@
 const UserModel = require("@models/User");
 const SubscriptionModel = require("@models/Subscription");
+const DashboardAnalyticsModel = require("@models/DashboardAnalytics");
 const VerifyTokenModel = require("@models/VerifyToken");
 const AccessRequestModel = require("@models/AccessRequest");
 const RoleModel = require("@models/Role");
@@ -1677,6 +1678,437 @@ const createUserModule = {
     }
   },
 
+  getDashboardAnalyticsFromCache: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const analyticsData = await DashboardAnalyticsModel(tenant)
+        .findOne({ tenant })
+        .lean();
+
+      if (analyticsData) {
+        return {
+          success: true,
+          message: "Analytics retrieved successfully",
+          data: analyticsData,
+          status: httpStatus.OK,
+        };
+      } else {
+        // Data is not yet available. The cron job will populate this soon.
+        return next(
+          new HttpError("Service Unavailable", httpStatus.SERVICE_UNAVAILABLE, {
+            message:
+              "Analytics data is currently being generated. Please try again in a few moments.",
+          })
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in getDashboardAnalyticsFromCache: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getDashboardAnalyticsDirect: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const twoMonthsAgo = new Date();
+      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+      const startOfTwoMonthsAgo = new Date(
+        twoMonthsAgo.getFullYear(),
+        twoMonthsAgo.getMonth(),
+        1
+      );
+      const endOfTwoMonthsAgo = new Date(
+        twoMonthsAgo.getFullYear(),
+        twoMonthsAgo.getMonth() + 1,
+        0
+      );
+
+      const aggregationPipeline = [
+        {
+          $facet: {
+            totalUsers: [{ $count: "count" }],
+            dailyActiveUsers: [
+              { $match: { lastLogin: { $gte: twentyFourHoursAgo } } },
+              { $count: "count" },
+            ],
+            dailyActiveUsersTwoMonthsAgo: [
+              {
+                $match: {
+                  lastLogin: {
+                    $gte: startOfTwoMonthsAgo,
+                    $lte: endOfTwoMonthsAgo,
+                  },
+                },
+              },
+              { $count: "count" },
+            ],
+            featureAdoption: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  withInterests: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $gt: [{ $size: { $ifNull: ["$interests", []] } }, 0],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+            userContribution: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  withProfilePicture: {
+                    $sum: {
+                      $cond: [{ $ifNull: ["$profilePicture", false] }, 1, 0],
+                    },
+                  },
+                  withDescription: {
+                    $sum: {
+                      $cond: [{ $ifNull: ["$description", false] }, 1, 0],
+                    },
+                  },
+                },
+              },
+            ],
+            sessionDurationProxy: [
+              {
+                $group: {
+                  _id: null,
+                  averageLoginCount: { $avg: "$loginCount" },
+                },
+              },
+            ],
+            userSegments: [
+              { $unwind: "$interests" },
+              {
+                $group: {
+                  _id: "$interests",
+                  count: { $sum: 1 },
+                  averageLoginCount: { $avg: "$loginCount" },
+                },
+              },
+              { $sort: { count: -1 } },
+            ],
+            behavioralInsights: [
+              {
+                $group: {
+                  _id: null,
+                  usersWithProfilePic: {
+                    $sum: { $cond: ["$profilePicture", 1, 0] },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      const results = await UserModel(tenant).aggregate(aggregationPipeline);
+      const analytics = results[0];
+
+      const totalUsers = analytics.totalUsers[0]?.count || 0;
+      const dau = analytics.dailyActiveUsers[0]?.count || 0;
+      const featureAdoption = analytics.featureAdoption[0] || {};
+      const dauTwoMonthsAgo =
+        analytics.dailyActiveUsersTwoMonthsAgo[0]?.count || 0;
+      const { withInterests = 0 } = analytics.featureAdoption[0] || {};
+      const { withProfilePicture = 0, withDescription = 0 } =
+        analytics.userContribution[0] || {};
+      const { averageLoginCount = 0 } = analytics.sessionDurationProxy[0] || {};
+      const userSegments = analytics.userSegments || [];
+      const behavioralInsights = analytics.behavioralInsights[0] || {};
+
+      const dauChange =
+        dauTwoMonthsAgo > 0
+          ? ((dau - dauTwoMonthsAgo) / dauTwoMonthsAgo) * 100
+          : dau > 0
+          ? 100
+          : 0;
+
+      const response = {
+        userSatisfaction: null, // Placeholder
+        dailyActiveUsers: dau,
+        dailyActiveUsersChange: dauChange,
+        featureAdoptionRate:
+          totalUsers > 0 ? (withInterests / totalUsers) * 100 : 0,
+        featureAdoptionRateChange: null, // Placeholder
+        extendedUserSessionDuration: averageLoginCount,
+        increasedUserDataContribution:
+          totalUsers > 0
+            ? ((withProfilePicture + withDescription) / (totalUsers * 2)) * 100
+            : 0,
+        stakeholderDecisionMaking: null, // Placeholder
+        userSegments: userSegments.map((segment) => ({
+          segment: segment._id,
+          userCount: segment.count,
+          engagementScore: segment.averageLoginCount || 0,
+          trends: "Stable",
+          recommendations: `Target ${segment._id} with specific content.`,
+        })),
+        behavioralInsights: {
+          usersWithProfilePic: behavioralInsights.usersWithProfilePic || 0,
+          profilePicAdoptionRate:
+            totalUsers > 0
+              ? (behavioralInsights.usersWithProfilePic / totalUsers) * 100
+              : 0,
+        },
+      };
+
+      return {
+        success: true,
+        message: "Live dashboard analytics retrieved successfully",
+        data: response,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in getDashboardAnalyticsDirect: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  initiateAccountDeletion: async (request, next) => {
+    try {
+      logObject("the request query in initiateAccountDeletion", request.query);
+      const { tenant } = request.query;
+      const { email } = request.body;
+      const user = request.user;
+
+      logObject("the tenant in initiateAccountDeletion", tenant);
+
+      if (user.email.toLowerCase() !== email.toLowerCase()) {
+        return {
+          success: false,
+          message: "Forbidden",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: "You can only initiate deletion for your own account.",
+          },
+        };
+      }
+
+      const responseFromGenerateResetToken =
+        createUserModule.generateResetToken();
+      if (!responseFromGenerateResetToken.success) {
+        return responseFromGenerateResetToken;
+      }
+
+      const token = responseFromGenerateResetToken.data;
+      const update = {
+        deletionToken: token,
+        deletionTokenExpires: Date.now() + 3600000, // 1 hour
+      };
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { _id: user._id },
+          update,
+        },
+        next
+      );
+
+      if (responseFromModifyUser.success) {
+        const mailerResponse = await mailer.sendAccountDeletionConfirmation({
+          email: user.email,
+          token,
+          tenant,
+          firstName: user.firstName,
+        });
+
+        if (mailerResponse.success) {
+          return {
+            success: true,
+            message:
+              "Account deletion process initiated. Please check your email for a confirmation link.",
+            status: httpStatus.OK,
+          };
+        } else {
+          return mailerResponse;
+        }
+      } else {
+        return responseFromModifyUser;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in initiateAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  initiateMobileAccountDeletion: async (request, next) => {
+    try {
+      const { tenant: tenantFromQuery } = request.query;
+      const tenant = tenantFromQuery || constants.DEFAULT_TENANT;
+      const { email } = request.body;
+      const user = request.user;
+
+      if (user.email.toLowerCase() !== email.toLowerCase()) {
+        return {
+          success: false,
+          message: "Forbidden",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: "You can only initiate deletion for your own account.",
+          },
+        };
+      }
+
+      const token = generateNumericToken(5); // 5-digit code
+      const update = {
+        deletionToken: token,
+        deletionTokenExpires: Date.now() + 3600000, // 1 hour
+      };
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { _id: user._id },
+          update,
+        },
+        next
+      );
+
+      if (responseFromModifyUser.success) {
+        const mailerResponse = await mailer.sendMobileAccountDeletionCode({
+          email: user.email,
+          token,
+          firstName: user.firstName,
+        });
+
+        if (mailerResponse.success) {
+          return {
+            success: true,
+            message:
+              "Account deletion process initiated. Please check your email for a 5-digit confirmation code.",
+            status: httpStatus.OK,
+          };
+        } else {
+          return mailerResponse;
+        }
+      } else {
+        return responseFromModifyUser;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in initiateMobileAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  confirmMobileAccountDeletion: async (request, next) => {
+    // This re-uses the logic from the web confirmation, but is called from a different route.
+    // The logic is identical because it just needs a token and tenant.
+    // The mobile app will pass the numeric code as the token.
+    return createUserModule.confirmAccountDeletion(request, next);
+  },
+
+  confirmAccountDeletion: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const token = request.params.token || request.body.token;
+      const authenticatedUser = request.user; // This may be undefined for mobile flow
+      const timeZone = moment.tz.guess();
+
+      // If user is authenticated (web flow), verify the token belongs to them.
+      // Otherwise (mobile flow), just find a valid token.
+      const filter = authenticatedUser
+        ? {
+            _id: authenticatedUser._id,
+            deletionToken: token,
+            deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
+          }
+        : {
+            deletionToken: token,
+            deletionTokenExpires: { $gt: moment().tz(timeZone).toDate() },
+          };
+
+      const user = await UserModel(tenant).findOne(filter).lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "Invalid or expired token",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Your account deletion token is invalid or has expired. Please try again.",
+          },
+        };
+      }
+
+      const deleteRequest = {
+        query: { tenant, id: user._id.toString() },
+      };
+
+      const deletionResult = await createUserModule.delete(deleteRequest);
+
+      if (deletionResult.success) {
+        await mailer.sendAccountDeletionSuccess({
+          email: user.email,
+          firstName: user.firstName,
+        });
+        return {
+          success: true,
+          message: "Your account has been successfully deleted.",
+          status: httpStatus.OK,
+        };
+      } else {
+        return deletionResult;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in confirmAccountDeletion: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
   delete: async (request) => {
     try {
       const { tenant } = request.query;
@@ -1981,7 +2413,8 @@ const createUserModule = {
                 email: normalizedEmail,
                 userId,
                 tenant,
-                emailError: emailResult?.message || "Unknown email error",
+                emailError:
+                  (emailResult && emailResult.message) || "Unknown email error",
               });
 
               return {
@@ -1997,7 +2430,8 @@ const createUserModule = {
                   },
                   verificationEmailSent: false,
                   emailError:
-                    emailResult?.message || "Email service unavailable",
+                    (emailResult && emailResult.message) ||
+                    "Email service unavailable",
                 },
               };
             }
@@ -2009,7 +2443,7 @@ const createUserModule = {
                 userId,
                 tenant,
                 error: emailError.message,
-                stack: emailError.stack?.substring(0, 500),
+                stack: emailError.stack && emailError.stack.substring(0, 500),
               }
             );
 
@@ -2033,16 +2467,17 @@ const createUserModule = {
           logger.error("Mobile user creation failed", {
             email: normalizedEmail,
             tenant,
-            error: newUserResponse?.message || "Unknown creation error",
-            errors: newUserResponse?.errors,
+            error:
+              (newUserResponse && newUserResponse.message) ||
+              "Unknown creation error",
+            errors: newUserResponse && newUserResponse.errors,
           });
-
-          return (
-            newUserResponse || {
-              success: false,
-              message: "Failed to create mobile user account",
-            }
-          );
+          return newUserResponse && Object.keys(newUserResponse).length > 0
+            ? newUserResponse
+            : newUserResponse || {
+                success: false,
+                message: "Failed to create mobile user account",
+              };
         }
       } finally {
         // ✅ STEP 8: Always cleanup the lock
@@ -2053,7 +2488,10 @@ const createUserModule = {
         email: request.body?.email,
         tenant: request.query?.tenant,
         stack: error.stack,
-        userAgent: request.headers?.["user-agent"]?.substring(0, 100),
+        userAgent:
+          request.headers &&
+          request.headers["user-agent"] &&
+          request.headers["user-agent"].substring(0, 100),
       });
 
       return {
@@ -2483,7 +2921,7 @@ const createUserModule = {
               email: normalizedEmail,
               userId: user._id,
               tenant,
-              emailError: emailResponse?.message,
+              emailError: emailResponse && emailResponse.message,
             });
             return (
               emailResponse || {
@@ -3501,7 +3939,7 @@ const createUserModule = {
             email: normalizedEmail,
             tenant,
             lockExists: true,
-            requestedBy: request.user?.email || "unknown",
+            requestedBy: (request.user && request.user.email) || "unknown",
           }
         );
 
@@ -3519,7 +3957,7 @@ const createUserModule = {
       // Set lock with automatic cleanup
       registrationLocks.set(lockKey, {
         createdAt: Date.now(),
-        createdBy: request.user?.email || "unknown",
+        createdBy: (request.user && request.user.email) || "unknown",
       });
 
       setTimeout(() => {
@@ -3613,7 +4051,7 @@ const createUserModule = {
           ...(request.body.country && { country: request.body.country }),
           // Add metadata for admin-created users
           createdByAdmin: true,
-          adminCreatorEmail: request.user?.email || "unknown",
+          adminCreatorEmail: (request.user && request.user.email) || "unknown",
         };
 
         // ✅ STEP 5: Create user with enhanced error handling
@@ -3730,7 +4168,7 @@ const createUserModule = {
       logger.error(`🐛🐛 Admin registration error: ${error.message}`, {
         email: request.body?.email,
         tenant: request.query?.tenant,
-        requestedBy: request.user?.email || "unknown",
+        requestedBy: (request.user && request.user.email) || "unknown",
         stack: error.stack,
       });
 
@@ -3916,7 +4354,7 @@ const createUserModule = {
     try {
       const { old_password, password: new_password } = request.body || {};
       const { tenant } = request.query || {};
-      const userId = request.user?._id;
+      const userId = request.user && request.user._id;
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       if (!old_password || !new_password) {
@@ -4266,7 +4704,7 @@ const createUserModule = {
     }
   },
 
-  generateResetToken: (next) => {
+  generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
       return {
@@ -4276,13 +4714,14 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
     }
   },
   isPasswordTokenValid: async (
@@ -5817,9 +6256,9 @@ const createUserModule = {
 
       console.log("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: authResponse.permissions?.length || 0, // Safely access length
-        groupMemberships: authResponse.groupMemberships?.length || 0,
-        networkMemberships: authResponse.networkMemberships?.length || 0,
+        permissionsCount: (authResponse.permissions || []).length,
+        groupMemberships: (authResponse.groupMemberships || []).length,
+        networkMemberships: (authResponse.networkMemberships || []).length,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });
@@ -5863,15 +6302,17 @@ const createUserModule = {
       }
 
       // ✅ OPTIMIZATION 1: Collect all IDs upfront for batch queries
-      const permissionIds = userObj.permissions?.filter(Boolean) || [];
+      const permissionIds = (userObj.permissions || []).filter(Boolean);
       const groupIds =
-        userObj.group_roles?.map((gr) => gr.group).filter(Boolean) || [];
+        (userObj.group_roles || []).map((gr) => gr.group).filter(Boolean) || [];
       const networkIds =
-        userObj.network_roles?.map((nr) => nr.network).filter(Boolean) || [];
+        (userObj.network_roles || []).map((nr) => nr.network).filter(Boolean) ||
+        [];
       const groupRoleIds =
-        userObj.group_roles?.map((gr) => gr.role).filter(Boolean) || [];
+        (userObj.group_roles || []).map((gr) => gr.role).filter(Boolean) || [];
       const networkRoleIds =
-        userObj.network_roles?.map((nr) => nr.role).filter(Boolean) || [];
+        (userObj.network_roles || []).map((nr) => nr.role).filter(Boolean) ||
+        [];
       const allRoleIds = [...new Set([...groupRoleIds, ...networkRoleIds])]; // Remove duplicates
 
       // ✅ OPTIMIZATION 2: Prepare all queries for parallel execution
@@ -5986,7 +6427,7 @@ const createUserModule = {
       userObj.permissions = permissions;
 
       // ✅ OPTIMIZATION 6: Use optional chaining and map lookups
-      if (userObj.group_roles?.length > 0) {
+      if (userObj.group_roles && userObj.group_roles.length > 0) {
         userObj.group_roles = userObj.group_roles.map((groupRole) => ({
           ...groupRole,
           group: groupRole.group
@@ -6015,7 +6456,7 @@ const createUserModule = {
         }));
       }
 
-      if (userObj.network_roles?.length > 0) {
+      if (userObj.network_roles && userObj.network_roles.length > 0) {
         userObj.network_roles = userObj.network_roles.map((networkRole) => ({
           ...networkRole,
           network: networkRole.network
@@ -6102,7 +6543,7 @@ const createUserModule = {
           token: `JWT ${token}`,
           strategy: tokenStrategy,
           size: Buffer.byteLength(token, "utf8"),
-          expiresIn: options?.expiresIn || "24h",
+          expiresIn: (options && options.expiresIn) || "24h",
         },
         status: httpStatus.OK,
       };

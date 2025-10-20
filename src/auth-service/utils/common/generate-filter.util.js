@@ -636,18 +636,21 @@ const filter = {
   },
   checklists: (req, next) => {
     try {
-      let { id, user_id } = {
+      const { id, user_id, checklist_id } = {
         ...req.body,
         ...req.query,
         ...req.params,
       };
       let filter = {};
 
+      // Prioritize user_id as it's the main identifier for checklists
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
       }
-      if (id) {
-        filter["_id"] = ObjectId(id);
+
+      // Use 'id' or 'checklist_id' for filtering by the document's _id
+      if (id || checklist_id) {
+        filter["_id"] = ObjectId(id || checklist_id);
       }
 
       return filter;
@@ -948,17 +951,17 @@ const filter = {
   },
   scopes: (req, next) => {
     try {
-      const { query, params } = req;
-      const { id, scope } = query;
-      const { scope_id, network_id } = params;
+      const { id, scope, scope_id, network_id } = {
+        ...req.query,
+        ...req.params,
+      };
       let filter = {};
 
+      // Prioritize 'id' over 'scope_id' for filtering by document _id
       if (id) {
         filter["_id"] = ObjectId(id);
-      }
-
-      if (scope_id) {
-        filter["scope"] = scope_id;
+      } else if (scope_id) {
+        filter["_id"] = ObjectId(scope_id); // Use scope_id as a fallback
       }
 
       if (scope) {
@@ -982,6 +985,7 @@ const filter = {
       );
     }
   },
+
   departments: (req, next) => {
     try {
       const {

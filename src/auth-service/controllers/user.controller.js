@@ -32,7 +32,7 @@ const handleRequest = (req, next) => {
 };
 
 const handleError = (error, next) => {
-  logger.error(`🐛🐛 Internal Server Error`, error?.stack || error);
+  logger.error(`🐛🐛 Internal Server Error`, (error && error.stack) || error);
   if (error instanceof HttpError) {
     return next(error);
   }
@@ -1178,14 +1178,14 @@ const userController = {
       if (!request) return;
 
       console.log("🔄 Permission refresh requested:", {
-        userId: request.body.userId || request.user?._id,
+        userId: request.body.userId || (req.user && req.user._id),
         strategy: request.body.strategy,
         tenant: request.query.tenant,
       });
 
       // Use userId from body or from authenticated user
-      if (!request.body.userId && request.user?._id) {
-        request.body.userId = request.user._id;
+      if (!request.body.userId && req.user && req.user._id) {
+        request.body.userId = req.user._id;
       }
 
       const result = await userUtil.refreshUserPermissions(request, next);
@@ -1208,7 +1208,7 @@ const userController = {
       if (!request) return;
 
       // Get userId from params
-      request.body.userId = req.params.userId || req.user?._id;
+      request.body.userId = req.params.userId || (req.user && req.user._id);
 
       if (!request.body.userId) {
         return next(
@@ -1244,7 +1244,7 @@ const userController = {
 
       // Get parameters from various sources
       request.body.userId =
-        req.query.userId || req.body.userId || req.user?._id;
+        req.query.userId || req.body.userId || (req.user && req.user._id);
       request.body.contextId = req.query.contextId || req.body.contextId;
       request.body.contextType = req.query.contextType || req.body.contextType;
 
@@ -1283,8 +1283,8 @@ const userController = {
       if (!request) return;
 
       // Use userId from body or from authenticated user
-      if (!request.body.userId && request.user?._id) {
-        request.body.userId = request.user._id;
+      if (!request.body.userId && req.user && req.user._id) {
+        request.body.userId = req.user._id;
       }
 
       if (!request.body.userId) {
@@ -1327,12 +1327,14 @@ const userController = {
   getEnhancedProfile: async (req, res, next) => {
     try {
       logger.info("Enhanced profile endpoint called");
-
       // Check authentication first before handleRequest
-      const userId = req.user?._id;
+      const userId = req.user && req.user._id;
       if (!userId) {
         logger.warn("Enhanced profile accessed without authentication", {
-          headers: req.headers.authorization ? "token present" : "no token",
+          headers:
+            req.headers && req.headers.authorization
+              ? "token present"
+              : "no token",
           user: req.user ? "user object exists" : "no user object",
         });
 
@@ -1345,7 +1347,6 @@ const userController = {
 
       const request = handleRequest(req, next);
       if (!request) return;
-
       const { tenant } = request.query;
 
       const result = await userUtil._getEnhancedProfile(
@@ -1388,6 +1389,78 @@ const userController = {
       logger.error(
         `🐛 Enhanced profile for user controller error: ${error.message}`
       );
+      handleError(error, next);
+    }
+  },
+
+  getDashboardAnalyticsFromCache: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getDashboardAnalyticsFromCache(
+        request,
+        next
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  getDashboardAnalyticsDirect: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getDashboardAnalyticsDirect(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  initiateAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.initiateAccountDeletion(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  confirmAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.confirmAccountDeletion(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  initiateMobileAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.initiateMobileAccountDeletion(
+        request,
+        next
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  confirmMobileAccountDeletion: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.confirmMobileAccountDeletion(request, next);
+      sendResponse(res, result);
+    } catch (error) {
       handleError(error, next);
     }
   },

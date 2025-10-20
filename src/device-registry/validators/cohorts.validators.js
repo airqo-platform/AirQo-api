@@ -313,7 +313,7 @@ const cohortValidations = {
     ...commonValidations.name,
     ...commonValidations.description,
     ...commonValidations.groups,
-    ...commonValidations.network,
+    ...commonValidations.networkOptional,
     handleValidationErrors,
   ],
   listCohorts: [
@@ -476,6 +476,11 @@ const cohortValidations = {
     body("cohort_ids.*")
       .isMongoId()
       .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("search")
+      .optional()
+      .trim()
+      .isLength({ min: 1 })
+      .withMessage("search must not be empty if provided"),
     check("category")
       .optional()
       .trim()
@@ -484,6 +489,62 @@ const cohortValidations = {
       .withMessage(
         `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
       ),
+    check("device_category")
+      .optional()
+      .trim()
+      .toLowerCase(),
+    check("name")
+      .optional()
+      .trim(),
+    check("device")
+      .optional()
+      .trim(),
+    check("device_name")
+      .optional()
+      .trim(),
+    check("device_number")
+      .optional()
+      .isInt()
+      .toInt(),
+    check("serial_number")
+      .optional()
+      .trim(),
+    check("status")
+      .optional()
+      .trim(),
+    check("online_status")
+      .optional()
+      .isIn(["online", "offline"]),
+    check("mobility")
+      .optional()
+      .isBoolean()
+      .toBoolean(),
+    check("visibility")
+      .optional()
+      .isBoolean()
+      .toBoolean(),
+    check("authRequired")
+      .optional()
+      .isBoolean()
+      .toBoolean(),
+    check("last_active")
+      .optional()
+      .isISO8601()
+      .toDate(),
+    check("last_active_before")
+      .optional()
+      .isISO8601()
+      .toDate(),
+    check("last_active_after")
+      .optional()
+      .isISO8601()
+      .toDate(),
+    check("network")
+      .optional()
+      .trim(),
+    check("group")
+      .optional()
+      .trim(),
     handleValidationErrors,
   ],
 
@@ -498,6 +559,11 @@ const cohortValidations = {
     body("cohort_ids.*")
       .isMongoId()
       .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    check("search")
+      .optional()
+      .trim()
+      .isLength({ min: 1 })
+      .withMessage("search must not be empty if provided"),
     check("category")
       .optional()
       .trim()
@@ -506,6 +572,60 @@ const cohortValidations = {
       .withMessage(
         `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
       ),
+    check("lat_long")
+      .optional()
+      .trim(),
+    check("generated_name")
+      .optional()
+      .trim(),
+    check("district")
+      .optional()
+      .trim(),
+    check("region")
+      .optional()
+      .trim(),
+    check("city")
+      .optional()
+      .trim(),
+    check("street")
+      .optional()
+      .trim(),
+    check("country")
+      .optional()
+      .trim(),
+    check("county")
+      .optional()
+      .trim(),
+    check("parish")
+      .optional()
+      .trim(),
+    check("google_place_id")
+      .optional()
+      .trim(),
+    check("online_status")
+      .optional()
+      .isIn(["online", "offline"]),
+    check("last_active")
+      .optional()
+      .isISO8601()
+      .toDate(),
+    check("last_active_before")
+      .optional()
+      .isISO8601()
+      .toDate(),
+    check("last_active_after")
+      .optional()
+      .isISO8601()
+      .toDate(),
+    check("network")
+      .optional()
+      .trim(),
+    check("group")
+      .optional()
+      .trim(),
+    check("site_codes")
+      .optional()
+      .trim(),
     handleValidationErrors,
   ],
 };

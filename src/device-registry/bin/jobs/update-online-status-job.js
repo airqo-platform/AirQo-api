@@ -1068,7 +1068,8 @@ async function updateOnlineStatusAndAccuracy() {
         internal: "yes",
         active: "yes",
         brief: "yes",
-        limit: 5000, // Add reasonable limit to prevent memory issues
+        limit: 1000,
+        isHistorical: true,
       },
     };
     const filter = generateFilter.fetch(request);
@@ -1077,8 +1078,7 @@ async function updateOnlineStatusAndAccuracy() {
 
     let viewEventsResponse;
     try {
-      // Add timeout to prevent hanging
-      const FETCH_TIMEOUT = 30000; // 30 seconds
+      const FETCH_TIMEOUT = 30000;
       viewEventsResponse = await Promise.race([
         EventModel("airqo").fetch(filter),
         new Promise((_, reject) =>
@@ -1092,11 +1092,9 @@ async function updateOnlineStatusAndAccuracy() {
       }
       logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
 
-      // Don't fail completely - try to process stale entities
       viewEventsResponse = { success: false, data: [] };
     }
 
-    // Process events if available with memory management
     let deviceIds = new Set();
     let siteIds = new Set();
 
@@ -1107,41 +1105,38 @@ async function updateOnlineStatusAndAccuracy() {
     ) {
       const data = viewEventsResponse.data[0].data;
 
-      // Process in smaller chunks to prevent memory issues
-      const CHUNK_SIZE = 1000;
+      const CHUNK_SIZE = 500;
       for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         if (processor.shouldStopExecution()) break;
 
         const chunk = data.slice(i, i + CHUNK_SIZE);
         await statusProcessor.processStatusUpdates(chunk);
 
-        // Collect IDs from this chunk
         chunk.forEach((doc) => {
           if (doc.device_id) deviceIds.add(doc.device_id);
           if (doc.site_id) siteIds.add(doc.site_id);
         });
 
-        // Yield control periodically
         await processor.yieldControl();
       }
     } else {
       logText("No Events found for status updates from recent data");
     }
 
-    // Process stale entities with better error handling
     if (!processor.shouldStopExecution()) {
       logText(
         "Processing stale entities that haven't been checked recently..."
       );
 
       try {
+        const STALE_TIMEOUT = 25000;
         const [staleDeviceResult, staleSiteResult] = await Promise.allSettled([
           Promise.race([
             processStaleEntities(DeviceModel("airqo"), "Device", processor),
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error("Stale device processing timeout")),
-                25000
+                STALE_TIMEOUT
               )
             ),
           ]),
@@ -1150,7 +1145,7 @@ async function updateOnlineStatusAndAccuracy() {
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error("Stale site processing timeout")),
-                25000
+                STALE_TIMEOUT
               )
             ),
           ]),
@@ -1185,13 +1180,11 @@ async function updateOnlineStatusAndAccuracy() {
       }
     }
 
-    // Enhanced offline detection with better memory management
     if (!processor.shouldStopExecution()) {
       try {
         await processor.yieldControl();
 
-        // Process offline detection with timeouts
-        const OFFLINE_TIMEOUT = 20000; // 20 seconds
+        const OFFLINE_TIMEOUT = 20000;
         const [
           deviceOfflineResult,
           siteOfflineResult,
@@ -1226,7 +1219,6 @@ async function updateOnlineStatusAndAccuracy() {
           ]),
         ]);
 
-        // Generate comprehensive accuracy report with error handling
         const accuracyReport = await statusProcessor.getAccuracyReport();
         accuracyReport.offlineDetection = {
           devices:
@@ -1245,12 +1237,10 @@ async function updateOnlineStatusAndAccuracy() {
                 },
         };
 
-        // Add stale processing stats to report
         if (staleProcessingStats) {
           accuracyReport.staleProcessing = staleProcessingStats;
         }
 
-        // Format a more concise summary to reduce log noise
         const {
           processing,
           overallAccuracy,
@@ -1284,7 +1274,6 @@ async function updateOnlineStatusAndAccuracy() {
             ? ` | Stale: ${staleProcessing.devices.processedCount}D ${staleProcessing.sites.processedCount}S`
             : "");
 
-        // Use throttled logging for accuracy report
         await throttledLog("ACCURACY_REPORT", formattedReport);
       } catch (offlineError) {
         logger.error(`Error in offline detection: ${offlineError.message}`);
@@ -1313,7 +1302,6 @@ async function updateOnlineStatusAndAccuracy() {
   } finally {
     processor.end();
 
-    // Force garbage collection if available (helps with memory management)
     if (global.gc) {
       global.gc();
     }

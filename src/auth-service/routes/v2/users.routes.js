@@ -335,6 +335,33 @@ router.get(
 );
 
 // ================================
+// DASHBOARD & ANALYTICS ROUTES
+// ================================
+
+/**
+ * @route GET /api/v2/users/dashboard/analytics
+ * @desc Get key metrics for the dashboard presentation
+ * @access Private - Admin only
+ */
+router.get(
+  "/dashboard/analytics",
+  enhancedJWTAuth,
+  requirePermissions(["SYSTEM_ADMIN"]),
+  userController.getDashboardAnalyticsFromCache
+);
+
+/**
+ * @route GET /api/v2/users/dashboard/analytics/live
+ * @desc Get key metrics directly from the database (slower, but reliable)
+ * @access Private - Admin only
+ */
+router.get(
+  "/dashboard/analytics/live",
+  enhancedJWTAuth,
+  requirePermissions(["SYSTEM_ADMIN"]),
+  userController.getDashboardAnalyticsDirect
+);
+// ================================
 // ADMIN & DEBUG ROUTES
 // ================================
 
@@ -638,6 +665,36 @@ router.delete(
   enhancedJWTAuth,
   requirePermissions([constants.USER_DELETE]),
   userController.delete
+);
+
+router.post(
+  "/delete/initiate",
+  enhancedJWTAuth,
+  userValidations.initiateAccountDeletion,
+  validate,
+  userController.initiateAccountDeletion
+);
+
+router.post(
+  "/delete/confirm/:token",
+  userValidations.confirmAccountDeletion,
+  validate,
+  userController.confirmAccountDeletion
+);
+
+router.post(
+  "/delete/mobile/initiate",
+  enhancedJWTAuth,
+  userValidations.initiateAccountDeletion, // Can reuse the same validation
+  validate,
+  userController.initiateMobileAccountDeletion
+);
+
+router.post(
+  "/delete/mobile/confirm",
+  userValidations.confirmMobileAccountDeletion,
+  validate,
+  userController.confirmMobileAccountDeletion
 );
 
 router.delete(
