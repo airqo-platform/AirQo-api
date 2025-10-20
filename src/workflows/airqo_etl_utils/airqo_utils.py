@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import ast
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Tuple, Union, Optional
 
 from .commons import drop_rows_with_bad_data
 from airqo_etl_utils.data_api import DataApi
@@ -15,6 +15,7 @@ from .constants import (
     DataType,
     CityModels,
     CountryModels,
+    DataSource,
 )
 from .data_validator import DataValidationUtils
 from .date import date_to_str, DateUtils
@@ -565,7 +566,7 @@ class AirQoDataUtils:
 
             for _, by_timestamp in site_weather_data.groupby("timestamp"):
                 by_timestamp.sort_values(ascending=True, by="distance", inplace=True)
-                by_timestamp.fillna(method="bfill", inplace=True)
+                by_timestamp.bfill(inplace=True)
                 by_timestamp.drop_duplicates(
                     keep="first", subset=["timestamp"], inplace=True
                 )
@@ -995,6 +996,30 @@ class AirQoDataUtils:
         return calibrated_data
 
     @staticmethod
+    def extract_devices_with_missing_data(
+        start_date: str, network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO
+    ) -> pd.DataFrame:
+        """
+        Extracts devices with missing data by comparing deployed devices with the data in BigQuery.
+        Args:
+            date (str): The date for which to check missing data.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the devices with missing data.
+        """
+        bigquery_api = BigQueryApi()
+
+        source = Config.DataSource.get(DataType.AVERAGED)
+        table = source.get(DeviceCategory.GENERAL).get(Frequency.HOURLY)
+        if not table:
+            raise ValueError("Table name could not be determined from configuration.")
+
+        query = bigquery_api.devices_with_missing_data(
+            start_date, table, ["pm2_5_calibrated_value"], network
+        )
+        return bigquery_api.execute_data_query(query)
+
+    @staticmethod
     def extract_devices_with_uncalibrated_data(
         start_date: str,
         table: Optional[str] = None,
@@ -1019,7 +1044,7 @@ class AirQoDataUtils:
             source = Config.DataSource.get(DataType.AVERAGED)
             table = source.get(DeviceCategory.GENERAL).get(Frequency.HOURLY)
         query = bigquery_api.generate_missing_data_query(start_date, table, network)
-        return bigquery_api.execute_missing_data_query(query)
+        return bigquery_api.execute_data_query(query)
 
     @staticmethod
     def extract_aggregate_calibrate_raw_data(
@@ -1118,3 +1143,57 @@ class AirQoDataUtils:
                 else:
                     return calibrated_data
         return pd.DataFrame()
+
+    @staticmethod
+    def extract_raw_device_data(
+        devices: pd.DataFrame, data_source: Optional[DataSource] = DataSource.THINGSPEAK
+    ) -> Tuple[pd.DataFrame, Optional[pd.Timestamp], Optional[pd.Timestamp]]:
+        """
+        Extract raw device data.
+
+        Args:
+            devices (pd.DataFrame): DataFrame containing device records with 'device_id' and 'timestamp'.
+            data_source (DataSource): The source from which to extract data (default is THINGSPEAK).
+
+        Returns:
+            pd.DataFrame: Processed and calibrated data for the devices.
+        """
+        # TODO Add option for different data sources in future if needed i.e bigquery
+        if devices.empty:
+            return pd.DataFrame()
+
+        devices = devices.drop_duplicates(
+            subset=["device_id", "timestamp"], keep="first"
+        )
+        devices["timestamp"] = pd.to_datetime(devices["timestamp"], errors="coerce")
+        devices = devices.dropna(subset=["device_id", "timestamp"])
+
+        if devices.empty:
+            return pd.DataFrame()
+
+        # Use optimized approach single batch operation instead of nested loops with multiple API calls
+        start_date = devices["timestamp"].min()
+        end_date = devices["timestamp"].max()
+        device_ids = devices["device_id"].unique().tolist()
+
+        try:
+            # Extract all required data in one batch operation
+            raw_device_data = DataUtils.extract_devices_data(
+                start_date_time=DateUtils.format_datetime_by_unit_str(
+                    start_date, "hours_start"
+                ),
+                end_date_time=DateUtils.format_datetime_by_unit_str(
+                    end_date, "hours_end"
+                ),
+                device_category=DeviceCategory.LOWCOST,
+                resolution=Frequency.RAW_LOW_COST,
+                device_ids=device_ids,
+            )
+            if raw_device_data.empty:
+                return pd.DataFrame()
+
+            return raw_device_data, start_date, end_date
+
+        except Exception as e:
+            logger.exception(f"Error in extracting data: {e}")
+            return pd.DataFrame(), None, None
