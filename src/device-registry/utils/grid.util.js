@@ -1243,7 +1243,18 @@ const createGrid = {
         // Standardize to Title Case with spaces for getFlagUrl
         const formattedCountryName = countryData.country
           .replace(/_/g, " ")
-          .replace(/\b\w/g, (char) => char.toUpperCase());
+          .toLowerCase()
+          .split(" ")
+          .map((word) => {
+            if (word.includes("'")) {
+              return word
+                .split("'")
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join("'");
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1);
+          })
+          .join(" ");
 
         return {
           ...countryData,
