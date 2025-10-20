@@ -370,7 +370,7 @@ router.delete(
 router.get(
   "/:grp_id/cohorts",
   enhancedJWTAuth,
-  requireGroupAccess([constants.GROUP_VIEW]),
+  requireGroupMembership("grp_id"),
   groupValidations.listGroupCohorts,
   groupController.listGroupCohorts
 );

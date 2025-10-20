@@ -8,5 +8,6 @@ const strings = {
   REGION: "europe-west1",
   MQTT_BRIDGE_HOST_NAME: "mqtt.googleapis.com",
   MESSAGE_TYPE: "events",
+  DEFAULT_COHORT_NAME: "airqo",
 };
 module.exports = strings;
