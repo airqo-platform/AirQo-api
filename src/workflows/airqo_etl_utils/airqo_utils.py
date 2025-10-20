@@ -565,7 +565,7 @@ class AirQoDataUtils:
 
             for _, by_timestamp in site_weather_data.groupby("timestamp"):
                 by_timestamp.sort_values(ascending=True, by="distance", inplace=True)
-                by_timestamp.fillna(method="bfill", inplace=True)
+                by_timestamp.bfill(inplace=True)
                 by_timestamp.drop_duplicates(
                     keep="first", subset=["timestamp"], inplace=True
                 )

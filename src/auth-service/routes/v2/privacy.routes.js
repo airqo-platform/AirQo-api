@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const privacyController = require("@controllers/privacy.controller");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 const privacyValidator = require("@validators/privacy.validators");
 
 const headers = (req, res, next) => {
@@ -14,30 +14,40 @@ const headers = (req, res, next) => {
 };
 
 router.use(headers);
-router.use(setJWTAuth);
-router.use(authJWT);
 
 // Location Tracking Preferences
-router.get("/location-preferences", privacyController.getLocationPreferences);
+router.get(
+  "/location-preferences",
+  enhancedJWTAuth,
+  privacyController.getLocationPreferences
+);
 router.put(
   "/location-preferences",
+  enhancedJWTAuth,
   privacyController.updateLocationPreferences
 );
 
 // Privacy Zones
 router.post(
   "/privacy-zones",
+  enhancedJWTAuth,
   privacyValidator.validateCreatePrivacyZone,
   privacyController.createPrivacyZone
 );
-router.get("/privacy-zones", privacyController.listPrivacyZones);
+router.get(
+  "/privacy-zones",
+  enhancedJWTAuth,
+  privacyController.listPrivacyZones
+);
 router.put(
   "/privacy-zones/:zoneId",
+  enhancedJWTAuth,
   privacyValidator.validateUpdatePrivacyZone,
   privacyController.updatePrivacyZone
 );
 router.delete(
   "/privacy-zones/:zoneId",
+  enhancedJWTAuth,
   privacyValidator.validateUpdatePrivacyZone,
   privacyController.deletePrivacyZone
 );
@@ -45,19 +55,26 @@ router.delete(
 // Location Data Management
 router.get(
   "/location-data",
+  enhancedJWTAuth,
   privacyValidator.validateListLocationData,
   privacyController.listLocationData
 );
 router.delete(
   "/location-data/:pointId",
+  enhancedJWTAuth,
   privacyValidator.validateDeleteLocationPoint,
   privacyController.deleteLocationPoint
 );
 router.delete(
   "/location-data/range",
+  enhancedJWTAuth,
   privacyValidator.validateDeleteLocationDataRange,
   privacyController.deleteLocationDataRange
 );
-router.delete("/location-data", privacyController.clearAllLocationData);
+router.delete(
+  "/location-data",
+  enhancedJWTAuth,
+  privacyController.clearAllLocationData
+);
 
 module.exports = router;
