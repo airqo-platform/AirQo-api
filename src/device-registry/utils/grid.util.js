@@ -1240,21 +1240,27 @@ const createGrid = {
       const results = await GridModel(tenant).aggregate(pipeline);
 
       const countriesWithFlags = results.map((countryData) => {
-        // Standardize to Title Case with spaces for getFlagUrl
-        const formattedCountryName = countryData.country
+        // Safely handle null or undefined country names
+        const rawCountryName =
+          typeof countryData.country === "string" ? countryData.country : "";
+
+        // Normalize name: handle underscores, hyphens, apostrophes, and extra spaces
+        // before converting to a standardized Title Case format.
+        const formattedCountryName = rawCountryName
           .replace(/_/g, " ")
-          .toLowerCase()
-          .split(" ")
-          .map((word) => {
-            if (word.includes("'")) {
-              return word
-                .split("'")
-                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                .join("'");
+          .split(/(\s+|-|')/) // Split by spaces, hyphens, or apostrophes, keeping delimiters
+          .filter(Boolean) // Remove empty strings from the result
+          .map((part) => {
+            // Only capitalize word parts, not delimiters
+            if (part.match(/^[a-zA-Z0-9]+$/)) {
+              return (
+                part.charAt(0).toLocaleUpperCase() + part.slice(1).toLowerCase()
+              );
             }
-            return word.charAt(0).toUpperCase() + word.slice(1);
+            return part; // Return delimiters as is
           })
-          .join(" ");
+          .join("")
+          .trim();
 
         return {
           ...countryData,
