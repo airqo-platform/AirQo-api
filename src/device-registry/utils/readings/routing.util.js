@@ -16,7 +16,7 @@ function determineCollectionRoute(filter) {
     .tz(TIMEZONE)
     .subtract(READINGS_TTL_DAYS, "days");
 
-  // ✅ FIX: Support both Events format (values.time) and Readings format (time)
+  //Support both Events format (values.time) and Readings format (time)
   const timeFilter = filter["values.time"] || filter["time"];
 
   if (!timeFilter) {
@@ -27,7 +27,7 @@ function determineCollectionRoute(filter) {
     };
   }
 
-  // ✅ FIX: Use timezone-aware parsing
+  // Use timezone-aware parsing
   const startTime = timeFilter.$gte
     ? moment.tz(timeFilter.$gte, TIMEZONE)
     : null;
