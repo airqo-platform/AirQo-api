@@ -7,7 +7,7 @@ const TIMEZONE = moment.tz.guess();
 
 /**
  * Determines if a query should use the Readings collection
- * @param {Object} filter - The query filter object
+ * @param {Object} filter - The query filter object (Events or Readings format)
  * @returns {Object} - { useReadings: boolean, reason: string, splitQuery: boolean }
  */
 function determineCollectionRoute(filter) {
@@ -16,8 +16,8 @@ function determineCollectionRoute(filter) {
     .tz(TIMEZONE)
     .subtract(READINGS_TTL_DAYS, "days");
 
-  // Extract time range from filter
-  const timeFilter = filter["values.time"];
+  // ✅ FIX: Support both Events format (values.time) and Readings format (time)
+  const timeFilter = filter["values.time"] || filter["time"];
 
   if (!timeFilter) {
     return {
@@ -27,8 +27,11 @@ function determineCollectionRoute(filter) {
     };
   }
 
-  const startTime = timeFilter.$gte ? moment(timeFilter.$gte) : null;
-  const endTime = timeFilter.$lte ? moment(timeFilter.$lte) : now;
+  // ✅ FIX: Use timezone-aware parsing
+  const startTime = timeFilter.$gte
+    ? moment.tz(timeFilter.$gte, TIMEZONE)
+    : null;
+  const endTime = timeFilter.$lte ? moment.tz(timeFilter.$lte, TIMEZONE) : now;
 
   // If no start time, assume recent query
   if (!startTime) {
@@ -93,7 +96,12 @@ function convertEventsFilterToReadingsFilter(eventsFilter) {
       const readingsKey = key.replace("values.", "");
       readingsFilter[readingsKey] = eventsFilter[key];
     } else if (key === "day") {
-      // Skip day field - not used in Readings
+      /***
+       * Skip day field - not used in Readings.
+      The 'day' field is used in the Events collection for partitioning/indexing,
+      but the Readings collection does not use or require this field due to differences
+      in their data models and storage strategies.
+       */
     } else if (
       key !== "metadata" &&
       key !== "external" &&

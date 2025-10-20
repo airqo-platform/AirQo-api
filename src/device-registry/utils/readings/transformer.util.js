@@ -34,7 +34,9 @@ function transformReadingsToEventsFormat(readingsResponse, originalFilter) {
       aqi_color: reading.aqi_color,
       aqi_category: reading.aqi_category,
       aqi_color_name: reading.aqi_color_name,
-      health_tips: reading.health_tips || [],
+      health_tips: Array.isArray(reading.health_tips)
+        ? reading.health_tips
+        : [],
       // Device/Site details
       siteDetails: reading.siteDetails,
       deviceDetails: reading.deviceDetails,

@@ -1573,7 +1573,9 @@ const createEvent = {
       );
 
       if (!responseFromListEvents) {
-        logger.error(`🐛🐛 intelligentFetch returned null or undefined`);
+        logger.error(
+          "Failed to retrieve data from intelligent routing system: intelligentFetch returned null or undefined."
+        );
         return next(
           new HttpError(
             "Internal Server Error",
@@ -1912,7 +1914,7 @@ const createEvent = {
       const actualLimit = Number(limit) || 1000;
       const actualSkip = Number(skip) || 0;
 
-      const filter = generateFilter.readings(request, next);
+      const filter = generateFilter.events(request, next);
 
       try {
         const cacheResult = await createEvent.handleCacheOperation(
