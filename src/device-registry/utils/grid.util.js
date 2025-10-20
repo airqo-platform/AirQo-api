@@ -1226,7 +1226,7 @@ const createGrid = {
         {
           $project: {
             _id: 0,
-            country: "$name",
+            country: { $toLower: "$name" },
             sites: { $size: "$sites" },
           },
         },
@@ -1239,10 +1239,17 @@ const createGrid = {
 
       const results = await GridModel(tenant).aggregate(pipeline);
 
-      const countriesWithFlags = results.map((countryData) => ({
-        ...countryData,
-        flag_url: constants.getFlagUrl(countryData.country),
-      }));
+      const countriesWithFlags = results.map((countryData) => {
+        // Standardize to Title Case with spaces for getFlagUrl
+        const formattedCountryName = countryData.country
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (char) => char.toUpperCase());
+
+        return {
+          ...countryData,
+          flag_url: constants.getFlagUrl(formattedCountryName),
+        };
+      });
 
       return {
         success: true,
