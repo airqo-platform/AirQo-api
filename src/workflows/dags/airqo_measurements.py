@@ -673,7 +673,7 @@ def calibrate_missing_measurements():
         return devices
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def extract_raw_data(devices: pd.DataFrame) -> list:
+    def extract_raw_data(devices: pd.DataFrame) -> Tuple[pd.DataFrame, str, str]:
         return AirQoDataUtils.extract_raw_device_data(devices=devices)
 
     @task()
@@ -691,8 +691,10 @@ def calibrate_missing_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(start_date: str, end_date: str, **kwargs):
-        start_date_time = datetime.strftime(start_date, "%Y-%m-%dT%H:00:00Z")
-        end_date_time = datetime.strftime(end_date, "%Y-%m-%dT%H:59:59Z")
+        start_date_time = DateUtils.format_datetime_by_unit_str(
+            start_date, "hours_start"
+        )
+        end_date_time = DateUtils.format_datetime_by_unit_str(end_date, "hours_end")
 
         weather_data = WeatherDataUtils.extract_weather_data(
             DataType.AVERAGED,
