@@ -672,9 +672,12 @@ def calibrate_missing_measurements():
         )
         return devices
 
-    @task(retries=3, retry_delay=timedelta(minutes=5))
-    def extract_raw_data(devices: pd.DataFrame) -> Tuple[pd.DataFrame, str, str]:
-        return AirQoDataUtils.extract_raw_device_data(devices=devices)
+    @task(retries=3, retry_delay=timedelta(minutes=5), multiple_outputs=True)
+    def extract_raw_data(devices: pd.DataFrame) -> dict:
+        raw_data, start_date, end_date = AirQoDataUtils.extract_raw_device_data(
+            devices=devices
+        )
+        return {"raw_data": raw_data, "start_date": start_date, "end_date": end_date}
 
     @task()
     def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -752,13 +755,12 @@ def calibrate_missing_measurements():
         data_api.save_events(measurements=data)
 
     devices = extract_devices_missing_calibrated_data()
-    raw_data_return = extract_raw_data(devices)
-    raw_data = raw_data_return[0]
-    start_date = raw_data_return[1]
-    end_date = raw_data_return[2]
-    cleaned_raw_data = clean_data_raw_data(raw_data)
+    raw_data_result = extract_raw_data(devices)
+    cleaned_raw_data = clean_data_raw_data(raw_data_result["raw_data"])
     aggregated_data = aggregate(cleaned_raw_data)
-    weather_data = extract_hourly_weather_data(start_date=start_date, end_date=end_date)
+    weather_data = extract_hourly_weather_data(
+        start_date=raw_data_result["start_date"], end_date=raw_data_result["end_date"]
+    )
     merged_data = merge_data(aggregated_data, weather_data)
     calibrated_data = calibrate(devices, merged_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
