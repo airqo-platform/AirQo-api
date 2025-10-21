@@ -6,6 +6,7 @@ const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
+const crypto = require("crypto");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
 const {
   logObject,
@@ -1163,6 +1164,24 @@ const MAX_HISTORICAL_PER_MINUTE = 5;
 const BLOCK_DURATION = 5 * 60 * 1000; // 5 minutes
 const MAX_AGE_DAYS = 180; // 6 months
 
+const generateClientFingerprint = (request) => {
+  const rawId =
+    request.headers["x-api-key"] ||
+    (request.headers["authorization"] || "").replace(/^Bearer\s+/i, "") ||
+    request.ip ||
+    "unknown";
+
+  const secret =
+    process.env.LOG_FINGERPRINT_SECRET ||
+    "airqo_default_salt_change_in_production";
+
+  return crypto
+    .createHmac("sha256", secret)
+    .update(String(rawId))
+    .digest("hex")
+    .slice(0, 16);
+};
+
 // Cleanup old entries every 10 minutes
 setInterval(() => {
   const now = Date.now();
@@ -1540,61 +1559,66 @@ const createEvent = {
       const tenant = query.tenant || constants.DEFAULT_TENANT || "airqo";
 
       if (isHistorical && (query.startTime || query.endTime)) {
-        const queryDate = new Date(query.endTime || query.startTime);
-        const ageInDays = Math.floor(
-          (Date.now() - queryDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        const start = query.startTime ? new Date(query.startTime) : null;
+        const end = query.endTime ? new Date(query.endTime) : null;
 
-        if (ageInDays > MAX_AGE_DAYS) {
-          const ageInYears = (ageInDays / 365).toFixed(1);
-          const clientIp = request.ip || "unknown";
-          const queryDateString = queryDate.toISOString().split("T")[0];
-          const cutoffDateString = new Date(
-            Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000
-          )
-            .toISOString()
-            .split("T")[0];
+        const earliest =
+          start && end
+            ? new Date(Math.min(start.getTime(), end.getTime()))
+            : start || end;
 
-          const shouldLog = await throttleUtil.shouldLogAncientQuery(
-            clientIp,
-            tenant
+        if (earliest && !Number.isNaN(earliest.getTime())) {
+          const ageInDays = Math.floor(
+            (Date.now() - earliest.getTime()) / (1000 * 60 * 60 * 24)
           );
 
-          if (shouldLog) {
-            logger.error(
-              `🚫 ANCIENT DATA BLOCKED: IP=${clientIp} | ` +
-                `Query date: ${queryDateString} (${ageInYears}y ago, ${ageInDays}d)`
-            );
-          }
+          if (ageInDays > MAX_AGE_DAYS) {
+            const ageInYears = (ageInDays / 365).toFixed(1);
+            const clientFingerprint = generateClientFingerprint(request);
+            const earliestDateString = earliest.toISOString().split("T")[0];
+            const cutoffDateString = new Date(
+              Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+            )
+              .toISOString()
+              .split("T")[0];
 
-          return {
-            success: false,
-            status: httpStatus.BAD_REQUEST,
-            message:
-              "Query date too old. Data older than 6 months is not available via this endpoint.",
-            errors: {
-              message: `Query requests data from ${queryDateString} (${ageInYears} years old, ${ageInDays} days old).`,
-              oldest_supported: "6 months (180 days) from current date",
-              query_age_days: ageInDays,
-              current_cutoff_date: cutoffDateString,
-              recommendation:
-                "Use Analytics API for historical data older than 6 months",
-              analytics_endpoint:
-                "https://api.airqo.net/api/v3/public/analytics/data-download",
-              analytics_docs:
-                "https://docs.airqo.net/airqo-rest-api-documentation/analytics-api",
-              support_email: "support@airqo.net",
-            },
-          };
+            const shouldLog = await throttleUtil.shouldLogAncientQuery(
+              clientFingerprint,
+              tenant
+            );
+
+            if (shouldLog) {
+              logger.error(
+                `🚫 ANCIENT DATA BLOCKED | client=${clientFingerprint} | ` +
+                  `Earliest date: ${earliestDateString} (${ageInYears}y ago, ${ageInDays}d)`
+              );
+            }
+
+            return {
+              success: false,
+              status: httpStatus.BAD_REQUEST,
+              message:
+                "Query date too old. Data older than 6 months is not available via this endpoint.",
+              errors: {
+                message: `Query includes data from ${earliestDateString} (${ageInYears} years old, ${ageInDays} days old).`,
+                oldest_supported: "6 months (180 days) from current date",
+                query_age_days: ageInDays,
+                current_cutoff_date: cutoffDateString,
+                recommendation:
+                  "Use Analytics API for historical data older than 6 months",
+                analytics_endpoint:
+                  "https://api.airqo.net/api/v3/public/analytics/data-download",
+                analytics_docs:
+                  "https://docs.airqo.net/airqo-rest-api-documentation/analytics-api",
+                support_email: "support@airqo.net",
+              },
+            };
+          }
         }
       }
 
       if (isHistorical) {
-        const clientId =
-          (request.headers["x-api-key"] || "").slice(-8) ||
-          (request.headers["authorization"] || "").slice(-8) ||
-          request.ip ||
-          "unknown";
+        const clientId = generateClientFingerprint(request);
 
         const now = Date.now();
         const tracker = await throttleUtil.getRateLimitTracker(
@@ -1605,7 +1629,7 @@ const createEvent = {
         if (tracker.count < MAX_HISTORICAL_PER_MINUTE) {
           const currentCount = tracker.count + 1;
           logger.info(
-            `📊 Historical query ${currentCount}/${MAX_HISTORICAL_PER_MINUTE}: ${clientId} | IP=${request.ip}`
+            `📊 Historical query ${currentCount}/${MAX_HISTORICAL_PER_MINUTE} | client=${clientId}`
           );
         }
 
@@ -1620,7 +1644,7 @@ const createEvent = {
 
           if (shouldLog) {
             logger.error(
-              `🚫 RATE LIMITED: ${clientId} | ${remainingSeconds}s remaining`
+              `🚫 RATE LIMITED | client=${clientId} | ${remainingSeconds}s remaining`
             );
           }
 
@@ -1652,7 +1676,7 @@ const createEvent = {
           await throttleUtil.setRateLimitTracker(clientId, tracker, tenant);
 
           logger.error(
-            `🚨 RATE LIMIT TRIGGERED: ${clientId} | ${tracker.count} queries/min | Blocked 5min`
+            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=5m`
           );
 
           return {
