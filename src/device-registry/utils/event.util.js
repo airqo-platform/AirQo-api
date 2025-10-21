@@ -1548,6 +1548,12 @@ const createEvent = {
         if (ageInDays > MAX_AGE_DAYS) {
           const ageInYears = (ageInDays / 365).toFixed(1);
           const clientIp = request.ip || "unknown";
+          const queryDateString = queryDate.toISOString().split("T")[0];
+          const cutoffDateString = new Date(
+            Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+          )
+            .toISOString()
+            .split("T")[0];
 
           const shouldLog = await throttleUtil.shouldLogAncientQuery(
             clientIp,
@@ -1557,9 +1563,7 @@ const createEvent = {
           if (shouldLog) {
             logger.error(
               `🚫 ANCIENT DATA BLOCKED: IP=${clientIp} | ` +
-                `Query date: ${
-                  queryDate.toISOString().split("T")[0]
-                } (${ageInYears}y ago, ${ageInDays}d)`
+                `Query date: ${queryDateString} (${ageInYears}y ago, ${ageInDays}d)`
             );
           }
 
@@ -1567,18 +1571,12 @@ const createEvent = {
             success: false,
             status: httpStatus.BAD_REQUEST,
             message:
-              "Query date too old. Data older than 6 months not available via this endpoint.",
+              "Query date too old. Data older than 6 months is not available via this endpoint.",
             errors: {
-              message: `Query requests data from ${
-                queryDate.toISOString().split("T")[0]
-              } (${ageInYears} years old, ${ageInDays} days old).`,
+              message: `Query requests data from ${queryDateString} (${ageInYears} years old, ${ageInDays} days old).`,
               oldest_supported: "6 months (180 days) from current date",
               query_age_days: ageInDays,
-              current_cutoff_date: new Date(
-                Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000
-              )
-                .toISOString()
-                .split("T")[0],
+              current_cutoff_date: cutoffDateString,
               recommendation:
                 "Use Analytics API for historical data older than 6 months",
               analytics_endpoint:
@@ -1605,13 +1603,16 @@ const createEvent = {
         );
 
         if (tracker.count < MAX_HISTORICAL_PER_MINUTE) {
+          const currentCount = tracker.count + 1;
           logger.info(
-            `📊 Historical query ${tracker.count +
-              1}/${MAX_HISTORICAL_PER_MINUTE}: ${clientId} | IP=${request.ip}`
+            `📊 Historical query ${currentCount}/${MAX_HISTORICAL_PER_MINUTE}: ${clientId} | IP=${request.ip}`
           );
         }
 
         if (tracker.blockedUntil > now) {
+          const remainingSeconds = Math.ceil(
+            (tracker.blockedUntil - now) / 1000
+          );
           const shouldLog = await throttleUtil.shouldLogBlockAttempt(
             clientId,
             tenant
@@ -1619,9 +1620,7 @@ const createEvent = {
 
           if (shouldLog) {
             logger.error(
-              `🚫 RATE LIMITED: ${clientId} | ${Math.ceil(
-                (tracker.blockedUntil - now) / 1000
-              )}s remaining`
+              `🚫 RATE LIMITED: ${clientId} | ${remainingSeconds}s remaining`
             );
           }
 
@@ -1632,9 +1631,7 @@ const createEvent = {
             errors: {
               message:
                 "Your client has been temporarily blocked for excessive historical queries.",
-              retry_after_seconds: Math.ceil(
-                (tracker.blockedUntil - now) / 1000
-              ),
+              retry_after_seconds: remainingSeconds,
               recommendation:
                 "Use Analytics API for bulk historical data access",
               analytics_endpoint:
