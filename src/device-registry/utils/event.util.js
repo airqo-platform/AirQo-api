@@ -6,6 +6,7 @@ const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
+const crypto = require("crypto");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
 const {
   logObject,
@@ -23,6 +24,7 @@ const {
   translate,
   stringify,
   ActivityLogger,
+  throttleUtil,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
@@ -1160,6 +1162,30 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
 const historicalQueryTracker = new Map();
 const MAX_HISTORICAL_PER_MINUTE = 5;
 const BLOCK_DURATION = 5 * 60 * 1000; // 5 minutes
+const MAX_AGE_DAYS = 180; // 6 months
+
+const generateClientFingerprint = (request) => {
+  const rawId =
+    request.headers["x-api-key"] ||
+    (request.headers["authorization"] || "").replace(/^Bearer\s+/i, "") ||
+    request.ip ||
+    "unknown";
+
+  const secret =
+    process.env.LOG_FINGERPRINT_SECRET ||
+    "airqo_default_salt_change_in_production";
+
+  // CodeQL false positive: This generates request fingerprints (like JWT signing),
+  // NOT password hashing. HMAC-SHA256 is correct and standard for this use case.
+  // Using PBKDF2 would add 100ms per request and solve nothing.
+  // lgtm[js/insufficient-password-hash]
+
+  return crypto
+    .createHmac("sha256", secret)
+    .update(String(rawId))
+    .digest("hex")
+    .slice(0, 16);
+};
 
 // Cleanup old entries every 10 minutes
 setInterval(() => {
@@ -1535,44 +1561,97 @@ const createEvent = {
       const { query } = request;
       let { limit, skip, recent } = query;
       const isHistorical = isHistoricalMeasurement(request);
+      const tenant = query.tenant || constants.DEFAULT_TENANT || "airqo";
 
-      // 🚨 EMERGENCY: Block abusive historical queries IMMEDIATELY
+      if (isHistorical && (query.startTime || query.endTime)) {
+        const start = query.startTime ? new Date(query.startTime) : null;
+        const end = query.endTime ? new Date(query.endTime) : null;
+
+        const earliest =
+          start && end
+            ? new Date(Math.min(start.getTime(), end.getTime()))
+            : start || end;
+
+        if (earliest && !Number.isNaN(earliest.getTime())) {
+          const ageInDays = Math.floor(
+            (Date.now() - earliest.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          if (ageInDays > MAX_AGE_DAYS) {
+            const ageInYears = (ageInDays / 365).toFixed(1);
+            const clientFingerprint = generateClientFingerprint(request);
+            const earliestDateString = earliest.toISOString().split("T")[0];
+            const cutoffDateString = new Date(
+              Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+            )
+              .toISOString()
+              .split("T")[0];
+
+            const shouldLog = await throttleUtil.shouldLogAncientQuery(
+              clientFingerprint,
+              tenant
+            );
+
+            if (shouldLog) {
+              logger.error(
+                `🚫 ANCIENT DATA BLOCKED | client=${clientFingerprint} | ` +
+                  `Earliest date: ${earliestDateString} (${ageInYears}y ago, ${ageInDays}d)`
+              );
+            }
+
+            return {
+              success: false,
+              status: httpStatus.BAD_REQUEST,
+              message:
+                "Query date too old. Data older than 6 months is not available via this endpoint.",
+              errors: {
+                message: `Query includes data from ${earliestDateString} (${ageInYears} years old, ${ageInDays} days old).`,
+                oldest_supported: "6 months (180 days) from current date",
+                query_age_days: ageInDays,
+                current_cutoff_date: cutoffDateString,
+                recommendation:
+                  "Use Analytics API for historical data older than 6 months",
+                analytics_endpoint:
+                  "https://api.airqo.net/api/v3/public/analytics/data-download",
+                analytics_docs:
+                  "https://docs.airqo.net/airqo-rest-api-documentation/analytics-api",
+                support_email: "support@airqo.net",
+              },
+            };
+          }
+        }
+      }
+
       if (isHistorical) {
-        const clientId =
-          (request.headers["x-api-key"] || "").slice(-8) ||
-          (request.headers["authorization"] || "").slice(-8) ||
-          request.ip ||
-          request.connection?.remoteAddress ||
-          "unknown";
+        const clientId = generateClientFingerprint(request);
 
         const now = Date.now();
-        const tracker = historicalQueryTracker.get(clientId) || {
-          count: 0,
-          windowStart: now,
-          blockedUntil: 0,
-          firstSeen: now,
-        };
-
-        // Log every historical query attempt for investigation
-        logger.warn(
-          `📊 HISTORICAL QUERY: Client=${clientId} | Count=${tracker.count}/${MAX_HISTORICAL_PER_MINUTE} | ` +
-            `IP=${request.ip} | Tenant=${query.tenant} | ` +
-            `UserAgent=${(request.headers["user-agent"] || "").substring(
-              0,
-              60
-            )} | ` +
-            `StartTime=${query.startTime} | EndTime=${query.endTime}`
+        const tracker = await throttleUtil.getRateLimitTracker(
+          clientId,
+          tenant
         );
 
-        // Check if client is currently blocked
+        if (tracker.count < MAX_HISTORICAL_PER_MINUTE) {
+          const currentCount = tracker.count + 1;
+          logger.info(
+            `📊 Historical query ${currentCount}/${MAX_HISTORICAL_PER_MINUTE} | client=${clientId}`
+          );
+        }
+
         if (tracker.blockedUntil > now) {
           const remainingSeconds = Math.ceil(
             (tracker.blockedUntil - now) / 1000
           );
-          logger.error(
-            `🚫 BLOCKED ATTEMPT: ${clientId} trying to query while blocked | ` +
-              `${remainingSeconds}s remaining | IP=${request.ip}`
+          const shouldLog = await throttleUtil.shouldLogBlockAttempt(
+            clientId,
+            tenant
           );
+
+          if (shouldLog) {
+            logger.error(
+              `🚫 RATE LIMITED | client=${clientId} | ${remainingSeconds}s remaining`
+            );
+          }
 
           return {
             success: false,
@@ -1582,47 +1661,27 @@ const createEvent = {
               message:
                 "Your client has been temporarily blocked for excessive historical queries.",
               retry_after_seconds: remainingSeconds,
-              blocked_until: new Date(tracker.blockedUntil).toISOString(),
-              reason: `Exceeded limit of ${MAX_HISTORICAL_PER_MINUTE} historical queries per minute`,
-              recommendation: "Use Analytics API for historical data access",
+              recommendation:
+                "Use Analytics API for bulk historical data access",
               analytics_endpoint:
                 "https://api.airqo.net/api/v3/public/analytics/data-download",
-              analytics_docs:
-                "https://docs.airqo.net/airqo-rest-api-documentation/analytics-api",
             },
           };
         }
 
-        // Reset window if 1 minute has passed
         if (now - tracker.windowStart > 60000) {
-          logger.info(
-            `🔄 Resetting window for ${clientId} (previous count: ${tracker.count})`
-          );
           tracker.count = 0;
           tracker.windowStart = now;
         }
 
         tracker.count++;
 
-        // Check if limit exceeded
         if (tracker.count > MAX_HISTORICAL_PER_MINUTE) {
           tracker.blockedUntil = now + BLOCK_DURATION;
-          historicalQueryTracker.set(clientId, tracker);
+          await throttleUtil.setRateLimitTracker(clientId, tracker, tenant);
 
           logger.error(
-            `🚨🚨🚨 EMERGENCY BLOCK ACTIVATED 🚨🚨🚨\n` +
-              `Client: ${clientId}\n` +
-              `IP: ${request.ip}\n` +
-              `Queries: ${tracker.count} in 1 minute (limit: ${MAX_HISTORICAL_PER_MINUTE})\n` +
-              `Blocked for: 5 minutes\n` +
-              `User-Agent: ${request.headers["user-agent"]}\n` +
-              `API Key: ${
-                request.headers["x-api-key"]
-                  ? "***" + request.headers["x-api-key"].slice(-4)
-                  : "none"
-              }\n` +
-              `Tenant: ${query.tenant}\n` +
-              `Query: startTime=${query.startTime}, endTime=${query.endTime}`
+            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=5m`
           );
 
           return {
@@ -1633,25 +1692,13 @@ const createEvent = {
             errors: {
               message: `Rate limit exceeded: ${tracker.count} historical queries in 1 minute. Maximum allowed: ${MAX_HISTORICAL_PER_MINUTE}.`,
               blocked_for_seconds: 300,
-              blocked_until: new Date(tracker.blockedUntil).toISOString(),
-              your_client_id: clientId.substring(0, 8) + "...",
-              your_ip: request.ip,
-              recommendation:
-                "For historical data analysis, please use our Analytics API which is optimized for large date ranges",
               analytics_endpoint:
                 "https://api.airqo.net/api/v3/public/analytics/data-download",
-              contact_support:
-                "If this is a legitimate use case, please contact support@airqo.net",
             },
           };
         }
 
-        historicalQueryTracker.set(clientId, tracker);
-
-        logger.info(
-          `✅ Historical query allowed: ${clientId} | ` +
-            `Count: ${tracker.count}/${MAX_HISTORICAL_PER_MINUTE}`
-        );
+        await throttleUtil.setRateLimitTracker(clientId, tracker, tenant);
       }
 
       limit = Number(limit);
@@ -1665,7 +1712,6 @@ const createEvent = {
         skip = 0;
       }
 
-      const { tenant } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
 
@@ -1676,8 +1722,6 @@ const createEvent = {
       );
 
       const filter = generateFilter.events(request, next);
-
-      // Add historical flag to filter
       filter.isHistorical = isHistorical;
 
       try {
@@ -1711,18 +1755,16 @@ const createEvent = {
 
       if (!responseFromListEvents) {
         logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
-        return next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "Error retrieving events from the database",
-            }
-          )
-        );
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: "Error retrieving events from the database",
+          },
+        };
       }
 
-      // Only do translation for non-historical data
       if (
         !isHistorical &&
         language !== undefined &&
@@ -1784,13 +1826,12 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   listFromReadings: async (request, next) => {

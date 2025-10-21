@@ -26,9 +26,11 @@ const { getUptimeAccuracyUpdateObject } = require("./uptime.util");
 const claimTokenUtil = require("./claimToken.util");
 const { deduplicator } = require("./slack-dedup-utility");
 const ActivityLogger = require("./activity-logger.util");
+const throttleUtil = require("./throttle.util");
 
 module.exports = {
   claimTokenUtil,
+  throttleUtil,
   ActivityLogger,
   getUptimeAccuracyUpdateObject,
   deduplicator,
