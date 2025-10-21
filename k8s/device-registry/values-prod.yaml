@@ -3,22 +3,69 @@ app:
   label: device-reg-api
   namespace: production
   configmap: env-device-registry-production
-replicaCount: 3
+
+replicaCount: 4 # Increased from 3 for better load distribution
+
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-registry-api
   tag: prod-8f262e7d-1761041486
-nameOverride: ''
-fullnameOverride: ''
+
+nameOverride: ""
+fullnameOverride: ""
+
 podAnnotations: {}
+
 resources:
   limits:
-    cpu: 200m
-    memory: 1500Mi
+    cpu: 2000m # Increased from 200m (10x) - allows 2 full cores
+    memory: 2Gi # Increased from 1500Mi for safety
   requests:
-    cpu: 10m
-    memory: 700Mi
+    cpu: 500m # Increased from 10m (50x) - realistic baseline
+    memory: 1Gi # Increased from 700Mi - better scheduling
+
+# Add health checks
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# Add startup probe for slow starts
+startupProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 30 # 150 seconds total startup time allowed
+
+# Graceful shutdown
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 15"] # Give time for connections to drain
+
+terminationGracePeriodSeconds: 30 # Allow time for graceful shutdown
+
 nodeSelector:
   role: moderate-usage
+
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
@@ -29,23 +76,78 @@ affinity:
               values:
                 - moderate-usage
         weight: 1
+  # Spread pods across nodes
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - device-reg-api
+          topologyKey: kubernetes.io/hostname
+
 priorityClassName: high-priority
+
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
+
 volumes:
   - name: config-volume
     configMap:
       name: device-registry-config-files
+
 ingress:
   enabled: false
+
 service:
   type: NodePort
   port: 3000
   protocol: TCP
   targetPort: 3000
   nodePort: 30002
+
 autoscaling:
-  minReplicas: 1
-  maxReplicas: 3
-  targetMemoryUtilizationPercentage: 70
+  enabled: true # Explicitly enable
+  minReplicas: 3 # Increased from 1
+  maxReplicas: 10 # Increased from 3 - allows scaling during attacks
+  metrics: # Multiple scaling triggers
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70 # Scale when CPU > 70%
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80 # Scale when memory > 80%
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2 # Always keep at least 2 pods running
+
+# Resource quotas (add to namespace)
+# Create separately: kubectl apply -f namespace-quota.yaml
+# resourceQuota:
+#   hard:
+#     requests.cpu: "10"
+#     requests.memory: "20Gi"
+#     limits.cpu: "20"
+#     limits.memory: "40Gi"
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false # Set true if possible
