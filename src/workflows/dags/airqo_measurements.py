@@ -11,6 +11,7 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.data_api import DataApi
 from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
     airqo_historical_hourly_measurements_doc,
@@ -43,8 +44,6 @@ from airqo_etl_utils.date import date_to_str_hours
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_historical_hourly_measurements():
-    from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
     @task(
         doc_md=extract_historical_device_measurements_doc,
         provide_context=True,
@@ -165,8 +164,6 @@ def airqo_historical_hourly_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_historical_raw_measurements():
-    import pandas as pd
-
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs):
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -188,14 +185,10 @@ def airqo_historical_raw_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_device_deployment_logs():
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         return AirQoDataUtils.extract_devices_deployment_logs()
 
     @task()
     def map_site_ids(airqo_data: pd.DataFrame, deployment_logs: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         return AirQoDataUtils.map_site_ids_to_historical_data(
             data=airqo_data, deployment_logs=deployment_logs
         )
@@ -230,8 +223,6 @@ def airqo_historical_raw_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_cleanup_measurements():
-    import pandas as pd
-
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -326,8 +317,6 @@ def airqo_cleanup_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_realtime_measurements():
-    import pandas as pd
-
     @task(
         doc_md=extract_raw_airqo_data_doc,
         provide_context=True,
@@ -371,14 +360,10 @@ def airqo_realtime_measurements():
 
     @task()
     def aggregate(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         return DataUtils.aggregate_low_cost_sensors_data(data=data)
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(**kwargs):
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
 
@@ -396,8 +381,6 @@ def airqo_realtime_measurements():
 
     @task()
     def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         return AirQoDataUtils.merge_aggregated_weather_data(
             averaged_hourly_data, weather_data=weather_data
         )
@@ -415,8 +398,6 @@ def airqo_realtime_measurements():
 
     @task()
     def calibrate(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         return AirQoDataUtils.calibrate_data(data=data, groupby="country")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -462,7 +443,6 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
         data = AirQoDataUtils.process_latest_data(
@@ -508,8 +488,6 @@ def airqo_realtime_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_raw_data_measurements():
-    import pandas as pd
-
     @task(
         doc_md=extract_raw_airqo_data_doc,
         provide_context=True,
@@ -565,8 +543,6 @@ def airqo_raw_data_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_gaseous_realtime_measurements():
-    import pandas as pd
-
     @task(
         doc_md=extract_raw_airqo_gaseous_data_doc,
         provide_context=True,
@@ -622,7 +598,6 @@ def airqo_gaseous_realtime_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_bigquery_data_measurements_to_api():
-    import pandas as pd
     from airflow.models import Variable
 
     @task(
@@ -681,8 +656,6 @@ def airqo_bigquery_data_measurements_to_api():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def calibrate_missing_measurements():
-    import pandas as pd
-
     @task(
         doc_md=extract_devices_missing_calibrated_data_doc,
         provide_context=True,
@@ -694,13 +667,59 @@ def calibrate_missing_measurements():
         start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%SZ").strftime(
             "%Y-%m-%d"
         )
-        devices = AirQoDataUtils.extract_devices_with_uncalibrated_data(start_date)
+        devices = AirQoDataUtils.extract_devices_with_missing_data(
+            start_date=start_date
+        )
         return devices
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def extract_calibrate_data(devices: pd.DataFrame) -> list:
-        calibrated_data = AirQoDataUtils.extract_aggregate_calibrate_raw_data(devices)
-        return calibrated_data
+    def extract_raw_data(devices: pd.DataFrame) -> Tuple[pd.DataFrame, str, str]:
+        return AirQoDataUtils.extract_raw_device_data(devices=devices)
+
+    @task()
+    def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
+        return DataUtils.clean_low_cost_sensor_data(
+            data=data,
+            device_category=DeviceCategory.LOWCOST,
+            data_type=DataType.RAW,
+            frequency=Frequency.HOURLY,
+        )
+
+    @task()
+    def aggregate(data: pd.DataFrame):
+        return DataUtils.aggregate_low_cost_sensors_data(data=data)
+
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    def extract_hourly_weather_data(start_date: str, end_date: str, **kwargs):
+        start_date_time = DateUtils.format_datetime_by_unit_str(
+            start_date, "hours_start"
+        )
+        end_date_time = DateUtils.format_datetime_by_unit_str(end_date, "hours_end")
+
+        weather_data = WeatherDataUtils.extract_weather_data(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            remove_outliers=False,
+        )
+        return weather_data
+
+    @task()
+    def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
+        return AirQoDataUtils.merge_aggregated_weather_data(
+            averaged_hourly_data, weather_data=weather_data
+        )
+
+    @task()
+    def calibrate(device_data: pd.DataFrame, device_measurements: pd.DataFrame):
+        filtered_data = pd.merge(
+            device_measurements,
+            device_data[["device_id", "timestamp"]],
+            on=["device_id", "timestamp"],
+            how="inner",
+        )
+        return AirQoDataUtils.calibrate_data(data=filtered_data, groupby="country")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_bigquery(
@@ -716,6 +735,15 @@ def calibrate_missing_measurements():
         big_query_api.load_data(dataframe=data, table=table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
+    def send_raw_measurements_to_bigquery(data: pd.DataFrame):
+
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(data, table=table)
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(calibrated_data: pd.DataFrame) -> None:
         data_api = DataApi()
         data = DataUtils.process_data_for_api(
@@ -724,8 +752,17 @@ def calibrate_missing_measurements():
         data_api.save_events(measurements=data)
 
     devices = extract_devices_missing_calibrated_data()
-    calibrated_data = extract_calibrate_data(devices)
+    raw_data_return = extract_raw_data(devices)
+    raw_data = raw_data_return[0]
+    start_date = raw_data_return[1]
+    end_date = raw_data_return[2]
+    cleaned_raw_data = clean_data_raw_data(raw_data)
+    aggregated_data = aggregate(cleaned_raw_data)
+    weather_data = extract_hourly_weather_data(start_date=start_date, end_date=end_date)
+    merged_data = merge_data(aggregated_data, weather_data)
+    calibrated_data = calibrate(devices, merged_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
+    send_raw_measurements_to_bigquery(cleaned_raw_data)
     send_hourly_measurements_to_api(calibrated_data)
 
 
