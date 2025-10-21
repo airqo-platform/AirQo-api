@@ -752,7 +752,10 @@ def calibrate_missing_measurements():
         data_api.save_events(measurements=data)
 
     devices = extract_devices_missing_calibrated_data()
-    raw_data, start_date, end_date = extract_raw_data(devices)
+    raw_data_return = extract_raw_data(devices)
+    raw_data = raw_data_return[0]
+    start_date = raw_data_return[1]
+    end_date = raw_data_return[2]
     cleaned_raw_data = clean_data_raw_data(raw_data)
     aggregated_data = aggregate(cleaned_raw_data)
     weather_data = extract_hourly_weather_data(start_date=start_date, end_date=end_date)
