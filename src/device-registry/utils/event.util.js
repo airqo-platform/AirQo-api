@@ -1175,6 +1175,11 @@ const generateClientFingerprint = (request) => {
     process.env.LOG_FINGERPRINT_SECRET ||
     "airqo_default_salt_change_in_production";
 
+  // CodeQL false positive: This generates request fingerprints (like JWT signing),
+  // NOT password hashing. HMAC-SHA256 is correct and standard for this use case.
+  // Using PBKDF2 would add 100ms per request and solve nothing.
+  // lgtm[js/insufficient-password-hash]
+
   return crypto
     .createHmac("sha256", secret)
     .update(String(rawId))
