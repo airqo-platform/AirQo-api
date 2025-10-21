@@ -540,6 +540,51 @@ const processAirQloudIds = async (airqloud_ids, request) => {
   }
 };
 
+// Add this right after the handleResponse function in event.controller.js
+
+/**
+ * Enhanced error response handler that preserves backward compatibility
+ * while adding helpful guidance fields when present
+ * @param {Object} result - Result object from util function
+ * @param {Object} res - Express response object
+ * @returns {Object} - Express response
+ */
+function handleEnhancedErrorResponse(result, res) {
+  const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+
+  // Core error response (backward compatible)
+  const errorResponse = {
+    success: false,
+    message: result.message,
+    errors: result.errors || { message: "" },
+  };
+
+  // Add enhanced fields if present (forward compatible)
+  if (result.analytics_recommendation) {
+    errorResponse.analytics_recommendation = result.analytics_recommendation;
+  }
+
+  if (result.access_information) {
+    errorResponse.access_information = result.access_information;
+  }
+
+  // Include any other custom fields from result (future-proof)
+  for (const key in result) {
+    if (
+      key !== "success" &&
+      key !== "message" &&
+      key !== "errors" &&
+      key !== "status" &&
+      key !== "analytics_recommendation" &&
+      key !== "access_information"
+    ) {
+      errorResponse[key] = result[key];
+    }
+  }
+
+  return res.status(errorStatus).json(errorResponse);
+}
+
 const createEvent = {
   addValues: async (req, res, next) => {
     try {
@@ -889,8 +934,10 @@ const createEvent = {
       if (isEmpty(result) || res.headersSent) {
         return;
       }
+
       logObject("the result for listing events", result);
       const status = result.status || httpStatus.OK;
+
       if (result.success === true) {
         res.status(status).json({
           success: true,
@@ -900,12 +947,7 @@ const createEvent = {
           measurements: result.data[0].data,
         });
       } else {
-        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(errorStatus).json({
-          success: false,
-          errors: result.errors || { message: "" },
-          message: result.message,
-        });
+        return handleEnhancedErrorResponse(result, res);
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1340,15 +1382,8 @@ const createEvent = {
           meta: result.data[0].meta,
           measurements: result.data[0].data,
         });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          errors: result.errors ? result.errors : { message: "" },
-          message: result.message,
-        });
+      } else {
+        return handleEnhancedErrorResponse(result, res);
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1421,16 +1456,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -1509,16 +1536,8 @@ const createEvent = {
             message: result.message,
             measurements: result.data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -1552,7 +1571,6 @@ const createEvent = {
       }
 
       const request = req;
-      // Security: Prevent public requests from setting internal flag
       delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -1597,16 +1615,8 @@ const createEvent = {
             message: result.message,
             measurements: result.data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -1640,7 +1650,6 @@ const createEvent = {
       }
 
       const request = req;
-      // Security: Prevent public requests from setting internal flag
       delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -1685,16 +1694,8 @@ const createEvent = {
             message: result.message,
             measurements: result.data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -1768,16 +1769,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -2568,7 +2561,6 @@ const createEvent = {
       }
 
       const request = req;
-      // Security: Prevent public requests from setting internal flag
       delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -2607,15 +2599,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -2688,15 +2673,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -2771,15 +2749,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -2813,7 +2784,6 @@ const createEvent = {
       }
 
       const request = req;
-      // Security: Prevent public requests from setting internal flag
       delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -2853,15 +2823,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -2895,7 +2858,6 @@ const createEvent = {
       }
 
       const request = req;
-      // Security: Prevent public requests from setting internal flag
       delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -2936,15 +2898,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -3019,15 +2974,8 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
+        } else {
+          return handleEnhancedErrorResponse(result, res);
         }
       } else {
         res.status(httpStatus.BAD_REQUEST).json({

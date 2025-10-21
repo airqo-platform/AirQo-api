@@ -8,6 +8,11 @@ const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
 const {
+  analyzeHistoricalQuery,
+  generateAnalyticsAPIResponse,
+} = require("@utils/readings/historical-handler.util");
+
+const {
   logObject,
   logText,
   logElement,
@@ -1535,15 +1540,55 @@ const createEvent = {
       let page = parseInt(query.page);
       const language = request.query.language;
 
+      const filter = generateFilter.events(request, next);
+      filter.isHistorical = isHistorical;
+
+      // SINGLE historical analysis - do it once upfront
+      let historicalAnalysis = null;
+      if (isHistorical) {
+        historicalAnalysis = analyzeHistoricalQuery(filter);
+
+        // Enhanced logging with age-based metrics
+        logText(
+          `📊 Query Analysis: Age=${historicalAnalysis.dataAgeInDays}d (${(
+            historicalAnalysis.dataAgeInDays / 365
+          ).toFixed(1)}y) | ` +
+            `Range=${historicalAnalysis.rangeInDays}d | Strategy=${historicalAnalysis.strategy} | ` +
+            `Est=${historicalAnalysis.estimatedTime}`
+        );
+
+        // Block extremely old queries immediately (before cache/fetch)
+        if (historicalAnalysis.strategy === "REQUIRE_ANALYTICS") {
+          logText(
+            `🚫 Blocking very old query (${(
+              historicalAnalysis.dataAgeInDays / 365
+            ).toFixed(1)} years old) - ` + `redirecting to Analytics API`
+          );
+          return generateAnalyticsAPIResponse(request, historicalAnalysis);
+        }
+
+        // Warn about old data queries
+        if (
+          historicalAnalysis.strategy === "SUGGEST_ANALYTICS" ||
+          historicalAnalysis.strategy === "PROCESS_WITH_WARNING"
+        ) {
+          logText(
+            `⚠️ Processing old data query (${historicalAnalysis.dataAgeInDays} days ago, ` +
+              `${(historicalAnalysis.dataAgeInDays / 365).toFixed(
+                1
+              )} years) - ` +
+              `may be slow (est: ${historicalAnalysis.estimatedTime}), recommending Analytics API`
+          );
+        }
+      }
+
       logText(
         isHistorical
           ? "Using optimized historical data query"
           : "Using standard data query with intelligent routing"
       );
 
-      const filter = generateFilter.events(request, next);
-      filter.isHistorical = isHistorical;
-
+      // Cache check
       try {
         const cacheResult = await createEvent.handleCacheOperation(
           "get",
@@ -1563,7 +1608,10 @@ const createEvent = {
         skip = parseInt((page - 1) * limit);
       }
 
-      // **PASS LIMIT AND SKIP EXPLICITLY**
+      // ✅ Track query performance
+      const queryStartTime = Date.now();
+
+      // Fetch data
       const responseFromListEvents = await intelligentFetch(
         tenant,
         filter,
@@ -1572,10 +1620,34 @@ const createEvent = {
         page
       );
 
+      // ✅ Alert if blocker failed
+      if (isHistorical) {
+        const queryDuration = (Date.now() - queryStartTime) / 1000;
+
+        if (queryDuration > 10) {
+          logger.error(
+            `🚨 BLOCKER BYPASS ALERT: Historical query took ${queryDuration.toFixed(
+              2
+            )}s! ` +
+              `Age=${historicalAnalysis?.dataAgeInDays}d | ` +
+              `Strategy=${historicalAnalysis?.strategy} | ` +
+              `This should have been blocked!`
+          );
+        } else if (
+          historicalAnalysis &&
+          historicalAnalysis.dataAgeInDays > 90
+        ) {
+          logger.info(
+            `✅ Old query processed in ${queryDuration.toFixed(2)}s ` +
+              `(Age=${historicalAnalysis.dataAgeInDays}d, ${(
+                historicalAnalysis.dataAgeInDays / 365
+              ).toFixed(1)}y)`
+          );
+        }
+      }
+
       if (!responseFromListEvents) {
-        logger.error(
-          "Failed to retrieve data from intelligent routing system: intelligentFetch returned null or undefined."
-        );
+        logger.error(`🐛🐛 intelligentFetch returned null or undefined`);
         return next(
           new HttpError(
             "Internal Server Error",
@@ -1587,7 +1659,7 @@ const createEvent = {
         );
       }
 
-      // Translation logic (unchanged)
+      // Translation for recent data only
       if (
         !isHistorical &&
         language !== undefined &&
@@ -1610,6 +1682,33 @@ const createEvent = {
       if (responseFromListEvents.success === true) {
         const data = responseFromListEvents.data;
         data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
+
+        // Add Analytics API recommendation for old data queries
+        if (
+          isHistorical &&
+          historicalAnalysis &&
+          (historicalAnalysis.strategy === "SUGGEST_ANALYTICS" ||
+            historicalAnalysis.strategy === "PROCESS_WITH_WARNING")
+        ) {
+          const analyticsInfo = generateAnalyticsAPIResponse(
+            request,
+            historicalAnalysis
+          );
+
+          // Add recommendation to the response meta
+          if (data[0].meta) {
+            data[0].meta.analytics_recommendation =
+              analyticsInfo.analytics_recommendation;
+            data[0].meta.query_performance = {
+              data_age_days: historicalAnalysis.dataAgeInDays,
+              data_age_years: (historicalAnalysis.dataAgeInDays / 365).toFixed(
+                1
+              ),
+              estimated_time: historicalAnalysis.estimatedTime,
+              query_strategy: historicalAnalysis.strategy,
+            };
+          }
+        }
 
         logText("Setting cache...");
 

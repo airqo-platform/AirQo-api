@@ -9,7 +9,7 @@ const devConfig = {
   PRECOMPUTE_ACTIVITIES_JOB_ENABLED:
     process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== "false",
   API_TOKEN: process.env.DEV_API_TOKEN,
-  API_BASE_URL: process.env.DEV_API_BASE_URL,
+  API_BASE_URL: process.env.DEV_API_BASE_URL || "http://localhost:3000",
   DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_DEV,
   COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_DEV,

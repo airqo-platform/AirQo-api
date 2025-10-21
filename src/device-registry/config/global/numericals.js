@@ -15,6 +15,12 @@ const numericals = {
   CACHE_TIMEOUT_PERIOD: 10000,
   MAX_EVENT_AGE_HOURS: 6, // Only accept events from last 6 hours
   MAX_REJECTED_LOGS: 10,
+  HISTORICAL_AGE_THRESHOLDS: {
+    RECENT: process.env.HISTORICAL_RECENT_DAYS || 14, // 2 weeks
+    ACCEPTABLE: process.env.HISTORICAL_ACCEPTABLE_DAYS || 90, // 3 months
+    SLOW: process.env.HISTORICAL_SLOW_DAYS || 365, // 1 year
+    REDIRECT: process.env.HISTORICAL_REDIRECT_DAYS || 730, // 2 years
+  },
 };
 
 numericals.MAX_EVENT_AGE_MS = numericals.MAX_EVENT_AGE_HOURS * 60 * 60 * 1000;

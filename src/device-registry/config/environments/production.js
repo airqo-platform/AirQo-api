@@ -9,7 +9,7 @@ const prodConfig = {
   PRECOMPUTE_ACTIVITIES_JOB_ENABLED:
     process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED !== "false",
   API_TOKEN: process.env.PROD_API_TOKEN,
-  API_BASE_URL: process.env.PROD_API_BASE_URL,
+  API_BASE_URL: process.env.PROD_API_BASE_URL || "https://api.airqo.net",
   DEFAULT_COHORT: process.env.PROD_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_PROD,
   COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_PROD,
