@@ -1156,6 +1156,22 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
   }
 };
 
+// 🚨 EMERGENCY RATE LIMITER - Added Oct 21, 2025 for DDoS mitigation
+const historicalQueryTracker = new Map();
+const MAX_HISTORICAL_PER_MINUTE = 5;
+const BLOCK_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Cleanup old entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, tracker] of historicalQueryTracker.entries()) {
+    if (tracker.blockedUntil < now && now - tracker.windowStart > 600000) {
+      historicalQueryTracker.delete(key);
+      logger.info(`🧹 Cleaned up tracker for ${key}`);
+    }
+  }
+}, 10 * 60 * 1000);
+
 const createEvent = {
   processGridIds,
   processCohortIds,
@@ -1519,6 +1535,124 @@ const createEvent = {
       const { query } = request;
       let { limit, skip, recent } = query;
       const isHistorical = isHistoricalMeasurement(request);
+
+      // 🚨 EMERGENCY: Block abusive historical queries IMMEDIATELY
+      if (isHistorical) {
+        const clientId =
+          (request.headers["x-api-key"] || "").slice(-8) ||
+          (request.headers["authorization"] || "").slice(-8) ||
+          request.ip ||
+          request.connection?.remoteAddress ||
+          "unknown";
+
+        const now = Date.now();
+        const tracker = historicalQueryTracker.get(clientId) || {
+          count: 0,
+          windowStart: now,
+          blockedUntil: 0,
+          firstSeen: now,
+        };
+
+        // Log every historical query attempt for investigation
+        logger.warn(
+          `📊 HISTORICAL QUERY: Client=${clientId} | Count=${tracker.count}/${MAX_HISTORICAL_PER_MINUTE} | ` +
+            `IP=${request.ip} | Tenant=${query.tenant} | ` +
+            `UserAgent=${(request.headers["user-agent"] || "").substring(
+              0,
+              60
+            )} | ` +
+            `StartTime=${query.startTime} | EndTime=${query.endTime}`
+        );
+
+        // Check if client is currently blocked
+        if (tracker.blockedUntil > now) {
+          const remainingSeconds = Math.ceil(
+            (tracker.blockedUntil - now) / 1000
+          );
+          logger.error(
+            `🚫 BLOCKED ATTEMPT: ${clientId} trying to query while blocked | ` +
+              `${remainingSeconds}s remaining | IP=${request.ip}`
+          );
+
+          return {
+            success: false,
+            status: httpStatus.TOO_MANY_REQUESTS,
+            message: "Too many historical queries. Rate limit exceeded.",
+            errors: {
+              message:
+                "Your client has been temporarily blocked for excessive historical queries.",
+              retry_after_seconds: remainingSeconds,
+              blocked_until: new Date(tracker.blockedUntil).toISOString(),
+              reason: `Exceeded limit of ${MAX_HISTORICAL_PER_MINUTE} historical queries per minute`,
+              recommendation: "Use Analytics API for historical data access",
+              analytics_endpoint:
+                "https://api.airqo.net/api/v3/public/analytics/data-download",
+              analytics_docs:
+                "https://docs.airqo.net/airqo-rest-api-documentation/analytics-api",
+            },
+          };
+        }
+
+        // Reset window if 1 minute has passed
+        if (now - tracker.windowStart > 60000) {
+          logger.info(
+            `🔄 Resetting window for ${clientId} (previous count: ${tracker.count})`
+          );
+          tracker.count = 0;
+          tracker.windowStart = now;
+        }
+
+        tracker.count++;
+
+        // Check if limit exceeded
+        if (tracker.count > MAX_HISTORICAL_PER_MINUTE) {
+          tracker.blockedUntil = now + BLOCK_DURATION;
+          historicalQueryTracker.set(clientId, tracker);
+
+          logger.error(
+            `🚨🚨🚨 EMERGENCY BLOCK ACTIVATED 🚨🚨🚨\n` +
+              `Client: ${clientId}\n` +
+              `IP: ${request.ip}\n` +
+              `Queries: ${tracker.count} in 1 minute (limit: ${MAX_HISTORICAL_PER_MINUTE})\n` +
+              `Blocked for: 5 minutes\n` +
+              `User-Agent: ${request.headers["user-agent"]}\n` +
+              `API Key: ${
+                request.headers["x-api-key"]
+                  ? "***" + request.headers["x-api-key"].slice(-4)
+                  : "none"
+              }\n` +
+              `Tenant: ${query.tenant}\n` +
+              `Query: startTime=${query.startTime}, endTime=${query.endTime}`
+          );
+
+          return {
+            success: false,
+            status: httpStatus.TOO_MANY_REQUESTS,
+            message:
+              "Emergency rate limit triggered. Too many historical queries.",
+            errors: {
+              message: `Rate limit exceeded: ${tracker.count} historical queries in 1 minute. Maximum allowed: ${MAX_HISTORICAL_PER_MINUTE}.`,
+              blocked_for_seconds: 300,
+              blocked_until: new Date(tracker.blockedUntil).toISOString(),
+              your_client_id: clientId.substring(0, 8) + "...",
+              your_ip: request.ip,
+              recommendation:
+                "For historical data analysis, please use our Analytics API which is optimized for large date ranges",
+              analytics_endpoint:
+                "https://api.airqo.net/api/v3/public/analytics/data-download",
+              contact_support:
+                "If this is a legitimate use case, please contact support@airqo.net",
+            },
+          };
+        }
+
+        historicalQueryTracker.set(clientId, tracker);
+
+        logger.info(
+          `✅ Historical query allowed: ${clientId} | ` +
+            `Count: ${tracker.count}/${MAX_HISTORICAL_PER_MINUTE}`
+        );
+      }
 
       limit = Number(limit);
       skip = Number(skip);
@@ -1912,10 +2046,39 @@ const createEvent = {
         query: { tenant, language, recent },
       } = request;
 
-      // if (recent === "yes") {
-      //   logText("Routing recent view query to optimized Readings collection");
-      //   return await createEvent.viewFromReadings(request, next);
-      // }
+      // 🚨 OPTIONAL: Add rate limiting to view if it's also being abused
+      // For now, view doesn't check isHistorical, so may not need it
+      // Uncomment if view is also getting hammered:
+      /*
+    const isHistorical = isHistoricalMeasurement(request);
+    if (isHistorical) {
+      const clientId = 
+        (request.headers['x-api-key'] || '').slice(-8) || 
+        (request.headers['authorization'] || '').slice(-8) || 
+        request.ip || 
+        'unknown';
+      
+      const now = Date.now();
+      const tracker = historicalQueryTracker.get(clientId) || { 
+        count: 0, 
+        windowStart: now,
+        blockedUntil: 0
+      };
+      
+      if (tracker.blockedUntil > now) {
+        logger.error(`🚫 VIEW BLOCKED: ${clientId}`);
+        return {
+          success: false,
+          status: httpStatus.TOO_MANY_REQUESTS,
+          message: "Too many historical queries. Rate limit exceeded.",
+          errors: { 
+            message: "Your client is temporarily blocked.",
+            retry_after_seconds: Math.ceil((tracker.blockedUntil - now) / 1000)
+          }
+        };
+      }
+    }
+    */
 
       const filter = generateFilter.readings(request, next);
 
