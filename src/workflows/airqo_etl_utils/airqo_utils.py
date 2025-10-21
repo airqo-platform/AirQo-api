@@ -1169,7 +1169,7 @@ class AirQoDataUtils:
         devices = devices.dropna(subset=["device_id", "timestamp"])
 
         if devices.empty:
-            return pd.DataFrame()
+            return pd.DataFrame(), None, None
 
         # Use optimized approach single batch operation instead of nested loops with multiple API calls
         start_date = devices["timestamp"].min()
