@@ -4,7 +4,8 @@ app:
   namespace: production
   configmap: env-device-registry-production
 
-replicaCount: 4 # Increased from 3 for better load distribution
+#  Set to match minReplicas (HPA will manage this)
+replicaCount: 3 # Matches minReplicas - HPA controls actual count
 
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-registry-api
@@ -17,13 +18,13 @@ podAnnotations: {}
 
 resources:
   limits:
-    cpu: 2000m # Increased from 200m (10x) - allows 2 full cores
-    memory: 2Gi # Increased from 1500Mi for safety
+    cpu: 2000m # 10x increase from 200m
+    memory: 2Gi # Increased for safety
   requests:
-    cpu: 500m # Increased from 10m (50x) - realistic baseline
-    memory: 1Gi # Increased from 700Mi - better scheduling
+    cpu: 500m # 50x increase from 10m
+    memory: 1Gi # Realistic baseline
 
-# Add health checks
+# Health checks added
 readinessProbe:
   httpGet:
     path: /health
@@ -44,7 +45,7 @@ livenessProbe:
   successThreshold: 1
   failureThreshold: 3
 
-# Add startup probe for slow starts
+#  Reduced startup time from 150s to 60s
 startupProbe:
   httpGet:
     path: /health
@@ -53,15 +54,20 @@ startupProbe:
   periodSeconds: 5
   timeoutSeconds: 3
   successThreshold: 1
-  failureThreshold: 30 # 150 seconds total startup time allowed
+  failureThreshold: 12 # 60 seconds total (12 × 5s) - increase if app startup is genuinely slow
 
-# Graceful shutdown
+#  Keep sleep for now (works without code changes)
+# TODO: Replace with active shutdown endpoint when /shutdown is implemented
 lifecycle:
   preStop:
     exec:
-      command: ["/bin/sh", "-c", "sleep 15"] # Give time for connections to drain
+      command: ["/bin/sh", "-c", "sleep 15"]
+  # Alternative (requires app code changes):
+  # preStop:
+  #   exec:
+  #     command: ["/bin/sh", "-c", "curl -X POST http://localhost:3000/shutdown || sleep 15"]
 
-terminationGracePeriodSeconds: 30 # Allow time for graceful shutdown
+terminationGracePeriodSeconds: 30
 
 nodeSelector:
   role: moderate-usage
@@ -94,11 +100,21 @@ priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
+  # Add writable tmp for read-only filesystem
+  - name: tmp-volume
+    mountPath: /tmp
+  - name: cache-volume
+    mountPath: /app/.npm # Node.js npm cache
 
 volumes:
   - name: config-volume
     configMap:
       name: device-registry-config-files
+  # Writable volumes for read-only filesystem
+  - name: tmp-volume
+    emptyDir: {}
+  - name: cache-volume
+    emptyDir: {}
 
 ingress:
   enabled: false
@@ -111,38 +127,29 @@ service:
   nodePort: 30002
 
 autoscaling:
-  enabled: true # Explicitly enable
-  minReplicas: 3 # Increased from 1
-  maxReplicas: 10 # Increased from 3 - allows scaling during attacks
-  metrics: # Multiple scaling triggers
+  enabled: true
+  minReplicas: 3 # Minimum 3 pods always
+  maxReplicas: 10 # Scale up to 10 during high load
+  metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70 # Scale when CPU > 70%
+          averageUtilization: 70
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 80 # Scale when memory > 80%
+          averageUtilization: 80
 
-# Pod Disruption Budget
+#  Changed from minAvailable to maxUnavailable
 podDisruptionBudget:
   enabled: true
-  minAvailable: 2 # Always keep at least 2 pods running
+  maxUnavailable: 1 # Allow one pod disruption at a time (works with minReplicas: 3)
 
-# Resource quotas (add to namespace)
-# Create separately: kubectl apply -f namespace-quota.yaml
-# resourceQuota:
-#   hard:
-#     requests.cpu: "10"
-#     requests.memory: "20Gi"
-#     limits.cpu: "20"
-#     limits.memory: "40Gi"
-
-# Security context
+# Enable read-only filesystem with writable volumes
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000
@@ -150,4 +157,15 @@ securityContext:
   capabilities:
     drop:
       - ALL
-  readOnlyRootFilesystem: false # Set true if possible
+  readOnlyRootFilesystem: true #  Security best practice
+  allowPrivilegeEscalation: false #  Additional security
+
+#  Container security context
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
