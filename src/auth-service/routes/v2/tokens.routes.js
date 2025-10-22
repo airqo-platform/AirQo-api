@@ -22,6 +22,8 @@ const {
 
 const { validate, headers, pagination } = require("@validators/common");
 
+const { strictRateLimiter } = require("@middleware/rate-limit.middleware");
+
 // Apply common middleware
 router.use(headers);
 router.use(validatePagination);
@@ -92,12 +94,11 @@ router.delete(
   createTokenController.delete
 );
 
-// Verify token
 router.get(
   "/:token/verify",
   validateTenant,
   validateTokenParam,
-  // rateLimitMiddleware,
+  // strictRateLimiter,
   createTokenController.verify
 );
 

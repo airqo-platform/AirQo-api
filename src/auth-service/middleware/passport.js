@@ -214,8 +214,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
                 { email: user.email.toLowerCase() },
                 { new: true }
               );
-
-              logger.info(`Migrated email case for user: ${user._id}`);
             }
           } catch (error) {
             logger.warn(
@@ -243,7 +241,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
                   $addToSet: { permissions: { $each: permissionIds } },
                 }
               );
-              logger.info(`Updated default permissions for user ${user.email}`);
             }
           } catch (permError) {
             logger.error(
@@ -374,8 +371,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
                 { email: user.email.toLowerCase() },
                 { new: true }
               );
-
-              logger.info(`Migrated email case for user: ${user._id}`);
             }
           } catch (error) {
             logger.warn(
@@ -403,7 +398,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
                   $addToSet: { permissions: { $each: permissionIds } },
                 }
               );
-              logger.info(`Updated default permissions for user ${user.email}`);
             }
           } catch (permError) {
             logger.error(
@@ -500,8 +494,6 @@ const useGoogleStrategy = (tenant, req, res, next) =>
                   { email: user.email.toLowerCase() },
                   { new: true }
                 );
-
-                logger.info(`Migrated email case for user: ${user._id}`);
               }
             } catch (error) {
               logger.warn(
@@ -597,6 +589,565 @@ const useGoogleStrategy = (tenant, req, res, next) =>
     }
   );
 
+const specificRoutes = [
+  // ============================================
+  // EVENTS ENDPOINTS
+  // ============================================
+  {
+    uri: ["/api/v2/devices/events"],
+    service: "events-registry",
+    action: "Events API Access via Query Token",
+    description:
+      "Blocks JWT for events endpoint - uses query token authentication",
+  },
+
+  // ============================================
+  // MEASUREMENTS ENDPOINTS (V2)
+  // ============================================
+  {
+    uri: [
+      "/api/v2/devices/measurements",
+      "/api/v2/devices/measurements/sites",
+      "/api/v2/devices/measurements/devices",
+      "/api/v2/devices/measurements/cohorts",
+      "/api/v2/devices/measurements/grids",
+    ],
+    service: "events-registry",
+    action: "Measurements API Access via Query Token",
+    description:
+      "Blocks JWT for all measurements endpoints - uses query token authentication",
+  },
+
+  // ============================================
+  // READINGS ENDPOINTS
+  // ============================================
+  {
+    uri: ["/api/v2/devices/readings"],
+    service: "events-registry",
+    action: "Readings API Access via Query Token",
+    description:
+      "Blocks JWT for readings endpoint - uses query token authentication",
+  },
+
+  // ============================================
+  // RAW DATA ENDPOINTS (V2 & V3)
+  // ============================================
+  {
+    uri: ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"],
+    service: "analytics",
+    action: "Raw Data API Access via Query Token",
+    description:
+      "Blocks JWT for raw data endpoints - uses query token authentication",
+  },
+
+  // ============================================
+  // DATA DOWNLOAD ENDPOINTS (V2 & V3)
+  // ============================================
+  {
+    uri: [
+      "/api/v2/analytics/data-download",
+      "/api/v3/public/analytics/data-download",
+    ],
+    service: "analytics",
+    action: "Data Download API Access via Query Token",
+    description:
+      "Blocks JWT for data download endpoints - uses query token authentication",
+  },
+
+  // ============================================
+  // DATA EXPORT ENDPOINTS
+  // ============================================
+  {
+    uri: [
+      "/api/v2/analytics/data-export",
+      "/api/v3/public/analytics/data-export",
+    ],
+    service: "analytics",
+    action: "Data Export API Access via Query Token",
+    description:
+      "Blocks JWT for data export endpoints - uses query token authentication",
+  },
+
+  // ============================================
+  // FORECAST ENDPOINTS (PREMIUM TIER)
+  // ============================================
+  {
+    uri: [
+      "/api/v2/analytics/forecasts/hourly",
+      "/api/v2/analytics/forecasts/daily",
+      "/api/v3/public/analytics/forecasts/hourly",
+      "/api/v3/public/analytics/forecasts/daily",
+    ],
+    service: "analytics",
+    action: "Forecast API Access via Query Token",
+    description:
+      "Blocks JWT for forecast endpoints - uses query token authentication",
+  },
+
+  // ============================================
+  // HEATMAP ENDPOINTS
+  // ============================================
+  {
+    uri: [
+      "/api/v2/devices/measurements/heatmaps",
+      "/api/v2/analytics/heatmaps",
+    ],
+    service: "analytics",
+    action: "Heatmap API Access via Query Token",
+    description:
+      "Blocks JWT for heatmap endpoints - uses query token authentication",
+  },
+
+  // ============================================
+  // DEPRECATED ENDPOINTS
+  // ============================================
+  {
+    uri: ["/api/v1/devices"],
+    service: "device-registry",
+    action: "Deprecated API Version - Query Token Required",
+    description: "Blocks JWT for deprecated v1 devices endpoint",
+  },
+
+  // ============================================
+  // PUBLIC METADATA ENDPOINTS (if using query tokens)
+  // ============================================
+  {
+    uri: [
+      "/api/v2/devices/grids",
+      "/api/v2/metadata/sites",
+      "/api/v2/metadata/devices",
+      "/api/v2/metadata/grids",
+    ],
+    service: "metadata",
+    action: "Public Metadata API Access via Query Token",
+    description:
+      "Blocks JWT for public metadata endpoints - uses query token authentication",
+  },
+];
+
+const routesWithService = [
+  /**** Sites */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "Site Creation",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "View Sites",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "Site Update",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "Site Deletion",
+  },
+
+  /**** Devices */
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "Device Deletion",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/soft?"],
+    service: "device-registry",
+    action: "Device SOFT Deletion",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "Device Update",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/soft?"],
+    service: "device-registry",
+    action: "Device SOFT Update",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "View Devices",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "Device Creation",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/soft?"],
+    service: "device-registry",
+    action: "Device SOFT Creation",
+  },
+  /**** Cohorts */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "View Cohorts",
+  },
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "Create Cohorts",
+  },
+
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "Update Cohort",
+  },
+
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "Delete Cohort",
+  },
+
+  /**** Grids */
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "View Grids",
+  },
+
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "Update Grid",
+  },
+
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "Delete Grid",
+  },
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "Create Grid",
+  },
+
+  /**** AirQlouds */
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "View AirQlouds",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "AirQloud Creation",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "AirQloud Update",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "AirQloud Deletion",
+  },
+
+  /**** Site Activities */
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/activities/maintain"],
+    service: "device-maintenance",
+    action: "Maintain Device",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/activities/recall"],
+    service: "device-recall",
+    action: "Recall Device",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/activities/deploy"],
+    service: "device-deployment",
+    action: "Deploy Device",
+  },
+
+  /**** Users */
+  {
+    method: "POST",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "Create User",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "View Users",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "Update User",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "Delete User",
+  },
+
+  /****Incentives*/
+  {
+    method: "POST",
+    uriIncludes: [
+      "api/v1/incentives/transactions/accounts/payments",
+      "api/v2/incentives/transactions/accounts/payments",
+    ],
+    service: "incentives",
+    action: "Add Money to Organizational Account",
+  },
+  {
+    method: "POST",
+    uriIncludes: [
+      "api/v1/incentives/transactions/hosts",
+      "api/v2/incentives/transactions/hosts",
+    ],
+    service: "incentives",
+    action: "Send Money to Host",
+  },
+
+  /**** Calibrate */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
+    service: "calibrate",
+    action: "calibrate device",
+  },
+
+  /**** Locate */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
+    service: "locate",
+    action: "Identify Suitable Device Locations",
+  },
+
+  /**** Fault Detection */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
+    service: "fault-detection",
+    action: "Detect Faults",
+  },
+
+  /**** Data Proxy */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/data"],
+    service: "data-mgt",
+    action: "Retrieve Data",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/data-proxy"],
+    service: "data-proxy",
+    action: "Retrieve Data",
+  },
+
+  /*****Analytics */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/analytics/dashboard/sites"],
+    service: "analytics",
+    action: "Retrieve Sites on Analytics Page",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/analytics/dashboard/historical/daily-averages"],
+    service: "analytics",
+    action: "Retrieve Daily Averages on Analytics Page",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/analytics/dashboard/exceedances-devices"],
+    service: "analytics",
+    action: "Retrieve Exceedances on Analytics Page",
+  },
+
+  /*****KYA lessons */
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Retrieve KYA lessons",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Create KYA lesson",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Update KYA lesson",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Delete KYA lesson",
+  },
+  /*****KYA Quizzes */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/kya/quizzes/users"],
+    service: "kya",
+    action: "Retrieve KYA quizzes",
+  },
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/kya/quizzes"],
+    service: "kya",
+    action: "Create KYA quizzes",
+  },
+
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/kya/quizzes"],
+    service: "kya",
+    action: "Update KYA quiz",
+  },
+
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/kya/quizzes"],
+    service: "kya",
+    action: "Delete KYA quiz",
+  },
+
+  /*****view */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/view/mobile-app/version-info"],
+    service: "mobile-version",
+    action: "View Mobile App Information",
+  },
+
+  /*****Predict */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/predict/daily-forecast"],
+    service: "predict",
+    action: "Retrieve Daily Forecasts",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/predict/hourly-forecast"],
+    service: "predict",
+    action: "Retrieve Hourly Forecasts",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/predict/heatmap"],
+    service: "predict",
+    action: "Retrieve Heatmap",
+  },
+
+  /*****Device Monitoring */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/monitor"],
+    service: "monitor",
+    action: "Retrieve Network Statistics Data",
+  },
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/meta-data"],
+    service: "meta-data",
+    action: "Retrieve Metadata",
+  },
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/network-uptime"],
+    service: "network-uptime",
+    action: "Retrieve Network Uptime Data",
+  },
+];
+
+// ============================================
+// IMPROVED ROUTE MATCHING LOGIC
+// ============================================
+
+/**
+ * Enhanced route matching function that handles:
+ * - Exact matches
+ * - Prefix matches
+ * - Path parameters (e.g., /api/v2/devices/measurements/sites/{site_id})
+ * - Query parameters
+ *
+ * @param {string} requestUri - The incoming request URI
+ * @param {Array<string>} routeUris - Array of route patterns to match against
+ * @returns {boolean} - True if the request URI matches any route pattern
+ */
+function matchesRoute(requestUri, routeUris) {
+  if (!requestUri) return false;
+
+  // Remove query parameters from request URI for matching
+  const cleanUri = requestUri.split("?")[0];
+
+  return routeUris.some((routeUri) => {
+    // Exact match
+    if (cleanUri === routeUri) return true;
+
+    // Prefix match - checks if the URI starts with the route pattern
+    if (cleanUri.startsWith(routeUri)) {
+      // Ensure it's a valid path boundary (not matching partial segments)
+      const nextChar = cleanUri[routeUri.length];
+      return !nextChar || nextChar === "/" || nextChar === "?";
+    }
+
+    return false;
+  });
+}
+
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
@@ -623,456 +1174,21 @@ const useJWTStrategy = (tenant, req, res, next) =>
       let service = req.headers["service"] || "unknown";
       let userAction = "unknown";
 
-      const specificRoutes = [
-        {
-          uri: ["/api/v2/devices/events"],
-          service: "events-registry",
-          action: "Events API Access via JWT",
-        },
-        {
-          uri: ["/api/v2/devices/measurements"],
-          service: "events-registry",
-          action: "Measurements API Access via JWT",
-        },
-        {
-          uri: ["/api/v2/devices/readings"],
-          service: "events-registry",
-          action: "Readings API Access via JWT",
-        },
-        {
-          uri: ["/api/v1/devices"],
-          service: "device-registry",
-          action: "deprecated-version-number",
-        },
-      ];
-
-      specificRoutes.forEach((route) => {
-        const uri = req.headers["x-original-uri"];
-        if (uri && route.uri.some((routeUri) => uri.includes(routeUri))) {
+      // Check if the route should be blocked from JWT authentication
+      for (const route of specificRoutes) {
+        if (matchesRoute(endpoint, route.uri)) {
           service = route.service;
           userAction = route.action;
-          return done(null, false);
+
+          // Return false to indicate authentication should not proceed via JWT
+          return done(null, false, {
+            message: "This endpoint requires query token authentication",
+            service: service,
+            action: userAction,
+          });
         }
-      });
+      }
 
-      const routesWithService = [
-        {
-          method: "POST",
-          uriIncludes: [
-            "api/v2/analytics/data-download",
-            "api/v1/analytics/data-download",
-          ],
-          service: "data-export-download",
-          action: "Export Data",
-        },
-        {
-          method: "POST",
-          uriIncludes: [
-            "api/v1/analytics/data-export",
-            "api/v2/analytics/data-export",
-          ],
-          service: "data-export-scheduling",
-          action: "Schedule Data Download",
-        },
-        /**** Sites */
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/sites"],
-          service: "site-registry",
-          action: "Site Creation",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/devices/sites"],
-          service: "site-registry",
-          action: "View Sites",
-        },
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices/sites"],
-          service: "site-registry",
-          action: "Site Update",
-        },
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices/sites"],
-          service: "site-registry",
-          action: "Site Deletion",
-        },
-
-        /**** Devices */
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices?"],
-          service: "device-registry",
-          action: "Device Deletion",
-        },
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices/soft?"],
-          service: "device-registry",
-          action: "Device SOFT Deletion",
-        },
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices?"],
-          service: "device-registry",
-          action: "Device Update",
-        },
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices/soft?"],
-          service: "device-registry",
-          action: "Device SOFT Update",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/devices?"],
-          service: "device-registry",
-          action: "View Devices",
-        },
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices?"],
-          service: "device-registry",
-          action: "Device Creation",
-        },
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/soft?"],
-          service: "device-registry",
-          action: "Device SOFT Creation",
-        },
-        /**** Cohorts */
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/devices/cohorts"],
-          service: "cohort-registry",
-          action: "View Cohorts",
-        },
-
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/cohorts"],
-          service: "cohort-registry",
-          action: "Create Cohorts",
-        },
-
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices/cohorts"],
-          service: "cohort-registry",
-          action: "Update Cohort",
-        },
-
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices/cohorts"],
-          service: "cohort-registry",
-          action: "Delete Cohort",
-        },
-
-        /**** Grids */
-
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/devices/grids"],
-          service: "grid-registry",
-          action: "View Grids",
-        },
-
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices/grids"],
-          service: "grid-registry",
-          action: "Update Grid",
-        },
-
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices/grids"],
-          service: "grid-registry",
-          action: "Delete Grid",
-        },
-
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/grids"],
-          service: "grid-registry",
-          action: "Create Grid",
-        },
-
-        /**** AirQlouds */
-
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqloud-registry",
-          action: "View AirQlouds",
-        },
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqloud-registry",
-          action: "AirQloud Creation",
-        },
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqloud-registry",
-          action: "AirQloud Update",
-        },
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqloud-registry",
-          action: "AirQloud Deletion",
-        },
-
-        /**** Site Activities */
-
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/activities/maintain"],
-          service: "device-maintenance",
-          action: "Maintain Device",
-        },
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/activities/recall"],
-          service: "device-recall",
-          action: "Recall Device",
-        },
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/activities/deploy"],
-          service: "device-deployment",
-          action: "Deploy Device",
-        },
-
-        /**** Users */
-        {
-          method: "POST",
-          uriIncludes: ["api/v2/users", "api/v1/users"],
-          service: "auth",
-          action: "Create User",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["api/v2/users", "api/v1/users"],
-          service: "auth",
-          action: "View Users",
-        },
-        {
-          method: "PUT",
-          uriIncludes: ["api/v2/users", "api/v1/users"],
-          service: "auth",
-          action: "Update User",
-        },
-        {
-          method: "DELETE",
-          uriIncludes: ["api/v2/users", "api/v1/users"],
-          service: "auth",
-          action: "Delete User",
-        },
-
-        /****Incentives*/
-        {
-          method: "POST",
-          uriIncludes: [
-            "api/v1/incentives/transactions/accounts/payments",
-            "api/v2/incentives/transactions/accounts/payments",
-          ],
-          service: "incentives",
-          action: "Add Money to Organizational Account",
-        },
-        {
-          method: "POST",
-          uriIncludes: [
-            "api/v1/incentives/transactions/hosts",
-            "api/v2/incentives/transactions/hosts",
-          ],
-          service: "incentives",
-          action: "Send Money to Host",
-        },
-
-        /**** Calibrate */
-        {
-          method: "POST",
-          uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
-          service: "calibrate",
-          action: "calibrate device",
-        },
-
-        /**** Locate */
-        {
-          method: "POST",
-          uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
-          service: "locate",
-          action: "Identify Suitable Device Locations",
-        },
-
-        /**** Fault Detection */
-        {
-          method: "POST",
-          uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
-          service: "fault-detection",
-          action: "Detect Faults",
-        },
-
-        /**** Readings... */
-        {
-          method: "GET",
-          uriIncludes: [
-            "/api/v2/devices/measurements",
-            "/api/v2/devices/events",
-            "/api/v2/devices/readings",
-          ],
-          service: "events-registry",
-          action: " Retrieve Measurements",
-        },
-
-        /**** Data Proxy */
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/data"],
-          service: "data-mgt",
-          action: "Retrieve Data",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/data-proxy"],
-          service: "data-proxy",
-          action: "Retrieve Data",
-        },
-
-        /*****Analytics */
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/analytics/dashboard/sites"],
-          service: "analytics",
-          action: "Retrieve Sites on Analytics Page",
-        },
-        {
-          method: "GET",
-          uriIncludes: [
-            "/api/v2/analytics/dashboard/historical/daily-averages",
-          ],
-          service: "analytics",
-          action: "Retrieve Daily Averages on Analytics Page",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/analytics/dashboard/exceedances-devices"],
-          service: "analytics",
-          action: "Retrieve Exceedances on Analytics Page",
-        },
-
-        /*****KYA lessons */
-
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
-          service: "kya",
-          action: "Retrieve KYA lessons",
-        },
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
-          service: "kya",
-          action: "Create KYA lesson",
-        },
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
-          service: "kya",
-          action: "Update KYA lesson",
-        },
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
-          service: "kya",
-          action: "Delete KYA lesson",
-        },
-        /*****KYA Quizzes */
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/devices/kya/quizzes/users"],
-          service: "kya",
-          action: "Retrieve KYA quizzes",
-        },
-
-        {
-          method: "POST",
-          uriIncludes: ["/api/v2/devices/kya/quizzes"],
-          service: "kya",
-          action: "Create KYA quizzes",
-        },
-
-        {
-          method: "PUT",
-          uriIncludes: ["/api/v2/devices/kya/quizzes"],
-          service: "kya",
-          action: "Update KYA quiz",
-        },
-
-        {
-          method: "DELETE",
-          uriIncludes: ["/api/v2/devices/kya/quizzes"],
-          service: "kya",
-          action: "Delete KYA quiz",
-        },
-
-        /*****view */
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/view/mobile-app/version-info"],
-          service: "mobile-version",
-          action: "View Mobile App Information",
-        },
-
-        /*****Predict */
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/predict/daily-forecast"],
-          service: "predict",
-          action: "Retrieve Daily Forecasts",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/predict/hourly-forecast"],
-          service: "predict",
-          action: "Retrieve Hourly Forecasts",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/predict/heatmap"],
-          service: "predict",
-          action: "Retrieve Heatmap",
-        },
-
-        /*****Device Monitoring */
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/monitor"],
-          service: "monitor",
-          action: "Retrieve Network Statistics Data",
-        },
-
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/meta-data"],
-          service: "meta-data",
-          action: "Retrieve Metadata",
-        },
-
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/network-uptime"],
-          service: "network-uptime",
-          action: "Retrieve Network Uptime Data",
-        },
-      ];
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
         .exec();
@@ -1424,11 +1540,6 @@ const enhancedJWTAuth = (req, res, next) => {
 
         // 2. Check if a refresh is needed (proactive sliding window OR reactive grace period)
         if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
-          logger.info(
-            `Token for user ${
-              decoded.email || decoded.id
-            } is eligible for refresh.`
-          );
           try {
             const userIdForRefresh = decoded.id || decoded._id;
             const userForRefresh = await UserModel(tenant)
@@ -1506,6 +1617,58 @@ function authenticateJWT(req, res, next) {
     logger.error(`the error in authenticateJWT is: ${e.message}`);
     next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
   }
+}
+
+// ============================================
+// ROUTE CONFIGURATION VALIDATION
+// ============================================
+
+/**
+ * Validates the specificRoutes configuration on startup
+ * Helps catch configuration errors early
+ */
+function validateRouteConfiguration() {
+  const errors = [];
+  const allUris = new Set();
+
+  specificRoutes.forEach((route, index) => {
+    // Check required fields
+    if (!route.uri || !Array.isArray(route.uri)) {
+      errors.push(`Route at index ${index} missing or invalid 'uri' array`);
+    }
+    if (!route.service) {
+      errors.push(`Route at index ${index} missing 'service' field`);
+    }
+    if (!route.action) {
+      errors.push(`Route at index ${index} missing 'action' field`);
+    }
+
+    // Check for duplicate URIs across routes
+    if (route.uri && Array.isArray(route.uri)) {
+      route.uri.forEach((uri) => {
+        if (allUris.has(uri)) {
+          errors.push(`Duplicate URI found: ${uri}`);
+        }
+        allUris.add(uri);
+      });
+    }
+  });
+
+  if (errors.length > 0) {
+    logger.error("❌ Route configuration validation failed:");
+    errors.forEach((error) => logger.error(`  - ${error}`));
+    throw new Error("Invalid route configuration");
+  }
+
+  return true;
+}
+
+// Validate configuration on module load
+try {
+  validateRouteConfiguration();
+} catch (error) {
+  logger.error("Failed to validate route configuration:", error);
+  // Crash the process to prevent startup with invalid configuration
 }
 
 module.exports = {
