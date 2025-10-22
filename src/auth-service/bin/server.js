@@ -87,6 +87,8 @@ if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
 
+app.set("trust proxy", true);
+
 // Express Middlewares
 app.use(
   session({
