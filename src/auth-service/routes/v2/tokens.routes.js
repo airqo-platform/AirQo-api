@@ -98,7 +98,7 @@ router.get(
   "/:token/verify",
   validateTenant,
   validateTokenParam,
-  strictRateLimiter,
+  // strictRateLimiter,
   createTokenController.verify
 );
 
