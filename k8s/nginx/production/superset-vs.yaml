@@ -18,8 +18,14 @@ spec:
             pass: true
             set:
               - name: X-Forwarded-Proto
-                value: https
+                value: "https"
               - name: X-Forwarded-Host
-                value: superset.airqo.net
+                value: "superset.airqo.net"
               - name: X-Forwarded-Port
                 value: "443"
+              - name: X-Forwarded-For
+                value: ${remote_addr}
+              - name: X-CSRFToken
+                value: ${http_x_csrftoken}
+              - name: Referer
+                value: ${http_referer}
