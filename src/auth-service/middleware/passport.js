@@ -214,8 +214,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
                 { email: user.email.toLowerCase() },
                 { new: true }
               );
-
-              logger.info(`Migrated email case for user: ${user._id}`);
             }
           } catch (error) {
             logger.warn(
@@ -243,7 +241,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
                   $addToSet: { permissions: { $each: permissionIds } },
                 }
               );
-              logger.info(`Updated default permissions for user ${user.email}`);
             }
           } catch (permError) {
             logger.error(
@@ -374,8 +371,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
                 { email: user.email.toLowerCase() },
                 { new: true }
               );
-
-              logger.info(`Migrated email case for user: ${user._id}`);
             }
           } catch (error) {
             logger.warn(
@@ -403,7 +398,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
                   $addToSet: { permissions: { $each: permissionIds } },
                 }
               );
-              logger.info(`Updated default permissions for user ${user.email}`);
             }
           } catch (permError) {
             logger.error(
@@ -500,8 +494,6 @@ const useGoogleStrategy = (tenant, req, res, next) =>
                   { email: user.email.toLowerCase() },
                   { new: true }
                 );
-
-                logger.info(`Migrated email case for user: ${user._id}`);
               }
             } catch (error) {
               logger.warn(
@@ -1548,11 +1540,6 @@ const enhancedJWTAuth = (req, res, next) => {
 
         // 2. Check if a refresh is needed (proactive sliding window OR reactive grace period)
         if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
-          logger.info(
-            `Token for user ${
-              decoded.email || decoded.id
-            } is eligible for refresh.`
-          );
           try {
             const userIdForRefresh = decoded.id || decoded._id;
             const userForRefresh = await UserModel(tenant)
@@ -1673,9 +1660,6 @@ function validateRouteConfiguration() {
     throw new Error("Invalid route configuration");
   }
 
-  logger.info(
-    `✅ Route configuration validated: ${allUris.size} unique URIs configured`
-  );
   return true;
 }
 
@@ -1684,7 +1668,7 @@ try {
   validateRouteConfiguration();
 } catch (error) {
   logger.error("Failed to validate route configuration:", error);
-  // Decide whether to crash or continue with warnings
+  // Crash the process to prevent startup with invalid configuration
 }
 
 module.exports = {

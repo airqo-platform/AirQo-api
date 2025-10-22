@@ -17,13 +17,23 @@ const httpStatus = require("http-status");
  * - Network issues occur
  *
  * Failsafe approach: If anything goes wrong, fall back gracefully
+ *
+ * IP Detection: Uses custom HAProxy headers (x-client-ip, x-client-original-ip)
+ * matching your production token.util.js pattern - more secure than x-forwarded-for
  */
 
 // ============================================
 // CONFIGURATION
 // ============================================
 
-const USE_REDIS = constants.USE_REDIS_RATE_LIMIT === "true" || false;
+const USE_REDIS = (() => {
+  const value = constants.USE_REDIS_RATE_LIMIT;
+  if (typeof value === "boolean") return value;
+  const strValue = String(value || "")
+    .toLowerCase()
+    .trim();
+  return strValue === "true" || strValue === "1" || strValue === "yes";
+})();
 
 // Trusted IPs that should bypass rate limiting
 const WHITELISTED_IPS = constants.RATE_LIMIT_WHITELIST
@@ -166,17 +176,17 @@ const isIpInCidr = (ip, cidr) => {
 };
 
 /**
- * Safely extract IP from request
- * Handles various proxy configurations
+ * Extract IP from request - matches production token.util pattern
+ * Uses custom headers set by HAProxy (more secure than x-forwarded-for)
  */
 const extractIp = (req) => {
-  // Try multiple sources for IP
+  // Match existing production logic from token.util.js
   const ip =
+    req.headers["x-client-ip"] ||
+    req.headers["x-client-original-ip"] ||
     req.ip ||
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.headers["x-real-ip"] ||
-    req.connection?.remoteAddress ||
     req.socket?.remoteAddress ||
+    req.connection?.remoteAddress ||
     "unknown";
 
   return ip;
@@ -267,11 +277,19 @@ const createSafeRateLimiter = (config) => {
       skip: skipFunction,
       handler: rateLimitHandler,
       keyGenerator,
+      // CRITICAL: Skip failed requests to avoid breaking the app
       skipFailedRequests: false,
       skipSuccessfulRequests: false,
+      // Add error handler
+      requestWasSuccessful: (req, res) => res.statusCode < 400,
+      // If store throws error, handle it gracefully
+      onLimitReached: (req, res, options) => {
+        logger.warn(`Rate limit reached for ${extractIp(req)} on ${req.path}`);
+      },
     });
   } catch (error) {
     logger.error(`Failed to create rate limiter: ${error.message}`);
+    // Return a passthrough middleware if creation fails
     return (req, res, next) => {
       logger.warn("Rate limiter unavailable - passing through");
       next();
