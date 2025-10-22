@@ -107,13 +107,13 @@ const envs = {
     process.env.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID,
   DEFAULT_ORGANISATION_PROFILE_PICTURE:
     process.env.DEFAULT_ORGANISATION_PROFILE_PICTURE,
-
-  // ✅ BOOLEAN VALUES - Properly converted
   DEFAULT_USE_ONBOARDING_FLOW: parseBoolean(
     process.env.DEFAULT_USE_ONBOARDING_FLOW,
     false
   ),
   ORGANISATIONS_LIMIT: parseNumber(process.env.ORGANISATIONS_LIMIT, 10),
+  USE_REDIS_RATE_LIMIT: true,
+  RATE_LIMIT_WHITELIST: process.env.RATE_LIMIT_WHITELIST,
 };
 
 module.exports = envs;
