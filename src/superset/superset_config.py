@@ -1,6 +1,21 @@
 import environ
 import redis
 
+# TEMP
+import logging
+from flask import request
+
+logging.basicConfig(level=logging.INFO)
+import superset.app as superset_app
+
+
+@superset_app.app.before_request
+def log_headers():
+    logging.info(f"Request headers: {dict(request.headers)}")
+
+
+# END TEMP
+
 env = environ.Env()
 environ.Env.read_env()
 
@@ -25,8 +40,8 @@ SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE")
 SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE")
 WTF_CSRF_TIME_LIMIT = env.int("WTF_CSRF_TIME_LIMIT")
 
-SESSION_SERVER_SIDE = True
-SESSION_TYPE = "redis"
+SESSION_SERVER_SIDE = env.bool("SESSION_SERVER_SIDE")
+SESSION_TYPE = env("SESSION_TYPE")
 SESSION_REDIS = redis.from_url(env("CACHE_REDIS_URL"))
 
 # Public URL
