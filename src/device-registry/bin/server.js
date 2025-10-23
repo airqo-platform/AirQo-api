@@ -52,13 +52,13 @@ try {
 }
 
 // Run startup migrations
-const runStartupMigrations = require("@bin/jobs/run-migrations");
-runStartupMigrations().catch((error) => {
-  // Use deduplicated logger for critical startup errors
-  global.dedupLogger.error(
-    `🐛🐛 Failed to run startup migrations: ${error.message}`
-  );
-});
+// const runStartupMigrations = require("@bin/jobs/run-migrations");
+// runStartupMigrations().catch((error) => {
+//   // Use deduplicated logger for critical startup errors
+//   global.dedupLogger.error(
+//     `🐛🐛 Failed to run startup migrations: ${error.message}`
+//   );
+// });
 
 const morgan = require("morgan");
 const compression = require("compression");
@@ -148,7 +148,7 @@ global.jobMetrics = {
 };
 
 // Initialize all background jobs
-require("@bin/jobs/store-signals-job");
+// require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
 try {
   require("@bin/jobs/update-raw-online-status-job");
@@ -165,7 +165,7 @@ try {
     `update-online-status-job failed to start: ${err.message}`
   );
 }
-require("@bin/jobs/check-network-status-job");
+// require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
