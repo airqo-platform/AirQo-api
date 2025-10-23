@@ -1244,7 +1244,7 @@ function startCronJob() {
 
 // Auto-start when module is loaded (works for both direct run and require)
 startCronJob();
-logger.info(`${JOB_NAME} is now running`);
+logText(`${JOB_NAME} is now running`);
 
 // Export for manual control if needed
 module.exports = {
