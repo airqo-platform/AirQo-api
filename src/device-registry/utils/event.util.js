@@ -1599,7 +1599,7 @@ const createEvent = {
               );
             }
 
-            const oldestSupportedMonths = Math.round(MAX_AGE_DAYS / 30);
+            const oldestSupportedMonths = Math.floor(MAX_AGE_DAYS / 30);
 
             return {
               success: false,

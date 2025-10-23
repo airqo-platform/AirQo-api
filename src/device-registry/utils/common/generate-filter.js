@@ -109,9 +109,10 @@ const generateFilter = {
       active,
     } = { ...query, ...params };
 
+    const DEFAULT_QUERY_RANGE_DAYS = 3;
     // Constants for date calculations
     const today = monthsInfront(0);
-    const threeDaysBack = addDays(-3);
+    const threeDaysBack = addDays(-DEFAULT_QUERY_RANGE_DAYS);
 
     // Initial filter object
     const filter = {
@@ -178,7 +179,7 @@ const generateFilter = {
 
     // Handle startTime and endTime corner cases
     if (startTime && !endTime) {
-      const end = addDaysToProvideDateTime(startTime, 3);
+      const end = addDaysToProvideDateTime(startTime, DEFAULT_QUERY_RANGE_DAYS);
       if (!isTimeEmpty(startTime)) {
         filter["values.time"]["$lte"] = end;
       } else {
@@ -188,7 +189,10 @@ const generateFilter = {
     }
 
     if (!startTime && endTime) {
-      const start = addDaysToProvideDateTime(endTime, -3);
+      const start = addDaysToProvideDateTime(
+        endTime,
+        -DEFAULT_QUERY_RANGE_DAYS
+      );
       if (!isTimeEmpty(endTime)) {
         filter["values.time"]["$gte"] = start;
       } else {
@@ -205,8 +209,11 @@ const generateFilter = {
 
       logObject("the days between provided dates", diffDays);
 
-      if (diffDays > 3) {
-        const start = addDaysToProvideDateTime(endTime, -3);
+      if (diffDays > DEFAULT_QUERY_RANGE_DAYS) {
+        const start = addDaysToProvideDateTime(
+          endTime,
+          -DEFAULT_QUERY_RANGE_DAYS
+        );
         if (!isTimeEmpty(endTime)) {
           filter["values.time"]["$gte"] = start;
         } else {
