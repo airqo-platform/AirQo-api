@@ -402,7 +402,7 @@ function isEntityActive(time) {
   return validationResult.timeDiff < INACTIVE_THRESHOLD;
 }
 
-// Optimized batch entity status update
+// Optimized batch entity status update with out-of-order event protection
 async function updateEntityStatusBatch(Model, updates, entityType) {
   if (!updates || updates.length === 0) {
     return { success: true, modified: 0, accuracyUpdates: [] };
@@ -410,9 +410,11 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
 
   try {
     const entityIds = updates.map((u) => u.filter._id);
+
+    // Fetch lastActive to guard against out-of-order events
     const currentEntities = await Model.find(
       { _id: { $in: entityIds } },
-      { _id: 1, isOnline: 1 }
+      { _id: 1, isOnline: 1, lastActive: 1 }
     ).lean();
 
     const entityMap = new Map(
@@ -420,6 +422,7 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
     );
     const bulkOps = [];
     const accuracyBulkOps = [];
+    let skippedStaleEvents = 0;
 
     for (const update of updates) {
       const entityId = update.filter._id;
@@ -450,9 +453,26 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         .tz(TIMEZONE)
         .toDate();
 
+      // Skip if this event is older than the existing lastActive (out-of-order event)
+      if (entity.lastActive && lastActiveTime <= entity.lastActive) {
+        skippedStaleEvents++;
+        logger.debug(
+          `Skipping stale event for ${entityType} ${entityId}: ` +
+            `event time ${lastActiveTime.toISOString()} <= existing ${entity.lastActive.toISOString()}`
+        );
+        continue;
+      }
+
+      // Only update if the incoming timestamp is newer than existing lastActive
       bulkOps.push({
         updateOne: {
-          filter: { _id: entityId },
+          filter: {
+            _id: entityId,
+            $or: [
+              { lastActive: { $lt: lastActiveTime } },
+              { lastActive: { $exists: false } },
+            ],
+          },
           update: {
             $set: {
               lastActive: lastActiveTime,
@@ -492,17 +512,23 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
       await Model.bulkWrite(accuracyBulkOps, { ordered: false });
     }
 
+    if (skippedStaleEvents > 0) {
+      logger.debug(
+        `Skipped ${skippedStaleEvents} stale/out-of-order events for ${entityType}`
+      );
+    }
+
     return {
       success: true,
       modified,
       processed: updates.length,
+      skippedStale: skippedStaleEvents,
     };
   } catch (error) {
     logger.error(`Batch update error for ${entityType}: ${error.message}`);
     return { success: false, error: error.message };
   }
 }
-
 // Optimized offline detection with batched accuracy updates
 async function updateOfflineEntitiesWithAccuracy(
   Model,
