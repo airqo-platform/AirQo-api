@@ -4,9 +4,6 @@ import redis
 env = environ.Env()
 environ.Env.read_env()
 
-# Temp -- db migration
-PREVIOUS_SECRET_KEY = env("PREVIOUS_SECRET_KEY")
-
 # Security & Flask settings
 SECRET_KEY = env("SUPERSET_SECRET_KEY")
 
