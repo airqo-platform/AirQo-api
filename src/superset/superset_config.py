@@ -1,21 +1,6 @@
 import environ
 import redis
 
-# TEMP
-import logging
-from flask import request
-
-logging.basicConfig(level=logging.INFO)
-import superset.app as superset_app
-
-
-@superset_app.app.before_request
-def log_headers():
-    logging.info(f"Request headers: {dict(request.headers)}")
-
-
-# END TEMP
-
 env = environ.Env()
 environ.Env.read_env()
 
