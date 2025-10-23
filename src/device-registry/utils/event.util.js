@@ -1162,7 +1162,7 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
 const historicalQueryTracker = new Map();
 const MAX_HISTORICAL_PER_MINUTE = 5;
 const BLOCK_DURATION = 5 * 60 * 1000; // 5 minutes
-const MAX_AGE_DAYS = 180; // 6 months
+const MAX_AGE_DAYS = 60; // 2 months
 
 const generateClientFingerprint = (request) => {
   const rawId =
@@ -1599,14 +1599,15 @@ const createEvent = {
               );
             }
 
+            const oldestSupportedMonths = Math.round(MAX_AGE_DAYS / 30);
+
             return {
               success: false,
               status: httpStatus.BAD_REQUEST,
-              message:
-                "Query date too old. Data older than 6 months is not available via this endpoint.",
+              message: `Query date too old. Data older than ${oldestSupportedMonths} months is not available via this endpoint.`,
               errors: {
                 message: `Query includes data from ${earliestDateString} (${ageInYears} years old, ${ageInDays} days old).`,
-                oldest_supported: "6 months (180 days) from current date",
+                oldest_supported: `${oldestSupportedMonths} months (${MAX_AGE_DAYS} days) from current date`,
                 query_age_days: ageInDays,
                 current_cutoff_date: cutoffDateString,
                 recommendation:
