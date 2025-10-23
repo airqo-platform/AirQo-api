@@ -1,23 +1,11 @@
 import environ
 import redis
 
-# TEMP
-import logging
-from flask import request
-
-logging.basicConfig(level=logging.INFO)
-import superset.app as superset_app
-
-
-@superset_app.app.before_request
-def log_headers():
-    logging.info(f"Request headers: {dict(request.headers)}")
-
-
-# END TEMP
-
 env = environ.Env()
 environ.Env.read_env()
+
+# Temp -- db migration
+PREVIOUS_SECRET_KEY = env("PREVIOUS_SECRET_KEY")
 
 # Security & Flask settings
 SECRET_KEY = env("SUPERSET_SECRET_KEY")
