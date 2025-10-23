@@ -706,6 +706,7 @@ const generateFilter = {
 
     return filter;
   },
+
   fetch: (request, next) => {
     const { query, params } = request;
     const {
@@ -730,6 +731,7 @@ const generateFilter = {
       internal,
       running,
       brief,
+      isHistorical,
     } = { ...query, ...params };
 
     // Constants for date calculations
@@ -753,6 +755,10 @@ const generateFilter = {
       "values.device_number": {},
       device_number: {},
     };
+
+    if (isHistorical) {
+      filter.isHistorical = isHistorical;
+    }
 
     // Handle metadata and external properties
     if (metadata) {
@@ -991,6 +997,7 @@ const generateFilter = {
 
     return filter;
   },
+
   devices: (req, next) => {
     const {
       search,
