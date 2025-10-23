@@ -109,18 +109,19 @@ const generateFilter = {
       active,
     } = { ...query, ...params };
 
+    const DEFAULT_QUERY_RANGE_DAYS = 3;
     // Constants for date calculations
     const today = monthsInfront(0);
-    const oneWeekBack = addDays(-7);
+    const threeDaysBack = addDays(-DEFAULT_QUERY_RANGE_DAYS);
 
     // Initial filter object
     const filter = {
       day: {
-        $gte: generateDateFormatWithoutHrs(oneWeekBack),
+        $gte: generateDateFormatWithoutHrs(threeDaysBack),
         $lte: generateDateFormatWithoutHrs(today),
       },
       "values.time": {
-        $gte: oneWeekBack,
+        $gte: threeDaysBack,
         $lte: today,
       },
       "values.device": {},
@@ -178,54 +179,47 @@ const generateFilter = {
 
     // Handle startTime and endTime corner cases
     if (startTime && !endTime) {
+      const end = addDaysToProvideDateTime(startTime, DEFAULT_QUERY_RANGE_DAYS);
       if (!isTimeEmpty(startTime)) {
-        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
+        filter["values.time"]["$lte"] = end;
       } else {
         delete filter["values.time"];
       }
-      const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
-        startTime,
-        1
-      );
-      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-        addedTwoWeeksToProvidedDateTime
-      );
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(end);
     }
 
     if (!startTime && endTime) {
+      const start = addDaysToProvideDateTime(
+        endTime,
+        -DEFAULT_QUERY_RANGE_DAYS
+      );
       if (!isTimeEmpty(endTime)) {
-        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+        filter["values.time"]["$gte"] = start;
       } else {
         delete filter["values.time"];
       }
-      const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
-        endTime,
-        -1
-      );
-      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-        removedTwoWeeksFromProvidedDateTime
-      );
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(start);
     }
 
     if (startTime && endTime) {
-      const weeks = getDifferenceInWeeks(startTime, endTime);
-      logObject("the weeks between provided dates", weeks);
-      if (weeks > 1) {
+      const startDate = new Date(startTime);
+      const endDate = new Date(endTime);
+      const diffTime = Math.abs(endDate - startDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      logObject("the days between provided dates", diffDays);
+
+      if (diffDays > DEFAULT_QUERY_RANGE_DAYS) {
+        const start = addDaysToProvideDateTime(
+          endTime,
+          -DEFAULT_QUERY_RANGE_DAYS
+        );
         if (!isTimeEmpty(endTime)) {
-          filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
-            endTime,
-            -1
-          );
+          filter["values.time"]["$gte"] = start;
         } else {
           delete filter["values.time"];
         }
-        const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
-          endTime,
-          -1
-        );
-        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-          removedTwoWeeksFromProvidedDateTime
-        );
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(start);
       }
     }
 
