@@ -1216,14 +1216,12 @@ function startCronJob() {
   return task;
 }
 
-// Export for use in other modules
+// Auto-start when module is loaded (works for both direct run and require)
+startCronJob();
+logger.info(`${JOB_NAME} is now running`);
+
+// Export for manual control if needed
 module.exports = {
   startCronJob,
   updateOnlineStatusAndAccuracy,
 };
-
-// Auto-start if running directly
-if (require.main === module) {
-  startCronJob();
-  logText(`${JOB_NAME} is now running`);
-}
