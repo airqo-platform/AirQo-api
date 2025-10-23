@@ -142,7 +142,7 @@ const requireGroupPermissions = (
             "Access denied: Not a group member",
             httpStatus.FORBIDDEN,
             {
-              message: "You are not a member of this organisation",
+              message: "You are not a member of this group",
             }
           )
         );
@@ -179,11 +179,10 @@ const requireGroupPermissions = (
 
         return next(
           new HttpError(
-            `Access denied for this organisation. Required permissions: [${requiredPermsString}]`,
+            `Access denied for this group. Required permissions: [${requiredPermsString}]`,
             httpStatus.FORBIDDEN,
             {
-              message:
-                "You don't have the required permissions in this organisation",
+              message: "You don't have the required permissions in this group",
               required: normalizedRequiredPerms,
               userPermissions: userPermissions,
               groupId: groupId,
@@ -449,7 +448,7 @@ const requireGroupMembership = (groupIdParam = "grp_id") => {
       if (!isMember) {
         return next(
           new HttpError(
-            "Access denied: You are not a member of this organisation",
+            "Access denied: You are not a member of this group",
             httpStatus.FORBIDDEN
           )
         );
