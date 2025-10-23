@@ -9,10 +9,6 @@ else
   echo "⚠️  No .env file found at /app/.env. Assuming env vars are set via Docker or Compose."
 fi
 set +a
-# Temp
-echo "Re-encrypt secretes"
-superset re-encrypt-secrets
-#Temp end
 
 echo "🚀 Running DB upgrade..."
 superset db upgrade
