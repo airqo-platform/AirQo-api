@@ -165,7 +165,7 @@ try {
     `update-online-status-job failed to start: ${err.message}`
   );
 }
-// require("@bin/jobs/check-network-status-job");
+require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
