@@ -344,8 +344,8 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       updateFields.lastRawData = new Date(lastFeedTime);
     }
 
-    // ALSO update primary online status for UNDEPLOYED devices
-    if (device.status === "not deployed") {
+    // ALSO update primary online status for UNDEPLOYED or MOBILE devices
+    if (device.status === "not deployed" || device.mobility === true) {
       updateFields.isOnline = isRawOnline;
       if (lastFeedTime) {
         updateFields.lastActive = new Date(lastFeedTime);
@@ -398,7 +398,7 @@ const createFailureUpdate = (device, reason) => {
     rawOnlineStatus: isNowRawOnline,
   };
 
-  if (device.status === "not deployed") {
+  if (device.status === "not deployed" || device.mobility === true) {
     updateFields.isOnline = isNowRawOnline;
   }
 
@@ -423,24 +423,38 @@ const updateRawOnlineStatus = async () => {
     processor.start();
     const startTime = Date.now();
     logText(`Starting raw online status check for ALL devices...`);
+    let totalDevices = 0;
 
-    // Use more efficient counting method
-    const totalDevices = await DeviceModel("airqo").estimatedDocumentCount();
+    try {
+      const COUNT_TIMEOUT = 5000; // 5 seconds
+      totalDevices = await Promise.race([
+        DeviceModel("airqo").estimatedDocumentCount(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Device count timed out")),
+            COUNT_TIMEOUT
+          )
+        ),
+      ]);
+    } catch (error) {
+      logger.warn(`Could not retrieve total device count: ${error.message}`);
+      logText("Could not retrieve total device count, proceeding without it.");
+    }
+
     if (totalDevices === 0) {
       logText("No devices to process.");
       processor.end();
       return;
     }
 
-    logText(
-      `Found ~${totalDevices} devices to process in batches of ${BATCH_SIZE}`
-    );
+    const countLog = totalDevices > 0 ? `~${totalDevices}` : "all";
+    logText(`Found ${countLog} devices to process in batches of ${BATCH_SIZE}`);
 
     // Use cursor with smaller memory footprint
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy"
+        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy mobility"
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
