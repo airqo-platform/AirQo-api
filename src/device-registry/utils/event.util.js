@@ -1100,13 +1100,14 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
         });
 
         // Track rejection reasons
-        const reason = validation.reason;
+        // Sanitize the reason to be a valid MongoDB key (no dots)
+        const reason = validation.reason.replace(/\./g, "_");
         rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
 
         // Log rejected measurement
         if (rejected.length <= constants.MAX_REJECTED_LOGS) {
           // Only log first 10 to avoid spam
-          logger.warn(
+          logger.debug(
             `Rejected measurement: timestamp ${timestamp}, ` +
               `age ${validation.ageHours}h, reason: ${validation.reason}`
           );
@@ -1116,7 +1117,7 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
 
     // Log summary if there were rejections
     if (rejected.length > 0) {
-      logger.info(
+      logTextWithTimestamp(
         `Timestamp filtering: ${valid.length} accepted, ${rejected.length} rejected ` +
           `(${((rejected.length / measurements.length) * 100).toFixed(
             1
