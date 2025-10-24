@@ -62,5 +62,5 @@ TALISMAN_CONFIG = {
     },
     "content_security_policy_nonce_in": ["script-src"],
     "force_https": False,
-    "session_cookie_secure": True,
+    "session_cookie_secure": False,
 }
