@@ -17,6 +17,8 @@ const NodeCache = require("node-cache");
 const TIMEZONE = moment.tz.guess();
 const JOB_NAME = "store-readings-job";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
+const FETCH_BATCH_SIZE = 200;
+const MAX_FETCH_ITERATIONS = 20; // Safety limit for fetching
 
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
@@ -85,7 +87,7 @@ class ReadingsBatchProcessor {
     };
   }
 
-  async processDocument(doc) {
+  async processDocument(doc, bulkAverages) {
     try {
       if (!this.processingMetrics.startTime) {
         this.processingMetrics.startTime = new Date();
@@ -108,7 +110,10 @@ class ReadingsBatchProcessor {
       let averages = null;
       if (doc.site_id) {
         try {
-          averages = await this.getOrQueueAverages(doc.site_id.toString());
+          averages = await this.getOrQueueAverages(
+            doc.site_id.toString(),
+            bulkAverages
+          );
         } catch (error) {
           logger.debug(
             `Failed to get averages for site ${doc.site_id}: ${error.message}`
@@ -170,7 +175,7 @@ class ReadingsBatchProcessor {
     }
   }
 
-  async getOrQueueAverages(siteId) {
+  async getOrQueueAverages(siteId, bulkAverages) {
     const cachedAverages = siteAveragesCache.get(siteId);
     if (cachedAverages) {
       return cachedAverages;
@@ -180,7 +185,12 @@ class ReadingsBatchProcessor {
       return this.pendingAveragesQueue.get(siteId);
     }
 
-    const averagesPromise = this.calculateAverages(siteId);
+    // Use pre-fetched bulk averages if available
+    if (bulkAverages && bulkAverages[siteId]) {
+      return bulkAverages[siteId];
+    }
+
+    const averagesPromise = this.calculateAverages(siteId); // Fallback for safety
     this.pendingAveragesQueue.set(siteId, averagesPromise);
 
     try {
@@ -242,54 +252,129 @@ class ReadingsBatchProcessor {
   }
 }
 
+// New function to fetch all recent events in smaller batches
+async function fetchAllRecentEvents() {
+  let allEvents = [];
+  let skip = 0;
+  let hasMore = true;
+  let iteration = 0;
+
+  logText("Fetching recent events in batches...");
+
+  while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
+    try {
+      const request = {
+        query: {
+          tenant: "airqo",
+          recent: "yes",
+          metadata: "site_id",
+          active: "yes",
+          brief: "yes",
+          limit: FETCH_BATCH_SIZE,
+          skip: skip,
+        },
+      };
+
+      const filter = generateFilter.fetch(request);
+      const fetchOptions = { ...filter, isHistorical: true };
+
+      const FETCH_TIMEOUT = 45000; // 45 seconds
+      const response = await Promise.race([
+        EventModel("airqo").fetch(fetchOptions),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Fetch timeout")), FETCH_TIMEOUT)
+        ),
+      ]);
+
+      if (
+        response?.success &&
+        Array.isArray(response.data?.[0]?.data) &&
+        response.data[0].data.length > 0
+      ) {
+        const batchEvents = response.data[0].data;
+        allEvents = allEvents.concat(batchEvents);
+
+        logText(
+          `Fetched batch ${iteration + 1}: ${
+            batchEvents.length
+          } events (total: ${allEvents.length})`
+        );
+
+        if (batchEvents.length < FETCH_BATCH_SIZE) {
+          hasMore = false;
+          logText("Reached end of recent events");
+        } else {
+          skip += FETCH_BATCH_SIZE;
+          iteration++;
+          await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+        }
+      } else {
+        hasMore = false;
+        if (iteration === 0) {
+          logText("No recent events found in the first batch");
+        }
+      }
+    } catch (error) {
+      logger.error(
+        `Error fetching event batch ${iteration + 1}: ${error.message}`
+      );
+      hasMore = false; // Stop on error
+    }
+  }
+
+  if (iteration >= MAX_FETCH_ITERATIONS) {
+    logger.warn(`Reached maximum fetch iterations (${MAX_FETCH_ITERATIONS})`);
+  }
+
+  logText(`Total events fetched for processing: ${allEvents.length}`);
+  return allEvents;
+}
+
+// New function to calculate averages for all sites in one go
+async function calculateAveragesInBulk(siteIds) {
+  if (!siteIds || siteIds.length === 0) {
+    return {};
+  }
+  logText(`Calculating averages for ${siteIds.length} unique sites...`);
+  try {
+    const averages = await EventModel("airqo").getAirQualityAveragesForSites(
+      siteIds
+    );
+    if (averages.success) {
+      return averages.data;
+    }
+    return {};
+  } catch (error) {
+    logger.error(`Error calculating bulk averages: ${error.message}`);
+    return {};
+  }
+}
+
 // Main function focused purely on readings
 async function fetchAndStoreReadings() {
   const batchProcessor = new ReadingsBatchProcessor(50);
 
   try {
-    const request = {
-      query: {
-        tenant: "airqo",
-        recent: "yes",
-        metadata: "site_id",
-        active: "yes",
-        brief: "yes",
-      },
-    };
-    const filter = generateFilter.fetch(request);
+    logText("Starting optimized readings processing job");
 
-    logText("Starting readings processing job");
+    // 1. Fetch all events in batches
+    const allEvents = await fetchAllRecentEvents();
 
-    let viewEventsResponse;
-    try {
-      viewEventsResponse = await EventModel("airqo").fetch(filter);
-    } catch (fetchError) {
-      if (isDuplicateKeyError(fetchError)) {
-        logText("Ignoring duplicate key error in fetch operation");
-        return;
-      }
-      logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
+    if (allEvents.length === 0) {
+      logText("No events found to process into Readings");
       return;
     }
 
-    if (
-      !viewEventsResponse?.success ||
-      !Array.isArray(viewEventsResponse.data?.[0]?.data)
-    ) {
-      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
-      return;
-    }
-
-    const data = viewEventsResponse.data[0].data;
-    if (data.length === 0) {
-      logText("No Events found to process into Readings");
-      return;
-    }
+    // 2. Get unique site IDs and calculate averages in bulk
+    const uniqueSiteIds = [
+      ...new Set(allEvents.map((e) => e.site_id).filter(Boolean)),
+    ];
+    const bulkAverages = await calculateAveragesInBulk(uniqueSiteIds);
 
     // Process in batches
     const batches = [];
-    for (let i = 0; i < data.length; i += batchProcessor.batchSize) {
-      batches.push(data.slice(i, i + batchProcessor.batchSize));
+    for (let i = 0; i < allEvents.length; i += batchProcessor.batchSize) {
+      batches.push(allEvents.slice(i, i + batchProcessor.batchSize));
     }
 
     for (const batch of batches) {
@@ -298,7 +383,8 @@ async function fetchAndStoreReadings() {
           asyncRetry(
             async (bail) => {
               try {
-                await batchProcessor.processDocument(doc);
+                // Pass bulk averages to the processor
+                await batchProcessor.processDocument(doc, bulkAverages);
               } catch (error) {
                 if (isDuplicateKeyError(error)) {
                   return; // Skip duplicates
@@ -384,9 +470,6 @@ const startJob = () => {
     stop: async () => {
       logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
-      if (typeof cronJobInstance.destroy === "function") {
-        cronJobInstance.destroy();
-      }
       logText(`📅 ${JOB_NAME} schedule stopped.`);
       try {
         if (currentJobPromise) {
