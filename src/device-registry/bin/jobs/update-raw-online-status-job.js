@@ -605,12 +605,7 @@ const startJob = () => {
             logText(
               `⏳ Waiting for current ${JOB_NAME} execution to finish...`
             );
-            await Promise.race([
-              currentJobPromise,
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Job stop timeout")), 30000)
-              ),
-            ]);
+            await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
         } catch (error) {
@@ -618,10 +613,6 @@ const startJob = () => {
             `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${error.message}`
           );
         } finally {
-          if (typeof cronJobInstance.destroy === "function") {
-            cronJobInstance.destroy();
-            logText(`💥 ${JOB_NAME} destroyed successfully.`);
-          }
           delete global.cronJobs[JOB_NAME];
           logText(`🧹 ${JOB_NAME} removed from job registry.`);
         }

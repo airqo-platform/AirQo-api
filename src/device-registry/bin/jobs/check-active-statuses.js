@@ -177,10 +177,6 @@ const startCheckActiveStatusesJob = () => {
             logText(`✅ Current ${JOB_NAME} execution completed`);
           }
 
-          // Destroy the job
-          cronJobInstance.destroy(); // 👈 Using the cronJobInstance here
-          logText(`💥 ${JOB_NAME} destroyed successfully`);
-
           // Remove from global registry
           delete global.cronJobs[JOB_NAME];
         } catch (error) {

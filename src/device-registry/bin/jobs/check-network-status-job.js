@@ -301,10 +301,6 @@ const startNetworkStatusJobs = () => {
             logText(`✅ Current ${MAIN_JOB_NAME} execution completed`);
           }
 
-          // Destroy the job
-          mainJobInstance.destroy();
-          logText(`💥 ${MAIN_JOB_NAME} destroyed successfully`);
-
           // Remove from global registry
           delete global.cronJobs[MAIN_JOB_NAME];
         } catch (error) {
@@ -334,10 +330,6 @@ const startNetworkStatusJobs = () => {
             await currentSummaryJobPromise;
             logText(`✅ Current ${SUMMARY_JOB_NAME} execution completed`);
           }
-
-          // Destroy the job
-          summaryJobInstance.destroy();
-          logText(`💥 ${SUMMARY_JOB_NAME} destroyed successfully`);
 
           // Remove from global registry
           delete global.cronJobs[SUMMARY_JOB_NAME];
