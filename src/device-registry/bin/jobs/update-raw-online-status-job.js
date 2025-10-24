@@ -138,11 +138,9 @@ const isDeviceRawActive = (lastFeedTime) => {
 
 // Helper function to determine if a device is considered mobile
 const isDeviceActuallyMobile = (device) => {
-  return (
-    device.mobility === true ||
-    device.deployment_type === "mobile" ||
-    !!device.grid_id // Check if grid_id exists and is not null/undefined
-  );
+  // Helper: a device is mobile only if explicitly marked so
+  const type = (device?.deployment_type || "").toString().toLowerCase();
+  return device?.mobility === true || type === "mobile";
 };
 
 const mockNext = (error) => {
