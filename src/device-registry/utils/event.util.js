@@ -1101,7 +1101,10 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
 
         // Track rejection reasons
         // Sanitize the reason to be a valid MongoDB key (no dots)
-        const reason = validation.reason.replace(/\./g, "_");
+        const reason = (typeof validation.reason === "string"
+          ? validation.reason
+          : "unknown"
+        ).replace(/\./g, "_");
         rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
 
         // Log rejected measurement
