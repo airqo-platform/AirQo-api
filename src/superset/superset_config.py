@@ -20,7 +20,7 @@ WTF_CSRF_ENABLED = env.bool("WTF_CSRF_ENABLED")
 APP_ROOT = env("SUPERSET_APP_ROOT")
 SESSION_COOKIE_HTTPONLY = env.bool("SESSION_COOKIE_HTTPONLY")
 WEBSERVER_TIMEOUT = env("SUPERSET_WEBSERVER_TIMEOUT")
-SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN")
+# SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN")
 SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE")
 SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE")
 WTF_CSRF_TIME_LIMIT = env.int("WTF_CSRF_TIME_LIMIT")
@@ -62,5 +62,5 @@ TALISMAN_CONFIG = {
     },
     "content_security_policy_nonce_in": ["script-src"],
     "force_https": False,
-    "session_cookie_secure": True,
+    "session_cookie_secure": False,
 }
