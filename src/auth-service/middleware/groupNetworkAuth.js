@@ -432,7 +432,8 @@ const isVerifiedGroupMember = async (user, groupId, tenant) => {
     }
 
     // Must be verified and active
-    if (!user.verified || user.status !== "active") {
+    const isActive = user.status === "active" || user.isActive;
+    if (!user.verified || !isActive) {
       return false;
     }
 
@@ -464,7 +465,8 @@ const isVerifiedNetworkMember = async (user, networkId, tenant) => {
     }
 
     // Must be verified and active
-    if (!user.verified || user.status !== "active") {
+    const isActive = user.status === "active" || user.isActive;
+    if (!user.verified || !isActive) {
       return false;
     }
 

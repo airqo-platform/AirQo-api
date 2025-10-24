@@ -4,7 +4,7 @@ const ThemeSchema = new mongoose.Schema(
   {
     primaryColor: {
       type: String,
-      default: "#1976d2", // Default blue color
+      default: "#145FFF", // Default blue color
       validate: {
         validator: function (v) {
           // Validate hex color or CSS color names
@@ -29,7 +29,7 @@ const ThemeSchema = new mongoose.Schema(
     contentLayout: {
       type: String,
       enum: ["compact", "wide"],
-      default: "compact",
+      default: "wide",
     },
   },
   { _id: false }
