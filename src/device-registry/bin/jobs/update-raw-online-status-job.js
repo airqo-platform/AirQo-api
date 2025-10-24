@@ -136,6 +136,15 @@ const isDeviceRawActive = (lastFeedTime) => {
   return timeDiff < RAW_INACTIVE_THRESHOLD;
 };
 
+// Helper function to determine if a device is considered mobile
+const isDeviceActuallyMobile = (device) => {
+  return (
+    device.mobility === true ||
+    device.deployment_type === "mobile" ||
+    !!device.grid_id // Check if grid_id exists and is not null/undefined
+  );
+};
+
 const mockNext = (error) => {
   logger.error(`Error passed to mock 'next' function in job: ${error.message}`);
 };
@@ -239,7 +248,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       rawOnlineStatus: isNowRawOnline,
     };
 
-    if (device.status === "not deployed") {
+    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
       updateFields.isOnline = isNowRawOnline;
     }
 
@@ -274,7 +283,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       rawOnlineStatus: isNowRawOnline,
     };
 
-    if (device.status === "not deployed") {
+    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
       updateFields.isOnline = isNowRawOnline;
     }
 
@@ -345,7 +354,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     }
 
     // ALSO update primary online status for UNDEPLOYED or MOBILE devices
-    if (device.status === "not deployed" || device.mobility === true) {
+    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
       updateFields.isOnline = isRawOnline;
       if (lastFeedTime) {
         updateFields.lastActive = new Date(lastFeedTime);
@@ -398,7 +407,7 @@ const createFailureUpdate = (device, reason) => {
     rawOnlineStatus: isNowRawOnline,
   };
 
-  if (device.status === "not deployed" || device.mobility === true) {
+  if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
     updateFields.isOnline = isNowRawOnline;
   }
 
@@ -454,7 +463,8 @@ const updateRawOnlineStatus = async () => {
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy mobility"
+        // Include deployment_type and grid_id for robust mobile check
+        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy mobility deployment_type grid_id"
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
