@@ -1003,7 +1003,6 @@ const generateFilter = {
     if (recent === "yes" && (active === "yes" || internal === "yes")) {
       const twelveHoursBack = new Date(Date.now() - JOB_LOOKBACK_WINDOW_MS);
       filter["values.time"] = { $gte: twelveHoursBack, $lte: today };
-      const today = new Date();
       filter["day"] = {
         $gte: generateDateFormatWithoutHrs(twelveHoursBack),
         $lte: generateDateFormatWithoutHrs(today),
