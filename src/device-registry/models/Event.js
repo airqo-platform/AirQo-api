@@ -3006,13 +3006,6 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
       },
       { $unwind: "$values" },
       {
-        $match: {
-          "values.site_id": { $in: objectSiteIds },
-          "values.time": { $gte: twoWeeksAgo, $lte: now },
-          "values.pm2_5.value": { $exists: true, $ne: null },
-        },
-      },
-      {
         $project: {
           _id: 0,
           site_id: "$values.site_id",
