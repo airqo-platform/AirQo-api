@@ -22,82 +22,97 @@ const isEmpty = require("is-empty");
 
 const logUserPreferences = async () => {
   try {
-    const batchSize = 100;
-    let skip = 0;
-    let totalCountWithoutSelectedSites = 0;
-    let totalUsersProcessed = 0;
-
-    // Use the default group ID
+    logText("Starting user preferences logging job...");
     const defaultGroupId = mongoose.Types.ObjectId(constants.DEFAULT_GROUP);
 
-    while (true) {
-      // Fetch users with their group_roles
-      const users = await UserModel("airqo")
-        .find()
-        .limit(batchSize)
-        .skip(skip)
-        .select("_id email group_roles")
-        .lean();
+    // Use a single aggregation pipeline for efficiency
+    const aggregation = [
+      // Stage 1: Match users belonging to the default group
+      {
+        $match: {
+          "group_roles.group": defaultGroupId,
+        },
+      },
+      // Stage 2: Left join with preferences for the default group
+      {
+        $lookup: {
+          from: "preferences",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$user_id", "$$userId"] },
+                    { $eq: ["$group_id", defaultGroupId] },
+                  ],
+                },
+              },
+            },
+            { $project: { selected_sites: 1 } },
+          ],
+          as: "preference",
+        },
+      },
+      // Stage 3: Unwind the preference array (or keep it empty if no match)
+      {
+        $unwind: {
+          path: "$preference",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Stage 4: Group and count users
+      {
+        $group: {
+          _id: null,
+          totalUsersInGroup: { $sum: 1 },
+          usersWithoutSelectedSites: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $not: ["$preference"] },
+                    {
+                      $eq: [
+                        {
+                          $size: {
+                            $ifNull: ["$preference.selected_sites", []],
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ];
 
-      if (users.length === 0) {
-        break;
-      }
+    const results = await UserModel("airqo").aggregate(aggregation).exec();
 
-      // Filter users who are members of the default group
-      const validUsers = users.filter(
-        (user) =>
-          user.group_roles &&
-          user.group_roles.some(
-            (role) => role.group.toString() === defaultGroupId.toString()
-          )
-      );
-
-      // Fetch existing preferences for valid users in the default group
-      const userIds = validUsers.map((user) => user._id);
-      const preferences = await PreferenceModel("airqo")
-        .find({
-          user_id: { $in: userIds },
-          group_id: defaultGroupId,
-        })
-        .select("_id user_id selected_sites")
-        .lean();
-
-      const preferencesMap = new Map();
-      preferences.forEach((pref) => {
-        preferencesMap.set(pref.user_id.toString(), pref);
-      });
-
-      // Collect IDs of users without selected_sites in the default group
-      const usersWithoutSelectedSites = validUsers.filter((user) => {
-        const preference = preferencesMap.get(user._id.toString());
-        return !preference || isEmpty(preference.selected_sites);
-      });
-
-      // Aggregate results
-      totalCountWithoutSelectedSites += usersWithoutSelectedSites.length;
-      totalUsersProcessed += validUsers.length;
-
-      skip += batchSize;
-    }
-
-    // Log the aggregated results once after processing all users
-    if (totalUsersProcessed > 0) {
-      const percentageWithoutSelectedSites = (
-        (totalCountWithoutSelectedSites / totalUsersProcessed) *
+    if (results.length > 0) {
+      const { totalUsersInGroup, usersWithoutSelectedSites } = results[0];
+      const percentage = (
+        (usersWithoutSelectedSites / totalUsersInGroup) *
         100
       ).toFixed(2);
 
-      if (totalCountWithoutSelectedSites > 0) {
+      if (usersWithoutSelectedSites > 0) {
         logger.info(
-          `💔💔 Total count of users without Customised Locations in the default group: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of processed users.`
+          `💔💔 Users in default group without Customised Locations: ${usersWithoutSelectedSites}/${totalUsersInGroup} (${percentage}%)`
         );
       } else {
-        logText(`😎🎉✅ All users have Customised Locations.`);
+        logText(
+          `😎🎉✅ All users in the default group have Customised Locations.`
+        );
       }
     } else {
-      logger.info(
-        `🤔🤔 No users processed or no users belong to the default group.`
-      );
+      logger.info(`🤔🤔 No users found in the default group.`);
     }
   } catch (error) {
     logger.error(`🐛🐛 Error in logUserPreferences: ${stringify(error)}`);

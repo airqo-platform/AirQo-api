@@ -283,9 +283,6 @@ const createSafeRateLimiter = (config) => {
       // Add error handler
       requestWasSuccessful: (req, res) => res.statusCode < 400,
       // If store throws error, handle it gracefully
-      onLimitReached: (req, res, options) => {
-        logger.warn(`Rate limit reached for ${extractIp(req)} on ${req.path}`);
-      },
     });
   } catch (error) {
     logger.error(`Failed to create rate limiter: ${error.message}`);

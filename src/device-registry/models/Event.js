@@ -2286,6 +2286,7 @@ eventSchema.statics.getAirQualityAverages = async function(
   options = {}
 ) {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { isHistorical = false } = options;
     const TIMEZONE = moment.tz.guess();
 
@@ -2302,6 +2303,7 @@ eventSchema.statics.getAirQualityAverages = async function(
       .subtract(14, "days")
       .toDate();
 
+    // For historical measurements, use simplified aggregation
     // For historical measurements, use simplified aggregation
     if (isHistorical) {
       const result = await this.aggregate([
@@ -2521,6 +2523,7 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
   options = {}
 ) {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { isHistorical = false } = options;
 
     // For historical data, use the simplified version from v1
@@ -2528,8 +2531,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
       return this.getAirQualityAverages(siteId, next, { isHistorical: true });
     }
 
-    // Full v2 implementation for current data (existing code)
-    const TIMEZONE = "Africa/Kampala";
     const MIN_READINGS_PER_DAY = 12;
 
     const now = moment()
@@ -2745,6 +2746,7 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
   options = {}
 ) {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { isHistorical = false } = options;
 
     // For historical data, use the simplified version
@@ -2752,8 +2754,6 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
       return this.getAirQualityAverages(siteId, next, { isHistorical: true });
     }
 
-    // Full v3 implementation for current data (existing code)
-    const TIMEZONE = "Africa/Kampala";
     const MIN_READINGS_PER_WEEK = 7 * 12;
     const EPSILON = 0.1;
 
@@ -2952,6 +2952,161 @@ function calculateConfidenceScore(
   // Combine scores (giving more weight to current week)
   return (currentWeekScore * 0.6 + baselineScore * 0.4) * 100;
 }
+
+eventSchema.statics.getAirQualityAveragesForSites = async function(
+  siteIds,
+  next
+) {
+  try {
+    // eslint-disable-next-line no-unused-vars
+    if (!Array.isArray(siteIds) || siteIds.length === 0) {
+      return {
+        success: true,
+        data: {},
+        message: "No site IDs provided.",
+        status: httpStatus.OK,
+      };
+    }
+
+    // Validate, normalize, and dedupe input IDs
+    const normalizedIds = Array.from(
+      new Set(
+        siteIds
+          .map((id) => (id ? id.toString() : null))
+          .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
+      )
+    );
+    if (normalizedIds.length === 0) {
+      return {
+        success: true,
+        data: {},
+        message: "No valid site IDs provided.",
+        status: httpStatus.OK,
+      };
+    }
+
+    const objectSiteIds = siteIds.map((id) => mongoose.Types.ObjectId(id));
+    const TIMEZONE = constants.TIMEZONE || "UTC";
+    const now = moment()
+      .tz(TIMEZONE)
+      .toDate();
+    const twoWeeksAgo = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .subtract(14, "days")
+      .toDate();
+
+    const results = await this.aggregate([
+      {
+        $match: {
+          "values.site_id": { $in: objectSiteIds },
+          "values.time": { $gte: twoWeeksAgo, $lte: now },
+          "values.pm2_5.value": { $exists: true, $ne: null }, // Pre-filter for performance
+        },
+      },
+      { $unwind: "$values" },
+      {
+        $project: {
+          _id: 0,
+          site_id: "$values.site_id",
+          pm2_5: "$values.pm2_5.value",
+          yearWeek: {
+            // Robust ISO week calculation
+            $let: {
+              vars: {
+                parts: {
+                  $dateToParts: {
+                    date: "$values.time",
+                    timezone: TIMEZONE,
+                    iso8601: true,
+                  },
+                },
+              },
+              in: {
+                $concat: [
+                  { $toString: "$$parts.isoWeekYear" },
+                  "-",
+                  {
+                    $cond: [
+                      { $lt: ["$$parts.isoWeek", 10] },
+                      { $concat: ["0", { $toString: "$$parts.isoWeek" }] },
+                      { $toString: "$$parts.isoWeek" },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          dayOfYear: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$values.time",
+              timezone: TIMEZONE,
+            },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { site_id: "$site_id", day: "$dayOfYear" },
+          dailyAverage: { $avg: "$pm2_5" },
+          yearWeek: { $first: "$yearWeek" },
+        },
+      },
+      {
+        $group: {
+          _id: { site_id: "$_id.site_id", week: "$yearWeek" },
+          weeklyAverage: { $avg: "$dailyAverage" },
+        },
+      },
+      // Sort per site and by week descending to get the two most recent weeks
+      { $sort: { "_id.site_id": 1, "_id.week": -1 } },
+      {
+        $group: {
+          _id: "$_id.site_id",
+          weeklyAverages: { $push: "$weeklyAverage" },
+        },
+      },
+      { $project: { weeklyAverages: { $slice: ["$weeklyAverages", 2] } } }, // Keep only the two most recent weeks per site
+    ]).allowDiskUse(true);
+
+    const averagesBySite = {};
+    results.forEach((res) => {
+      const [currentWeekAvg, previousWeekAvg] = res.weeklyAverages;
+      if (currentWeekAvg !== undefined && previousWeekAvg !== undefined) {
+        const percentageDifference =
+          previousWeekAvg !== 0
+            ? ((currentWeekAvg - previousWeekAvg) / previousWeekAvg) * 100
+            : 0;
+        averagesBySite[res._id.toString()] = {
+          percentageDifference: parseFloat(percentageDifference.toFixed(2)),
+          weeklyAverages: {
+            currentWeek: parseFloat(currentWeekAvg.toFixed(2)),
+            previousWeek: parseFloat(previousWeekAvg.toFixed(2)),
+          },
+        };
+      }
+    });
+
+    return {
+      success: true,
+      data: averagesBySite,
+      message: "Successfully retrieved bulk air quality averages",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `Internal Server Error --- getAirQualityAveragesForSites --- ${error.message}`
+    );
+    // Do not call next() in a static method that should return a value
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
 
 const eventsModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
