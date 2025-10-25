@@ -18,7 +18,13 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
 
-const JOB_LOOKBACK_WINDOW_MS = 12 * 60 * 60 * 1000; // 12 hours
+if (
+  typeof constants.JOB_LOOKBACK_WINDOW_MS === "undefined" ||
+  constants.JOB_LOOKBACK_WINDOW_MS === null
+) {
+  logger.error("JOB_LOOKBACK_WINDOW_MS is not defined in constants!");
+}
+const JOB_LOOKBACK_WINDOW_MS = constants.JOB_LOOKBACK_WINDOW_MS;
 
 const isLowerCase = (str) => {
   return str === str.toLowerCase();
