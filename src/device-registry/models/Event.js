@@ -691,9 +691,9 @@ eventSchema.index(
 eventSchema.index(
   {
     day: 1,
-    "values.time": 1,
     "values.device_id": 1,
     "values.site_id": 1,
+    "values.time": -1,
   },
   {
     name: "online_status_job_fetch_idx",

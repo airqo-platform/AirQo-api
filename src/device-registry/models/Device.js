@@ -467,7 +467,7 @@ deviceSchema.index({ mobility: 1, cohorts: 1 });
 // Index for stale entity checks
 deviceSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
 // Index for offline entity checks
-deviceSchema.index({ isOnline: 1, lastActive: 1, createdAt: 1 });
+deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(

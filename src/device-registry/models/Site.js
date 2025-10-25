@@ -557,7 +557,7 @@ siteSchema.index({ createdAt: -1 });
 // Index for stale entity checks
 siteSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
 // Index for offline entity checks
-siteSchema.index({ isOnline: 1, lastActive: 1, createdAt: 1 });
+siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
