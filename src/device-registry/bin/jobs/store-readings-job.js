@@ -18,7 +18,7 @@ const TIMEZONE = moment.tz.guess();
 const JOB_NAME = "store-readings-job";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 const FETCH_BATCH_SIZE = 200;
-const MAX_FETCH_ITERATIONS = 20; // Safety limit for fetching
+const MAX_FETCH_ITERATIONS = 100; // Increased safety limit for fetching
 
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
