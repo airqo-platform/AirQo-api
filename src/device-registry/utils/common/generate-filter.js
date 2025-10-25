@@ -995,6 +995,17 @@ const generateFilter = {
       filter["internal"] = internal;
     }
 
+    // If 'recent=yes' is used by a job, override the time window to be much smaller
+    // This is a critical optimization for background jobs.
+    if (recent === "yes" && (active === "yes" || internal === "yes")) {
+      const twelveHoursBack = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      filter["values.time"] = { $gte: twelveHoursBack, $lte: today };
+      filter["day"] = {
+        $gte: generateDateFormatWithoutHrs(twelveHoursBack),
+        $lte: generateDateFormatWithoutHrs(today),
+      };
+    }
+
     return filter;
   },
 
