@@ -9,5 +9,6 @@ const strings = {
   MQTT_BRIDGE_HOST_NAME: "mqtt.googleapis.com",
   MESSAGE_TYPE: "events",
   DEFAULT_COHORT_NAME: "airqo",
+  TIMEZONE: "UTC",
 };
 module.exports = strings;

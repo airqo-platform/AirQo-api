@@ -165,7 +165,7 @@ try {
     `update-online-status-job failed to start: ${err.message}`
   );
 }
-// require("@bin/jobs/check-network-status-job");
+require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
@@ -477,7 +477,6 @@ const createServer = () => {
               if (jobObj && typeof jobObj.stop === "function") {
                 await jobObj.stop();
                 console.log(`✅ Successfully stopped cron job: ${jobName}`);
-                logger.info(`✅ Successfully stopped cron job: ${jobName}`);
               } else {
                 console.warn(
                   `⚠️ Job ${jobName} does not have a 'stop' method.`
@@ -498,10 +497,8 @@ const createServer = () => {
 
         await Promise.all(stopPromises);
         console.log("All cron jobs have been processed for shutdown.");
-        logger.info("All cron jobs have been processed for shutdown.");
       } else {
         console.log("No cron jobs to stop.");
-        logger.info("No cron jobs to stop.");
       }
 
       // Wait for any remaining active jobs to finish
@@ -526,16 +523,13 @@ const createServer = () => {
       // Close any Redis connections if they exist
       if (global.redisClient) {
         console.log("Closing Redis connection...");
-        logger.info("Closing Redis connection...");
         try {
           if (typeof global.redisClient.quit === "function") {
             await global.redisClient.quit();
             console.log("✅ Redis connection closed");
-            logger.info("✅ Redis connection closed");
           } else if (typeof global.redisClient.disconnect === "function") {
             await global.redisClient.disconnect();
             console.log("✅ Redis connection disconnected");
-            logger.info("✅ Redis connection disconnected");
           }
         } catch (error) {
           console.error("❌ Error closing Redis connection:", error.message);
@@ -546,11 +540,9 @@ const createServer = () => {
       // Close any additional cleanup (Firebase, etc.)
       if (global.firebaseApp) {
         console.log("Closing Firebase connections...");
-        logger.info("Closing Firebase connections...");
         try {
           // Add Firebase cleanup if needed
           console.log("✅ Firebase connections closed");
-          logger.info("✅ Firebase connections closed");
         } catch (error) {
           console.error(
             "❌ Error closing Firebase connections:",
@@ -583,7 +575,6 @@ const createServer = () => {
 
       // Close MongoDB connection
       console.log("Closing MongoDB connection...");
-      logger.info("Closing MongoDB connection...");
 
       try {
         await new Promise((resolve, reject) => {
@@ -597,7 +588,6 @@ const createServer = () => {
         });
 
         console.log("✅ MongoDB connection closed");
-        logger.info("✅ MongoDB connection closed");
       } catch (error) {
         console.error("❌ Error closing MongoDB connection:", error.message);
         logger.error(`❌ Error closing MongoDB connection: ${error.message}`);
@@ -605,7 +595,6 @@ const createServer = () => {
 
       // Final cleanup
       console.log("Exiting process...");
-      logger.info("Exiting process...");
       process.exit(0);
     });
 

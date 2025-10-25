@@ -136,6 +136,13 @@ const isDeviceRawActive = (lastFeedTime) => {
   return timeDiff < RAW_INACTIVE_THRESHOLD;
 };
 
+// Helper function to determine if a device is considered mobile
+const isDeviceActuallyMobile = (device) => {
+  // Helper: a device is mobile only if explicitly marked so
+  const type = (device?.deployment_type || "").toString().toLowerCase();
+  return device?.mobility === true || type === "mobile";
+};
+
 const mockNext = (error) => {
   logger.error(`Error passed to mock 'next' function in job: ${error.message}`);
 };
@@ -239,7 +246,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       rawOnlineStatus: isNowRawOnline,
     };
 
-    if (device.status === "not deployed") {
+    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
       updateFields.isOnline = isNowRawOnline;
     }
 
@@ -274,7 +281,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       rawOnlineStatus: isNowRawOnline,
     };
 
-    if (device.status === "not deployed") {
+    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
       updateFields.isOnline = isNowRawOnline;
     }
 
@@ -344,8 +351,8 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       updateFields.lastRawData = new Date(lastFeedTime);
     }
 
-    // ALSO update primary online status for UNDEPLOYED devices
-    if (device.status === "not deployed") {
+    // ALSO update primary online status for UNDEPLOYED or MOBILE devices
+    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
       updateFields.isOnline = isRawOnline;
       if (lastFeedTime) {
         updateFields.lastActive = new Date(lastFeedTime);
@@ -398,7 +405,7 @@ const createFailureUpdate = (device, reason) => {
     rawOnlineStatus: isNowRawOnline,
   };
 
-  if (device.status === "not deployed") {
+  if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
     updateFields.isOnline = isNowRawOnline;
   }
 
@@ -423,24 +430,33 @@ const updateRawOnlineStatus = async () => {
     processor.start();
     const startTime = Date.now();
     logText(`Starting raw online status check for ALL devices...`);
+    let totalDevices = 0;
 
-    // Use more efficient counting method
-    const totalDevices = await DeviceModel("airqo").estimatedDocumentCount();
-    if (totalDevices === 0) {
-      logText("No devices to process.");
-      processor.end();
-      return;
+    try {
+      const COUNT_TIMEOUT = 5000; // 5 seconds
+      totalDevices = await Promise.race([
+        DeviceModel("airqo").estimatedDocumentCount(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Device count timed out")),
+            COUNT_TIMEOUT
+          )
+        ),
+      ]);
+    } catch (error) {
+      logger.warn(`Could not retrieve total device count: ${error.message}`);
+      logText("Could not retrieve total device count, proceeding without it.");
     }
 
-    logText(
-      `Found ~${totalDevices} devices to process in batches of ${BATCH_SIZE}`
-    );
+    const countLog = totalDevices > 0 ? `~${totalDevices}` : "all";
+    logText(`Found ${countLog} devices to process in batches of ${BATCH_SIZE}`);
 
     // Use cursor with smaller memory footprint
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy"
+        // Include deployment_type and grid_id for robust mobile check
+        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy mobility deployment_type grid_id"
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
@@ -589,12 +605,7 @@ const startJob = () => {
             logText(
               `⏳ Waiting for current ${JOB_NAME} execution to finish...`
             );
-            await Promise.race([
-              currentJobPromise,
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Job stop timeout")), 30000)
-              ),
-            ]);
+            await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
         } catch (error) {
@@ -602,10 +613,6 @@ const startJob = () => {
             `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${error.message}`
           );
         } finally {
-          if (typeof cronJobInstance.destroy === "function") {
-            cronJobInstance.destroy();
-            logText(`💥 ${JOB_NAME} destroyed successfully.`);
-          }
           delete global.cronJobs[JOB_NAME];
           logText(`🧹 ${JOB_NAME} removed from job registry.`);
         }

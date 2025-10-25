@@ -221,9 +221,6 @@ const startDailyActivitySummaryJob = () => {
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed`);
           }
-
-          jobInstance.destroy();
-          logText(`💥 ${JOB_NAME} destroyed successfully`);
           delete global.cronJobs[JOB_NAME];
         } catch (error) {
           logger.error(`❌ Error stopping ${JOB_NAME}: ${error.message}`);
