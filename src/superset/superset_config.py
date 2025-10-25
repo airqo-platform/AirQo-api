@@ -4,6 +4,9 @@ import redis
 env = environ.Env()
 environ.Env.read_env()
 
+# Flask APP
+FLASK_APP = env("FLASK_APP")
+
 # Security & Flask settings
 SECRET_KEY = env("SUPERSET_SECRET_KEY")
 
@@ -40,8 +43,8 @@ CACHE_CONFIG = {
     "CACHE_REDIS_URL": env("CACHE_REDIS_URL"),
 }
 
-# Flask APP
-FLASK_APP = env("FLASK_APP")
+
+FORCE_HTTPS = env.bool("FORCE_HTTPS")
 
 TALISMAN_CONFIG = {
     "content_security_policy": {
@@ -61,6 +64,13 @@ TALISMAN_CONFIG = {
         "script-src": ["'self'", "'strict-dynamic'"],
     },
     "content_security_policy_nonce_in": ["script-src"],
-    "force_https": False,
-    "session_cookie_secure": False,
+    "force_https": FORCE_HTTPS,
+    "session_cookie_secure": SESSION_COOKIE_SECURE,
 }
+
+# CORS_OPTIONS = {
+#     "origins": [SUPERSET_PUBLIC_URL],
+#     "methods": ["GET", "POST", "PUT", "DELETE"],
+#     "allow_headers": ["Content-Type", "Authorization", "X-CSRFToken", "Referer"],
+#     "supports_credentials": True
+# }
