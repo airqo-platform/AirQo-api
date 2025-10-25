@@ -5,6 +5,7 @@ const logger = log4js.getLogger(
 );
 const DeviceModel = require("@models/Device");
 const NetworkStatusAlertModel = require("@models/NetworkStatusAlert");
+const LogThrottleModel = require("@models/LogThrottle");
 const networkStatusUtil = require("@utils/network-status.util");
 const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
@@ -24,6 +25,72 @@ let isMainJobRunning = false;
 let isSummaryJobRunning = false;
 let currentMainJobPromise = null;
 let currentSummaryJobPromise = null;
+const LOG_TYPE = "NETWORK_STATUS_ALERT";
+
+class LogThrottleManager {
+  constructor() {
+    this.environment = constants.ENVIRONMENT;
+    this.model = LogThrottleModel("airqo");
+  }
+
+  async shouldAllowLog(logType) {
+    const today = moment()
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
+    const maxLogsPerDay = 1;
+
+    try {
+      const result = await this.model.incrementCount({
+        date: today,
+        logType: logType,
+        environment: this.environment,
+      });
+
+      if (result.success) {
+        const currentCount = result.data?.count || 1;
+        return currentCount <= maxLogsPerDay;
+      } else {
+        // If increment fails, check current count to decide
+        const current = await this.model.getCurrentCount({
+          date: today,
+          logType: logType,
+          environment: this.environment,
+        });
+        if (current.success && current.data.exists) {
+          return current.data.count < maxLogsPerDay;
+        }
+        // Default to allowing log if we can't be sure
+        return true;
+      }
+    } catch (error) {
+      if (error.code === 11000) {
+        // Duplicate key error means another instance is running.
+        // Check the count to see if this instance should log.
+        try {
+          const countResult = await this.model.getCurrentCount({
+            date: today,
+            logType: logType,
+            environment: this.environment,
+          });
+
+          if (countResult.success && countResult.data.exists) {
+            // If count is already >= 1, this instance should not log.
+            return countResult.data.count < maxLogsPerDay;
+          }
+        } catch (retryError) {
+          logger.warn(`Log throttle retry failed: ${retryError.message}`);
+        }
+      } else {
+        logger.warn(`Log throttle check failed: ${error.message}`);
+      }
+
+      // In case of unexpected errors, default to allowing the log to ensure visibility.
+      return true;
+    }
+  }
+}
+
+const logThrottleManager = new LogThrottleManager();
 
 const checkNetworkStatus = async () => {
   // Prevent overlapping executions
@@ -115,14 +182,20 @@ const checkNetworkStatus = async () => {
       )}% offline (${offlineDevicesCount}/${totalDevices})`;
     }
 
-    // Log to Slack/console as before
-    logText(message);
-    if (status === "CRITICAL") {
-      logger.error(message);
-    } else if (status === "WARNING") {
-      logger.warn(message);
+    // Use throttled logging
+    const shouldLog = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+
+    if (shouldLog) {
+      logText(message);
+      if (status === "CRITICAL") {
+        logger.error(message);
+      } else if (status === "WARNING") {
+        logger.warn(message);
+      } else {
+        logger.info(message);
+      }
     } else {
-      logger.info(message);
+      logger.debug(`Log throttled for ${LOG_TYPE}: Daily limit reached.`);
     }
 
     // Create alert record in database
