@@ -11,7 +11,7 @@ Get your environment up and running in minutes!
 ```bash
 # Are you working on...
 Development?  → Use .env.development.template
-Staging?      → Use .env.staging.template  
+Staging?      → Use .env.staging.template
 Production?   → Use .env.production.template
 ```
 
@@ -28,11 +28,28 @@ cp .env.staging.template .env
 cp .env.production.template .env
 ```
 
+### ⚠️ Important: Platform URL Configuration Change
+
+**The configuration has been updated:**
+
+- **Old:** `PLATFORM_{ENV}_BASE_URL` was used for platform URLs
+- **New:** `ANALYTICS_{ENV}_BASE_URL` is now used for all platform URLs
+
+The code now uses `ANALYTICS_{ENV}_BASE_URL` to populate:
+
+- `PLATFORM_BASE_URL`
+- `PWD_RESET`
+- `LOGIN_PAGE`
+- `FORGOT_PAGE`
+
+**Migration:** If you have an existing configuration with `PLATFORM_{ENV}_BASE_URL`, you can safely remove it. Use only `ANALYTICS_{ENV}_BASE_URL` going forward.
+
 ### Step 3: Fill in Critical Variables
 
-These **18 variables are REQUIRED** and were missing from your old template:
+These **17 variables are REQUIRED** and were missing from your old template _(originally 18, but `PLATFORM_PRODUCTION_BASE_URL` is now deprecated)_:
 
 #### Global (All Environments)
+
 ```bash
 NODE_ENV=development  # or staging/production
 JWT_EXPIRES_IN_SECONDS=86400
@@ -44,6 +61,7 @@ FIREBASE_VERIFICATION_SUCCESS_REDIRECT=http://localhost:3000/verify-success
 ```
 
 #### Development Specific
+
 ```bash
 KAFKA_TOPICS_DEV=dev-events,dev-measurements
 SCHEMA_REGISTRY_DEV=http://localhost:8081
@@ -51,6 +69,7 @@ KAFKA_RAW_MEASUREMENTS_TOPICS_DEV=raw-measurements-dev
 ```
 
 #### Staging Specific
+
 ```bash
 KAFKA_TOPICS_STAGE=stage-events,stage-measurements
 SCHEMA_REGISTRY_STAGE=http://staging-schema:8081
@@ -58,13 +77,15 @@ KAFKA_RAW_MEASUREMENTS_TOPICS_STAGE=raw-measurements-stage
 ```
 
 #### Production Specific
+
 ```bash
 MONGO_PROD=auth_prod
-PLATFORM_PRODUCTION_BASE_URL=https://platform.airqo.net
 KAFKA_TOPICS_PROD=prod-events,prod-measurements
 SCHEMA_REGISTRY_PROD=https://schema-registry.airqo.net:8081
 KAFKA_RAW_MEASUREMENTS_TOPICS_PROD=raw-measurements-prod
 ```
+
+**Note:** `PLATFORM_PRODUCTION_BASE_URL` was originally identified as missing but is now deprecated. The code uses `ANALYTICS_PRODUCTION_BASE_URL` for all platform URLs including `PLATFORM_BASE_URL`, `PWD_RESET`, `LOGIN_PAGE`, and `FORGOT_PAGE`. Only `MONGO_PROD` is required as an additional production-specific variable.
 
 ### Step 4: Test Your Configuration
 
@@ -83,30 +104,35 @@ npm start
 Mark off as you configure each one:
 
 ### Database
+
 - [ ] `MONGO_{ENV}_URI` - Your MongoDB connection string
 - [ ] Database name variables set
 
-### Authentication  
+### Authentication
+
 - [ ] `JWT_SECRET` - Strong random string (min 32 chars)
 - [ ] `JWT_EXPIRES_IN_SECONDS` - Token lifetime
 - [ ] `SESSION_SECRET` - Strong random string
 
 ### Email
+
 - [ ] `MAIL_USER` - SMTP username
 - [ ] `MAIL_PASS` - SMTP password
 - [ ] Team email addresses configured
 
 ### Firebase
+
 - [ ] `FIREBASE_PROJECT_ID`
 - [ ] `FIREBASE_PRIVATE_KEY`
 - [ ] `FIREBASE_CLIENT_EMAIL`
 - [ ] All Firebase collection names
 
 ### Platform URLs
-- [ ] `PLATFORM_{ENV}_BASE_URL`
-- [ ] `ANALYTICS_{ENV}_BASE_URL`
+
+- [ ] `ANALYTICS_{ENV}_BASE_URL` (used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 
 ### Kafka (if using)
+
 - [ ] `KAFKA_BOOTSTRAP_SERVERS_{ENV}`
 - [ ] `KAFKA_TOPICS_{ENV}`
 - [ ] `SCHEMA_REGISTRY_{ENV}`
@@ -135,8 +161,7 @@ MONGO_DEV=auth_dev
 COMMAND_MONGO_DEV_URI=mongodb://localhost:27017/auth_dev
 QUERY_MONGO_DEV_URI=mongodb://localhost:27017/auth_dev
 
-# URLS
-PLATFORM_DEV_BASE_URL=http://localhost:3000
+# URLS (ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 ANALYTICS_DEV_BASE_URL=http://localhost:5000
 
 # KAFKA (Local)
@@ -182,8 +207,7 @@ MONGO_STAGE=auth_staging
 COMMAND_MONGO_STAGE_URI=mongodb://staging-db.internal:27017/auth_staging
 QUERY_MONGO_STAGE_URI=mongodb://staging-db.internal:27017/auth_staging
 
-# URLS
-PLATFORM_STAGING_BASE_URL=https://staging-platform.airqo.net
+# URLS (ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 ANALYTICS_STAGING_BASE_URL=https://staging-analytics.airqo.net
 
 # KAFKA
@@ -224,8 +248,7 @@ COMMAND_MONGO_PROD_URI=mongodb+srv://prod-cluster.mongodb.net/auth_prod
 QUERY_MONGO_PROD_URI=mongodb+srv://prod-cluster.mongodb.net/auth_prod
 DB_NAME_PROD=auth_prod
 
-# URLS (MUST BE HTTPS)
-PLATFORM_PRODUCTION_BASE_URL=https://platform.airqo.net
+# URLS (MUST BE HTTPS - ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 ANALYTICS_PRODUCTION_BASE_URL=https://analytics.airqo.net
 
 # KAFKA
@@ -264,7 +287,9 @@ python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
 ### ⚠️ NEVER COMMIT THESE FILES
+
 Add to `.gitignore`:
+
 ```gitignore
 .env
 .env.local
@@ -281,30 +306,35 @@ Add to `.gitignore`:
 After configuration, run these checks:
 
 ### 1. Environment Variables Loaded
+
 ```bash
 node -e "require('dotenv').config(); console.log('NODE_ENV:', process.env.NODE_ENV)"
 # Should output your environment
 ```
 
 ### 2. MongoDB Connection
+
 ```bash
 # Try connecting
 mongosh $MONGO_DEV_URI  # or MONGO_STAGE_URI, MONGO_PROD_URI
 ```
 
 ### 3. Redis Connection
+
 ```bash
 redis-cli -h $DEV_REDIS_HOST -p $DEV_REDIS_PORT ping
 # Should return: PONG
 ```
 
 ### 4. Kafka Connection
+
 ```bash
 kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS_DEV --list
 # Should list topics
 ```
 
 ### 5. JWT Configuration
+
 ```bash
 node -e "
 require('dotenv').config();
@@ -319,11 +349,13 @@ console.log('Valid:', process.env.JWT_REFRESH_WINDOW_SECONDS < process.env.JWT_E
 ## 🐛 Common Issues & Quick Fixes
 
 ### Issue: "Cannot find module 'dotenv'"
+
 ```bash
 npm install dotenv
 ```
 
 ### Issue: MongoDB connection refused
+
 ```bash
 # Check if MongoDB is running
 systemctl status mongod  # Linux
@@ -335,6 +367,7 @@ brew services start mongodb-community  # macOS
 ```
 
 ### Issue: Redis connection refused
+
 ```bash
 # Check if Redis is running
 redis-cli ping
@@ -344,6 +377,7 @@ redis-server
 ```
 
 ### Issue: Environment variables not loading
+
 ```bash
 # Make sure you're loading dotenv
 # Add to top of your main file:
@@ -351,6 +385,7 @@ require('dotenv').config();
 ```
 
 ### Issue: JWT tokens not working
+
 ```bash
 # Verify these are numbers, not strings
 JWT_EXPIRES_IN_SECONDS=86400
@@ -362,11 +397,13 @@ JWT_EXPIRES_IN_SECONDS=86400
 ## 📚 Next Steps
 
 1. **Review Full Documentation:**
+
    - `README_TEMPLATES.md` - Complete usage guide
    - `COMPARISON_CHART.md` - Detailed variable comparison
    - `SETUP_GUIDE.md` - In-depth setup instructions
 
 2. **Configure Remaining Variables:**
+
    - Email settings (SMTP)
    - Firebase credentials
    - Google OAuth
@@ -374,6 +411,7 @@ JWT_EXPIRES_IN_SECONDS=86400
    - Social media integrations
 
 3. **Set Up CI/CD:**
+
    - Use secrets management (AWS Secrets Manager, etc.)
    - Never commit `.env` files
    - Use environment-specific deployments
@@ -398,12 +436,14 @@ JWT_EXPIRES_IN_SECONDS=86400
 ## ⚡ Pro Tips
 
 1. **Use Environment-Specific Files:**
+
    ```bash
    .env.development.local  # Your local overrides (gitignored)
    .env.development        # Team development defaults
    ```
 
 2. **Validate Before Deploy:**
+
    ```bash
    # Create a simple validation script
    node scripts/validate-env.js
