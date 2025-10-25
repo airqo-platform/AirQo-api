@@ -20,6 +20,9 @@ const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 const FETCH_BATCH_SIZE = 200;
 const MAX_FETCH_ITERATIONS = 100; // Increased safety limit for fetching
 
+const JOB_LOOKBACK_WINDOW_MS =
+  constants.JOB_LOOKBACK_WINDOW_MS || 12 * 60 * 60 * 1000; // Default to 12 hours
+
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
 
@@ -253,13 +256,26 @@ class ReadingsBatchProcessor {
 }
 
 // New function to fetch all recent events in smaller batches
-async function fetchAllRecentEvents() {
+async function fetchAllRecentEvents(lastProcessedTime) {
   let allEvents = [];
   let skip = 0;
   let hasMore = true;
   let iteration = 0;
 
   logText("Fetching recent events in batches...");
+
+  // Define the time window for the query
+  const endTime = new Date();
+  let startTime = lastProcessedTime;
+
+  // If there's no last processed time, default to the job's lookback window
+  if (!startTime) {
+    startTime = new Date(Date.now() - JOB_LOOKBACK_WINDOW_MS);
+    logger.warn(
+      `No last processed time found. Defaulting to a ${JOB_LOOKBACK_WINDOW_MS /
+        (1000 * 60 * 60)}-hour lookback.`
+    );
+  }
 
   while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
     try {
@@ -273,6 +289,8 @@ async function fetchAllRecentEvents() {
           brief: "yes",
           limit: FETCH_BATCH_SIZE,
           skip: skip,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
         },
       };
 
@@ -358,15 +376,40 @@ async function fetchAndStoreReadings() {
   try {
     logText("Starting optimized readings processing job");
 
-    // 1. Fetch all events in batches
-    const allEvents = await fetchAllRecentEvents();
+    // 1. Get the timestamp of the last processed reading
+    let lastProcessedTime = null;
+    try {
+      const latestReading = await ReadingModel("airqo")
+        .find({})
+        .sort({ time: -1 })
+        .limit(1)
+        .select("time")
+        .lean();
+
+      if (latestReading.length > 0) {
+        // Add a 10-minute buffer to prevent missing data
+        lastProcessedTime = new Date(
+          latestReading[0].time.getTime() - 10 * 60 * 1000
+        );
+        logText(
+          `Last processed reading time: ${lastProcessedTime.toISOString()}`
+        );
+      }
+    } catch (error) {
+      logger.warn(
+        `Could not determine last processed reading time: ${error.message}`
+      );
+    }
+
+    // 2. Fetch all new events since the last run
+    const allEvents = await fetchAllRecentEvents(lastProcessedTime);
 
     if (allEvents.length === 0) {
       logText("No events found to process into Readings");
       return;
     }
 
-    // 2. Get unique site IDs and calculate averages in bulk
+    // 3. Get unique site IDs and calculate averages in bulk
     // Deduplicate site_ids by converting to string first
     const uniqueSiteIds = [
       ...new Set(
