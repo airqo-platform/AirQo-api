@@ -21,7 +21,7 @@ const logger = require("log4js").getLogger(
 const DEFAULT_LIMIT = 1000;
 const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
-const UPTIME_CHECK_THRESHOLD = 168;
+// const UPTIME_CHECK_THRESHOLD = 168; // This constant is not used in this file
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
@@ -2286,6 +2286,7 @@ eventSchema.statics.getAirQualityAverages = async function(
   options = {}
 ) {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { isHistorical = false } = options;
     const TIMEZONE = moment.tz.guess();
 
@@ -2302,6 +2303,7 @@ eventSchema.statics.getAirQualityAverages = async function(
       .subtract(14, "days")
       .toDate();
 
+    // For historical measurements, use simplified aggregation
     // For historical measurements, use simplified aggregation
     if (isHistorical) {
       const result = await this.aggregate([
@@ -2521,6 +2523,7 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
   options = {}
 ) {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { isHistorical = false } = options;
 
     // For historical data, use the simplified version from v1
@@ -2528,8 +2531,6 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
       return this.getAirQualityAverages(siteId, next, { isHistorical: true });
     }
 
-    // Full v2 implementation for current data (existing code)
-    const TIMEZONE = "Africa/Kampala";
     const MIN_READINGS_PER_DAY = 12;
 
     const now = moment()
@@ -2745,6 +2746,7 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
   options = {}
 ) {
   try {
+    // eslint-disable-next-line no-unused-vars
     const { isHistorical = false } = options;
 
     // For historical data, use the simplified version
@@ -2752,8 +2754,6 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
       return this.getAirQualityAverages(siteId, next, { isHistorical: true });
     }
 
-    // Full v3 implementation for current data (existing code)
-    const TIMEZONE = "Africa/Kampala";
     const MIN_READINGS_PER_WEEK = 7 * 12;
     const EPSILON = 0.1;
 
@@ -2958,11 +2958,29 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
   next
 ) {
   try {
+    // eslint-disable-next-line no-unused-vars
     if (!Array.isArray(siteIds) || siteIds.length === 0) {
       return {
         success: true,
         data: {},
         message: "No site IDs provided.",
+        status: httpStatus.OK,
+      };
+    }
+
+    // Validate, normalize, and dedupe input IDs
+    const normalizedIds = Array.from(
+      new Set(
+        siteIds
+          .map((id) => (id ? id.toString() : null))
+          .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
+      )
+    );
+    if (normalizedIds.length === 0) {
+      return {
+        success: true,
+        data: {},
+        message: "No valid site IDs provided.",
         status: httpStatus.OK,
       };
     }
@@ -2983,6 +3001,7 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
         $match: {
           "values.site_id": { $in: objectSiteIds },
           "values.time": { $gte: twoWeeksAgo, $lte: now },
+          "values.pm2_5.value": { $exists: true, $ne: null }, // Pre-filter for performance
         },
       },
       { $unwind: "$values" },
@@ -2999,7 +3018,31 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
           site_id: "$values.site_id",
           pm2_5: "$values.pm2_5.value",
           yearWeek: {
-            $isoWeek: { date: "$values.time", timezone: TIMEZONE },
+            // Robust ISO week calculation
+            $let: {
+              vars: {
+                parts: {
+                  $dateToParts: {
+                    date: "$values.time",
+                    timezone: TIMEZONE,
+                    iso8601: true,
+                  },
+                },
+              },
+              in: {
+                $concat: [
+                  { $toString: "$$parts.isoWeekYear" },
+                  "-",
+                  {
+                    $cond: [
+                      { $lt: ["$$parts.isoWeek", 10] },
+                      { $concat: ["0", { $toString: "$$parts.isoWeek" }] },
+                      { $toString: "$$parts.isoWeek" },
+                    ],
+                  },
+                ],
+              },
+            },
           },
           dayOfYear: {
             $dateToString: {
@@ -3023,13 +3066,15 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
           weeklyAverage: { $avg: "$dailyAverage" },
         },
       },
-      { $sort: { "_id.week": -1 } },
+      // Sort per site and by week descending to get the two most recent weeks
+      { $sort: { "_id.site_id": 1, "_id.week": -1 } },
       {
         $group: {
           _id: "$_id.site_id",
           weeklyAverages: { $push: "$weeklyAverage" },
         },
       },
+      { $project: { weeklyAverages: { $slice: ["$weeklyAverages", 2] } } }, // Keep only the two most recent weeks per site
     ]).allowDiskUse(true);
 
     const averagesBySite = {};

@@ -268,6 +268,7 @@ async function fetchAllRecentEvents() {
           tenant: "airqo",
           recent: "yes",
           metadata: "site_id",
+          internal: "yes", // Added to match server-side visibility semantics
           active: "yes",
           brief: "yes",
           limit: FETCH_BATCH_SIZE,
@@ -366,8 +367,13 @@ async function fetchAndStoreReadings() {
     }
 
     // 2. Get unique site IDs and calculate averages in bulk
+    // Deduplicate site_ids by converting to string first
     const uniqueSiteIds = [
-      ...new Set(allEvents.map((e) => e.site_id).filter(Boolean)),
+      ...new Set(
+        allEvents
+          .map((e) => (e.site_id ? e.site_id.toString() : null))
+          .filter(Boolean)
+      ),
     ];
     const bulkAverages = await calculateAveragesInBulk(uniqueSiteIds);
 
