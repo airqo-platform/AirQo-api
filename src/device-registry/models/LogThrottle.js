@@ -26,8 +26,9 @@ const logThrottleSchema = new Schema(
       required: [true, "logType is required!"],
       trim: true,
       enum: {
-        values: ["METRICS", "ACCURACY_REPORT"],
-        message: "logType must be either METRICS or ACCURACY_REPORT",
+        values: ["METRICS", "ACCURACY_REPORT", "NETWORK_STATUS_ALERT"],
+        message:
+          "logType must be one of METRICS, ACCURACY_REPORT, NETWORK_STATUS_ALERT",
       },
     },
     count: {
