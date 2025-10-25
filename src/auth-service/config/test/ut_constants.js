@@ -54,25 +54,25 @@ describe("Configuration tests", () => {
 
     it("should have the correct value for PWD_RESET", () => {
       expect(devConfig.PWD_RESET).to.equal(
-        `${process.env.PLATFORM_DEV_BASE_URL}/reset`
+        `${process.env.ANALYTICS_DEV_BASE_URL}/reset`
       );
     });
 
     it("should have the correct value for LOGIN_PAGE", () => {
       expect(devConfig.LOGIN_PAGE).to.equal(
-        `${process.env.PLATFORM_DEV_BASE_URL}/login`
+        `${process.env.ANALYTICS_DEV_BASE_URL}/login`
       );
     });
 
     it("should have the correct value for FORGOT_PAGE", () => {
       expect(devConfig.FORGOT_PAGE).to.equal(
-        `${process.env.PLATFORM_DEV_BASE_URL}/forgot`
+        `${process.env.ANALYTICS_DEV_BASE_URL}/forgot`
       );
     });
 
     it("should have the correct value for PLATFORM_BASE_URL", () => {
       expect(devConfig.PLATFORM_BASE_URL).to.equal(
-        process.env.PLATFORM_DEV_BASE_URL
+        process.env.ANALYTICS_DEV_BASE_URL
       );
     });
 
@@ -126,25 +126,25 @@ describe("Configuration tests", () => {
 
     it("should have the correct value for PWD_RESET", () => {
       expect(prodConfig.PWD_RESET).to.equal(
-        `${process.env.PLATFORM_PRODUCTION_BASE_URL}/reset`
+        `${process.env.ANALYTICS_PRODUCTION_BASE_URL}/reset`
       );
     });
 
     it("should have the correct value for LOGIN_PAGE", () => {
       expect(prodConfig.LOGIN_PAGE).to.equal(
-        `${process.env.PLATFORM_PRODUCTION_BASE_URL}/login`
+        `${process.env.ANALYTICS_PRODUCTION_BASE_URL}/login`
       );
     });
 
     it("should have the correct value for FORGOT_PAGE", () => {
       expect(prodConfig.FORGOT_PAGE).to.equal(
-        `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`
+        `${process.env.ANALYTICS_PRODUCTION_BASE_URL}/forgot`
       );
     });
 
     it("should have the correct value for PLATFORM_BASE_URL", () => {
       expect(prodConfig.PLATFORM_BASE_URL).to.equal(
-        process.env.PLATFORM_PRODUCTION_BASE_URL
+        process.env.ANALYTICS_PRODUCTION_BASE_URL
       );
     });
 
@@ -209,25 +209,25 @@ describe("Configuration tests", () => {
 
     it("should have the correct value for PWD_RESET", () => {
       expect(stageConfig.PWD_RESET).to.equal(
-        `${process.env.PLATFORM_STAGING_BASE_URL}/reset`
+        `${process.env.ANALYTICS_STAGING_BASE_URL}/reset`
       );
     });
 
     it("should have the correct value for LOGIN_PAGE", () => {
       expect(stageConfig.LOGIN_PAGE).to.equal(
-        `${process.env.PLATFORM_STAGING_BASE_URL}/login`
+        `${process.env.ANALYTICS_STAGING_BASE_URL}/login`
       );
     });
 
     it("should have the correct value for FORGOT_PAGE", () => {
       expect(stageConfig.FORGOT_PAGE).to.equal(
-        `${process.env.PLATFORM_STAGING_BASE_URL}/forgot`
+        `${process.env.ANALYTICS_STAGING_BASE_URL}/forgot`
       );
     });
 
     it("should have the correct value for PLATFORM_BASE_URL", () => {
       expect(stageConfig.PLATFORM_BASE_URL).to.equal(
-        process.env.PLATFORM_STAGING_BASE_URL
+        process.env.ANALYTICS_STAGING_BASE_URL
       );
     });
 
