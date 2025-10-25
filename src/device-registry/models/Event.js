@@ -2986,7 +2986,7 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
     }
 
     const objectSiteIds = siteIds.map((id) => mongoose.Types.ObjectId(id));
-    const TIMEZONE = moment.tz.guess();
+    const TIMEZONE = constants.TIMEZONE || "UTC";
     const now = moment()
       .tz(TIMEZONE)
       .toDate();
