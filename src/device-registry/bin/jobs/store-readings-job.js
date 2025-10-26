@@ -295,7 +295,7 @@ async function fetchAllRecentEvents(lastProcessedTime) {
       };
 
       const filter = generateFilter.fetch(request);
-      const fetchOptions = { ...filter, isHistorical: true };
+      const fetchOptions = { ...filter, isHistorical: false };
 
       const FETCH_TIMEOUT = 45000; // 45 seconds
       const response = await Promise.race([
