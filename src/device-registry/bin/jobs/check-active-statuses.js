@@ -7,7 +7,7 @@ const DeviceModel = require("@models/Device");
 const LogThrottleModel = require("@models/LogThrottle");
 const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
-const { getSchedule } = require("@utils/common");
+const { getSchedule, LogThrottleManager } = require("@utils/common");
 const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
 
@@ -19,76 +19,7 @@ const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 let isJobRunning = false;
 let currentJobPromise = null;
 
-class LogThrottleManager {
-  constructor() {
-    this.environment = constants.ENVIRONMENT;
-    this.model = LogThrottleModel("airqo");
-  }
-
-  async shouldAllowLog(logType) {
-    const today = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD");
-    const maxLogsPerDay = 1;
-
-    try {
-      const result = await this.model.incrementCount({
-        date: today,
-        logType: logType,
-        environment: this.environment,
-      });
-
-      if (result.success) {
-        const currentCount = result.data?.count || 1;
-        return currentCount <= maxLogsPerDay;
-      } else {
-        // If increment fails, check current count to decide
-        const current = await this.model.getCurrentCount({
-          date: today,
-          logType: logType,
-          environment: this.environment,
-        });
-        if (current.success && current.data.exists) {
-          return current.data.count < maxLogsPerDay;
-        }
-        // Default to allowing log if we can't be sure
-        return true;
-      }
-    } catch (error) {
-      if (error.code === 11000) {
-        // Duplicate key error means another instance is running.
-        // Immediately re-check the count to make a definitive decision.
-        try {
-          const current = await this.model.getCurrentCount({
-            date: today,
-            logType: logType,
-            environment: this.environment,
-          });
-          if (current.success && current.data.exists) {
-            // If another instance has already logged, its count will be >= 1.
-            // This instance should only log if the count is still less than the max.
-            return current.data.count < maxLogsPerDay;
-          } else {
-            // If re-check fails to find a doc, something is wrong, but we should
-            // probably not log to be safe and avoid spam.
-            return false;
-          }
-        } catch (retryError) {
-          logger.warn(`Log throttle retry failed: ${retryError.message}`);
-          // Fail safe: do not log if the retry check fails.
-          return false;
-        }
-      } else {
-        logger.warn(`Log throttle check failed: ${error.message}`);
-      }
-
-      // In case of unexpected errors, default to allowing the log to ensure visibility.
-      return true;
-    }
-  }
-}
-
-const logThrottleManager = new LogThrottleManager();
+const logThrottleManager = new LogThrottleManager(TIMEZONE);
 
 const checkActiveStatuses = async () => {
   // Prevent overlapping executions
