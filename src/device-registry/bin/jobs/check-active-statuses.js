@@ -4,16 +4,104 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job`
 );
 const DeviceModel = require("@models/Device");
+const LogThrottleModel = require("@models/LogThrottle");
 const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
+const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
 
 // Job identification
+const getSchedule = (baseSchedule, environment) => {
+  const [minute, ...rest] = baseSchedule.split(" ");
+  let newMinute = parseInt(minute, 10);
+
+  if (environment === "STAGING ENVIRONMENT") {
+    newMinute = (newMinute + 5) % 60; // Offset by 5 minutes
+  } else if (environment === "DEVELOPMENT ENVIRONMENT") {
+    newMinute = (newMinute + 10) % 60; // Offset by 10 minutes
+  }
+
+  return `${newMinute} ${rest.join(" ")}`;
+};
+
 const JOB_NAME = "check-active-statuses-job";
-const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
+const JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
+const TIMEZONE = moment.tz.guess();
+const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 
 let isJobRunning = false;
 let currentJobPromise = null;
+
+class LogThrottleManager {
+  constructor() {
+    this.environment = constants.ENVIRONMENT;
+    this.model = LogThrottleModel("airqo");
+  }
+
+  async shouldAllowLog(logType) {
+    const today = moment()
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
+    const maxLogsPerDay = 1;
+
+    try {
+      const result = await this.model.incrementCount({
+        date: today,
+        logType: logType,
+        environment: this.environment,
+      });
+
+      if (result.success) {
+        const currentCount = result.data?.count || 1;
+        return currentCount <= maxLogsPerDay;
+      } else {
+        // If increment fails, check current count to decide
+        const current = await this.model.getCurrentCount({
+          date: today,
+          logType: logType,
+          environment: this.environment,
+        });
+        if (current.success && current.data.exists) {
+          return current.data.count < maxLogsPerDay;
+        }
+        // Default to allowing log if we can't be sure
+        return true;
+      }
+    } catch (error) {
+      if (error.code === 11000) {
+        // Duplicate key error means another instance is running.
+        // Immediately re-check the count to make a definitive decision.
+        try {
+          const current = await this.model.getCurrentCount({
+            date: today,
+            logType: logType,
+            environment: this.environment,
+          });
+          if (current.success && current.data.exists) {
+            // If another instance has already logged, its count will be >= 1.
+            // This instance should only log if the count is still less than the max.
+            return current.data.count < maxLogsPerDay;
+          } else {
+            // If re-check fails to find a doc, something is wrong, but we should
+            // probably not log to be safe and avoid spam.
+            return false;
+          }
+        } catch (retryError) {
+          logger.warn(`Log throttle retry failed: ${retryError.message}`);
+          // Fail safe: do not log if the retry check fails.
+          return false;
+        }
+      } else {
+        logger.warn(`Log throttle check failed: ${error.message}`);
+      }
+
+      // In case of unexpected errors, default to allowing the log to ensure visibility.
+      return true;
+    }
+  }
+}
+
+const logThrottleManager = new LogThrottleManager();
 
 const checkActiveStatuses = async () => {
   // Prevent overlapping executions
@@ -106,26 +194,36 @@ const checkActiveStatuses = async () => {
       percentageActiveMissingStatus > ACTIVE_STATUS_THRESHOLD
     ) {
       logText(
-        `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
-      );
-      logger.info(
-        `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        `⁉️ Issues found with active device statuses. Checking log throttle...`
       );
 
-      logText(
-        `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-      );
-      logger.info(
-        `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-      );
+      const shouldLog = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+
+      if (shouldLog) {
+        logText(
+          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        );
+        logger.info(
+          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        );
+
+        logText(
+          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+        );
+        logger.info(
+          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+        );
+      } else {
+        logger.debug(`Log throttled for ${LOG_TYPE}: Daily limit reached.`);
+      }
     }
   } catch (error) {
     logText(`🐛🐛 Error checking active statuses: ${error.message}`);

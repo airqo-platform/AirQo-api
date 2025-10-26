@@ -15,11 +15,25 @@ const TIMEZONE = moment.tz.guess();
 const UPTIME_THRESHOLD = 35;
 const CRITICAL_THRESHOLD = 50; // New threshold for critical status
 
+// Helper to adjust cron schedule based on environment
+const getSchedule = (baseSchedule, environment) => {
+  const [minute, ...rest] = baseSchedule.split(" ");
+  let newMinute = parseInt(minute, 10);
+
+  if (environment === "STAGING ENVIRONMENT") {
+    newMinute = (newMinute + 5) % 60; // Offset by 5 minutes
+  } else if (environment === "DEVELOPMENT ENVIRONMENT") {
+    newMinute = (newMinute + 10) % 60; // Offset by 10 minutes
+  }
+
+  return `${newMinute} ${rest.join(" ")}`;
+};
+
 // Job identification - SEPARATE NAMES FOR EACH JOB
 const MAIN_JOB_NAME = "network-status-check-job";
 const SUMMARY_JOB_NAME = "network-status-summary-job";
-const MAIN_JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
-const SUMMARY_JOB_SCHEDULE = "0 8 * * *"; // At 8:00 AM every day
+const MAIN_JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
+const SUMMARY_JOB_SCHEDULE = getSchedule("0 8 * * *", constants.ENVIRONMENT); // At 8:00 AM (or offset) every day
 
 let isMainJobRunning = false;
 let isSummaryJobRunning = false;
