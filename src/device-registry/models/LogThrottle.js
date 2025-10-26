@@ -314,7 +314,7 @@ logThrottleSchema.statics = {
     try {
       const days = daysToKeep || constants.LOG_THROTTLE_TTL_DAYS;
       const cutoffDate = moment
-        .tz(moment.tz.guess())
+        .tz(constants.TIMEZONE)
         .subtract(days, "days")
         .format("YYYY-MM-DD");
 

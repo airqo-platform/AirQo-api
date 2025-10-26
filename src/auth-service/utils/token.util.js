@@ -332,10 +332,10 @@ const isIPBlacklistedHelper = async (
         `🚨🚨 An AirQo API Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
       );
       try {
-        // Define the cooldown period (30 days, matching the mailer config)
+        // Define the cooldown period (matching the mailer config)
         const cooldownDays = constants.COMPROMISED_TOKEN_COOLDOWN_DAYS;
         const cooldownDate = moment
-          .tz(moment.tz.guess())
+          .tz(constants.TIMEZONE)
           .subtract(cooldownDays, "days")
           .toDate();
 
@@ -355,20 +355,29 @@ const isIPBlacklistedHelper = async (
         // Only send the email if this instance "won the race" to update the timestamp
         if (updatedToken) {
           const filter = { token };
-          const listTokenReponse = await AccessTokenModel("airqo").list(
+          const listTokenResponse = await AccessTokenModel("airqo").list(
             { filter },
             next
           );
-          if (listTokenReponse.success && listTokenReponse.data.length === 1) {
+          if (
+            listTokenResponse.success &&
+            listTokenResponse.data.length === 1
+          ) {
             const {
               user: { email, firstName, lastName },
-            } = listTokenReponse.data[0];
+            } = listTokenResponse.data[0];
 
             logger.info(
               `Sending compromised token alert to ${email} for IP ${ip}. Next alert possible after ${cooldownDays} days.`
             );
-            // Fire-and-forget the email to not block the request
-            mailer.compromisedToken({ email, firstName, lastName, ip }, next);
+            // Fire-and-forget the email (ensure no unhandled rejections)
+            mailer
+              .compromisedToken({ email, firstName, lastName, ip }, next)
+              .catch((err) =>
+                logger.error(
+                  `Failed to send compromised token email: ${err.message}`
+                )
+              );
           }
         }
       } catch (error) {

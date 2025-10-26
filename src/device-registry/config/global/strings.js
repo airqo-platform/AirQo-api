@@ -12,5 +12,6 @@ const strings = {
   TIMEZONE: "UTC",
   COMPROMISED_TOKEN_COOLDOWN_DAYS: 15,
   LOG_THROTTLE_TTL_DAYS: 30,
+  EXPIRING_TOKEN_REMINDER_DAYS: 7,
 };
 module.exports = strings;

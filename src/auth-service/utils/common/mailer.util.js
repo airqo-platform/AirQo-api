@@ -1727,7 +1727,7 @@ const mailer = {
         email: params.email,
       }),
     {
-      cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
+      cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,
     }
   ),
