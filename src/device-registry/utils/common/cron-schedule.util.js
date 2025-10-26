@@ -33,7 +33,14 @@ const getSchedule = (baseSchedule, environment) => {
     return baseSchedule;
   }
 
-  const [minute, hour, ...rest] = baseSchedule.split(" ");
+  const parts = baseSchedule.trim().split(/\s+/);
+  if (parts.length !== 5) {
+    console.warn(
+      `getSchedule expects a 5-field cron expression (minute, hour, day of month, month, day of week). Received ${parts.length} fields: "${baseSchedule}". Using original schedule.`
+    );
+    return baseSchedule;
+  }
+  const [minute, hour, ...rest] = parts;
 
   // Handle non-numeric minute values gracefully (e.g., '*', '*/15').
   const parsedMinute = parseInt(minute, 10);
