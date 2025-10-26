@@ -7,6 +7,7 @@ const DeviceModel = require("@models/Device");
 const NetworkStatusAlertModel = require("@models/NetworkStatusAlert");
 const LogThrottleModel = require("@models/LogThrottle");
 const networkStatusUtil = require("@utils/network-status.util");
+const { getSchedule, LogThrottleManager } = require("@utils/common");
 const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
 const moment = require("moment-timezone");
@@ -18,8 +19,8 @@ const CRITICAL_THRESHOLD = 50; // New threshold for critical status
 // Job identification - SEPARATE NAMES FOR EACH JOB
 const MAIN_JOB_NAME = "network-status-check-job";
 const SUMMARY_JOB_NAME = "network-status-summary-job";
-const MAIN_JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
-const SUMMARY_JOB_SCHEDULE = "0 8 * * *"; // At 8:00 AM every day
+const MAIN_JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
+const SUMMARY_JOB_SCHEDULE = getSchedule("0 8 * * *", constants.ENVIRONMENT); // At 8:00 AM (or offset) every day
 
 let isMainJobRunning = false;
 let isSummaryJobRunning = false;
@@ -27,76 +28,7 @@ let currentMainJobPromise = null;
 let currentSummaryJobPromise = null;
 const LOG_TYPE = "NETWORK_STATUS_ALERT";
 
-class LogThrottleManager {
-  constructor() {
-    this.environment = constants.ENVIRONMENT;
-    this.model = LogThrottleModel("airqo");
-  }
-
-  async shouldAllowLog(logType) {
-    const today = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD");
-    const maxLogsPerDay = 1;
-
-    try {
-      const result = await this.model.incrementCount({
-        date: today,
-        logType: logType,
-        environment: this.environment,
-      });
-
-      if (result.success) {
-        const currentCount = result.data?.count || 1;
-        return currentCount <= maxLogsPerDay;
-      } else {
-        // If increment fails, check current count to decide
-        const current = await this.model.getCurrentCount({
-          date: today,
-          logType: logType,
-          environment: this.environment,
-        });
-        if (current.success && current.data.exists) {
-          return current.data.count < maxLogsPerDay;
-        }
-        // Default to allowing log if we can't be sure
-        return true;
-      }
-    } catch (error) {
-      if (error.code === 11000) {
-        // Duplicate key error means another instance is running.
-        // Immediately re-check the count to make a definitive decision.
-        try {
-          const current = await this.model.getCurrentCount({
-            date: today,
-            logType: logType,
-            environment: this.environment,
-          });
-          if (current.success && current.data.exists) {
-            // If another instance has already logged, its count will be >= 1.
-            // This instance should only log if the count is still less than the max.
-            return current.data.count < maxLogsPerDay;
-          } else {
-            // If re-check fails to find a doc, something is wrong, but we should
-            // probably not log to be safe and avoid spam.
-            return false;
-          }
-        } catch (retryError) {
-          logger.warn(`Log throttle retry failed: ${retryError.message}`);
-          // Fail safe: do not log if the retry check fails.
-          return false;
-        }
-      } else {
-        logger.warn(`Log throttle check failed: ${error.message}`);
-      }
-
-      // In case of unexpected errors, default to allowing the log to ensure visibility.
-      return true;
-    }
-  }
-}
-
-const logThrottleManager = new LogThrottleManager();
+const logThrottleManager = new LogThrottleManager(TIMEZONE);
 
 const checkNetworkStatus = async () => {
   // Prevent overlapping executions

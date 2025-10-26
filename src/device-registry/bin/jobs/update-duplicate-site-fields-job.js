@@ -6,6 +6,7 @@ const logger = log4js.getLogger(
 );
 const SitesModel = require("@models/Site");
 const { logObject, logText } = require("@utils/shared");
+const { getSchedule } = require("@utils/common");
 
 // Fields to check and update duplicates
 const FIELDS_TO_UPDATE = ["name", "search_name", "description"];
@@ -14,7 +15,10 @@ const FIELDS_TO_UPDATE = ["name", "search_name", "description"];
 const WARNING_FREQUENCY_HOURS = 4; // Change this value to adjust frequency
 
 const JOB_NAME = "update-duplicate-site-fields-job";
-const JOB_SCHEDULE = `15 */${WARNING_FREQUENCY_HOURS} * * *`;
+const JOB_SCHEDULE = getSchedule(
+  `15 */${WARNING_FREQUENCY_HOURS} * * *`,
+  constants.ENVIRONMENT
+);
 
 // Helper function to extract site number from generated_name
 const extractSiteNumber = (generated_name) => {
