@@ -463,6 +463,24 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         continue;
       }
 
+      // Prepare the update object
+      const updatePayload = {
+        lastActive: lastActiveTime,
+        isOnline: isNowOnline,
+        statusUpdatedAt: new Date(),
+        statusSource: "online_status_cron_job",
+      };
+
+      // Add calibrated PM2.5 value if available
+      if (update.pm2_5) {
+        updatePayload["latest_pm2_5.calibrated"] = {
+          value: update.pm2_5.value,
+          time: lastActiveTime,
+          uncertainty: update.pm2_5.uncertainty,
+          standardDeviation: update.pm2_5.standardDeviation,
+        };
+      }
+
       // Only update if the incoming timestamp is newer than existing lastActive
       bulkOps.push({
         updateOne: {
@@ -474,12 +492,7 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
             ],
           },
           update: {
-            $set: {
-              lastActive: lastActiveTime,
-              isOnline: isNowOnline,
-              statusUpdatedAt: new Date(),
-              statusSource: "online_status_cron_job",
-            },
+            $set: updatePayload,
           },
         },
       });
@@ -529,6 +542,7 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
     return { success: false, error: error.message };
   }
 }
+
 // Optimized offline detection with batched accuracy updates
 async function updateOfflineEntitiesWithAccuracy(
   Model,
@@ -759,10 +773,20 @@ class OnlineStatusProcessor {
         .tz(TIMEZONE)
         .toDate();
 
+      // Prepare the pm2_5 object with calibrated value
+      const pm2_5_calibrated = doc.pm2_5
+        ? {
+            value: doc.pm2_5.calibratedValue,
+            uncertainty: doc.pm2_5.uncertaintyValue,
+            standardDeviation: doc.pm2_5.standardDeviationValue,
+          }
+        : null;
+
       if (doc.site_id) {
         this.siteUpdates.push({
           filter: { _id: doc.site_id },
           time: docTime,
+          pm2_5: pm2_5_calibrated,
         });
       }
 
@@ -770,6 +794,7 @@ class OnlineStatusProcessor {
         this.deviceUpdates.push({
           filter: { _id: doc.device_id },
           time: docTime,
+          pm2_5: pm2_5_calibrated,
         });
       }
     }

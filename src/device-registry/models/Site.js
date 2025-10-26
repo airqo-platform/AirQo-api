@@ -295,6 +295,23 @@ const siteSchema = new Schema(
       trim: true,
       default: false,
     },
+    /**
+     * The latest PM2.5 readings for this site.
+     * May be null or undefined if no readings have been recorded yet.
+     */
+    latest_pm2_5: {
+      required: false,
+      raw: {
+        value: { type: Number, required: false },
+        time: { type: Date, required: false },
+      },
+      calibrated: {
+        value: { type: Number, required: false },
+        time: { type: Date, required: false },
+        uncertainty: { type: Number, required: false },
+        standardDeviation: { type: Number, required: false },
+      },
+    },
     count: { type: Number },
     country: {
       type: String,

@@ -5,6 +5,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`
 );
 const DeviceModel = require("@models/Device");
+const SiteModel = require("@models/Site");
 const createFeedUtil = require("@utils/feed.util");
 const { logObject, logText } = require("@utils/shared");
 const cron = require("node-cron");
@@ -136,6 +137,12 @@ const isDeviceRawActive = (lastFeedTime) => {
   return timeDiff < RAW_INACTIVE_THRESHOLD;
 };
 
+const isValidPM25 = (value) => {
+  const num = parseFloat(value);
+  // Valid if it's a number between 0 and 1000 (practical upper limit)
+  return !isNaN(num) && num >= 0 && num <= 1000;
+};
+
 // Helper function to determine if a device is considered mobile
 const isDeviceActuallyMobile = (device) => {
   // Helper: a device is mobile only if explicitly marked so
@@ -149,6 +156,7 @@ const mockNext = (error) => {
 
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
+  const siteUpdates = [];
   let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
@@ -194,7 +202,11 @@ const processDeviceBatch = async (devices, processor) => {
     const batchResult = await processor.processBatch(
       chunk,
       async (device, index) => {
-        return await processIndividualDevice(device, deviceDetailsMap);
+        const result = await processIndividualDevice(device, deviceDetailsMap);
+        if (result && result.siteUpdate) {
+          siteUpdates.push(result.siteUpdate);
+        }
+        return result ? result.deviceUpdate : null;
       }
     );
 
@@ -223,6 +235,35 @@ const processDeviceBatch = async (devices, processor) => {
 
     // Yield between chunks
     await processor.yieldControl();
+  }
+
+  // After processing all device chunks, perform site updates
+  if (siteUpdates.length > 0) {
+    try {
+      const siteBulkOps = siteUpdates.map(({ siteId, update }) => {
+        const t = update["latest_pm2_5.raw"]?.time;
+        return {
+          updateOne: {
+            filter: {
+              _id: siteId,
+              ...(t
+                ? {
+                    $or: [
+                      { "latest_pm2_5.raw.time": { $lt: t } },
+                      { "latest_pm2_5.raw.time": { $exists: false } },
+                    ],
+                  }
+                : {}),
+            },
+            update: { $set: update },
+          },
+        };
+      });
+      await SiteModel("airqo").bulkWrite(siteBulkOps, { ordered: false });
+      logText(`Updated ${siteUpdates.length} sites with latest PM2.5 values.`);
+    } catch (error) {
+      logger.error(`Site bulk update error: ${error.message}`);
+    }
   }
 
   return totalUpdates;
@@ -257,9 +298,11 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     }
 
     return {
-      updateOne: {
-        filter: { _id: device._id },
-        update: updateDoc,
+      deviceUpdate: {
+        updateOne: {
+          filter: { _id: device._id },
+          update: updateDoc,
+        },
       },
     };
   }
@@ -292,9 +335,11 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     }
 
     return {
-      updateOne: {
-        filter: { _id: device._id },
-        update: updateDoc,
+      deviceUpdate: {
+        updateOne: {
+          filter: { _id: device._id },
+          update: updateDoc,
+        },
       },
     };
   }
@@ -337,17 +382,33 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
     let isRawOnline = false;
     let lastFeedTime = null;
+    let latestRawPm25 = null;
     let updateFields = {};
 
     if (thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]) {
       const lastFeed = thingspeakData.feeds[0];
       lastFeedTime = lastFeed.created_at;
       isRawOnline = isDeviceRawActive(lastFeedTime);
+
+      // Use the centralized mapping utility to get the pm2_5 value
+      const transformedMeasurement = createFeedUtil.transformMeasurement(
+        lastFeed
+      );
+      const pm25Value = transformedMeasurement.pm2_5;
+
+      if (isValidPM25(pm25Value)) {
+        latestRawPm25 = {
+          value: parseFloat(pm25Value),
+          time: new Date(lastFeedTime),
+        };
+        updateFields["latest_pm2_5.raw"] = latestRawPm25;
+      }
     }
 
     // Update raw status for ALL devices
     updateFields.rawOnlineStatus = isRawOnline;
     if (lastFeedTime) {
+      // Continue updating lastRawData for backward compatibility
       updateFields.lastRawData = new Date(lastFeedTime);
     }
 
@@ -375,11 +436,33 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       updateDoc.$inc = incUpdate;
     }
 
+    // Prepare site update if PM2.5 is valid and device is primary for its site
+    let siteUpdate = null;
+    if (latestRawPm25 && device.isPrimaryInLocation && device.site_id) {
+      siteUpdate = {
+        siteId: device.site_id,
+        update: { "latest_pm2_5.raw": latestRawPm25 },
+      };
+    }
+
     return {
-      updateOne: {
-        filter: { _id: device._id },
-        update: updateDoc,
+      deviceUpdate: {
+        updateOne: {
+          filter: {
+            _id: device._id,
+            ...(latestRawPm25
+              ? {
+                  $or: [
+                    { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                    { "latest_pm2_5.raw.time": { $exists: false } },
+                  ],
+                }
+              : {}),
+          },
+          update: updateDoc,
+        },
       },
+      siteUpdate,
     };
   } catch (error) {
     logger.error(
@@ -416,9 +499,11 @@ const createFailureUpdate = (device, reason) => {
   }
 
   return {
-    updateOne: {
-      filter: { _id: device._id },
-      update: updateDoc,
+    deviceUpdate: {
+      updateOne: {
+        filter: { _id: device._id },
+        update: updateDoc,
+      },
     },
   };
 };
@@ -455,8 +540,7 @@ const updateRawOnlineStatus = async () => {
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        // Include deployment_type and grid_id for robust mobile check
-        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy mobility deployment_type grid_id"
+        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation"
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
