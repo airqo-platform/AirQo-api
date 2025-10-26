@@ -51,7 +51,8 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
           bulkOps.push({
             updateOne: {
               filter: { _id: site._id },
-              update: { [fieldName]: newValue },
+              update: { $set: { [fieldName]: newValue } },
+              upsert: false,
             },
           });
           updateLogs.add(
@@ -63,10 +64,14 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
   }
   if (bulkOps.length > 0) {
     try {
-      const result = await SitesModel("airqo").bulkWrite(bulkOps);
+      const result = await SitesModel("airqo").bulkWrite(bulkOps, {
+        ordered: false,
+      });
+      const updatedCount =
+        (result && (result.modifiedCount ?? result.nModified)) || 0;
       return {
         field: fieldName,
-        updatedCount: result.modifiedCount,
+        updatedCount,
         updates: Array.from(updateLogs),
       };
     } catch (error) {
@@ -95,7 +100,7 @@ const updateDuplicateSiteFields = async () => {
         {
           $match: {
             isOnline: true,
-            [field]: { $ne: null, $ne: "" },
+            [field]: { $nin: [null, ""] },
           },
         },
         {
@@ -121,7 +126,7 @@ const updateDuplicateSiteFields = async () => {
       );
 
       if (updateResult) {
-        updateReport.totalUpdates += updateResult.updatedCount;
+        updateReport.totalUpdates += Number(updateResult.updatedCount || 0);
         updateReport.fieldReports.push(updateResult);
       }
     }
