@@ -236,6 +236,18 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    latest_pm2_5: {
+      raw: {
+        value: { type: Number },
+        time: { type: Date },
+      },
+      calibrated: {
+        value: { type: Number },
+        time: { type: Date },
+        uncertainty: { type: Number },
+        standardDeviation: { type: Number },
+      },
+    },
     generation_version: {
       type: Number,
     },

@@ -295,6 +295,18 @@ const siteSchema = new Schema(
       trim: true,
       default: false,
     },
+    latest_pm2_5: {
+      raw: {
+        value: { type: Number },
+        time: { type: Date },
+      },
+      calibrated: {
+        value: { type: Number },
+        time: { type: Date },
+        uncertainty: { type: Number },
+        standardDeviation: { type: Number },
+      },
+    },
     count: { type: Number },
     country: {
       type: String,
