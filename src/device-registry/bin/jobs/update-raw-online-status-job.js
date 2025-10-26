@@ -240,12 +240,25 @@ const processDeviceBatch = async (devices, processor) => {
   // After processing all device chunks, perform site updates
   if (siteUpdates.length > 0) {
     try {
-      const siteBulkOps = siteUpdates.map(({ siteId, update }) => ({
-        updateOne: {
-          filter: { _id: siteId },
-          update: { $set: update },
-        },
-      }));
+      const siteBulkOps = siteUpdates.map(({ siteId, update }) => {
+        const t = update["latest_pm2_5.raw"]?.time;
+        return {
+          updateOne: {
+            filter: {
+              _id: siteId,
+              ...(t
+                ? {
+                    $or: [
+                      { "latest_pm2_5.raw.time": { $lt: t } },
+                      { "latest_pm2_5.raw.time": { $exists: false } },
+                    ],
+                  }
+                : {}),
+            },
+            update: { $set: update },
+          },
+        };
+      });
       await SiteModel("airqo").bulkWrite(siteBulkOps, { ordered: false });
       logText(`Updated ${siteUpdates.length} sites with latest PM2.5 values.`);
     } catch (error) {
@@ -377,8 +390,12 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       lastFeedTime = lastFeed.created_at;
       isRawOnline = isDeviceRawActive(lastFeedTime);
 
-      // Extract and validate PM2.5 value (assuming it's in field1)
-      const pm25Value = lastFeed.field1;
+      // Use the centralized mapping utility to get the pm2_5 value
+      const transformedMeasurement = createFeedUtil.transformMeasurement(
+        lastFeed
+      );
+      const pm25Value = transformedMeasurement.pm2_5;
+
       if (isValidPM25(pm25Value)) {
         latestRawPm25 = {
           value: parseFloat(pm25Value),
@@ -431,7 +448,17 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     return {
       deviceUpdate: {
         updateOne: {
-          filter: { _id: device._id },
+          filter: {
+            _id: device._id,
+            ...(latestRawPm25
+              ? {
+                  $or: [
+                    { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                    { "latest_pm2_5.raw.time": { $exists: false } },
+                  ],
+                }
+              : {}),
+          },
           update: updateDoc,
         },
       },
