@@ -556,6 +556,8 @@ siteSchema.index({ generated_name: 1 }, { unique: true });
 siteSchema.index({ createdAt: -1 });
 // Index for stale entity checks
 siteSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
+// Index for finding online sites for duplicate field checks
+siteSchema.index({ isOnline: 1 });
 // Index for offline entity checks
 siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 
