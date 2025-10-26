@@ -2,15 +2,15 @@ const cronParser = require("cron-parser");
 
 /**
  * Adjusts a cron schedule by a minute offset based on the environment.
- * Handles minute and hour rollovers.
+ * Handles minute and hour rollovers for simple numeric hour values.
  *
  * @param {string} baseSchedule - The base cron expression string (e.g., "30 * * * *").
  * @param {string} environment - The deployment environment (e.g., "STAGING ENVIRONMENT").
- * @returns {string} The adjusted cron expression string.
+ * @returns {string} The adjusted cron expression string, or the original if adjustment is not possible.
  */
 const getSchedule = (baseSchedule, environment) => {
-  // Validate the cron expression format
   try {
+    // Validate the cron expression format
     cronParser.parseExpression(baseSchedule);
   } catch (err) {
     // Log the error and return the original schedule to prevent crashes.
@@ -49,11 +49,20 @@ const getSchedule = (baseSchedule, environment) => {
   const hourIncrement = Math.floor(totalMinutes / 60);
 
   let newHour = hour;
-  // Only increment the hour if it's a specific number and not a wildcard '*'
-  const parsedHour = parseInt(hour, 10);
-  if (hourIncrement > 0 && hour !== "*" && !isNaN(parsedHour)) {
-    const currentHour = parsedHour;
-    newHour = (currentHour + hourIncrement) % 24;
+  if (hourIncrement > 0) {
+    const hourNum = Number(hour);
+    if (hour === "*") {
+      // Wildcard is OK; no explicit increment needed as it runs every hour.
+    } else if (Number.isInteger(hourNum)) {
+      newHour = (hourNum + hourIncrement) % 24;
+    } else {
+      // It's a pattern like "*/2" or "1,3,5". It's not safe to adjust,
+      // so we return the original schedule to avoid breaking the job.
+      console.warn(
+        `getSchedule cannot apply hour rollover to patterned hour value: "${hour}". Using original schedule.`
+      );
+      return baseSchedule;
+    }
   }
 
   return `${newMinute} ${newHour} ${rest.join(" ")}`;
