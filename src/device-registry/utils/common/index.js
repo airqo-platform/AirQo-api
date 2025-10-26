@@ -28,7 +28,10 @@ const { deduplicator } = require("./slack-dedup-utility");
 const ActivityLogger = require("./activity-logger.util");
 const throttleUtil = require("./throttle.util");
 
+const { getSchedule } = require("./cron-schedule.util");
+
 module.exports = {
+  getSchedule,
   claimTokenUtil,
   throttleUtil,
   ActivityLogger,

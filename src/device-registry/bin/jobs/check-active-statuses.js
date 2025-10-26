@@ -7,22 +7,9 @@ const DeviceModel = require("@models/Device");
 const LogThrottleModel = require("@models/LogThrottle");
 const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
+const { getSchedule } = require("@utils/common");
 const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
-
-// Job identification
-const getSchedule = (baseSchedule, environment) => {
-  const [minute, ...rest] = baseSchedule.split(" ");
-  let newMinute = parseInt(minute, 10);
-
-  if (environment === "STAGING ENVIRONMENT") {
-    newMinute = (newMinute + 5) % 60; // Offset by 5 minutes
-  } else if (environment === "DEVELOPMENT ENVIRONMENT") {
-    newMinute = (newMinute + 10) % 60; // Offset by 10 minutes
-  }
-
-  return `${newMinute} ${rest.join(" ")}`;
-};
 
 const JOB_NAME = "check-active-statuses-job";
 const JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour

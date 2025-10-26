@@ -6,26 +6,13 @@ const logger = log4js.getLogger(
 );
 const SitesModel = require("@models/Site");
 const { logObject, logText } = require("@utils/shared");
+const { getSchedule } = require("@utils/common");
 
 // Fields to check and update duplicates
 const FIELDS_TO_UPDATE = ["name", "search_name", "description"];
 
 // Frequency configuration
 const WARNING_FREQUENCY_HOURS = 4; // Change this value to adjust frequency
-
-// Helper to adjust cron schedule based on environment
-const getSchedule = (baseSchedule, environment) => {
-  const [minute, ...rest] = baseSchedule.split(" ");
-  let newMinute = parseInt(minute, 10);
-
-  if (environment === "STAGING ENVIRONMENT") {
-    newMinute = (newMinute + 5) % 60; // Offset by 5 minutes
-  } else if (environment === "DEVELOPMENT ENVIRONMENT") {
-    newMinute = (newMinute + 10) % 60; // Offset by 10 minutes
-  }
-
-  return `${newMinute} ${rest.join(" ")}`;
-};
 
 const JOB_NAME = "update-duplicate-site-fields-job";
 const JOB_SCHEDULE = getSchedule(

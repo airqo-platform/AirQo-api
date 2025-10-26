@@ -7,6 +7,7 @@ const DeviceModel = require("@models/Device");
 const NetworkStatusAlertModel = require("@models/NetworkStatusAlert");
 const LogThrottleModel = require("@models/LogThrottle");
 const networkStatusUtil = require("@utils/network-status.util");
+const { getSchedule } = require("@utils/common");
 const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
 const moment = require("moment-timezone");
@@ -14,20 +15,6 @@ const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 const UPTIME_THRESHOLD = 35;
 const CRITICAL_THRESHOLD = 50; // New threshold for critical status
-
-// Helper to adjust cron schedule based on environment
-const getSchedule = (baseSchedule, environment) => {
-  const [minute, ...rest] = baseSchedule.split(" ");
-  let newMinute = parseInt(minute, 10);
-
-  if (environment === "STAGING ENVIRONMENT") {
-    newMinute = (newMinute + 5) % 60; // Offset by 5 minutes
-  } else if (environment === "DEVELOPMENT ENVIRONMENT") {
-    newMinute = (newMinute + 10) % 60; // Offset by 10 minutes
-  }
-
-  return `${newMinute} ${rest.join(" ")}`;
-};
 
 // Job identification - SEPARATE NAMES FOR EACH JOB
 const MAIN_JOB_NAME = "network-status-check-job";
