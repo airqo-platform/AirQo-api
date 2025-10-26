@@ -53,6 +53,10 @@ const AccessTokenSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    compromisedTokenEmailSentAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
