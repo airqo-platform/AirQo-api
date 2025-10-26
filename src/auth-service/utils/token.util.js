@@ -332,43 +332,52 @@ const isIPBlacklistedHelper = async (
         `🚨🚨 An AirQo API Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
       );
       try {
-        const filter = { token };
-        const listTokenReponse = await AccessTokenModel("airqo").list(
-          { filter },
-          next
+        // Define the cooldown period (matching the mailer config)
+        const cooldownDays = constants.COMPROMISED_TOKEN_COOLDOWN_DAYS;
+        const cooldownDate = moment
+          .tz(constants.TIMEZONE)
+          .subtract(cooldownDays, "days")
+          .toDate();
+
+        // Atomically find and update the token if it's eligible for a new alert
+        const updatedToken = await AccessTokenModel("airqo").findOneAndUpdate(
+          {
+            token,
+            $or: [
+              { compromisedTokenEmailSentAt: null },
+              { compromisedTokenEmailSentAt: { $lt: cooldownDate } },
+            ],
+          },
+          { $set: { compromisedTokenEmailSentAt: new Date() } },
+          { new: false } // Return the original document before the update
         );
 
-        if (listTokenReponse.success === false) {
-          logger.error(
-            `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+        // Only send the email if this instance "won the race" to update the timestamp
+        if (updatedToken) {
+          const filter = { token };
+          const listTokenResponse = await AccessTokenModel("airqo").list(
+            { filter },
+            next
           );
-        } else {
-          const tokenDetails = listTokenReponse.data[0];
-          const tokenResponseLength = listTokenReponse.data.length;
-          if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
-            logger.error(
-              `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
-            );
-          } else {
+          if (
+            listTokenResponse.success &&
+            listTokenResponse.data.length === 1
+          ) {
             const {
               user: { email, firstName, lastName },
-            } = tokenDetails;
+            } = listTokenResponse.data[0];
 
-            const emailResponse = await mailer.compromisedToken(
-              {
-                email,
-                firstName,
-                lastName,
-                ip,
-              },
-              next
+            logger.info(
+              `Sending compromised token alert to ${email} for IP ${ip}. Next alert possible after ${cooldownDays} days.`
             );
-
-            if (emailResponse && emailResponse.success === false) {
-              logger.error(
-                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+            // Fire-and-forget the email (ensure no unhandled rejections)
+            mailer
+              .compromisedToken({ email, firstName, lastName, ip }, next)
+              .catch((err) =>
+                logger.error(
+                  `Failed to send compromised token email: ${err.message}`
+                )
               );
-            }
           }
         }
       } catch (error) {
