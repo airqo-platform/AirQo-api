@@ -65,20 +65,26 @@ class LogThrottleManager {
     } catch (error) {
       if (error.code === 11000) {
         // Duplicate key error means another instance is running.
-        // Check the count to see if this instance should log.
+        // Immediately re-check the count to make a definitive decision.
         try {
-          const countResult = await this.model.getCurrentCount({
+          const current = await this.model.getCurrentCount({
             date: today,
             logType: logType,
             environment: this.environment,
           });
-
-          if (countResult.success && countResult.data.exists) {
-            // If count is already >= 1, this instance should not log.
-            return countResult.data.count < maxLogsPerDay;
+          if (current.success && current.data.exists) {
+            // If another instance has already logged, its count will be >= 1.
+            // This instance should only log if the count is still less than the max.
+            return current.data.count < maxLogsPerDay;
+          } else {
+            // If re-check fails to find a doc, something is wrong, but we should
+            // probably not log to be safe and avoid spam.
+            return false;
           }
         } catch (retryError) {
           logger.warn(`Log throttle retry failed: ${retryError.message}`);
+          // Fail safe: do not log if the retry check fails.
+          return false;
         }
       } else {
         logger.warn(`Log throttle check failed: ${error.message}`);
