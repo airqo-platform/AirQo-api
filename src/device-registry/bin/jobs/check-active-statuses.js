@@ -236,6 +236,7 @@ const startCheckActiveStatusesJob = () => {
     // THIS IS WHERE cronJobInstance IS CREATED! 👇
     const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
       scheduled: true,
+      timezone: TIMEZONE,
     });
 
     // Initialize global cronJobs if it doesn't exist

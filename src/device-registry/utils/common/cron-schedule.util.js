@@ -35,14 +35,24 @@ const getSchedule = (baseSchedule, environment) => {
 
   const [minute, hour, ...rest] = baseSchedule.split(" ");
 
-  const totalMinutes = parseInt(minute, 10) + offset;
+  // Handle non-numeric minute values gracefully (e.g., '*', '*/15').
+  const parsedMinute = parseInt(minute, 10);
+  if (isNaN(parsedMinute)) {
+    console.warn(
+      `getSchedule cannot apply offset to non-numeric minute value: "${minute}". Using original schedule.`
+    );
+    return baseSchedule;
+  }
+
+  const totalMinutes = parsedMinute + offset;
   const newMinute = totalMinutes % 60;
   const hourIncrement = Math.floor(totalMinutes / 60);
 
   let newHour = hour;
   // Only increment the hour if it's a specific number and not a wildcard '*'
-  if (hourIncrement > 0 && hour !== "*" && !isNaN(parseInt(hour, 10))) {
-    const currentHour = parseInt(hour, 10);
+  const parsedHour = parseInt(hour, 10);
+  if (hourIncrement > 0 && hour !== "*" && !isNaN(parsedHour)) {
+    const currentHour = parsedHour;
     newHour = (currentHour + hourIncrement) % 24;
   }
 
