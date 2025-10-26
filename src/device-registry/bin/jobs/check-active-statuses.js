@@ -4,16 +4,22 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job`
 );
 const DeviceModel = require("@models/Device");
+const LogThrottleModel = require("@models/LogThrottle");
 const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
+const { getSchedule, LogThrottleManager } = require("@utils/common");
+const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
 
-// Job identification
 const JOB_NAME = "check-active-statuses-job";
-const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
+const JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
+const TIMEZONE = moment.tz.guess();
+const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 
 let isJobRunning = false;
 let currentJobPromise = null;
+
+const logThrottleManager = new LogThrottleManager(TIMEZONE);
 
 const checkActiveStatuses = async () => {
   // Prevent overlapping executions
@@ -106,26 +112,36 @@ const checkActiveStatuses = async () => {
       percentageActiveMissingStatus > ACTIVE_STATUS_THRESHOLD
     ) {
       logText(
-        `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
-      );
-      logger.info(
-        `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        `⁉️ Issues found with active device statuses. Checking log throttle...`
       );
 
-      logText(
-        `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-      );
-      logger.info(
-        `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-      );
+      const shouldLog = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+
+      if (shouldLog) {
+        logText(
+          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        );
+        logger.info(
+          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        );
+
+        logText(
+          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+        );
+        logger.info(
+          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+        );
+      } else {
+        logger.debug(`Log throttled for ${LOG_TYPE}: Daily limit reached.`);
+      }
     }
   } catch (error) {
     logText(`🐛🐛 Error checking active statuses: ${error.message}`);
@@ -151,6 +167,7 @@ const startCheckActiveStatusesJob = () => {
     // THIS IS WHERE cronJobInstance IS CREATED! 👇
     const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
       scheduled: true,
+      timezone: TIMEZONE,
     });
 
     // Initialize global cronJobs if it doesn't exist

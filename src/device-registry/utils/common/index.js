@@ -27,8 +27,13 @@ const claimTokenUtil = require("./claimToken.util");
 const { deduplicator } = require("./slack-dedup-utility");
 const ActivityLogger = require("./activity-logger.util");
 const throttleUtil = require("./throttle.util");
+const LogThrottleManager = require("./log-throttle-manager.util");
+
+const { getSchedule } = require("./cron-schedule.util");
 
 module.exports = {
+  getSchedule,
+  LogThrottleManager,
   claimTokenUtil,
   throttleUtil,
   ActivityLogger,
