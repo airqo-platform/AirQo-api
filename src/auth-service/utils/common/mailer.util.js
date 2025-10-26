@@ -643,6 +643,19 @@ const createSecurityEmailFunction = (
               }
             );
 
+            // In case of a race condition where another instance just sent it,
+            // we return success but indicate it was blocked.
+            if (cooldownCheck.reason === "cooldown_active") {
+              return {
+                success: true,
+                message: `Email not sent - ${cooldownDays}-day cooldown period active`,
+                data: {
+                  email,
+                  blockedByCooldown: true,
+                },
+              };
+            }
+
             return {
               success: true, // Not an error - cooldown is expected behavior
               message: `Email not sent - ${cooldownDays}-day cooldown period active`,
@@ -1687,7 +1700,7 @@ const mailer = {
         email: params.email,
       }),
     {
-      cooldownDays: 30, // Once per month
+      cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
     }
   ),
@@ -1701,7 +1714,7 @@ const mailer = {
         token: params.token,
       }),
     {
-      cooldownDays: 30, // Once per month
+      cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
     }
   ),
@@ -1714,7 +1727,7 @@ const mailer = {
         email: params.email,
       }),
     {
-      cooldownDays: 7, // Once per week (more frequent since it's a reminder)
+      cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
     }
   ),
