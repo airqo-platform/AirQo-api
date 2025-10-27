@@ -286,6 +286,14 @@ async function fetchAllRecentEvents(lastProcessedTime) {
     );
   }
 
+  // Sanity guard: ensure window is valid
+  if (startTime > endTime) {
+    logger.warn(
+      `Start time ${startTime.toISOString()} is after end time ${endTime.toISOString()}. Resetting to lookback window.`
+    );
+    startTime = new Date(endTime.getTime() - JOB_LOOKBACK_WINDOW_MS);
+  }
+
   while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
     try {
       const request = {
@@ -432,26 +440,6 @@ async function fetchAndStoreReadings() {
       return;
     }
 
-    // Find the latest timestamp from the fetched events to save for the next run
-    let newLatestTimestamp = null;
-    if (allEvents.length > 0) {
-      newLatestTimestamp = allEvents.reduce((latest, event) => {
-        const eventTime = new Date(event.time);
-        return eventTime > latest ? eventTime : latest;
-      }, lastProcessedTime || new Date(0));
-    }
-
-    // If a new latest timestamp was found, update it in the JobState collection
-    if (
-      newLatestTimestamp &&
-      newLatestTimestamp > (lastProcessedTime || new Date(0))
-    ) {
-      await JobStateModel("airqo").set(JOB_NAME, newLatestTimestamp);
-      logText(
-        `Updated next start time to: ${newLatestTimestamp.toISOString()}`
-      );
-    }
-
     // 3. Get unique site IDs and calculate averages in bulk
     // Deduplicate site_ids by converting to string first
     const uniqueSiteIds = [
@@ -513,6 +501,26 @@ async function fetchAndStoreReadings() {
         `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
       );
       logger.info(`📊 Processing details: ${stringify(report.details)}`);
+    }
+
+    // Find the latest timestamp from the fetched events to save for the next run
+    let newLatestTimestamp = null;
+    if (allEvents.length > 0) {
+      newLatestTimestamp = allEvents.reduce((latest, event) => {
+        const eventTime = new Date(event.time);
+        return eventTime > latest ? eventTime : latest;
+      }, lastProcessedTime || new Date(0));
+    }
+
+    // If a new latest timestamp was found, update it in the JobState collection
+    if (
+      newLatestTimestamp &&
+      newLatestTimestamp > (lastProcessedTime || new Date(0))
+    ) {
+      await JobStateModel("airqo").set(JOB_NAME, newLatestTimestamp);
+      logText(
+        `Updated next start time to: ${newLatestTimestamp.toISOString()}`
+      );
     }
   } catch (error) {
     if (isDuplicateKeyError(error)) {
