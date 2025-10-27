@@ -271,6 +271,20 @@ async function fetchAllRecentEvents(lastProcessedTime) {
 
   logText("Fetching recent events in batches...");
 
+  // Define the time window for the query.
+  // This is the crucial change: we use the lastProcessedTime if it exists.
+  const endTime = new Date();
+  let startTime = lastProcessedTime;
+
+  // If there's no last processed time, default to the job's lookback window as a fallback.
+  if (!startTime) {
+    startTime = new Date(Date.now() - JOB_LOOKBACK_WINDOW_MS);
+    logger.warn(
+      `No last processed time found. Defaulting to a ${JOB_LOOKBACK_WINDOW_MS /
+        (1000 * 60 * 60)}-hour lookback.`
+    );
+  }
+
   while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
     try {
       const request = {
@@ -283,6 +297,9 @@ async function fetchAllRecentEvents(lastProcessedTime) {
           brief: "yes",
           limit: FETCH_BATCH_SIZE,
           skip: skip,
+          // Pass the calculated startTime and endTime to the filter.
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
         },
       };
 
