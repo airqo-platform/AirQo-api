@@ -7,6 +7,7 @@ const {
   addWeeksToProvideDateTime,
   addDaysToProvideDateTime,
   addDays,
+  addHours,
 } = require("./date");
 const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
@@ -1006,17 +1007,17 @@ const generateFilter = {
 
     // If 'recent=yes' is used by a job, override the time window to be much smaller
     // This is a critical optimization for background jobs.
-    // if (recent === "yes" && (active === "yes" || internal === "yes")) {
-    //   // Only apply the default lookback if no specific startTime is provided
-    //   if (!startTime) {
-    //     const twelveHoursBack = new Date(Date.now() - JOB_LOOKBACK_WINDOW_MS);
-    //     filter["values.time"] = { $gte: twelveHoursBack, $lte: today };
-    //     filter["day"] = {
-    //       $gte: generateDateFormatWithoutHrs(twelveHoursBack),
-    //       $lte: generateDateFormatWithoutHrs(today),
-    //     };
-    //   }
-    // }
+    if (recent === "yes" && (active === "yes" || internal === "yes")) {
+      // Only apply the default lookback if no specific startTime is provided
+      if (!startTime) {
+        const twelveHoursBack = addHours(-12);
+        filter["values.time"] = { $gte: twelveHoursBack, $lte: today };
+        filter["day"] = {
+          $gte: generateDateFormatWithoutHrs(twelveHoursBack),
+          $lte: generateDateFormatWithoutHrs(today),
+        };
+      }
+    }
 
     return filter;
   },
