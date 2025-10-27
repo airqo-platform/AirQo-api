@@ -236,6 +236,23 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    /**
+     * The latest PM2.5 readings for this device.
+     * May be null or undefined if no readings have been recorded yet.
+     */
+    latest_pm2_5: {
+      required: false,
+      raw: {
+        value: { type: Number, required: false },
+        time: { type: Date, required: false },
+      },
+      calibrated: {
+        value: { type: Number, required: false },
+        time: { type: Date, required: false },
+        uncertainty: { type: Number, required: false },
+        standardDeviation: { type: Number, required: false },
+      },
+    },
     generation_version: {
       type: Number,
     },
@@ -464,6 +481,10 @@ deviceSchema.plugin(uniqueValidator, {
 deviceSchema.index({ site_id: 1 });
 deviceSchema.index({ mobility: 1 });
 deviceSchema.index({ mobility: 1, cohorts: 1 });
+// Index for stale entity checks
+deviceSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
+// Index for offline entity checks
+deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(

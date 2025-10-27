@@ -5,6 +5,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const { logObject, HttpError } = require("@utils/shared");
+const moment = require("moment-timezone");
 const { getModelByTenant } = require("@config/database");
 
 const log4js = require("log4js");
@@ -26,8 +27,9 @@ const logThrottleSchema = new Schema(
       required: [true, "logType is required!"],
       trim: true,
       enum: {
-        values: ["METRICS", "ACCURACY_REPORT"],
-        message: "logType must be either METRICS or ACCURACY_REPORT",
+        values: ["METRICS", "ACCURACY_REPORT", "NETWORK_STATUS_ALERT"],
+        message:
+          "logType must be one of METRICS, ACCURACY_REPORT, NETWORK_STATUS_ALERT",
       },
     },
     count: {
@@ -62,7 +64,7 @@ logThrottleSchema.index(
 logThrottleSchema.index(
   { createdAt: 1 },
   {
-    expireAfterSeconds: 7 * 24 * 60 * 60, // 7 days in seconds
+    expireAfterSeconds: constants.LOG_THROTTLE_TTL_DAYS * 24 * 60 * 60, // Use constant
     name: "log_throttle_ttl_idx",
     background: true,
   }
@@ -306,13 +308,14 @@ logThrottleSchema.statics = {
    * @returns {Object} Result object with cleanup summary
    */
   async cleanupOldEntries(
-    { daysToKeep = 7, environment = constants.ENVIRONMENT },
+    { daysToKeep, environment = constants.ENVIRONMENT },
     next
   ) {
     try {
-      const moment = require("moment-timezone");
-      const cutoffDate = moment()
-        .subtract(daysToKeep, "days")
+      const days = daysToKeep || constants.LOG_THROTTLE_TTL_DAYS;
+      const cutoffDate = moment
+        .tz(constants.TIMEZONE)
+        .subtract(days, "days")
         .format("YYYY-MM-DD");
 
       const deleteResult = await this.deleteMany({

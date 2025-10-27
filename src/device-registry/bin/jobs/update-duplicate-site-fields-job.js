@@ -6,6 +6,7 @@ const logger = log4js.getLogger(
 );
 const SitesModel = require("@models/Site");
 const { logObject, logText } = require("@utils/shared");
+const { getSchedule } = require("@utils/common");
 
 // Fields to check and update duplicates
 const FIELDS_TO_UPDATE = ["name", "search_name", "description"];
@@ -14,26 +15,15 @@ const FIELDS_TO_UPDATE = ["name", "search_name", "description"];
 const WARNING_FREQUENCY_HOURS = 4; // Change this value to adjust frequency
 
 const JOB_NAME = "update-duplicate-site-fields-job";
-const JOB_SCHEDULE = `15 */${WARNING_FREQUENCY_HOURS} * * *`;
+const JOB_SCHEDULE = getSchedule(
+  `15 */${WARNING_FREQUENCY_HOURS} * * *`,
+  constants.ENVIRONMENT
+);
 
 // Helper function to extract site number from generated_name
 const extractSiteNumber = (generated_name) => {
   const match = generated_name.match(/site_(\d+)/);
   return match ? match[1] : null;
-};
-
-// Helper function to group sites by field value
-const groupSitesByFieldValue = (sites, fieldName) => {
-  return sites.reduce((acc, site) => {
-    const fieldValue = site[fieldName];
-    if (!fieldValue) return acc;
-
-    if (!acc[fieldValue]) {
-      acc[fieldValue] = [];
-    }
-    acc[fieldValue].push(site);
-    return acc;
-  }, {});
 };
 
 // Function to generate unique field value using site number
@@ -43,11 +33,12 @@ const generateUniqueFieldValue = (originalValue, siteNumber) => {
 
 // Function to update duplicate fields for a specific field
 const updateDuplicatesForField = async (groupedSites, fieldName) => {
-  const updates = [];
-  const updatedValues = new Set();
+  const bulkOps = [];
+  const updateLogs = new Set();
 
-  for (const [fieldValue, sites] of Object.entries(groupedSites)) {
-    if (sites.length > 1) {
+  for (const group of groupedSites) {
+    const { sites, fieldValue } = group;
+    if (sites && sites.length > 1) {
       // Sort sites by generated_name to ensure consistent numbering
       sites.sort((a, b) => a.generated_name.localeCompare(b.generated_name));
 
@@ -57,28 +48,35 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
         const siteNumber = extractSiteNumber(site.generated_name);
 
         if (siteNumber) {
-          const newValue = generateUniqueFieldValue(fieldValue, siteNumber);
-          updates.push({
+          const newValue = generateUniqueFieldValue(
+            group.fieldValue,
+            siteNumber
+          );
+          bulkOps.push({
             updateOne: {
               filter: { _id: site._id },
-              update: { [fieldName]: newValue },
+              update: { $set: { [fieldName]: newValue } },
+              upsert: false,
             },
           });
-          updatedValues.add(
+          updateLogs.add(
             `${site.generated_name}: ${fieldValue} -> ${newValue}`
           );
         }
       }
     }
   }
-
-  if (updates.length > 0) {
+  if (bulkOps.length > 0) {
     try {
-      const result = await SitesModel("airqo").bulkWrite(updates);
+      const result = await SitesModel("airqo").bulkWrite(bulkOps, {
+        ordered: false,
+      });
+      const updatedCount =
+        (result && (result.modifiedCount ?? result.nModified)) || 0;
       return {
         field: fieldName,
-        updatedCount: result.modifiedCount,
-        updates: Array.from(updatedValues),
+        updatedCount,
+        updates: Array.from(updateLogs),
       };
     } catch (error) {
       logger.error(`Error updating ${fieldName}: ${error.message}`);
@@ -93,32 +91,46 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
 const updateDuplicateSiteFields = async () => {
   try {
     logText("Starting duplicate site fields update process...");
-
-    // Get all active sites
-    const fieldsToProject = FIELDS_TO_UPDATE.concat([
-      "_id",
-      "generated_name",
-    ]).join(" ");
-
-    const sites = await SitesModel("airqo").find(
-      { isOnline: true },
-      fieldsToProject
-    );
-
-    logObject("Total sites to process", sites.length);
-
     const updateReport = {
       totalUpdates: 0,
       fieldReports: [],
     };
 
-    // Process each field
     for (const field of FIELDS_TO_UPDATE) {
-      const groupedSites = groupSitesByFieldValue(sites, field);
-      const updateResult = await updateDuplicatesForField(groupedSites, field);
+      logText(`Processing field: ${field}...`);
+
+      // Use aggregation to find duplicates directly in the database
+      const duplicateGroups = await SitesModel("airqo").aggregate([
+        {
+          $match: {
+            isOnline: true,
+            [field]: { $nin: [null, ""] },
+          },
+        },
+        {
+          $group: {
+            _id: `$${field}`,
+            sites: {
+              $push: { _id: "$_id", generated_name: "$generated_name" },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $match: {
+            count: { $gt: 1 },
+          },
+        },
+        { $project: { fieldValue: "$_id", sites: 1, _id: 0 } },
+      ]);
+
+      const updateResult = await updateDuplicatesForField(
+        duplicateGroups,
+        field
+      );
 
       if (updateResult) {
-        updateReport.totalUpdates += updateResult.updatedCount;
+        updateReport.totalUpdates += Number(updateResult.updatedCount || 0);
         updateReport.fieldReports.push(updateResult);
       }
     }

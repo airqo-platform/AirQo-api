@@ -5,7 +5,9 @@ const logger = log4js.getLogger(
 );
 const DeviceModel = require("@models/Device");
 const NetworkStatusAlertModel = require("@models/NetworkStatusAlert");
+const LogThrottleModel = require("@models/LogThrottle");
 const networkStatusUtil = require("@utils/network-status.util");
+const { getSchedule, LogThrottleManager } = require("@utils/common");
 const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
 const moment = require("moment-timezone");
@@ -17,13 +19,16 @@ const CRITICAL_THRESHOLD = 50; // New threshold for critical status
 // Job identification - SEPARATE NAMES FOR EACH JOB
 const MAIN_JOB_NAME = "network-status-check-job";
 const SUMMARY_JOB_NAME = "network-status-summary-job";
-const MAIN_JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
-const SUMMARY_JOB_SCHEDULE = "0 8 * * *"; // At 8:00 AM every day
+const MAIN_JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
+const SUMMARY_JOB_SCHEDULE = getSchedule("0 8 * * *", constants.ENVIRONMENT); // At 8:00 AM (or offset) every day
 
 let isMainJobRunning = false;
 let isSummaryJobRunning = false;
 let currentMainJobPromise = null;
 let currentSummaryJobPromise = null;
+const LOG_TYPE = "NETWORK_STATUS_ALERT";
+
+const logThrottleManager = new LogThrottleManager(TIMEZONE);
 
 const checkNetworkStatus = async () => {
   // Prevent overlapping executions
@@ -115,14 +120,20 @@ const checkNetworkStatus = async () => {
       )}% offline (${offlineDevicesCount}/${totalDevices})`;
     }
 
-    // Log to Slack/console as before
-    logText(message);
-    if (status === "CRITICAL") {
-      logger.error(message);
-    } else if (status === "WARNING") {
-      logger.warn(message);
+    // Use throttled logging
+    const shouldLog = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+
+    if (shouldLog) {
+      logText(message);
+      if (status === "CRITICAL") {
+        logger.error(message);
+      } else if (status === "WARNING") {
+        logger.warn(message);
+      } else {
+        logger.info(message);
+      }
     } else {
-      logger.info(message);
+      logger.debug(`Log throttled for ${LOG_TYPE}: Daily limit reached.`);
     }
 
     // Create alert record in database
