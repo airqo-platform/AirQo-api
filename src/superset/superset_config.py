@@ -68,9 +68,9 @@ TALISMAN_CONFIG = {
     "session_cookie_secure": SESSION_COOKIE_SECURE,
 }
 
-# CORS_OPTIONS = {
-#     "origins": [SUPERSET_PUBLIC_URL],
-#     "methods": ["GET", "POST", "PUT", "DELETE"],
-#     "allow_headers": ["Content-Type", "Authorization", "X-CSRFToken", "Referer"],
-#     "supports_credentials": True
-# }
+CORS_OPTIONS = {
+    "origins": [SUPERSET_PUBLIC_URL],
+    "methods": ["GET", "POST", "PUT", "DELETE"],
+    "allow_headers": ["Content-Type", "Authorization", "X-CSRFToken", "Referer"],
+    "supports_credentials": True,
+}
