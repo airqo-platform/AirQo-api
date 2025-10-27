@@ -49,8 +49,17 @@ const createSafePollutantLookup = (
   },
 });
 
-// New schema for nested latest_pm2_5 values (raw/calibrated)
-const LatestPm2_5ValueSchema = new Schema(
+// New schema for the 'raw' part of latest_pm2_5
+const LatestPm2_5RawValueSchema = new Schema(
+  {
+    value: { type: Number, required: false },
+    time: { type: Date, required: false },
+  },
+  { _id: false }
+);
+
+// New schema for the 'calibrated' part of latest_pm2_5
+const LatestPm2_5CalibratedValueSchema = new Schema(
   {
     value: { type: Number, required: false },
     time: { type: Date, required: false },
@@ -63,8 +72,8 @@ const LatestPm2_5ValueSchema = new Schema(
 // New schema for the top-level latest_pm2_5 object
 const LatestPm2_5Schema = new Schema(
   {
-    raw: { type: LatestPm2_5ValueSchema },
-    calibrated: { type: LatestPm2_5ValueSchema },
+    raw: { type: LatestPm2_5RawValueSchema },
+    calibrated: { type: LatestPm2_5CalibratedValueSchema },
   },
   { _id: false }
 );
