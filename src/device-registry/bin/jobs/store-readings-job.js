@@ -151,6 +151,13 @@ class ReadingsBatchProcessor {
       if (averages) {
         updateDoc.averages = averages;
       }
+      // Extract latest_pm2_5 from siteDetails or deviceDetails if available
+      if (doc.siteDetails && doc.siteDetails.latest_pm2_5) {
+        updateDoc.latest_pm2_5 = doc.siteDetails.latest_pm2_5;
+      } else if (doc.deviceDetails && doc.deviceDetails.latest_pm2_5) {
+        // Fallback to deviceDetails if not found in siteDetails
+        updateDoc.latest_pm2_5 = doc.deviceDetails.latest_pm2_5;
+      }
 
       // Save reading
       try {

@@ -49,6 +49,26 @@ const createSafePollutantLookup = (
   },
 });
 
+// New schema for nested latest_pm2_5 values (raw/calibrated)
+const LatestPm2_5ValueSchema = new Schema(
+  {
+    value: { type: Number, required: false },
+    time: { type: Date, required: false },
+    uncertainty: { type: Number, required: false },
+    standardDeviation: { type: Number, required: false },
+  },
+  { _id: false }
+);
+
+// New schema for the top-level latest_pm2_5 object
+const LatestPm2_5Schema = new Schema(
+  {
+    raw: { type: LatestPm2_5ValueSchema },
+    calibrated: { type: LatestPm2_5ValueSchema },
+  },
+  { _id: false }
+);
+
 const HealthTipsSchema = new Schema(
   {
     title: String,
@@ -292,6 +312,7 @@ const ReadingsSchema = new Schema(
     aqi_color_name: String,
 
     // **PRE-COMPUTED HEALTH & ANALYTICS**
+    latest_pm2_5: LatestPm2_5Schema, // Add this new top-level field
     health_tips: [HealthTipsSchema],
     averages: averagesSchema,
   },
@@ -463,6 +484,7 @@ ReadingsSchema.methods = {
       pm10: this.pm10,
       frequency: this.frequency,
       no2: this.no2,
+      latest_pm2_5: this.latest_pm2_5, // Include in toJSON output
     };
 
     // Include location-specific fields based on deployment type
