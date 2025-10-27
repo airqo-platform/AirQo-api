@@ -264,19 +264,6 @@ async function fetchAllRecentEvents(lastProcessedTime) {
 
   logText("Fetching recent events in batches...");
 
-  // Define the time window for the query
-  const endTime = new Date();
-  let startTime = lastProcessedTime;
-
-  // If there's no last processed time, default to the job's lookback window
-  if (!startTime) {
-    startTime = new Date(Date.now() - JOB_LOOKBACK_WINDOW_MS);
-    logger.warn(
-      `No last processed time found. Defaulting to a ${JOB_LOOKBACK_WINDOW_MS /
-        (1000 * 60 * 60)}-hour lookback.`
-    );
-  }
-
   while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
     try {
       const request = {
@@ -289,17 +276,14 @@ async function fetchAllRecentEvents(lastProcessedTime) {
           brief: "yes",
           limit: FETCH_BATCH_SIZE,
           skip: skip,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
         },
       };
 
       const filter = generateFilter.fetch(request);
-      const fetchOptions = { ...filter, isHistorical: false };
 
       const FETCH_TIMEOUT = 45000; // 45 seconds
       const response = await Promise.race([
-        EventModel("airqo").fetch(fetchOptions),
+        EventModel("airqo").fetch(filter),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Fetch timeout")), FETCH_TIMEOUT)
         ),
