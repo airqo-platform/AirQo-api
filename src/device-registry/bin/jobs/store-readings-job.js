@@ -6,6 +6,7 @@ const logger = log4js.getLogger(
 );
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
+const JobStateModel = require("@models/JobState");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
@@ -384,25 +385,39 @@ async function fetchAndStoreReadings() {
   try {
     logText("Starting optimized readings processing job");
 
-    // 1. Get the timestamp of the last processed reading
+    // 1. Get the timestamp of the last processed reading from the JobState collection
     let lastProcessedTime = null;
     try {
-      const latestReading = await ReadingModel("airqo")
-        .find({})
-        .sort({ time: -1 })
-        .limit(1)
-        .select("time")
-        .lean();
-
-      if (latestReading.length > 0) {
-        // Add a 10-minute buffer to prevent missing data
-        lastProcessedTime = new Date(
-          latestReading[0].time.getTime() - 10 * 60 * 1000
-        );
+      lastProcessedTime = await JobStateModel("airqo").get(JOB_NAME);
+      if (!lastProcessedTime) {
+        // Fallback to Readings DB if JobState is empty (e.g., first run)
+        const latestReading = await ReadingModel("airqo")
+          .find({})
+          .sort({ time: -1 })
+          .limit(1)
+          .select("time")
+          .lean();
+        lastProcessedTime =
+          latestReading.length > 0 ? latestReading[0].time : null;
         logText(
-          `Last processed reading time: ${lastProcessedTime.toISOString()}`
+          lastProcessedTime
+            ? `Using fallback: last processed time from DB: ${lastProcessedTime.toISOString()}`
+            : "No previous state found. Using default lookback."
         );
       }
+
+      if (lastProcessedTime) {
+        // Add a 10-minute buffer to prevent missing data
+        lastProcessedTime = new Date(
+          lastProcessedTime.getTime() - 10 * 60 * 1000
+        );
+      }
+
+      logText(
+        lastProcessedTime
+          ? `Processing events from: ${lastProcessedTime.toISOString()}`
+          : "Performing initial run with default lookback."
+      );
     } catch (error) {
       logger.warn(
         `Could not determine last processed reading time: ${error.message}`
@@ -415,6 +430,26 @@ async function fetchAndStoreReadings() {
     if (allEvents.length === 0) {
       logText("No events found to process into Readings");
       return;
+    }
+
+    // Find the latest timestamp from the fetched events to save for the next run
+    let newLatestTimestamp = null;
+    if (allEvents.length > 0) {
+      newLatestTimestamp = allEvents.reduce((latest, event) => {
+        const eventTime = new Date(event.time);
+        return eventTime > latest ? eventTime : latest;
+      }, lastProcessedTime || new Date(0));
+    }
+
+    // If a new latest timestamp was found, update it in the JobState collection
+    if (
+      newLatestTimestamp &&
+      newLatestTimestamp > (lastProcessedTime || new Date(0))
+    ) {
+      await JobStateModel("airqo").set(JOB_NAME, newLatestTimestamp);
+      logText(
+        `Updated next start time to: ${newLatestTimestamp.toISOString()}`
+      );
     }
 
     // 3. Get unique site IDs and calculate averages in bulk
