@@ -2,6 +2,9 @@ from django.db import models
 from cloudinary.models import CloudinaryField
 from cloudinary.uploader import destroy
 from utils.models import BaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AfricanCountry(BaseModel):
@@ -30,12 +33,16 @@ class AfricanCountry(BaseModel):
 
     def delete(self, *args, **kwargs):
         """
-        Override the delete method to remove associated Cloudinary images before deletion.
+        Remove associated Cloudinary images before DB deletion; fail-open on errors.
         """
-        if self.country_flag:
-            destroy(self.country_flag.public_id, invalidate=True)
-        result = super().delete(*args, **kwargs)
-        return result
+        flag_id = getattr(self.country_flag, "public_id", None)
+        if flag_id:
+            try:
+                destroy(flag_id, invalidate=True)
+            except Exception:
+                logger.warning(
+                    "Cloudinary destroy failed for AfricanCountry %s (public_id=%s)", self.pk, flag_id)
+        return super().delete(*args, **kwargs)
 
 
 class City(BaseModel):
@@ -114,12 +121,16 @@ class Image(BaseModel):
 
     def delete(self, *args, **kwargs):
         """
-        Override the delete method to remove the associated Cloudinary image before deletion.
+        Remove associated Cloudinary image before DB deletion; fail-open on errors.
         """
-        if self.image:
-            destroy(self.image.public_id, invalidate=True)
-        result = super().delete(*args, **kwargs)
-        return result
+        img_id = getattr(self.image, "public_id", None)
+        if img_id:
+            try:
+                destroy(img_id, invalidate=True)
+            except Exception:
+                logger.warning(
+                    "Cloudinary destroy failed for Image %s (public_id=%s)", self.pk, img_id)
+        return super().delete(*args, **kwargs)
 
     def get_image_url(self):
         """

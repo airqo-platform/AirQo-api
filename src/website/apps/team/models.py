@@ -2,6 +2,9 @@ from django.db import models
 from cloudinary.models import CloudinaryField
 from cloudinary.uploader import destroy
 from utils.models import BaseModel, SlugBaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Member(SlugBaseModel):
@@ -41,12 +44,16 @@ class Member(SlugBaseModel):
 
     def delete(self, *args, **kwargs):
         """
-        Override the delete method to remove the associated Cloudinary image before deletion.
+        Remove associated Cloudinary image before DB deletion; fail-open on errors.
         """
-        if self.picture:
-            destroy(self.picture.public_id, invalidate=True)
-        result = super().delete(*args, **kwargs)
-        return result
+        pic_id = getattr(self.picture, "public_id", None)
+        if pic_id:
+            try:
+                destroy(pic_id, invalidate=True)
+            except Exception:
+                logger.warning(
+                    "Cloudinary destroy failed for Member %s (public_id=%s)", self.pk, pic_id)
+        return super().delete(*args, **kwargs)
 
 
 class MemberBiography(BaseModel):
