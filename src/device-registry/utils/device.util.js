@@ -1013,34 +1013,91 @@ const deviceUtil = {
                 },
                 // Find the latest activities from the single 'activities' array
                 latest_deployment_activity: {
-                  $first: {
-                    $filter: {
-                      input: "$activities",
-                      as: "activity",
-                      cond: { $eq: ["$$activity.activityType", "deployment"] },
+                  $reduce: {
+                    input: "$activities",
+                    initialValue: null,
+                    in: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$$this.activityType", "deployment"] },
+                            {
+                              $or: [
+                                { $eq: ["$$value", null] },
+                                {
+                                  $gt: [
+                                    "$$this.createdAt",
+                                    "$$value.createdAt",
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        "$$this",
+                        "$$value",
+                      ],
                     },
                   },
                 },
                 latest_maintenance_activity: {
-                  $first: {
-                    $filter: {
-                      input: "$activities",
-                      as: "activity",
-                      cond: { $eq: ["$$activity.activityType", "maintenance"] },
+                  $reduce: {
+                    input: "$activities",
+                    initialValue: null,
+                    in: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$$this.activityType", "maintenance"] },
+                            {
+                              $or: [
+                                { $eq: ["$$value", null] },
+                                {
+                                  $gt: [
+                                    "$$this.createdAt",
+                                    "$$value.createdAt",
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        "$$this",
+                        "$$value",
+                      ],
                     },
                   },
                 },
                 latest_recall_activity: {
-                  $first: {
-                    $filter: {
-                      input: "$activities",
-                      as: "activity",
-                      cond: {
-                        $or: [
-                          { $eq: ["$$activity.activityType", "recall"] },
-                          { $eq: ["$$activity.activityType", "recallment"] },
-                        ],
-                      },
+                  $reduce: {
+                    input: "$activities",
+                    initialValue: null,
+                    in: {
+                      $cond: [
+                        {
+                          $and: [
+                            {
+                              $or: [
+                                { $eq: ["$$this.activityType", "recall"] },
+                                { $eq: ["$$this.activityType", "recallment"] },
+                              ],
+                            },
+                            {
+                              $or: [
+                                { $eq: ["$$value", null] },
+                                {
+                                  $gt: [
+                                    "$$this.createdAt",
+                                    "$$value.createdAt",
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        "$$this",
+                        "$$value",
+                      ],
                     },
                   },
                 },
