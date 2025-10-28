@@ -971,13 +971,9 @@ const deviceUtil = {
                     $match: {
                       $expr: {
                         $or: [
-                          { $eq: ["$device", "$$deviceName"] },
                           { $eq: ["$device_id", "$$deviceId"] },
                           {
-                            $eq: [
-                              { $toString: "$device_id" },
-                              { $toString: "$$deviceId" },
-                            ],
+                            $eq: ["$device", "$$deviceName"], // Keep for legacy, but prioritize device_id
                           },
                         ],
                       },
