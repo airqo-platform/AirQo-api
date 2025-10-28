@@ -20,7 +20,9 @@ class CleanAirResource(BaseModel):
         resource_type='raw',
         folder='website/uploads/cleanair/resources/',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     author_title = models.CharField(
         max_length=40, null=True, blank=True, default="Created By"
@@ -93,7 +95,9 @@ class ForumEvent(BaseModel):
         folder='website/uploads/events/images/',
         resource_type='image',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     location_name = models.CharField(max_length=100, blank=True)
     location_link = models.URLField(blank=True)
@@ -257,7 +261,9 @@ class Partner(BaseModel):
         folder='website/uploads/cleanair/partners/',
         resource_type='image',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     name = models.CharField(max_length=70)
     website_link = models.URLField(blank=True, null=True)
@@ -289,7 +295,8 @@ class Partner(BaseModel):
         # Use getattr to access the Django-generated helper method safely for
         # static type checkers. Fall back to the raw category value if the
         # helper isn't available in this analysis environment.
-        category_display = getattr(self, 'get_category_display', lambda: self.category)()
+        category_display = getattr(
+            self, 'get_category_display', lambda: self.category)()
         if self.forum_events.count() == 0:
             return f"All Events - {category_display} - {self.name}"
         return f"{category_display} - {self.name}"
@@ -369,7 +376,9 @@ class Person(BaseModel):
         folder='website/uploads/cleanair/persons/',
         resource_type='image',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     twitter = models.URLField(blank=True)
     linked_in = models.URLField(blank=True)
@@ -420,7 +429,7 @@ class ForumResource(BaseModel):
 class ResourceSession(BaseModel):
     session_title = models.CharField(max_length=120)
     forum_resource = models.ForeignKey(
-    'ForumResource', related_name="resource_sessions", on_delete=models.CASCADE
+        'ForumResource', related_name="resource_sessions", on_delete=models.CASCADE
     )
     order = models.IntegerField(default=1)
 
@@ -438,10 +447,12 @@ class ResourceFile(BaseModel):
         resource_type='raw',
         folder='website/uploads/cleanair/resources/',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     session = models.ForeignKey(
-    'ResourceSession', related_name='resource_files', on_delete=models.CASCADE, null=True, blank=True
+        'ResourceSession', related_name='resource_files', on_delete=models.CASCADE, null=True, blank=True
     )
     order = models.IntegerField(default=1)
 

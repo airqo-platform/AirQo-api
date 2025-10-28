@@ -18,10 +18,16 @@ def validate_image_format(file):
     """
     Validate that the file is a valid image and does not exceed 30MB.
     Allowed extensions are handled by FileExtensionValidator in the field definition.
+    For files >10MB, skip dimension check to avoid memory issues.
     """
     if file.size > MAX_IMAGE_SIZE:
         raise ValidationError(
             f"Image size must not exceed 30MB. Current size: {file.size/1024/1024:.2f}MB.")
+
+    # For large files (>10MB), skip dimension check to avoid memory issues
+    # Extension validation is handled separately
+    if file.size > 10 * 1024 * 1024:
+        return
 
     # Check if file is an actual image
     # get_image_dimensions will raise an error if not a valid image

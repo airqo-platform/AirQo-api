@@ -20,7 +20,9 @@ class Press(SlugBaseModel):
         folder="website/uploads/press/logos",
         resource_type="image",
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
 
     order = models.IntegerField(default=1)

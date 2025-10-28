@@ -26,12 +26,16 @@ class Partner(SlugBaseModel):
         resource_type="image",
         null=True,
         blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     partner_logo = CloudinaryField(
         folder="website/uploads/partners/logos",
         resource_type="image",
         null=True,
         blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     partner_name = models.CharField(max_length=200)
     order = models.IntegerField(default=1)

@@ -18,7 +18,9 @@ class Member(SlugBaseModel):
         folder="website/uploads/team/members",
         resource_type="image",
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
 
     twitter = models.URLField(max_length=255, null=True, blank=True)
