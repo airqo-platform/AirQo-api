@@ -414,13 +414,6 @@ async function fetchAndStoreReadings() {
         );
       }
 
-      if (lastProcessedTime) {
-        // Add a 10-minute buffer to prevent missing data
-        lastProcessedTime = new Date(
-          lastProcessedTime.getTime() - 10 * 60 * 1000
-        );
-      }
-
       logText(
         lastProcessedTime
           ? `Processing events from: ${lastProcessedTime.toISOString()}`
