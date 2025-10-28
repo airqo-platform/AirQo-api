@@ -1011,6 +1011,39 @@ const deviceUtil = {
                     0,
                   ],
                 },
+                // Find the latest activities from the single 'activities' array
+                latest_deployment_activity: {
+                  $first: {
+                    $filter: {
+                      input: "$activities",
+                      as: "activity",
+                      cond: { $eq: ["$$activity.activityType", "deployment"] },
+                    },
+                  },
+                },
+                latest_maintenance_activity: {
+                  $first: {
+                    $filter: {
+                      input: "$activities",
+                      as: "activity",
+                      cond: { $eq: ["$$activity.activityType", "maintenance"] },
+                    },
+                  },
+                },
+                latest_recall_activity: {
+                  $first: {
+                    $filter: {
+                      input: "$activities",
+                      as: "activity",
+                      cond: {
+                        $or: [
+                          { $eq: ["$$activity.activityType", "recall"] },
+                          { $eq: ["$$activity.activityType", "recallment"] },
+                        ],
+                      },
+                    },
+                  },
+                },
               },
             }
           );
@@ -1069,14 +1102,6 @@ const deviceUtil = {
 
               device.activities_by_type = activitiesByType;
               device.latest_activities_by_type = latestActivitiesByType;
-              device.latest_deployment_activity =
-                latestActivitiesByType.deployment || null;
-              device.latest_maintenance_activity =
-                latestActivitiesByType.maintenance || null;
-              device.latest_recall_activity =
-                latestActivitiesByType.recall ||
-                latestActivitiesByType.recallment ||
-                null;
             } else {
               device.activities_by_type = {};
               device.latest_activities_by_type = {};
