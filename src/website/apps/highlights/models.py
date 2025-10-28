@@ -17,7 +17,8 @@ class Highlight(BaseModel):
 
     image = optimized_cloudinary_field(
         'website/uploads/highlights/images',
-        resource_type='image'
+        resource_type='image',
+        default='website/uploads/default_image.webp'
     )
 
     link = models.URLField()
