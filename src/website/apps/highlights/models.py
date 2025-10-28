@@ -1,6 +1,7 @@
 from django.db import models
 from utils.models import BaseModel
 from utils.fields import optimized_cloudinary_field
+from cloudinary.uploader import destroy
 
 
 class Tag(BaseModel):
@@ -39,5 +40,5 @@ class Highlight(BaseModel):
         Automatically delete the image from Cloudinary when the highlight is deleted.
         """
         if self.image:
-            self.image.delete(save=False)
+            destroy(self.image.public_id, invalidate=True)
         return super().delete(*args, **kwargs)

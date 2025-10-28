@@ -8,6 +8,7 @@ from django.dispatch import receiver
 from enum import Enum
 from django.utils.text import slugify
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from django.db.models.signals import post_save
 from multiselectfield import MultiSelectField
 
@@ -51,6 +52,15 @@ class CleanAirResource(BaseModel):
 
     def __str__(self):
         return self.resource_title
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove associated Cloudinary files before deletion.
+        """
+        if self.resource_file:
+            destroy(self.resource_file.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class ForumEvent(BaseModel):
@@ -135,6 +145,15 @@ class ForumEvent(BaseModel):
         if not self.unique_title:
             self.unique_title = self.generate_unique_title()
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary image before deletion.
+        """
+        if self.background_image:
+            destroy(self.background_image.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class Section(models.Model):
@@ -301,6 +320,15 @@ class Partner(BaseModel):
             return f"All Events - {category_display} - {self.name}"
         return f"{category_display} - {self.name}"
 
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary image before deletion.
+        """
+        if self.partner_logo:
+            destroy(self.partner_logo.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
+
 
 class Program(BaseModel):
     title = models.CharField(max_length=100)
@@ -461,6 +489,15 @@ class ResourceFile(BaseModel):
 
     def __str__(self):
         return self.file.url if self.file else "No File"
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary file before deletion.
+        """
+        if self.file:
+            destroy(self.file.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 # signals.py

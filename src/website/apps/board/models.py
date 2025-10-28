@@ -1,5 +1,6 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from utils.models import BaseModel
 
 
@@ -28,6 +29,15 @@ class BoardMember(BaseModel):
         if self.picture:
             return self.picture.url  # Cloudinary provides the actual URL of the uploaded image
         return None
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary image before deletion.
+        """
+        if self.picture:
+            destroy(self.picture.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class BoardMemberBiography(BaseModel):

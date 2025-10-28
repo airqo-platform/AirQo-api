@@ -1,5 +1,6 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from utils.models import BaseModel, SlugBaseModel
 
 
@@ -66,6 +67,15 @@ class Partner(SlugBaseModel):
 
     def __str__(self):
         return f"Partner - {self.partner_name}"
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary image before deletion.
+        """
+        if self.partner_image:
+            destroy(self.partner_image.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class PartnerDescription(BaseModel):

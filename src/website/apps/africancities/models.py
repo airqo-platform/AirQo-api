@@ -1,5 +1,6 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from utils.models import BaseModel
 
 
@@ -26,6 +27,15 @@ class AfricanCountry(BaseModel):
         if self.country_flag:
             return self.country_flag.url  # Cloudinary already provides a secure URL
         return None
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove associated Cloudinary images before deletion.
+        """
+        if self.country_flag:
+            destroy(self.country_flag.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class City(BaseModel):
@@ -101,6 +111,15 @@ class Image(BaseModel):
 
     def __str__(self):
         return f"Image-{self.id}"
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary image before deletion.
+        """
+        if self.image:
+            destroy(self.image.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
     def get_image_url(self):
         """
