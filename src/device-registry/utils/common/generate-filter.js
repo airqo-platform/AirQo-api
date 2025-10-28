@@ -1022,6 +1022,109 @@ const generateFilter = {
     return filter;
   },
 
+  readingsJob: (request, next) => {
+    const { query, params } = request;
+    const {
+      startTime,
+      endTime,
+      limit,
+      skip,
+      internal,
+      active,
+      tenant,
+      metadata,
+      recent,
+      frequency,
+      brief,
+      isHistorical,
+    } = { ...query, ...params };
+
+    // Initial filter object
+    const filter = {
+      "values.time": {},
+    };
+
+    if (isHistorical) {
+      filter.isHistorical = isHistorical;
+    }
+
+    // Handle metadata and external properties
+    if (metadata) {
+      filter["metadata"] = metadata;
+    }
+
+    // Handle startTime and endTime filtering
+    if (startTime) {
+      if (!isTimeEmpty(startTime)) {
+        const start = new Date(startTime);
+        filter["values.time"]["$gte"] = start;
+      } else {
+        delete filter["values.time"];
+      }
+      filter["day"] = { $gte: generateDateFormatWithoutHrs(startTime) };
+    }
+
+    if (endTime) {
+      if (!isTimeEmpty(endTime)) {
+        const end = new Date(endTime);
+        filter["values.time"]["$lte"] = end;
+      } else {
+        // If endTime is empty but startTime is not, we might not want to delete the time filter
+        if (!startTime) {
+          delete filter["values.time"];
+        }
+      }
+      if (filter["day"]) {
+        filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
+      } else {
+        filter["day"] = { $lte: generateDateFormatWithoutHrs(endTime) };
+      }
+    }
+
+    if (limit) {
+      filter["limit"] = limit;
+    }
+
+    if (skip) {
+      filter["skip"] = skip;
+    }
+
+    // Handle frequency, recent, network, and tenant
+    if (frequency) {
+      filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    } else {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
+    }
+
+    if (recent) {
+      filter["recent"] = recent;
+    }
+
+    if (tenant) {
+      filter["tenant"] = tenant;
+    }
+
+    if (brief) {
+      filter["brief"] = brief;
+    }
+
+    if (active) {
+      filter["active"] = active;
+    }
+
+    if (internal) {
+      filter["internal"] = internal;
+    }
+
+    // Unlike the main 'fetch', this job-specific filter does NOT override
+    // the time window. It trusts the caller (the job) to provide a
+    // correct and efficient window based on its state (lastProcessedTime).
+
+    return filter;
+  },
+
   devices: (req, next) => {
     const {
       search,

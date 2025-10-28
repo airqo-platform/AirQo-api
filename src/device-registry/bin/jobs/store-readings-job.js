@@ -312,7 +312,7 @@ async function fetchAllRecentEvents(lastProcessedTime) {
         },
       };
 
-      const filter = generateFilter.fetch(request);
+      const filter = generateFilter.readingsJob(request);
 
       const FETCH_TIMEOUT = 45000; // 45 seconds
       const response = await Promise.race([
