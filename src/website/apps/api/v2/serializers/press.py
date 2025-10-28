@@ -56,6 +56,7 @@ class PressListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
             'id',
             'article_title',
             'article_intro',
+            'article_link',
             'date_published',
             'publisher_logo_url',
             'website_category',

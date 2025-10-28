@@ -1,6 +1,10 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from utils.models import BaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AfricanCountry(BaseModel):
@@ -26,6 +30,19 @@ class AfricanCountry(BaseModel):
         if self.country_flag:
             return self.country_flag.url  # Cloudinary already provides a secure URL
         return None
+
+    def delete(self, *args, **kwargs):
+        """
+        Remove associated Cloudinary images before DB deletion; fail-open on errors.
+        """
+        flag_id = getattr(self.country_flag, "public_id", None)
+        if flag_id:
+            try:
+                destroy(flag_id, invalidate=True)
+            except Exception:
+                logger.warning(
+                    "Cloudinary destroy failed for AfricanCountry %s (public_id=%s)", self.pk, flag_id)
+        return super().delete(*args, **kwargs)
 
 
 class City(BaseModel):
@@ -101,6 +118,19 @@ class Image(BaseModel):
 
     def __str__(self):
         return f"Image-{self.id}"
+
+    def delete(self, *args, **kwargs):
+        """
+        Remove associated Cloudinary image before DB deletion; fail-open on errors.
+        """
+        img_id = getattr(self.image, "public_id", None)
+        if img_id:
+            try:
+                destroy(img_id, invalidate=True)
+            except Exception:
+                logger.warning(
+                    "Cloudinary destroy failed for Image %s (public_id=%s)", self.pk, img_id)
+        return super().delete(*args, **kwargs)
 
     def get_image_url(self):
         """

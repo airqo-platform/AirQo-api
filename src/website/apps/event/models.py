@@ -74,7 +74,9 @@ class Event(SlugBaseModel):
         null=True,
         blank=True,
         default=None,
-        resource_type='image'
+        resource_type='image',
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     background_image = CloudinaryField(
         'image',
@@ -82,7 +84,9 @@ class Event(SlugBaseModel):
         null=True,
         blank=True,
         default=None,
-        resource_type='image'
+        resource_type='image',
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
 
     location_name = models.CharField(max_length=100, null=True, blank=True)
@@ -282,7 +286,9 @@ class PartnerLogo(BaseModel):
         null=True,
         blank=True,
         default=None,
-        resource_type='image'
+        resource_type='image',
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     name = models.CharField(max_length=70)
     order = models.IntegerField(default=1)
@@ -334,7 +340,9 @@ class Resource(BaseModel):
         null=True,
         blank=True,
         default=None,
-        resource_type='raw'
+        resource_type='raw',
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     order = models.IntegerField(default=1)
     event = models.ForeignKey(
