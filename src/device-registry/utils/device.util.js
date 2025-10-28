@@ -1011,6 +1011,96 @@ const deviceUtil = {
                     0,
                   ],
                 },
+                // Find the latest activities from the single 'activities' array
+                latest_deployment_activity: {
+                  $reduce: {
+                    input: "$activities",
+                    initialValue: null,
+                    in: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$$this.activityType", "deployment"] },
+                            {
+                              $or: [
+                                { $eq: ["$$value", null] },
+                                {
+                                  $gt: [
+                                    "$$this.createdAt",
+                                    "$$value.createdAt",
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        "$$this",
+                        "$$value",
+                      ],
+                    },
+                  },
+                },
+                latest_maintenance_activity: {
+                  $reduce: {
+                    input: "$activities",
+                    initialValue: null,
+                    in: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$$this.activityType", "maintenance"] },
+                            {
+                              $or: [
+                                { $eq: ["$$value", null] },
+                                {
+                                  $gt: [
+                                    "$$this.createdAt",
+                                    "$$value.createdAt",
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        "$$this",
+                        "$$value",
+                      ],
+                    },
+                  },
+                },
+                latest_recall_activity: {
+                  $reduce: {
+                    input: "$activities",
+                    initialValue: null,
+                    in: {
+                      $cond: [
+                        {
+                          $and: [
+                            {
+                              $or: [
+                                { $eq: ["$$this.activityType", "recall"] },
+                                { $eq: ["$$this.activityType", "recallment"] },
+                              ],
+                            },
+                            {
+                              $or: [
+                                { $eq: ["$$value", null] },
+                                {
+                                  $gt: [
+                                    "$$this.createdAt",
+                                    "$$value.createdAt",
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                        "$$this",
+                        "$$value",
+                      ],
+                    },
+                  },
+                },
               },
             }
           );
@@ -1069,14 +1159,6 @@ const deviceUtil = {
 
               device.activities_by_type = activitiesByType;
               device.latest_activities_by_type = latestActivitiesByType;
-              device.latest_deployment_activity =
-                latestActivitiesByType.deployment || null;
-              device.latest_maintenance_activity =
-                latestActivitiesByType.maintenance || null;
-              device.latest_recall_activity =
-                latestActivitiesByType.recall ||
-                latestActivitiesByType.recallment ||
-                null;
             } else {
               device.activities_by_type = {};
               device.latest_activities_by_type = {};
