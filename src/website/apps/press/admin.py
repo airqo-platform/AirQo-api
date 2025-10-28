@@ -48,6 +48,7 @@ class PressAdmin(admin.ModelAdmin):
             )
         return "No image available"
 
+    # type: ignore[attr-defined]
     image_preview.short_description = "Image Preview"
 
     def delete_queryset(self, request, queryset):
