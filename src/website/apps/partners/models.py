@@ -59,6 +59,7 @@ class Partner(SlugBaseModel):
         null=True,
         blank=True,
     )
+    featured = models.BooleanField(default=False)
 
     class Meta(SlugBaseModel.Meta):
         ordering = ["order", "id"]

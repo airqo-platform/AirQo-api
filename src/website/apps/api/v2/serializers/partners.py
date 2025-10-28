@@ -50,7 +50,7 @@ class PartnerListSerializer(serializers.ModelSerializer):
         fields = [
             'public_identifier', 'partner_name', 'partner_image_url', 'partner_logo_url',
             'partner_link', 'type', 'type_display', 'website_category',
-            'website_category_display', 'order', 'api_url', 'has_slug', 'created', 'modified'
+            'website_category_display', 'order', 'featured', 'api_url', 'has_slug', 'created', 'modified'
         ]
 
 
@@ -110,7 +110,7 @@ class PartnerDetailSerializer(serializers.ModelSerializer):
             'public_identifier', 'partner_name', 'partner_image', 'partner_image_url',
             'partner_logo', 'partner_logo_url', 'partner_link', 'type', 'type_display',
             'website_category', 'website_category_display', 'descriptions',
-            'order', 'api_url', 'has_slug', 'created', 'modified', 'is_deleted'
+            'order', 'featured', 'api_url', 'has_slug', 'created', 'modified', 'is_deleted'
         ]
 
 
