@@ -968,13 +968,12 @@ const deviceUtil = {
                 let: { deviceName: "$name", deviceId: "$_id" },
                 pipeline: [
                   {
+                    // Prioritize indexed device_id lookup, fall back to legacy device name for backwards compatibility
                     $match: {
                       $expr: {
                         $or: [
                           { $eq: ["$device_id", "$$deviceId"] },
-                          {
-                            $eq: ["$device", "$$deviceName"], // Keep for legacy, but prioritize device_id
-                          },
+                          { $eq: ["$device", "$$deviceName"] },
                         ],
                       },
                     },
