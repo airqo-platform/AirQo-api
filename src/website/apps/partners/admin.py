@@ -2,7 +2,6 @@ from django.contrib import admin
 import nested_admin
 from .models import Partner, PartnerDescription
 from django.utils.html import format_html, escape
-from typing import Any
 
 
 # type: ignore[attr-defined]
