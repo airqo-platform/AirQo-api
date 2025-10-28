@@ -26,19 +26,12 @@ let isMainJobRunning = false;
 let isSummaryJobRunning = false;
 let currentMainJobPromise = null;
 let currentSummaryJobPromise = null;
-const LOG_TYPE = "NETWORK_STATUS_ALERT";
+const MAIN_JOB_LOG_TYPE = "network-status-check";
+const SUMMARY_JOB_LOG_TYPE = "network-status-summary";
 
 const logThrottleManager = new LogThrottleManager(TIMEZONE);
 
 const checkNetworkStatus = async () => {
-  // Prevent overlapping executions
-  if (isMainJobRunning) {
-    logger.warn(`${MAIN_JOB_NAME} is already running, skipping this execution`);
-    return;
-  }
-
-  isMainJobRunning = true;
-
   try {
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
@@ -120,20 +113,13 @@ const checkNetworkStatus = async () => {
       )}% offline (${offlineDevicesCount}/${totalDevices})`;
     }
 
-    // Use throttled logging
-    const shouldLog = await logThrottleManager.shouldAllowLog(LOG_TYPE);
-
-    if (shouldLog) {
-      logText(message);
-      if (status === "CRITICAL") {
-        logger.error(message);
-      } else if (status === "WARNING") {
-        logger.warn(message);
-      } else {
-        logger.info(message);
-      }
+    logText(message);
+    if (status === "CRITICAL") {
+      logger.error(message);
+    } else if (status === "WARNING") {
+      logger.warn(message);
     } else {
-      logger.debug(`Log throttled for ${LOG_TYPE}: Daily limit reached.`);
+      logger.info(message);
     }
 
     // Create alert record in database
@@ -186,24 +172,11 @@ const checkNetworkStatus = async () => {
     } catch (alertError) {
       logger.error(`Failed to save error alert: ${alertError.message}`);
     }
-  } finally {
-    isMainJobRunning = false;
-    currentMainJobPromise = null;
   }
 };
 
 // Function to get network status summary for the day
 const dailyNetworkStatusSummary = async () => {
-  // Prevent overlapping executions
-  if (isSummaryJobRunning) {
-    logger.warn(
-      `${SUMMARY_JOB_NAME} is already running, skipping this execution`
-    );
-    return;
-  }
-
-  isSummaryJobRunning = true;
-
   try {
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
@@ -249,21 +222,64 @@ Critical Alerts: ${stats.criticalCount}
       `🐛🐛 ${SUMMARY_JOB_NAME} Error generating daily summary: ${error.message}`
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
-  } finally {
-    isSummaryJobRunning = false;
-    currentSummaryJobPromise = null;
   }
 };
 
 // Wrapper functions to handle promises for graceful shutdown
 const mainJobWrapper = async () => {
+  const shouldRun = await logThrottleManager.shouldAllowLog(MAIN_JOB_LOG_TYPE);
+  if (!shouldRun) {
+    logger.info(`Skipping ${MAIN_JOB_NAME} execution to prevent duplicates.`);
+    return;
+  }
+
+  if (isMainJobRunning) {
+    logger.warn(`${MAIN_JOB_NAME} is already running, skipping this execution`);
+    return;
+  }
+  isMainJobRunning = true;
   currentMainJobPromise = checkNetworkStatus();
-  await currentMainJobPromise;
+  try {
+    await currentMainJobPromise;
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Error during ${MAIN_JOB_NAME} execution: ${error.message}`
+    );
+  } finally {
+    isMainJobRunning = false;
+    currentMainJobPromise = null;
+  }
 };
 
 const summaryJobWrapper = async () => {
+  const shouldRun = await logThrottleManager.shouldAllowLog(
+    SUMMARY_JOB_LOG_TYPE
+  );
+  if (!shouldRun) {
+    logger.info(
+      `Skipping ${SUMMARY_JOB_NAME} execution to prevent duplicates.`
+    );
+    return;
+  }
+
+  if (isSummaryJobRunning) {
+    logger.warn(
+      `${SUMMARY_JOB_NAME} is already running, skipping this execution`
+    );
+    return;
+  }
+  isSummaryJobRunning = true;
   currentSummaryJobPromise = dailyNetworkStatusSummary();
-  await currentSummaryJobPromise;
+  try {
+    await currentSummaryJobPromise;
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Error during ${SUMMARY_JOB_NAME} execution: ${error.message}`
+    );
+  } finally {
+    isSummaryJobRunning = false;
+    currentSummaryJobPromise = null;
+  }
 };
 
 // Create and start BOTH cron jobs
