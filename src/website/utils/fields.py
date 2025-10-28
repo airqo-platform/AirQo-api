@@ -24,26 +24,36 @@ def validate_image_format(file):
         raise ValidationError(
             f"Image size must not exceed 30MB. Current size: {file.size/1024/1024:.2f}MB.")
 
-    # For large files (>10MB), use magic number validation instead of dimension check
-    # to avoid memory issues while still validating image format
-    if file.size > 10 * 1024 * 1024:
-        file.seek(0)
-        header = file.read(12)
-        file.seek(0)
+    # Always check magic number first for all files to prevent internal server errors
+    file.seek(0)
+    header = file.read(12)
+    file.seek(0)
 
-        # Check common image file signatures
-        if not (header.startswith(b'\xff\xd8\xff') or  # JPEG
-                header.startswith(b'\x89PNG\r\n\x1a\n') or  # PNG
-                # GIF
-                header.startswith(b'GIF87a') or header.startswith(b'GIF89a') or
-                # WebP
-                header.startswith(b'RIFF') and header[8:12] == b'WEBP'):
-            raise ValidationError(
-                f"The file '{file.name}' is not a valid image.")
+    # Check common image file signatures for all supported formats
+    is_valid_format = (
+        # JPEG
+        header.startswith(b'\xff\xd8\xff') or
+        # PNG
+        header.startswith(b'\x89PNG\r\n\x1a\n') or
+        header.startswith(b'GIF87a') or header.startswith(b'GIF89a') or   # GIF
+        # WebP
+        (header.startswith(b'RIFF') and header[8:12] == b'WEBP') or
+        # BMP
+        header.startswith(b'BM') or
+        # TIFF (LE/BE)
+        header.startswith(b'II*\x00') or header.startswith(b'MM\x00*')
+    )
+
+    if not is_valid_format:
+        raise ValidationError(f"The file '{file.name}' is not a valid image.")
+
+    # For large files (>10MB), skip dimension check to avoid memory issues
+    # Magic number validation above already ensures it's a valid image format
+    if file.size > 10 * 1024 * 1024:
         return
 
-    # Check if file is an actual image
-    # get_image_dimensions will raise an error if not a valid image
+    # For smaller files, also validate with get_image_dimensions as additional check
+    # This provides extra validation for corrupted files that passed magic number check
     try:
         get_image_dimensions(file)
     except Exception as e:
