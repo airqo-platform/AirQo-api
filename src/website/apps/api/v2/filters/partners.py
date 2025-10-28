@@ -13,6 +13,7 @@ class PartnerFilter(filters.FilterSet):
     type = filters.ChoiceFilter(choices=Partner.RelationTypes.choices)
     website_category = filters.ChoiceFilter(
         choices=Partner.WebsiteCategory.choices)
+    featured = filters.BooleanFilter()
     has_image = filters.BooleanFilter(method='filter_has_image')
     has_logo = filters.BooleanFilter(method='filter_has_logo')
     has_link = filters.BooleanFilter(method='filter_has_link')
@@ -41,6 +42,7 @@ class PartnerFilter(filters.FilterSet):
             'partner_name': ['exact', 'icontains'],
             'type': ['exact'],
             'website_category': ['exact'],
+            'featured': ['exact'],
             'order': ['exact', 'gte', 'lte'],
             'created': ['exact', 'gte', 'lte'],
             'modified': ['exact', 'gte', 'lte'],

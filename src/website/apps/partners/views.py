@@ -18,6 +18,13 @@ class PartnerViewSet(viewsets.ReadOnlyModelViewSet):
             'django_language') or self.request.COOKIES.get('django_language')
         if language:
             translation.activate(language)
+
+        # Filter by featured status if provided
+        featured = self.request.query_params.get('featured')
+        if featured is not None:
+            featured_bool = featured.lower() in ('true', '1', 'yes')
+            queryset = queryset.filter(featured=featured_bool)
+
         return queryset
 
     def retrieve(self, request, *args, **kwargs):

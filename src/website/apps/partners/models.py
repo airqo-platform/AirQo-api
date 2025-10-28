@@ -1,6 +1,10 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from utils.models import BaseModel, SlugBaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Partner(SlugBaseModel):
@@ -26,12 +30,16 @@ class Partner(SlugBaseModel):
         resource_type="image",
         null=True,
         blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     partner_logo = CloudinaryField(
         folder="website/uploads/partners/logos",
         resource_type="image",
         null=True,
         blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     partner_name = models.CharField(max_length=200)
     order = models.IntegerField(default=1)
@@ -55,12 +63,27 @@ class Partner(SlugBaseModel):
         null=True,
         blank=True,
     )
+    featured = models.BooleanField(default=False)
 
     class Meta(SlugBaseModel.Meta):
         ordering = ["order", "id"]
 
     def __str__(self):
         return f"Partner - {self.partner_name}"
+
+    def delete(self, *args, **kwargs):
+        """
+        Remove associated Cloudinary images before DB deletion; fail-open on errors.
+        """
+        for field in [self.partner_image, self.partner_logo]:
+            field_id = getattr(field, "public_id", None)
+            if field_id:
+                try:
+                    destroy(field_id, invalidate=True)
+                except Exception:
+                    logger.warning(
+                        "Cloudinary destroy failed for Partner %s (public_id=%s)", self.pk, field_id)
+        return super().delete(*args, **kwargs)
 
 
 class PartnerDescription(BaseModel):
