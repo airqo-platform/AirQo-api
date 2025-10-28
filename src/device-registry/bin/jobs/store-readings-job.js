@@ -13,16 +13,6 @@ const cron = require("node-cron");
 const moment = require("moment-timezone");
 const NodeCache = require("node-cache");
 
-// Constants
-const TIMEZONE = moment.tz.guess();
-const JOB_NAME = "store-readings-job";
-const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
-const FETCH_BATCH_SIZE = 200;
-const MAX_FETCH_ITERATIONS = 100; // Increased safety limit for fetching
-
-const JOB_LOOKBACK_WINDOW_MS =
-  constants.JOB_LOOKBACK_WINDOW_MS || 12 * 60 * 60 * 1000; // Default to 12 hours
-
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
 
@@ -255,175 +245,54 @@ class ReadingsBatchProcessor {
   }
 }
 
-// New function to fetch all recent events in smaller batches
-async function fetchAllRecentEvents(lastProcessedTime) {
-  let allEvents = [];
-  let skip = 0;
-  let hasMore = true;
-  let iteration = 0;
-
-  logText("Fetching recent events in batches...");
-
-  // Define the time window for the query
-  const endTime = new Date();
-  let startTime = lastProcessedTime;
-
-  // If there's no last processed time, default to the job's lookback window
-  if (!startTime) {
-    startTime = new Date(Date.now() - JOB_LOOKBACK_WINDOW_MS);
-    logger.warn(
-      `No last processed time found. Defaulting to a ${JOB_LOOKBACK_WINDOW_MS /
-        (1000 * 60 * 60)}-hour lookback.`
-    );
-  }
-
-  while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
-    try {
-      const request = {
-        query: {
-          tenant: "airqo",
-          recent: "yes",
-          metadata: "site_id",
-          internal: "yes", // Added to match server-side visibility semantics
-          active: "yes",
-          brief: "yes",
-          limit: FETCH_BATCH_SIZE,
-          skip: skip,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-        },
-      };
-
-      const filter = generateFilter.fetch(request);
-      const fetchOptions = { ...filter, isHistorical: false };
-
-      const FETCH_TIMEOUT = 45000; // 45 seconds
-      const response = await Promise.race([
-        EventModel("airqo").fetch(fetchOptions),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Fetch timeout")), FETCH_TIMEOUT)
-        ),
-      ]);
-
-      if (
-        response?.success &&
-        Array.isArray(response.data?.[0]?.data) &&
-        response.data[0].data.length > 0
-      ) {
-        const batchEvents = response.data[0].data;
-        allEvents = allEvents.concat(batchEvents);
-
-        logText(
-          `Fetched batch ${iteration + 1}: ${
-            batchEvents.length
-          } events (total: ${allEvents.length})`
-        );
-
-        if (batchEvents.length < FETCH_BATCH_SIZE) {
-          hasMore = false;
-          logText("Reached end of recent events");
-        } else {
-          skip += FETCH_BATCH_SIZE;
-          iteration++;
-          await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
-        }
-      } else {
-        hasMore = false;
-        if (iteration === 0) {
-          logText("No recent events found in the first batch");
-        }
-      }
-    } catch (error) {
-      logger.error(
-        `Error fetching event batch ${iteration + 1}: ${error.message}`
-      );
-      hasMore = false; // Stop on error
-    }
-  }
-
-  if (iteration >= MAX_FETCH_ITERATIONS) {
-    logger.warn(`Reached maximum fetch iterations (${MAX_FETCH_ITERATIONS})`);
-  }
-
-  logText(`Total events fetched for processing: ${allEvents.length}`);
-  return allEvents;
-}
-
-// New function to calculate averages for all sites in one go
-async function calculateAveragesInBulk(siteIds) {
-  if (!siteIds || siteIds.length === 0) {
-    return {};
-  }
-  logText(`Calculating averages for ${siteIds.length} unique sites...`);
-  try {
-    const averages = await EventModel("airqo").getAirQualityAveragesForSites(
-      siteIds
-    );
-    if (averages.success) {
-      return averages.data;
-    }
-    return {};
-  } catch (error) {
-    logger.error(`Error calculating bulk averages: ${error.message}`);
-    return {};
-  }
-}
-
 // Main function focused purely on readings
 async function fetchAndStoreReadings() {
   const batchProcessor = new ReadingsBatchProcessor(50);
 
   try {
-    logText("Starting optimized readings processing job");
+    const request = {
+      query: {
+        tenant: "airqo",
+        recent: "yes",
+        metadata: "site_id",
+        active: "yes",
+        brief: "yes",
+      },
+    };
+    const filter = generateFilter.fetch(request);
 
-    // 1. Get the timestamp of the last processed reading
-    let lastProcessedTime = null;
+    logText("Starting readings processing job");
+
+    let viewEventsResponse;
     try {
-      const latestReading = await ReadingModel("airqo")
-        .find({})
-        .sort({ time: -1 })
-        .limit(1)
-        .select("time")
-        .lean();
-
-      if (latestReading.length > 0) {
-        // Add a 10-minute buffer to prevent missing data
-        lastProcessedTime = new Date(
-          latestReading[0].time.getTime() - 10 * 60 * 1000
-        );
-        logText(
-          `Last processed reading time: ${lastProcessedTime.toISOString()}`
-        );
+      viewEventsResponse = await EventModel("airqo").fetch(filter);
+    } catch (fetchError) {
+      if (isDuplicateKeyError(fetchError)) {
+        logText("Ignoring duplicate key error in fetch operation");
+        return;
       }
-    } catch (error) {
-      logger.warn(
-        `Could not determine last processed reading time: ${error.message}`
-      );
-    }
-
-    // 2. Fetch all new events since the last run
-    const allEvents = await fetchAllRecentEvents(lastProcessedTime);
-
-    if (allEvents.length === 0) {
-      logText("No events found to process into Readings");
+      logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
       return;
     }
 
-    // 3. Get unique site IDs and calculate averages in bulk
-    // Deduplicate site_ids by converting to string first
-    const uniqueSiteIds = [
-      ...new Set(
-        allEvents
-          .map((e) => (e.site_id ? e.site_id.toString() : null))
-          .filter(Boolean)
-      ),
-    ];
-    const bulkAverages = await calculateAveragesInBulk(uniqueSiteIds);
+    if (
+      !viewEventsResponse?.success ||
+      !Array.isArray(viewEventsResponse.data?.[0]?.data)
+    ) {
+      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
+      return;
+    }
+
+    const data = viewEventsResponse.data[0].data;
+    if (data.length === 0) {
+      logText("No Events found to process into Readings");
+      return;
+    }
 
     // Process in batches
     const batches = [];
-    for (let i = 0; i < allEvents.length; i += batchProcessor.batchSize) {
-      batches.push(allEvents.slice(i, i + batchProcessor.batchSize));
+    for (let i = 0; i < data.length; i += batchProcessor.batchSize) {
+      batches.push(data.slice(i, i + batchProcessor.batchSize));
     }
 
     for (const batch of batches) {
@@ -432,8 +301,7 @@ async function fetchAndStoreReadings() {
           asyncRetry(
             async (bail) => {
               try {
-                // Pass bulk averages to the processor
-                await batchProcessor.processDocument(doc, bulkAverages);
+                await batchProcessor.processDocument(doc);
               } catch (error) {
                 if (isDuplicateKeyError(error)) {
                   return; // Skip duplicates
@@ -482,6 +350,10 @@ async function fetchAndStoreReadings() {
   }
 }
 
+const TIMEZONE = moment.tz.guess();
+const JOB_NAME = "store-readings-job";
+const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
+
 let isJobRunning = false;
 let currentJobPromise = null;
 
@@ -519,6 +391,9 @@ const startJob = () => {
     stop: async () => {
       logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
       logText(`📅 ${JOB_NAME} schedule stopped.`);
       try {
         if (currentJobPromise) {
