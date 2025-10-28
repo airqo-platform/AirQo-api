@@ -152,3 +152,4 @@ django-environ==0.12.0
 psycopg2==2.9.10
 sqlalchemy-bigquery==1.13.0
 google-cloud-bigquery==3.31.0
+python-graphql-client
