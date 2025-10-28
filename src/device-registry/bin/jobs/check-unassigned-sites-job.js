@@ -75,13 +75,20 @@ let isJobRunning = false;
 let currentJobPromise = null;
 
 const LOG_TYPE = "unassigned-sites-check";
-const logThrottleManager = new LogThrottleManager(moment.tz.guess());
+const logThrottleManager = new LogThrottleManager(constants.TIMEZONE);
 
 const jobWrapper = async () => {
-  const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
-  if (!shouldRun) {
-    logger.info(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
-    return;
+  try {
+    const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+    if (!shouldRun) {
+      logger.info(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
+      return;
+    }
+  } catch (error) {
+    logger.warn(
+      `Distributed lock check failed: ${error.message}. Proceeding with execution.`
+    );
+    // Fall through to in-memory guard as fallback
   }
 
   if (isJobRunning) {
