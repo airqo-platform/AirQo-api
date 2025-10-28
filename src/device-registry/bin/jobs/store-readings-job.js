@@ -266,7 +266,6 @@ class ReadingsBatchProcessor {
 // New function to fetch all recent events in smaller batches
 async function fetchAllRecentEvents(lastProcessedTime) {
   let allEvents = [];
-  let skip = 0;
   let hasMore = true;
   let iteration = 0;
 
@@ -305,7 +304,6 @@ async function fetchAllRecentEvents(lastProcessedTime) {
           active: "yes",
           brief: "yes",
           limit: FETCH_BATCH_SIZE,
-          skip: skip,
           // Pass the calculated startTime and endTime to the filter.
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
@@ -340,7 +338,10 @@ async function fetchAllRecentEvents(lastProcessedTime) {
           hasMore = false;
           logText("Reached end of recent events");
         } else {
-          skip += FETCH_BATCH_SIZE;
+          // Advance watermark to the time of the last event in the batch
+          const lastEventInBatch = batchEvents[batchEvents.length - 1];
+          // Add 1ms to avoid reprocessing the same event
+          startTime = new Date(new Date(lastEventInBatch.time).getTime() + 1);
           iteration++;
           await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
         }
@@ -506,13 +507,19 @@ async function fetchAndStoreReadings() {
     }
 
     // If a new latest timestamp was found, update it in the JobState collection
+    // CRITICAL: Only update the watermark if all readings were processed successfully.
     if (
       newLatestTimestamp &&
-      newLatestTimestamp > (lastProcessedTime || new Date(0))
+      newLatestTimestamp > (lastProcessedTime || new Date(0)) &&
+      report.summary.readingsFailed === 0
     ) {
       await JobStateModel("airqo").set(JOB_NAME, newLatestTimestamp);
       logText(
         `Updated next start time to: ${newLatestTimestamp.toISOString()}`
+      );
+    } else if (report.summary.readingsFailed > 0) {
+      logger.warn(
+        `⚠️ Watermark not advanced due to ${report.summary.readingsFailed} processing failures. Job will re-process from the same start time.`
       );
     }
   } catch (error) {
