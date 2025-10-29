@@ -72,7 +72,8 @@ TALISMAN_CONFIG = {
 
 CORS_OPTIONS = {
     "origins": [SUPERSET_PUBLIC_URL],
-    "methods": ["GET", "POST", "PUT", "DELETE"],
-    "allow_headers": ["Content-Type", "Authorization", "X-CSRFToken", "Referer"],
+    "allow_headers": ["Authorization", "X-CSRFToken", "Referer"],
     "supports_credentials": True,
 }
+
+LOG_LEVEL = env("LOG_LEVEL")
