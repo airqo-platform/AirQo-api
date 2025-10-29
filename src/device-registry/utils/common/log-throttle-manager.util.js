@@ -25,54 +25,40 @@ class LogThrottleManager {
         logType: logType,
         environment: this.environment,
       });
-
       if (result.success) {
         const currentCount = result.data?.count || 1;
         return currentCount <= maxLogsPerDay;
       } else {
-        // If increment fails, check current count to decide
-        const current = await this.model.getCurrentCount({
-          date: today,
-          logType: logType,
-          environment: this.environment,
-        });
-        if (current.success && current.data.exists) {
-          return current.data.count < maxLogsPerDay;
-        }
-        // Fail safe: If we can't determine the count, don't log.
         logger.warn(
-          `Log throttle check failed for ${logType}, but could not get current count. Suppressing log.`
+          `incrementCount failed for ${logType}: ${result.message}. Re-checking state.`
         );
-        return false;
       }
+      // If incrementCount failed (e.g., due to a race condition),
+      // we must re-check the current state to make a definitive decision.
     } catch (error) {
-      if (error.code === 11000) {
-        // Duplicate key error means another instance is running.
-        // Immediately re-check the count to make a definitive decision.
-        try {
-          const current = await this.model.getCurrentCount({
-            date: today,
-            logType: logType,
-            environment: this.environment,
-          });
-          if (current.success && current.data.exists) {
-            // If another instance has already logged, its count will be >= 1.
-            // This instance should only log if the count is still less than the max.
-            return current.data.count < maxLogsPerDay;
-          } else {
-            // If re-check fails, something is wrong. Don't log to be safe.
-            return false;
-          }
-        } catch (retryError) {
-          logger.warn(`Log throttle retry failed: ${retryError.message}`);
-          // Fail safe: do not log if the retry check fails.
-          return false;
-        }
-      } else {
-        logger.warn(`Log throttle check failed: ${error.message}`);
-      }
+      logger.warn(
+        `Initial lock acquisition for ${logType} failed with error: ${error.message}. Re-checking state.`
+      );
+    }
 
-      // In case of unexpected errors, default to NOT logging to prevent spam.
+    // Fallback check: If the atomic increment failed, another instance might have already run.
+    // Let's find out for sure.
+    try {
+      const current = await this.model.getCurrentCount({
+        date: today,
+        logType: logType,
+        environment: this.environment,
+      });
+      // If a document exists, allow logging only if count is less than maxLogsPerDay.
+      return (
+        current.success &&
+        current.data.exists &&
+        current.data.count < maxLogsPerDay
+      );
+    } catch (checkError) {
+      logger.error(
+        `Failed to re-check lock state for ${logType}: ${checkError.message}`
+      );
       return false;
     }
   }
