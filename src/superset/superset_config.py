@@ -1,6 +1,8 @@
 import environ
 import redis
 
+import logging
+
 env = environ.Env()
 environ.Env.read_env()
 
@@ -76,4 +78,4 @@ CORS_OPTIONS = {
     "supports_credentials": True,
 }
 
-LOG_LEVEL = env("LOG_LEVEL")
+LOG_LEVEL = getattr(logging, env("LOG_LEVEL").upper(), None)
