@@ -28,6 +28,10 @@ class LogThrottleManager {
       if (result.success) {
         const currentCount = result.data?.count || 1;
         return currentCount <= maxLogsPerDay;
+      } else {
+        logger.warn(
+          `incrementCount failed for ${logType}: ${result.message}. Re-checking state.`
+        );
       }
       // If incrementCount failed (e.g., due to a race condition),
       // we must re-check the current state to make a definitive decision.
@@ -45,11 +49,11 @@ class LogThrottleManager {
         logType: logType,
         environment: this.environment,
       });
-      // If a document exists and its count is >= 1, another pod has the lock.
-      return !(
+      // If a document exists, allow logging only if count is less than maxLogsPerDay.
+      return (
         current.success &&
         current.data.exists &&
-        current.data.count >= 1
+        current.data.count < maxLogsPerDay
       );
     } catch (checkError) {
       logger.error(
