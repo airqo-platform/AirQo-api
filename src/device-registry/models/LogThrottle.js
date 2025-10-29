@@ -1,4 +1,3 @@
-//src/device-registry/models/LogThrottle.js
 const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const isEmpty = require("is-empty");
@@ -26,6 +25,12 @@ const logThrottleSchema = new Schema(
       type: String,
       required: [true, "logType is required!"],
       trim: true,
+      enum: {
+        values: constants.ALLOWED_LOG_TYPES,
+        message: `logType must be one of: ${constants.ALLOWED_LOG_TYPES.join(
+          ", "
+        )}`,
+      },
     },
     count: {
       type: Number,
@@ -55,11 +60,11 @@ logThrottleSchema.index(
   { unique: true, name: "log_throttle_unique_idx" }
 );
 
-// TTL index - automatically delete documents after 7 days
+// TTL index - automatically delete documents after a configurable period
 logThrottleSchema.index(
   { createdAt: 1 },
   {
-    expireAfterSeconds: 7 * 24 * 60 * 60, // 7 days in seconds
+    expireAfterSeconds: (constants.LOG_THROTTLE_TTL_DAYS || 30) * 24 * 60 * 60, // TTL in seconds, configurable
     name: "log_throttle_ttl_idx",
     background: true,
   }
@@ -87,14 +92,6 @@ logThrottleSchema.methods = {
 
 // Static methods
 logThrottleSchema.statics = {
-  /**
-   * Atomically increment the log count for a specific date, logType, and environment
-   * @param {Object} params - Parameters
-   * @param {string} params.date - Date in YYYY-MM-DD format
-   * @param {string} params.logType - Type of log (METRICS or ACCURACY_REPORT)
-   * @param {string} params.environment - Environment (optional, defaults to current)
-   * @returns {Object} Result object with success status and data
-   */
   async incrementCount(
     { date, logType, environment = constants.ENVIRONMENT },
     next
@@ -132,9 +129,7 @@ logThrottleSchema.statics = {
         };
       }
     } catch (error) {
-      // Handle duplicate key error gracefully
       if (error.code === 11000) {
-        // Duplicate key - try to find and increment existing document
         try {
           const existingDoc = await this.findOneAndUpdate(
             {
@@ -187,14 +182,6 @@ logThrottleSchema.statics = {
     }
   },
 
-  /**
-   * Get current count for a specific date, logType, and environment
-   * @param {Object} params - Parameters
-   * @param {string} params.date - Date in YYYY-MM-DD format
-   * @param {string} params.logType - Type of log
-   * @param {string} params.environment - Environment
-   * @returns {Object} Result object with count data
-   */
   async getCurrentCount(
     { date, logType, environment = constants.ENVIRONMENT },
     next
@@ -241,13 +228,6 @@ logThrottleSchema.statics = {
     }
   },
 
-  /**
-   * Get all counts for a specific date and environment
-   * @param {Object} params - Parameters
-   * @param {string} params.date - Date in YYYY-MM-DD format
-   * @param {string} params.environment - Environment
-   * @returns {Object} Result object with all counts for the date
-   */
   async getDailyCounts({ date, environment = constants.ENVIRONMENT }, next) {
     try {
       const results = await this.find({
@@ -294,20 +274,13 @@ logThrottleSchema.statics = {
     }
   },
 
-  /**
-   * Manually clean up old log throttle entries (Optional - TTL index handles automatic cleanup)
-   * This method is primarily for administrative use or testing scenarios
-   * @param {Object} params - Parameters
-   * @param {number} params.daysToKeep - Number of days to keep (default: 7)
-   * @param {string} params.environment - Environment
-   * @returns {Object} Result object with cleanup summary
-   */
   async cleanupOldEntries(
     { daysToKeep = 7, environment = constants.ENVIRONMENT },
     next
   ) {
     try {
       const cutoffDate = moment()
+        .tz(constants.TIMEZONE)
         .subtract(daysToKeep, "days")
         .format("YYYY-MM-DD");
 
@@ -349,13 +322,6 @@ logThrottleSchema.statics = {
     }
   },
 
-  /**
-   * Reset counts for a specific date and environment (useful for testing)
-   * @param {Object} params - Parameters
-   * @param {string} params.date - Date in YYYY-MM-DD format
-   * @param {string} params.environment - Environment
-   * @returns {Object} Result object with reset summary
-   */
   async resetDailyCounts({ date, environment = constants.ENVIRONMENT }, next) {
     try {
       const updateResult = await this.updateMany(
@@ -405,44 +371,28 @@ logThrottleSchema.statics = {
   },
 };
 
-// Pre-save middleware for validation and data sanitization
 logThrottleSchema.pre("save", function(next) {
-  // Ensure environment is set
   if (!this.environment) {
     this.environment = constants.ENVIRONMENT;
   }
-
-  // Ensure count is not negative
   if (this.count < 0) {
     this.count = 0;
   }
-
   next();
 });
 
-// Pre-update middleware
 logThrottleSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update"],
   function(next) {
     const update = this.getUpdate();
-
     if (update) {
-      // Ensure environment is set in updates
       if (update.$set && !update.$set.environment) {
         update.$set.environment = constants.ENVIRONMENT;
       }
-
-      // Prevent negative counts in updates
       if (update.$set && update.$set.count < 0) {
         update.$set.count = 0;
       }
-
-      if (update.$inc && update.$inc.count) {
-        // If incrementing would make count negative, set to 0 instead
-        // Note: This is a simple check, more complex logic could be added if needed
-      }
     }
-
     next();
   }
 );
@@ -450,17 +400,10 @@ logThrottleSchema.pre(
 const LogThrottleModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
   try {
-    let logThrottle = mongoose.model("log_throttles");
-    return logThrottle;
+    return mongoose.model(`log_throttles_${dbTenant}`);
   } catch (error) {
-    let logThrottle = getModelByTenant(
-      dbTenant,
-      "log_throttle",
-      logThrottleSchema
-    );
-    return logThrottle;
+    return getModelByTenant(dbTenant, "log_throttle", logThrottleSchema);
   }
 };
 
