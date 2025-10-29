@@ -26,11 +26,6 @@ const logThrottleSchema = new Schema(
       type: String,
       required: [true, "logType is required!"],
       trim: true,
-      enum: {
-        values: ["METRICS", "ACCURACY_REPORT", "NETWORK_STATUS_ALERT"],
-        message:
-          "logType must be one of METRICS, ACCURACY_REPORT, NETWORK_STATUS_ALERT",
-      },
     },
     count: {
       type: Number,
@@ -64,7 +59,7 @@ logThrottleSchema.index(
 logThrottleSchema.index(
   { createdAt: 1 },
   {
-    expireAfterSeconds: constants.LOG_THROTTLE_TTL_DAYS * 24 * 60 * 60, // Use constant
+    expireAfterSeconds: 7 * 24 * 60 * 60, // 7 days in seconds
     name: "log_throttle_ttl_idx",
     background: true,
   }
@@ -308,14 +303,12 @@ logThrottleSchema.statics = {
    * @returns {Object} Result object with cleanup summary
    */
   async cleanupOldEntries(
-    { daysToKeep, environment = constants.ENVIRONMENT },
+    { daysToKeep = 7, environment = constants.ENVIRONMENT },
     next
   ) {
     try {
-      const days = daysToKeep || constants.LOG_THROTTLE_TTL_DAYS;
-      const cutoffDate = moment
-        .tz(constants.TIMEZONE)
-        .subtract(days, "days")
+      const cutoffDate = moment()
+        .subtract(daysToKeep, "days")
         .format("YYYY-MM-DD");
 
       const deleteResult = await this.deleteMany({

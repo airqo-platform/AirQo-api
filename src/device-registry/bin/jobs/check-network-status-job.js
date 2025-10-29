@@ -12,7 +12,7 @@ const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
 const moment = require("moment-timezone");
 
-const TIMEZONE = moment.tz.guess();
+const TIMEZONE = constants.TIMEZONE || "Africa/Kampala";
 const UPTIME_THRESHOLD = 35;
 const CRITICAL_THRESHOLD = 50; // New threshold for critical status
 
@@ -227,10 +227,18 @@ Critical Alerts: ${stats.criticalCount}
 
 // Wrapper functions to handle promises for graceful shutdown
 const mainJobWrapper = async () => {
-  const shouldRun = await logThrottleManager.shouldAllowLog(MAIN_JOB_LOG_TYPE);
-  if (!shouldRun) {
-    logger.info(`Skipping ${MAIN_JOB_NAME} execution to prevent duplicates.`);
-    return;
+  try {
+    const shouldRun = await logThrottleManager.shouldAllowLog(
+      MAIN_JOB_LOG_TYPE
+    );
+    if (!shouldRun) {
+      logger.info(`Skipping ${MAIN_JOB_NAME} execution to prevent duplicates.`);
+      return;
+    }
+  } catch (error) {
+    logger.warn(
+      `Distributed lock check failed for ${MAIN_JOB_NAME}: ${error.message}. Proceeding with execution.`
+    );
   }
 
   if (isMainJobRunning) {
@@ -252,14 +260,20 @@ const mainJobWrapper = async () => {
 };
 
 const summaryJobWrapper = async () => {
-  const shouldRun = await logThrottleManager.shouldAllowLog(
-    SUMMARY_JOB_LOG_TYPE
-  );
-  if (!shouldRun) {
-    logger.info(
-      `Skipping ${SUMMARY_JOB_NAME} execution to prevent duplicates.`
+  try {
+    const shouldRun = await logThrottleManager.shouldAllowLog(
+      SUMMARY_JOB_LOG_TYPE
     );
-    return;
+    if (!shouldRun) {
+      logger.info(
+        `Skipping ${SUMMARY_JOB_NAME} execution to prevent duplicates.`
+      );
+      return;
+    }
+  } catch (error) {
+    logger.warn(
+      `Distributed lock check failed for ${SUMMARY_JOB_NAME}: ${error.message}. Proceeding with execution.`
+    );
   }
 
   if (isSummaryJobRunning) {
