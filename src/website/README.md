@@ -1,4 +1,4 @@
-# AirQo Website API Backend
+# AirQo Website API Backend.
 
 [![Django](https://img.shields.io/badge/Django-5.1.4-green.svg)](https://www.djangoproject.com/)
 [![DRF](https://img.shields.io/badge/Django%20REST%20Framework-3.15.2-red.svg)](https://www.django-rest-framework.org/)

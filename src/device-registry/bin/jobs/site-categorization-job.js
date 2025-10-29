@@ -183,8 +183,9 @@ async function collectSitesNeedingCategorization() {
   try {
     logText("=== PHASE 1: Collecting sites that need categorization ===");
 
-    // Direct database query instead of API call
-    const totalSites = await SitesModel("airqo").countDocuments({});
+    // Use estimatedDocumentCount for a fast, non-blocking overview.
+    // This is for logging only and avoids the slow collection scan that was causing timeouts.
+    const totalSites = await SitesModel("airqo").estimatedDocumentCount();
     logObject("totalSitesInSystem", totalSites);
 
     // Find sites that don't have proper categorization
@@ -192,8 +193,6 @@ async function collectSitesNeedingCategorization() {
       .find(
         {
           $or: [
-            { site_category: { $exists: false } },
-            { site_category: null },
             { "site_category.category": { $exists: false } },
             { "site_category.category": null },
             { "site_category.category": "Unknown" },
