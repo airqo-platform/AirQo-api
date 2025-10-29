@@ -9,7 +9,7 @@ const strings = {
   MQTT_BRIDGE_HOST_NAME: "mqtt.googleapis.com",
   MESSAGE_TYPE: "events",
   DEFAULT_COHORT_NAME: "airqo",
-  TIMEZONE: "Africa/Kampala", // Default to a specific timezone for consistency
+  TIMEZONE: "Africa/Kampala",
   COMPROMISED_TOKEN_COOLDOWN_DAYS: 15,
   LOG_THROTTLE_TTL_DAYS: 30,
   EXPIRING_TOKEN_REMINDER_DAYS: 7,

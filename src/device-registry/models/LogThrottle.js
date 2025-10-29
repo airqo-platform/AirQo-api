@@ -274,8 +274,16 @@ logThrottleSchema.statics = {
     }
   },
 
+  /**
+   * Manually cleans up old log throttle entries.
+   * Note: The primary automatic cleanup is handled by a TTL index (30 days).
+   * This method uses the same default for on-demand cleanup.
+   */
   async cleanupOldEntries(
-    { daysToKeep = 7, environment = constants.ENVIRONMENT },
+    {
+      daysToKeep = constants.LOG_THROTTLE_TTL_DAYS || 30,
+      environment = constants.ENVIRONMENT,
+    },
     next
   ) {
     try {
@@ -401,7 +409,7 @@ const LogThrottleModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
-    return mongoose.model(`log_throttles_${dbTenant}`);
+    return mongoose.model("log_throttles");
   } catch (error) {
     return getModelByTenant(dbTenant, "log_throttle", logThrottleSchema);
   }
