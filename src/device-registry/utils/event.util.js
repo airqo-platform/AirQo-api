@@ -1608,18 +1608,15 @@ const createEvent = {
             return {
               success: false,
               status: httpStatus.BAD_REQUEST,
-              message: `Query date too old. Data older than ${oldestSupportedMonths} months is not available via this endpoint.`,
+              message: `Query too old. For large historical datasets, please use the AirQo Analytics platform.`,
               errors: {
                 message: `Query includes data from ${earliestDateString} (${ageInYears} years old, ${ageInDays} days old).`,
                 oldest_supported: `${oldestSupportedMonths} months (${MAX_AGE_DAYS} days) from current date`,
                 query_age_days: ageInDays,
                 current_cutoff_date: cutoffDateString,
                 recommendation:
-                  "Use Analytics API for historical data older than 6 months",
-                analytics_endpoint:
-                  "https://api.airqo.net/api/v3/public/analytics/data-download",
-                analytics_docs:
-                  "https://docs.airqo.net/airqo-rest-api-documentation/analytics-api",
+                  "For multi-year historical datasets, we recommend using the AirQo Analytics platform. It is more reliable and optimized for large downloads.",
+                analytics_platform_url: "https://analytics.airqo.net",
                 support_email: "support@airqo.net",
               },
             };
