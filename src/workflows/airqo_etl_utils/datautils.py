@@ -1273,9 +1273,9 @@ class DataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
-
         devices = DataUtils.get_devices()
         devices = devices[["id", "device_id", "network"]]
+        devices = devices.drop_duplicates(subset="device_id", keep="first")
         devices = devices.set_index("device_id")
 
         restructured_data = DataUtils.__device_registry_api_data(
