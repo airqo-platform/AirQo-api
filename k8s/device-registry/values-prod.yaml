@@ -13,10 +13,10 @@ podAnnotations: {}
 resources:
   limits:
     cpu: 500m
-    memory: 2Gi
+    memory: 600Mi
   requests:
     cpu: 100m
-    memory: 1Gi
+    memory: 300Mi
 nodeSelector:
   role: moderate-usage
 affinity:
