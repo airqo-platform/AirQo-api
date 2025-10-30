@@ -32,12 +32,69 @@ Data Destinations:
 """
 
 re_calibrate_missing_calibrated_data_doc = """
-### Calibrate-missing-calibrated-data ETL
+### Re-calibrate Missing Calibrated Data Pipeline
 #### Purpose
-Re-calibrates old/historical measurements from bigquery with optimized performance.
-1. This pipeline checks for missing calibrated data in the averaged data.
-2. Checks if raw data is available
-3. Uses optimized batch processing for improved efficiency
+Automatically identifies, processes, and recalibrates missing air quality measurements by combining raw sensor data with weather data, ensuring data completeness and accuracy in the monitoring network.
+
+#### Workflow Steps
+1. **Device Identification** (`extract_devices_missing_calibrated_data`)
+   - Identifies devices with missing calibrated data
+   - Queries the previous day's data by default
+   - Returns device and timestamp information
+
+2. **Raw Data Extraction** (`extract_raw_data`)
+   - Retrieves raw sensor measurements for identified devices
+   - Returns data along with time range information
+   - Uses multiple_outputs for efficient data passing
+
+3. **Data Cleaning** (`clean_data_raw_data`)
+   - Cleans raw low-cost sensor data
+   - Applies device category and frequency-specific processing
+   - Prepares data for aggregation
+
+4. **Data Aggregation** (`aggregate`)
+   - Aggregates cleaned sensor data
+   - Optimizes data for weather merging
+   - Implements low-cost sensor aggregation logic
+
+5. **Weather Data Integration** (`extract_hourly_weather_data`)
+   - Fetches corresponding weather data
+   - Matches the time range of sensor data
+   - Ensures temporal alignment
+
+6. **Data Merging** (`merge_data`)
+   - Combines aggregated sensor data with weather data
+   - Creates comprehensive dataset for calibration
+   - Preserves data relationships
+
+7. **Calibration** (`calibrate`)
+   - Applies calibration models by country
+   - Uses filtered device-specific data
+   - Generates final calibrated measurements
+
+8. **Data Distribution**
+   - Sends to BigQuery (`send_hourly_measurements_to_bigquery`)
+   - Updates raw measurements (`send_raw_measurements_to_bigquery`)
+   - Pushes to API endpoints (`send_hourly_measurements_to_api`)
+
+#### Schedule
+Runs daily at midnight (0 0 * * *)
+
+#### Configuration
+- Uses LOWCOST device category
+- Processes hourly frequency data
+- Integrates with multiple data sources (BigQuery, API)
+
+#### Dependencies
+- BigQuery access for data storage/retrieval
+- Weather data service availability
+- API endpoints for data distribution
+
+#### Notes
+- Ensures data quality through multi-step validation
+- Maintains data consistency across platforms
+- Critical for accurate air quality monitoring
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
 
 #### Performance Optimizations (October 2025)
 - **Algorithm Optimization**: Reduced data extraction complexity from O(n×m×k) to O(n) using single batch operations
@@ -245,4 +302,51 @@ This pipeline computes baseline metrics (e.g., quantiles, ECDF bins, mean, stand
 - `compute_device_site_baseline` method in `meta_data_utils.py` (#sym:compute_device_site_baseline)
 - `compute_store_devices_baseline` DAG in `meta_data.py` (#sym:compute_store_devices_baseline)
 - Baseline schema in `measurements_baseline.json` (#sym:measurements_baseline.json)
+"""
+
+airqo_api_missing_temp_measurements_fix_doc = """
+### AirQo API Missing Measurements Temporary Fix ETL
+#### Purpose
+Temporary recovery pipeline to identify and backfill missing measurements in the AirQo API by fetching calibrated data from BigQuery and republishing to the API endpoint.
+
+#### Workflow Steps
+1. **Device Identification** (`extract_device`)
+   - Identifies devices with missing measurements in the API
+   - Uses AirQoDataUtils.extract_devices_with_missing_measurements_api()
+   - Returns DataFrame of affected devices
+
+2. **Data Retrieval** (`extract_data`)
+   - Fetches calibrated measurements from BigQuery
+   - Looks back 5 hours from execution time
+   - Filters data specifically for affected devices
+   - Raises AirflowFailException if no devices need fixing
+
+3. **API Republishing** (`send_data_to_api`)
+   - Processes data into API-compatible format
+   - Sends measurements to API events endpoint
+   - Skips empty datasets to prevent errors
+
+#### Schedule
+Runs every 40 minutes (*/40 * * * *)
+
+#### Configuration
+- Device Category: LOWCOST
+- Data Type: AVERAGED
+- Frequency: HOURLY
+- Lookback Period: 5 hours
+
+#### Data Flow
+Sources:
+- BigQuery: averaged_data.hourly_device_measurements
+- Device Registry API
+
+Destinations:
+- AirQo API events endpoint
+
+#### Notes
+- Temporary solution for device registry data inconsistencies
+- Uses existing calibrated data from BigQuery
+- Provides rapid recovery for API data gaps
+- Maintains data consistency across platforms
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """

@@ -132,15 +132,13 @@ class DataApi:
 
     def get_devices(
         self,
-        network: DeviceNetwork = None,
-        device_category: DeviceCategory = None,
+        params: Dict[str, Any] = {},
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices given a network and device category.
 
         Args:
-            - network (str): A string that represents device manufaturer.
-            - device_category (DeviceCategory, optional): An Enum that represents device category. Defaults to `DeviceCategory.None` if not supplied.
+            - params: A dictionary of query parameters to be sent with the request. Expected keys include 'status', 'online_status', 'device_network', and 'device_category'.
 
         Returns:
             List[Dict[str, Any]]: A List of dictionaries containing the details of the devices. The dictionary has the following structure.
@@ -177,15 +175,11 @@ class DataApi:
                 },
             ]
         """
-        params: Dict = {}
-        if device_category:
-            params["category"] = device_category.str
 
         if configuration.ENVIRONMENT == "production":
-            params["active"] = "yes"
+            params["status"] = "deployed"
 
-        if network:
-            params["network"] = network.str
+        params = self.__check_api_params(params)
 
         devices = [
             {
@@ -202,6 +196,36 @@ class DataApi:
             )
         ]
         return devices
+
+    def __check_api_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validates and filters the input parameters to ensure only allowed parameters are included.
+
+        Args:
+            params (Dict[str, Any]): A dictionary of input parameters to be validated.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing only the allowed parameters.
+        """
+        valid_params = {
+            "status": str,
+            "online_status": str,
+            "device_network": DeviceNetwork,
+            "device_category": DeviceCategory,
+        }
+        filtered_params = {}
+        for key, value in params.items():
+            if key in valid_params and isinstance(value, valid_params[key]):
+                filtered_params[key] = value if isinstance(value, str) else value.str
+            elif key in valid_params:
+                logger.warning(
+                    f"Parameter '{key}' has an invalid type. Expected {valid_params[key].__name__}, got {type(value).__name__}. It will be ignored."
+                )
+            else:
+                logger.warning(
+                    f"Parameter '{key}' is not a valid parameter and will be ignored."
+                )
+        return filtered_params
 
     @retry(
         stop=stop_after_attempt(MAX_RETRIES),
@@ -232,10 +256,14 @@ class DataApi:
                 if next_page:
                     parsed_url = urllib3.util.parse_url(next_page)
                     query_params = parse_qs(parsed_url.query)
+                    # Retain original params and update only pagination related params
                     params = {
-                        k: v[0]
-                        for k, v in query_params.items()
-                        if k in ["limit", "skip", "tenant", "detailLevel"]
+                        **params,
+                        **{
+                            k: v[0]
+                            for k, v in query_params.items()
+                            if k in ["limit", "skip", "tenant", "detailLevel"]
+                        },
                     }
             except Exception as e:
                 logger.exception(f"Failed to fetch devices: {e}. Params: {params}")
