@@ -788,13 +788,12 @@ def run_daily_data_quality_checks():
 
 
 # Temp solution for device registry missing data
-
-
 @dag(
     "AirQo-API-missing-measurements-fix",
     schedule="*/40 * * * *",
     catchup=False,
     doc_md=airqo_api_missing_temp_measurements_fix_doc,
+    tags=["2025", "hourly-data", "bigquery", "temporary-fix", "api"],
     default_args=AirflowUtils.dag_default_configs(),
 )
 def extract_devices_missing_measurements():
@@ -805,7 +804,7 @@ def extract_devices_missing_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_data(devices: pd.DataFrame, **kwargs) -> pd.DataFrame:
         dag_time = kwargs["dag_run"].execution_date
-        hour_of_day = dag_time - timedelta(hours=5)
+        hour_of_day = dag_time - timedelta(hours=6)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = date_to_str_hours(dag_time)
         if devices.empty:
