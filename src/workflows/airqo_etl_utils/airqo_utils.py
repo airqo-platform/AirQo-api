@@ -1197,3 +1197,28 @@ class AirQoDataUtils:
         except Exception as e:
             logger.exception(f"Error in extracting data: {e}")
             return pd.DataFrame(), None, None
+
+    # TODO: Temporary method for temp fix. To be removed later.
+    @staticmethod
+    def extract_devices_with_missing_measurements_api(
+        network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
+    ) -> pd.DataFrame:
+        """
+        Extracts devices tagged as `offline`.
+
+        Args:
+            network(DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.AIRQO.
+
+        Returns:
+            pd.DataFrame: DataFrame containing devices with missing measurements.
+        """
+        params = {
+            "device_network": network,
+            "status": "deployed",
+            "online_status": "offline",
+        }
+        data_api = DataApi()
+        devices = data_api.get_devices(params=params)
+        if devices is None or len(devices) == 0:
+            return pd.DataFrame()
+        return pd.DataFrame(devices)
