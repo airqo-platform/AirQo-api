@@ -1150,8 +1150,10 @@ class DataApi:
 
         except urllib3.exceptions.HTTPError as http_err:
             logger.exception(f"Client error: {http_err}")
-        except urllib3.exceptions.TimeoutError:
+        except urllib3.exceptions.TimeoutError as http_err:
             logger.exception(f"Timeout occurred: {http_err}")
+        except TypeError as type_err:
+            logger.exception(f"Type error: {type_err}")
         except Exception as e:
             logger.exception(f"Unexpected error: {e}")
 
