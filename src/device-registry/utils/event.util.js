@@ -1663,10 +1663,9 @@ const createEvent = {
               message:
                 "Your client has been temporarily blocked for excessive historical queries.",
               retry_after_seconds: remainingSeconds,
-              recommendation:
-                "Use Analytics API for bulk historical data access",
-              analytics_endpoint:
-                "https://api.airqo.net/api/v3/public/analytics/data-download",
+              recommendation: `For bulk historical data access, we recommend using the AirQo Analytics platform. It is more reliable and optimized for large downloads.`,
+              analytics_platform_url: "https://analytics.airqo.net",
+              support_email: "support@airqo.net",
             },
           };
         }
@@ -1694,8 +1693,9 @@ const createEvent = {
             errors: {
               message: `Rate limit exceeded: ${tracker.count} historical queries in 1 minute. Maximum allowed: ${MAX_HISTORICAL_PER_MINUTE}.`,
               blocked_for_seconds: 300,
-              analytics_endpoint:
-                "https://api.airqo.net/api/v3/public/analytics/data-download",
+              recommendation: `For bulk historical data access, please use the AirQo Analytics platform.`,
+              analytics_platform_url: "https://analytics.airqo.net",
+              support_email: "support@airqo.net",
             },
           };
         }
