@@ -796,9 +796,9 @@ def run_daily_data_quality_checks():
     tags=["2025", "hourly-data", "bigquery", "temporary-fix", "api"],
     default_args=AirflowUtils.dag_default_configs(),
 )
-def extract_devices_missing_measurements():
+def extract_push_devices_missing_measurements_api():
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def extract_device() -> None:
+    def extract_device() -> pd.DataFrame:
         return AirQoDataUtils.extract_devices_with_missing_measurements_api()
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -840,4 +840,4 @@ airqo_raw_data_measurements()
 airqo_gaseous_realtime_measurements()
 airqo_bigquery_data_measurements_to_api()
 calibrate_missing_measurements()
-extract_devices_missing_measurements()
+extract_push_devices_missing_measurements_api()
