@@ -555,19 +555,19 @@ async function updateOfflineEntitiesWithAccuracy(
       .subtract(INACTIVE_THRESHOLD, "milliseconds")
       .toDate();
 
-    const entitiesToMarkOffline = await Model.find(
+    // Find ALL devices that should be offline (not just those marked online)
+    const entitiesToCheck = await Model.find(
       {
         _id: { $nin: Array.from(activeEntityIds) },
         $or: [
           { lastActive: { $lt: thresholdTime } },
           { lastActive: { $exists: false }, createdAt: { $lt: thresholdTime } },
         ],
-        isOnline: { $ne: false },
       },
       { _id: 1, isOnline: 1 }
     ).lean();
 
-    if (entitiesToMarkOffline.length === 0) {
+    if (entitiesToCheck.length === 0) {
       return {
         success: true,
         metrics: {
@@ -576,6 +576,7 @@ async function updateOfflineEntitiesWithAccuracy(
           markedOffline: 0,
           successfulUpdates: statusResults.filter((r) => r.success).length,
           failedUpdates: statusResults.filter((r) => !r.success).length,
+          accuracyUpdatesAttempted: 0,
         },
         offlineCount: 0,
       };
@@ -584,35 +585,41 @@ async function updateOfflineEntitiesWithAccuracy(
     const statusBulkOps = [];
     const accuracyBulkOps = [];
 
-    for (const entity of entitiesToMarkOffline) {
-      statusBulkOps.push({
-        updateOne: {
-          filter: {
-            _id: entity._id,
-            $or: [
-              { lastActive: { $lt: thresholdTime } },
-              {
-                lastActive: { $exists: false },
-                createdAt: { $lt: thresholdTime },
+    for (const entity of entitiesToCheck) {
+      // Only change status if currently marked online
+      if (entity.isOnline !== false) {
+        statusBulkOps.push({
+          updateOne: {
+            filter: {
+              _id: entity._id,
+              $or: [
+                { lastActive: { $lt: thresholdTime } },
+                {
+                  lastActive: { $exists: false },
+                  createdAt: { $lt: thresholdTime },
+                },
+              ],
+              isOnline: { $ne: false },
+            },
+            update: {
+              $set: {
+                isOnline: false,
+                statusUpdatedAt: new Date(),
+                statusSource: "cron_offline_detection",
               },
-            ],
-            isOnline: { $ne: false },
-          },
-          update: {
-            $set: {
-              isOnline: false,
-              statusUpdatedAt: new Date(),
-              statusSource: "cron_offline_detection",
             },
           },
-        },
-      });
+        });
+      }
 
       const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
         isCurrentlyOnline: entity.isOnline,
         isNowOnline: false,
         currentStats: {},
-        reason: "device_offline_by_job",
+        reason:
+          entity.isOnline === false
+            ? "status_confirmed_offline"
+            : "device_offline_by_job",
       });
 
       accuracyBulkOps.push({
@@ -623,6 +630,7 @@ async function updateOfflineEntitiesWithAccuracy(
       });
     }
 
+    // Execute status updates (only for newly offline devices)
     let modified = 0;
     if (statusBulkOps.length > 0) {
       const statusResult = await Model.bulkWrite(statusBulkOps, {
@@ -631,8 +639,13 @@ async function updateOfflineEntitiesWithAccuracy(
       modified = statusResult.modifiedCount || 0;
     }
 
+    // Execute accuracy updates (for all offline devices)
+    let accuracyUpdatesApplied = 0;
     if (accuracyBulkOps.length > 0) {
-      await Model.bulkWrite(accuracyBulkOps, { ordered: false });
+      const accuracyResult = await Model.bulkWrite(accuracyBulkOps, {
+        ordered: false,
+      });
+      accuracyUpdatesApplied = accuracyResult.modifiedCount || 0;
     }
 
     const accuracyMetrics = {
@@ -641,10 +654,12 @@ async function updateOfflineEntitiesWithAccuracy(
       markedOffline: modified,
       successfulUpdates: statusResults.filter((r) => r.success).length,
       failedUpdates: statusResults.filter((r) => !r.success).length,
+      accuracyUpdatesAttempted: accuracyBulkOps.length,
+      accuracyUpdatesApplied: accuracyUpdatesApplied,
       timestamp: new Date(),
     };
 
-    const formattedMetrics = `📊 ${entityType} Status: ${accuracyMetrics.totalProcessed} processed, ${accuracyMetrics.successfulUpdates} updated, ${accuracyMetrics.markedOffline} marked offline.`;
+    const formattedMetrics = `📊 ${entityType} Status: ${accuracyMetrics.totalProcessed} processed, ${accuracyMetrics.successfulUpdates} updated, ${accuracyMetrics.markedOffline} marked offline, ${accuracyMetrics.accuracyUpdatesApplied} accuracy confirmed.`;
     await throttledLog("METRICS", formattedMetrics);
 
     return {
@@ -654,7 +669,18 @@ async function updateOfflineEntitiesWithAccuracy(
     };
   } catch (error) {
     logger.error(`Error updating offline ${entityType}s: ${error.message}`);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+      offlineCount: 0,
+      metrics: {
+        entityType,
+        totalProcessed: activeEntityIds.size,
+        markedOffline: 0,
+        successfulUpdates: 0,
+        failedUpdates: 0,
+      },
+    };
   }
 }
 
