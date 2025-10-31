@@ -1152,8 +1152,8 @@ class AirQoDataUtils:
         Extract raw device data.
 
         Args:
-            devices (pd.DataFrame): DataFrame containing device records with 'device_id' and 'timestamp'.
-            data_source (DataSource): The source from which to extract data (default is THINGSPEAK).
+            devices(pd.DataFrame): DataFrame containing device records with 'device_id' and 'timestamp'.
+            data_source(DataSource): The source from which to extract data (default is THINGSPEAK).
 
         Returns:
             pd.DataFrame: Processed and calibrated data for the devices.
