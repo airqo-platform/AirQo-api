@@ -16,6 +16,7 @@ const numericals = {
   MAX_EVENT_AGE_HOURS: 6, // Only accept events from last 6 hours
   MAX_REJECTED_LOGS: 10,
   JOB_LOOKBACK_WINDOW_MS: 5 * 60 * 60 * 1000, // 5 hours in milliseconds
+  STALE_ENTITY_THRESHOLD_MS: 2 * 5 * 60 * 60 * 1000, // 10 hours (2x INACTIVE_THRESHOLD)
 };
 
 numericals.MAX_EVENT_AGE_MS = numericals.MAX_EVENT_AGE_HOURS * 60 * 60 * 1000;
