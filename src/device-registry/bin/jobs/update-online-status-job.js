@@ -18,9 +18,11 @@ const cron = require("node-cron");
 const moment = require("moment-timezone");
 
 // Constants
-const TIMEZONE = moment.tz.guess();
-const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000;
-const STALE_ACCURACY_THRESHOLD = 24 * 60 * 60 * 1000;
+const TIMEZONE = constants.TIMEZONE || moment.tz.guess();
+const INACTIVE_THRESHOLD =
+  constants.JOB_LOOKBACK_WINDOW_MS || 5 * 60 * 60 * 1000;
+const STALE_ENTITY_THRESHOLD =
+  constants.STALE_ENTITY_THRESHOLD_MS || INACTIVE_THRESHOLD * 2;
 const MAX_EXECUTION_TIME = 15 * 60 * 1000;
 const YIELD_INTERVAL = 10;
 const STALE_BATCH_SIZE = 30;
@@ -312,8 +314,17 @@ const logThrottleManager = new LogThrottleManager();
 
 // Enhanced throttled logging function with async support
 async function throttledLog(logType, message, forceLog = false) {
-  if (forceLog) {
+  // Always log critical errors regardless of throttle
+  const isCritical =
+    message.toLowerCase().includes("error") ||
+    message.toLowerCase().includes("failed") ||
+    message.toLowerCase().includes("timeout");
+
+  if (forceLog || isCritical) {
     logText(message);
+    if (isCritical) {
+      logger.error(`CRITICAL (bypassed throttle): ${message}`);
+    }
     return;
   }
 
@@ -327,13 +338,14 @@ async function throttledLog(logType, message, forceLog = false) {
       );
       return;
     }
+
     const shouldAllow = await logThrottleManager.shouldAllowLog(logType);
 
     if (shouldAllow) {
       logText(message);
     } else {
       logger.debug(
-        `Log throttled for ${logType}: Daily limit of ${LOG_THROTTLE_CONFIG.maxLogsPerDay} reached for the 12 PM window.`
+        `Log throttled for ${logType}: Daily limit reached for 12 PM window.`
       );
     }
   } catch (error) {
@@ -365,6 +377,7 @@ function validateTimestamp(time) {
   const now = moment().tz(TIMEZONE);
   const timeDiff = now.diff(momentTime);
 
+  // Don't allow future timestamps (with small grace period for clock skew)
   if (timeDiff < -5 * 60 * 1000) {
     return {
       isValid: false,
@@ -373,11 +386,14 @@ function validateTimestamp(time) {
     };
   }
 
-  if (timeDiff > 30 * 24 * 60 * 60 * 1000) {
+  // Allow up to 2x INACTIVE_THRESHOLD to catch edge cases
+  const maxAllowedAge = INACTIVE_THRESHOLD * 2;
+  if (timeDiff > maxAllowedAge) {
     return {
       isValid: false,
       reason: "timestamp_too_old",
       timeDiff: timeDiff,
+      maxAllowed: maxAllowedAge,
     };
   }
 
@@ -402,7 +418,7 @@ function isEntityActive(time) {
   return validationResult.timeDiff < INACTIVE_THRESHOLD;
 }
 
-// Optimized batch entity status update with out-of-order event protection
+// Optimized batch entity status update with comprehensive fixes
 async function updateEntityStatusBatch(Model, updates, entityType) {
   if (!updates || updates.length === 0) {
     return { success: true, modified: 0, accuracyUpdates: [] };
@@ -411,18 +427,30 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
   try {
     const entityIds = updates.map((u) => u.filter._id);
 
-    // Fetch lastActive to guard against out-of-order events
+    // Fetch current state with accuracy stats
     const currentEntities = await Model.find(
       { _id: { $in: entityIds } },
-      { _id: 1, isOnline: 1, lastActive: 1 }
+      {
+        _id: 1,
+        isOnline: 1,
+        lastActive: 1,
+        statusUpdatedAt: 1,
+        "onlineStatusAccuracy.totalChecks": 1,
+        "onlineStatusAccuracy.correctChecks": 1,
+        "onlineStatusAccuracy.incorrectChecks": 1,
+      }
     ).lean();
 
     const entityMap = new Map(
       currentEntities.map((e) => [e._id.toString(), e])
     );
+
     const bulkOps = [];
     const accuracyBulkOps = [];
     let skippedStaleEvents = 0;
+    let skippedNullPm25 = 0;
+    let reEvaluations = 0;
+    let newDataUpdates = 0;
 
     for (const update of updates) {
       const entityId = update.filter._id;
@@ -435,7 +463,7 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
           isCurrentlyOnline: entity.isOnline,
           isNowOnline: false,
-          currentStats: {},
+          currentStats: entity.onlineStatusAccuracy || {},
           reason: `invalid_timestamp: ${validationResult.reason}`,
         });
 
@@ -453,17 +481,82 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         .tz(TIMEZONE)
         .toDate();
 
-      // Skip if this event is older than the existing lastActive (out-of-order event)
-      if (entity.lastActive && lastActiveTime <= entity.lastActive) {
+      // FIX #4: Validate PM2.5 value before using
+      let pm2_5Update = null;
+      if (
+        update.pm2_5 &&
+        update.pm2_5.value !== null &&
+        update.pm2_5.value !== undefined &&
+        !isNaN(update.pm2_5.value) &&
+        update.pm2_5.value >= 0 &&
+        update.pm2_5.value <= 1000
+      ) {
+        pm2_5Update = {
+          value: update.pm2_5.value,
+          time: lastActiveTime,
+          uncertainty: update.pm2_5.uncertainty,
+          standardDeviation: update.pm2_5.standardDeviation,
+        };
+      } else if (update.pm2_5) {
+        skippedNullPm25++;
+        logger.debug(
+          `Skipping null/invalid PM2.5 value for ${entityType} ${entityId}: ${update.pm2_5.value}`
+        );
+      }
+
+      // Check for out-of-order events
+      const isOutOfOrder =
+        entity.lastActive && lastActiveTime <= entity.lastActive;
+
+      if (isOutOfOrder) {
         skippedStaleEvents++;
         logger.debug(
-          `Skipping stale event for ${entityType} ${entityId}: ` +
-            `event time ${lastActiveTime.toISOString()} <= existing ${entity.lastActive.toISOString()}`
+          `Out-of-order event for ${entityType} ${entityId}: ` +
+            `event ${lastActiveTime.toISOString()} <= existing ${entity.lastActive.toISOString()}`
         );
+
+        // This ensures devices get status updates every run
+        const statusEvalUpdate = {
+          isOnline: isNowOnline,
+          statusUpdatedAt: new Date(),
+          statusSource: "online_status_cron_reevaluation",
+        };
+
+        // Only update PM2.5 if we have valid new data
+        if (pm2_5Update) {
+          statusEvalUpdate["latest_pm2_5.calibrated"] = pm2_5Update;
+        }
+
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: entityId },
+            update: { $set: statusEvalUpdate },
+          },
+        });
+
+        // Update accuracy for re-evaluation
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: entity.isOnline,
+          isNowOnline: isNowOnline,
+          currentStats: entity.onlineStatusAccuracy || {},
+          reason:
+            entity.isOnline === isNowOnline
+              ? "status_confirmed_reevaluation"
+              : "status_corrected_reevaluation",
+        });
+
+        accuracyBulkOps.push({
+          updateOne: {
+            filter: { _id: entityId },
+            update: { $inc: incUpdate, $set: setUpdate },
+          },
+        });
+
+        reEvaluations++;
         continue;
       }
 
-      // Prepare the update object
+      // Process newer events (normal path)
       const updatePayload = {
         lastActive: lastActiveTime,
         isOnline: isNowOnline,
@@ -471,17 +564,12 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         statusSource: "online_status_cron_job",
       };
 
-      // Add calibrated PM2.5 value if available
-      if (update.pm2_5) {
-        updatePayload["latest_pm2_5.calibrated"] = {
-          value: update.pm2_5.value,
-          time: lastActiveTime,
-          uncertainty: update.pm2_5.uncertainty,
-          standardDeviation: update.pm2_5.standardDeviation,
-        };
+      // Add PM2.5 only if valid
+      if (pm2_5Update) {
+        updatePayload["latest_pm2_5.calibrated"] = pm2_5Update;
       }
 
-      // Only update if the incoming timestamp is newer than existing lastActive
+      // Only update if timestamp is actually newer
       bulkOps.push({
         updateOne: {
           filter: {
@@ -491,16 +579,15 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
               { lastActive: { $exists: false } },
             ],
           },
-          update: {
-            $set: updatePayload,
-          },
+          update: { $set: updatePayload },
         },
       });
 
+      // Update accuracy for new data
       const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
         isCurrentlyOnline: entity.isOnline,
         isNowOnline: isNowOnline,
-        currentStats: {},
+        currentStats: entity.onlineStatusAccuracy || {},
         reason:
           entity.isOnline === isNowOnline
             ? "status_confirmed"
@@ -513,21 +600,44 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
           update: { $inc: incUpdate, $set: setUpdate },
         },
       });
+
+      newDataUpdates++;
     }
 
     let modified = 0;
+    let modifiedCount = 0;
+
+    // Execute status updates with error handling per batch
     if (bulkOps.length > 0) {
-      const result = await Model.bulkWrite(bulkOps, { ordered: false });
-      modified = result.modifiedCount || 0;
+      try {
+        const result = await Model.bulkWrite(bulkOps, { ordered: false });
+        modified = result.modifiedCount || 0;
+        modifiedCount = result.matchedCount || 0;
+      } catch (error) {
+        logger.error(
+          `Batch status update error for ${entityType}: ${error.message}`
+        );
+        // Continue with accuracy updates even if status updates fail
+      }
     }
 
+    // Execute accuracy updates with error handling
     if (accuracyBulkOps.length > 0) {
-      await Model.bulkWrite(accuracyBulkOps, { ordered: false });
+      try {
+        await Model.bulkWrite(accuracyBulkOps, { ordered: false });
+      } catch (error) {
+        logger.error(
+          `Batch accuracy update error for ${entityType}: ${error.message}`
+        );
+      }
     }
 
-    if (skippedStaleEvents > 0) {
-      logger.debug(
-        `Skipped ${skippedStaleEvents} stale/out-of-order events for ${entityType}`
+    // Log detailed statistics
+    if (skippedStaleEvents > 0 || skippedNullPm25 > 0 || reEvaluations > 0) {
+      logger.info(
+        `${entityType} batch stats: ${newDataUpdates} new data, ` +
+          `${reEvaluations} re-evaluations, ${skippedStaleEvents} out-of-order, ` +
+          `${skippedNullPm25} invalid PM2.5`
       );
     }
 
@@ -535,7 +645,11 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
       success: true,
       modified,
       processed: updates.length,
+      matchedCount: modifiedCount,
       skippedStale: skippedStaleEvents,
+      skippedInvalidPm25: skippedNullPm25,
+      reEvaluations: reEvaluations,
+      newDataUpdates: newDataUpdates,
     };
   } catch (error) {
     logger.error(`Batch update error for ${entityType}: ${error.message}`);
@@ -543,7 +657,6 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
   }
 }
 
-// Optimized offline detection with batched accuracy updates
 async function updateOfflineEntitiesWithAccuracy(
   Model,
   activeEntityIds,
@@ -555,19 +668,30 @@ async function updateOfflineEntitiesWithAccuracy(
       .subtract(INACTIVE_THRESHOLD, "milliseconds")
       .toDate();
 
-    const entitiesToMarkOffline = await Model.find(
+    // Add processed entity IDs to prevent race conditions
+    const processedInThisRun = new Set(activeEntityIds);
+
+    // Find ALL devices that should be offline
+    const entitiesToCheck = await Model.find(
       {
-        _id: { $nin: Array.from(activeEntityIds) },
+        _id: { $nin: Array.from(processedInThisRun) },
         $or: [
           { lastActive: { $lt: thresholdTime } },
           { lastActive: { $exists: false }, createdAt: { $lt: thresholdTime } },
         ],
-        isOnline: { $ne: false },
       },
-      { _id: 1, isOnline: 1 }
+      {
+        _id: 1,
+        isOnline: 1,
+        lastActive: 1,
+        statusUpdatedAt: 1,
+        "onlineStatusAccuracy.totalChecks": 1,
+        "onlineStatusAccuracy.correctChecks": 1,
+        "onlineStatusAccuracy.incorrectChecks": 1,
+      }
     ).lean();
 
-    if (entitiesToMarkOffline.length === 0) {
+    if (entitiesToCheck.length === 0) {
       return {
         success: true,
         metrics: {
@@ -576,6 +700,8 @@ async function updateOfflineEntitiesWithAccuracy(
           markedOffline: 0,
           successfulUpdates: statusResults.filter((r) => r.success).length,
           failedUpdates: statusResults.filter((r) => !r.success).length,
+          accuracyUpdatesAttempted: 0,
+          accuracyUpdatesApplied: 0,
         },
         offlineCount: 0,
       };
@@ -583,36 +709,62 @@ async function updateOfflineEntitiesWithAccuracy(
 
     const statusBulkOps = [];
     const accuracyBulkOps = [];
+    let devicesToMarkOffline = 0;
+    let devicesAlreadyOffline = 0;
 
-    for (const entity of entitiesToMarkOffline) {
-      statusBulkOps.push({
-        updateOne: {
-          filter: {
-            _id: entity._id,
-            $or: [
-              { lastActive: { $lt: thresholdTime } },
-              {
-                lastActive: { $exists: false },
-                createdAt: { $lt: thresholdTime },
+    for (const entity of entitiesToCheck) {
+      // Determine if this is a new offline detection or confirmation
+      const isCurrentlyOnline = entity.isOnline !== false;
+
+      if (isCurrentlyOnline) {
+        // Device needs to be marked offline
+        statusBulkOps.push({
+          updateOne: {
+            filter: {
+              _id: entity._id,
+              $or: [
+                { lastActive: { $lt: thresholdTime } },
+                {
+                  lastActive: { $exists: false },
+                  createdAt: { $lt: thresholdTime },
+                },
+              ],
+              isOnline: { $ne: false },
+            },
+            update: {
+              $set: {
+                isOnline: false,
+                statusUpdatedAt: new Date(),
+                statusSource: "cron_offline_detection",
               },
-            ],
-            isOnline: { $ne: false },
-          },
-          update: {
-            $set: {
-              isOnline: false,
-              statusUpdatedAt: new Date(),
-              statusSource: "cron_offline_detection",
             },
           },
-        },
-      });
+        });
+        devicesToMarkOffline++;
+      } else {
+        // Device already offline, just update statusUpdatedAt for tracking
+        statusBulkOps.push({
+          updateOne: {
+            filter: { _id: entity._id },
+            update: {
+              $set: {
+                statusUpdatedAt: new Date(),
+                statusSource: "cron_offline_confirmation",
+              },
+            },
+          },
+        });
+        devicesAlreadyOffline++;
+      }
 
+      // ALWAYS update accuracy for all offline devices
       const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
         isCurrentlyOnline: entity.isOnline,
         isNowOnline: false,
-        currentStats: {},
-        reason: "device_offline_by_job",
+        currentStats: entity.onlineStatusAccuracy || {},
+        reason: isCurrentlyOnline
+          ? "device_offline_by_job"
+          : "status_confirmed_offline",
       });
 
       accuracyBulkOps.push({
@@ -623,45 +775,83 @@ async function updateOfflineEntitiesWithAccuracy(
       });
     }
 
-    let modified = 0;
+    // Execute status updates
+    let statusModified = 0;
+    let statusMatched = 0;
     if (statusBulkOps.length > 0) {
-      const statusResult = await Model.bulkWrite(statusBulkOps, {
-        ordered: false,
-      });
-      modified = statusResult.modifiedCount || 0;
+      try {
+        const statusResult = await Model.bulkWrite(statusBulkOps, {
+          ordered: false,
+        });
+        statusModified = statusResult.modifiedCount || 0;
+        statusMatched = statusResult.matchedCount || 0;
+      } catch (error) {
+        logger.error(
+          `Offline status update error for ${entityType}: ${error.message}`
+        );
+      }
     }
 
+    // Execute accuracy updates
+    let accuracyModified = 0;
     if (accuracyBulkOps.length > 0) {
-      await Model.bulkWrite(accuracyBulkOps, { ordered: false });
+      try {
+        const accuracyResult = await Model.bulkWrite(accuracyBulkOps, {
+          ordered: false,
+        });
+        accuracyModified = accuracyResult.modifiedCount || 0;
+      } catch (error) {
+        logger.error(
+          `Offline accuracy update error for ${entityType}: ${error.message}`
+        );
+      }
     }
 
     const accuracyMetrics = {
       entityType,
       totalProcessed: activeEntityIds.size,
-      markedOffline: modified,
+      markedOffline: devicesToMarkOffline,
+      confirmedOffline: devicesAlreadyOffline,
+      statusModified: statusModified,
+      statusMatched: statusMatched,
       successfulUpdates: statusResults.filter((r) => r.success).length,
       failedUpdates: statusResults.filter((r) => !r.success).length,
+      accuracyUpdatesAttempted: accuracyBulkOps.length,
+      accuracyUpdatesApplied: accuracyModified,
       timestamp: new Date(),
     };
 
-    const formattedMetrics = `📊 ${entityType} Status: ${accuracyMetrics.totalProcessed} processed, ${accuracyMetrics.successfulUpdates} updated, ${accuracyMetrics.markedOffline} marked offline.`;
+    const formattedMetrics = `📊 ${entityType} Offline: ${accuracyMetrics.markedOffline} newly offline, ${accuracyMetrics.confirmedOffline} confirmed offline, ${accuracyMetrics.accuracyUpdatesApplied}/${accuracyMetrics.accuracyUpdatesAttempted} accuracy updated.`;
     await throttledLog("METRICS", formattedMetrics);
 
     return {
       success: true,
       metrics: accuracyMetrics,
-      offlineCount: modified,
+      offlineCount: devicesToMarkOffline, // Backward compatible: only newly marked
     };
   } catch (error) {
     logger.error(`Error updating offline ${entityType}s: ${error.message}`);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+      offlineCount: 0,
+      metrics: {
+        entityType,
+        totalProcessed: activeEntityIds.size,
+        markedOffline: 0,
+        successfulUpdates: 0,
+        failedUpdates: 0,
+        accuracyUpdatesAttempted: 0,
+        accuracyUpdatesApplied: 0,
+      },
+    };
   }
 }
 
-// Optimized stale entity processing with batching
+// Optimized stale entity processing with correct constant usage
 async function processStaleEntities(Model, entityType, processor) {
   try {
-    const staleThreshold = new Date(Date.now() - STALE_ACCURACY_THRESHOLD);
+    const staleThreshold = new Date(Date.now() - STALE_ENTITY_THRESHOLD);
 
     const staleEntities = await Model.find(
       {
@@ -670,7 +860,14 @@ async function processStaleEntities(Model, entityType, processor) {
           { "onlineStatusAccuracy.lastCheck": { $lt: staleThreshold } },
         ],
       },
-      { _id: 1, isOnline: 1, lastActive: 1 }
+      {
+        _id: 1,
+        isOnline: 1,
+        lastActive: 1,
+        "onlineStatusAccuracy.totalChecks": 1,
+        "onlineStatusAccuracy.correctChecks": 1,
+        "onlineStatusAccuracy.incorrectChecks": 1,
+      }
     )
       .limit(STALE_BATCH_SIZE)
       .lean();
@@ -691,7 +888,7 @@ async function processStaleEntities(Model, entityType, processor) {
       const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
         isCurrentlyOnline,
         isNowOnline: shouldBeOnline,
-        currentStats: {},
+        currentStats: entity.onlineStatusAccuracy || {},
         reason: "stale_entity_check",
       });
 
@@ -715,6 +912,19 @@ async function processStaleEntities(Model, entityType, processor) {
             },
           },
         });
+      } else {
+        // Even if status is correct, update statusUpdatedAt
+        statusBulkOps.push({
+          updateOne: {
+            filter: { _id: entity._id },
+            update: {
+              $set: {
+                statusUpdatedAt: new Date(),
+                statusSource: "stale_entity_confirmation",
+              },
+            },
+          },
+        });
       }
     }
 
@@ -725,6 +935,12 @@ async function processStaleEntities(Model, entityType, processor) {
     if (accuracyBulkOps.length > 0) {
       await Model.bulkWrite(accuracyBulkOps, { ordered: false });
     }
+
+    logger.info(
+      `Processed ${staleEntities.length} stale ${entityType}s ` +
+        `(threshold: ${STALE_ENTITY_THRESHOLD}ms = ${STALE_ENTITY_THRESHOLD /
+          (60 * 60 * 1000)}h)`
+    );
 
     return {
       success: true,
@@ -987,11 +1203,12 @@ class OnlineStatusProcessor {
 // Fetch all recent events in batches
 async function fetchAllRecentEvents(processor) {
   let allEvents = [];
+  const seenEvents = new Map(); // Track device_id + timestamp combinations
   let skip = 0;
   let hasMore = true;
   let iteration = 0;
 
-  logText("Fetching recent events in batches...");
+  logText("Fetching recent events in batches with deduplication...");
 
   while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
     if (processor.shouldStopExecution()) {
@@ -1033,12 +1250,30 @@ async function fetchAllRecentEvents(processor) {
         response.data[0].data.length > 0
       ) {
         const batchEvents = response.data[0].data;
-        allEvents = allEvents.concat(batchEvents);
+        let duplicates = 0;
+        let added = 0;
+
+        // Deduplicate events
+        batchEvents.forEach((event) => {
+          if (!event.device_id || !event.time) return;
+
+          const eventKey = `${event.device_id.toString()}_${new Date(
+            event.time
+          ).getTime()}`;
+
+          if (!seenEvents.has(eventKey)) {
+            seenEvents.set(eventKey, true);
+            allEvents.push(event);
+            added++;
+          } else {
+            duplicates++;
+          }
+        });
 
         logText(
-          `Fetched batch ${iteration + 1}: ${
-            batchEvents.length
-          } events (total: ${allEvents.length})`
+          `Batch ${iteration +
+            1}: ${added} unique events, ${duplicates} duplicates ` +
+            `(total unique: ${allEvents.length})`
         );
 
         if (batchEvents.length < FETCH_BATCH_SIZE) {
@@ -1047,7 +1282,6 @@ async function fetchAllRecentEvents(processor) {
         } else {
           skip += FETCH_BATCH_SIZE;
           iteration++;
-
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
       } else {
@@ -1066,7 +1300,11 @@ async function fetchAllRecentEvents(processor) {
     logText(`Reached maximum fetch iterations (${MAX_FETCH_ITERATIONS})`);
   }
 
-  logText(`Total events fetched: ${allEvents.length}`);
+  logText(
+    `Total unique events fetched: ${allEvents.length} ` +
+      `(${seenEvents.size} unique device-timestamp combinations)`
+  );
+
   return allEvents;
 }
 
