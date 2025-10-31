@@ -63,6 +63,7 @@ class PressViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         'id',
         'article_title',
         'article_intro',
+        'article_link',
         'date_published',
         'publisher_logo',
         'website_category',

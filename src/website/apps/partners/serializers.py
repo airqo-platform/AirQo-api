@@ -25,6 +25,7 @@ class PartnerListSerializer(serializers.ModelSerializer):
             "type",
             "partner_logo_url",
             "order",
+            "featured",
             "api_url",
             "has_slug"
         ]
@@ -77,6 +78,7 @@ class PartnerDetailSerializer(serializers.ModelSerializer):
             "partner_image_url",
             "descriptions",
             "order",
+            "featured",
             "api_url",
             "has_slug"
         ]

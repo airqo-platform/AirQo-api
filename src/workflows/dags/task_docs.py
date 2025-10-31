@@ -46,9 +46,31 @@ Extracts hourly averaged data from BigQuery for a specified time window.
 """
 extract_devices_missing_calibrated_data_doc = """
 #### Purpose
-Extracts devices that are missing calibrated data from bigquery
+Identifies and extracts devices with missing calibrated data from BigQuery, initiating the recalibration workflow.
 
-- This is in preparation to extract, merge and re-calibrate missed air quality and weather data..
+#### Process Flow
+1. Determines the date range for analysis (defaults to previous day)
+2. Queries BigQuery to identify devices with missing calibrated measurements
+3. Returns device information for subsequent data extraction and processing
+
+#### Technical Details
+- Uses `DateUtils.get_dag_date_time_values()` for consistent date handling
+- Returns DataFrame containing device identifiers and timestamps
+- Prepares data for the extract_raw_data task
+
+#### Dependencies
+- Requires access to BigQuery tables
+- Depends on AirQoDataUtils for device data extraction
+- Integrates with DateUtils for timestamp management
+
+#### Output
+Returns a DataFrame containing:
+- device_id: Unique identifier for each device
+- timestamp: Time points where calibrated data is missing
+- Additional metadata needed for recalibration
+
 #### Notes
+- Critical first step in the recalibration pipeline
+- Ensures data completeness for air quality monitoring
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """

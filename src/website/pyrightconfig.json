@@ -1,0 +1,12 @@
+{
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.11",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "django": {
+    "enabled": true
+  },
+  "reportAttributeAccessIssue": "warning",
+  "reportFunctionMemberAccess": "warning",
+  "exclude": ["venv/", "__pycache__/", "logs/", "static/", "media/"]
+}

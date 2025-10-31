@@ -20,6 +20,7 @@ from dag_docs import (
     stream_old_data_doc,
     re_calibrate_missing_calibrated_data_doc,
     daily_data_checks_doc,
+    airqo_api_missing_temp_measurements_fix_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
@@ -786,6 +787,50 @@ def run_daily_data_quality_checks():
     run_checks()
 
 
+# Temp solution for device registry missing data
+@dag(
+    "AirQo-API-missing-measurements-fix",
+    schedule="*/40 * * * *",
+    catchup=False,
+    doc_md=airqo_api_missing_temp_measurements_fix_doc,
+    tags=["2025", "hourly-data", "bigquery", "temporary-fix", "api"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def extract_push_devices_missing_measurements_api():
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def extract_device() -> pd.DataFrame:
+        return AirQoDataUtils.extract_devices_with_missing_measurements_api()
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def extract_data(devices: pd.DataFrame, **kwargs) -> pd.DataFrame:
+        dag_time = kwargs["dag_run"].execution_date
+        hour_of_day = dag_time - timedelta(hours=6)
+        start_date_time = date_to_str_hours(hour_of_day)
+        end_date_time = date_to_str_hours(dag_time)
+        if devices.empty:
+            raise AirflowFailException("No devices with missing data found")
+
+        return DataUtils.extract_data_from_bigquery(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=DeviceCategory.LOWCOST,
+            datatype=DataType.AVERAGED,
+            frequency=Frequency.HOURLY,
+            data_filter={"device_id": devices["device_id"].tolist()},
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def send_data_to_api(data: pd.DataFrame) -> None:
+        data_api = DataApi()
+        if not data.empty:
+            data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
+            data_api.save_events(measurements=data)
+
+    devices = extract_device()
+    data = extract_data(devices)
+    send_data_to_api(data)
+
+
 run_daily_data_quality_checks()
 airqo_historical_hourly_measurements()
 airqo_realtime_measurements()
@@ -795,3 +840,4 @@ airqo_raw_data_measurements()
 airqo_gaseous_realtime_measurements()
 airqo_bigquery_data_measurements_to_api()
 calibrate_missing_measurements()
+extract_push_devices_missing_measurements_api()

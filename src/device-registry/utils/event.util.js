@@ -49,6 +49,11 @@ const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
 let lastRedisWarning = 0;
 const REDIS_WARNING_THROTTLE = 30 * 60 * 1000; // 30 minutes throttle (30 minutes * 60 seconds * 1000 milliseconds)
 
+// New constants for historical data error messages
+const HISTORICAL_DATA_RECOMMENDATION = `For bulk historical data access, we recommend using the AirQo Analytics platform. It is more reliable and optimized for large downloads.`;
+const ANALYTICS_PLATFORM_URL = "https://analytics.airqo.net";
+const SUPPORT_EMAIL = "support@airqo.net";
+
 // Helper function for throttled Redis warnings
 const logRedisWarning = (operation) => {
   const now = Date.now();
@@ -1608,19 +1613,15 @@ const createEvent = {
             return {
               success: false,
               status: httpStatus.BAD_REQUEST,
-              message: `Query date too old. Data older than ${oldestSupportedMonths} months is not available via this endpoint.`,
+              message: `Query too old. For large historical datasets, please use the AirQo Analytics platform.`,
               errors: {
                 message: `Query includes data from ${earliestDateString} (${ageInYears} years old, ${ageInDays} days old).`,
                 oldest_supported: `${oldestSupportedMonths} months (${MAX_AGE_DAYS} days) from current date`,
                 query_age_days: ageInDays,
                 current_cutoff_date: cutoffDateString,
-                recommendation:
-                  "Use Analytics API for historical data older than 6 months",
-                analytics_endpoint:
-                  "https://api.airqo.net/api/v3/public/analytics/data-download",
-                analytics_docs:
-                  "https://docs.airqo.net/airqo-rest-api-documentation/analytics-api",
-                support_email: "support@airqo.net",
+                recommendation: HISTORICAL_DATA_RECOMMENDATION,
+                analytics_platform_url: ANALYTICS_PLATFORM_URL,
+                support_email: SUPPORT_EMAIL,
               },
             };
           }
@@ -1666,10 +1667,9 @@ const createEvent = {
               message:
                 "Your client has been temporarily blocked for excessive historical queries.",
               retry_after_seconds: remainingSeconds,
-              recommendation:
-                "Use Analytics API for bulk historical data access",
-              analytics_endpoint:
-                "https://api.airqo.net/api/v3/public/analytics/data-download",
+              recommendation: HISTORICAL_DATA_RECOMMENDATION,
+              analytics_platform_url: ANALYTICS_PLATFORM_URL,
+              support_email: SUPPORT_EMAIL,
             },
           };
         }
@@ -1697,8 +1697,9 @@ const createEvent = {
             errors: {
               message: `Rate limit exceeded: ${tracker.count} historical queries in 1 minute. Maximum allowed: ${MAX_HISTORICAL_PER_MINUTE}.`,
               blocked_for_seconds: 300,
-              analytics_endpoint:
-                "https://api.airqo.net/api/v3/public/analytics/data-download",
+              recommendation: HISTORICAL_DATA_RECOMMENDATION,
+              analytics_platform_url: ANALYTICS_PLATFORM_URL,
+              support_email: SUPPORT_EMAIL,
             },
           };
         }

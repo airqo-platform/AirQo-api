@@ -1,6 +1,8 @@
 import environ
 import redis
 
+import logging
+
 env = environ.Env()
 environ.Env.read_env()
 
@@ -31,6 +33,8 @@ WTF_CSRF_TIME_LIMIT = env.int("WTF_CSRF_TIME_LIMIT")
 SESSION_SERVER_SIDE = env.bool("SESSION_SERVER_SIDE")
 SESSION_TYPE = env("SESSION_TYPE")
 SESSION_REDIS = redis.from_url(env("CACHE_REDIS_URL"))
+PREFERRED_URL_SCHEME = env("PREFERRED_URL_SCHEME")
+PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_port": 1}
 
 # Public URL
 SUPERSET_PUBLIC_URL = env("SUPERSET_PUBLIC_URL")
@@ -68,9 +72,10 @@ TALISMAN_CONFIG = {
     "session_cookie_secure": SESSION_COOKIE_SECURE,
 }
 
-# CORS_OPTIONS = {
-#     "origins": [SUPERSET_PUBLIC_URL],
-#     "methods": ["GET", "POST", "PUT", "DELETE"],
-#     "allow_headers": ["Content-Type", "Authorization", "X-CSRFToken", "Referer"],
-#     "supports_credentials": True
-# }
+CORS_OPTIONS = {
+    "origins": [SUPERSET_PUBLIC_URL],
+    "allow_headers": ["Authorization", "X-CSRFToken", "Referer"],
+    "supports_credentials": True,
+}
+
+LOG_LEVEL = getattr(logging, env("LOG_LEVEL").upper(), None)

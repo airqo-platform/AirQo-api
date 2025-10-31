@@ -1,6 +1,10 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from utils.models import BaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BoardMember(BaseModel):
@@ -28,6 +32,19 @@ class BoardMember(BaseModel):
         if self.picture:
             return self.picture.url  # Cloudinary provides the actual URL of the uploaded image
         return None
+
+    def delete(self, *args, **kwargs):
+        """
+        Remove associated Cloudinary image before DB deletion; fail-open on errors.
+        """
+        pic_id = getattr(self.picture, "public_id", None)
+        if pic_id:
+            try:
+                destroy(pic_id, invalidate=True)
+            except Exception:
+                logger.warning(
+                    "Cloudinary destroy failed for BoardMember %s (public_id=%s)", self.pk, pic_id)
+        return super().delete(*args, **kwargs)
 
 
 class BoardMemberBiography(BaseModel):

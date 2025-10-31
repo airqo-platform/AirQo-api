@@ -249,6 +249,86 @@ def consolidate_data():
 @pytest.fixture(scope="session")
 def weather_data():
     """Fixture providing weather data."""
+    return pd.DataFrame()
+
+
+@pytest.fixture(scope="session")
+def mock_measurement_data():
+    """Fixture providing sample measurement data."""
+    return pd.DataFrame(
+        {
+            "device_id": ["device1", "device2"],
+            "device_number": [1000, 2000],
+            "site_id": ["site1", "site2"],
+            "timestamp": ["2025-10-30T10:00:00Z", "2025-10-30T10:00:00Z"],
+            "latitude": [-1.2, -1.3],
+            "longitude": [36.8, 36.9],
+            "pm2_5": [25.0, 30.0],
+            "pm2_5_calibrated_value": [24.5, 29.5],
+            "pm10": [45.0, 50.0],
+            "pm10_calibrated_value": [44.5, 49.5],
+            "s1_pm2_5": [24.0, 29.0],
+            "s1_pm10": [44.0, 49.0],
+            "s2_pm2_5": [26.0, 31.0],
+            "s2_pm10": [46.0, 51.0],
+            "battery": [4.2, 4.1],
+            "altitude": [1200, 1250],
+            "wind_speed": [2.5, 3.0],
+            "satellites": [8, 9],
+            "hdop": [1.0, 1.1],
+            "temperature": [25.5, 26.0],
+            "humidity": [65, 70],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def mock_devices_data():
+    """Fixture providing sample device registry data."""
+    return pd.DataFrame(
+        {
+            "id": ["dev1_id", "dev2_id"],
+            "device_id": ["device1", "device2"],
+            "network": ["airqo", "airqo"],
+        }
+    ).set_index("device_id")
+
+
+@pytest.fixture(scope="session")
+def expected_api_payload():
+    """Fixture providing expected API payload structure."""
+    return [
+        {
+            "device": "device1",
+            "device_id": "dev1_id",
+            "site_id": "site1",
+            "device_number": 1000,
+            "network": "airqo",
+            "location": {"latitude": {"value": -1.2}, "longitude": {"value": 36.8}},
+            "frequency": "hourly",
+            "time": "2025-10-30T10:00:00Z",
+            "average_pm2_5": {"value": 25.0, "calibratedValue": 24.5},
+            "average_pm10": {"value": 45.0, "calibratedValue": 44.5},
+            "pm2_5": {"value": 25.0, "calibratedValue": 24.5},
+            "pm10": {"value": 45.0, "calibratedValue": 44.5},
+            "s1_pm2_5": {"value": 24.0},
+            "s1_pm10": {"value": 44.0},
+            "s2_pm2_5": {"value": 26.0},
+            "s2_pm10": {"value": 46.0},
+            "battery": {"value": 4.2},
+            "altitude": {"value": 1200},
+            "wind_speed": {"value": 2.5},
+            "satellites": {"value": 8},
+            "hdop": {"value": 1.0},
+            "temperature": {"value": 25.5},
+            "humidity": {"value": 65},
+        }
+    ]
+
+
+@pytest.fixture(scope="session")
+def weather_station_data():
+    """Fixture providing weather station data."""
     return pd.DataFrame(
         {
             "station_code": ["TA00001", "TA00001", "TA00001"],

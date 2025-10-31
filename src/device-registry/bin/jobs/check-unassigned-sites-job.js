@@ -7,6 +7,8 @@ const SitesModel = require("@models/Site");
 const cron = require("node-cron");
 const UNASSIGNED_THRESHOLD = 0;
 const { logObject, logText } = require("@utils/shared");
+const { LogThrottleManager } = require("@utils/common");
+const moment = require("moment-timezone");
 
 const JOB_NAME = "check-unassigned-sites-job";
 const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
@@ -72,7 +74,23 @@ const checkUnassignedSites = async () => {
 let isJobRunning = false;
 let currentJobPromise = null;
 
+const LOG_TYPE = "unassigned-sites-check";
+const logThrottleManager = new LogThrottleManager(constants.TIMEZONE);
+
 const jobWrapper = async () => {
+  try {
+    const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+    if (!shouldRun) {
+      logger.info(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
+      return;
+    }
+  } catch (error) {
+    logger.warn(
+      `Distributed lock check failed: ${error.message}. Proceeding with execution.`
+    );
+    // Fall through to in-memory guard as fallback
+  }
+
   if (isJobRunning) {
     logger.warn(`${JOB_NAME} is already running, skipping this execution`);
     return;

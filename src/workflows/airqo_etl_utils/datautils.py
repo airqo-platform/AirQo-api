@@ -54,7 +54,7 @@ class DataUtils:
         Args:
             device_category (Optional[DeviceCategory]): Category of devices to filter by. If None, returns all categories.
             device_network (Optional[DeviceNetwork]): Network of devices to filter by. If None, returns all networks.
-            preferred_source (Optional[str]): Data source preference. Defaults to "cache". Options: "cache", "api".
+            preferred_source (Optional[str]): Data source preference. Defaults to "cache". Options: "cache", "api". The "api" option offers richer devices data.
 
         Returns:
             pd.DataFrame: DataFrame containing device information including device_number,
@@ -212,8 +212,7 @@ class DataUtils:
         Args:
             network (Optional[DeviceNetwork]): Network to filter sites by.
                                              If None, returns sites from all networks.
-            preferred_source (Optional[str]): Data source preference. Defaults to "cache".
-                                             Options: "cache", "api".
+            preferred_source (Optional[str]): Data source preference. Defaults to "cache". Options: "cache", "api". The "api" options offers richer sites data.
 
         Returns:
             pd.DataFrame: DataFrame containing site information including site_id,
@@ -1274,9 +1273,9 @@ class DataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
-
         devices = DataUtils.get_devices()
         devices = devices[["id", "device_id", "network"]]
+        devices = devices.drop_duplicates(subset="device_id", keep="first")
         devices = devices.set_index("device_id")
 
         restructured_data = DataUtils.__device_registry_api_data(

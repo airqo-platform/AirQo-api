@@ -1,6 +1,10 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from utils.models import BaseModel, SlugBaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Member(SlugBaseModel):
@@ -18,7 +22,9 @@ class Member(SlugBaseModel):
         folder="website/uploads/team/members",
         resource_type="image",
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
 
     twitter = models.URLField(max_length=255, null=True, blank=True)
@@ -35,6 +41,19 @@ class Member(SlugBaseModel):
         if self.picture:
             return self.picture.url  # CloudinaryField already handles secure URLs
         return None
+
+    def delete(self, *args, **kwargs):
+        """
+        Remove associated Cloudinary image before DB deletion; fail-open on errors.
+        """
+        pic_id = getattr(self.picture, "public_id", None)
+        if pic_id:
+            try:
+                destroy(pic_id, invalidate=True)
+            except Exception:
+                logger.warning(
+                    "Cloudinary destroy failed for Member %s (public_id=%s)", self.pk, pic_id)
+        return super().delete(*args, **kwargs)
 
 
 class MemberBiography(BaseModel):

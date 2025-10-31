@@ -11,9 +11,9 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Install requirements
-COPY requirements.txt /app/
+COPY requirements4.txt /app/
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install -r requirements4.txt
 
 COPY docker /app/docker
 RUN chmod +x /app/docker/*.sh

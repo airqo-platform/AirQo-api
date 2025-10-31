@@ -465,7 +465,7 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the extracted site metadata with the correct schema.
         """
-        sites = DataUtils.get_sites(network=network)
+        sites = DataUtils.get_sites(preferred_source="api")
         sites.rename(columns={"id": "site_id"}, inplace=True)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.sites_meta_data_table)

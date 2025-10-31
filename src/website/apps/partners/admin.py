@@ -4,6 +4,7 @@ from .models import Partner, PartnerDescription
 from django.utils.html import format_html, escape
 
 
+# type: ignore[attr-defined]
 class PartnerDescriptionInline(nested_admin.NestedTabularInline):
     fields = ("description", "order")
     model = PartnerDescription
@@ -11,19 +12,22 @@ class PartnerDescriptionInline(nested_admin.NestedTabularInline):
 
 
 @admin.register(Partner)
+# type: ignore[attr-defined]
 class PartnerAdmin(nested_admin.NestedModelAdmin):
     list_display = (
         "partner_name",
         "website_category",
         "type_display",
+        "featured",
         "logo_preview",
         "image_preview",
     )
-    list_filter = ("website_category", "type")
+    list_filter = ("website_category", "type", "featured")
     fields = (
         "partner_name",
         "website_category",
         "type",
+        "featured",
         "partner_logo",
         "partner_image",
         "partner_link",
@@ -47,7 +51,7 @@ class PartnerAdmin(nested_admin.NestedModelAdmin):
             )
         return "No Logo"
 
-    logo_preview.short_description = "Logo"
+    logo_preview.short_description = "Logo"  # type: ignore[attr-defined]
 
     def image_preview(self, obj):
         """
@@ -60,4 +64,4 @@ class PartnerAdmin(nested_admin.NestedModelAdmin):
             )
         return "No Image"
 
-    image_preview.short_description = "Image"
+    image_preview.short_description = "Image"  # type: ignore[attr-defined]
