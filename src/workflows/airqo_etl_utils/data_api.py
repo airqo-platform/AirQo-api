@@ -132,7 +132,7 @@ class DataApi:
 
     def get_devices(
         self,
-        params: Dict[str, Any] = {},
+        params: Optional[Dict[str, Any]] = {},
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices given a network and device category.
