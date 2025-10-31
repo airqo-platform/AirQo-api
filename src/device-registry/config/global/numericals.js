@@ -15,7 +15,7 @@ const numericals = {
   CACHE_TIMEOUT_PERIOD: 10000,
   MAX_EVENT_AGE_HOURS: 6, // Only accept events from last 6 hours
   MAX_REJECTED_LOGS: 10,
-  JOB_LOOKBACK_WINDOW_MS: 12 * 60 * 60 * 1000, // 12 hours
+  JOB_LOOKBACK_WINDOW_MS: 5 * 60 * 60 * 1000, // 5 hours in milliseconds
 };
 
 numericals.MAX_EVENT_AGE_MS = numericals.MAX_EVENT_AGE_HOURS * 60 * 60 * 1000;
