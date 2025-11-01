@@ -22,6 +22,11 @@ const YIELD_INTERVAL = 5; // Yield every 5 operations
 const JOB_NAME = "update-raw-online-status-job";
 const JOB_SCHEDULE = "35 * * * *"; // At minute 35 of every hour
 
+// Statuses for which the primary `isOnline` field should be updated by this job
+const STATUSES_FOR_PRIMARY_UPDATE = constants.VALID_DEVICE_STATUSES.filter(
+  (status) => status !== "deployed"
+);
+
 // Non-blocking job processor class
 class NonBlockingJobProcessor {
   constructor(jobName) {
@@ -287,7 +292,10 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       rawOnlineStatus: isNowRawOnline,
     };
 
-    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
+    if (
+      STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+      isDeviceActuallyMobile(device)
+    ) {
       updateFields.isOnline = isNowRawOnline;
     }
 
@@ -324,7 +332,10 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       rawOnlineStatus: isNowRawOnline,
     };
 
-    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
+    if (
+      STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+      isDeviceActuallyMobile(device)
+    ) {
       updateFields.isOnline = isNowRawOnline;
     }
 
@@ -413,7 +424,10 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     }
 
     // ALSO update primary online status for UNDEPLOYED or MOBILE devices
-    if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
+    if (
+      STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+      isDeviceActuallyMobile(device)
+    ) {
       updateFields.isOnline = isRawOnline;
       if (lastFeedTime) {
         updateFields.lastActive = new Date(lastFeedTime);
@@ -488,7 +502,10 @@ const createFailureUpdate = (device, reason) => {
     rawOnlineStatus: isNowRawOnline,
   };
 
-  if (device.status === "not deployed" || isDeviceActuallyMobile(device)) {
+  if (
+    STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+    isDeviceActuallyMobile(device)
+  ) {
     updateFields.isOnline = isNowRawOnline;
   }
 
@@ -714,4 +731,5 @@ process.nextTick(startJob);
 module.exports = {
   updateRawOnlineStatus,
   NonBlockingJobProcessor,
+  STATUSES_FOR_PRIMARY_UPDATE,
 };
