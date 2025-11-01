@@ -22,7 +22,6 @@ TALISMAN_ENABLED = env.bool("TALISMAN_ENABLED")
 WEBSERVER_ADDRESS = env("SUPERSET_WEBSERVER_HOST")
 WEBSERVER_PORT = env("SUPERSET_WEBSERVER_PORT")
 WTF_CSRF_ENABLED = env.bool("WTF_CSRF_ENABLED")
-APP_ROOT = env("SUPERSET_APP_ROOT")
 SESSION_COOKIE_HTTPONLY = env.bool("SESSION_COOKIE_HTTPONLY")
 WEBSERVER_TIMEOUT = env("SUPERSET_WEBSERVER_TIMEOUT")
 # SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN")
@@ -38,14 +37,6 @@ PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_port": 1}
 
 # Public URL
 SUPERSET_PUBLIC_URL = env("SUPERSET_PUBLIC_URL")
-
-# Cache Settings
-CACHE_CONFIG = {
-    "CACHE_TYPE": env("CACHE_TYPE"),
-    "CACHE_DEFAULT_TIMEOUT": env("CACHE_DEFAULT_TIMEOUT"),
-    "CACHE_KEY_PREFIX": env("CACHE_KEY_PREFIX"),
-    "CACHE_REDIS_URL": env("CACHE_REDIS_URL"),
-}
 
 
 FORCE_HTTPS = env.bool("FORCE_HTTPS")
@@ -70,12 +61,6 @@ TALISMAN_CONFIG = {
     "content_security_policy_nonce_in": ["script-src"],
     "force_https": FORCE_HTTPS,
     "session_cookie_secure": SESSION_COOKIE_SECURE,
-}
-
-CORS_OPTIONS = {
-    "origins": [SUPERSET_PUBLIC_URL],
-    "allow_headers": ["Authorization", "X-CSRFToken", "Referer"],
-    "supports_credentials": True,
 }
 
 LOG_LEVEL = getattr(logging, env("LOG_LEVEL").upper(), None)
