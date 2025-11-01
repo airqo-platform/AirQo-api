@@ -1,12 +1,14 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
-const { updateRawOnlineStatus } = require("@jobs/update-raw-online-status-job");
+const {
+  updateRawOnlineStatus,
+  STATUSES_FOR_PRIMARY_UPDATE,
+} = require("@jobs/update-raw-online-status-job");
 const constants = require("@config/constants");
 const DeviceModel = require("@models/Device");
 const createDeviceUtil = require("@utils/device.util");
 const createFeedUtil = require("@utils/feed.util");
-const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 
 describe("updateRawOnlineStatusJob", () => {
   let deviceModelStub;
@@ -27,10 +29,6 @@ describe("updateRawOnlineStatusJob", () => {
 
   describe("STATUSES_FOR_PRIMARY_UPDATE constant", () => {
     it("should include all valid statuses except 'deployed'", () => {
-      const STATUSES_FOR_PRIMARY_UPDATE = constants.VALID_DEVICE_STATUSES.filter(
-        (status) => status !== "deployed"
-      );
-
       const expectedStatuses = [
         "recalled",
         "ready",
@@ -60,10 +58,6 @@ describe("updateRawOnlineStatusJob", () => {
       ...overrides,
     });
 
-    const mockDeviceDetailsMap = new Map([
-      [12345, { device_number: 12345, readKey: "encrypted_key" }],
-    ]);
-
     beforeEach(() => {
       decryptKeyStub.resolves({ success: true, data: "decrypted_key" });
       fetchThingspeakDataStub.resolves({
@@ -79,24 +73,22 @@ describe("updateRawOnlineStatusJob", () => {
         },
         close: sinon.stub(),
       };
-      sinon.stub(DeviceModel("airqo"), "find").returns({
+      const findStub = sinon.stub(DeviceModel("airqo"), "find");
+
+      // Specific call for device details
+      findStub.withArgs({ device_number: { $in: [12345] } }).returns({
         select: () => ({
-          lean: () => ({
-            batchSize: () => ({
-              cursor: () => cursor,
-            }),
-          }),
+          lean: () =>
+            Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
         }),
       });
-      sinon
-        .stub(DeviceModel("airqo"), "find")
-        .withArgs({ device_number: { $in: [12345] } })
-        .returns({
-          select: () => ({
-            lean: () =>
-              Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
-          }),
-        });
+
+      // Default call for the cursor
+      findStub.returns({
+        select: () => ({
+          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+        }),
+      });
 
       await updateRawOnlineStatus();
 
@@ -114,24 +106,22 @@ describe("updateRawOnlineStatusJob", () => {
         },
         close: sinon.stub(),
       };
-      sinon.stub(DeviceModel("airqo"), "find").returns({
+      const findStub = sinon.stub(DeviceModel("airqo"), "find");
+
+      // Specific call for device details
+      findStub.withArgs({ device_number: { $in: [12345] } }).returns({
         select: () => ({
-          lean: () => ({
-            batchSize: () => ({
-              cursor: () => cursor,
-            }),
-          }),
+          lean: () =>
+            Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
         }),
       });
-      sinon
-        .stub(DeviceModel("airqo"), "find")
-        .withArgs({ device_number: { $in: [12345] } })
-        .returns({
-          select: () => ({
-            lean: () =>
-              Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
-          }),
-        });
+
+      // Default call for the cursor
+      findStub.returns({
+        select: () => ({
+          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+        }),
+      });
 
       await updateRawOnlineStatus();
 
@@ -150,24 +140,22 @@ describe("updateRawOnlineStatusJob", () => {
         },
         close: sinon.stub(),
       };
-      sinon.stub(DeviceModel("airqo"), "find").returns({
+      const findStub = sinon.stub(DeviceModel("airqo"), "find");
+
+      // Specific call for device details
+      findStub.withArgs({ device_number: { $in: [12345] } }).returns({
         select: () => ({
-          lean: () => ({
-            batchSize: () => ({
-              cursor: () => cursor,
-            }),
-          }),
+          lean: () =>
+            Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
         }),
       });
-      sinon
-        .stub(DeviceModel("airqo"), "find")
-        .withArgs({ device_number: { $in: [12345] } })
-        .returns({
-          select: () => ({
-            lean: () =>
-              Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
-          }),
-        });
+
+      // Default call for the cursor
+      findStub.returns({
+        select: () => ({
+          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+        }),
+      });
 
       await updateRawOnlineStatus();
 

@@ -731,4 +731,5 @@ process.nextTick(startJob);
 module.exports = {
   updateRawOnlineStatus,
   NonBlockingJobProcessor,
+  STATUSES_FOR_PRIMARY_UPDATE,
 };
