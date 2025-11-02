@@ -13,7 +13,8 @@ RUN pip install --default-timeout=100 future && pip install --no-cache  \
     sqlalchemy-bigquery==1.13.0 \
     google-cloud-bigquery==3.31.0 \
     python-graphql-client \
-    django-environ==0.12.0
+    django-environ==0.12.0 \
+    flask-cors
 
 RUN pip install --no-cache gevent psycopg2-binary
 
