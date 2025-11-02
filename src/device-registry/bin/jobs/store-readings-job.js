@@ -6,24 +6,12 @@ const logger = log4js.getLogger(
 );
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
-const JobStateModel = require("@models/JobState");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 const NodeCache = require("node-cache");
-
-// Constants
-const TIMEZONE = moment.tz.guess();
-const JOB_NAME = "store-readings-job";
-const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
-const FETCH_BATCH_SIZE = 200;
-const MAX_FETCH_ITERATIONS = 100; // safety limit for fetching
-const ACCEPTABLE_FAILURE_RATE = 0.05;
-
-const JOB_LOOKBACK_WINDOW_MS =
-  constants.JOB_LOOKBACK_WINDOW_MS || 12 * 60 * 60 * 1000; // Default to 12 hours
 
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
@@ -153,13 +141,6 @@ class ReadingsBatchProcessor {
       if (averages) {
         updateDoc.averages = averages;
       }
-      // Extract latest_pm2_5 from siteDetails or deviceDetails if available
-      if (doc.siteDetails && doc.siteDetails.latest_pm2_5) {
-        updateDoc.latest_pm2_5 = doc.siteDetails.latest_pm2_5;
-      } else if (doc.deviceDetails && doc.deviceDetails.latest_pm2_5) {
-        // Fallback to deviceDetails if not found in siteDetails
-        updateDoc.latest_pm2_5 = doc.deviceDetails.latest_pm2_5;
-      }
 
       // Save reading
       try {
@@ -264,178 +245,54 @@ class ReadingsBatchProcessor {
   }
 }
 
-async function fetchAllRecentEvents(lastProcessedTime) {
-  logger.info(
-    `📊 Fetch starting - lastProcessedTime: ${lastProcessedTime?.toISOString() ||
-      "null"}`
-  );
-
-  let allEvents = [];
-  let hasMore = true;
-  let iteration = 0;
-
-  const endTime = new Date();
-  let startTime = lastProcessedTime;
-
-  if (!startTime) {
-    startTime = new Date(Date.now() - JOB_LOOKBACK_WINDOW_MS);
-    logger.warn(
-      `⚠️ No last processed time. Using ${JOB_LOOKBACK_WINDOW_MS /
-        (1000 * 60 * 60)}h lookback: ${startTime.toISOString()}`
-    );
-  }
-
-  logger.info(
-    `🔍 Query window: ${startTime.toISOString()} to ${endTime.toISOString()}`
-  );
-
-  while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
-    try {
-      const request = {
-        query: {
-          tenant: "airqo",
-          recent: "yes",
-          metadata: "site_id",
-          internal: "yes",
-          active: "yes",
-          brief: "yes",
-          limit: FETCH_BATCH_SIZE,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-        },
-      };
-
-      const filter = generateFilter.fetch(request); // Use fetch, not readingsJob
-      logger.debug(
-        `📝 Filter for iteration ${iteration + 1}:`,
-        JSON.stringify(filter)
-      );
-
-      const response = await Promise.race([
-        EventModel("airqo").fetch(filter),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Fetch timeout")), 45000)
-        ),
-      ]);
-
-      if (
-        response?.success &&
-        Array.isArray(response.data?.[0]?.data) &&
-        response.data[0].data.length > 0
-      ) {
-        const batchEvents = response.data[0].data;
-        allEvents = allEvents.concat(batchEvents);
-
-        logger.info(
-          `✅ Batch ${iteration + 1}: fetched ${
-            batchEvents.length
-          } events (total: ${allEvents.length})`
-        );
-
-        if (batchEvents.length < FETCH_BATCH_SIZE) {
-          hasMore = false;
-          logger.info("🏁 Reached end of recent events");
-        } else {
-          const lastEventInBatch = batchEvents[batchEvents.length - 1];
-          startTime = new Date(new Date(lastEventInBatch.time).getTime() + 1);
-          iteration++;
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      } else {
-        hasMore = false;
-        if (iteration === 0) {
-          logger.info("ℹ️ No events found in the first batch");
-        }
-      }
-    } catch (error) {
-      logger.error(
-        `❌ Error fetching batch ${iteration + 1}: ${error.message}`
-      );
-      hasMore = false;
-    }
-  }
-
-  logger.info(`📈 Total events fetched: ${allEvents.length}`);
-  return allEvents;
-}
-
-// New function to calculate averages for all sites in one go
-async function calculateAveragesInBulk(siteIds) {
-  if (!siteIds || siteIds.length === 0) {
-    return {};
-  }
-  logText(`Calculating averages for ${siteIds.length} unique sites...`);
-  try {
-    const averages = await EventModel("airqo").getAirQualityAveragesForSites(
-      siteIds
-    );
-    if (averages.success) {
-      return averages.data;
-    }
-    return {};
-  } catch (error) {
-    logger.error(`Error calculating bulk averages: ${error.message}`);
-    return {};
-  }
-}
-
+// Main function focused purely on readings
 async function fetchAndStoreReadings() {
   const batchProcessor = new ReadingsBatchProcessor(50);
 
   try {
-    logText("Starting optimized readings processing job");
+    const request = {
+      query: {
+        tenant: "airqo",
+        recent: "yes",
+        metadata: "site_id",
+        active: "yes",
+        brief: "yes",
+      },
+    };
+    const filter = generateFilter.fetch(request);
 
-    // Get last processed time
-    let lastProcessedTime = await JobStateModel("airqo").get(JOB_NAME);
+    logText("Starting readings processing job");
 
-    if (!lastProcessedTime) {
-      const latestReading = await ReadingModel("airqo")
-        .findOne({})
-        .sort({ time: -1 })
-        .select("time")
-        .lean();
-      lastProcessedTime = latestReading?.time || null;
-
-      if (lastProcessedTime) {
-        logger.info(
-          `✅ Using fallback lastProcessedTime from Readings: ${lastProcessedTime.toISOString()}`
-        );
-      } else {
-        logger.warn(`⚠️ No previous state. Will use default lookback`);
+    let viewEventsResponse;
+    try {
+      viewEventsResponse = await EventModel("airqo").fetch(filter);
+    } catch (fetchError) {
+      if (isDuplicateKeyError(fetchError)) {
+        logText("Ignoring duplicate key error in fetch operation");
+        return;
       }
-    } else {
-      logger.info(
-        `✅ Last processed time from JobState: ${lastProcessedTime.toISOString()}`
-      );
-    }
-
-    // Fetch events
-    const allEvents = await fetchAllRecentEvents(lastProcessedTime);
-
-    if (allEvents.length === 0) {
-      logText("ℹ️ No new events to process");
+      logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
       return;
     }
 
-    // Get unique site IDs and calculate averages
-    const uniqueSiteIds = [
-      ...new Set(
-        allEvents
-          .map((e) => (e.site_id ? e.site_id.toString() : null))
-          .filter(Boolean)
-      ),
-    ];
+    if (
+      !viewEventsResponse?.success ||
+      !Array.isArray(viewEventsResponse.data?.[0]?.data)
+    ) {
+      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
+      return;
+    }
 
-    logger.info(
-      `📊 Processing ${allEvents.length} events from ${uniqueSiteIds.length} unique sites`
-    );
-
-    const bulkAverages = await calculateAveragesInBulk(uniqueSiteIds);
+    const data = viewEventsResponse.data[0].data;
+    if (data.length === 0) {
+      logText("No Events found to process into Readings");
+      return;
+    }
 
     // Process in batches
     const batches = [];
-    for (let i = 0; i < allEvents.length; i += batchProcessor.batchSize) {
-      batches.push(allEvents.slice(i, i + batchProcessor.batchSize));
+    for (let i = 0; i < data.length; i += batchProcessor.batchSize) {
+      batches.push(data.slice(i, i + batchProcessor.batchSize));
     }
 
     for (const batch of batches) {
@@ -444,12 +301,18 @@ async function fetchAndStoreReadings() {
           asyncRetry(
             async (bail) => {
               try {
-                await batchProcessor.processDocument(doc, bulkAverages);
+                await batchProcessor.processDocument(doc);
               } catch (error) {
                 if (isDuplicateKeyError(error)) {
                   return; // Skip duplicates
                 }
-                throw error; // Retry other errors
+                if (error.name === "MongoError" && error.code !== 11000) {
+                  throw error; // Retry non-duplicate database errors
+                }
+                if (!isDuplicateKeyError(error)) {
+                  logger.debug(`Error processing document: ${error.message}`);
+                  throw error;
+                }
               }
             },
             {
@@ -462,58 +325,34 @@ async function fetchAndStoreReadings() {
       );
     }
 
-    // Generate report
+    // Generate processing report
     const report = batchProcessor.getProcessingReport();
 
+    // Simple success logging
     if (report.summary.successRate >= 95) {
       logText(
-        `✅ Success: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} (${report.summary.successRate}%)`
+        `✅ Readings processed successfully: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
       );
     } else {
       logger.warn(
-        `⚠️ Completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} (${report.summary.successRate}%)`
+        `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
       );
-    }
-
-    // Update watermark with relaxed condition
-    let newLatestTimestamp = null;
-    if (allEvents.length > 0) {
-      newLatestTimestamp = allEvents.reduce((latest, event) => {
-        const eventTime = new Date(event.time);
-        return eventTime > latest ? eventTime : latest;
-      }, lastProcessedTime || new Date(0));
-    }
-
-    const failureRate =
-      report.summary.totalDocuments > 0
-        ? report.summary.readingsFailed / report.summary.totalDocuments
-        : 0;
-    const ACCEPTABLE_FAILURE_RATE = 0.05;
-
-    if (
-      newLatestTimestamp &&
-      newLatestTimestamp > (lastProcessedTime || new Date(0)) &&
-      failureRate <= ACCEPTABLE_FAILURE_RATE
-    ) {
-      await JobStateModel("airqo").set(JOB_NAME, newLatestTimestamp);
-      logger.info(
-        `✅ Watermark updated to: ${newLatestTimestamp.toISOString()}`
-      );
-    } else if (failureRate > ACCEPTABLE_FAILURE_RATE) {
-      logger.warn(
-        `⚠️ Watermark NOT updated: failure rate ${(failureRate * 100).toFixed(
-          2
-        )}% exceeds ${ACCEPTABLE_FAILURE_RATE * 100}% threshold`
-      );
+      logger.info(`📊 Processing details: ${stringify(report.details)}`);
     }
   } catch (error) {
     if (isDuplicateKeyError(error)) {
-      logText("Completed with some duplicate entries (ignored)");
+      logText(
+        "Readings processing completed with some duplicate entries (ignored)"
+      );
     } else {
       logger.error(`🐛 Error in readings processing: ${stringify(error)}`);
     }
   }
 }
+
+const TIMEZONE = moment.tz.guess();
+const JOB_NAME = "store-readings-job";
+const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 
 let isJobRunning = false;
 let currentJobPromise = null;
@@ -552,6 +391,9 @@ const startJob = () => {
     stop: async () => {
       logText(`🛑 Stopping ${JOB_NAME}...`);
       cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
       logText(`📅 ${JOB_NAME} schedule stopped.`);
       try {
         if (currentJobPromise) {
