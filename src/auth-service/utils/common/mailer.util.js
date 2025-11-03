@@ -6,11 +6,9 @@ const msgs = require("./email.msgs.util");
 const msgTemplates = require("./email.templates.util");
 const httpStatus = require("http-status");
 const path = require("path");
+const EmailQueueModel = require("@models/EmailQueue");
 const EmailLogModel = require("@models/EmailLog");
-const {
-  sendMailWithDeduplication,
-  emailDeduplicator,
-} = require("./email-deduplication.util");
+const { emailDeduplicator } = require("./email-deduplication.util");
 const {
   logObject,
   logText,
@@ -26,6 +24,66 @@ const processString = (inputString) => {
 };
 const projectRoot = path.join(__dirname, "..", "..");
 const imagePath = path.join(projectRoot, "config", "images");
+
+/**
+ * START: MongoDB-based Email Queue for Throttling
+ */
+const EMAIL_INTERVAL = 3000; // 3 seconds between each email send attempt
+let isProcessingQueue = false;
+
+const addToEmailQueue = async (mailOptions, tenant = "airqo") => {
+  try {
+    const EmailQueue = EmailQueueModel(tenant);
+    await new EmailQueue({ mailOptions }).save();
+    // The background processor will pick this up.
+    return { success: true, message: "Email queued successfully." };
+  } catch (error) {
+    logger.error(`Failed to add email to queue: ${error.message}`);
+    // Even if queuing fails, we should probably still try to send for critical emails.
+    // For now, we'll just log the error.
+    return { success: false, error: error.message };
+  }
+};
+
+const processEmailQueue = async () => {
+  if (isProcessingQueue) {
+    return;
+  }
+  isProcessingQueue = true;
+
+  try {
+    const tenant = constants.DEFAULT_TENANT || "airqo";
+    const EmailQueue = EmailQueueModel(tenant);
+
+    const emailJob = await EmailQueue.findOneAndUpdate(
+      { status: "pending" },
+      { $set: { status: "processing", lastAttemptAt: new Date() } },
+      { sort: { createdAt: 1 } }
+    );
+
+    if (emailJob) {
+      try {
+        await transporter.sendMail(emailJob.mailOptions);
+        await EmailQueue.findByIdAndDelete(emailJob._id);
+        logger.info(`Email sent successfully to: ${emailJob.mailOptions.to}`);
+      } catch (error) {
+        logger.error(`Failed to send email from queue: ${error.message}`);
+        await EmailQueue.findByIdAndUpdate(emailJob._id, {
+          $set: { status: "failed", errorMessage: error.message },
+          $inc: { attempts: 1 },
+        });
+      }
+    }
+  } catch (error) {
+    logger.error(`Error processing email queue: ${error.message}`);
+  } finally {
+    isProcessingQueue = false;
+  }
+};
+
+// Start the queue processor
+setInterval(processEmailQueue, EMAIL_INTERVAL);
+/** END: MongoDB-based Email Queue */
 
 let attachments = [
   {
@@ -284,22 +342,76 @@ const createMailerFunction = (
         ? customMailOptionsModifier(baseMailOptions, { email, ...otherParams })
         : baseMailOptions;
 
-      // ✅ STEP 4d: Send email with deduplication protection
-      const emailResult = await sendMailWithDeduplication(
-        transporter,
-        mailOptions,
-        {
-          skipDeduplication: false,
-          logDuplicates: true,
-          throwOnDuplicate: false,
-        }
-      );
+      // ✅ STEP 4d: Check for duplicates before queuing
+      let emailResult;
+      try {
+        const shouldSend = await emailDeduplicator.checkAndMarkEmail(
+          mailOptions
+        );
 
-      // ✅ STEP 4e: Handle email sending results
+        if (shouldSend) {
+          // Not a duplicate, add to the queue
+          await addToEmailQueue(mailOptions, tenant);
+          emailResult = {
+            success: true,
+            message: "Email successfully queued for sending.",
+            duplicate: false,
+            data: {
+              accepted: [mailOptions.to],
+              rejected: [],
+              messageId: `queued_${new Date().getTime()}`,
+            },
+          };
+        } else {
+          // This is a duplicate, do not queue
+          const message = `Duplicate email prevented: ${mailOptions.to} - ${mailOptions.subject}`;
+          logger.info(message);
+          emailResult = {
+            success: false,
+            message: "Email not sent - duplicate detected",
+            duplicate: true,
+            data: null,
+          };
+        }
+      } catch (redisError) {
+        // If Redis fails, we "fail open" and queue the email anyway
+        logger.warn(
+          `Redis deduplication check failed, queuing email anyway: ${redisError.message}`,
+          {
+            email: mailOptions.to,
+            subject: mailOptions.subject,
+            redisError: redisError.message,
+          }
+        );
+        await addToEmailQueue(mailOptions, tenant);
+        emailResult = {
+          success: true,
+          message: "Email queued for sending (deduplication check failed).",
+          duplicate: false, // Assumed not a duplicate
+          data: {
+            accepted: [mailOptions.to],
+            rejected: [],
+            messageId: `queued_redis_fail_${new Date().getTime()}`,
+          },
+        };
+      }
+
+      // The rest of the logic now deals with the result of the *queuing* action,
+      // not the direct sending action. The background processor handles the actual sending.
+      if (!emailResult.success && !emailResult.duplicate) {
+        // This would happen if adding to the MongoDB queue itself failed.
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: "Failed to queue email for sending." }
+        );
+      }
+
+      // ✅ STEP 4e: Handle email queuing results
       if (!emailResult.success) {
         if (emailResult.duplicate) {
           return {
-            success: true,
+            success: true, // Return success to the caller, as preventing a duplicate is a success.
             message: `${functionName} email already sent recently - duplicate prevented`,
             data: {
               email,
@@ -312,7 +424,7 @@ const createMailerFunction = (
           };
         } else {
           const errorMessage =
-            emailResult.message || `${functionName} email sending failed`;
+            emailResult.message || `${functionName} email queuing failed`;
           logger.error(
             `${functionName} email failed for ${email}: ${errorMessage}`,
             {
@@ -328,7 +440,7 @@ const createMailerFunction = (
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: `Unable to send ${functionName} email at this time`,
+              message: `Unable to queue ${functionName} email at this time`,
               operation: functionName,
               emailResults: emailResult,
             }
@@ -348,7 +460,7 @@ const createMailerFunction = (
       if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
         return {
           success: true,
-          message: `${functionName} email successfully sent`,
+          message: `${functionName} email successfully queued`,
           data: {
             email,
             functionName,
@@ -1414,13 +1526,7 @@ const mailer = {
 
           // ✅ STEP 7: Send email with deduplication protection
           const emailResult = await sendMailWithDeduplication(
-            transporter,
-            mailOptions,
-            {
-              skipDeduplication: false, // Enable deduplication for report emails
-              logDuplicates: true, // Log duplicate attempts
-              throwOnDuplicate: false, // Handle duplicates gracefully
-            }
+            mailOptions // The wrapper will handle the rest
           );
 
           // ✅ STEP 8: Handle email sending results
