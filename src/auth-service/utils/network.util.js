@@ -7,6 +7,7 @@ const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
 const isEmpty = require("is-empty");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
@@ -151,15 +152,40 @@ const createNetwork = {
       const { tenant } = query;
       const { admin_secret } = body;
 
-      let modifiedBody = Object.assign({}, body);
+      // 1. Verify that the secret is configured on the server
+      if (!constants.ADMIN_SETUP_SECRET) {
+        logger.error(
+          "CRITICAL: ADMIN_SETUP_SECRET is not configured in environment variables."
+        );
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Admin secret not configured on server",
+            }
+          )
+        );
+      }
 
-      if (admin_secret !== constants.ADMIN_SETUP_SECRET) {
+      // 2. Perform a constant-time comparison to prevent timing attacks
+      const provided = Buffer.from(admin_secret || "");
+      const expected = Buffer.from(constants.ADMIN_SETUP_SECRET);
+
+      if (
+        provided.length !== expected.length ||
+        !crypto.timingSafeEqual(provided, expected)
+      ) {
         return next(
           new HttpError("Forbidden", httpStatus.FORBIDDEN, {
             message: "Invalid admin secret provided",
           })
         );
       }
+
+      // 3. Remove the secret from the body to prevent logging or persistence
+      let modifiedBody = Object.assign({}, body);
+      delete modifiedBody.admin_secret;
 
       const responseFromExtractNetworkName =
         createNetwork.extractOneAcronym(request);
