@@ -36,11 +36,7 @@ const EmailQueueModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-  try {
-    return mongoose.model("email_queues");
-  } catch (error) {
-    return getModelByTenant(dbTenant, "email_queue", EmailQueueSchema);
-  }
+  return getModelByTenant(dbTenant, "email_queue", EmailQueueSchema);
 };
 
 module.exports = EmailQueueModel;
