@@ -30,6 +30,7 @@ const imagePath = path.join(projectRoot, "config", "images");
  */
 const EMAIL_INTERVAL = 3000; // 3 seconds between each email send attempt
 let isProcessingQueue = false;
+let queueIntervalId = null;
 
 const addToEmailQueue = async (mailOptions, tenant = "airqo") => {
   try {
@@ -81,8 +82,24 @@ const processEmailQueue = async () => {
   }
 };
 
+const startEmailQueue = () => {
+  if (!queueIntervalId) {
+    queueIntervalId = setInterval(processEmailQueue, EMAIL_INTERVAL);
+    logger.info("Email queue processor started.");
+  }
+};
+
+const stopEmailQueue = () => {
+  if (queueIntervalId) {
+    clearInterval(queueIntervalId);
+    queueIntervalId = null;
+    logger.info("Email queue processor stopped.");
+  }
+};
+
 // Start the queue processor
 setInterval(processEmailQueue, EMAIL_INTERVAL);
+
 /** END: MongoDB-based Email Queue */
 
 let attachments = [

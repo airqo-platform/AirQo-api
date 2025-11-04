@@ -12,7 +12,7 @@ const EmailQueueSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "processing", "sent", "failed"],
+      enum: ["pending", "processing", "failed"],
       default: "pending",
       index: true,
     },
