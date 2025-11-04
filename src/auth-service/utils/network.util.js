@@ -147,18 +147,19 @@ const createNetwork = {
   },
   create: async (request, next) => {
     try {
-      return {
-        success: false,
-        message: "Service Temporarily Unavailable",
-        errors: {
-          message: "Service Temporarily Unavailable",
-        },
-        status: httpStatus.SERVICE_UNAVAILABLE,
-      };
       const { body, query } = request;
       const { tenant } = query;
+      const { admin_secret } = body;
 
       let modifiedBody = Object.assign({}, body);
+
+      if (admin_secret !== constants.ADMIN_SETUP_SECRET) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "Invalid admin secret provided",
+          })
+        );
+      }
 
       const responseFromExtractNetworkName =
         createNetwork.extractOneAcronym(request);
