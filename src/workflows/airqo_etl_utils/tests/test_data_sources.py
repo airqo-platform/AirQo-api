@@ -1,9 +1,11 @@
 import json
-import pytest
 from unittest.mock import patch, MagicMock
 
 import requests
+import urllib3
 from airqo_etl_utils.data_sources import DataSourcesApis
+from airqo_etl_utils.utils import Result
+from airqo_etl_utils.constants import DeviceNetwork
 
 
 class TestThingspeakMethod:
@@ -203,9 +205,10 @@ class TestIQAirMethod:
 
         expected_url = "https://api.example.com/iqair/ABC123"
         mock_get.assert_called_once_with(expected_url, timeout=10)
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]["pm25"]["conc"] == 21
+        assert isinstance(result, Result)
+        assert isinstance(result.data, list)
+        assert len(result.data) == 1
+        assert result.data[0]["pm25"]["conc"] == 21
 
     @patch("airqo_etl_utils.data_sources.configuration")
     @patch("requests.get")
@@ -233,9 +236,10 @@ class TestIQAirMethod:
 
         expected_url = "https://api.example.com/iqair/ABC123"
         mock_get.assert_called_once_with(expected_url, timeout=10)
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]["pm25"]["conc"] == 22
+        assert isinstance(result, Result)
+        assert isinstance(result.data, list)
+        assert len(result.data) == 1
+        assert result.data[0]["pm25"]["conc"] == 22
 
     @patch("airqo_etl_utils.data_sources.configuration")
     @patch("requests.get")
@@ -259,8 +263,9 @@ class TestIQAirMethod:
 
         expected_url = "https://api.example.com/iqair/ABC123"
         mock_get.assert_called_once_with(expected_url, timeout=10)
-        assert isinstance(result, dict)
-        assert result["pm25"]["conc"] == 23
+        assert isinstance(result, Result)
+        assert isinstance(result.data, dict)
+        assert result.data["pm25"]["conc"] == 23
 
     @patch("airqo_etl_utils.data_sources.configuration")
     @patch("requests.get")
@@ -274,7 +279,8 @@ class TestIQAirMethod:
 
         result = self.data_source.iqair(invalid_device, resolution="instant")
 
-        assert result is None
+        assert result.data is None
+        assert result.error == "An unexpected error occurred."
         mock_get.assert_not_called()
 
     @patch("airqo_etl_utils.data_sources.configuration")
@@ -290,7 +296,7 @@ class TestIQAirMethod:
 
         result = self.data_source.iqair(invalid_device, resolution="instant")
 
-        assert result is None
+        assert result.data is None
         mock_get.assert_not_called()
 
     @patch("airqo_etl_utils.data_sources.configuration")
@@ -305,7 +311,7 @@ class TestIQAirMethod:
 
         result = self.data_source.iqair(invalid_device, resolution="instant")
 
-        assert result is None
+        assert result.data is None
         mock_get.assert_not_called()
 
     @patch("airqo_etl_utils.data_sources.configuration")
@@ -319,7 +325,7 @@ class TestIQAirMethod:
 
         result = self.data_source.iqair(self.valid_device, resolution="instant")
 
-        assert result is None
+        assert result.data is None
         mock_get.assert_called_once()
 
     @patch("airqo_etl_utils.data_sources.configuration")
@@ -335,7 +341,7 @@ class TestIQAirMethod:
 
         result = self.data_source.iqair(self.valid_device, resolution="instant")
 
-        assert result is None
+        assert result.data is None
         mock_get.assert_called_once()
 
     @patch("airqo_etl_utils.data_sources.configuration")
@@ -349,7 +355,7 @@ class TestIQAirMethod:
 
         result = self.data_source.iqair(self.valid_device, resolution="instant")
 
-        assert result is None
+        assert result.data is None
         mock_get.assert_called_once()
 
     @patch("airqo_etl_utils.data_sources.configuration")
@@ -365,5 +371,152 @@ class TestIQAirMethod:
 
         result = self.data_source.iqair(self.valid_device, resolution="instant")
 
-        assert result is None
+        assert result.data is None
         mock_get.assert_called_once()
+
+
+class TestAirgradientMethod:
+    """Tests for the airgradient method of DataSourcesApis class."""
+
+    def setup_method(self):
+        """Setup for each test method."""
+        self.data_source = DataSourcesApis()
+        self.valid_device = {
+            "api_code": "https://api.example.com/airgradient",
+            "serial_number": "DEF456",
+            "device_id": "device_1",
+        }
+        self.params = {
+            "token": "test_token",
+            "from": "20251105000000Z",
+            "to": "20251106000000Z",
+        }
+        self.dates = [("2025-11-05T00:00:00Z", "2025-11-06T00:00:00Z")]
+        self.data = [
+            {
+                "locationId": 1000002992,
+                "locationName": "place1",
+                "locationType": "outdoor",
+                "latitude": 0.99912,
+                "longitude": -9.99222,
+                "pm01": 7,
+                "pm02": 14.6,
+                "pm10": 16.4,
+                "pm01_corrected": 7,
+                "pm02_corrected": 14.6,
+                "pm10_corrected": 16.4,
+                "pm003Count": 746,
+                "atmp": 22.4,
+                "rhum": 74.2,
+                "rco2": 405,
+                "atmp_corrected": 22.4,
+                "rhum_corrected": 74.2,
+                "rco2_corrected": 405,
+                "tvoc": "",
+                "wifi": -57,
+                "timestamp": "2025-11-05T00:57:28.000Z",
+                "serialno": "serialDEF456",
+                "model": "modelX",
+                "firmwareVersion": "",
+                "tvocIndex": 34376,
+                "noxIndex": 19078,
+                "measure0": 408.669,
+                "measure1": 394.544,
+                "measure2": 291.406,
+                "measure3": 295.181,
+                "measure4": 323.9,
+                "measure5": 0,
+                "measure6": 0,
+                "measure7": "",
+                "measure8": "",
+                "measure9": "",
+                "measure10": "",
+                "measure11": "",
+                "measure12": "",
+                "measure13": "",
+                "measure14": "",
+                "measure15": "",
+                "measure16": "",
+                "measure17": "",
+                "measure18": "",
+                "measure19": "",
+            },
+        ]
+
+    @patch("airqo_etl_utils.data_sources.DataApi")
+    @patch("airqo_etl_utils.data_sources.configuration")
+    def test_airgradient_success(self, mock_config, mock_api_data):
+        """Test successful data fetch from AirGradient API."""
+        # Configure mocks
+        mock_config.AIR_GRADIENT_API_KEY = "test_token"
+        mock_api_instance = MagicMock()
+        mock_api_instance._request.return_value = self.data
+        mock_api_data.return_value = mock_api_instance
+
+        result = self.data_source.air_gradient(self.valid_device, self.dates)
+
+        endpoint = (
+            mock_config.INTEGRATION_DETAILS.get(DeviceNetwork.AIRGRADIENT.str, {})
+            .get("endpoints", {})
+            .get("raw", "")
+            .lstrip("/")
+            .rstrip("/")
+        )
+        mock_api_instance._request.assert_called_once_with(
+            endpoint,
+            params=self.params,
+            base_url="https://api.example.com/airgradient/DEF456",
+            network=DeviceNetwork.AIRGRADIENT,
+        )
+        assert isinstance(result, Result)
+        assert isinstance(result.data, list)
+        assert len(result.data) == 1
+
+    @patch("airqo_etl_utils.data_sources.DataApi")
+    @patch("airqo_etl_utils.data_sources.configuration")
+    def test_airgradient_no_data(self, mock_config, mock_api_data):
+        """Test AirGradient API with no data returned."""
+        # Configure mocks
+        mock_config.AIR_GRADIENT_API_KEY = "test_token"
+        mock_api_instance = MagicMock()
+        mock_api_instance._request.return_value = []
+        mock_api_data.return_value = mock_api_instance
+
+        result = self.data_source.air_gradient(self.valid_device, self.dates)
+
+        assert isinstance(result, Result)
+        assert result.data == []
+        assert result.error == "No data retrieved."
+
+    @patch("airqo_etl_utils.data_sources.DataApi")
+    @patch("airqo_etl_utils.data_sources.configuration")
+    def test_airgradient_exception(self, mock_config, mock_api_data):
+        """Test AirGradient API with a generic exception."""
+        # Configure mocks
+        mock_config.AIR_GRADIENT_API_KEY = "test_token"
+        mock_api_instance = MagicMock()
+        mock_api_instance._request.side_effect = Exception("Unknown error")
+        mock_api_data.return_value = mock_api_instance
+
+        result = self.data_source.air_gradient(self.valid_device, self.dates)
+
+        assert isinstance(result, Result)
+        assert result.data is None
+        assert result.error == "An unexpected error occurred."
+
+    @patch("airqo_etl_utils.data_sources.DataApi")
+    @patch("airqo_etl_utils.data_sources.configuration")
+    def test_airgradient_empty_api_code(self, mock_config, mock_api_data):
+        """Test AirGradient API with empty API code in device."""
+        mock_config.AIR_GRADIENT_API_KEY = "test_token"
+        mock_api_instance = MagicMock()
+        invalid_device = {
+            "api_code": "",
+            "serial_number": "DEF456",
+            "device_id": "device_1",
+        }
+
+        result = self.data_source.air_gradient(invalid_device, self.dates)
+        assert result.data == []
+        assert result.error == "Invalid api code for device: device_1"
+        mock_api_instance.assert_not_called()
