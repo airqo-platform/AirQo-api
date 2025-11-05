@@ -8,7 +8,17 @@ from http.client import HTTPResponse
 import simplejson
 
 import requests
-from typing import Any, Dict, Tuple, Coroutine, Optional
+from typing import (
+    Any,
+    Dict,
+    Tuple,
+    Coroutine,
+    Optional,
+    Generic,
+    TypeVar,
+    Union,
+)
+from dataclasses import dataclass
 from cryptography.fernet import Fernet
 
 from .constants import (
@@ -26,6 +36,22 @@ import logging
 logger = logging.getLogger("airflow.task")
 
 AsyncTask = Coroutine[Any, Any, Any]
+
+T = TypeVar("T")
+
+
+@dataclass
+class Result(Generic[T]):
+    """
+    Represents the result of an operation, which may contain data or an error message.
+
+    Attributes:
+        data (Optional[T]): The result data. This will be None if the operation failed or no data is available.
+        error (Optional[str]): An error message if the operation failed; otherwise, None.
+    """
+
+    data: Optional[T] = None
+    error: Optional[str] = None
 
 
 class Utils:
@@ -169,7 +195,15 @@ class Utils:
             list: A list of tuples, where each tuple contains the start and end date (as strings) for each time range within the specified period.
         """
         freq = Utils.query_frequency(data_source)
-        dates = pd.date_range(start_date_time, end_date_time, freq=freq)
+        try:
+            start_dt = pd.to_datetime(start_date_time)
+            end_dt = pd.to_datetime(end_date_time)
+        except Exception as e:
+            raise ValueError(
+                f"Invalid date format for start_date_time or end_date_time: {e}. "
+                "Expected ISO 8601 or pandas-recognized date string."
+            )
+        dates = pd.date_range(start_dt, end_dt, freq=freq)
         frequency = dates.freq
 
         if dates.values.size == 1:

@@ -1,8 +1,6 @@
-import logging
 import os
-from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
-
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core import exceptions as google_api_exceptions
@@ -14,10 +12,10 @@ from .constants import (
     DeviceNetwork,
     QueryType,
     MetaDataType,
-    Frequency,
 )
 from .date import date_to_str
 from .utils import Utils
+import logging
 
 logger = logging.getLogger("airflow.task")
 
@@ -387,7 +385,7 @@ class BigQueryApi:
             self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
         )
 
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data = pd.concat([dataframe, available_data], ignore_index=True)
         up_to_date_data.drop_duplicates(
             subset=["grid_id", "site_id"], inplace=True, keep="first"
         )
@@ -495,6 +493,7 @@ class BigQueryApi:
                 )
             dataframe = pd.concat([data_not_for_updating, dataframe], ignore_index=True)
 
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         self.load_data(dataframe=dataframe, table=table, job_action=JobAction.OVERWRITE)
 
     def update_dynamic_metadata_fields(

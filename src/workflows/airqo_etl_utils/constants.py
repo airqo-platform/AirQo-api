@@ -54,7 +54,8 @@ class DeviceNetwork(IntEnum):
     PLUMELABS = 8
     TAHMO = 9
     PURPLEAIR = 10
-    NONE = 11
+    AIRGRADIENT = 11
+    NONE = 12
 
     def __str__(self) -> str:
         return self.name.lower()
