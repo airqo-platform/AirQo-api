@@ -1,14 +1,13 @@
-import os
 from datetime import datetime
-
 from typing import Any, Dict, List, Union, Tuple, Optional
-
 import json
 import requests
-
+from urllib.parse import quote
 import pandas as pd
 
-from .utils import Utils
+from .constants import DeviceNetwork
+from .utils import Utils, Result
+from .data_api import DataApi
 from .config import configuration
 import logging
 
@@ -77,7 +76,7 @@ class DataSourcesApis:
 
     def iqair(
         self, device: Dict[str, Any], resolution: str = "instant"
-    ) -> Union[List, Dict]:
+    ) -> Result[List[Dict[str, Any]]]:
         """
         Retrieve data from the IQAir API for a specific device and resolution.
 
@@ -93,7 +92,9 @@ class DataSourcesApis:
                 - "monthly": Monthly aggregated data.
 
         Returns:
-            Union[List, Dict]: A list or dictionary containing the retrieved data, or `None` in case of errors or no data.
+            Result[List[Dict[str, Any]], None]:
+                - A list of dictionaries containing the device data wrapped in a Result.
+                - The Result object may contain `None` as its value if no valid data is found or an error occurs.
 
         Raises:
             ValueError: If an invalid resolution is provided or if the response data is invalid or malformed.
@@ -134,13 +135,85 @@ class DataSourcesApis:
                 else:
                     historical_data = response_data.get("historical", {})
                     data = historical_data.get(resolution, [])
+                return Result(data=data, error=None if data else "No data retrieved.")
         except requests.exceptions.RequestException as req_err:
             logger.error(f"Request error while fetching IQAir data: {req_err}")
         except ValueError as val_err:
             logger.error(f"Value error: {val_err}")
         except Exception as ex:
             logger.exception(f"An unexpected error occurred: {ex}")
-        return data
+        return Result(data=None, error="An unexpected error occurred.")
+
+    def air_gradient(
+        self, device: Dict[str, Any], dates: List[Tuple[str, str]]
+    ) -> Result[List[Dict[str, Any]]]:
+        """
+        Fetch data from the Air Gradient API for a specific device.
+
+        Args:
+            device (Dict[str, Any]): A dictionary containing device details, such as:
+                - api_code (str): The base URL or endpoint for the API.
+                - serial_number (str): The unique identifier for the device.
+
+        Returns:
+            Result[List[Dict[str, Any]], None]:
+                - A list of dictionaries containing the device data wrapped in a Result.
+                - The Result object may contain `None` as its value if no valid data is found or an error occurs.
+        """
+        params = {
+            "token": quote(configuration.AIR_GRADIENT_API_KEY, safe="-"),
+        }
+
+        integration = configuration.INTEGRATION_DETAILS.get(
+            DeviceNetwork.AIRGRADIENT.str
+        )
+        data_api = DataApi()
+        data: List[Dict[str, Any]] = []
+        try:
+            for start, end in dates:
+                params.update(
+                    {
+                        "from": datetime.strptime(start, "%Y-%m-%dT%H:%M:%SZ").strftime(
+                            "%Y%m%d%H%M%SZ"
+                        ),
+                        "to": datetime.strptime(end, "%Y-%m-%dT%H:%M:%SZ").strftime(
+                            "%Y%m%d%H%M%SZ"
+                        ),
+                    }
+                )
+
+                base_url = device.get("api_code", "").rstrip("/")
+                device_identifier = device.get("serial_number")
+                end_point = (
+                    integration.get("endpoints", {})
+                    .get("raw", "")
+                    .lstrip("/")
+                    .rstrip("/")
+                )
+
+                if base_url and device_identifier and not pd.isna(base_url):
+                    url = f"{base_url}/{device_identifier}"
+                    api_data = data_api._request(
+                        end_point,
+                        params=params,
+                        base_url=url,
+                        network=DeviceNetwork.AIRGRADIENT,
+                    )
+                    if api_data is not None:
+                        data.extend(api_data)
+                else:
+                    logger.warning(
+                        f"Invalid base URL or device identifier for device: {device.get('device_id', 'unknown')}"
+                    )
+                    return Result(
+                        data=data,
+                        error=f"Invalid api code for device: {device.get('device_id', 'unknown')}",
+                    )
+
+            return Result(data=data, error=None if data else "No data retrieved.")
+        except Exception as ex:
+            logger.exception(f"An unexpected error occurred: {ex}")
+            return Result(data=None, error="An unexpected error occurred.")
 
     def nomads(self) -> str:
         """
