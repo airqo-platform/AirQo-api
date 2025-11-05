@@ -651,13 +651,7 @@ router.post(
 
 router.put("/", userValidations.updateUser, userController.update);
 
-router.put(
-  "/:user_id",
-  enhancedJWTAuth,
-  // requirePermissions([constants.USER_EDIT]),
-  userValidations.updateUserById,
-  userController.update
-);
+router.put("/:user_id", userValidations.updateUserById, userController.update);
 
 router.delete(
   "/",
