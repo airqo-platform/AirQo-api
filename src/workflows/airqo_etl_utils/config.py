@@ -121,6 +121,10 @@ class Config:
     GOOGLE_CLOUD_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT_ID")
     AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
 
+    # AirGradient
+    AIR_GRADIENT_API_KEY = os.getenv("AIR_GRADIENT_API_KEY")
+    AIR_GRADIENT_BASE_URL = os.getenv("AIR_GRADIENT_BASE_URL")
+
     # Tahmo
     TAHMO_BASE_URL = os.getenv("TAHMO_API_BASE_URL")
     TAHMO_API_MAX_PERIOD = os.getenv("TAHMO_API_MAX_PERIOD")
@@ -222,6 +226,12 @@ class Config:
             "auth": {"appid": OPENWEATHER_API_KEY},
             "endpoints": {},
         },
+        "airgradient": {
+            "url": AIR_GRADIENT_BASE_URL,
+            "headers": {"accept": "application/json"},
+            "secret": {"token": AIR_GRADIENT_API_KEY},
+            "endpoints": {"raw": "measures/raw"},
+        },
     }
 
     # ---------------------------------------------------------------------
@@ -296,6 +306,30 @@ class Config:
         },
     }
 
+    # Firebase CSV Field Mapping
+    AIRQO_LOW_COST_CSV_FIELD_MAPPING = {
+        "created_at:UTC": "timestamp",
+        "DevName": "device_name",
+        "PM1_1_ATM": "pm1_1",
+        "PM1_2_ATM": "pm1_2",
+        "5_1_ATM": "pm2_5_1",
+        "PM2.5_2_ATM": "pm2_5_2",
+        "PM10_1_ATM": "pm10_1",
+        "PM10_2_ATM": "pm10_2",
+        "VBat": "battery_voltage",
+        "latitude": "latitude",
+        "Longitude": "longitude",
+        "Altitude": "altitude",
+        "Velocity": "velocity",
+        "no.Sats": "satellites",
+        "HDOP": "hdop",
+        "Temp INT": "intaketemperature",
+        "Humidity INT": "intakehumidity",
+        "Temp Ext": "temperature",
+        "Humidity Ext": "humidity",
+        "Pressure Ext": "pressure",
+    }
+
     AIRQO_LOW_COST_FIELD_MAPPING = {
         "field1": "s1_pm2_5",
         "field2": "s1_pm10",
@@ -339,6 +373,27 @@ class Config:
         "hm": "humidity",
         "tp": "temperature",
         "ts": "timestamp",
+    }
+
+    AIR_GRADIENT_LOW_COST_FIELD_MAPPING = {
+        "pm01": "pm1",
+        "pm02": "pm2_5",
+        "pm10": "pm10",
+        "pm01_corrected": "pm1_calibrated_value",
+        "pm02_corrected": "pm2_5_calibrated_value",
+        "pm10_corrected": "pm10_calibrated_value",
+        "atmp": "atmospheric_temperature",
+        "rhum": "relative_humidity",
+        "rco2": "relative_co2",
+        "atmp_corrected": "temperature",
+        "rhum_corrected": "humidity",
+        "rco2_corrected": "co2",
+        "tvoc": "tvoc_",
+        "tvocIndex": "tvov",
+        "noxIndex": "no",
+        "timestamp": "timestamp",
+        "longitude": "longitude",
+        "latitude": "latitude",
     }
 
     AIRBEAM_BAM_FIELD_MAPPING = {"pm2.5": "pm2_5", "pm10": "pm10", "no2": "no2"}
@@ -430,6 +485,7 @@ class Config:
             "mapping": {
                 "airqo": AIRQO_LOW_COST_FIELD_MAPPING,
                 "iqair": IQAIR_LOW_COST_FIELD_MAPPING,
+                "airgradient": AIR_GRADIENT_LOW_COST_FIELD_MAPPING,
             },
             "other_fields_cols": [
                 "s1_pm2_5",
