@@ -494,7 +494,6 @@ class BigQueryApi:
                 )
             dataframe = pd.concat([data_not_for_updating, dataframe], ignore_index=True)
 
-        dataframe["last_updated"] = datetime.now(timezone.utc)
         self.load_data(dataframe=dataframe, table=table, job_action=JobAction.OVERWRITE)
 
     def update_dynamic_metadata_fields(
