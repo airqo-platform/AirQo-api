@@ -148,7 +148,7 @@ class MetaDataUtils:
             data_type.str, None
         )
 
-        metadata_method: Dict[str, Callable[[], Any]] = {
+        metadata_method: Dict[MetaDataType, Callable[[], Any]] = {
             MetaDataType.DEVICES: lambda: self.extract_devices(preferred_source="api"),
             MetaDataType.SITES: lambda: self.extract_sites(preferred_source="api"),
         }
@@ -162,18 +162,18 @@ class MetaDataUtils:
             if pollutants
             else None
         )
-        recent_readings = DataUtils.extract_most_recent_metadata_record(
-            MetaDataType.DEVICES,
-            "device_id",
-            "next_offset_date",
-            filter={"pollutant": pollutants_},
-        )
+        # recent_readings = DataUtils.extract_most_recent_metadata_record(
+        #     MetaDataType.DEVICES,
+        #     "device_id",
+        #     "next_offset_date",
+        #     filter={"pollutant": pollutants_},
+        # )
 
-        if exclude_column:
-            recent_readings.drop(
-                columns=[exclude_column], inplace=True, errors="ignore"
-            )
-        entities = pd.merge(entities, recent_readings, how="left", on=unique_id)
+        # if exclude_column:
+        #     recent_readings.drop(
+        #         columns=[exclude_column], inplace=True, errors="ignore"
+        #     )
+        # entities = pd.merge(entities, recent_readings, how="left", on=unique_id)
         entities.fillna(np.nan, inplace=True)
 
         # Compute additional metadata

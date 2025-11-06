@@ -457,6 +457,7 @@ class BigQueryApi:
         Raises:
             Exception: If an invalid component is provided.
         """
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
         unique_ids = {

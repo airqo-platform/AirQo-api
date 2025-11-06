@@ -25,7 +25,7 @@ from airqo_etl_utils.commons import upload_dataframe_to_gcs
 
 @dag(
     "Update-BigQuery-Sites-AirQlouds-And-Devices",
-    schedule="*/15 * * * *",
+    schedule="*/45 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["hourly", "sites", "devices", "airqlouds"],
@@ -94,7 +94,7 @@ def update_big_query_airqlouds_sites_and_devices():
 
 @dag(
     "Update-BigQuery-Sites-Grids-And-Devices",
-    schedule="*/15 * * * *",
+    schedule="*/45 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["hourly", "sites", "devices", "grids"],

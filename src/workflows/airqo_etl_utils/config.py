@@ -296,6 +296,30 @@ class Config:
         },
     }
 
+    # Firebase CSV Field Mapping
+    AIRQO_LOW_COST_CSV_FIELD_MAPPING = {
+        "created_at:UTC": "timestamp",
+        "DevName": "device_id",
+        "PM1_1_ATM": "s1_pm1",
+        "PM1_2_ATM": "s2_pm1",
+        "5_1_ATM": "s1_pm2_5",
+        "PM2.5_2_ATM": "s2_pm2_5",
+        "PM10_1_ATM": "s1_pm10",
+        "PM10_2_ATM": "s2_pm10",
+        "VBat": "battery",
+        "latitude": "latitude",
+        "Longitude": "longitude",
+        "Altitude": "altitude",
+        "Velocity": "wind_speed",
+        "no.Sats": "satellites",
+        "HDDP": "hdop",
+        "Temp INT": "device_temperature",
+        "Humidity INT": "device_humidity",
+        "Temp Ext": "temperature",
+        "Humidity Ext": "humidity",
+        "Pressure Ext": "vapor_pressure",
+    }
+
     AIRQO_LOW_COST_FIELD_MAPPING = {
         "field1": "s1_pm2_5",
         "field2": "s1_pm10",
