@@ -1334,8 +1334,11 @@ async function fetchData(model, filter) {
                           then: {
                             raw: "$latest_pm2_5.raw",
                           },
-                          // Otherwise, return the full object.
-                          else: "$latest_pm2_5",
+                          // Otherwise, explicitly reconstruct the object to ensure consistency.
+                          else: {
+                            raw: "$latest_pm2_5.raw",
+                            calibrated: "$latest_pm2_5.calibrated",
+                          },
                         },
                       },
                     },
