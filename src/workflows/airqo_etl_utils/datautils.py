@@ -732,18 +732,26 @@ class DataUtils:
             if api_data:
                 mapping = config["mapping"][network]
                 return DataUtils.map_and_extract_data(mapping, api_data), meta_data
-        elif network == DeviceNetwork.IQAIR.str:
-            mapping = config["mapping"][network]
+        else:
             try:
-                iqair_data = data_source_api.iqair(device, resolution=resolution)
-                if iqair_data:
-                    data = DataUtils.map_and_extract_data(mapping, iqair_data)
-                    return data, {}
+                match network:
+                    case DeviceNetwork.IQAIR.str:
+                        mapping = config["mapping"][network]
+                        result = data_source_api.iqair(device, resolution=resolution)
+                    case DeviceNetwork.AIRGRADIENT.str:
+                        mapping = config["mapping"][network]
+                        result = data_source_api.air_gradient(device, dates)
+
+                if result.data:
+                    return DataUtils.map_and_extract_data(mapping, result.data), {}
+                else:
+                    logger.info(
+                        f"No data returned from {device.get('device_id')} for the given date range"
+                    )
             except Exception as e:
                 logger.exception(
                     f"An error occurred: {e} - device {device.get('name')}"
                 )
-                return pd.DataFrame(), {}
         return pd.DataFrame(), {}
 
     @staticmethod
@@ -1610,10 +1618,12 @@ class DataUtils:
 
         # Perform data quality checks on separate thread.
         if frequency and frequency == Frequency.HOURLY:
-            data_ = data[data["network"] == DeviceNetwork.AIRQO.str]
             # Pass copy as pandas does not guarantee returned data to be a view or copy
             DataUtils.execute_data_quality_checks(
-                device_category, data_type, data_.copy(), frequency
+                device_category,
+                data_type,
+                data[data["network"] == DeviceNetwork.AIRQO.str].copy(),
+                frequency,
             )
 
         try:

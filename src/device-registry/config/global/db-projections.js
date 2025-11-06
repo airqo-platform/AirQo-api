@@ -1159,7 +1159,6 @@ class ProjectionFactory {
             nextMaintenance: 0,
             deployment_date: 0,
             name_id: 0,
-            writeKey: 0,
             recall_date: 0,
             maintenance_date: 0,
             access_code: 0,
