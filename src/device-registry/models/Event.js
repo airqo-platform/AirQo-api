@@ -1313,25 +1313,31 @@ async function fetchData(model, filter) {
                   latest_pm2_5: {
                     $cond: {
                       if: {
-                        // Check if calibrated value is null or does not exist
-                        $or: [
-                          { $eq: ["$latest_pm2_5.calibrated.value", null] },
-                          {
-                            $not: {
-                              $ifNull: [
-                                "$latest_pm2_5.calibrated.value",
-                                false,
-                              ],
-                            },
-                          },
+                        // First, check if the raw value is null or missing.
+                        $in: [
+                          { $type: "$latest_pm2_5.raw.value" },
+                          ["missing", "null"],
                         ],
                       },
-                      // If null, return an object with only the 'raw' field
-                      then: {
-                        raw: "$latest_pm2_5.raw",
+                      // If raw value is invalid, the entire object is null.
+                      then: null,
+                      // If raw value is valid, then check the calibrated value.
+                      else: {
+                        $cond: {
+                          if: {
+                            $in: [
+                              { $type: "$latest_pm2_5.calibrated.value" },
+                              ["missing", "null"],
+                            ],
+                          },
+                          // If calibrated is invalid, return only raw.
+                          then: {
+                            raw: "$latest_pm2_5.raw",
+                          },
+                          // Otherwise, return the full object.
+                          else: "$latest_pm2_5",
+                        },
                       },
-                      // Otherwise, return the original object
-                      else: "$latest_pm2_5",
                     },
                   },
                 },
