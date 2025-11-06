@@ -989,14 +989,16 @@ class OnlineStatusProcessor {
         .tz(TIMEZONE)
         .toDate();
 
-      // Prepare the pm2_5 object with calibrated value
-      const pm2_5_calibrated = doc.pm2_5
-        ? {
-            value: doc.pm2_5.calibratedValue,
-            uncertainty: doc.pm2_5.uncertaintyValue,
-            standardDeviation: doc.pm2_5.standardDeviationValue,
-          }
-        : null;
+      // Safely prepare the pm2_5 object with calibrated value.
+      // This handles cases where doc.pm2_5 or its properties might be null/undefined.
+      const pm2_5_calibrated =
+        doc.pm2_5 && doc.pm2_5.value != null
+          ? {
+              value: doc.pm2_5.value,
+              uncertainty: doc.pm2_5.uncertaintyValue || null,
+              standardDeviation: doc.pm2_5.standardDeviationValue || null,
+            }
+          : null;
 
       if (doc.site_id) {
         this.siteUpdates.push({
