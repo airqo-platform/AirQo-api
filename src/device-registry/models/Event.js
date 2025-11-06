@@ -1301,10 +1301,42 @@ async function fetchData(model, filter) {
       pipeline = pipeline.append([
         {
           $lookup: {
-            from: "devices",
+            from: "devices", // The collection to join
             localField: "device_id",
             foreignField: "_id",
-            as: "device_details",
+            as: "device_details", // The output array field
+            pipeline: [
+              // This sub-pipeline runs on the 'devices' collection
+              {
+                $addFields: {
+                  // Overwrite the latest_pm2_5 field
+                  latest_pm2_5: {
+                    $cond: {
+                      if: {
+                        // Check if calibrated value is null or does not exist
+                        $or: [
+                          { $eq: ["$latest_pm2_5.calibrated.value", null] },
+                          {
+                            $not: {
+                              $ifNull: [
+                                "$latest_pm2_5.calibrated.value",
+                                false,
+                              ],
+                            },
+                          },
+                        ],
+                      },
+                      // If null, return an object with only the 'raw' field
+                      then: {
+                        raw: "$latest_pm2_5.raw",
+                      },
+                      // Otherwise, return the original object
+                      else: "$latest_pm2_5",
+                    },
+                  },
+                },
+              },
+            ],
           },
         },
       ]);
