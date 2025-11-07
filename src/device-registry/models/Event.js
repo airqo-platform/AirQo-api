@@ -1308,34 +1308,8 @@ async function fetchData(model, filter) {
             pipeline: [
               // This sub-pipeline runs on the 'devices' collection
               {
-                $addFields: {
-                  // Overwrite the latest_pm2_5 field
-                  latest_pm2_5: {
-                    $cond: {
-                      if: {
-                        // First, check if the raw value is null or missing.
-                        $in: [
-                          { $type: "$latest_pm2_5.raw.value" },
-                          ["missing", "null"],
-                        ],
-                      },
-                      // If raw value is invalid, the entire object is null.
-                      then: null,
-                      // If raw value is valid, then check the calibrated value.
-                      else: {
-                        $cond: {
-                          if: {
-                            $ifNull: ["$latest_pm2_5.calibrated.value", false],
-                          },
-                          // If calibrated.value is not null/missing, return both raw and calibrated
-                          then: "$latest_pm2_5",
-                          // Otherwise (calibrated.value is null/missing), return only raw
-                          else: { raw: "$latest_pm2_5.raw" },
-                        },
-                      },
-                    },
-                  },
-                },
+                // Manually remove the 'calibrated' field from the latest_pm2_5 object
+                $unset: "latest_pm2_5.calibrated",
               },
             ],
           },
