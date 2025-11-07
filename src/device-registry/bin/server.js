@@ -175,6 +175,7 @@ require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
+require("@bin/jobs/refresh-grids-job");
 
 // Defensively load precompute activities job
 // Default behavior: ENABLED (runs unless explicitly disabled)
