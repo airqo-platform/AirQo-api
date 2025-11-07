@@ -1077,7 +1077,7 @@ module.exports = {
   },
   accountDeletionConfirmation: ({ firstName, email, token, tenant }) => {
     const name = firstName;
-    const url = `${constants.ANALYTICS_BASE_URL}/users/delete/confirm/${token}?tenant=${tenant}`;
+    const url = `${constants.ANALYTICS_BASE_URL}/user/delete/confirm/${token}?tenant=${tenant}`;
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
