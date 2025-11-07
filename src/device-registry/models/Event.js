@@ -1325,20 +1325,12 @@ async function fetchData(model, filter) {
                       else: {
                         $cond: {
                           if: {
-                            $in: [
-                              { $type: "$latest_pm2_5.calibrated.value" },
-                              ["missing", "null"],
-                            ],
+                            $ifNull: ["$latest_pm2_5.calibrated.value", false],
                           },
-                          // If calibrated is invalid, return only raw.
-                          then: {
-                            raw: "$latest_pm2_5.raw",
-                          },
-                          // Otherwise, explicitly reconstruct the object to ensure consistency.
-                          else: {
-                            raw: "$latest_pm2_5.raw",
-                            calibrated: "$latest_pm2_5.calibrated",
-                          },
+                          // If calibrated.value is not null/missing, return both raw and calibrated
+                          then: "$latest_pm2_5",
+                          // Otherwise (calibrated.value is null/missing), return only raw
+                          else: { raw: "$latest_pm2_5.raw" },
                         },
                       },
                     },
