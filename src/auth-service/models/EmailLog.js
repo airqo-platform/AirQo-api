@@ -54,9 +54,21 @@ EmailLogSchema.statics = {
         };
       }
 
-      const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
       const now = new Date();
-      const cooldownDate = new Date(now.getTime() - cooldownMs);
+      let cooldownDate;
+      let cooldownMs;
+
+      if (emailType === "expiringToken" || emailType === "compromisedToken") {
+        // For expiring tokens, check if an email was sent *today* (EAT timezone)
+        const moment = require("moment-timezone");
+        const todayEAT = moment().tz("Africa/Nairobi").startOf("day");
+        cooldownDate = todayEAT.toDate();
+        cooldownMs = now.getTime() - cooldownDate.getTime();
+      } else {
+        // For other security emails, use the standard cooldown period
+        cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+        cooldownDate = new Date(now.getTime() - cooldownMs);
+      }
 
       const lastLog = await this.findOne({
         email: email.toLowerCase().trim(),
@@ -67,14 +79,19 @@ EmailLogSchema.statics = {
         .lean();
 
       if (lastLog) {
-        const timeSinceLastEmail = now - new Date(lastLog.lastSentAt);
-        const daysRemaining = Math.ceil(
-          (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000)
-        );
+        let daysRemaining = 0;
+        if (emailType !== "expiringToken" && emailType !== "compromisedToken") {
+          const timeSinceLastEmail = now - new Date(lastLog.lastSentAt);
+          daysRemaining = Math.ceil(
+            (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000)
+          );
+        }
 
         return {
           canSend: false,
-          reason: "cooldown_active",
+          reason: ["expiringToken", "compromisedToken"].includes(emailType)
+            ? "daily_limit_reached"
+            : "cooldown_active",
           lastSentAt: lastLog.lastSentAt,
           daysRemaining,
           nextAvailableDate: new Date(
