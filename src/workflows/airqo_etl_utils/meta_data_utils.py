@@ -343,7 +343,6 @@ class MetaDataUtils:
             for grid in grids
         ]
         grids = pd.DataFrame(grids)
-        grids["last_updated"] = datetime.now(timezone.utc)
         return grids
 
     @staticmethod
