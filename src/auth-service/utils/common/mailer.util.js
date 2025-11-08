@@ -28,7 +28,7 @@ const imagePath = path.join(projectRoot, "config", "images");
 /**
  * START: MongoDB-based Email Queue for Throttling
  */
-const EMAIL_INTERVAL = 3000; // 3 seconds between each email send attempt
+const EMAIL_INTERVAL = constants.EMAIL_QUEUE_INTERVAL_MS || 3000; // 3 seconds between each email send attempt (configurable)
 let isProcessingQueue = false;
 let queueIntervalId = null;
 
@@ -36,7 +36,7 @@ const addToEmailQueue = async (mailOptions, tenant = "airqo") => {
   try {
     const EmailQueue = EmailQueueModel(tenant);
     await new EmailQueue({ mailOptions }).save();
-    // The background processor will pick this up.
+    // The background processor will pick this up
     return { success: true, message: "Email queued successfully." };
   } catch (error) {
     logger.error(`Failed to add email to queue: ${error.message}`);
@@ -53,23 +53,34 @@ const processEmailQueue = async () => {
   isProcessingQueue = true;
 
   try {
-    const tenant = constants.DEFAULT_TENANT || "airqo";
-    const EmailQueue = EmailQueueModel(tenant);
+    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+    const EmailQueueForFinding = EmailQueueModel(defaultTenant);
 
-    const emailJob = await EmailQueue.findOneAndUpdate(
+    // Reset stale "processing" jobs
+    const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
+    await EmailQueueForFinding.updateMany(
+      { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
+      { $set: { status: "pending" } }
+    );
+
+    const emailJob = await EmailQueueForFinding.findOneAndUpdate(
       { status: "pending" },
       { $set: { status: "processing", lastAttemptAt: new Date() } },
       { sort: { createdAt: 1 } }
     );
 
     if (emailJob) {
+      // Use the tenant from the job to get the correct model for deletion
+      const tenant = emailJob.tenant || defaultTenant;
+      const EmailQueueForDeleting = EmailQueueModel(tenant);
+
       try {
         await transporter.sendMail(emailJob.mailOptions);
-        await EmailQueue.findByIdAndDelete(emailJob._id);
+        await EmailQueueForDeleting.findByIdAndDelete(emailJob._id);
         logger.info(`Email sent successfully to: ${emailJob.mailOptions.to}`);
       } catch (error) {
         logger.error(`Failed to send email from queue: ${error.message}`);
-        await EmailQueue.findByIdAndUpdate(emailJob._id, {
+        await EmailQueueForDeleting.findByIdAndUpdate(emailJob._id, {
           $set: { status: "failed", errorMessage: error.message },
           $inc: { attempts: 1 },
         });
@@ -368,7 +379,14 @@ const createMailerFunction = (
 
         if (shouldSend) {
           // Not a duplicate, add to the queue
-          await addToEmailQueue(mailOptions, tenant);
+          const queueResult = await addToEmailQueue(mailOptions, tenant);
+          if (!queueResult.success) {
+            throw new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: queueResult.error || "Failed to queue email." }
+            );
+          }
           emailResult = {
             success: true,
             message: "Email successfully queued for sending.",
@@ -400,7 +418,14 @@ const createMailerFunction = (
             redisError: redisError.message,
           }
         );
-        await addToEmailQueue(mailOptions, tenant);
+        const queueResult = await addToEmailQueue(mailOptions, tenant);
+        if (!queueResult.success) {
+          throw new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: queueResult.error || "Failed to queue email." }
+          );
+        }
         emailResult = {
           success: true,
           message: "Email queued for sending (deduplication check failed).",

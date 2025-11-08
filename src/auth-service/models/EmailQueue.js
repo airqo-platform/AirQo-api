@@ -16,6 +16,12 @@ const EmailQueueSchema = new mongoose.Schema(
       default: "pending",
       index: true,
     },
+    tenant: {
+      type: String,
+      required: true,
+      default: "airqo",
+      index: true,
+    },
     attempts: {
       type: Number,
       default: 0,
