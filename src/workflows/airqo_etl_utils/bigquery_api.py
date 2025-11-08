@@ -1,8 +1,6 @@
-import logging
 import os
-from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
-
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core import exceptions as google_api_exceptions
@@ -14,10 +12,10 @@ from .constants import (
     DeviceNetwork,
     QueryType,
     MetaDataType,
-    Frequency,
 )
 from .date import date_to_str
 from .utils import Utils
+import logging
 
 logger = logging.getLogger("airflow.task")
 
@@ -387,7 +385,7 @@ class BigQueryApi:
             self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
         )
 
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data = pd.concat([dataframe, available_data], ignore_index=True)
         up_to_date_data.drop_duplicates(
             subset=["grid_id", "site_id"], inplace=True, keep="first"
         )
@@ -457,6 +455,7 @@ class BigQueryApi:
         Raises:
             Exception: If an invalid component is provided.
         """
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
         unique_ids = {

@@ -1,4 +1,13 @@
-from typing import List, Dict, Any, Generator, Tuple, Optional
+from typing import (
+    List,
+    Dict,
+    Any,
+    Generator,
+    Tuple,
+    Optional,
+    Union,
+)
+from dataclasses import dataclass
 import pandas as pd
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -131,8 +140,7 @@ class DataApi:
         return []
 
     def get_devices(
-        self,
-        params: Dict[str, Any] = {},
+        self, params: Optional[Dict[str, Any]] = {}
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices given a network and device category.
@@ -1079,7 +1087,7 @@ class DataApi:
         method: Optional[str] = "get",
         base_url: Optional[str] = None,
         network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
-    ):
+    ) -> Union[Dict[str, Any], List, None]:
         """
         Executes API request and returns the response.
 
@@ -1123,6 +1131,7 @@ class DataApi:
 
         url = f"{base_url}/{endpoint}"
         try:
+
             if method == "put" or method == "post":
                 headers["Content-Type"] = "application/json"
                 encoded_args = urlencode(params)

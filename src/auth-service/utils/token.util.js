@@ -8,6 +8,7 @@ const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
 const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
+const EmailLogModel = require("@models/EmailLog");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 const accessCodeGenerator = require("generate-password");
@@ -331,53 +332,42 @@ const isIPBlacklistedHelper = async (
       logger.info(
         `🚨🚨 An AirQo API Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
       );
-      try {
-        // Define the cooldown period (matching the mailer config)
-        const cooldownDays = constants.COMPROMISED_TOKEN_COOLDOWN_DAYS;
-        const cooldownDate = moment
-          .tz(constants.TIMEZONE)
-          .subtract(cooldownDays, "days")
-          .toDate();
 
-        // Atomically find and update the token if it's eligible for a new alert
-        const updatedToken = await AccessTokenModel("airqo").findOneAndUpdate(
-          {
-            token,
-            $or: [
-              { compromisedTokenEmailSentAt: null },
-              { compromisedTokenEmailSentAt: { $lt: cooldownDate } },
-            ],
-          },
-          { $set: { compromisedTokenEmailSentAt: new Date() } },
-          { new: false } // Return the original document before the update
+      try {
+        const filter = { token };
+        const listTokenResponse = await AccessTokenModel("airqo").list(
+          { filter },
+          next
         );
 
-        // Only send the email if this instance "won the race" to update the timestamp
-        if (updatedToken) {
-          const filter = { token };
-          const listTokenResponse = await AccessTokenModel("airqo").list(
-            { filter },
-            next
-          );
-          if (
-            listTokenResponse.success &&
-            listTokenResponse.data.length === 1
-          ) {
-            const {
-              user: { email, firstName, lastName },
-            } = listTokenResponse.data[0];
+        if (listTokenResponse.success && listTokenResponse.data.length === 1) {
+          const {
+            user: { email, firstName, lastName },
+          } = listTokenResponse.data[0];
 
+          const canSend = await EmailLogModel("airqo").canSendEmail({
+            email,
+            emailType: "compromisedToken",
+            ip: ip,
+          });
+
+          if (canSend.canSend) {
             logger.info(
-              `Sending compromised token alert to ${email} for IP ${ip}. Next alert possible after ${cooldownDays} days.`
+              `Sending compromised token alert to ${email} for IP ${ip}.`
             );
-            // Fire-and-forget the email (ensure no unhandled rejections)
-            mailer
-              .compromisedToken({ email, firstName, lastName, ip }, next)
-              .catch((err) =>
-                logger.error(
-                  `Failed to send compromised token email: ${err.message}`
-                )
-              );
+            await mailer.compromisedToken(
+              { email, firstName, lastName, ip },
+              next
+            );
+            await EmailLogModel("airqo").logEmailSent({
+              email,
+              emailType: "compromisedToken",
+              ip: ip,
+            });
+          } else {
+            logger.info(
+              `Skipping compromised token alert for ${email} from IP ${ip} due to daily limit.`
+            );
           }
         }
       } catch (error) {

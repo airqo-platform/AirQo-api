@@ -1301,10 +1301,17 @@ async function fetchData(model, filter) {
       pipeline = pipeline.append([
         {
           $lookup: {
-            from: "devices",
+            from: "devices", // The collection to join
             localField: "device_id",
             foreignField: "_id",
-            as: "device_details",
+            as: "device_details", // The output array field
+            pipeline: [
+              // This sub-pipeline runs on the 'devices' collection
+              {
+                // Manually remove the 'calibrated' field from the latest_pm2_5 object
+                $unset: "latest_pm2_5.calibrated",
+              },
+            ],
           },
         },
       ]);

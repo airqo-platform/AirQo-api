@@ -74,6 +74,12 @@ const listAvailableUsers = [validateTenant, validateNetworkIdParam];
 const create = [
   validateTenant,
   [
+    body("admin_secret")
+      .exists()
+      .withMessage("the admin secret is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the admin secret should not be empty"),
     body("net_specific_fields")
       .optional()
       .custom((value) => {
