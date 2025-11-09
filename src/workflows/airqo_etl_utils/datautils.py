@@ -445,7 +445,9 @@ class DataUtils:
             Supports weekly, monthly, and yearly frequencies. Uses 30-day window
             from maintenance/offset date for calculation period.
         """
-        device_maintenance = entity.get("device_maintenance", None)
+        device_maintenance = entity.get(
+            "recent_device_maintenance", entity.get("device_maintenance", None)
+        )
         if device_maintenance is None or pd.isna(device_maintenance):
             logger.info("Device maintenance date is missing or invalid.")
             return pd.DataFrame()
@@ -481,7 +483,9 @@ class DataUtils:
             if extra_id:
                 data["site_id"] = extra_id
             data["created"] = datetime.now(timezone.utc)
-            data["recent_maintenance_date"] = device_maintenance
+            data["recent_maintenance_date"] = pd.to_datetime(
+                device_maintenance, errors="coerce"
+            )
             data.dropna(
                 inplace=True,
                 how="any",
