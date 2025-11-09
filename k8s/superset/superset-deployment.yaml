@@ -4,7 +4,7 @@ metadata:
   name: superset
   namespace: superset
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: superset
