@@ -751,8 +751,11 @@ const createSecurityEmailFunction = (
   const { cooldownDays = 30, enableCooldown = true } = cooldownConfig;
 
   return async (params, next) => {
+    let email = "";
+    let otherParams = {};
+    let tenant = "";
     try {
-      const { email, tenant = "airqo", ...otherParams } = params;
+      ({ email, tenant = "airqo", ...otherParams } = params);
 
       // ✅ STEP 1: Input validation
       if (!email) {
