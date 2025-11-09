@@ -57,11 +57,15 @@ const processEmailQueue = async () => {
     const EmailQueueForFinding = EmailQueueModel(defaultTenant);
 
     // Reset stale "processing" jobs
-    const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
-    await EmailQueueForFinding.updateMany(
-      { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
-      { $set: { status: "pending" } }
-    );
+    try {
+      const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
+      await EmailQueueForFinding.updateMany(
+        { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
+        { $set: { status: "pending" } }
+      );
+    } catch (error) {
+      logger.warn(`Error resetting stale email jobs: ${error.message}`);
+    }
 
     const emailJob = await EmailQueueForFinding.findOneAndUpdate(
       { status: "pending" },
