@@ -153,9 +153,9 @@ const createMailerFunction = (
   customMailOptionsModifier = null
 ) => {
   return async (params, next) => {
-    let email;
-    let otherParams;
-    let tenant;
+    let email = "";
+    let otherParams = {};
+    let tenant = "";
     try {
       ({ email, tenant = "airqo", ...otherParams } = params);
 
