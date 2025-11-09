@@ -371,7 +371,9 @@ const isIPBlacklistedHelper = async (
           }
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+        logger.error(
+          `🐛🐛 Internal Server Error while processing compromised token alert for token ${token} and IP ${ip}: ${error.message}`
+        );
       }
 
       return true;
