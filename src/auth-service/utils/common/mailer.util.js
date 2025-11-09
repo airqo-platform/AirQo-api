@@ -153,9 +153,11 @@ const createMailerFunction = (
   customMailOptionsModifier = null
 ) => {
   return async (params, next) => {
+    let email = "";
+    let otherParams = {};
+    let tenant = "";
     try {
-      // JavaScript destructuring with rest operator
-      const { email, tenant = "airqo", ...otherParams } = params;
+      ({ email, tenant = "airqo", ...otherParams } = params);
 
       // ✅ STEP 1: Input validation
       if (!email) {
