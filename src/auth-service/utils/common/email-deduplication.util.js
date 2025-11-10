@@ -372,7 +372,67 @@ const emailDeduplicator = new EmailDeduplicator({
   enableMetrics: true, // Enable production metrics tracking
 });
 
+/**
+ * Wrapper function to send an email with deduplication check.
+ * @param {Object} transporter - Nodemailer transporter instance.
+ * @param {Object} mailOptions - Email options (to, subject, html, etc.).
+ * @param {Object} options - Deduplication options.
+ * @returns {Promise<Object>} - Result of the send operation.
+ */
+const sendMailWithDeduplication = async (
+  transporter,
+  mailOptions,
+  options = {}
+) => {
+  const {
+    skipDeduplication = false,
+    logDuplicates = true,
+    throwOnDuplicate = false,
+  } = options;
+
+  try {
+    if (!skipDeduplication) {
+      const shouldSend = await emailDeduplicator.checkAndMarkEmail(mailOptions);
+      if (!shouldSend) {
+        if (logDuplicates) {
+          logger.info(
+            `Duplicate email prevented: ${mailOptions.to} - ${mailOptions.subject}`
+          );
+        }
+        if (throwOnDuplicate) {
+          throw new Error("Duplicate email detected");
+        }
+        return {
+          success: false,
+          duplicate: true,
+          message: "Email not sent - duplicate detected",
+        };
+      }
+    }
+
+    const info = await transporter.sendMail(mailOptions);
+    return {
+      success: true,
+      duplicate: false,
+      message: "Email sent successfully",
+      data: info,
+    };
+  } catch (error) {
+    logger.error(`Failed to send email: ${error.message}`, {
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+    });
+    return {
+      success: false,
+      duplicate: false,
+      message: error.message,
+      error: error,
+    };
+  }
+};
+
 module.exports = {
   EmailDeduplicator,
   emailDeduplicator,
+  sendMailWithDeduplication,
 };

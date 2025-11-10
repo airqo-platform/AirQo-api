@@ -8,7 +8,10 @@ const httpStatus = require("http-status");
 const path = require("path");
 const EmailQueueModel = require("@models/EmailQueue");
 const EmailLogModel = require("@models/EmailLog");
-const { emailDeduplicator } = require("./email-deduplication.util");
+const {
+  emailDeduplicator,
+  sendMailWithDeduplication,
+} = require("./email-deduplication.util");
 const {
   logObject,
   logText,
