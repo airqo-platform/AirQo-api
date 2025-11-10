@@ -384,6 +384,18 @@ const sendMailWithDeduplication = async (
   mailOptions,
   options = {}
 ) => {
+  // Validate required parameters
+  if (!transporter || typeof transporter.sendMail !== "function") {
+    throw new Error(
+      "Invalid transporter: must provide a valid nodemailer transporter"
+    );
+  }
+  if (!mailOptions || !mailOptions.to) {
+    throw new Error(
+      "Invalid mailOptions: must provide valid email options with a recipient"
+    );
+  }
+
   const {
     skipDeduplication = false,
     logDuplicates = true,
@@ -396,7 +408,9 @@ const sendMailWithDeduplication = async (
       if (!shouldSend) {
         if (logDuplicates) {
           logger.info(
-            `Duplicate email prevented: ${mailOptions.to} - ${mailOptions.subject}`
+            `Duplicate email prevented: ${
+              mailOptions?.to || "unknown recipient"
+            } - ${mailOptions?.subject || "no subject"}`
           );
         }
         if (throwOnDuplicate) {
@@ -419,9 +433,20 @@ const sendMailWithDeduplication = async (
     };
   } catch (error) {
     logger.error(`Failed to send email: ${error.message}`, {
-      to: mailOptions.to,
-      subject: mailOptions.subject,
+      to: mailOptions?.to || "unknown",
+      subject: mailOptions?.subject || "unknown",
     });
+
+    // Check if this was a duplicate error
+    if (error.message === "Duplicate email detected") {
+      return {
+        success: false,
+        duplicate: true,
+        message: error.message,
+        error: error,
+      };
+    }
+
     return {
       success: false,
       duplicate: false,
