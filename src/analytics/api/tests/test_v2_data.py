@@ -460,7 +460,6 @@ class TestDataDownloadEndpoint:
         response = app_client.post(
             "/api/v2/analytics/data-download", json=valid_data_download_request_sites
         )
-        print(response.data)
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data["status"] == "error"
