@@ -46,12 +46,42 @@ class DataValidationUtils:
 
         if timestamps:
             for col in timestamps:
+                """
+                Normalize timestamp formats to standardized ISO 8601 format with milliseconds.
+
+                Transformation steps applied via single regex pattern:
+                1. Extract date part: YYYY-MM-DD
+                2. Handle both 'T' and space separators between date and time
+                3. Extract time part: HH:MM:SS
+                4. Remove fractional seconds (microseconds) if present: (?:\.\d+)?
+                5. Capture timezone indicator: +HH:MM or Z
+                6. Reconstruct as: YYYY-MM-DD HH:MM:SS.000Z
+                - Uses space separator (not T) for consistency
+                - Adds .000 milliseconds if missing
+                - Standardizes timezone to Z (UTC)
+
+                Examples:
+                    '2025-08-25 07:57:15.968000+00:00' → '2025-08-25 07:57:15.000Z'
+                    '2025-08-12 00:00:00+00:00'        → '2025-08-12 00:00:00.000Z'
+                    '2025-11-04T22:07:20Z'             → '2025-11-04 22:07:20.000Z'
+                    '2025-10-20 09:27:06.123+00:00'    → '2025-10-20 09:27:06.000Z'
+
+                Regex breakdown:
+                    (\d{4}-\d{2}-\d{2})     - Group 1: Date (YYYY-MM-DD)
+                    [T ]                     - Match 'T' or space separator
+                    (\d{2}:\d{2}:\d{2})     - Group 2: Time (HH:MM:SS)
+                    (?:\.\d+)?              - Non-capturing: optional fractional seconds (removed)
+                    (\+\d{2}:\d{2}|Z)       - Group 3: Timezone (+00:00 or Z) - discarded in output
+                """
                 data[col] = (
                     data[col]
                     .astype(str)
-                    .str.replace(r"[^\w\s\.\-+:]", "", regex=True)
-                    .str.replace(r"(?<!\.\d{3})Z$", ".000Z", regex=True)
-                )  # Negative lookbehind to add missing milliseconds if needed
+                    .str.replace(
+                        r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(\+\d{2}:\d{2}|Z)",
+                        lambda m: f"{m.group(1)} {m.group(2)}.000Z",
+                        regex=True,
+                    )
+                )
                 data[col] = pd.to_datetime(data[col], errors="coerce", utc=True)
 
         if integers:
