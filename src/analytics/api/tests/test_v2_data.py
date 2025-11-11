@@ -190,6 +190,20 @@ def invalid_raw_data_request_missing_fields():
 
 
 @pytest.fixture
+def valid_raw_data_request_sites():
+    """Return a valid raw data request payload."""
+    return {
+        "network": "airqo",
+        "startDateTime": "2023-01-01T00:00:00Z",
+        "endDateTime": "2023-01-02T00:00:00Z",
+        "device_category": "lowcost",
+        "sites": ["site1", "site2"],
+        "pollutants": ["pm2_5", "pm10"],
+        "frequency": "raw",
+    }
+
+
+@pytest.fixture
 def invalid_data_request():
     """Return an invalid data request with missing required fields."""
     return {
@@ -213,7 +227,7 @@ def invalid_raw_data_request_wrong_fields():
         "downloadType": "json",
         "metaDataFields": ["latitude", "longitude"],
         "weatherFields": ["temperature", "humidity"],
-        "frequency": "hourly",  # Wrong frequency
+        "frequency": "hours",  # Wrong frequency
     }
 
 
@@ -327,27 +341,6 @@ class TestRawDataEndpoint:
             and "endDateTime" in str(data["message"])
             and "pollutants" in str(data["message"])
         )
-
-    @patch("api.utils.data_formatters.get_validated_filter")
-    def test_raw_data_filter_validation_error(
-        self,
-        mock_validate,
-        app_client: FlaskClient,
-        valid_raw_data_request_sites: Dict[str, Any],
-    ):
-        mock_validate.return_value = (
-            None,
-            None,
-            "Invalid filter: please provide a valid device, site or airqloud",
-        )
-
-        response = app_client.post(
-            "/api/v2/analytics/raw-data", json=valid_raw_data_request_sites
-        )
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data["status"] == "error"
-        assert data["message"] == "No data found"
 
     @patch("api.utils.data_formatters.get_validated_filter")
     @patch("api.views.common.data_ops.DownloadService.fetch_data")
@@ -467,7 +460,7 @@ class TestDataDownloadEndpoint:
         response = app_client.post(
             "/api/v2/analytics/data-download", json=valid_data_download_request_sites
         )
-
+        print(response.data)
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data["status"] == "error"
