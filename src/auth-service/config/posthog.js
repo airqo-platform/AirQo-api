@@ -1,6 +1,6 @@
 const posthogConfig = {
   apiKey: process.env.POSTHOG_API_KEY,
-  host: process.env.POSTHOG_HOST || "https://app.posthog.com",
+  host: process.env.POSTHOG_HOST || "https://us.i.posthog.com",
 };
 
 if (!posthogConfig.apiKey) {
