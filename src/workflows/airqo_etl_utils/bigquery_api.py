@@ -287,7 +287,6 @@ class BigQueryApi:
         """
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
-
         job_config = bigquery.LoadJobConfig(
             write_disposition=job_action.get_name(),
         )

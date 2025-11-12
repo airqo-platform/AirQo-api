@@ -446,7 +446,7 @@ class DataUtils:
             from maintenance/offset date for calculation period.
         """
         device_maintenance = entity.get(
-            "recent_device_maintenance", entity.get("device_maintenance", None)
+            "recent_maintenance_date", entity.get("device_maintenance", None)
         )
         if device_maintenance is None or pd.isna(device_maintenance):
             logger.info("Device maintenance date is missing or invalid.")
