@@ -4683,6 +4683,56 @@ const createUserModule = {
     }
   },
 
+  updateConsent: async (request, next) => {
+    try {
+      const { body, query, user } = request;
+      const { tenant } = query;
+      const { analytics } = body;
+
+      if (typeof analytics !== "boolean") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "The 'analytics' field must be a boolean value (true or false).",
+          })
+        );
+      }
+
+      const filter = { _id: user._id };
+      const update = {
+        $set: {
+          "consent.analytics": analytics,
+          "consent.lastUpdated": new Date(),
+        },
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        filter,
+        update,
+        {
+          new: true,
+        }
+      );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User not found.",
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: "Consent settings updated successfully.",
+        data: updatedUser.consent,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   initiatePasswordReset: async ({ email, token, tenant }) => {
     try {
       const update = {

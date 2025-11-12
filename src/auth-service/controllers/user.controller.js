@@ -1473,6 +1473,21 @@ const userController = {
     }
   },
 
+  updateConsent: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      // The user object is attached by the authentication middleware
+      request.user = req.user;
+
+      const result = await userUtil.updateConsent(request, next);
+      sendResponse(res, result, "consent");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   /**
    * Legacy login compatibility endpoint
    * @route POST /api/v2/users/login

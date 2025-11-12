@@ -296,6 +296,15 @@ const UserSchema = new Schema(
       type: String,
       default: "airqo",
     },
+    consent: {
+      analytics: {
+        type: Boolean,
+        default: false, // Default to opt-out
+      },
+      lastUpdated: {
+        type: Date,
+      },
+    },
     long_organization: {
       type: String,
       default: "airqo",
