@@ -4565,7 +4565,14 @@ const createUserModule = {
 
       if (responseFromModifyUser.success === true) {
         // PostHog Analytics: Update user properties
+        const distinctId = (user && user._id && user._id.toString()) || null;
         try {
+          if (!distinctId) {
+            throw new Error(
+              "User ID not available for analytics identify call"
+            );
+          }
+
           // Whitelist approach: only include safe properties for analytics
           const allowedAnalyticsProperties = [
             "email",
@@ -4581,7 +4588,12 @@ const createUserModule = {
             }
           }
 
-          analyticsService.identify(userId, userProperties);
+          if (
+            request?.headers?.["dnt"] !== "1" &&
+            request?.headers?.["sec-gpc"] !== "1"
+          ) {
+            analyticsService.identify(distinctId, userProperties);
+          }
         } catch (analyticsError) {
           logger.error(
             `PostHog identify/update error: ${analyticsError.message}`

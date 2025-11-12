@@ -47,23 +47,29 @@ function sanitizePath(path) {
  */
 const trackAPIRequest = (req, res, next) => {
   const startTime = Date.now();
-  // DNT header opt-out
-  if (req.headers["dnt"] === "1") {
+  // DNT/GPC header opt-out
+  if (req.headers["dnt"] === "1" || req.headers["sec-gpc"] === "1") {
     return next();
   }
-  // Capture response after it's sent
-  res.on("finish", () => {
-    const duration = Date.now() - startTime;
 
+  const cleanup = () => {
+    res.removeListener("finish", logRequest);
+    res.removeListener("close", logRequest);
+  };
+
+  const logRequest = () => {
+    const duration = Date.now() - startTime;
     analyticsService.track(req.analyticsUserId || "anonymous", "api_request", {
       method: req.method,
       path: sanitizePath(req.path),
       statusCode: res.statusCode,
       duration,
-      userAgent: hashUserAgent(req.get("user-agent")),
-      ip: anonymizeIp(req.ip),
     });
-  });
+    cleanup();
+  };
+
+  res.on("finish", logRequest);
+  res.on("close", logRequest);
 
   next();
 };
