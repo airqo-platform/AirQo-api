@@ -166,6 +166,7 @@ class MetaDataUtils:
             MetaDataType.DEVICES,
             "device_id",
             "next_offset_date",
+            frequency=frequency,
             filter={"pollutant": pollutants_},
         )
 
