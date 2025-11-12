@@ -247,6 +247,8 @@ class BigQueryApi:
                 "bam_measurements",
                 "bam_raw_measurements",
                 "daily_24_hourly_forecasts",
+                "device_computed_metadata",
+                "measurements_baseline",
             ]:
                 file_schema = Utils.load_schema(file_name=f"{file}.json")
                 schema.extend(file_schema)
