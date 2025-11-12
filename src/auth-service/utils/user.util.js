@@ -4090,14 +4090,20 @@ const createUserModule = {
 
           // PostHog Analytics: Track successful registration
           try {
-            analyticsService.track(
-              createdUser._doc._id.toString(),
-              "user_registered",
-              {
-                method: "admin_creation",
-                organization: organization,
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            if (!dnt) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString();
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "admin_creation",
+                  organization,
+                });
               }
-            );
+            }
           } catch (analyticsError) {
             logger.error(
               `PostHog registration track error: ${analyticsError.message}`
