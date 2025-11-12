@@ -910,6 +910,7 @@ class DataUtils:
         metadata_type: MetaDataType,
         unique_id: str,
         offset_column: str,
+        frequency: Optional[Frequency] = Frequency.WEEKLY,
         filter: Dict[str, Any] = None,
     ) -> pd.DataFrame:
         """
@@ -938,6 +939,7 @@ class DataUtils:
             unique_id,
             offset_column=offset_column,
             columns=cols,
+            frequency=frequency,
             filter=filter,
         )
         return data

@@ -12,6 +12,7 @@ from .constants import (
     DeviceNetwork,
     QueryType,
     MetaDataType,
+    Frequency,
 )
 from .date import date_to_str
 from .utils import Utils
@@ -247,6 +248,8 @@ class BigQueryApi:
                 "bam_measurements",
                 "bam_raw_measurements",
                 "daily_24_hourly_forecasts",
+                "device_computed_metadata",
+                "measurements_baseline",
             ]:
                 file_schema = Utils.load_schema(file_name=f"{file}.json")
                 schema.extend(file_schema)
@@ -1087,6 +1090,7 @@ class BigQueryApi:
         unique_id: str,
         offset_column: Optional[str] = "timestamp",
         columns: Optional[List[str]] = None,
+        frequency: Optional[Frequency] = Frequency.WEEKLY,
         filter: Optional[Dict[str, Any]] = None,
     ) -> pd.DataFrame:
         """
@@ -1105,12 +1109,12 @@ class BigQueryApi:
         Raises:
             google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
-        where_clause: str = ""
+        where_clause: str = "WHERE "
         query_params: list = []
         filter, filter_val = next(iter(filter.items()))
         if filter:
             if isinstance(filter_val, str):
-                where_clause = f"WHERE {filter} = @filter_value"
+                where_clause = f" {filter} = @filter_value"
                 query_params.append(
                     bigquery.ScalarQueryParameter("filter_value", "STRING", filter_val)
                 )
@@ -1118,12 +1122,14 @@ class BigQueryApi:
                 for val in filter_val:
                     if not isinstance(val, str):
                         raise ValueError("Filter values must be strings.")
-                    where_clause += f"WHERE {filter} = @filter_value OR "
+                    where_clause += f" {filter} = @filter_value OR "
                     query_params.append(
                         bigquery.ScalarQueryParameter("filter_value", "STRING", val)
                     )
                 where_clause = where_clause.rstrip(" OR ")
+            where_clause += " AND "
 
+        where_clause += f"baseline_type = {frequency.str} "
         selected_columns = ", ".join(columns) if columns else "*"
 
         query = f"""
