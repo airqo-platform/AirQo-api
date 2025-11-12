@@ -108,6 +108,7 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.0",
     "passport-local": "^1.0.0",
+    "posthog-node": "^5.11.2",
     "rate-limit-redis": "^4.2.1",
     "redis": "^4.6.7",
     "saslprep": "^1.0.3",

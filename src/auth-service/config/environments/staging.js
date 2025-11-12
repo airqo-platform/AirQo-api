@@ -50,6 +50,7 @@ const stageConfig = {
   ONBOARDING_BASE_URL:
     process.env.STAGE_ONBOARDING_BASE_URL ||
     "https://staging-analytics.airqo.net/onboarding",
+  ANALYTICS_PII_ENABLED: process.env.STAGE_ANALYTICS_PII_ENABLED === "true",
 };
 
 module.exports = stageConfig;

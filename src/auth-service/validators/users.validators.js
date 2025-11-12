@@ -1334,6 +1334,17 @@ const confirmMobileAccountDeletion = [
   ],
 ];
 
+const updateConsent = [
+  validateTenant,
+  [
+    body("analytics")
+      .exists()
+      .withMessage("the analytics field is required")
+      .isBoolean()
+      .withMessage("the analytics field must be a boolean"),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -1386,4 +1397,5 @@ module.exports = {
   initiateAccountDeletion,
   confirmAccountDeletion,
   confirmMobileAccountDeletion,
+  updateConsent,
 };

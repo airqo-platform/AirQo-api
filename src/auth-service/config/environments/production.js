@@ -49,5 +49,6 @@ const prodConfig = {
   ONBOARDING_BASE_URL:
     process.env.PROD_ONBOARDING_BASE_URL ||
     "https://analytics.airqo.net/onboarding",
+  ANALYTICS_PII_ENABLED: process.env.PROD_ANALYTICS_PII_ENABLED === "true",
 };
 module.exports = prodConfig;

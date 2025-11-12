@@ -14,6 +14,7 @@ const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth } = require("firebase-admin/auth");
 const httpStatus = require("http-status");
+const analyticsService = require("@services/analytics.service");
 const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
@@ -3803,6 +3804,29 @@ const createUserModule = {
           const createdUser = await responseFromCreateUser.data;
           const user_id = createdUser._doc._id;
 
+          // PostHog Analytics: Track successful registration
+          // PostHog Analytics: Track successful registration (non-blocking, opt-out aware)
+          try {
+            if (
+              request?.headers?.["dnt"] !== "1" &&
+              request?.headers?.["sec-gpc"] !== "1"
+            ) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString() ||
+                null;
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "email_password",
+                  category,
+                });
+              }
+            }
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
           const token = accessCodeGenerator
             .generate(
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -4063,6 +4087,28 @@ const createUserModule = {
 
         if (responseFromCreateUser.success === true) {
           const createdUser = responseFromCreateUser.data;
+
+          // PostHog Analytics: Track successful registration
+          try {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            if (!dnt) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString();
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "admin_creation",
+                  organization,
+                });
+              }
+            }
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
 
           // ✅ STEP 6: Enhanced email sending with monitoring
           try {
@@ -4460,6 +4506,25 @@ const createUserModule = {
       // 1. Create a sanitized copy of the body for the database update.
       const sanitizedUpdate = { ...body };
 
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
+      }
+
       // Drop any keys with undefined values to prevent them from being written to the DB
       Object.keys(sanitizedUpdate).forEach((key) => {
         if (sanitizedUpdate[key] === undefined) {
@@ -4489,7 +4554,7 @@ const createUserModule = {
       const user = await UserModel(dbTenant)
         .findOne(filter)
         .lean()
-        .select("email firstName lastName");
+        .select("email firstName lastName consent");
 
       if (!user) {
         return {
@@ -4512,6 +4577,53 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
+        // PostHog Analytics: Update user properties
+        const distinctId = (user && user._id && user._id.toString()) || null;
+        try {
+          const dnt =
+            request?.headers?.["dnt"] === "1" ||
+            request?.headers?.["sec-gpc"] === "1";
+          if (!distinctId || dnt) {
+            // Skip analytics only
+          } else {
+            // Best Practice: Global flag + User Consent for PII
+            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
+            const userConsented =
+              user.consent && user.consent.analytics === true;
+
+            // Start with non-PII properties
+            const baseProperties = ["organization", "jobTitle", "website"];
+            const userProperties = {};
+            for (const key of baseProperties) {
+              if (Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)) {
+                userProperties[key] = sanitizedUpdate[key];
+              }
+            }
+
+            // Conditionally add PII based on consent and global flag
+            if (allowPII && userConsented) {
+              if (sanitizedUpdate.firstName)
+                userProperties.firstName = sanitizedUpdate.firstName;
+              if (sanitizedUpdate.lastName)
+                userProperties.lastName = sanitizedUpdate.lastName;
+              if (user.email) {
+                userProperties.email_hash = crypto
+                  .createHash("sha256")
+                  .update(user.email)
+                  .digest("hex");
+              }
+            }
+
+            if (Object.keys(userProperties).length > 0) {
+              analyticsService.identify(distinctId, userProperties);
+            }
+          }
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog identify/update error: ${analyticsError.message}`
+          );
+        }
+
         // 4. Prepare the payload for the email notification.
         const emailUpdatePayload = { ...sanitizedUpdate };
 
@@ -4576,6 +4688,69 @@ const createUserModule = {
           { message: error.message }
         )
       );
+    }
+  },
+
+  updateConsent: async (request, next) => {
+    try {
+      const { body, query, user } = request;
+      const { tenant } = query;
+      const { analytics } = body;
+
+      if (typeof analytics !== "boolean") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "The 'analytics' field must be a boolean value (true or false).",
+          })
+        );
+      }
+
+      const filter = { _id: user._id };
+      const update = {
+        $set: {
+          "consent.analytics": analytics,
+          "consent.lastUpdated": new Date(),
+        },
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        filter,
+        update,
+        {
+          new: true,
+        }
+      );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User not found.",
+          })
+        );
+      }
+
+      // Sync consent status with PostHog
+      if (updatedUser) {
+        try {
+          analyticsService.identify(updatedUser._id.toString(), {
+            analytics_consent: analytics,
+          });
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog identify/consent error: ${analyticsError.message}`
+          );
+        }
+      }
+
+      return {
+        success: true,
+        message: "Consent settings updated successfully.",
+        data: updatedUser.consent,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      return next(error);
     }
   },
 
@@ -6031,6 +6206,21 @@ const createUserModule = {
             verification: "Email not verified",
           },
         };
+      }
+
+      // PostHog Analytics: Track successful login
+      try {
+        const dnt =
+          request?.headers?.["dnt"] === "1" ||
+          request?.headers?.["sec-gpc"] === "1";
+        const userConsented = user?.consent?.analytics === true;
+        if (!dnt && userConsented) {
+          analyticsService.track(user._id.toString(), "user_logged_in", {
+            method: "email_password",
+          });
+        }
+      } catch (analyticsError) {
+        logger.error(`PostHog login track error: ${analyticsError.message}`);
       }
 
       // Initialize RBAC service
