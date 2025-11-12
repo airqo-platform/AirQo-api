@@ -4541,7 +4541,7 @@ const createUserModule = {
       const user = await UserModel(dbTenant)
         .findOne(filter)
         .lean()
-        .select("email firstName lastName");
+        .select("email firstName lastName consent");
 
       if (!user) {
         return {
@@ -4567,31 +4567,47 @@ const createUserModule = {
         // PostHog Analytics: Update user properties
         const distinctId = (user && user._id && user._id.toString()) || null;
         try {
-          if (!distinctId) {
-            throw new Error(
-              "User ID not available for analytics identify call"
-            );
+          if (
+            !distinctId ||
+            request?.headers?.["dnt"] === "1" ||
+            request?.headers?.["sec-gpc"] === "1"
+          ) {
+            // Do not track if user ID is missing or DNT/GPC headers are present
+            return;
           }
 
-          // Whitelist approach: only include safe properties for analytics
-          const allowedAnalyticsProperties = [
-            "email",
-            "firstName",
-            "lastName",
-            "createdAt",
-            // Add other non-sensitive properties as needed
-          ];
+          // Best Practice: Global flag + User Consent for PII
+          const allowPII = constants.ANALYTICS_PII_ENABLED === "true";
+          const userConsented = user.consent && user.consent.analytics === true;
+
+          // Start with non-PII properties
+          const baseProperties = ["organization", "jobTitle", "website"];
           const userProperties = {};
-          for (const key of allowedAnalyticsProperties) {
+
+          for (const key of baseProperties) {
             if (sanitizedUpdate.hasOwnProperty(key)) {
               userProperties[key] = sanitizedUpdate[key];
             }
           }
 
-          if (
-            request?.headers?.["dnt"] !== "1" &&
-            request?.headers?.["sec-gpc"] !== "1"
-          ) {
+          // Conditionally add PII based on consent and global flag
+          if (allowPII && userConsented) {
+            if (sanitizedUpdate.firstName) {
+              userProperties.firstName = sanitizedUpdate.firstName;
+            }
+            if (sanitizedUpdate.lastName) {
+              userProperties.lastName = sanitizedUpdate.lastName;
+            }
+            // Always send a hashed email for identification, not the raw email
+            if (user.email) {
+              userProperties.email_hash = crypto
+                .createHash("sha256")
+                .update(user.email)
+                .digest("hex");
+            }
+          }
+
+          if (Object.keys(userProperties).length > 0) {
             analyticsService.identify(distinctId, userProperties);
           }
         } catch (analyticsError) {

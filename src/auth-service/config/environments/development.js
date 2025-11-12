@@ -49,5 +49,6 @@ const devConfig = {
   ONBOARDING_BASE_URL:
     process.env.DEV_ONBOARDING_BASE_URL ||
     "https://analytics.airqo.net/onboarding",
+  ANALYTICS_PII_ENABLED: process.env.DEV_ANALYTICS_PII_ENABLED,
 };
 module.exports = devConfig;
