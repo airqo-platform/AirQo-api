@@ -3805,21 +3805,28 @@ const createUserModule = {
           const user_id = createdUser._doc._id;
 
           // PostHog Analytics: Track successful registration
+          // PostHog Analytics: Track successful registration (non-blocking, opt-out aware)
           try {
-            analyticsService.track(
-              createdUser._doc._id.toString(),
-              "user_registered",
-              {
-                method: "email_password",
-                category: category,
+            if (
+              request?.headers?.["dnt"] !== "1" &&
+              request?.headers?.["sec-gpc"] !== "1"
+            ) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString() ||
+                null;
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "email_password",
+                  category,
+                });
               }
-            );
+            }
           } catch (analyticsError) {
             logger.error(
               `PostHog registration track error: ${analyticsError.message}`
             );
           }
-
           const token = accessCodeGenerator
             .generate(
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -4567,48 +4574,43 @@ const createUserModule = {
         // PostHog Analytics: Update user properties
         const distinctId = (user && user._id && user._id.toString()) || null;
         try {
-          if (
-            !distinctId ||
+          const dnt =
             request?.headers?.["dnt"] === "1" ||
-            request?.headers?.["sec-gpc"] === "1"
-          ) {
-            // Do not track if user ID is missing or DNT/GPC headers are present
-            return;
-          }
+            request?.headers?.["sec-gpc"] === "1";
+          if (!distinctId || dnt) {
+            // Skip analytics only
+          } else {
+            // Best Practice: Global flag + User Consent for PII
+            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
+            const userConsented =
+              user.consent && user.consent.analytics === true;
 
-          // Best Practice: Global flag + User Consent for PII
-          const allowPII = constants.ANALYTICS_PII_ENABLED === "true";
-          const userConsented = user.consent && user.consent.analytics === true;
-
-          // Start with non-PII properties
-          const baseProperties = ["organization", "jobTitle", "website"];
-          const userProperties = {};
-
-          for (const key of baseProperties) {
-            if (sanitizedUpdate.hasOwnProperty(key)) {
-              userProperties[key] = sanitizedUpdate[key];
+            // Start with non-PII properties
+            const baseProperties = ["organization", "jobTitle", "website"];
+            const userProperties = {};
+            for (const key of baseProperties) {
+              if (Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)) {
+                userProperties[key] = sanitizedUpdate[key];
+              }
             }
-          }
 
-          // Conditionally add PII based on consent and global flag
-          if (allowPII && userConsented) {
-            if (sanitizedUpdate.firstName) {
-              userProperties.firstName = sanitizedUpdate.firstName;
+            // Conditionally add PII based on consent and global flag
+            if (allowPII && userConsented) {
+              if (sanitizedUpdate.firstName)
+                userProperties.firstName = sanitizedUpdate.firstName;
+              if (sanitizedUpdate.lastName)
+                userProperties.lastName = sanitizedUpdate.lastName;
+              if (user.email) {
+                userProperties.email_hash = crypto
+                  .createHash("sha256")
+                  .update(user.email)
+                  .digest("hex");
+              }
             }
-            if (sanitizedUpdate.lastName) {
-              userProperties.lastName = sanitizedUpdate.lastName;
-            }
-            // Always send a hashed email for identification, not the raw email
-            if (user.email) {
-              userProperties.email_hash = crypto
-                .createHash("sha256")
-                .update(user.email)
-                .digest("hex");
-            }
-          }
 
-          if (Object.keys(userProperties).length > 0) {
-            analyticsService.identify(distinctId, userProperties);
+            if (Object.keys(userProperties).length > 0) {
+              analyticsService.identify(distinctId, userProperties);
+            }
           }
         } catch (analyticsError) {
           logger.error(
