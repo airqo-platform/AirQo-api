@@ -14,6 +14,7 @@ const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth } = require("firebase-admin/auth");
 const httpStatus = require("http-status");
+const analyticsService = require("@services/analytics.service");
 const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
@@ -3803,6 +3804,22 @@ const createUserModule = {
           const createdUser = await responseFromCreateUser.data;
           const user_id = createdUser._doc._id;
 
+          // PostHog Analytics: Track successful registration
+          try {
+            analyticsService.track(
+              createdUser._doc._id.toString(),
+              "user_registered",
+              {
+                method: "email_password",
+                category: category,
+              }
+            );
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
+
           const token = accessCodeGenerator
             .generate(
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -4063,6 +4080,22 @@ const createUserModule = {
 
         if (responseFromCreateUser.success === true) {
           const createdUser = responseFromCreateUser.data;
+
+          // PostHog Analytics: Track successful registration
+          try {
+            analyticsService.track(
+              createdUser._doc._id.toString(),
+              "user_registered",
+              {
+                method: "admin_creation",
+                organization: organization,
+              }
+            );
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
 
           // ✅ STEP 6: Enhanced email sending with monitoring
           try {
@@ -4460,6 +4493,25 @@ const createUserModule = {
       // 1. Create a sanitized copy of the body for the database update.
       const sanitizedUpdate = { ...body };
 
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
+      }
+
       // Drop any keys with undefined values to prevent them from being written to the DB
       Object.keys(sanitizedUpdate).forEach((key) => {
         if (sanitizedUpdate[key] === undefined) {
@@ -4512,6 +4564,22 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
+        // PostHog Analytics: Update user properties
+        try {
+          const userId = responseFromModifyUser.data._id.toString();
+          const userProperties = { ...sanitizedUpdate };
+          // Remove sensitive or irrelevant fields from analytics
+          delete userProperties.password;
+          delete userProperties.resetPasswordToken;
+          delete userProperties.resetPasswordExpires;
+
+          analyticsService.identify(userId, userProperties);
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog identify/update error: ${analyticsError.message}`
+          );
+        }
+
         // 4. Prepare the payload for the email notification.
         const emailUpdatePayload = { ...sanitizedUpdate };
 
@@ -6031,6 +6099,15 @@ const createUserModule = {
             verification: "Email not verified",
           },
         };
+      }
+
+      // PostHog Analytics: Track successful login
+      try {
+        analyticsService.track(user._id.toString(), "user_logged_in", {
+          method: "email_password",
+        });
+      } catch (analyticsError) {
+        logger.error(`PostHog login track error: ${analyticsError.message}`);
       }
 
       // Initialize RBAC service

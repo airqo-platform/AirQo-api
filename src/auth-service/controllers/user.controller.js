@@ -474,6 +474,13 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
+      // PostHog Analytics: Track logout event
+      try {
+        analyticsService.track(req.analyticsUserId, "user_logged_out");
+      } catch (analyticsError) {
+        logger.error(`PostHog logout track error: ${analyticsError.message}`);
+      }
+
       return res
         .status(httpStatus.NOT_IMPLEMENTED)
         .json({ success: false, message: "not yet implemented" });
