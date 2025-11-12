@@ -4566,12 +4566,20 @@ const createUserModule = {
       if (responseFromModifyUser.success === true) {
         // PostHog Analytics: Update user properties
         try {
-          const userId = responseFromModifyUser.data._id.toString();
-          const userProperties = { ...sanitizedUpdate };
-          // Remove sensitive or irrelevant fields from analytics
-          delete userProperties.password;
-          delete userProperties.resetPasswordToken;
-          delete userProperties.resetPasswordExpires;
+          // Whitelist approach: only include safe properties for analytics
+          const allowedAnalyticsProperties = [
+            "email",
+            "firstName",
+            "lastName",
+            "createdAt",
+            // Add other non-sensitive properties as needed
+          ];
+          const userProperties = {};
+          for (const key of allowedAnalyticsProperties) {
+            if (sanitizedUpdate.hasOwnProperty(key)) {
+              userProperties[key] = sanitizedUpdate[key];
+            }
+          }
 
           analyticsService.identify(userId, userProperties);
         } catch (analyticsError) {

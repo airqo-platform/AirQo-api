@@ -33,7 +33,11 @@ class AnalyticsService {
         event,
         properties: {
           ...properties,
-          environment: process.env.NODE_ENV,
+          environment: ["production", "development", "test"].includes(
+            process.env.NODE_ENV
+          )
+            ? process.env.NODE_ENV
+            : "unknown",
           timestamp: new Date().toISOString(),
         },
       });

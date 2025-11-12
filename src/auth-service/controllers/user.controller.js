@@ -8,6 +8,7 @@ const {
   stringify,
 } = require("@utils/shared");
 const isEmpty = require("is-empty");
+const analyticsService = require("@services/analytics.service");
 const tokenUtil = require("@utils/token.util");
 const constants = require("@config/constants");
 const { AbstractTokenFactory } = require("@services/atf.service");

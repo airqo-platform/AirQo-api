@@ -1605,27 +1605,17 @@ const enhancedJWTAuth = (req, res, next) => {
         const userId = decoded.userId || decoded.id || decoded._id;
         const user = await UserModel(tenant).findById(userId).lean();
 
+        const analyticsId =
+          typeof userId === "string" ? userId : userId?.toString?.();
+        if (analyticsId) {
+          req.analyticsUserId = analyticsId;
+        }
+
         if (!user) {
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
               message: "User from token no longer exists",
             })
-          );
-        }
-
-        // PostHog Analytics: Identify the user on each authenticated request
-        try {
-          const userProperties = {
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            organization: user.organization,
-            // Add any other properties you want to keep updated
-          };
-          analyticsService.identify(userId, userProperties);
-        } catch (analyticsError) {
-          logger.error(
-            `PostHog identify error in JWT auth: ${analyticsError.message}`
           );
         }
 
