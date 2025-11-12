@@ -4724,6 +4724,19 @@ const createUserModule = {
         );
       }
 
+      // Sync consent status with PostHog
+      if (updatedUser) {
+        try {
+          analyticsService.identify(updatedUser._id.toString(), {
+            analytics_consent: analytics,
+          });
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog identify/consent error: ${analyticsError.message}`
+          );
+        }
+      }
+
       return {
         success: true,
         message: "Consent settings updated successfully.",
@@ -6191,9 +6204,15 @@ const createUserModule = {
 
       // PostHog Analytics: Track successful login
       try {
-        analyticsService.track(user._id.toString(), "user_logged_in", {
-          method: "email_password",
-        });
+        const dnt =
+          request?.headers?.["dnt"] === "1" ||
+          request?.headers?.["sec-gpc"] === "1";
+        const userConsented = user?.consent?.analytics === true;
+        if (!dnt && userConsented) {
+          analyticsService.track(user._id.toString(), "user_logged_in", {
+            method: "email_password",
+          });
+        }
       } catch (analyticsError) {
         logger.error(`PostHog login track error: ${analyticsError.message}`);
       }

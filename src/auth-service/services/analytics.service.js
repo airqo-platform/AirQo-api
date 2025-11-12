@@ -1,5 +1,6 @@
 const { PostHog } = require("posthog-node");
 const posthogConfig = require("@config/posthog");
+const constants = require("@config/constants");
 
 class AnalyticsService {
   constructor() {
@@ -33,11 +34,7 @@ class AnalyticsService {
         event,
         properties: {
           ...properties,
-          environment: ["production", "development", "test"].includes(
-            process.env.NODE_ENV
-          )
-            ? process.env.NODE_ENV
-            : "unknown",
+          environment: constants.ENVIRONMENT,
           timestamp: new Date().toISOString(),
         },
       });
