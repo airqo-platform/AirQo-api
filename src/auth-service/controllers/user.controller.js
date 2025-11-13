@@ -482,9 +482,8 @@ const userController = {
       // } catch (analyticsError) {
       //   logger.error(`PostHog logout track error: ${analyticsError.message}`);
       // }
-      //
-      //
-      res
+
+      return res
         .status(httpStatus.NOT_IMPLEMENTED)
         .json({ success: false, message: "not yet implemented" });
 
