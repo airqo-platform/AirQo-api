@@ -3804,29 +3804,29 @@ const createUserModule = {
           const createdUser = await responseFromCreateUser.data;
           const user_id = createdUser._doc._id;
 
-          // PostHog Analytics: Track successful registration
-          // PostHog Analytics: Track successful registration (non-blocking, opt-out aware)
-          try {
-            if (
-              request?.headers?.["dnt"] !== "1" &&
-              request?.headers?.["sec-gpc"] !== "1"
-            ) {
-              const distinctId =
-                createdUser?._id?.toString() ||
-                createdUser?._doc?._id?.toString() ||
-                null;
-              if (distinctId) {
-                analyticsService.track(distinctId, "user_registered", {
-                  method: "email_password",
-                  category,
-                });
-              }
-            }
-          } catch (analyticsError) {
-            logger.error(
-              `PostHog registration track error: ${analyticsError.message}`
-            );
-          }
+          // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful registration
+          // // PostHog Analytics: Track successful registration (non-blocking, opt-out aware)
+          // try {
+          //   if (
+          //     request?.headers?.["dnt"] !== "1" &&
+          //     request?.headers?.["sec-gpc"] !== "1"
+          //   ) {
+          //     const distinctId =
+          //       createdUser?._id?.toString() ||
+          //       createdUser?._doc?._id?.toString() ||
+          //       null;
+          //     if (distinctId) {
+          //       analyticsService.track(distinctId, "user_registered", {
+          //         method: "email_password",
+          //         category,
+          //       });
+          //     }
+          //   }
+          // } catch (analyticsError) {
+          //   logger.error(
+          //     `PostHog registration track error: ${analyticsError.message}`
+          //   );
+          // }
           const token = accessCodeGenerator
             .generate(
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -4088,27 +4088,27 @@ const createUserModule = {
         if (responseFromCreateUser.success === true) {
           const createdUser = responseFromCreateUser.data;
 
-          // PostHog Analytics: Track successful registration
-          try {
-            const dnt =
-              request?.headers?.["dnt"] === "1" ||
-              request?.headers?.["sec-gpc"] === "1";
-            if (!dnt) {
-              const distinctId =
-                createdUser?._id?.toString() ||
-                createdUser?._doc?._id?.toString();
-              if (distinctId) {
-                analyticsService.track(distinctId, "user_registered", {
-                  method: "admin_creation",
-                  organization,
-                });
-              }
-            }
-          } catch (analyticsError) {
-            logger.error(
-              `PostHog registration track error: ${analyticsError.message}`
-            );
-          }
+          // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful registration
+          // try {
+          //   const dnt =
+          //     request?.headers?.["dnt"] === "1" ||
+          //     request?.headers?.["sec-gpc"] === "1";
+          //   if (!dnt) {
+          //     const distinctId =
+          //       createdUser?._id?.toString() ||
+          //       createdUser?._doc?._id?.toString();
+          //     if (distinctId) {
+          //       analyticsService.track(distinctId, "user_registered", {
+          //         method: "admin_creation",
+          //         organization,
+          //       });
+          //     }
+          //   }
+          // } catch (analyticsError) {
+          //   logger.error(
+          //     `PostHog registration track error: ${analyticsError.message}`
+          //   );
+          // }
 
           // ✅ STEP 6: Enhanced email sending with monitoring
           try {
@@ -4730,18 +4730,18 @@ const createUserModule = {
         );
       }
 
-      // Sync consent status with PostHog
-      if (updatedUser) {
-        try {
-          analyticsService.identify(updatedUser._id.toString(), {
-            analytics_consent: analytics,
-          });
-        } catch (analyticsError) {
-          logger.error(
-            `PostHog identify/consent error: ${analyticsError.message}`
-          );
-        }
-      }
+      // TEMPORARILY DISABLED FOR STABILITY: Sync consent status with PostHog
+      // if (updatedUser) {
+      //   try {
+      //     analyticsService.identify(updatedUser._id.toString(), {
+      //       analytics_consent: analytics,
+      //     });
+      //   } catch (analyticsError) {
+      //     logger.error(
+      //       `PostHog identify/consent error: ${analyticsError.message}`
+      //     );
+      //   }
+      // }
 
       return {
         success: true,
@@ -6208,20 +6208,20 @@ const createUserModule = {
         };
       }
 
-      // PostHog Analytics: Track successful login
-      try {
-        const dnt =
-          request?.headers?.["dnt"] === "1" ||
-          request?.headers?.["sec-gpc"] === "1";
-        const userConsented = user?.consent?.analytics === true;
-        if (!dnt && userConsented) {
-          analyticsService.track(user._id.toString(), "user_logged_in", {
-            method: "email_password",
-          });
-        }
-      } catch (analyticsError) {
-        logger.error(`PostHog login track error: ${analyticsError.message}`);
-      }
+      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful login
+      // try {
+      //   const dnt =
+      //     request?.headers?.["dnt"] === "1" ||
+      //     request?.headers?.["sec-gpc"] === "1";
+      //   const userConsented = user?.consent?.analytics === true;
+      //   if (!dnt && userConsented) {
+      //     analyticsService.track(user._id.toString(), "user_logged_in", {
+      //       method: "email_password",
+      //     });
+      //   }
+      // } catch (analyticsError) {
+      //   logger.error(`PostHog login track error: ${analyticsError.message}`);
+      // }
 
       // Initialize RBAC service
       const rbacService = new RBACService(dbTenant);
