@@ -1,6 +1,7 @@
 const analyticsService = require("@services/analytics.service");
 const crypto = require("crypto");
 
+// Helper functions (can be kept or removed, but their calls will be commented out)
 /**
  * Helper to anonymize IPv4/IPv6 address
  */
@@ -46,45 +47,48 @@ function sanitizePath(path) {
  * Middleware to track API requests
  */
 const trackAPIRequest = (req, res, next) => {
-  const startTime = Date.now();
-  // DNT/GPC header opt-out
-  if (req.headers["dnt"] === "1" || req.headers["sec-gpc"] === "1") {
-    return next();
-  }
-
-  const cleanup = () => {
-    res.removeListener("finish", logRequest);
-    res.removeListener("close", logRequest);
-  };
-
-  const logRequest = () => {
-    const duration = Date.now() - startTime;
-    analyticsService.track(req.analyticsUserId || "anonymous", "api_request", {
-      method: req.method,
-      path: sanitizePath(req.path),
-      statusCode: res.statusCode,
-      duration,
-    });
-    cleanup();
-  };
-
-  res.on("finish", logRequest);
-  res.on("close", logRequest);
-
+  // TEMPORARILY DISABLED FOR STABILITY: Comment out the block below to disable API request tracking.
+  // const startTime = Date.now();
+  // // DNT/GPC header opt-out
+  // if (req.headers["dnt"] === "1" || req.headers["sec-gpc"] === "1") {
+  //   return next();
+  // }
+  //
+  // const cleanup = () => {
+  //   res.removeListener("finish", logRequest);
+  //   res.removeListener("close", logRequest);
+  // };
+  //
+  // const logRequest = () => {
+  //   const duration = Date.now() - startTime;
+  //   analyticsService.track(req.analyticsUserId || "anonymous", "api_request", {
+  //     method: req.method,
+  //     path: sanitizePath(req.path),
+  //     statusCode: res.statusCode,
+  //     duration,
+  //   });
+  //   cleanup();
+  // };
+  //
+  // res.on("finish", logRequest);
+  // res.on("close", logRequest);
+  console.warn(
+    "⚠️ Analytics trackAPIRequest middleware is TEMPORARILY DISABLED."
+  );
   next();
 };
 /**
  * Middleware to extract and attach user ID for tracking
  */
 const attachUserId = (req, res, next) => {
-  // Get user ID from various sources
-  req.analyticsUserId =
-    req.user?.id ||
-    req.user?._id?.toString() ||
-    req.session?.userId ||
-    req.headers["x-device-id"] ||
-    "anonymous";
-
+  // TEMPORARILY DISABLED FOR STABILITY: Comment out the block below to disable user ID attachment.
+  // req.analyticsUserId =
+  //   req.user?.id || req.user?._id?.toString() ||
+  //   req.session?.userId ||
+  //   req.headers["x-device-id"] ||
+  //   "anonymous";
+  console.warn("⚠️ Analytics attachUserId middleware is TEMPORARILY DISABLED.");
+  req.analyticsUserId = "disabled_analytics_user"; // Provide a placeholder to prevent ReferenceErrors
   next();
 };
 
