@@ -14,6 +14,7 @@ const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
+const analyticsService = require("@services/analytics.service");
 const {
   logObject,
   logText,
@@ -478,6 +479,17 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           req.auth.success = true;
           req.auth.message = "successful login";
 
+          // PostHog Analytics: Track successful login
+          try {
+            analyticsService.track(user._id.toString(), "user_logged_in", {
+              method: "google",
+            });
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog Google login track error: ${analyticsError.message}`
+            );
+          }
+
           if (user && user.email !== user.email.toLowerCase()) {
             try {
               const conflictUser = await UserModel(
@@ -550,6 +562,26 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
+
+            // PostHog Analytics: Identify new user and track registration
+            try {
+              const userId = user._id.toString();
+              const userProperties = {
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                createdAt: user.createdAt,
+              };
+              analyticsService.identify(userId, userProperties);
+              analyticsService.track(userId, "user_registered", {
+                method: "google",
+              });
+            } catch (analyticsError) {
+              logger.error(
+                `PostHog Google registration track error: ${analyticsError.message}`
+              );
+            }
+
             try {
               // New user from Google should be auto-verified.
               const updatePayload = userUtil._constructLoginUpdate(user, null, {
@@ -1572,6 +1604,12 @@ const enhancedJWTAuth = (req, res, next) => {
         // 3. Attach user info to the request and proceed
         const userId = decoded.userId || decoded.id || decoded._id;
         const user = await UserModel(tenant).findById(userId).lean();
+
+        const analyticsId =
+          typeof userId === "string" ? userId : userId?.toString?.();
+        if (analyticsId) {
+          req.analyticsUserId = analyticsId;
+        }
 
         if (!user) {
           return next(

@@ -643,6 +643,20 @@ router.post(
   userController.registerMobileUser
 );
 
+/**
+ * @route PATCH /api/v2/users/consent
+ * @desc Update user's analytics consent status
+ * @access Private
+ * @body {boolean} analytics - The new consent status for analytics.
+ */
+router.patch(
+  "/consent",
+  enhancedJWTAuth,
+  userValidations.updateConsent,
+  validate,
+  userController.updateConsent
+);
+
 router.post(
   "/verify-email/:token",
   userValidations.verifyMobileEmail,
