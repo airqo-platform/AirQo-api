@@ -136,7 +136,9 @@ class DateUtils:
         start_date_time = execution_date - delta
         end_date_time = start_date_time + delta
 
-        return date_to_str_hours(start_date_time), date_to_str_hours(end_date_time)
+        return date_to_str(
+            start_date_time, str_format="%Y-%m-%dT%H:00:00Z"
+        ), date_to_str(end_date_time, str_format="%Y-%m-%dT%H:00:00Z")
 
 
 def get_utc_offset_for_hour(subject_hour: int) -> int:
@@ -160,15 +162,26 @@ def get_utc_offset_for_hour(subject_hour: int) -> int:
     return hour
 
 
-def str_to_date(st: str, date_format="%Y-%m-%dT%H:%M:%SZ"):
+def str_to_date(
+    st: str,
+    date_format: Optional[str] = "%Y-%m-%dT%H:%M:%SZ",
+    set_utc: Optional[bool] = True,
+):
     """
     Converts a string to datetime
+    Args:
+        st(str): Datetime string
+        set_utc(bool, optional): Whether to set the timezone to UTC. Defaults to True.
     """
-
     try:
-        return datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
-    except:
-        return datetime.strptime(st, date_format)
+        dt = datetime.strptime(st, date_format)
+    except ValueError:
+        dt = datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
+
+    if set_utc:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt
 
 
 def date_to_str(date: datetime, str_format="%Y-%m-%dT%H:%M:%SZ"):
@@ -176,13 +189,6 @@ def date_to_str(date: datetime, str_format="%Y-%m-%dT%H:%M:%SZ"):
     Converts datetime to a string
     """
     return datetime.strftime(date, str_format)
-
-
-def date_to_str_hours(date: datetime):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
 
 
 def frequency_to_dates(frequency: Frequency) -> Tuple[str, str]:
