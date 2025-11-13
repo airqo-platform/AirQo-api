@@ -480,15 +480,16 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           req.auth.message = "successful login";
 
           // PostHog Analytics: Track successful login
-          try {
-            analyticsService.track(user._id.toString(), "user_logged_in", {
-              method: "google",
-            });
-          } catch (analyticsError) {
-            logger.error(
-              `PostHog Google login track error: ${analyticsError.message}`
-            );
-          }
+          // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful login
+          // try {
+          //   analyticsService.track(user._id.toString(), "user_logged_in", {
+          //     method: "google",
+          //   });
+          // } catch (analyticsError) {
+          //   logger.error(
+          //     `PostHog Google login track error: ${analyticsError.message}`
+          //   );
+          // }
 
           if (user && user.email !== user.email.toLowerCase()) {
             try {
@@ -563,24 +564,24 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
 
-            // PostHog Analytics: Identify new user and track registration
-            try {
-              const userId = user._id.toString();
-              const userProperties = {
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                createdAt: user.createdAt,
-              };
-              analyticsService.identify(userId, userProperties);
-              analyticsService.track(userId, "user_registered", {
-                method: "google",
-              });
-            } catch (analyticsError) {
-              logger.error(
-                `PostHog Google registration track error: ${analyticsError.message}`
-              );
-            }
+            // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Identify new user and track registration
+            // try {
+            //   const userId = user._id.toString();
+            //   const userProperties = {
+            //     email: user.email,
+            //     firstName: user.firstName,
+            //     lastName: user.lastName,
+            //     createdAt: user.createdAt,
+            //   };
+            //   analyticsService.identify(userId, userProperties);
+            //   analyticsService.track(userId, "user_registered", {
+            //     method: "google",
+            //   });
+            // } catch (analyticsError) {
+            //   logger.error(
+            //     `PostHog Google registration track error: ${analyticsError.message}`
+            //   );
+            // }
 
             try {
               // New user from Google should be auto-verified.

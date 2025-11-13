@@ -476,11 +476,12 @@ const userController = {
       if (!request) return;
 
       // PostHog Analytics: Track logout event
-      try {
-        analyticsService.track(req.analyticsUserId, "user_logged_out");
-      } catch (analyticsError) {
-        logger.error(`PostHog logout track error: ${analyticsError.message}`);
-      }
+      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track logout event
+      // try {
+      //   analyticsService.track(req.analyticsUserId, "user_logged_out");
+      // } catch (analyticsError) {
+      //   logger.error(`PostHog logout track error: ${analyticsError.message}`);
+      // }
 
       return res
         .status(httpStatus.NOT_IMPLEMENTED)
