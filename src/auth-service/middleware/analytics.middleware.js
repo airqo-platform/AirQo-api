@@ -72,9 +72,7 @@ const trackAPIRequest = (req, res, next) => {
   //
   // res.on("finish", logRequest);
   // res.on("close", logRequest);
-  console.warn(
-    "⚠️ Analytics trackAPIRequest middleware is TEMPORARILY DISABLED."
-  );
+
   next();
 };
 /**
@@ -87,7 +85,7 @@ const attachUserId = (req, res, next) => {
   //   req.session?.userId ||
   //   req.headers["x-device-id"] ||
   //   "anonymous";
-  console.warn("⚠️ Analytics attachUserId middleware is TEMPORARILY DISABLED.");
+
   req.analyticsUserId = "disabled_analytics_user"; // Provide a placeholder to prevent ReferenceErrors
   next();
 };
