@@ -50,5 +50,8 @@ const devConfig = {
     process.env.DEV_ONBOARDING_BASE_URL ||
     "https://analytics.airqo.net/onboarding",
   ANALYTICS_PII_ENABLED: process.env.DEV_ANALYTICS_PII_ENABLED === "true",
+  POSTHOG_ENABLED: process.env.DEV_POSTHOG_ENABLED === "true",
+  POSTHOG_TRACK_API_REQUESTS:
+    process.env.DEV_POSTHOG_TRACK_API_REQUESTS === "true",
 };
 module.exports = devConfig;

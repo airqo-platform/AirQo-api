@@ -50,5 +50,8 @@ const prodConfig = {
     process.env.PROD_ONBOARDING_BASE_URL ||
     "https://analytics.airqo.net/onboarding",
   ANALYTICS_PII_ENABLED: process.env.PROD_ANALYTICS_PII_ENABLED === "true",
+  POSTHOG_ENABLED: process.env.PROD_POSTHOG_ENABLED === "true",
+  POSTHOG_TRACK_API_REQUESTS:
+    process.env.PROD_POSTHOG_TRACK_API_REQUESTS === "true",
 };
 module.exports = prodConfig;
