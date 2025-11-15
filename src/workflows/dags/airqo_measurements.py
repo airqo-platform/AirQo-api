@@ -33,7 +33,7 @@ from task_docs import (
 )
 from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, DataType
 from datetime import datetime, timedelta
-from airqo_etl_utils.date import date_to_str_hours
+from airqo_etl_utils.date import date_to_str
 
 
 @dag(
@@ -328,7 +328,7 @@ def airqo_realtime_measurements():
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
 
-        start_date_time = date_to_str_hours(hour_of_day)
+        start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
         return DataUtils.extract_devices_data(
@@ -368,7 +368,7 @@ def airqo_realtime_measurements():
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
 
-        start_date_time = date_to_str_hours(hour_of_day)
+        start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
         weather_data = WeatherDataUtils.extract_weather_data(
@@ -500,7 +500,7 @@ def airqo_raw_data_measurements():
         execution_time = kwargs["dag_run"].execution_date
         hour_of_day = execution_time - timedelta(minutes=30)
 
-        start_date_time = date_to_str_hours(hour_of_day)
+        start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
         return DataUtils.extract_devices_data(
@@ -555,8 +555,8 @@ def airqo_gaseous_realtime_measurements():
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
 
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+        start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
+        end_date_time = date_to_str(hour_of_day, str_formart="%Y-%m-%dT%H:59:59Z")
         return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -618,8 +618,8 @@ def airqo_bigquery_data_measurements_to_api():
             Variable.set("new_date_2021", previous_date)
 
         hour_of_day = datetime.strptime(previous_date, "%Y-%m-%dT%H:%M:%SZ")
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+        start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
+        end_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:59:59Z")
 
         if hour_of_day > end or (hour_of_day + timedelta(hours=1)) > end:
             raise AirflowFailException(f"Run expired on {end}")
@@ -641,7 +641,9 @@ def airqo_bigquery_data_measurements_to_api():
         previous_date = datetime.strptime(
             Variable.get("new_date_2021"), "%Y-%m-%dT%H:%M:%SZ"
         )
-        previous_date = date_to_str_hours(previous_date + timedelta(hours=1))
+        previous_date = date_to_str(
+            previous_date + timedelta(hours=1), str_format="%Y-%m-%dT%H:00:00Z"
+        )
         Variable.set("new_date_2021", previous_date)
 
     hourly_data = extract_hourly_data()
@@ -805,8 +807,8 @@ def extract_push_devices_missing_measurements_api():
     def extract_data(devices: pd.DataFrame, **kwargs) -> pd.DataFrame:
         dag_time = kwargs["dag_run"].execution_date
         hour_of_day = dag_time - timedelta(hours=6)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = date_to_str_hours(dag_time)
+        start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
+        end_date_time = date_to_str(dag_time, str_format="%Y-%m-%dT%H:00:00Z")
         if devices.empty:
             raise AirflowFailException("No devices with missing data found")
 

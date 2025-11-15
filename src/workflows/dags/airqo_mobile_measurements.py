@@ -10,7 +10,7 @@ from airqo_etl_utils.constants import (
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from airqo_etl_utils.datautils import DataUtils
-from airqo_etl_utils.date import date_to_str_hours
+from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from task_docs import (
     clean_data_raw_data_doc,
@@ -34,8 +34,8 @@ def airqo_raw_data_measurements_mobile():
         execution_time = kwargs["dag_run"].execution_date
         hour_of_day = execution_time - timedelta(minutes=5)
 
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+        start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
+        end_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:59:59Z")
 
         return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
