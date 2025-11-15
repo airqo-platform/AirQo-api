@@ -3,9 +3,11 @@ import numpy as np
 from scipy.stats import ks_2samp
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, List
+
 from .constants import Frequency, DataType
+from .date import str_to_date
 
 
 class AirQoDataDriftCompute:
@@ -101,7 +103,7 @@ class AirQoDataDriftCompute:
         if data.empty:
             return None
 
-        if (window_start + timedelta(hours=cls.COOLDOWN_HOURS)) > device[
+        if (str_to_date(window_start) + timedelta(hours=cls.COOLDOWN_HOURS)) > device[
             "recent_maintenance_date"
         ]:
             raise ValueError(
@@ -169,7 +171,7 @@ class AirQoDataDriftCompute:
         for pollutant in pollutants:
             baseline_row = {
                 "network": device_network,
-                "timestamp": window_end,
+                "timestamp": datetime.now(timezone.utc),
                 "device_id": device["device_id"],
                 "site_id": device["site_id"],
                 "data_type": data_type.str,
@@ -195,6 +197,7 @@ class AirQoDataDriftCompute:
                 "site_maximum": float(region_max),
             }
             baseline_rows.append(baseline_row)
+        print(baseline_rows)
         return baseline_rows
 
     @staticmethod
