@@ -48,5 +48,17 @@
     "name": "sample_count",
     "type": "INTEGER",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "auto_baseline_computed",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE",
+    "description": "Indicates whether this entry has been used to compute a baseline automatically"
+  },
+  {
+    "name": "stdv",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Standard deviation of the pollutant measurements."
   }
 ]
