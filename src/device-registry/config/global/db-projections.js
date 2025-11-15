@@ -678,6 +678,8 @@ class ProjectionFactory {
                 device_number: "$$device.device_number",
                 isActive: "$$device.isActive",
                 isOnline: "$$device.isOnline",
+                rawOnlineStatus: "$$device.rawOnlineStatus",
+                lastRawData: "$$device.lastRawData",
                 lastActive: "$$device.lastActive",
                 status: "$$device.status",
                 network: "$$device.network",
