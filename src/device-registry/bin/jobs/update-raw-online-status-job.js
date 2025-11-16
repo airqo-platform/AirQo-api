@@ -456,7 +456,9 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
           lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
           ...siteSetUpdate,
         };
-        siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
+        if (latestRawPm25) {
+          siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
+        }
 
         siteUpdate = {
           updateOne: {
