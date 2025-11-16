@@ -162,6 +162,7 @@ const mockNext = (error) => {
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
   const siteUpdates = [];
+  const pm25Updates = []; // NEW: Separate array for PM2.5 updates
   let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
@@ -208,8 +209,13 @@ const processDeviceBatch = async (devices, processor) => {
       chunk,
       async (device, index) => {
         const result = await processIndividualDevice(device, deviceDetailsMap);
-        if (result && result.siteUpdate) {
-          siteUpdates.push(result.siteUpdate);
+        if (result) {
+          if (result.siteUpdate) {
+            siteUpdates.push(result.siteUpdate);
+          }
+          if (result.pm25Update) {
+            pm25Updates.push(result.pm25Update);
+          }
         }
         return result ? result.deviceUpdate : null;
       }
@@ -218,12 +224,12 @@ const processDeviceBatch = async (devices, processor) => {
     totalUpdates += batchResult.results.filter((result) => result !== null)
       .length;
 
-    // Perform bulk write for successful operations with error handling
+    // Perform bulk write for STATUS updates (no conditional PM2.5 filter)
     const bulkOps = batchResult.results.filter(Boolean);
     if (bulkOps.length > 0) {
       try {
         const BULK_TIMEOUT = 15000; // 15 seconds
-        await Promise.race([
+        const statusResult = await Promise.race([
           DeviceModel("airqo").bulkWrite(bulkOps, { ordered: false }),
           new Promise((_, reject) =>
             setTimeout(
@@ -232,9 +238,40 @@ const processDeviceBatch = async (devices, processor) => {
             )
           ),
         ]);
+
+        // Log if some updates didn't match
+        if (statusResult.matchedCount !== bulkOps.length) {
+          logger.warn(
+            `Status update: matched ${statusResult.matchedCount}/${bulkOps.length}, ` +
+              `modified ${statusResult.modifiedCount}`
+          );
+        }
       } catch (error) {
         logger.error(`Bulk write error in batch: ${error.message}`);
         // Continue processing instead of failing completely
+      }
+    }
+
+    // NEW: Perform bulk write for PM2.5 updates (with conditional filter)
+    if (pm25Updates.length > 0) {
+      try {
+        const BULK_TIMEOUT = 15000;
+        const pm25Result = await Promise.race([
+          DeviceModel("airqo").bulkWrite(pm25Updates, { ordered: false }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("PM2.5 bulk write timeout")),
+              BULK_TIMEOUT
+            )
+          ),
+        ]);
+
+        logger.debug(
+          `PM2.5 update: matched ${pm25Result.matchedCount}/${pm25Updates.length}, ` +
+            `modified ${pm25Result.modifiedCount}`
+        );
+      } catch (error) {
+        logger.error(`PM2.5 bulk write error: ${error.message}`);
       }
     }
 
@@ -251,18 +288,45 @@ const processDeviceBatch = async (devices, processor) => {
   return totalUpdates;
 };
 
-// Extracted individual device processing function
+// Extracted individual device processing function - FIXED VERSION
 const processIndividualDevice = async (device, deviceDetailsMap) => {
+  // ============================================================================
+  // PRE-CHECK: Evaluate existing lastRawData to detect stale data
+  // This ensures we mark devices offline even if ThingSpeak fetch fails
+  // ============================================================================
+  const hasExistingRawData =
+    device.lastRawData && !isNaN(new Date(device.lastRawData).getTime());
+  let shouldMarkOfflineFromStaleData = false;
+
+  if (hasExistingRawData) {
+    const existingDataAge =
+      new Date().getTime() - new Date(device.lastRawData).getTime();
+    shouldMarkOfflineFromStaleData = existingDataAge >= RAW_INACTIVE_THRESHOLD;
+
+    // If data is stale, log it for visibility
+    if (shouldMarkOfflineFromStaleData) {
+      logger.debug(
+        `Device ${device.name} has stale lastRawData (${Math.round(
+          existingDataAge / (60 * 60 * 1000)
+        )}h old)`
+      );
+    }
+  }
+
   if (!device.device_number) {
-    // For devices without device_number, we can still track accuracy
+    // For devices without device_number, check if existing data is stale
     const isCurrentlyRawOnline = device.rawOnlineStatus;
-    const isNowRawOnline = false;
+    const isNowRawOnline = hasExistingRawData
+      ? !shouldMarkOfflineFromStaleData
+      : false;
 
     const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
       isCurrentlyOnline: isCurrentlyRawOnline,
       isNowOnline: isNowRawOnline,
       currentStats: device.onlineStatusAccuracy,
-      reason: "no_device_number",
+      reason: shouldMarkOfflineFromStaleData
+        ? "stale_lastRawData"
+        : "no_device_number",
     });
 
     const updateFields = {
@@ -295,14 +359,19 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
   // Get the API key from the pre-fetched details
   const detail = deviceDetailsMap.get(device.device_number);
   if (!detail || !detail.readKey) {
+    // No readKey, check if existing data is stale
     const isCurrentlyRawOnline = device.rawOnlineStatus;
-    const isNowRawOnline = false;
+    const isNowRawOnline = hasExistingRawData
+      ? !shouldMarkOfflineFromStaleData
+      : false;
 
     const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
       isCurrentlyOnline: isCurrentlyRawOnline,
       isNowOnline: isNowRawOnline,
       currentStats: device.onlineStatusAccuracy,
-      reason: "no_readkey",
+      reason: shouldMarkOfflineFromStaleData
+        ? "stale_lastRawData"
+        : "no_readkey",
     });
 
     const updateFields = {
@@ -339,20 +408,31 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       mockNext
     );
     if (!decryptResponse.success) {
-      return createFailureUpdate(device, "decryption_failed");
+      return createFailureUpdate(
+        device,
+        "decryption_failed",
+        shouldMarkOfflineFromStaleData,
+        hasExistingRawData
+      );
     }
     apiKey = decryptResponse.data;
   } catch (error) {
     logger.error(
       `Error decrypting key for device ${device.name}: ${error.message}`
     );
-    return createFailureUpdate(device, "decryption_error");
+    return createFailureUpdate(
+      device,
+      "decryption_error",
+      shouldMarkOfflineFromStaleData,
+      hasExistingRawData
+    );
   }
 
   // Skip devices that are in the exclusion list
   if (constants.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB.includes(device.name)) {
     return null;
   }
+
   // Fetch data from ThingSpeak with timeout
   try {
     const request = {
@@ -389,7 +469,17 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
           value: parseFloat(pm25Value),
           time: new Date(lastFeedTime),
         };
-        updateFields["latest_pm2_5.raw"] = latestRawPm25;
+      }
+    } else {
+      // ============================================================================
+      // CRITICAL FIX: No new data from ThingSpeak
+      // Use existing lastRawData to determine status
+      // ============================================================================
+      if (shouldMarkOfflineFromStaleData) {
+        isRawOnline = false;
+        logger.debug(
+          `No ThingSpeak data for ${device.name}, marking offline based on stale lastRawData`
+        );
       }
     }
 
@@ -418,13 +508,52 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       isCurrentlyOnline: isCurrentlyRawOnline,
       isNowOnline: isNowRawOnline,
       currentStats: device.onlineStatusAccuracy,
-      reason: isRawOnline ? "online_raw" : "offline_raw",
+      reason: isRawOnline
+        ? "online_raw"
+        : shouldMarkOfflineFromStaleData
+        ? "stale_lastRawData"
+        : "offline_raw",
     });
 
     const finalSetUpdate = { ...updateFields, ...setUpdate };
     const updateDoc = { $set: finalSetUpdate };
     if (incUpdate) {
       updateDoc.$inc = incUpdate;
+    }
+
+    // ============================================================================
+    // CRITICAL FIX: Separate status update from PM2.5 update
+    // Status update has NO conditional filter, so it always executes
+    // PM2.5 update has conditional filter to prevent overwriting newer data
+    // ============================================================================
+
+    // Phase 1: Status update (always executes)
+    const statusUpdate = {
+      updateOne: {
+        filter: { _id: device._id }, // No PM2.5 condition!
+        update: updateDoc,
+      },
+    };
+
+    // Phase 2: Conditional PM2.5 update (only if we have newer data)
+    let pm25Update = null;
+    if (latestRawPm25) {
+      pm25Update = {
+        updateOne: {
+          filter: {
+            _id: device._id,
+            $or: [
+              { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+              { "latest_pm2_5.raw.time": { $exists: false } },
+            ],
+          },
+          update: {
+            $set: {
+              "latest_pm2_5.raw": latestRawPm25,
+            },
+          },
+        },
+      };
     }
 
     // Prepare site update if PM2.5 is valid and device is primary for its site
@@ -480,42 +609,41 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     }
 
     return {
-      deviceUpdate: {
-        updateOne: {
-          filter: {
-            _id: device._id,
-            ...(latestRawPm25
-              ? {
-                  $or: [
-                    { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
-                    { "latest_pm2_5.raw.time": { $exists: false } },
-                  ],
-                }
-              : {}),
-          },
-          update: updateDoc,
-        },
-      },
-      siteUpdate,
+      deviceUpdate: statusUpdate,
+      pm25Update: pm25Update,
+      siteUpdate: siteUpdate,
     };
   } catch (error) {
     logger.error(
       `Error processing raw status for device ${device.name}: ${error.message}`
     );
-    return createFailureUpdate(device, "fetch_error");
+    return createFailureUpdate(
+      device,
+      "fetch_error",
+      shouldMarkOfflineFromStaleData,
+      hasExistingRawData
+    );
   }
 };
 
-// Helper function to create failure updates
-const createFailureUpdate = (device, reason) => {
+// Helper function to create failure updates - UPDATED VERSION
+const createFailureUpdate = (
+  device,
+  reason,
+  shouldMarkOfflineFromStaleData = false,
+  hasExistingRawData = false
+) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
-  const isNowRawOnline = false;
+  // Use stale data check to determine if should be offline
+  const isNowRawOnline = hasExistingRawData
+    ? !shouldMarkOfflineFromStaleData
+    : false;
 
   const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
     isCurrentlyOnline: isCurrentlyRawOnline,
     isNowOnline: isNowRawOnline,
     currentStats: device.onlineStatusAccuracy,
-    reason: reason,
+    reason: shouldMarkOfflineFromStaleData ? "stale_lastRawData" : reason,
   });
 
   const updateFields = {
@@ -577,7 +705,7 @@ const updateRawOnlineStatus = async () => {
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation"
+        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation"
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
