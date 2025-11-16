@@ -297,12 +297,10 @@ const siteSchema = new Schema(
     },
     rawOnlineStatus: {
       type: Boolean,
-      trim: true,
       default: false,
     },
     lastRawData: {
       type: Date,
-      trim: true,
       default: null,
     },
     /**

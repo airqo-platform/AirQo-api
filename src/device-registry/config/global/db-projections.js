@@ -55,6 +55,8 @@ class ProjectionFactory {
                 search_name: "$$site.search_name",
                 location_name: "$$site.location_name",
                 isOnline: "$$site.isOnline",
+                rawOnlineStatus: "$$site.rawOnlineStatus",
+                lastRawData: "$$site.lastRawData",
               },
             },
           },
