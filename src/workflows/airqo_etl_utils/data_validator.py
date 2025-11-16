@@ -2,7 +2,8 @@ from itertools import chain
 import logging
 import numpy as np
 import pandas as pd
-from typing import Optional, List
+import ast
+from typing import Optional, Dict, List, Any
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
 from .config import configuration as Config
@@ -17,6 +18,8 @@ class DataValidationUtils:
         floats: Optional[List] = None,
         integers: Optional[List] = None,
         timestamps: Optional[List] = None,
+        records: Optional[List] = None,
+        repeated: Optional[List] = None,
     ) -> pd.DataFrame:
         """
         Formats specified columns in a DataFrame to desired data types: float, integer, and datetime.
@@ -26,6 +29,8 @@ class DataValidationUtils:
             floats(list, optional): List of column names to be converted to floats. Defaults to an empty list.
             integers(list, optional): List of column names to be converted to integers. Defaults to an empty list.
             timestamps(list, optional): List of column names to be converted to datetime. Defaults to an empty list.
+            records(list, optional): List of column names to be converted to records. Defaults to an empty list.
+            repeated(list, optional): List of column names to be converted to repeated fields. Defaults to an empty list.
 
         Returns:
             pd.DataFrame: A DataFrame with the specified columns formatted to their respective data types.
@@ -41,6 +46,8 @@ class DataValidationUtils:
         floats = floats or []
         integers = integers or []
         timestamps = timestamps or []
+        records = records or []
+        repeated = repeated or []
         if floats:
             data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
 
@@ -98,7 +105,62 @@ class DataValidationUtils:
                     .fillna(-1)
                     .astype(np.int64)
                 )
+        if records:
+            for col in records:
+                data[col] = data[col].apply(DataValidationUtils._convert_record)
+
+        if repeated:
+            for col in repeated:
+                data[col] = data[col].apply(
+                    DataValidationUtils._convert_repeated_record
+                )
         return data
+
+    @staticmethod
+    def _convert_repeated_record(value: Any) -> List[Dict] | None:
+        """
+        Converts a value to a list of dictionaries suitable for BigQuery REPEATED RECORD.
+
+        Args:
+            value: The value to convert (can be list, string representation, None, etc.)
+
+        Returns:
+            List[Dict] | None: Properly formatted list of dictionaries or None.
+        """
+        if pd.isna(value) or value is None:
+            return None
+
+        if isinstance(value, str):
+            try:
+                parsed = ast.literal_eval(value)
+                if isinstance(parsed, list):
+                    if all(isinstance(item, dict) for item in parsed):
+                        return parsed
+            except Exception as e:
+                logger.error(f"Error parsing repeated record: {e}")
+        return None
+
+    @staticmethod
+    def _convert_record(value: Any) -> Dict | None:
+        """
+        Converts a value to a dictionary suitable for BigQuery RECORD.
+
+        Args:
+            value: The value to convert (can be dict, string representation, None, etc.)
+
+        Returns:
+            Dict | None: Properly formatted dictionary or None.
+        """
+        if pd.isna(value) or value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                parsed = ast.literal_eval(value)
+                if isinstance(parsed, list):
+                    return parsed
+            except Exception as e:
+                logger.error(f"Error parsing record: {e}")
+        return None
 
     @staticmethod
     def get_valid_value(
