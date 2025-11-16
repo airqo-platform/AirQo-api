@@ -9,7 +9,7 @@ from airqo_etl_utils.constants import (
     MetaDataType,
 )
 from airqo_etl_utils.datautils import DataUtils
-from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.date import DateUtils
 
 
 @dag(
@@ -205,8 +205,10 @@ def realtime_measurements_etl__plume_labs():
     from datetime import datetime, timedelta, timezone
 
     hour_of_day = datetime.now(timezone.utc) - timedelta(hours=25)
-    start_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
-    end_date_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:59:59Z")
+    start_date_time = DateUtils.date_to_str(
+        hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
+    )
+    end_date_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:59:59Z")
 
     @task()
     def extract_measures():
@@ -366,8 +368,8 @@ def realtime_measurements_etl__air_beam():
     from datetime import datetime, timedelta, timezone
 
     hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
-    start_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
-    end_time = date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:59:59Z")
+    start_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:00:00Z")
+    end_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:59:59Z")
 
     @task()
     def extract_stream_ids():
