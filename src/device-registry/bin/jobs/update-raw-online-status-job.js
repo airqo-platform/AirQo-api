@@ -244,31 +244,8 @@ const processDeviceBatch = async (devices, processor) => {
 
   // After processing all device chunks, perform site updates
   if (siteUpdates.length > 0) {
-    try {
-      const siteBulkOps = siteUpdates.map(({ siteId, update }) => {
-        const t = update["latest_pm2_5.raw"]?.time;
-        return {
-          updateOne: {
-            filter: {
-              _id: siteId,
-              ...(t
-                ? {
-                    $or: [
-                      { "latest_pm2_5.raw.time": { $lt: t } },
-                      { "latest_pm2_5.raw.time": { $exists: false } },
-                    ],
-                  }
-                : {}),
-            },
-            update: { $set: update },
-          },
-        };
-      });
-      await SiteModel("airqo").bulkWrite(siteBulkOps, { ordered: false });
-      logText(`Updated ${siteUpdates.length} sites with latest PM2.5 values.`);
-    } catch (error) {
-      logger.error(`Site bulk update error: ${error.message}`);
-    }
+    await SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false });
+    logText(`Updated ${siteUpdates.length} sites with latest raw status.`);
   }
 
   return totalUpdates;
@@ -441,7 +418,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       isCurrentlyOnline: isCurrentlyRawOnline,
       isNowOnline: isNowRawOnline,
       currentStats: device.onlineStatusAccuracy,
-      reason: isNowRawOnline ? "online_raw" : "offline_raw",
+      reason: isRawOnline ? "online_raw" : "offline_raw",
     });
 
     const finalSetUpdate = { ...updateFields, ...setUpdate };
@@ -452,17 +429,45 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
     // Prepare site update if PM2.5 is valid and device is primary for its site
     let siteUpdate = null;
-    if (device.site_id) {
+    if (device.site_id && device.isPrimaryInLocation) {
+      // Fetch current site to get its rawOnlineStatus for accuracy check
+      const currentSite = await SiteModel("airqo")
+        .findById(device.site_id)
+        .select("rawOnlineStatus onlineStatusAccuracy")
+        .lean();
+
+      const {
+        setUpdate: siteSetUpdate,
+        incUpdate: siteIncUpdate,
+      } = getUptimeAccuracyUpdateObject({
+        isCurrentlyOnline: currentSite.rawOnlineStatus,
+        isNowOnline: isRawOnline,
+        currentStats: currentSite.onlineStatusAccuracy,
+        reason: isRawOnline ? "online_raw_site" : "offline_raw_site",
+      });
+
       const siteUpdateFields = {
         rawOnlineStatus: isRawOnline,
         lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
+        ...siteSetUpdate,
       };
-      if (latestRawPm25 && device.isPrimaryInLocation) {
-        siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
-      }
+      siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
+
       siteUpdate = {
-        siteId: device.site_id,
-        update: siteUpdateFields,
+        updateOne: {
+          filter: {
+            _id: device.site_id,
+            ...(latestRawPm25
+              ? {
+                  $or: [
+                    { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                    { "latest_pm2_5.raw.time": { $exists: false } },
+                  ],
+                }
+              : {}),
+          },
+          update: { $set: siteUpdateFields, $inc: siteIncUpdate },
+        },
       };
     }
 

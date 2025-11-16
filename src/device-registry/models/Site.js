@@ -394,6 +394,7 @@ const siteSchema = new Schema(
       },
     },
     onlineStatusAccuracy: {
+      // Old fields for backward compatibility
       totalAttempts: { type: Number, default: 0 },
       successfulUpdates: { type: Number, default: 0 },
       failedUpdates: { type: Number, default: 0 },
@@ -402,6 +403,16 @@ const siteSchema = new Schema(
       lastFailureReason: { type: String },
       successPercentage: { type: Number, default: 0 },
       failurePercentage: { type: Number, default: 0 },
+
+      // New, more descriptive fields for "truthfulness"
+      totalChecks: { type: Number, default: 0 },
+      correctChecks: { type: Number, default: 0 },
+      incorrectChecks: { type: Number, default: 0 },
+      lastCheck: { type: Date },
+      lastCorrectCheck: { type: Date },
+      lastIncorrectCheck: { type: Date },
+      lastIncorrectReason: { type: String },
+      accuracyPercentage: { type: Number, default: 0 },
     },
     // Precomputed activity fields for performance
     cached_activities_by_type: {
