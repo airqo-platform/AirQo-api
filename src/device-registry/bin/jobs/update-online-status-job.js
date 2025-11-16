@@ -717,20 +717,10 @@ async function updateOfflineEntitiesWithAccuracy(
       const isCurrentlyOnline = entity.isOnline !== false;
 
       if (isCurrentlyOnline) {
-        // Device needs to be marked offline
+        // Device is currently online, mark as offline
         statusBulkOps.push({
           updateOne: {
-            filter: {
-              _id: entity._id,
-              $or: [
-                { lastActive: { $lt: thresholdTime } },
-                {
-                  lastActive: { $exists: false },
-                  createdAt: { $lt: thresholdTime },
-                },
-              ],
-              isOnline: { $ne: false },
-            },
+            filter: { _id: entity._id },
             update: {
               $set: {
                 isOnline: false,
@@ -785,6 +775,18 @@ async function updateOfflineEntitiesWithAccuracy(
         });
         statusModified = statusResult.modifiedCount || 0;
         statusMatched = statusResult.matchedCount || 0;
+
+        // ============================================================================
+        // Log warning if matched count differs from expected
+        // This helps identify if any updates failed unexpectedly
+        // ============================================================================
+        if (statusMatched !== statusBulkOps.length) {
+          logger.warn(
+            `${entityType} offline status update: expected ${statusBulkOps.length} matches, ` +
+              `got ${statusMatched} (${statusBulkOps.length -
+                statusMatched} documents not found)`
+          );
+        }
       } catch (error) {
         logger.error(
           `Offline status update error for ${entityType}: ${error.message}`
@@ -800,6 +802,17 @@ async function updateOfflineEntitiesWithAccuracy(
           ordered: false,
         });
         accuracyModified = accuracyResult.modifiedCount || 0;
+
+        // ============================================================================
+        // Log warning if matched count differs from expected
+        // ============================================================================
+        if (accuracyResult.matchedCount !== accuracyBulkOps.length) {
+          logger.warn(
+            `${entityType} accuracy update: expected ${accuracyBulkOps.length} matches, ` +
+              `got ${accuracyResult.matchedCount} (${accuracyBulkOps.length -
+                accuracyResult.matchedCount} documents not found)`
+          );
+        }
       } catch (error) {
         logger.error(
           `Offline accuracy update error for ${entityType}: ${error.message}`
