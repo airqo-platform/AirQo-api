@@ -436,39 +436,45 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
         .select("rawOnlineStatus onlineStatusAccuracy")
         .lean();
 
-      const {
-        setUpdate: siteSetUpdate,
-        incUpdate: siteIncUpdate,
-      } = getUptimeAccuracyUpdateObject({
-        isCurrentlyOnline: currentSite.rawOnlineStatus,
-        isNowOnline: isRawOnline,
-        currentStats: currentSite.onlineStatusAccuracy,
-        reason: isRawOnline ? "online_raw_site" : "offline_raw_site",
-      });
+      if (!currentSite) {
+        logger.warn(
+          `Site ${device.site_id} not found for device ${device.name}, skipping site update`
+        );
+      } else {
+        const {
+          setUpdate: siteSetUpdate,
+          incUpdate: siteIncUpdate,
+        } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: currentSite.rawOnlineStatus,
+          isNowOnline: isRawOnline,
+          currentStats: currentSite.onlineStatusAccuracy,
+          reason: isRawOnline ? "online_raw_site" : "offline_raw_site",
+        });
 
-      const siteUpdateFields = {
-        rawOnlineStatus: isRawOnline,
-        lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
-        ...siteSetUpdate,
-      };
-      siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
+        const siteUpdateFields = {
+          rawOnlineStatus: isRawOnline,
+          lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
+          ...siteSetUpdate,
+        };
+        siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
 
-      siteUpdate = {
-        updateOne: {
-          filter: {
-            _id: device.site_id,
-            ...(latestRawPm25
-              ? {
-                  $or: [
-                    { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
-                    { "latest_pm2_5.raw.time": { $exists: false } },
-                  ],
-                }
-              : {}),
+        siteUpdate = {
+          updateOne: {
+            filter: {
+              _id: device.site_id,
+              ...(latestRawPm25
+                ? {
+                    $or: [
+                      { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                      { "latest_pm2_5.raw.time": { $exists: false } },
+                    ],
+                  }
+                : {}),
+            },
+            update: { $set: siteUpdateFields, $inc: siteIncUpdate },
           },
-          update: { $set: siteUpdateFields, $inc: siteIncUpdate },
-        },
-      };
+        };
+      }
     }
 
     return {
