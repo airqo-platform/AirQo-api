@@ -393,13 +393,26 @@ Attention Needed:
 
 #### Device Status
 
+- **Online**: Device is transmitting data within its expected time threshold.
+- **Offline**: Device has not transmitted data within its threshold.
+- **Threshold**: 5 hours for deployed static devices, 1 hour for mobile/non-deployed devices.
+
 #### Accuracy
+
+- **Definition**: A measure of how often our system correctly identifies a device's online or offline status.
+- **Calculation**: `(Correct Checks / Total Checks) * 100%`.
+- **Target**: ≥98% accuracy across the network.
 
 #### Jobs
 
+- **Raw Status Job (:35/hour)**: Checks raw data from ThingSpeak for all devices. Provides fast but less processed status.
+- **Calibrated Status Job (:45/hour)**: Checks processed, calibrated data from our database for deployed devices. Provides a higher-quality, more reliable status.
+
 #### Device Types
 
-- **Non-Deployed**: Testing/warehouse, uses raw data, 1-hour threshold
+- **Static Deployed**: Fixed-location devices using the 5-hour calibrated data threshold.
+- **Mobile**: Vehicle-mounted devices using the 1-hour raw data threshold for faster updates.
+- **Non-Deployed**: Devices in testing or storage, also using the 1-hour raw data threshold.
 
 ### Frequently Asked Questions
 
@@ -407,13 +420,19 @@ Attention Needed:
 
 **A**: Two different data sources with different purposes:
 
+- **Raw Data Check (:35)**: Provides a quick, near-real-time indication of connectivity directly from the device's transmissions.
+- **Calibrated Data Check (:45)**: Provides a more reliable, "source-of-truth" status based on data that has successfully passed through our entire processing and quality control pipeline.
+
 #### Q: What does 97.8% accuracy mean?
 
 **A**: Out of every 100 status checks, approximately 98 are correct. We're tracking whether the system accurately identifies if a device is online or offline.
 
 #### Q: Why 5 hours for deployed devices but 1 hour for mobile?
 
-**A**:
+**A**: The different thresholds account for data processing time and device behavior:
+
+- **5 hours (Deployed)**: Calibrated data takes time to be processed, cleaned, and stored. The 5-hour window provides a safe buffer to ensure high-quality data is used for status checks without prematurely marking a device as offline.
+- **1 hour (Mobile/Non-Deployed)**: These devices rely on raw data, which has very low latency. A shorter 1-hour threshold allows for faster detection of connectivity issues, which is crucial for mobile devices that frequently change location and network conditions.
 
 #### Q: What happens when a device goes offline?
 
