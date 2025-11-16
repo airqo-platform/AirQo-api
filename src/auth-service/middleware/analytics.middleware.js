@@ -1,5 +1,6 @@
 const analyticsService = require("@services/analytics.service");
 const crypto = require("crypto");
+const constants = require("@config/constants");
 
 // Helper functions (can be kept or removed, but their calls will be commented out)
 /**
@@ -47,46 +48,49 @@ function sanitizePath(path) {
  * Middleware to track API requests
  */
 const trackAPIRequest = (req, res, next) => {
-  // TEMPORARILY DISABLED FOR STABILITY: Comment out the block below to disable API request tracking.
-  // const startTime = Date.now();
-  // // DNT/GPC header opt-out
-  // if (req.headers["dnt"] === "1" || req.headers["sec-gpc"] === "1") {
-  //   return next();
-  // }
-  //
-  // const cleanup = () => {
-  //   res.removeListener("finish", logRequest);
-  //   res.removeListener("close", logRequest);
-  // };
-  //
-  // const logRequest = () => {
-  //   const duration = Date.now() - startTime;
-  //   analyticsService.track(req.analyticsUserId || "anonymous", "api_request", {
-  //     method: req.method,
-  //     path: sanitizePath(req.path),
-  //     statusCode: res.statusCode,
-  //     duration,
-  //   });
-  //   cleanup();
-  // };
-  //
-  // res.on("finish", logRequest);
-  // res.on("close", logRequest);
+  if (constants.POSTHOG_ENABLED && constants.POSTHOG_TRACK_API_REQUESTS) {
+    const startTime = Date.now();
+    // DNT/GPC header opt-out
+    if (req.headers["dnt"] === "1" || req.headers["sec-gpc"] === "1") {
+      return next();
+    }
 
+    const cleanup = () => {
+      res.removeListener("finish", logRequest);
+      res.removeListener("close", logRequest);
+    };
+
+    const logRequest = () => {
+      const duration = Date.now() - startTime;
+      analyticsService.track(
+        req.analyticsUserId || "anonymous",
+        "api_request",
+        {
+          method: req.method,
+          path: sanitizePath(req.path),
+          statusCode: res.statusCode,
+          duration,
+        }
+      );
+      cleanup();
+    };
+
+    res.on("finish", logRequest);
+    res.on("close", logRequest);
+  }
   next();
 };
 /**
  * Middleware to extract and attach user ID for tracking
  */
 const attachUserId = (req, res, next) => {
-  // TEMPORARILY DISABLED FOR STABILITY: Comment out the block below to disable user ID attachment.
-  // req.analyticsUserId =
-  //   req.user?.id || req.user?._id?.toString() ||
-  //   req.session?.userId ||
-  //   req.headers["x-device-id"] ||
-  //   "anonymous";
-
-  req.analyticsUserId = "disabled_analytics_user"; // Provide a placeholder to prevent ReferenceErrors
+  if (constants.POSTHOG_ENABLED) {
+    req.analyticsUserId =
+      req.user?.id ||
+      req.user?._id?.toString() ||
+      req.session?.userId ||
+      "anonymous";
+  }
   next();
 };
 

@@ -4088,27 +4088,27 @@ const createUserModule = {
         if (responseFromCreateUser.success === true) {
           const createdUser = responseFromCreateUser.data;
 
-          // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful registration
-          // try {
-          //   const dnt =
-          //     request?.headers?.["dnt"] === "1" ||
-          //     request?.headers?.["sec-gpc"] === "1";
-          //   if (!dnt) {
-          //     const distinctId =
-          //       createdUser?._id?.toString() ||
-          //       createdUser?._doc?._id?.toString();
-          //     if (distinctId) {
-          //       analyticsService.track(distinctId, "user_registered", {
-          //         method: "admin_creation",
-          //         organization,
-          //       });
-          //     }
-          //   }
-          // } catch (analyticsError) {
-          //   logger.error(
-          //     `PostHog registration track error: ${analyticsError.message}`
-          //   );
-          // }
+          // PostHog Analytics: Track successful registration
+          try {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            if (!dnt) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString();
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "admin_creation",
+                  organization,
+                });
+              }
+            }
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
 
           // ✅ STEP 6: Enhanced email sending with monitoring
           try {
@@ -6208,20 +6208,20 @@ const createUserModule = {
         };
       }
 
-      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful login
-      // try {
-      //   const dnt =
-      //     request?.headers?.["dnt"] === "1" ||
-      //     request?.headers?.["sec-gpc"] === "1";
-      //   const userConsented = user?.consent?.analytics === true;
-      //   if (!dnt && userConsented) {
-      //     analyticsService.track(user._id.toString(), "user_logged_in", {
-      //       method: "email_password",
-      //     });
-      //   }
-      // } catch (analyticsError) {
-      //   logger.error(`PostHog login track error: ${analyticsError.message}`);
-      // }
+      // PostHog Analytics: Track successful login
+      try {
+        const dnt =
+          request?.headers?.["dnt"] === "1" ||
+          request?.headers?.["sec-gpc"] === "1";
+        const userConsented = user?.consent?.analytics === true;
+        if (!dnt && userConsented) {
+          analyticsService.track(user._id.toString(), "user_logged_in", {
+            method: "email_password",
+          });
+        }
+      } catch (analyticsError) {
+        logger.error(`PostHog login track error: ${analyticsError.message}`);
+      }
 
       // Initialize RBAC service
       const rbacService = new RBACService(dbTenant);
