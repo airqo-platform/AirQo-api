@@ -3,11 +3,9 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.config import configuration as Config
-from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 from airflow.exceptions import AirflowFailException
 from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
-from .date import str_to_date, date_to_str
 
 import logging
 
