@@ -383,64 +383,39 @@ Attention Needed:
 ⚠️ 22 devices below target (accuracy 90-95%)
 ```
 
-### Alert Types
+#### Alert Types
 
 **🚨 Critical**: Device offline >4 hours or accuracy <90%
 **⚠️ Warning**: Accuracy declining or between 90-95%
 **ℹ️ Info**: Device recovered or status update
 
----
+### Key Concepts Summary
 
-## Key Concepts Summary
+#### Device Status
 
-### Device Status
+#### Accuracy
 
-- **Online**: Device sent data within threshold period
-- **Offline**: No data received within threshold period
-- **Threshold**: 1 hour (mobile/testing) or 5 hours (deployed)
+#### Jobs
 
-### Accuracy
+#### Device Types
 
-- **Measures**: How often system correctly identifies device status
-- **Calculated**: Every status check (48 times per day per device)
-- **Target**: ≥98% accuracy
-- **Current**: 97.8% system-wide
-
-### Jobs
-
-- **Raw Status Job**: Runs at :35, checks ThingSpeak, 1-hour threshold
-- **Calibrated Status Job**: Runs at :45, checks calibrated data, 5-hour threshold
-- **Frequency**: Every hour, 24/7
-
-### Device Types
-
-- **Mobile**: Vehicle-mounted, uses raw data, 1-hour threshold
-- **Static Deployed**: Fixed location, uses calibrated data, 5-hour threshold
 - **Non-Deployed**: Testing/warehouse, uses raw data, 1-hour threshold
 
----
+### Frequently Asked Questions
 
-## Frequently Asked Questions
-
-### Q: Why do we check devices twice per hour?
+#### Q: Why do we check devices twice per hour?
 
 **A**: Two different data sources with different purposes:
 
-- **Raw data** (ThingSpeak): Fast detection, all devices
-- **Calibrated data** (Database): Higher quality, deployed devices only
-
-### Q: What does 97.8% accuracy mean?
+#### Q: What does 97.8% accuracy mean?
 
 **A**: Out of every 100 status checks, approximately 98 are correct. We're tracking whether the system accurately identifies if a device is online or offline.
 
-### Q: Why 5 hours for deployed devices but 1 hour for mobile?
+#### Q: Why 5 hours for deployed devices but 1 hour for mobile?
 
 **A**:
 
-- **5 hours**: Calibrated data takes time to process (1-4 hours), so we allow longer
-- **1 hour**: Raw data is immediate, and mobile devices need faster detection
-
-### Q: What happens when a device goes offline?
+#### Q: What happens when a device goes offline?
 
 **A**:
 
@@ -450,7 +425,7 @@ Attention Needed:
 4. Alert generated if device was previously online
 5. Operations team notified
 
-### Q: Can accuracy be 100%?
+#### Q: Can accuracy be 100%?
 
 **A**: In practice, no. There will always be some edge cases:
 
@@ -461,7 +436,7 @@ Attention Needed:
 
 Target of 98% accounts for these unavoidable issues.
 
-### Q: How is this different from device uptime?
+#### Q: How is this different from device uptime?
 
 **A**:
 
