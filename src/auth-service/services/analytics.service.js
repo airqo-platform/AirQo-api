@@ -5,23 +5,18 @@ const constants = require("@config/constants");
 class AnalyticsService {
   constructor() {
     this.client = null;
-    // TEMPORARILY DISABLED FOR STABILITY: Comment out the block below to disable PostHog.
-    // if (posthogConfig.apiKey) {
-    //   this.client = new PostHog(posthogConfig.apiKey, {
-    //     host: posthogConfig.host,
-    //     // Enable for production to batch events
-    //     flushAt: 20, // Flush after 20 events
-    //     flushInterval: 10000, // Flush every 10 seconds
-    //   });
-    //   console.log("✅ PostHog Analytics Service Initialized");
-    // } else {
-    //   console.warn(
-    //     "⚠️ PostHog API Key not found. Analytics service is disabled."
-    //   );
-    // }
-    console.warn(
-      "⚠️ PostHog Analytics Service is TEMPORARILY DISABLED for stability. Remove comments in constructor to re-enable."
-    );
+    if (constants.POSTHOG_ENABLED && posthogConfig.apiKey) {
+      this.client = new PostHog(posthogConfig.apiKey, {
+        host: posthogConfig.host,
+        // The PostHog library batches events asynchronously.
+        // These settings are safe for production.
+        flushAt: 20,
+        flushInterval: 10000,
+      });
+      console.log("✅ PostHog Analytics Service Initialized");
+    } else {
+      console.warn("⚠️ PostHog Analytics Service is DISABLED.");
+    }
   }
 
   /**
