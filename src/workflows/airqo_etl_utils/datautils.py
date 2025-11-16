@@ -1,8 +1,8 @@
+import uuid
 import numpy as np
 import pandas as pd
 import json
 from pathlib import Path
-import os
 from datetime import datetime, timedelta, timezone
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
@@ -27,7 +27,7 @@ from .constants import (
 from .message_broker_utils import MessageBrokerUtils
 
 from .utils import Utils
-from .date import date_to_str, str_to_date
+from .date import DateUtils
 from .data_validator import DataValidationUtils
 
 import logging
@@ -466,8 +466,8 @@ class DataUtils:
             logger.info("End date cannot be in the future.")
             return pd.DataFrame()
 
-        start_date = date_to_str(start_date)
-        end_date = date_to_str(end_date)
+        start_date = DateUtils.date_to_str(start_date)
+        end_date = DateUtils.date_to_str(end_date)
         big_query_api = BigQueryApi()
         data = big_query_api.fetch_max_min_values(
             table=table,
@@ -480,6 +480,7 @@ class DataUtils:
         if not data.empty:
             data["next_offset_date"] = end_date
             data[unique_id] = entity_id
+            data["run_id"] = str(uuid.uuid4())
             if extra_id:
                 data["site_id"] = extra_id
             data["created"] = datetime.now(timezone.utc)
@@ -489,7 +490,14 @@ class DataUtils:
             data.dropna(
                 inplace=True,
                 how="any",
-                subset=["pollutant", "minimum", "maximum", "average", "site_id"],
+                subset=[
+                    "pollutant",
+                    "minimum",
+                    "maximum",
+                    "average",
+                    "stdv",
+                    "site_id",
+                ],
             )
         return data
 
@@ -912,14 +920,18 @@ class DataUtils:
         offset_column: str,
         frequency: Optional[Frequency] = Frequency.WEEKLY,
         filter: Dict[str, Any] = None,
+        order: Optional[str] = "DESC",
     ) -> pd.DataFrame:
         """
-        Extracts the most recent record for a specific metadata type and unique ID.
+        Extracts the most recent record for a specific metadata type and unique ID given some sort of ordering.
 
         Args:
             metadata_type (MetaDataType): The type of metadata to extract.
             unique_id (str): The unique ID of the record to extract.
             offset_column (str): The column to use for offsetting the results.
+            frequency (Optional[Frequency]): The frequency of the data. Defaults to WEEKLY.
+            filter (Dict[str, Any]): Additional filters to apply to the query.
+            order (Optional[str]): The order of the results. Defaults to "DESC".
 
         Returns:
             pd.DataFrame: A DataFrame containing the most recent record.
@@ -934,13 +946,14 @@ class DataUtils:
             logger.exception(f"Failed to get metadata table. {e}")
             return pd.DataFrame()
 
-        data = big_query_api.fetch_most_recent_record(
+        data = big_query_api.fetch_record_by_order(
             metadata_table,
             unique_id,
             offset_column=offset_column,
             columns=cols,
             frequency=frequency,
             filter=filter,
+            order=order,
         )
         return data
 
@@ -1286,7 +1299,7 @@ class DataUtils:
         """
 
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data["timestamp"] = data["timestamp"].apply(DateUtils.date_to_str)
         devices = DataUtils.get_devices()
         devices = devices[["id", "device_id", "network"]]
         devices = devices.drop_duplicates(subset="device_id", keep="first")
@@ -1657,7 +1670,7 @@ class DataUtils:
             )
             data.dropna(subset=["timestamp"], inplace=True)
             data["timestamp"] = pd.to_datetime(data["timestamp"])
-            data["last_updated"] = date_to_str(datetime.now(timezone.utc))
+            data["last_updated"] = DateUtils.date_to_str(datetime.now(timezone.utc))
         except Exception as e:
             logger.exception(
                 f"There is an issue with the timestamp column. Shape of data: {data.shape}"
@@ -1749,8 +1762,8 @@ class DataUtils:
 
         dates = [
             (
-                str_to_date(sdate).strftime("%Y-%m-%dT%H:%M"),
-                str_to_date(edate).strftime("%Y-%m-%dT%H:%M"),
+                DateUtils.str_to_date(sdate).strftime("%Y-%m-%dT%H:%M"),
+                DateUtils.str_to_date(edate).strftime("%Y-%m-%dT%H:%M"),
             )
             for sdate, edate in dates
         ]
