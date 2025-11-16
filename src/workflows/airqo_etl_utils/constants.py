@@ -218,13 +218,15 @@ class JobAction(IntEnum):
 
 
 @unique
-class ColumnDataType(IntEnum):
-    TIMESTAMP = 1
-    FLOAT = 2
-    TIMESTAMP_STR = 3
-    STRING = 4
-    INTEGER = 5
-    NONE = 6
+class ColumnDataType(Enum):
+    TIMESTAMP = "timestamp"
+    FLOAT = "float"
+    TIMESTAMP_STR = "timestamp_str"
+    STRING = "string"
+    INTEGER = "integer"
+    RECORD = "record"
+    REPEATED = "repeated"
+    NONE = "none"
 
     def __str__(self) -> str:
         return self.name.lower()

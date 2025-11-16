@@ -326,9 +326,8 @@ def compute_store_devices_baseline_weekly():
     def extract_compute_devices_baeline() -> pd.DataFrame:
         return MetaDataUtils.compute_device_site_baseline(
             DataType.AVERAGED,
-            Frequency.WEEKLY,
-            DeviceCategory.GENERAL,
-            DeviceNetwork.AIRQO,
+            DeviceCategory.LOWCOST,
+            frequency=Frequency.WEEKLY,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
