@@ -4,11 +4,11 @@ import os
 import ast
 import hashlib
 from typing import Optional, Callable, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .data_api import DataApi
-from .date import frequency_to_dates
+from .date import DateUtils
 from .bigquery_api import BigQueryApi
 from .datautils import DataUtils
 from .data_validator import DataValidationUtils
@@ -206,13 +206,14 @@ class MetaDataUtils:
         if not computed_data.empty:
             computed_data["data_resolution"] = frequency_.str
             computed_data["baseline_type"] = frequency.str
+            computed_data["auto_baseline_computed"] = False
         return computed_data
 
     @staticmethod
     def compute_device_site_baseline(
         data_type: DataType,
         device_category: DeviceCategory,
-        device_network: DeviceNetwork,
+        device_network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         frequency: Optional[Frequency] = Frequency.WEEKLY,
@@ -233,68 +234,44 @@ class MetaDataUtils:
         Raises:
             ValueError: If no data is found for the specified parameters.
         """
-        frequency_: Frequency = frequency
         if start_date is None or end_date is None:
-            start_date, end_date = frequency_to_dates(frequency)
+            start_date, end_date = DateUtils.frequency_to_dates(frequency)
 
         # Uses the device category passed to the function to get pollutants
         pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
             data_type.str, None
         )
+
         pollutants_ = (
             [p for _, pollutant in pollutants.items() for p in pollutant]
             if pollutants
             else None
         )
 
+        # TODO: Should be dynamic enough to handle both devices and sites
         device_metadata = DataUtils.extract_most_recent_metadata_record(
             MetaDataType.DEVICES,
             "device_id",
             "next_offset_date",
+            frequency=frequency,
             filter={"pollutant": pollutants_},
+            order="ASC",
         )
-
-        if frequency.str in Config.extra_time_grouping:
-            frequency_ = Frequency.HOURLY
 
         if device_metadata.empty:
             logger.warning("No device metadata returned")
             return pd.DataFrame()
 
-        devices = {
-            "device_id": [
-                device_id
-                for device_id in device_metadata["device_id"].unique()
-                if device_id
-            ]
-        }
-
-        data = DataUtils.extract_data_from_bigquery(
-            data_type,
-            start_date,
-            end_date,
-            frequency,
-            device_category,
-            device_network,
-            data_filter=devices,
-        )
-
         # TODO: Come up with a structure for pollutants for multi-sensor devices. Currently, only one pollutant is considered.
-        # pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(data_type.str, None)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
-                    AirQoDataDriftCompute.compute_baseline,
+                    MetaDataUtils.compute_baseline_per_entity,
                     data_type,
-                    data.loc[data.device_id == device_data["device_id"]],
                     device_data,
-                    [device_data["pollutant"]],
-                    data_resolution=frequency_,
-                    baseline_type=frequency,
-                    window_start=start_date,
-                    window_end=end_date,
-                    region_min=device_data["minimum"],
-                    region_max=device_data["maximum"],
+                    frequency,
+                    device_category,
+                    device_network=device_network,
                 )
                 for _, device_data in device_metadata.iterrows()
             ]
@@ -308,6 +285,64 @@ class MetaDataUtils:
                     logger.exception(f"Exception in baseline computation: {e}")
 
         return pd.DataFrame(results)
+
+    @staticmethod
+    def compute_baseline_per_entity(
+        data_type: DataType,
+        entity_data: pd.Series,
+        frequency: Frequency,
+        device_category: DeviceCategory,
+        device_network: Optional[DeviceNetwork],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Computes baseline statistics for a single device or site.
+
+        Args:
+            data_type (DataType): The type of data to process (e.g., air quality, weather).
+            entity_data (pd.Series): The metadata for the device or site.
+            pollutants (List[str]): The list of pollutants to compute baselines for.
+            frequency (Frequency): The frequency of the data (e.g., HOURLY, DAILY, WEEKLY).
+            start_date (str): The start date for the baseline computation in ISO 8601 format.
+            end_date (str): The end date for the baseline computation in ISO 8601 format.
+        """
+        frequency_: Frequency = frequency
+
+        if frequency.str in Config.extra_time_grouping:
+            frequency_ = Frequency.HOURLY
+
+        filter: Dict[str, Any] = {"device_id": [entity_data.loc["device_id"]]}
+
+        start_date: str = DateUtils.format_datetime_by_unit_str(
+            (entity_data.loc["next_offset_date"] - timedelta(days=frequency.value)),
+            unit="days_start",
+        )
+        end_date: str = DateUtils.format_datetime_by_unit_str(
+            entity_data.loc["next_offset_date"], unit="days_end"
+        )
+        data = DataUtils.extract_data_from_bigquery(
+            data_type,
+            start_date,
+            end_date,
+            frequency_,
+            device_category,
+            device_network,
+            data_filter=filter,
+        )
+        data.dropna(subset=[entity_data["pollutant"]], inplace=True)
+        return AirQoDataDriftCompute.compute_baseline(
+            data_type,
+            data,
+            entity_data,
+            [entity_data["pollutant"]],
+            data_resolution=frequency_,
+            baseline_type=frequency,
+            window_start=start_date,
+            window_end=end_date,
+            region_min=entity_data["minimum"],
+            region_max=entity_data["maximum"],
+        )
 
     @staticmethod
     def extract_airqlouds_from_api(

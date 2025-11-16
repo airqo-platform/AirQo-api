@@ -179,7 +179,7 @@ class AirQoDataDriftCompute:
                 "baseline_resolution": data_resolution.str,
                 "baseline_type": baseline_type.str,
                 "device_number": device_number,
-                "device_category": device_category,
+                "device_category": device_category if device_category else "lowcost",
                 "baseline_id": baseline_id,
                 "pollutant": pollutant,
                 "window_start": window_start,
