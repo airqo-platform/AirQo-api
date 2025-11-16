@@ -14,7 +14,7 @@ from .constants import (
     MetaDataType,
     Frequency,
 )
-from .date import date_to_str
+from .date import DateUtils
 from .utils import Utils
 import logging
 
@@ -137,6 +137,8 @@ class BigQueryApi:
         date_time_columns=None,
         float_columns=None,
         integer_columns=None,
+        record_columns=None,
+        repeated_columns=None,
     ) -> pd.DataFrame:
         """
         Validates and formats the data in the given DataFrame based on the schema of a specified table.
@@ -191,6 +193,19 @@ class BigQueryApi:
             if integer_columns
             else self.get_columns(table=table, column_type=[ColumnDataType.INTEGER])
         )
+
+        record_columns = (
+            record_columns
+            if record_columns
+            else self.get_columns(table=table, column_type=[ColumnDataType.RECORD])
+        )
+
+        repeated_columns = (
+            repeated_columns
+            if repeated_columns
+            else self.get_columns(table=table, column_type=[ColumnDataType.REPEATED])
+        )
+
         # Importing here to avoid circular import issues
         # TODO: Refactor to avoid circular imports
         from .data_validator import DataValidationUtils
@@ -200,14 +215,15 @@ class BigQueryApi:
             floats=float_columns,
             integers=integer_columns,
             timestamps=date_time_columns,
+            records=record_columns,
+            repeated=repeated_columns,
         )
         # Ensure this does not raise an exception for complex data types i.e objects like lists and dicts
-        # TODO : Handle complex data types properly
+        # TODO : Handle complex data types properly or place else where
         try:
             dataframe.drop_duplicates(keep="first", inplace=True)
         except Exception as e:
             logger.exception(f"Error formatting complex data types: {e}")
-
         return dataframe
 
     def get_columns(
@@ -226,6 +242,7 @@ class BigQueryApi:
             List[str]: A list of column names that match the passed specifications.
         """
         schema_file = self.schema_mapping.get(table, None)
+        columns: List[str] = []
 
         if schema_file is None and table != "all":
             raise Exception("Invalid table")
@@ -257,18 +274,31 @@ class BigQueryApi:
         # Convert column_type list to strings for comparison
         column_type_strings = [ct.str.upper() for ct in column_type]
 
-        # Retrieve columns that match any of the specified types or match ColumnDataType.NONE
-        columns: List[str] = list(
-            set(
-                [
-                    column["name"]
-                    for column in schema
-                    if ColumnDataType.NONE in column_type
-                    or column["type"] in column_type_strings
-                ]
-            )
-        )
-        return columns
+        # Collect all matching columns
+        columns = set()
+
+        for column in schema:
+            col_type = column.get("type", "").upper()
+            col_mode = column.get("mode", "NULLABLE").upper()
+            col_name = column["name"]
+
+            # Match RECORD types with NULLABLE mode
+            if ColumnDataType.RECORD in column_type:
+                if col_type == "RECORD" and col_mode == "NULLABLE":
+                    columns.add(col_name)
+                continue
+
+            # Match RECORD types with REPEATED mode
+            if ColumnDataType.REPEATED in column_type:
+                if col_type == "RECORD" and col_mode == "REPEATED":
+                    columns.add(col_name)
+                continue
+
+            # Match standard data types or NONE (all columns)
+            if ColumnDataType.NONE in column_type or col_type in column_type_strings:
+                columns.add(col_name)
+
+        return list(columns)
 
     def load_data(
         self,
@@ -689,8 +719,8 @@ class BigQueryApi:
 
             dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
             try:
-                start_date_time = date_to_str(dataframe["timestamp"].min())
-                end_date_time = date_to_str(dataframe["timestamp"].max())
+                start_date_time = DateUtils.date_to_str(dataframe["timestamp"].min())
+                end_date_time = DateUtils.date_to_str(dataframe["timestamp"].max())
             except Exception as e:
                 logger.exception(f"Time conversion error {e}")
 
@@ -921,7 +951,8 @@ class BigQueryApi:
                         f"COUNT({v}) AS sample_count_{v}, "
                         f"MAX({v}) AS maximum_{v}, "
                         f"MIN({v}) AS minimum_{v}, "
-                        f"AVG({v}) AS average_{v}"
+                        f"AVG({v}) AS average_{v}, "
+                        f"STDDEV_POP({v}) AS stddev_{v}"
                     )
                     pollutants_list.append(v)
 
@@ -957,11 +988,21 @@ class BigQueryApi:
                         "sample_count": raw_df[f"sample_count_{key}"].iloc[0]
                         if f"sample_count_{key}" in raw_df
                         else None,
+                        "stddev": raw_df[f"stddev_{key}"].iloc[0]
+                        if f"stddev_{key}" in raw_df
+                        else None,
                     }
                 )
         result_df = pd.DataFrame(
             result_rows,
-            columns=["pollutant", "minimum", "maximum", "average", "sample_count"],
+            columns=[
+                "pollutant",
+                "minimum",
+                "maximum",
+                "average",
+                "sample_count",
+                "stdv",
+            ],
         )
         return result_df
 
@@ -1084,7 +1125,7 @@ class BigQueryApi:
             ],
         )
 
-    def fetch_most_recent_record(
+    def fetch_record_by_order(
         self,
         table: str,
         unique_id: str,
@@ -1092,6 +1133,8 @@ class BigQueryApi:
         columns: Optional[List[str]] = None,
         frequency: Optional[Frequency] = Frequency.WEEKLY,
         filter: Optional[Dict[str, Any]] = None,
+        baseline_run: Optional[bool] = False,
+        order: Optional[str] = "DESC",
     ) -> pd.DataFrame:
         """
         Fetches the most recent record for each unique identifier from a specified BigQuery table.
@@ -1101,7 +1144,9 @@ class BigQueryApi:
             unique_id (str): The column name representing the unique identifier for partitioning.
             offset_column (str): The column name used to determine the most recent record (e.g., a timestamp column).
             columns (Optional[List[str]]): A list of column names to include in the query. If None, selects all columns.
+            frequency (Frequency): An Enum representing the frequency type to filter the baseline_type column.
             filter (Optional[Dict[str, Any]]): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value.
+            order (str): The order in which to sort the offset_column ('ASC' or 'DESC').
 
         Returns:
             pd.DataFrame: A DataFrame containing the most recent record for each unique identifier.
@@ -1112,7 +1157,7 @@ class BigQueryApi:
         where_clause: str = "WHERE "
         query_params: list = []
         filter, filter_val = next(iter(filter.items()))
-        if filter:
+        if filter and filter_val:
             if isinstance(filter_val, str):
                 where_clause = f" {filter} = @filter_value"
                 query_params.append(
@@ -1129,14 +1174,18 @@ class BigQueryApi:
                 where_clause = where_clause.rstrip(" OR ")
             where_clause += " AND "
 
-        where_clause += f"baseline_type = {frequency.str} "
+        where_clause += f"baseline_type = '{frequency.str}'"
+
+        if baseline_run:
+            where_clause += " AND auto_baseline_computed = False"
+
         selected_columns = ", ".join(columns) if columns else "*"
 
         query = f"""
         SELECT {selected_columns}
         FROM `{table}`
         {where_clause}
-        QUALIFY ROW_NUMBER() OVER (PARTITION BY {unique_id} ORDER BY {offset_column} DESC) = 1;
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY {unique_id} ORDER BY {offset_column} {order}) = 1;
         """
 
         try:
