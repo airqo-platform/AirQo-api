@@ -295,6 +295,16 @@ const siteSchema = new Schema(
       trim: true,
       default: false,
     },
+    rawOnlineStatus: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
+    lastRawData: {
+      type: Date,
+      trim: true,
+      default: null,
+    },
     /**
      * The latest PM2.5 readings for this site.
      * May be null or undefined if no readings have been recorded yet.
@@ -624,6 +634,8 @@ siteSchema.methods = {
       city: this.city,
       lastActive: this.lastActive,
       isOnline: this.isOnline,
+      rawOnlineStatus: this.rawOnlineStatus,
+      lastRawData: this.lastRawData,
       street: this.street,
       county: this.county,
       altitude: this.altitude,

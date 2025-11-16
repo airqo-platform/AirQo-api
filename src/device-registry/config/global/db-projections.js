@@ -211,6 +211,8 @@ class ProjectionFactory {
           site_category: 1,
           lastActive: 1,
           isOnline: 1,
+          rawOnlineStatus: 1,
+          lastRawData: 1,
           activities: "$activities",
           latest_deployment_activity: {
             $cond: [

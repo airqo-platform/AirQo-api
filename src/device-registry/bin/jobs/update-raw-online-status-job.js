@@ -452,10 +452,17 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
     // Prepare site update if PM2.5 is valid and device is primary for its site
     let siteUpdate = null;
-    if (latestRawPm25 && device.isPrimaryInLocation && device.site_id) {
+    if (device.site_id) {
+      const siteUpdateFields = {
+        rawOnlineStatus: isRawOnline,
+        lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
+      };
+      if (latestRawPm25 && device.isPrimaryInLocation) {
+        siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
+      }
       siteUpdate = {
         siteId: device.site_id,
-        update: { "latest_pm2_5.raw": latestRawPm25 },
+        update: siteUpdateFields,
       };
     }
 
