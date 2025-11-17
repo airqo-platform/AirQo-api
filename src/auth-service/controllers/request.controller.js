@@ -499,32 +499,46 @@ const createAccessRequest = {
       return;
     }
   },
-  list: async (request, next) => {
+  list: async (req, res, next) => {
     try {
-      const { query } = request;
-      const { tenant, limit, skip, include_expired } = query;
-      const filter = generateFilter.requests(request, next);
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      // By default, exclude expired invitations unless explicitly requested
-      if (include_expired !== "true" && include_expired !== true) {
-        filter.$or = [
-          { expires_at: { $exists: false } },
-          { expires_at: null },
-          { expires_at: { $gt: new Date() } },
-        ];
+      const result = await requestUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
 
-      const responseFromListAccessRequest = await AccessRequestModel(
-        tenant.toLowerCase()
-      ).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
-        next
-      );
-      return responseFromListAccessRequest;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          requests: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -534,6 +548,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {

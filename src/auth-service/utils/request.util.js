@@ -492,6 +492,14 @@ const createAccessRequest = {
     }
   },
 
+  /**
+   * Deletes all expired pending access requests for the specified tenant.
+   *
+   * @param {Object} request - The Express request object, containing query parameters.
+   * @param {Function} next - The Express next middleware function for error handling.
+   * @returns {Object} An object containing the success status, message, count of deleted records, and HTTP status code.
+   */
+
   cleanupExpiredRequests: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -694,17 +702,23 @@ const createAccessRequest = {
 
           if (!assignmentResult || !assignmentResult.success) {
             // Rollback user creation if this was a new user
-            if (isNewUser) {
-              await UserModel(tenant).findByIdAndDelete(user._id);
+            try {
+              if (isNewUser) {
+                await UserModel(tenant).findByIdAndDelete(user._id);
+              }
+              // Rollback access request status
+              await AccessRequestModel(tenant).modify(
+                {
+                  filter: { _id: accessRequest._id },
+                  update: { status: "pending", user_id: null },
+                },
+                next
+              );
+            } catch (rollbackError) {
+              logger.error(
+                `Rollback failed during group assignment: ${rollbackError.message}`
+              );
             }
-            // Rollback access request status
-            await AccessRequestModel(tenant).modify(
-              {
-                filter: { _id: accessRequest._id },
-                update: { status: "pending", user_id: null },
-              },
-              next
-            );
 
             return {
               success: false,
@@ -722,17 +736,21 @@ const createAccessRequest = {
         } catch (assignmentError) {
           logger.error(`Group assignment error: ${assignmentError.message}`);
           // Rollback user creation if this was a new user
-          if (isNewUser) {
-            await UserModel(tenant).findByIdAndDelete(user._id);
+          try {
+            if (isNewUser) {
+              await UserModel(tenant).findByIdAndDelete(user._id);
+            }
+            // Rollback access request status
+            await AccessRequestModel(tenant).modify(
+              {
+                filter: { _id: accessRequest._id },
+                update: { status: "pending", user_id: null },
+              },
+              next
+            );
+          } catch (rollbackError) {
+            logger.error(`Rollback failed: ${rollbackError.message}`);
           }
-          // Rollback access request status
-          await AccessRequestModel(tenant).modify(
-            {
-              filter: { _id: accessRequest._id },
-              update: { status: "pending", user_id: null },
-            },
-            next
-          );
 
           return {
             success: false,
@@ -1170,7 +1188,7 @@ const createAccessRequest = {
         }
       }
 
-      const update = { status: "approved" };
+      const update = { status: "approved", user_id: user._id };
       const filter = { _id: ObjectId(accessRequest._id) };
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(
@@ -1235,13 +1253,17 @@ const createAccessRequest = {
             }
           } else if (responseFromAssignUserToGroup.success === false) {
             // Rollback the status update
-            await AccessRequestModel(tenant).modify(
-              {
-                filter: { _id: ObjectId(accessRequest._id) },
-                update: { status: "pending" },
-              },
-              next
-            );
+            try {
+              await AccessRequestModel(tenant).modify(
+                {
+                  filter: { _id: ObjectId(accessRequest._id) },
+                  update: { status: "pending" },
+                },
+                next
+              );
+            } catch (rollbackError) {
+              logger.error(`Rollback failed: ${rollbackError.message}`);
+            }
             return responseFromAssignUserToGroup;
           }
         } else if (accessRequest.requestType === "network") {
@@ -1451,8 +1473,35 @@ const createAccessRequest = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, include_expired } = query;
       const filter = generateFilter.requests(request, next);
+
+      if (include_expired !== "true" && include_expired !== true) {
+        const expiredOrConditions = [
+          { expires_at: { $exists: false } },
+          { expires_at: null },
+          { expires_at: { $gt: new Date() } },
+        ];
+        // If filter is not empty, combine with $and
+        if (Object.keys(filter).length > 0) {
+          // If filter only contains $or, combine both $or arrays
+          if (filter.$or && Object.keys(filter).length === 1) {
+            filter.$and = [{ $or: filter.$or }, { $or: expiredOrConditions }];
+            delete filter.$or;
+          } else {
+            filter.$and = [{ ...filter }, { $or: expiredOrConditions }];
+            // Remove top-level keys except $and
+            Object.keys(filter).forEach((key) => {
+              if (key !== "$and") {
+                delete filter[key];
+              }
+            });
+          }
+        } else {
+          filter.$or = expiredOrConditions;
+        }
+      }
+
       const responseFromListAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
       ).list(
