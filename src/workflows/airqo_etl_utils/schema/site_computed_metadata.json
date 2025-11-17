@@ -66,5 +66,11 @@
     "type": "FLOAT",
     "mode": "NULLABLE",
     "description": "Standard deviation of the pollutant measurements."
+  },
+  {
+    "name": "last_updated",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "The last time this record was updated."
   }
 ]

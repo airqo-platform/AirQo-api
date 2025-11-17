@@ -55,6 +55,12 @@
     "description": "Unique identifier (UUID) for the baseline entry."
   },
   {
+    "name": "reference_data_id",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Identifier for the reference data used in baseline calculation."
+  },
+  {
     "name": "pollutant",
     "type": "STRING",
     "mode": "REQUIRED",
