@@ -297,7 +297,7 @@ const createAccessRequest = {
         : req.query.tenant;
       request.body.status = "rejected";
 
-      const result = await requestUtil.update(request, next);
+      const result = await requestUtil.rejectAccessRequest(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -499,46 +499,32 @@ const createAccessRequest = {
       return;
     }
   },
-  list: async (req, res, next) => {
+  list: async (request, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const { query } = request;
+      const { tenant, limit, skip, include_expired } = query;
+      const filter = generateFilter.requests(request, next);
 
-      const result = await requestUtil.list(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
+      // By default, exclude expired invitations unless explicitly requested
+      if (include_expired !== "true" && include_expired !== true) {
+        filter.$or = [
+          { expires_at: { $exists: false } },
+          { expires_at: null },
+          { expires_at: { $gt: new Date() } },
+        ];
       }
 
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          requests: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      const responseFromListAccessRequest = await AccessRequestModel(
+        tenant.toLowerCase()
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
+      return responseFromListAccessRequest;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -548,7 +534,6 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
-      return;
     }
   },
   delete: async (req, res, next) => {
@@ -630,6 +615,58 @@ const createAccessRequest = {
           success: true,
           message: result.message,
           request: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  cleanupExpiredRequests: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await requestUtil.cleanupExpiredRequests(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          data: result.data,
         });
       } else if (result.success === false) {
         const status = result.status

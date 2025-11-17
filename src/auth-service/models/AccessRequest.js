@@ -53,6 +53,16 @@ const AccessRequestSchema = new Schema(
   }
 );
 
+AccessRequestSchema.index({
+  user_id: 1,
+  targetId: 1,
+  requestType: 1,
+  status: 1,
+});
+AccessRequestSchema.index({ email: 1, targetId: 1, requestType: 1, status: 1 });
+AccessRequestSchema.index({ status: 1, expires_at: 1 });
+AccessRequestSchema.index({ targetId: 1, requestType: 1, status: 1 });
+
 AccessRequestSchema.statics = {
   async register(args, next) {
     try {
