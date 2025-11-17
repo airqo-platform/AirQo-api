@@ -442,6 +442,7 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
                 "maximum": [50.0, 80.0],
                 "average": [30.0, 50.0],
                 "sample_count": [100, 100],
+                "stdv": [5.0, 10.0],
             }
         )
 
@@ -557,7 +558,7 @@ class TestExtractMostRecentMetadataRecord(unittest.TestCase):
             "test_table",
             ["col1", "col2", "col3"],
         )
-        mock_bigquery_api.fetch_most_recent_record.return_value = pd.DataFrame(
+        mock_bigquery_api.fetch_record_by_order.return_value = pd.DataFrame(
             {"col1": [1], "col2": ["value"], "col3": [datetime.now()]}
         )
 
@@ -565,20 +566,25 @@ class TestExtractMostRecentMetadataRecord(unittest.TestCase):
             metadata_type=MetaDataType.DATAQUALITYCHECKS,
             unique_id="test_id",
             offset_column="col3",
+            frequency=Frequency.WEEKLY,
             filter={"pollutant": ["pm2_5"]},
+            baseline_run=False,
+            order="Desc",
         )
-
         self.assertIsInstance(result, pd.DataFrame)
         self.assertEqual(len(result), 1)
         mock_get_metadata_table.assert_called_once_with(
             MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
         )
-        mock_bigquery_api.fetch_most_recent_record.assert_called_once_with(
+        mock_bigquery_api.fetch_record_by_order.assert_called_once_with(
             "test_table",
             "test_id",
             offset_column="col3",
             columns=["col1", "col2", "col3"],
+            frequency=Frequency.WEEKLY,
             filter={"pollutant": ["pm2_5"]},
+            baseline_run=False,
+            order="Desc",
         )
 
     @patch("airqo_etl_utils.datautils.BigQueryApi")
@@ -592,26 +598,31 @@ class TestExtractMostRecentMetadataRecord(unittest.TestCase):
             "test_table",
             ["col1", "col2", "col3"],
         )
-        mock_bigquery_api.fetch_most_recent_record.return_value = pd.DataFrame()
+        mock_bigquery_api.fetch_record_by_order.return_value = pd.DataFrame()
 
         result = DataUtils.extract_most_recent_metadata_record(
             metadata_type=MetaDataType.DATAQUALITYCHECKS,
             unique_id="test_id",
             offset_column="col3",
+            frequency=Frequency.WEEKLY,
             filter={"pollutant": ["pm2_5"]},
+            baseline_run=False,
+            order="Desc",
         )
-
         self.assertIsInstance(result, pd.DataFrame)
         self.assertTrue(result.empty)
         mock_get_metadata_table.assert_called_once_with(
             MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
         )
-        mock_bigquery_api.fetch_most_recent_record.assert_called_once_with(
+        mock_bigquery_api.fetch_record_by_order.assert_called_once_with(
             "test_table",
             "test_id",
             offset_column="col3",
             columns=["col1", "col2", "col3"],
+            frequency=Frequency.WEEKLY,
             filter={"pollutant": ["pm2_5"]},
+            baseline_run=False,
+            order="Desc",
         )
 
     @patch("airqo_etl_utils.datautils.BigQueryApi")
@@ -622,13 +633,16 @@ class TestExtractMostRecentMetadataRecord(unittest.TestCase):
         """Test when metadata table is not found."""
         mock_get_metadata_table.return_value = (None, None)
         mock_bigquery_api = MockBigQueryApi.return_value
-        mock_bigquery_api.fetch_most_recent_record.return_value = pd.DataFrame()
+        mock_bigquery_api.fetch_record_by_order.return_value = pd.DataFrame()
 
         result = DataUtils.extract_most_recent_metadata_record(
             metadata_type=MetaDataType.DATAQUALITYCHECKS,
             unique_id="test_id",
             offset_column="col3",
+            frequency=Frequency.WEEKLY,
             filter={"pollutant": ["pm2_5"]},
+            baseline_run=False,
+            order="Desc",
         )
 
         self.assertIsInstance(result, pd.DataFrame)
@@ -636,12 +650,15 @@ class TestExtractMostRecentMetadataRecord(unittest.TestCase):
         mock_get_metadata_table.assert_called_once_with(
             MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
         )
-        mock_bigquery_api.fetch_most_recent_record.assert_called_once_with(
+        mock_bigquery_api.fetch_record_by_order.assert_called_once_with(
             None,
             "test_id",
             offset_column="col3",
             columns=None,
+            frequency=Frequency.WEEKLY,
             filter={"pollutant": ["pm2_5"]},
+            baseline_run=False,
+            order="Desc",
         )
 
     @patch("airqo_etl_utils.datautils.BigQueryApi")
@@ -655,26 +672,30 @@ class TestExtractMostRecentMetadataRecord(unittest.TestCase):
             "test_table",
             ["col1", "col2", "col3"],
         )
-        mock_bigquery_api.fetch_most_recent_record.side_effect = Exception(
-            "Query failed"
-        )
+        mock_bigquery_api.fetch_record_by_order.side_effect = Exception("Query failed")
 
-        # The function doesn't have exception handling for fetch_most_recent_record
+        # The function doesn't have exception handling for fetch_record_by_order
         with self.assertRaises(Exception):
             DataUtils.extract_most_recent_metadata_record(
                 metadata_type=MetaDataType.DATAQUALITYCHECKS,
                 unique_id="test_id",
                 offset_column="col3",
+                frequency=Frequency.WEEKLY,
                 filter={"pollutant": ["pm2_5"]},
+                baseline_run=False,
+                order="Desc",
             )
 
         mock_get_metadata_table.assert_called_once_with(
             MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
         )
-        mock_bigquery_api.fetch_most_recent_record.assert_called_once_with(
+        mock_bigquery_api.fetch_record_by_order.assert_called_once_with(
             "test_table",
             "test_id",
             offset_column="col3",
             columns=["col1", "col2", "col3"],
+            frequency=Frequency.WEEKLY,
             filter={"pollutant": ["pm2_5"]},
+            baseline_run=False,
+            order="Desc",
         )
