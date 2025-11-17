@@ -80,17 +80,17 @@ router.get(
 );
 
 router.delete(
-  "/:request_id",
-  requestValidations.deleteRequest,
-  enhancedJWTAuth,
-  createRequestController.delete
-);
-
-router.delete(
   "/expired",
   requestValidations.cleanupExpired,
   enhancedJWTAuth,
   createRequestController.cleanupExpiredRequests
+);
+
+router.delete(
+  "/:request_id",
+  requestValidations.deleteRequest,
+  enhancedJWTAuth,
+  createRequestController.delete
 );
 
 router.put(
