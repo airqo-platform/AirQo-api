@@ -171,12 +171,15 @@ def weather_data_cleanup_measurements():
 def weather_data_realtime():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.date import date_to_str_hours
 
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+        start_date_time = DateUtils.date_to_str(
+            hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
+        )
+        end_date_time = DateUtils.date_to_str(
+            hour_of_day, str_format="%Y-%m-%dT%H:59:59Z"
+        )
 
         return WeatherDataUtils.query_raw_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time

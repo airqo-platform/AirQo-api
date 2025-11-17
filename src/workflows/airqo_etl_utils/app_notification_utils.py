@@ -17,10 +17,9 @@ from firebase_admin.exceptions import NotFoundError
 
 from airqo_etl_utils.data_api import DataApi
 from .config import configuration as Config
-from .datautils import DataUtils
 from .meta_data_utils import MetaDataUtils
 
-from .date import get_utc_offset_for_hour
+from .date import DateUtils
 from .email_templates import forecast_email
 from typing import Tuple, Optional
 import logging
@@ -359,7 +358,7 @@ def get_notification_recipients(
     hour: int,
     enabled_notifications: bool = True,
 ) -> pd.DataFrame:
-    offset = get_utc_offset_for_hour(hour)
+    offset = DateUtils.get_utc_offset_for_hour(hour)
     db = firestore.client()
     docs = (
         db.collection(Config.APP_USERS_DATABASE)

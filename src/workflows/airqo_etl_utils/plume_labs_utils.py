@@ -5,7 +5,7 @@ import pandas as pd
 from .air_quality_utils import AirQualityUtils
 from .constants import DeviceNetwork
 from .data_validator import DataValidationUtils
-from .date import str_to_date
+from .date import DateUtils
 from .plume_labs_api import PlumeLabsApi
 
 
@@ -17,8 +17,8 @@ class PlumeLabsUtils:
         plume_labs_api = PlumeLabsApi()
         data = pd.DataFrame()
         records = plume_labs_api.get_sensor_measures(
-            start_date_time=str_to_date(start_date_time),
-            end_date_time=str_to_date(end_date_time),
+            start_date_time=DateUtils.str_to_date(start_date_time),
+            end_date_time=DateUtils.str_to_date(end_date_time),
             network=network,
         )
 
@@ -74,8 +74,8 @@ class PlumeLabsUtils:
         plume_labs_api = PlumeLabsApi()
         data = pd.DataFrame()
         records = plume_labs_api.get_sensor_positions(
-            start_date_time=str_to_date(start_date_time),
-            end_date_time=str_to_date(end_date_time),
+            start_date_time=DateUtils.str_to_date(start_date_time),
+            end_date_time=DateUtils.str_to_date(end_date_time),
             network=network,
         )
 

@@ -8,6 +8,7 @@ from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from airqo_etl_utils.constants import Frequency
+from airqo_etl_utils.date import DateUtils
 
 
 @dag(
@@ -26,9 +27,8 @@ def make_forecasts():
         start_date = datetime.now(timezone.utc) - timedelta(
             hours=int(Config.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
         )
-        from airqo_etl_utils.date import date_to_str
 
-        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(
             start_date, "prediction"
         )
@@ -76,14 +76,13 @@ def make_forecasts():
     # Daily forecast tasks
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def get_historical_data_for_daily_forecasts(**kwargs):
-        from airqo_etl_utils.date import date_to_str
 
         execution_date = kwargs["dag_run"].execution_date
         start_date = execution_date - timedelta(
             days=int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
 
-        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(
             start_date, "prediction"
         )

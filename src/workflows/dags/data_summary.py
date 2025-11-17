@@ -16,11 +16,11 @@ def data_summary():
     def extract(**kwargs):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from datetime import datetime, timedelta, timezone
-        from airqo_etl_utils.date import str_to_date
+        from airqo_etl_utils.date import DateUtils
 
         try:
             date_time = kwargs.get("params", {}).get("start_date_time")
-            date_time = str_to_date(date_time)
+            date_time = DateUtils.str_to_date(date_time)
         except Exception as ex:
             print(ex)
             date_time = datetime.now(timezone.utc) - timedelta(days=2)

@@ -28,7 +28,7 @@ from .constants import (
     CityModels,
     QualityCategorization,
 )
-from .date import date_to_str
+from .date import DateUtils
 from .config import configuration as Config
 
 import logging
@@ -217,7 +217,7 @@ class Utils:
             end = date + timedelta(hours=frequency.n)
             if end > array_last_date_time:
                 end = array_last_date_time
-            dates_new.append((date_to_str(date), date_to_str(end)))
+            dates_new.append((DateUtils.date_to_str(date), DateUtils.date_to_str(end)))
         return dates_new
 
     @staticmethod
