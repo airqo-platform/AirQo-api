@@ -920,6 +920,7 @@ class DataUtils:
         offset_column: str,
         frequency: Optional[Frequency] = Frequency.WEEKLY,
         filter: Dict[str, Any] = None,
+        baseline_run: Optional[bool] = False,
         order: Optional[str] = "DESC",
     ) -> pd.DataFrame:
         """
@@ -953,6 +954,7 @@ class DataUtils:
             columns=cols,
             frequency=frequency,
             filter=filter,
+            baseline_run=baseline_run,
             order=order,
         )
         return data

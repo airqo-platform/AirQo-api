@@ -210,6 +210,37 @@ class MetaDataUtils:
         return computed_data
 
     @staticmethod
+    def update_computed_data_table(data: pd.DataFrame) -> None:
+        """
+        Updates the computed data table in BigQuery to mark records as having their auto baseline computed.
+        Args:
+            data (pd.DataFrame): DataFrame containing the records to be updated.
+        Returns:
+            None
+        """
+        data = data[["reference_data_id"]]
+        data.rename(columns={"reference_data_id": "run_id"}, inplace=True)
+        data = data.to_dict(orient="list")
+
+        table, _ = DataUtils._get_metadata_table(
+            MetaDataType.DATAQUALITYCHECKS, MetaDataType.DEVICES
+        )
+        big_query_api = BigQueryApi()
+
+        updated = big_query_api.batch_update_records(
+            table,
+            {
+                "auto_baseline_computed": True,
+                "last_updated": DateUtils.date_to_str(datetime.now(timezone.utc)),
+            },
+            data,
+        )
+
+        if updated and updated > 0:
+            logger.info(f"Updated {updated} records in the computed data table.")
+        return
+
+    @staticmethod
     def compute_device_site_baseline(
         data_type: DataType,
         device_category: DeviceCategory,
@@ -255,6 +286,7 @@ class MetaDataUtils:
             "next_offset_date",
             frequency=frequency,
             filter={"pollutant": pollutants_},
+            baseline_run=True,
             order="ASC",
         )
 
@@ -342,6 +374,7 @@ class MetaDataUtils:
             window_end=end_date,
             region_min=entity_data["minimum"],
             region_max=entity_data["maximum"],
+            reference_data_id=entity_data["run_id"],
         )
 
     @staticmethod

@@ -77,6 +77,7 @@ class AirQoDataDriftCompute:
         region_min: Optional[float] = 0,
         region_max: Optional[float] = 1000,
         ecdf_bins_count: Optional[int] = 100,
+        reference_data_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Compute baseline statistics and ECDF bins for a device and one or more pollutants.
@@ -181,6 +182,7 @@ class AirQoDataDriftCompute:
                 "device_number": device_number,
                 "device_category": device_category if device_category else "lowcost",
                 "baseline_id": baseline_id,
+                "reference_data_id": reference_data_id,
                 "pollutant": pollutant,
                 "window_start": window_start,
                 "window_end": window_end,
