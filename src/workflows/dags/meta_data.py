@@ -344,8 +344,14 @@ def compute_store_devices_baseline_weekly():
             big_query_api = BigQueryApi()
             big_query_api.load_data(dataframe=data, table=table)
 
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def update_computed_data_table(data: pd.DataFrame) -> None:
+        if not data.empty:
+            MetaDataUtils.update_computed_data_table(data)
+
     extracted_devices = extract_compute_devices_baeline()
     store_computed_baseline_data(extracted_devices)
+    update_computed_data_table(extracted_devices)
 
 
 @dag(

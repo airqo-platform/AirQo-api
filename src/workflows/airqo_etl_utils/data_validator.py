@@ -127,7 +127,8 @@ class DataValidationUtils:
         Returns:
             List[Dict] | None: Properly formatted list of dictionaries or None.
         """
-        if pd.isna(value) or value is None:
+
+        if value is None:
             return None
 
         if isinstance(value, str):
@@ -151,8 +152,10 @@ class DataValidationUtils:
         Returns:
             Dict | None: Properly formatted dictionary or None.
         """
-        if pd.isna(value) or value is None:
+
+        if value is None:
             return None
+
         if isinstance(value, str):
             try:
                 parsed = ast.literal_eval(value)
