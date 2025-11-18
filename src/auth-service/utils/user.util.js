@@ -3804,29 +3804,28 @@ const createUserModule = {
           const createdUser = await responseFromCreateUser.data;
           const user_id = createdUser._doc._id;
 
-          // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful registration
-          // // PostHog Analytics: Track successful registration (non-blocking, opt-out aware)
-          // try {
-          //   if (
-          //     request?.headers?.["dnt"] !== "1" &&
-          //     request?.headers?.["sec-gpc"] !== "1"
-          //   ) {
-          //     const distinctId =
-          //       createdUser?._id?.toString() ||
-          //       createdUser?._doc?._id?.toString() ||
-          //       null;
-          //     if (distinctId) {
-          //       analyticsService.track(distinctId, "user_registered", {
-          //         method: "email_password",
-          //         category,
-          //       });
-          //     }
-          //   }
-          // } catch (analyticsError) {
-          //   logger.error(
-          //     `PostHog registration track error: ${analyticsError.message}`
-          //   );
-          // }
+          // PostHog Analytics: Track successful registration (non-blocking, opt-out aware)
+          try {
+            if (
+              request?.headers?.["dnt"] !== "1" &&
+              request?.headers?.["sec-gpc"] !== "1"
+            ) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString() ||
+                null;
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "email_password",
+                  category,
+                });
+              }
+            }
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
           const token = accessCodeGenerator
             .generate(
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -4088,7 +4087,6 @@ const createUserModule = {
         if (responseFromCreateUser.success === true) {
           const createdUser = responseFromCreateUser.data;
 
-          // PostHog Analytics: Track successful registration
           try {
             const dnt =
               request?.headers?.["dnt"] === "1" ||
@@ -4577,26 +4575,29 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
-        // PostHog Analytics: Update user properties
-        const distinctId = (user && user._id && user._id.toString()) || null;
         try {
-          const dnt =
-            request?.headers?.["dnt"] === "1" ||
-            request?.headers?.["sec-gpc"] === "1";
-          if (!distinctId || dnt) {
-            // Skip analytics only
-          } else {
-            // Best Practice: Global flag + User Consent for PII
-            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
-            const userConsented =
-              user.consent && user.consent.analytics === true;
+          // PostHog Analytics: Update user properties
+          const distinctId = (user && user._id && user._id.toString()) || null;
+          if (distinctId) {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            if (!dnt) {
+              // Best Practice: Global flag + User Consent for PII
+              const allowPII =
+                String(constants.ANALYTICS_PII_ENABLED) === "true";
+              const userConsented =
+                user.consent && user.consent.analytics === true;
 
-            // Start with non-PII properties
-            const baseProperties = ["organization", "jobTitle", "website"];
-            const userProperties = {};
-            for (const key of baseProperties) {
-              if (Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)) {
-                userProperties[key] = sanitizedUpdate[key];
+              // Start with non-PII properties
+              const baseProperties = ["organization", "jobTitle", "website"];
+              const userProperties = {};
+              for (const key of baseProperties) {
+                if (
+                  Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)
+                ) {
+                  userProperties[key] = sanitizedUpdate[key];
+                }
               }
             }
 
@@ -6208,20 +6209,20 @@ const createUserModule = {
         };
       }
 
-      // PostHog Analytics: Track successful login
-      try {
-        const dnt =
-          request?.headers?.["dnt"] === "1" ||
-          request?.headers?.["sec-gpc"] === "1";
-        const userConsented = user?.consent?.analytics === true;
-        if (!dnt && userConsented) {
-          analyticsService.track(user._id.toString(), "user_logged_in", {
-            method: "email_password",
-          });
-        }
-      } catch (analyticsError) {
-        logger.error(`PostHog login track error: ${analyticsError.message}`);
-      }
+      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful login
+      // try {
+      //   const dnt =
+      //     request?.headers?.["dnt"] === "1" ||
+      //     request?.headers?.["sec-gpc"] === "1";
+      //   const userConsented = user?.consent?.analytics === true;
+      //   if (!dnt && userConsented) {
+      //     analyticsService.track(user._id.toString(), "user_logged_in", {
+      //       method: "email_password",
+      //     });
+      //   }
+      // } catch (analyticsError) {
+      //   logger.error(`PostHog login track error: ${analyticsError.message}`);
+      // }
 
       // Initialize RBAC service
       const rbacService = new RBACService(dbTenant);

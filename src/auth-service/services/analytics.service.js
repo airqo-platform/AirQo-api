@@ -27,19 +27,17 @@ class AnalyticsService {
    */
   track(distinctId, event, properties = {}) {
     if (!this.client) return;
-    try {
-      this.client.capture({
-        distinctId,
-        event,
-        properties: {
-          ...properties,
-          environment: constants.ENVIRONMENT,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    } catch (error) {
-      console.error("Analytics tracking error:", error);
-    }
+    // No try-catch needed here as posthog-node handles errors internally
+    // and does not throw. It logs errors to the console.
+    this.client.capture({
+      distinctId,
+      event,
+      properties: {
+        ...properties,
+        environment: constants.ENVIRONMENT,
+        timestamp: new Date().toISOString(),
+      },
+    });
   }
 
   /**
@@ -49,14 +47,10 @@ class AnalyticsService {
    */
   identify(distinctId, properties = {}) {
     if (!this.client) return;
-    try {
-      this.client.identify({
-        distinctId,
-        properties,
-      });
-    } catch (error) {
-      console.error("Analytics identify error:", error);
-    }
+    this.client.identify({
+      distinctId,
+      properties,
+    });
   }
 
   /**
@@ -80,14 +74,10 @@ class AnalyticsService {
    */
   alias(alias, distinctId) {
     if (!this.client) return;
-    try {
-      this.client.alias({
-        distinctId,
-        alias,
-      });
-    } catch (error) {
-      console.error("Analytics alias error:", error);
-    }
+    this.client.alias({
+      distinctId,
+      alias,
+    });
   }
 
   /**
@@ -99,24 +89,20 @@ class AnalyticsService {
    */
   group(distinctId, groupType, groupKey, groupProperties = {}) {
     if (!this.client) return;
-    try {
-      this.client.groupIdentify({
-        groupType,
-        groupKey,
-        properties: groupProperties,
-      });
+    this.client.groupIdentify({
+      groupType,
+      groupKey,
+      properties: groupProperties,
+    });
 
-      this.client.capture({
-        distinctId,
-        event: "$group",
-        properties: {
-          $group_type: groupType,
-          $group_key: groupKey,
-        },
-      });
-    } catch (error) {
-      console.error("Analytics group error:", error);
-    }
+    this.client.capture({
+      distinctId,
+      event: "$group",
+      properties: {
+        $group_type: groupType,
+        $group_key: groupKey,
+      },
+    });
   }
 
   /**
