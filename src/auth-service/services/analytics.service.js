@@ -28,6 +28,10 @@ class AnalyticsService {
   track(distinctId, event, properties = {}) {
     if (!this.client) return;
     try {
+      // posthog-node v3.0.1 handles errors internally and logs them.
+      // This try-catch is an additional safeguard against unexpected exceptions
+      // to ensure analytics failures never impact application stability.
+      // Docs: https://github.com/PostHog/posthog-node#handling-errors
       this.client.capture({
         distinctId,
         event,
