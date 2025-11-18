@@ -790,7 +790,7 @@ const createUserModule = {
       const user = await UserModel(dbTenant)
         .findOne(filter)
         .lean()
-        .select("email firstName lastName");
+        .select("email firstName lastName consent");
 
       if (!user) {
         return {
@@ -813,6 +813,49 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
+        try {
+          // PostHog Analytics: Update user properties
+          const distinctId = (user && user._id && user._id.toString()) || null;
+          if (distinctId) {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
+            const userConsented =
+              user.consent && user.consent.analytics === true;
+            const userProperties = {};
+
+            if (!dnt) {
+              // Start with non-PII properties
+              const baseProperties = ["organization", "jobTitle", "website"];
+
+              for (const key of baseProperties) {
+                if (
+                  Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)
+                ) {
+                  userProperties[key] = sanitizedUpdate[key];
+                }
+              }
+            }
+
+            // Conditionally add PII based on consent and global flag
+            if (allowPII && userConsented) {
+              if (sanitizedUpdate.firstName)
+                userProperties.firstName = sanitizedUpdate.firstName;
+              if (sanitizedUpdate.lastName)
+                userProperties.lastName = sanitizedUpdate.lastName;
+            }
+
+            if (Object.keys(userProperties).length > 0) {
+              analyticsService.identify(distinctId, userProperties);
+            }
+          }
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog identify/update error: ${analyticsError.message}`
+          );
+        }
+
         // 4. Prepare the payload for the email notification.
         const emailUpdatePayload = { ...sanitizedUpdate };
 
@@ -2204,7 +2247,7 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Create mobile registration lock
+      // ✅ STEP 2: Create registration lock
       const lockKey = `mobile-reg-${normalizedEmail}-${tenant}`;
 
       if (registrationLocks.has(lockKey)) {
@@ -3804,12 +3847,11 @@ const createUserModule = {
           const createdUser = await responseFromCreateUser.data;
           const user_id = createdUser._doc._id;
 
-          // PostHog Analytics: Track successful registration (non-blocking, opt-out aware)
           try {
-            if (
-              request?.headers?.["dnt"] !== "1" &&
-              request?.headers?.["sec-gpc"] !== "1"
-            ) {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            if (!dnt) {
               const distinctId =
                 createdUser?._id?.toString() ||
                 createdUser?._doc?._id?.toString() ||
@@ -4582,16 +4624,15 @@ const createUserModule = {
             const dnt =
               request?.headers?.["dnt"] === "1" ||
               request?.headers?.["sec-gpc"] === "1";
-            if (!dnt) {
-              // Best Practice: Global flag + User Consent for PII
-              const allowPII =
-                String(constants.ANALYTICS_PII_ENABLED) === "true";
-              const userConsented =
-                user.consent && user.consent.analytics === true;
+            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
+            const userConsented =
+              user.consent && user.consent.analytics === true;
+            const userProperties = {};
 
+            if (!dnt) {
               // Start with non-PII properties
               const baseProperties = ["organization", "jobTitle", "website"];
-              const userProperties = {};
+
               for (const key of baseProperties) {
                 if (
                   Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)
@@ -4599,24 +4640,18 @@ const createUserModule = {
                   userProperties[key] = sanitizedUpdate[key];
                 }
               }
-            }
 
-            // Conditionally add PII based on consent and global flag
-            if (allowPII && userConsented) {
-              if (sanitizedUpdate.firstName)
-                userProperties.firstName = sanitizedUpdate.firstName;
-              if (sanitizedUpdate.lastName)
-                userProperties.lastName = sanitizedUpdate.lastName;
-              if (user.email) {
-                userProperties.email_hash = crypto
-                  .createHash("sha256")
-                  .update(user.email)
-                  .digest("hex");
+              // Conditionally add PII based on consent and global flag
+              if (allowPII && userConsented) {
+                if (sanitizedUpdate.firstName)
+                  userProperties.firstName = sanitizedUpdate.firstName;
+                if (sanitizedUpdate.lastName)
+                  userProperties.lastName = sanitizedUpdate.lastName;
               }
-            }
 
-            if (Object.keys(userProperties).length > 0) {
-              analyticsService.identify(distinctId, userProperties);
+              if (Object.keys(userProperties).length > 0) {
+                analyticsService.identify(distinctId, userProperties);
+              }
             }
           }
         } catch (analyticsError) {
@@ -5495,7 +5530,7 @@ const createUserModule = {
       });
 
       if (!group) {
-        return next(
+        next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "Organization not found",
           })
@@ -6132,7 +6167,7 @@ const createUserModule = {
       const { email, password, preferredStrategy, includeDebugInfo } = body;
       const { tenant } = query;
 
-      console.log("🔐 ENHANCED LOGIN:", {
+      logObject("🔐 ENHANCED LOGIN:", {
         email,
         tenant,
         preferredStrategy,
@@ -6209,31 +6244,30 @@ const createUserModule = {
         };
       }
 
-      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track successful login
-      // try {
-      //   const dnt =
-      //     request?.headers?.["dnt"] === "1" ||
-      //     request?.headers?.["sec-gpc"] === "1";
-      //   const userConsented = user?.consent?.analytics === true;
-      //   if (!dnt && userConsented) {
-      //     analyticsService.track(user._id.toString(), "user_logged_in", {
-      //       method: "email_password",
-      //     });
-      //   }
-      // } catch (analyticsError) {
-      //   logger.error(`PostHog login track error: ${analyticsError.message}`);
-      // }
+      try {
+        const dnt =
+          request?.headers?.["dnt"] === "1" ||
+          request?.headers?.["sec-gpc"] === "1";
+        const userConsented = user?.consent?.analytics === true;
+        if (!dnt && userConsented) {
+          analyticsService.track(user._id.toString(), "user_logged_in", {
+            method: "email_password",
+          });
+        }
+      } catch (analyticsError) {
+        logger.error(`PostHog login track error: ${analyticsError.message}`);
+      }
 
       // Initialize RBAC service
       const rbacService = new RBACService(dbTenant);
 
       // Get comprehensive permission data
-      console.log("🔍 Getting comprehensive permissions for user:", user._id);
+      logObject("🔍 Getting comprehensive permissions for user:", user._id);
       const loginPermissions = await rbacService.getUserPermissionsForLogin(
         user._id
       );
 
-      console.log("✅ Permissions calculated:", {
+      logObject("✅ Permissions calculated:", {
         allCount: loginPermissions.allPermissions?.length || 0,
         systemCount: loginPermissions.systemPermissions?.length || 0,
         groupCount: Object.keys(loginPermissions.groupPermissions).length,
@@ -6247,7 +6281,7 @@ const createUserModule = {
         preferredStrategy
       );
 
-      console.log("🎯 Using token strategy:", strategy);
+      logObject("🎯 Using token strategy:", strategy);
 
       // Initialize token factory
       const tokenFactory = new AbstractTokenFactory(dbTenant);
@@ -6445,7 +6479,7 @@ const createUserModule = {
           }),
       };
 
-      console.log("🎉 Enhanced login successful:", {
+      logObject("🎉 Enhanced login successful:", {
         userId: authResponse._id,
         permissionsCount: (authResponse.permissions || []).length,
         groupMemberships: (authResponse.groupMemberships || []).length,
@@ -6462,7 +6496,7 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛 Enhanced login error: ${error.message}`);
-      console.error("❌ ENHANCED LOGIN ERROR:", error);
+      logObject("❌ ENHANCED LOGIN ERROR:", error);
 
       return {
         success: false,
@@ -6862,7 +6896,7 @@ const createUserModule = {
       );
 
       const tokenFactory = new AbstractTokenFactory(dbTenant);
-      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES
+      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES from ATF service
       const strategies = Object.values(constants.TOKEN_STRATEGIES);
       const results = {};
       let baselineSize = 0;
@@ -6887,7 +6921,7 @@ const createUserModule = {
             tokenPreview: token.substring(0, 50) + "...",
           };
 
-          console.log(
+          logObject(
             `📊 ${strategy}: ${size} bytes (${results[strategy].compression} compression)`
           );
         } catch (error) {
