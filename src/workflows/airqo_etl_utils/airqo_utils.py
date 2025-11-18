@@ -18,7 +18,7 @@ from .constants import (
     DataSource,
 )
 from .data_validator import DataValidationUtils
-from .date import date_to_str, DateUtils
+from .date import DateUtils
 from .ml_utils import GCSUtils
 from .utils import Utils
 from .datautils import DataUtils
@@ -745,10 +745,10 @@ class AirQoDataUtils:
                 )
 
                 log_df["start_date_time"] = log_df["start_date_time"].apply(
-                    lambda x: date_to_str(x)
+                    lambda x: DateUtils.date_to_str(x)
                 )
                 log_df["end_date_time"] = log_df["end_date_time"].apply(
-                    lambda x: date_to_str(x)
+                    lambda x: DateUtils.date_to_str(x)
                 )
 
                 if len(set(log_df["site_id"].tolist())) == 1:

@@ -136,82 +136,88 @@ class DateUtils:
         start_date_time = execution_date - delta
         end_date_time = start_date_time + delta
 
-        return date_to_str_hours(start_date_time), date_to_str_hours(end_date_time)
+        return DateUtils.date_to_str(
+            start_date_time, str_format="%Y-%m-%dT%H:00:00Z"
+        ), DateUtils.date_to_str(end_date_time, str_format="%Y-%m-%dT%H:00:00Z")
 
+    @staticmethod
+    def get_utc_offset_for_hour(subject_hour: int) -> int:
+        """
+        Calculate the time offset (in hours) between the current UTC hour and a given target hour.
 
-def get_utc_offset_for_hour(subject_hour: int) -> int:
-    """
-    Calculate the time offset (in hours) between the current UTC hour and a given target hour.
+        This function compares the current UTC hour with a specified subject hour, and returns the number of hours difference. If the current hour is less than the subject hour, the result is a positive
+        offset (how many hours ahead the subject is). If the current hour is greater, the result is negative (how many hours behind the subject is). If both are equal, the offset is zero.
 
-    This function compares the current UTC hour with a specified subject hour, and returns the number of hours difference. If the current hour is less than the subject hour, the result is a positive
-    offset (how many hours ahead the subject is). If the current hour is greater, the result is negative (how many hours behind the subject is). If both are equal, the offset is zero.
+        Args:
+            subject_hour (int): The hour of interest (0-23) in 24-hour format.
 
-    Args:
-        subject_hour (int): The hour of interest (0-23) in 24-hour format.
+        Returns:
+            int: The UTC offset in hours.
+        """
+        hour = datetime.now(timezone.utc).hour
+        if hour < subject_hour:
+            return abs(hour - subject_hour)
+        elif hour > subject_hour:
+            return subject_hour - hour
+        return hour
 
-    Returns:
-        int: The UTC offset in hours.
-    """
-    hour = datetime.now(timezone.utc).hour
-    if hour < subject_hour:
-        return abs(hour - subject_hour)
-    elif hour > subject_hour:
-        return subject_hour - hour
-    return hour
+    @staticmethod
+    def str_to_date(
+        st: str,
+        date_format: Optional[str] = "%Y-%m-%dT%H:%M:%SZ",
+        set_utc: Optional[bool] = True,
+    ) -> datetime:
+        """
+        Converts a string to datetime
+        Args:
+            st(str): Datetime string
+            set_utc(bool, optional): Whether to set the timezone to UTC. Defaults to True.
+        """
+        try:
+            dt = datetime.strptime(st, date_format)
+        except ValueError:
+            dt = datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
 
+        if set_utc:
+            dt = dt.replace(tzinfo=timezone.utc)
 
-def str_to_date(st: str, date_format="%Y-%m-%dT%H:%M:%SZ"):
-    """
-    Converts a string to datetime
-    """
+        return dt
 
-    try:
-        return datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
-    except:
-        return datetime.strptime(st, date_format)
+    @staticmethod
+    def date_to_str(date: datetime, str_format="%Y-%m-%dT%H:%M:%SZ"):
+        """
+        Converts datetime to a string
+        """
+        return datetime.strftime(date, str_format)
 
+    @staticmethod
+    def frequency_to_dates(frequency: Frequency) -> Tuple[str, str]:
+        """
+        Converts frequency to start and end dates and returns the previous or current valid hour/day/week/month based on the frequency.
+        Valid meaning that if the current time is 10:15 and frequency is Frequency.HOURLY, it should return 09:00 to 10:00
+        Args:
+        Returns:
+            Tuple[str, str]: A tuple containing the start and end dates as strings in ISO 8601 format with a trailing "Z" indicating UTC.
+        Raises:
+            ValueError: If the frequency is not recognized.
+        """
+        now = datetime.now(timezone.utc)
+        match frequency:
+            case Frequency.HOURLY:
+                end_date = now.replace(minute=0, second=0, microsecond=0)
+                start_date = end_date - timedelta(hours=1)
+            case Frequency.DAILY:
+                end_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                start_date = end_date - timedelta(days=1)
+            case Frequency.WEEKLY:
+                end_date = now.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ) - timedelta(days=now.weekday())
+                start_date = end_date - timedelta(weeks=1)
+            case Frequency.MONTHLY:
+                end_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                start_date = end_date - relativedelta(months=1)
+            case _:
+                raise ValueError("Unrecognized frequency")
 
-def date_to_str(date: datetime, str_format="%Y-%m-%dT%H:%M:%SZ"):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, str_format)
-
-
-def date_to_str_hours(date: datetime):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
-
-
-def frequency_to_dates(frequency: Frequency) -> Tuple[str, str]:
-    """
-    Converts frequency to start and end dates and returns the previous or current valid hour/day/week/month based on the frequency.
-    Valid meaning that if the current time is 10:15 and frequency is Frequency.HOURLY, it should return 09:00 to 10:00
-    Args:
-    Returns:
-        Tuple[str, str]: A tuple containing the start and end dates as strings in ISO 8601 format with a trailing "Z" indicating UTC.
-    Raises:
-        ValueError: If the frequency is not recognized.
-    """
-    now = datetime.now(timezone.utc)
-    match frequency:
-        case Frequency.HOURLY:
-            end_date = now.replace(minute=0, second=0, microsecond=0)
-            start_date = end_date - timedelta(hours=1)
-        case Frequency.DAILY:
-            end_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            start_date = end_date - timedelta(days=1)
-        case Frequency.WEEKLY:
-            end_date = now.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ) - timedelta(days=now.weekday())
-            start_date = end_date - timedelta(weeks=1)
-        case Frequency.MONTHLY:
-            end_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            start_date = end_date - relativedelta(months=1)
-        case _:
-            raise ValueError("Unrecognized frequency")
-
-    return date_to_str(start_date), date_to_str(end_date)
+        return DateUtils.date_to_str(start_date), DateUtils.date_to_str(end_date)

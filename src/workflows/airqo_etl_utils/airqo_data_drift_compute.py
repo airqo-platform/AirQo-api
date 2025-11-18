@@ -3,9 +3,11 @@ import numpy as np
 from scipy.stats import ks_2samp
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, List
+
 from .constants import Frequency, DataType
+from .date import DateUtils
 
 
 class AirQoDataDriftCompute:
@@ -23,7 +25,7 @@ class AirQoDataDriftCompute:
     @classmethod
     def calculate_expected_sample_count(cls, resolution: Frequency) -> int:
         """
-        Calculate the minimum valid hours required for baseline computation based on resolution.
+        Calculate the minimum valid hours required for baseline computation based on baseline frequency.
         Args:
             resolution (Frequency): Frequency enum value (WEEKLY or MONTHLY).
         Returns:
@@ -66,7 +68,7 @@ class AirQoDataDriftCompute:
         cls,
         data_type: DataType,
         data: pd.DataFrame,
-        device: Dict[str, Any],
+        device_metadata: Dict[str, Any],
         pollutants: List[str],
         data_resolution: Frequency,
         baseline_type: Frequency,
@@ -75,6 +77,7 @@ class AirQoDataDriftCompute:
         region_min: Optional[float] = 0,
         region_max: Optional[float] = 1000,
         ecdf_bins_count: Optional[int] = 100,
+        reference_data_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Compute baseline statistics and ECDF bins for a device and one or more pollutants.
@@ -82,7 +85,7 @@ class AirQoDataDriftCompute:
         Args:
             data_type(DataType): Type of data being processed (e.g., RAW, HOURLY).
             data(pd.DataFrame): DataFrame with device air quality measurements.
-            device(Dict[str, Any]): Device dictionary with device metadata.
+            device_metadata(Dict[str, Any]): Device dictionary with device metadata.
             pollutants(List[str]): List of pollutant names.
             data_resolution(Frequency): Frequency of the data (e.g., RAW, HOURLY).
             baseline_type(Frequency): Type of baseline (e.g., WEEKLY, MONTHLY).
@@ -101,9 +104,9 @@ class AirQoDataDriftCompute:
         if data.empty:
             return None
 
-        if (window_start + timedelta(hours=cls.COOLDOWN_HOURS)) > device[
-            "recent_maintenance_date"
-        ]:
+        if (
+            DateUtils.str_to_date(window_start) + timedelta(hours=cls.COOLDOWN_HOURS)
+        ) < device_metadata["recent_maintenance_date"]:
             raise ValueError(
                 "All data should be before or after maintenance cooldown period"
             )
@@ -112,10 +115,11 @@ class AirQoDataDriftCompute:
         device_number = data.iloc[0]["device_number"]
         device_category = data.iloc[0]["device_category"]
         sample_count: int = data.shape[0]
-        expected_samples: int = cls.calculate_expected_sample_count(data_resolution)
+        expected_samples: int = cls.calculate_expected_sample_count(baseline_type)
         sample_coverage_pct: float = (
             (sample_count / expected_samples) * 100 if expected_samples > 0 else 0.0
         )
+
         valid_sample_count: int = expected_samples * cls.MIN_HOUR_COVERAGE
 
         if sample_count < valid_sample_count:
@@ -169,15 +173,16 @@ class AirQoDataDriftCompute:
         for pollutant in pollutants:
             baseline_row = {
                 "network": device_network,
-                "timestamp": window_end,
-                "device_id": device["device_id"],
-                "site_id": device["site_id"],
+                "timestamp": datetime.now(timezone.utc),
+                "device_id": device_metadata["device_id"],
+                "site_id": device_metadata["site_id"],
                 "data_type": data_type.str,
                 "baseline_resolution": data_resolution.str,
                 "baseline_type": baseline_type.str,
                 "device_number": device_number,
-                "device_category": device_category,
+                "device_category": device_category if device_category else "lowcost",
                 "baseline_id": baseline_id,
+                "reference_data_id": reference_data_id,
                 "pollutant": pollutant,
                 "window_start": window_start,
                 "window_end": window_end,
@@ -187,7 +192,7 @@ class AirQoDataDriftCompute:
                 "quantiles": q_map[pollutant],
                 "ecdf_bins": ecdf_bins[pollutant],
                 "mean": float(data[pollutant].mean()),
-                "stddev": float(data[pollutant].std()),
+                "stddev": np.std(data[pollutant].values),
                 "minimum": float(data[pollutant].min()),
                 "maximum": float(data[pollutant].max()),
                 "baseline_version": "1.0.1",
@@ -195,6 +200,7 @@ class AirQoDataDriftCompute:
                 "site_maximum": float(region_max),
             }
             baseline_rows.append(baseline_row)
+
         return baseline_rows
 
     @staticmethod

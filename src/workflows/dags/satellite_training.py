@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.ml_utils import SatelliteUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
@@ -24,9 +24,7 @@ def train_satellite_model():
         start_date = datetime.now(timezone.utc) - relativedelta(
             months=int(configuration.SATELLITE_TRAINING_SCOPE)
         )
-        from airqo_etl_utils.date import date_to_str
-
-        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_satellite_readings(start_date)
 
     @task()
@@ -35,7 +33,7 @@ def train_satellite_model():
         start_date = current_date - relativedelta(
             months=int(configuration.SATELLITE_TRAINING_SCOPE)
         )
-        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_satellite_job(start_date, "train")
 
     @task()

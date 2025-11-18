@@ -581,11 +581,18 @@ class Config:
                 Frequency.HOURLY: BIGQUERY_ANALYTICS_TABLE,
             }
         },
-        # TODO Expand usage
+        DataType.COMPUTEDDATA: {
+            DeviceNetwork.AIRQO: {
+                MetaDataType.DEVICES: BIGQUERY_GX_DEVICE_COMPUTED_METADATA,
+                MetaDataType.SITES: BIGQUERY_GX_SITE_COMPUTED_METADATA,
+                MetaDataType.DATAQUALITYCHECKS: BIGQUERY_GX_MEASUREMENTS_BASELINE,
+            },
+        },
         DataType.EXTRAS: {
             DeviceNetwork.URBANBETTER: {
                 MetaDataType.SENSORPOSITIONS: SENSOR_POSITIONS_TABLE
             },
+            # TODO: Remove after migration to COMPUTEDDATA
             DeviceNetwork.AIRQO: {
                 MetaDataType.DEVICES: BIGQUERY_GX_DEVICE_COMPUTED_METADATA,
                 MetaDataType.SITES: BIGQUERY_GX_SITE_COMPUTED_METADATA,

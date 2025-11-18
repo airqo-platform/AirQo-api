@@ -1,5 +1,11 @@
 [
   {
+    "name": "run_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "A unique identifier for the ETL run that generated this record."
+  },
+  {
     "name": "device_id",
     "type": "STRING",
     "mode": "REQUIRED"
@@ -59,5 +65,23 @@
     "name": "sample_count",
     "type": "INTEGER",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "auto_baseline_computed",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE",
+    "description": "Indicates whether this entry has been used to compute a baseline automatically."
+  },
+  {
+    "name": "stdv",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Standard deviation of the pollutant measurements."
+  },
+  {
+    "name": "last_updated",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "The last time this record was updated."
   }
 ]
