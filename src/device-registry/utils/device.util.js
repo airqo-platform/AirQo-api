@@ -1525,16 +1525,44 @@ const deviceUtil = {
       const { body } = request;
       const update = body;
       const filter = generateFilter.devices(request, next);
-      let opts = {};
-      const responseFromModifyDevice = await DeviceModel(tenant).modify(
-        {
-          filter,
-          update,
-          opts,
+
+      // Find the device ID for logging before the update
+      const device = await DeviceModel(tenant)
+        .findOne(filter)
+        .select("_id name")
+        .lean();
+      if (!device) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const trackingParams = {
+        operation_type: "UPDATE",
+        entity_type: "DEVICE",
+        entity_id: device._id,
+        tenant: tenant,
+        source_function: "updateOnPlatform",
+        metadata: {
+          device_name: device.name,
+          updated_fields: Object.keys(update),
         },
-        next
-      );
-      return responseFromModifyDevice;
+      };
+
+      return await ActivityLogger.trackOperation(async () => {
+        let opts = {};
+        const responseFromModifyDevice = await DeviceModel(tenant).modify(
+          {
+            filter,
+            update,
+            opts,
+          },
+          next
+        );
+        return responseFromModifyDevice;
+      }, trackingParams);
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(

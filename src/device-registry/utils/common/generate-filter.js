@@ -716,7 +716,81 @@ const generateFilter = {
 
     return filter;
   },
+  logs: (req, next) => {
+    try {
+      const {
+        device_id,
+        site_id,
+        user_id,
+        device_name,
+        activity_type,
+        activity_tags,
+        maintenance_type,
+        recall_type,
+        start_date,
+        end_date,
+      } = req.query;
 
+      let filter = {};
+
+      if (device_id) {
+        filter.entity_id = device_id;
+        filter.entity_type = "DEVICE";
+      }
+
+      if (site_id) {
+        filter.entity_id = site_id;
+        filter.entity_type = "SITE";
+      }
+
+      if (user_id) {
+        filter["metadata.user_id"] = user_id;
+      }
+
+      if (device_name) {
+        filter["metadata.device_name"] = device_name;
+      }
+
+      if (activity_type) {
+        filter.operation_type = activity_type.toUpperCase();
+      }
+
+      if (activity_tags) {
+        const tagsArray = activity_tags.split(",").map((tag) => tag.trim());
+        filter["metadata.tags"] = { $in: tagsArray };
+      }
+
+      if (maintenance_type) {
+        filter["metadata.maintenance_type"] = maintenance_type;
+      }
+
+      if (recall_type) {
+        filter["metadata.recall_type"] = recall_type;
+      }
+
+      if (start_date && end_date) {
+        filter.timestamp = {
+          $gte: new Date(start_date),
+          $lte: new Date(end_date),
+        };
+      } else if (start_date) {
+        filter.timestamp = { $gte: new Date(start_date) };
+      } else if (end_date) {
+        filter.timestamp = { $lte: new Date(end_date) };
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   fetch: (request, next) => {
     const { query, params } = request;
     const {

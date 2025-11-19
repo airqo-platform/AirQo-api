@@ -203,6 +203,59 @@ activityLogSchema.statics = {
     }
   },
 
+  async list({ filter = {}, limit = 100, skip = 0 } = {}, next) {
+    try {
+      const response = await this.aggregate()
+        .match(filter)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        const total = await this.countDocuments(filter);
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.ceil(skip / limit) + 1;
+
+        return {
+          success: true,
+          data: response,
+          message: "Successfully retrieved the logs",
+          status: httpStatus.OK,
+          meta: {
+            total,
+            limit,
+            skip,
+            page: currentPage,
+            pages: totalPages,
+          },
+        };
+      } else {
+        return {
+          success: true,
+          message: "There are no logs for this search",
+          data: [],
+          status: httpStatus.OK,
+          meta: {
+            total: 0,
+            limit,
+            skip,
+            page: 1,
+            pages: 0,
+          },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   async getDailyStats({ filter = {} } = {}, next) {
     try {
       const pipeline = [
