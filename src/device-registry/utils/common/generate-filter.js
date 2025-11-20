@@ -767,14 +767,33 @@ const generateFilter = {
       }
 
       if (start_date && end_date) {
+        const startDateObj = new Date(start_date);
+        const endDateObj = new Date(end_date);
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "start_date and end_date must be valid ISO date strings",
+          });
+        }
         filter.timestamp = {
-          $gte: new Date(start_date),
-          $lte: new Date(end_date),
+          $gte: startDateObj,
+          $lte: endDateObj,
         };
       } else if (start_date) {
-        filter.timestamp = { $gte: new Date(start_date) };
+        const startDateObj = new Date(start_date);
+        if (isNaN(startDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "start_date must be a valid ISO date string",
+          });
+        }
+        filter.timestamp = { $gte: startDateObj };
       } else if (end_date) {
-        filter.timestamp = { $lte: new Date(end_date) };
+        const endDateObj = new Date(end_date);
+        if (isNaN(endDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "end_date must be a valid ISO date string",
+          });
+        }
+        filter.timestamp = { $lte: endDateObj };
       }
 
       return filter;
