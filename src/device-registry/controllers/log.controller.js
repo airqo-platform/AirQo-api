@@ -31,7 +31,7 @@ const logController = {
 
       if (result.success) {
         const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           message: result.message,
           data: result.data,

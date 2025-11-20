@@ -2,7 +2,7 @@ const { query, check } = require("express-validator");
 const mongoose = require("mongoose");
 
 const validateOptionalMongoId = (field) =>
-  check(field)
+  query(field)
     .optional()
     .custom((value) => mongoose.Types.ObjectId.isValid(value))
     .withMessage(`Invalid ${field} format`);
@@ -71,6 +71,28 @@ const list = [
     .isInt({ min: 0 })
     .withMessage("Skip must be a non-negative integer")
     .toInt(),
+
+  query("sortBy")
+    .optional()
+    .isString()
+    .withMessage("sortBy must be a string")
+    .trim()
+    .isIn(["timestamp", "operation_type", "entity_type", "status"])
+    .withMessage("Invalid sortBy value"),
+
+  query("order")
+    .optional()
+    .isString()
+    .withMessage("order must be a string")
+    .trim()
+    .toLowerCase()
+    .isIn(["asc", "desc"])
+    .withMessage("order must be either 'asc' or 'desc'"),
+
+  query("detailLevel")
+    .optional()
+    .isIn(["minimal", "full"])
+    .withMessage("detailLevel must be either 'minimal' or 'full'"),
 ];
 
 module.exports = {

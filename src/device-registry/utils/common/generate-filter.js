@@ -736,9 +736,7 @@ const generateFilter = {
       if (device_id) {
         filter.entity_id = device_id;
         filter.entity_type = "DEVICE";
-      }
-
-      if (site_id) {
+      } else if (site_id) {
         filter.entity_id = site_id;
         filter.entity_type = "SITE";
       }
@@ -789,6 +787,7 @@ const generateFilter = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   fetch: (request, next) => {

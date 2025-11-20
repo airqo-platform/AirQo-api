@@ -1,5 +1,5 @@
 const ActivityLogModel = require("@models/ActivityLog");
-const { HttpError, logObject } = require("@utils/shared");
+const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const { generateFilter } = require("@utils/common");
 const constants = require("@config/constants");
@@ -9,7 +9,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- log-util`);
 const logUtil = {
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip } = request.query;
+      const { tenant, limit, skip, sortBy, order, detailLevel } = request.query;
       const filter = generateFilter.logs(request, next);
 
       const response = await ActivityLogModel(tenant).list(
@@ -17,6 +17,9 @@ const logUtil = {
           filter,
           limit,
           skip,
+          sortBy,
+          order,
+          detailLevel,
         },
         next
       );
@@ -31,6 +34,7 @@ const logUtil = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

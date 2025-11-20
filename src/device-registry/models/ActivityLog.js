@@ -203,11 +203,40 @@ activityLogSchema.statics = {
     }
   },
 
-  async list({ filter = {}, limit = 100, skip = 0 } = {}, next) {
+  async list(
+    {
+      filter = {},
+      limit = 100,
+      skip = 0,
+      sortBy = "timestamp",
+      order = "desc",
+      detailLevel = "full",
+    } = {},
+    next
+  ) {
     try {
-      const response = await this.aggregate()
-        .match(filter)
-        .sort({ timestamp: -1 })
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy || "timestamp";
+
+      let projection = {};
+      if (detailLevel === "minimal") {
+        projection = {
+          _id: 1,
+          timestamp: 1,
+          operation_type: 1,
+          entity_type: 1,
+          status: 1,
+          tenant: 1,
+        };
+      }
+
+      const pipeline = this.aggregate().match(filter);
+
+      if (Object.keys(projection).length > 0) {
+        pipeline.project(projection);
+      }
+      const response = await pipeline
+        .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(limit)
         .allowDiskUse(true);
