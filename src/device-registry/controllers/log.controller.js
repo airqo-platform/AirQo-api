@@ -6,6 +6,41 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- log-controller`);
 const logUtil = require("@utils/log.util");
 const isEmpty = require("is-empty");
 
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const meta = result.meta !== undefined ? result.meta : {};
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res
+    .status(status)
+    .json({ message, meta, [key]: data, [errorKey]: errors });
+}
+
 const logController = {
   list: async (req, res, next) => {
     try {
@@ -25,28 +60,7 @@ const logController = {
 
       const result = await logUtil.list(request, next);
 
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          data: result.data,
-          meta: result.meta,
-        });
-      }
-
-      const status = result.status
-        ? result.status
-        : httpStatus.INTERNAL_SERVER_ERROR;
-      res.status(status).json({
-        success: false,
-        message: result.message,
-        errors: result.errors ? result.errors : { message: "" },
-      });
+      return handleResponse({ result, key: "logs", res });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
