@@ -48,5 +48,6 @@ const prodConfig = {
   ADMIN_MIGRATION_KEY: process.env.PROD_ADMIN_MIGRATION_KEY,
   DEPLOYMENT_URL: process.env.PROD_DEPLOYMENT_URL,
   SERVICE_JWT_TOKEN: process.env.PROD_SERVICE_JWT_TOKEN,
+  ADMIN_SETUP_SECRET: process.env.PROD_ADMIN_SETUP_SECRET,
 };
 module.exports = prodConfig;

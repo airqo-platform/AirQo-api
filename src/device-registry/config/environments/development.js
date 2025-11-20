@@ -48,5 +48,6 @@ const devConfig = {
   ADMIN_MIGRATION_KEY: process.env.DEV_ADMIN_MIGRATION_KEY,
   DEPLOYMENT_URL: process.env.DEV_DEPLOYMENT_URL,
   SERVICE_JWT_TOKEN: process.env.DEV_SERVICE_JWT_TOKEN,
+  ADMIN_SETUP_SECRET: process.env.DEV_ADMIN_SETUP_SECRET,
 };
 module.exports = devConfig;

@@ -50,6 +50,7 @@ const stageConfig = {
   ADMIN_MIGRATION_KEY: process.env.STAGE_ADMIN_MIGRATION_KEY,
   DEPLOYMENT_URL: process.env.STAGE_DEPLOYMENT_URL,
   SERVICE_JWT_TOKEN: process.env.STAGE_SERVICE_JWT_TOKEN,
+  ADMIN_SETUP_SECRET: process.env.STAGE_ADMIN_SETUP_SECRET,
 };
 
 module.exports = stageConfig;
