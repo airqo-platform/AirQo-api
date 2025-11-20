@@ -165,9 +165,15 @@ gridSchema.pre("save", function(next) {
   // Backup validation using geometry utility
   if ((this.isModified("shape") || this.isNew) && this.shape) {
     try {
-      const fixed = validateAndFixPolygon(this.shape);
+      // Pass only coordinates, not the whole shape object
+      const fixed = validateAndFixPolygon({
+        type: this.shape.type,
+        coordinates: this.shape.coordinates,
+      });
       validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
-      this.shape = fixed;
+
+      // Update the shape with fixed coordinates
+      this.shape.coordinates = fixed.coordinates;
     } catch (error) {
       return next(
         new Error(
