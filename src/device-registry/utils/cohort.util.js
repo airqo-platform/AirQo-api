@@ -192,10 +192,6 @@ const createCohort = {
       const { tenant } = query;
       const { admin_secret } = body;
 
-      logger.info(
-        `constants.ADMIN_SETUP_SECRET -- ${constants.ADMIN_SETUP_SECRET}`
-      );
-
       // 1. Verify that the secret is configured on the server
       if (!constants.ADMIN_SETUP_SECRET) {
         logger.error(
