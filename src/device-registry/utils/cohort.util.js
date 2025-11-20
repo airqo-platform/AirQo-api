@@ -2,6 +2,7 @@ const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const qs = require("qs");
+const crypto = require("crypto");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -187,18 +188,40 @@ const createCohort = {
   },
   createNetwork: async (request, next) => {
     try {
-      return {
-        success: false,
-        message: "Service Temporarily Disabled --coming soon",
-        status: httpStatus.SERVICE_UNAVAILABLE,
-        errors: { message: "Service Unavailable" },
-      };
-      /**
-       * in the near future, this wont be needed since Kafka
-       * will handle the entire creation process
-       */
       const { query, body } = request;
       const { tenant } = query;
+      const { admin_secret } = body;
+
+      // 1. Verify that the secret is configured on the server
+      if (!constants.ADMIN_SETUP_SECRET) {
+        logger.error(
+          "CRITICAL: ADMIN_SETUP_SECRET is not configured in environment variables."
+        );
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Admin secret not configured on server",
+            }
+          )
+        );
+      }
+
+      // 2. Perform a constant-time comparison to prevent timing attacks
+      const provided = Buffer.from(admin_secret || "");
+      const expected = Buffer.from(constants.ADMIN_SETUP_SECRET);
+
+      if (
+        provided.length !== expected.length ||
+        !crypto.timingSafeEqual(provided, expected)
+      ) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "Invalid admin secret provided",
+          })
+        );
+      }
 
       const responseFromCreateNetwork = await NetworkModel(tenant).register(
         body,
