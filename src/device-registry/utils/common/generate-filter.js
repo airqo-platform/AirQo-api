@@ -716,7 +716,99 @@ const generateFilter = {
 
     return filter;
   },
+  logs: (req, next) => {
+    try {
+      const {
+        device_id,
+        site_id,
+        user_id,
+        device_name,
+        activity_type,
+        activity_tags,
+        maintenance_type,
+        recall_type,
+        start_date,
+        end_date,
+      } = req.query;
 
+      let filter = {};
+
+      if (device_id) {
+        filter.entity_id = device_id;
+        filter.entity_type = "DEVICE";
+      } else if (site_id) {
+        filter.entity_id = site_id;
+        filter.entity_type = "SITE";
+      }
+
+      if (user_id) {
+        filter["metadata.user_id"] = user_id;
+      }
+
+      if (device_name) {
+        filter["metadata.device_name"] = device_name;
+      }
+
+      if (activity_type) {
+        filter.operation_type = activity_type.toUpperCase();
+      }
+
+      if (activity_tags) {
+        const tagsArray = activity_tags.split(",").map((tag) => tag.trim());
+        filter["metadata.tags"] = { $in: tagsArray };
+      }
+
+      if (maintenance_type) {
+        filter["metadata.maintenance_type"] = maintenance_type;
+      }
+
+      if (recall_type) {
+        filter["metadata.recall_type"] = recall_type;
+      }
+
+      if (start_date && end_date) {
+        const startDateObj = new Date(start_date);
+        const endDateObj = new Date(end_date);
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "start_date and end_date must be valid ISO date strings",
+          });
+        }
+        filter.timestamp = {
+          $gte: startDateObj,
+          $lte: endDateObj,
+        };
+      } else if (start_date) {
+        const startDateObj = new Date(start_date);
+        if (isNaN(startDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "start_date must be a valid ISO date string",
+          });
+        }
+        filter.timestamp = { $gte: startDateObj };
+      } else if (end_date) {
+        const endDateObj = new Date(end_date);
+        if (isNaN(endDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "end_date must be a valid ISO date string",
+          });
+        }
+        filter.timestamp = { $lte: endDateObj };
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   fetch: (request, next) => {
     const { query, params } = request;
     const {

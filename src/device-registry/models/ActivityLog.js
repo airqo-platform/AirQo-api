@@ -203,6 +203,88 @@ activityLogSchema.statics = {
     }
   },
 
+  async list(
+    {
+      filter = {},
+      limit = 100,
+      skip = 0,
+      sortBy = "timestamp",
+      order = "desc",
+      detailLevel = "full",
+    } = {},
+    next
+  ) {
+    try {
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy || "timestamp";
+
+      let projection = {};
+      if (detailLevel === "minimal") {
+        projection = {
+          _id: 1,
+          timestamp: 1,
+          operation_type: 1,
+          entity_type: 1,
+          status: 1,
+          tenant: 1,
+        };
+      }
+
+      const pipeline = this.aggregate().match(filter);
+
+      if (Object.keys(projection).length > 0) {
+        pipeline.project(projection);
+      }
+      const response = await pipeline
+        .sort({ [sortField]: sortOrder })
+        .skip(skip)
+        .limit(limit)
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        const total = await this.countDocuments(filter);
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.ceil(skip / limit) + 1;
+
+        return {
+          success: true,
+          data: response,
+          message: "Successfully retrieved the logs",
+          status: httpStatus.OK,
+          meta: {
+            total,
+            limit,
+            skip,
+            page: currentPage,
+            pages: totalPages,
+          },
+        };
+      } else {
+        return {
+          success: true,
+          message: "There are no logs for this search",
+          data: [],
+          status: httpStatus.OK,
+          meta: {
+            total: 0,
+            limit,
+            skip,
+            page: 1,
+            pages: 0,
+          },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   async getDailyStats({ filter = {} } = {}, next) {
     try {
       const pipeline = [
