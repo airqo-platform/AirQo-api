@@ -425,6 +425,15 @@ const cohortValidations = {
 
   createNetwork: [
     ...commonValidations.tenant,
+    body("admin_secret")
+      .exists()
+      .withMessage("the admin secret is required")
+      .bail()
+      .isString()
+      .withMessage("the admin secret must be a string")
+      .bail()
+      .notEmpty()
+      .withMessage("the admin secret should not be empty"),
     ...commonValidations.name,
     ...commonValidations.description,
     handleValidationErrors,
