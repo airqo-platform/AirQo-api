@@ -355,6 +355,8 @@ const VALID_USER_TYPES = Object.freeze([
   "super_admin",
   "viewer",
   "user",
+  "contributor",
+  "moderator",
 ]);
 
 const DEFAULT_NETWORK_MEMBER_PERMISSIONS = [

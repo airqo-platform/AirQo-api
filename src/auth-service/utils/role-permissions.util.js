@@ -62,6 +62,29 @@ const getDefaultAirqoRoles = (airqoGroupId) => {
     }));
 };
 
+/**
+ * Determine userType from role name based on naming conventions
+ * @param {string} roleName - The role name to analyze
+ * @returns {string} The determined userType
+ */
+const determineUserTypeFromRoleName = (roleName) => {
+  const normalizedRoleName = roleName.toUpperCase();
+
+  if (normalizedRoleName.includes("SUPER_ADMIN")) {
+    return "super_admin";
+  } else if (normalizedRoleName.includes("ADMIN")) {
+    return "admin";
+  } else if (normalizedRoleName.includes("CONTRIBUTOR")) {
+    return "contributor";
+  } else if (normalizedRoleName.includes("MODERATOR")) {
+    return "moderator";
+  } else if (normalizedRoleName.includes("MEMBER")) {
+    return "member";
+  } else if (normalizedRoleName.includes("VIEWER")) {
+    return "viewer";
+  }
+  return "guest"; // Default
+};
 // ===== HELPER FUNCTIONS =====
 
 /**
@@ -2370,18 +2393,7 @@ const rolePermissionUtil = {
       }
 
       // --- Automatically determine userType from role name ---
-      const roleName = role.role_name.toUpperCase();
-      let determinedUserType = "guest"; // Default
-
-      if (roleName.includes("SUPER_ADMIN")) {
-        determinedUserType = "super_admin";
-      } else if (roleName.includes("ADMIN")) {
-        determinedUserType = "admin";
-      } else if (roleName.includes("MEMBER")) {
-        determinedUserType = "member";
-      } else if (roleName.includes("VIEWER")) {
-        determinedUserType = "viewer";
-      }
+      const determinedUserType = determineUserTypeFromRoleName(role.role_name);
 
       logObject("Automatically determined userType:", determinedUserType);
       // --- END NEW LOGIC ---
@@ -2522,18 +2534,9 @@ const rolePermissionUtil = {
       const isNetworkRole = roleType === "network";
 
       // --- Automatically determine userType from role name ---
-      const roleName = roleObject.role_name.toUpperCase();
-      let determinedUserType = "guest"; // Default
-
-      if (roleName.includes("SUPER_ADMIN")) {
-        determinedUserType = "super_admin";
-      } else if (roleName.includes("ADMIN")) {
-        determinedUserType = "admin";
-      } else if (roleName.includes("MEMBER")) {
-        determinedUserType = "member";
-      } else if (roleName.includes("VIEWER")) {
-        determinedUserType = "viewer";
-      }
+      const determinedUserType = determineUserTypeFromRoleName(
+        roleObject.role_name
+      );
       // Get users without populate
       const users = await UserModel(tenant)
         .find({ _id: { $in: user_ids } })
@@ -4343,24 +4346,13 @@ const rolePermissionUtil = {
       }
 
       // --- Automatically determine userType from role name ---
-      const roleName = role.role_name.toUpperCase();
-      let determinedUserType = "guest"; // Default
-
-      if (roleName.includes("SUPER_ADMIN")) {
-        determinedUserType = "super_admin";
-      } else if (roleName.includes("ADMIN")) {
-        determinedUserType = "admin";
-      } else if (roleName.includes("MEMBER")) {
-        determinedUserType = "member";
-      } else if (roleName.includes("VIEWER")) {
-        determinedUserType = "viewer";
-      }
+      const determinedUserType = determineUserTypeFromRoleName(role.role_name);
 
       const VALID_USER_TYPES = constants.VALID_USER_TYPES;
-      if (userType && !VALID_USER_TYPES.includes(determinedUserType)) {
+      if (!VALID_USER_TYPES.includes(determinedUserType)) {
         return next(
           new HttpError("Invalid User Type", httpStatus.BAD_REQUEST, {
-            message: `Invalid userType: ${determinedUserType}. Valid values are: ${VALID_USER_TYPES.join(
+            message: `Invalid determined userType: ${determinedUserType}. Valid values are: ${VALID_USER_TYPES.join(
               ", "
             )}`,
           })
