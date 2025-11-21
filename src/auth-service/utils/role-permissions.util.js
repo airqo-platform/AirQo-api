@@ -82,6 +82,8 @@ const determineUserTypeFromRoleName = (roleName) => {
     return "member";
   } else if (normalizedRoleName.includes("VIEWER")) {
     return "viewer";
+  } else if (normalizedRoleName.includes("USER")) {
+    return "user";
   }
   return "guest"; // Default
 };
