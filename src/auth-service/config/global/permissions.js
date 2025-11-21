@@ -348,6 +348,15 @@ const DEFAULTS = {
   DEFAULT_MEMBER: DEFAULT_ROLE_DEFINITIONS.DEFAULT_MEMBER.permissions,
 };
 
+const VALID_USER_TYPES = Object.freeze([
+  "guest",
+  "member",
+  "admin",
+  "super_admin",
+  "viewer",
+  "user",
+]);
+
 const DEFAULT_NETWORK_MEMBER_PERMISSIONS = [
   PERMISSIONS.DASHBOARD_VIEW,
   PERMISSIONS.DATA_VIEW,
@@ -396,6 +405,7 @@ const permissionsExport = {
   DEFAULTS,
   DEFAULT_NETWORK_MEMBER_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
+  VALID_USER_TYPES,
   DEPRECATED_ROLE_NAMES,
 };
 
@@ -435,6 +445,7 @@ module.exports = {
     DEFAULTS,
     DEFAULT_NETWORK_MEMBER_PERMISSIONS,
     DEFAULT_MEMBER_PERMISSIONS,
+    VALID_USER_TYPES,
     DEPRECATED_ROLE_NAMES,
   },
   ...permissionsExport,

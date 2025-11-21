@@ -389,43 +389,21 @@ const requireSystemAdmin = () => {
 
       const rbacService = getRBACService(tenant);
 
-      // Check if user has system-wide admin permissions
-      const requiredPermissions = [
-        constants.SUPER_ADMIN,
-        constants.SYSTEM_ADMIN,
-      ];
-      const hasPermission = await rbacService.hasPermission(
-        user._id,
-        requiredPermissions
-      );
+      // Check if user has system-wide admin access
+      const isSystemAdmin = await rbacService.isSystemSuperAdmin(user._id);
 
-      if (!hasPermission) {
-        const userPermissionsRaw = await rbacService.getUserPermissions(
-          user._id
-        );
-        const userPermissions = Array.isArray(userPermissionsRaw)
-          ? userPermissionsRaw
-          : [];
+      if (!isSystemAdmin) {
         logger.warn(
-          `System admin access denied for user ${user.email} (ID: ${
-            user._id
-          }): Required ANY of ${requiredPermissions.join(
-            " OR "
-          )}, but user has ${
-            userPermissions.length ? userPermissions.join(", ") : "none"
-          }`
+          `System admin access denied for user ${user.email} (ID: ${user._id}): User does not have system admin privileges`
         );
 
         return next(
           new HttpError(
-            `Access denied. Required permissions: [${requiredPermissions.join(
-              " or "
-            )}]`,
+            "Access denied. System administrator privileges required.",
             httpStatus.FORBIDDEN,
             {
               message: "You don't have system administrator access",
-              required: requiredPermissions,
-              userPermissions: userPermissions,
+              required: "System administrator role in AirQo organization",
             }
           )
         );
