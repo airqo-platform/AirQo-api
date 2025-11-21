@@ -1137,4 +1137,24 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
+  requestRejected: ({
+    firstName = "User",
+    email = "",
+    entity_title = "",
+    requestType = "organization",
+  } = {}) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td>
+                                    <p>Hi ${name},</p>
+                                    <p>Thank you for your interest in joining the "${entity_title}" ${requestType} on AirQo.</p>
+                                    <p>After careful consideration, we are unable to approve your access request at this time.</p>
+                                    <p>If you believe this is a mistake or have any questions, please contact the administrator of the ${requestType} or reach out to our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+                                    <br>
+                                    <p>Thank you for your understanding.</p>
+                                    <p>--The AirQo Team</p>
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
 };

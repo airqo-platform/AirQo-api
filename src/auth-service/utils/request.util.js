@@ -27,29 +27,57 @@ const createAccessRequest = {
       const { grp_id } = request.params;
       logObject("the user", user);
       logObject("grp_id", grp_id);
+
       const group = await GroupModel(tenant).findById(grp_id);
       logObject("group", group);
       logObject("user._id", user._id);
+
       if (isEmpty(group) || isEmpty(user._id)) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group or User not found",
           })
         );
+        return;
       }
 
+      // Check if user is already a member
+      const userDetails = await UserModel(tenant).findById(user._id).lean();
+      if (userDetails && userDetails.group_roles) {
+        const isAlreadyMember = userDetails.group_roles.some(
+          (gr) => gr.group.toString() === grp_id.toString()
+        );
+        if (isAlreadyMember) {
+          return {
+            success: false,
+            message: "You are already a member of this group",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "You are already a member of this group",
+            },
+          };
+        }
+      }
+
+      // Check for existing pending request
       const existingRequest = await AccessRequestModel(tenant).findOne({
         user_id: user._id,
         targetId: grp_id,
         requestType: "group",
+        status: "pending",
       });
 
       if (!isEmpty(existingRequest)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Access request already exists for this group",
-          })
-        );
+        return {
+          success: false,
+          message: "You already have a pending access request for this group",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "You already have a pending access request for this group",
+            existing_request_id: existingRequest._id,
+            requested_at: existingRequest.createdAt,
+          },
+        };
       }
 
       const responseFromCreateAccessRequest = await AccessRequestModel(
@@ -77,6 +105,7 @@ const createAccessRequest = {
               { message: "Unable to retrieve the requester's email address" }
             )
           );
+          return;
         }
         const responseFromSendEmail = await mailer.request(
           {
@@ -100,7 +129,14 @@ const createAccessRequest = {
           };
         } else if (responseFromSendEmail.success === false) {
           logger.error(`${responseFromSendEmail.message}`);
-          return responseFromSendEmail;
+          // Don't fail the entire operation if email fails
+          return {
+            success: true,
+            message:
+              "Access Request completed successfully (notification email failed)",
+            data: createdAccessRequest,
+            status: httpStatus.OK,
+          };
         }
       } else {
         logger.error(`${responseFromCreateAccessRequest.message}`);
@@ -129,8 +165,6 @@ const createAccessRequest = {
 
       logObject("requestAccessToGroupByEmail", { tenant, emails, grp_id });
 
-      // The 'user' object comes from the authenticated JWT (req.user)
-      // It's a plain object, not a Mongoose document, so it doesn't have ._doc
       const inviter = user;
 
       if (isEmpty(inviter) || !inviter._id) {
@@ -154,6 +188,7 @@ const createAccessRequest = {
         );
         return;
       }
+
       const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
       if (isEmpty(inviterDetails)) {
         next(
@@ -224,6 +259,28 @@ const createAccessRequest = {
         });
       }
 
+      // CRITICAL: Check all emails at once for existing users and requests
+      const existingUsers = await UserModel(tenant)
+        .find({ email: { $in: uniqueEmails } })
+        .lean();
+
+      const existingUsersMap = new Map(
+        existingUsers.map((user) => [user.email.toLowerCase(), user])
+      );
+
+      const existingPendingRequests = await AccessRequestModel(tenant)
+        .find({
+          email: { $in: uniqueEmails },
+          targetId: grp_id,
+          requestType: "group",
+          status: "pending",
+        })
+        .lean();
+
+      const existingRequestsMap = new Map(
+        existingPendingRequests.map((req) => [req.email.toLowerCase(), req])
+      );
+
       const existingRequests = [];
       const successResponses = [];
       const failureResponses = [];
@@ -231,9 +288,9 @@ const createAccessRequest = {
 
       for (const email of uniqueEmails) {
         try {
-          const existingUser = await UserModel(tenant)
-            .findOne({ email: email.toLowerCase() })
-            .lean();
+          const normalizedEmail = email.toLowerCase();
+          const existingUser = existingUsersMap.get(normalizedEmail);
+
           if (existingUser) {
             const isAlreadyMember = existingUser.group_roles?.some(
               (gr) => gr.group.toString() === grp_id.toString()
@@ -246,14 +303,8 @@ const createAccessRequest = {
           }
 
           // Check for existing pending requests
-          const existingRequest = await AccessRequestModel(tenant).findOne({
-            email: email.toLowerCase(),
-            targetId: grp_id,
-            requestType: "group",
-            status: "pending",
-          });
-
-          if (!isEmpty(existingRequest)) {
+          const existingRequest = existingRequestsMap.get(normalizedEmail);
+          if (existingRequest) {
             existingRequests.push({
               email,
               request_id: existingRequest._id,
@@ -263,16 +314,15 @@ const createAccessRequest = {
           }
 
           const accessRequestData = {
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             targetId: grp_id,
             status: "pending",
             requestType: "group",
             inviter_id: inviterId,
             inviter_email: inviterEmail,
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiry
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           };
 
-          // If user exists, add user_id to request
           if (existingUser) {
             accessRequestData.user_id = existingUser._id;
           }
@@ -329,11 +379,15 @@ const createAccessRequest = {
                 `Failed to send email to ${email}:`,
                 responseFromSendEmail
               );
-              failureResponses.push({
+              // Email failure shouldn't fail the invitation creation
+              successResponses.push({
                 email,
-                success: false,
-                message: `Failed to send invitation email: ${responseFromSendEmail.message}`,
-                error: responseFromSendEmail.error,
+                success: true,
+                message: "Invitation created but email notification failed",
+                request_id: createdAccessRequest._id,
+                user_exists: userExists,
+                expires_at: accessRequestData.expires_at,
+                status: httpStatus.OK,
               });
             }
           } else {
@@ -365,7 +419,6 @@ const createAccessRequest = {
       const existingCount = existingRequests.length;
       const memberCount = alreadyMembers.length;
 
-      // Build comprehensive response
       const responseData = {
         summary: {
           total_emails: emails.length,
@@ -390,7 +443,6 @@ const createAccessRequest = {
       let statusCode = httpStatus.OK;
       let message = `Invitations processed: ${successCount} sent, ${failureCount} failed, ${existingCount} already pending, ${memberCount} already members`;
 
-      // Determine appropriate status code
       if (successCount === 0) {
         if (failureCount > 0) {
           statusCode = httpStatus.BAD_REQUEST;
@@ -401,7 +453,7 @@ const createAccessRequest = {
             "No new invitations sent - all users already invited or are members";
         }
       } else if (failureCount > 0) {
-        statusCode = httpStatus.MULTI_STATUS; // 207 - some succeeded, some failed
+        statusCode = httpStatus.MULTI_STATUS;
       }
 
       if (
@@ -440,6 +492,43 @@ const createAccessRequest = {
     }
   },
 
+  /**
+   * Deletes all expired pending access requests for the specified tenant.
+   *
+   * @param {Object} request - The Express request object, containing query parameters.
+   * @param {Function} next - The Express next middleware function for error handling.
+   * @returns {Object} An object containing the success status, message, count of deleted records, and HTTP status code.
+   */
+
+  cleanupExpiredRequests: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+
+      const result = await AccessRequestModel(tenant).deleteMany({
+        expires_at: { $lt: new Date() },
+        status: "pending",
+      });
+
+      return {
+        success: true,
+        message: `Cleaned up ${result.deletedCount} expired access requests`,
+        data: {
+          deleted_count: result.deletedCount,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   acceptInvitation: async (request, next) => {
     try {
       const { tenant, email, firstName, lastName, password, grids, target_id } =
@@ -455,18 +544,37 @@ const createAccessRequest = {
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
         targetId: target_id,
-        email,
+        email: email.toLowerCase(),
         status: "pending",
       });
 
       if (isEmpty(accessRequest)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        return {
+          success: false,
+          message:
+            "Access Request not found, please crosscheck provided details",
+          status: httpStatus.NOT_FOUND,
+          errors: {
             message:
               "Access Request not found, please crosscheck provided details",
-          })
-        );
-        return;
+          },
+        };
+      }
+
+      // Check if invitation has expired
+      if (
+        accessRequest.expires_at &&
+        new Date(accessRequest.expires_at) < new Date()
+      ) {
+        return {
+          success: false,
+          message: "This invitation has expired",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "This invitation has expired",
+            expired_at: accessRequest.expires_at,
+          },
+        };
       }
 
       let user = null;
@@ -481,18 +589,48 @@ const createAccessRequest = {
           );
 
           if (isAlreadyAssigned) {
-            next(
-              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            return {
+              success: false,
+              message: "User is already a member of this organization",
+              status: httpStatus.BAD_REQUEST,
+              errors: {
                 message: "User is already a member of this organization",
-              })
-            );
-            return;
+              },
+            };
+          }
+        } else if (requestType === "network") {
+          const isAlreadyAssigned = existingUser.network_roles?.some(
+            (nr) => nr.network.toString() === target_id.toString()
+          );
+
+          if (isAlreadyAssigned) {
+            return {
+              success: false,
+              message: "User is already a member of this network",
+              status: httpStatus.BAD_REQUEST,
+              errors: {
+                message: "User is already a member of this network",
+              },
+            };
           }
         }
 
         user = existingUser;
         isNewUser = false;
       } else {
+        // Validate required fields for new user creation
+        if (!firstName || !lastName || !password) {
+          return {
+            success: false,
+            message: "Missing required fields for new user creation",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message:
+                "firstName, lastName, and password are required to create a new account",
+            },
+          };
+        }
+
         const bodyForCreatingNewUser = {
           email,
           password,
@@ -518,8 +656,8 @@ const createAccessRequest = {
       }
 
       // Update access request status
-      const update = { status: "approved" };
-      const filter = { email, targetId: target_id };
+      const update = { status: "approved", user_id: user._id };
+      const filter = { email: email.toLowerCase(), targetId: target_id };
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(
         tenant
@@ -536,12 +674,14 @@ const createAccessRequest = {
       if (requestType === "group") {
         const group = await GroupModel(tenant).findById(target_id).lean();
         if (!group) {
-          next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          return {
+            success: false,
+            message: "Group not found",
+            status: httpStatus.NOT_FOUND,
+            errors: {
               message: "Group not found",
-            })
-          );
-          return;
+            },
+          };
         }
 
         entity_title = group.grp_title;
@@ -561,41 +701,77 @@ const createAccessRequest = {
           );
 
           if (!assignmentResult || !assignmentResult.success) {
-            next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
+            // Rollback user creation if this was a new user
+            try {
+              if (isNewUser) {
+                await UserModel(tenant).findByIdAndDelete(user._id);
+              }
+              // Rollback access request status
+              await AccessRequestModel(tenant).modify(
                 {
-                  message: `Failed to assign user to group: ${
-                    assignmentResult?.message || "Unknown error"
-                  }`,
-                }
-              )
-            );
-            return;
+                  filter: { _id: accessRequest._id },
+                  update: { status: "pending", user_id: null },
+                },
+                next
+              );
+            } catch (rollbackError) {
+              logger.error(
+                `Rollback failed during group assignment: ${rollbackError.message}`
+              );
+            }
+
+            return {
+              success: false,
+              message: `Failed to assign user to group: ${
+                assignmentResult?.message || "Unknown error"
+              }`,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message: `Failed to assign user to group: ${
+                  assignmentResult?.message || "Unknown error"
+                }`,
+              },
+            };
           }
         } catch (assignmentError) {
           logger.error(`Group assignment error: ${assignmentError.message}`);
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
+          // Rollback user creation if this was a new user
+          try {
+            if (isNewUser) {
+              await UserModel(tenant).findByIdAndDelete(user._id);
+            }
+            // Rollback access request status
+            await AccessRequestModel(tenant).modify(
               {
-                message: `Group assignment failed: ${assignmentError.message}`,
-              }
-            )
-          );
-          return;
+                filter: { _id: accessRequest._id },
+                update: { status: "pending", user_id: null },
+              },
+              next
+            );
+          } catch (rollbackError) {
+            logger.error(`Rollback failed: ${rollbackError.message}`);
+          }
+
+          return {
+            success: false,
+            message: `Group assignment failed: ${assignmentError.message}`,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message: `Group assignment failed: ${assignmentError.message}`,
+            },
+          };
         }
       } else if (requestType === "network") {
         const network = await NetworkModel(tenant).findById(target_id).lean();
         if (!network) {
-          next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          return {
+            success: false,
+            message: "Network not found",
+            status: httpStatus.NOT_FOUND,
+            errors: {
               message: "Network not found",
-            })
-          );
-          return;
+            },
+          };
         }
 
         entity_title = network.net_name;
@@ -615,31 +791,55 @@ const createAccessRequest = {
           );
 
           if (!assignmentResult || !assignmentResult.success) {
-            next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                {
-                  message: `Failed to assign user to network: ${
-                    assignmentResult?.message || "Unknown error"
-                  }`,
-                }
-              )
+            // Rollback user creation if this was a new user
+            if (isNewUser) {
+              await UserModel(tenant).findByIdAndDelete(user._id);
+            }
+            // Rollback access request status
+            await AccessRequestModel(tenant).modify(
+              {
+                filter: { _id: accessRequest._id },
+                update: { status: "pending", user_id: null },
+              },
+              next
             );
-            return;
+
+            return {
+              success: false,
+              message: `Failed to assign user to network: ${
+                assignmentResult?.message || "Unknown error"
+              }`,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message: `Failed to assign user to network: ${
+                  assignmentResult?.message || "Unknown error"
+                }`,
+              },
+            };
           }
         } catch (assignmentError) {
           logger.error(`Network assignment error: ${assignmentError.message}`);
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Network assignment failed: ${assignmentError.message}`,
-              }
-            )
+          // Rollback user creation if this was a new user
+          if (isNewUser) {
+            await UserModel(tenant).findByIdAndDelete(user._id);
+          }
+          // Rollback access request status
+          await AccessRequestModel(tenant).modify(
+            {
+              filter: { _id: accessRequest._id },
+              update: { status: "pending", user_id: null },
+            },
+            next
           );
-          return;
+
+          return {
+            success: false,
+            message: `Network assignment failed: ${assignmentError.message}`,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message: `Network assignment failed: ${assignmentError.message}`,
+            },
+          };
         }
       }
 
@@ -678,7 +878,31 @@ const createAccessRequest = {
             status: httpStatus.OK,
           };
         } else {
-          return responseFromSendEmail;
+          // Don't fail the entire operation if email fails
+          logger.error(
+            `Failed to send acceptance email: ${responseFromSendEmail.message}`
+          );
+          return {
+            success: true,
+            message: isNewUser
+              ? "Account created and organization invitation accepted successfully (notification email failed)"
+              : "Organization invitation accepted successfully (notification email failed)",
+            data: {
+              user: {
+                _id: user._id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+              },
+              organization: {
+                id: target_id,
+                name: entity_title,
+                type: requestType,
+              },
+              isNewUser,
+            },
+            status: httpStatus.OK,
+          };
         }
       } else {
         return assignmentResult;
@@ -712,20 +936,47 @@ const createAccessRequest = {
             message: "Network or User not found",
           })
         );
+        return;
       }
 
+      // Check if user is already a member
+      const userDetails = await UserModel(tenant).findById(user._id).lean();
+      if (userDetails && userDetails.network_roles) {
+        const isAlreadyMember = userDetails.network_roles.some(
+          (nr) => nr.network.toString() === net_id.toString()
+        );
+        if (isAlreadyMember) {
+          return {
+            success: false,
+            message: "You are already a member of this network",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "You are already a member of this network",
+            },
+          };
+        }
+      }
+
+      // Check for existing pending request
       const existingRequest = await AccessRequestModel(tenant).findOne({
         user_id: user._id,
         targetId: net_id,
         requestType: "network",
+        status: "pending",
       });
 
       if (!isEmpty(existingRequest)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Access request already exists for this network",
-          })
-        );
+        return {
+          success: false,
+          message: "You already have a pending access request for this network",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "You already have a pending access request for this network",
+            existing_request_id: existingRequest._id,
+            requested_at: existingRequest.createdAt,
+          },
+        };
       }
 
       const responseFromCreateAccessRequest = await AccessRequestModel(
@@ -733,6 +984,7 @@ const createAccessRequest = {
       ).register(
         {
           user_id: user._id,
+          email: user.email,
           targetId: net_id,
           status: "pending",
           requestType: "network",
@@ -778,7 +1030,14 @@ const createAccessRequest = {
           };
         } else if (responseFromSendEmail.success === false) {
           logger.error(`${responseFromSendEmail.message}`);
-          return responseFromSendEmail;
+          // Don't fail the entire operation if email fails
+          return {
+            success: true,
+            message:
+              "Access Request completed successfully (notification email failed)",
+            data: createdAccessRequest,
+            status: httpStatus.OK,
+          };
         }
       } else {
         logger.error(`${responseFromCreateAccessRequest.message}`);
@@ -798,32 +1057,138 @@ const createAccessRequest = {
 
   approveAccessRequest: async (request, next) => {
     try {
-      const { query } = request;
+      const { query, params } = request;
       const { tenant } = query;
-      const { request_id } = request.params;
+      const { request_id } = params;
+
+      // Check if request exists
       const accessRequest = await AccessRequestModel(tenant).findById(
         request_id
       );
-      logObject("accessRequest", accessRequest);
+
       if (isEmpty(accessRequest)) {
-        next(
-          new HttpError("Not Found", httpStatus.NOT_FOUND, {
-            message: "Access request not found",
-          })
-        );
+        return {
+          success: false,
+          message: "Access request does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: "Access request does not exist, please crosscheck",
+          },
+        };
       }
 
-      const user = await UserModel(tenant).findById(accessRequest.user_id);
+      // Check if request is still pending
+      if (accessRequest.status !== "pending") {
+        return {
+          success: false,
+          message: `Cannot approve request - it has already been ${accessRequest.status}`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `This access request has already been ${accessRequest.status} and cannot be approved again`,
+            current_status: accessRequest.status,
+            request_id: accessRequest._id,
+          },
+        };
+      }
 
-      if (isEmpty(user)) {
-        next(
-          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+      // Check if invitation has expired
+      if (
+        accessRequest.expires_at &&
+        new Date(accessRequest.expires_at) < new Date()
+      ) {
+        return {
+          success: false,
+          message: "This invitation has expired and cannot be approved",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "This invitation has expired and cannot be approved",
+            expired_at: accessRequest.expires_at,
+            request_id: accessRequest._id,
+          },
+        };
+      }
+
+      // Handle case where user_id might not exist (email invitations)
+      let user;
+      if (accessRequest.user_id) {
+        user = await UserModel(tenant).findById(accessRequest.user_id);
+        if (isEmpty(user)) {
+          return {
+            success: false,
             message: "User Details in Access Request Not Found",
-          })
-        );
+            status: httpStatus.NOT_FOUND,
+            errors: {
+              message: "User Details in Access Request Not Found",
+            },
+          };
+        }
+      } else if (accessRequest.email) {
+        // Try to find user by email for email invitations
+        user = await UserModel(tenant).findOne({
+          email: accessRequest.email.toLowerCase(),
+        });
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message:
+              "User has not yet created an account. They must accept the invitation first.",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message:
+                "User has not yet created an account. They must accept the invitation first.",
+              email: accessRequest.email,
+            },
+          };
+        }
+        // Update access request with user_id
+        accessRequest.user_id = user._id;
+      } else {
+        return {
+          success: false,
+          message: "Invalid access request - missing both user_id and email",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "Invalid access request - missing both user_id and email",
+          },
+        };
       }
 
-      const update = { status: "approved" };
+      // Check if user is already a member
+      if (accessRequest.requestType === "group") {
+        const isAlreadyMember =
+          user.group_roles &&
+          user.group_roles.some(
+            (gr) => gr.group.toString() === accessRequest.targetId.toString()
+          );
+        if (isAlreadyMember) {
+          return {
+            success: false,
+            message: "User is already a member of this group",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "User is already a member of this group",
+            },
+          };
+        }
+      } else if (accessRequest.requestType === "network") {
+        const isAlreadyMember =
+          user.network_roles &&
+          user.network_roles.some(
+            (nr) => nr.network.toString() === accessRequest.targetId.toString()
+          );
+        if (isAlreadyMember) {
+          return {
+            success: false,
+            message: "User is already a member of this network",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "User is already a member of this network",
+            },
+          };
+        }
+      }
+
+      const update = { status: "approved", user_id: user._id };
       const filter = { _id: ObjectId(accessRequest._id) };
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(
@@ -842,7 +1207,7 @@ const createAccessRequest = {
           const assignUserRequest = {
             params: {
               grp_id: accessRequest.targetId,
-              user_id: accessRequest.user_id,
+              user_id: user._id,
             },
             query: { tenant: tenant },
           };
@@ -871,18 +1236,41 @@ const createAccessRequest = {
                 success: true,
                 message: "Access request approved successfully",
                 status: httpStatus.OK,
+                data: responseFromUpdateAccessRequest.data,
               };
             } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
+              logger.error(
+                `Failed to send approval email: ${responseFromSendEmail.message}`
+              );
+              // Don't fail the entire operation if email fails
+              return {
+                success: true,
+                message:
+                  "Access request approved successfully (email notification failed)",
+                status: httpStatus.OK,
+                data: responseFromUpdateAccessRequest.data,
+              };
             }
           } else if (responseFromAssignUserToGroup.success === false) {
+            // Rollback the status update
+            try {
+              await AccessRequestModel(tenant).modify(
+                {
+                  filter: { _id: ObjectId(accessRequest._id) },
+                  update: { status: "pending" },
+                },
+                next
+              );
+            } catch (rollbackError) {
+              logger.error(`Rollback failed: ${rollbackError.message}`);
+            }
             return responseFromAssignUserToGroup;
           }
         } else if (accessRequest.requestType === "network") {
           const assignUserRequest = {
             params: {
               net_id: accessRequest.targetId,
-              user_id: accessRequest.user_id,
+              user_id: user._id,
             },
             query: { tenant: tenant },
           };
@@ -901,11 +1289,30 @@ const createAccessRequest = {
                 success: true,
                 message: "Access request approved successfully",
                 status: httpStatus.OK,
+                data: responseFromUpdateAccessRequest.data,
               };
             } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
+              logger.error(
+                `Failed to send approval email: ${responseFromSendEmail.message}`
+              );
+              // Don't fail the entire operation if email fails
+              return {
+                success: true,
+                message:
+                  "Access request approved successfully (email notification failed)",
+                status: httpStatus.OK,
+                data: responseFromUpdateAccessRequest.data,
+              };
             }
           } else if (responseFromAssignUserToNetwork.success === false) {
+            // Rollback the status update
+            await AccessRequestModel(tenant).modify(
+              {
+                filter: { _id: ObjectId(accessRequest._id) },
+                update: { status: "pending" },
+              },
+              next
+            );
             return responseFromAssignUserToNetwork;
           }
         }
@@ -924,11 +1331,177 @@ const createAccessRequest = {
     }
   },
 
+  rejectAccessRequest: async (request, next) => {
+    try {
+      const { query, params, body } = request;
+      const { tenant } = query;
+      const { request_id } = params;
+
+      // Check if request exists
+      const accessRequest = await AccessRequestModel(tenant).findById(
+        request_id
+      );
+
+      if (isEmpty(accessRequest)) {
+        return {
+          success: false,
+          message: "Access request does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: "Access request does not exist, please crosscheck",
+          },
+        };
+      }
+
+      // Check if request is still pending
+      if (accessRequest.status !== "pending") {
+        return {
+          success: false,
+          message: `Cannot reject request - it has already been ${accessRequest.status}`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `This access request has already been ${accessRequest.status} and cannot be rejected`,
+            current_status: accessRequest.status,
+            request_id: accessRequest._id,
+          },
+        };
+      }
+
+      const filter = generateFilter.requests(request, next);
+      const update = body;
+
+      const responseFromModifyAccessRequest = await AccessRequestModel(
+        tenant.toLowerCase()
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
+
+      logObject(
+        "responseFromModifyAccessRequest",
+        responseFromModifyAccessRequest
+      );
+
+      if (responseFromModifyAccessRequest.success === true) {
+        // Send rejection notification email
+        let userEmail = accessRequest.email;
+        let userName = "User";
+
+        // Try to get user details if user_id exists
+        if (accessRequest.user_id) {
+          try {
+            const user = await UserModel(tenant)
+              .findById(accessRequest.user_id)
+              .select("email firstName lastName");
+            if (user) {
+              userEmail = user.email;
+              userName = user.firstName || user.email;
+            }
+          } catch (emailError) {
+            logger.error(
+              `Failed to fetch user details for rejection email: ${emailError.message}`
+            );
+          }
+        }
+
+        // Get entity details for email
+        let entityName = "organization";
+        if (accessRequest.requestType === "group") {
+          try {
+            const group = await GroupModel(tenant)
+              .findById(accessRequest.targetId)
+              .select("grp_title");
+            if (group) {
+              entityName = group.grp_title;
+            }
+          } catch (groupError) {
+            logger.error(
+              `Failed to fetch group details: ${groupError.message}`
+            );
+          }
+        } else if (accessRequest.requestType === "network") {
+          try {
+            const network = await NetworkModel(tenant)
+              .findById(accessRequest.targetId)
+              .select("net_name");
+            if (network) {
+              entityName = network.net_name;
+            }
+          } catch (networkError) {
+            logger.error(
+              `Failed to fetch network details: ${networkError.message}`
+            );
+          }
+        }
+
+        // Send rejection email (don't fail if this fails)
+        if (userEmail) {
+          try {
+            await mailer.requestRejected(
+              {
+                email: userEmail,
+                firstName: userName,
+                entity_title: entityName,
+                requestType: accessRequest.requestType,
+              },
+              next
+            );
+          } catch (emailError) {
+            logger.error(
+              `Failed to send rejection email: ${emailError.message}`
+            );
+          }
+        }
+      }
+
+      return responseFromModifyAccessRequest;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, include_expired } = query;
       const filter = generateFilter.requests(request, next);
+
+      if (include_expired !== "true" && include_expired !== true) {
+        const expiredOrConditions = [
+          { expires_at: { $exists: false } },
+          { expires_at: null },
+          { expires_at: { $gt: new Date() } },
+        ];
+        // If filter is not empty, combine with $and
+        if (Object.keys(filter).length > 0) {
+          // If filter only contains $or, combine both $or arrays
+          if (filter.$or && Object.keys(filter).length === 1) {
+            filter.$and = [{ $or: filter.$or }, { $or: expiredOrConditions }];
+            delete filter.$or;
+          } else {
+            filter.$and = [{ ...filter }, { $or: expiredOrConditions }];
+            // Remove top-level keys except $and
+            Object.keys(filter).forEach((key) => {
+              if (key !== "$and") {
+                delete filter[key];
+              }
+            });
+          }
+        } else {
+          filter.$or = expiredOrConditions;
+        }
+      }
+
       const responseFromListAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
       ).list(
@@ -987,8 +1560,39 @@ const createAccessRequest = {
 
   delete: async (request, next) => {
     try {
-      const { query } = request;
+      const { query, params } = request;
       const { tenant } = query;
+      const { request_id } = params;
+
+      // Check if request exists and get its current status
+      const accessRequest = await AccessRequestModel(tenant).findById(
+        request_id
+      );
+
+      if (isEmpty(accessRequest)) {
+        return {
+          success: false,
+          message: "Access request does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: "Access request does not exist, please crosscheck",
+          },
+        };
+      }
+
+      // Only allow deletion of pending or rejected requests
+      if (accessRequest.status === "approved") {
+        return {
+          success: false,
+          message: "Cannot delete an approved access request",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Cannot delete an approved access request. Approved requests must remain for audit purposes.",
+            current_status: accessRequest.status,
+          },
+        };
+      }
 
       const filter = generateFilter.requests(request, next);
 
@@ -1000,6 +1604,7 @@ const createAccessRequest = {
         },
         next
       );
+
       logObject(
         "responseFromRemoveAccessRequest",
         responseFromRemoveAccessRequest

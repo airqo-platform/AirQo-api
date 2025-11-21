@@ -4,6 +4,8 @@ const router = express.Router();
 const createRequestController = require("@controllers/request.controller");
 const requestValidations = require("@validators/requests.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { requirePermissions } = require("@middleware/permissionAuth");
+const constants = require("@config/constants");
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
@@ -77,6 +79,14 @@ router.get(
   requestValidations.listForNetwork,
   enhancedJWTAuth,
   createRequestController.listAccessRequestsForNetwork
+);
+
+router.delete(
+  "/expired",
+  requestValidations.cleanupExpired,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  createRequestController.cleanupExpiredRequests
 );
 
 router.delete(

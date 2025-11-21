@@ -646,6 +646,9 @@ const getEmailSubject = (functionName, params) => {
       "Your AirQo Account: Existing User Access Request",
     existingUserRegistrationRequest:
       "Your AirQo Account: Existing User Registration Request",
+    requestRejected: `Update on your AirQo Access Request for ${processString(
+      params.entity_title || ""
+    )}`,
 
     // ===== CLIENT MANAGEMENT FUNCTIONS =====
     clientActivationRequest: "AirQo API Client Activation Request",
@@ -725,6 +728,7 @@ const EMAIL_CATEGORIES = {
     "update",
     "existingUserAccessRequest",
     "existingUserRegistrationRequest",
+    "requestRejected",
   ],
 
   CLIENT_MANAGEMENT: ["clientActivationRequest", "afterClientActivation"],
@@ -1921,6 +1925,18 @@ const mailer = {
         email: params.email,
       })
   ),
+  requestRejected: createMailerFunction(
+    "requestRejected",
+    "USER_MANAGEMENT",
+    (params) =>
+      msgs.requestRejected({
+        firstName: params.firstName,
+        email: params.email,
+        entity_title: params.entity_title,
+        requestType: params.requestType,
+      })
+  ),
+
   sendPollutionAlert: createMailerFunction(
     "sendPollutionAlert",
     "OPTIONAL",

@@ -59,19 +59,7 @@ const networkRoleSchema = new Schema({
   },
   userType: {
     type: String,
-    enum: {
-      values: [
-        "guest",
-        "member",
-        "admin",
-        "super_admin",
-        "viewer",
-        "user",
-        "contributor",
-        "moderator",
-      ],
-      message: "{VALUE} is not a valid user type",
-    },
+    enum: constants.VALID_USER_TYPES,
     default: "guest",
   },
   createdAt: {
@@ -91,19 +79,7 @@ const groupRoleSchema = new Schema({
   },
   userType: {
     type: String,
-    enum: {
-      values: [
-        "guest",
-        "member",
-        "admin",
-        "super_admin",
-        "viewer",
-        "user",
-        "contributor",
-        "moderator",
-      ],
-      message: "{VALUE} is not a valid user type",
-    },
+    enum: constants.VALID_USER_TYPES,
     default: "guest",
   },
   createdAt: {
@@ -426,16 +402,6 @@ const UserSchema = new Schema(
   },
   { timestamps: true }
 );
-
-const VALID_USER_TYPES = constants.VALID_USER_TYPES;
-
-UserSchema.path("network_roles.userType").validate(function (value) {
-  return VALID_USER_TYPES.includes(value);
-}, "Invalid userType value");
-
-UserSchema.path("group_roles.userType").validate(function (value) {
-  return VALID_USER_TYPES.includes(value);
-}, "Invalid userType value");
 
 UserSchema.pre("save", async function (next) {
   try {
