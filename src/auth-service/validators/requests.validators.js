@@ -297,6 +297,8 @@ const getRequestId = [
   ],
 ];
 
+const cleanupExpired = [validateTenant];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -315,4 +317,5 @@ module.exports = {
   listAccessRequestsForGroup,
   listAccessRequestsForNetwork,
   getRequestId,
+  cleanupExpired,
 };
