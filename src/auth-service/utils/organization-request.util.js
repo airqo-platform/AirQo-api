@@ -450,12 +450,14 @@ const organizationRequest = {
             constants.JWT_SECRET
           );
 
+          // Parse and sanitize contact name
+          const sanitizedName = (orgRequest.contact_name || "").trim();
+          const nameParts = sanitizedName.split(/\s+/).filter(Boolean);
+
           // Create user without password (will be set during onboarding)
           const userBody = {
-            firstName:
-              orgRequest.contact_name.split(" ")[0] || orgRequest.contact_name,
-            lastName:
-              orgRequest.contact_name.split(" ").slice(1).join(" ") || "",
+            firstName: nameParts[0] || "User",
+            lastName: nameParts.slice(1).join(" ") || nameParts[0] || "User",
             email: orgRequest.contact_email,
             organization: orgRequest.organization_name,
             // Generate a temporary password that will be replaced during onboarding
@@ -478,13 +480,13 @@ const organizationRequest = {
             )
           );
 
+          // Parse and sanitize contact name
+          const sanitizedName = (orgRequest.contact_name || "").trim();
+          const nameParts = sanitizedName.split(/\s+/).filter(Boolean);
           // Create the initial admin user
           const userBody = {
-            firstName: orgRequest.contact_name.split(" ")[0] || "User",
-            lastName:
-              orgRequest.contact_name.split(" ").slice(1).join(" ") ||
-              orgRequest.contact_name.split(" ")[0] ||
-              "User",
+            firstName: nameParts[0] || "User",
+            lastName: nameParts.slice(1).join(" ") || nameParts[0] || "User",
             email: orgRequest.contact_email,
             organization: orgRequest.organization_name,
             password: generatedPassword, // ✅ Generated password
