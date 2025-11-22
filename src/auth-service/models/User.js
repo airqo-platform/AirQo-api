@@ -33,12 +33,12 @@ function oneMonthFromNow() {
 
 function validateProfilePicture(profilePicture) {
   // Allow empty or null values, which indicates no profile picture.
-  if (!profilePicture) {
+  if (profilePicture === null || profilePicture === "") {
     return true;
   }
 
   const urlRegex =
-    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/;
   if (!urlRegex.test(profilePicture)) {
     logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
     return false;
@@ -326,14 +326,7 @@ const UserSchema = new Schema(
       maxLength: maxLengthOfProfilePictures,
       validate: {
         validator: function (v) {
-          // Allow null or empty string, which means the user has no profile picture.
-          if (v === null || v === "") {
-            return true;
-          }
-          // If a value is provided, it must be a valid URL.
-          const urlRegex =
-            /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
-          return urlRegex.test(v);
+          return validateProfilePicture(v);
         },
         message: `Profile picture URL must be a valid URL & must not exceed ${maxLengthOfProfilePictures} characters.`,
       },
