@@ -2612,17 +2612,24 @@ const rolePermissionUtil = {
           continue;
         }
 
+        const roleArrayField = isNetworkRole ? "network_roles" : "group_roles";
+        const contextField = isNetworkRole ? "network" : "group";
+
+        // Step 1: Remove any existing role for this context before assigning the new role
         await UserModel(tenant).updateOne(
           { _id: user._id },
           {
-            $pull: {
-              [isNetworkRole ? "network_roles" : "group_roles"]: {
-                [isNetworkRole ? "network" : "group"]: associatedId,
-              },
-            },
+            $pull: { [roleArrayField]: { [contextField]: associatedId } },
+          }
+        );
+
+        // Step 2: Add the new role assignment
+        await UserModel(tenant).updateOne(
+          { _id: user._id },
+          {
             $addToSet: {
-              [isNetworkRole ? "network_roles" : "group_roles"]: {
-                [isNetworkRole ? "network" : "group"]: associatedId,
+              [roleArrayField]: {
+                [contextField]: associatedId,
                 role: role_id,
                 userType: determinedUserType,
                 createdAt: new Date(),
