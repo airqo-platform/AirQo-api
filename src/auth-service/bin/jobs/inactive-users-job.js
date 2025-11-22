@@ -31,7 +31,6 @@ const sendInactivityReminders = async () => {
       const inactiveUsers = await UserModel(tenant)
         .find({
           lastLogin: { $lt: inactiveThresholdDate },
-          isActive: true, // Only target active users
           $or: [
             { last_inactive_reminder_sent_at: { $exists: false } },
             { last_inactive_reminder_sent_at: { $lt: reminderCooldownDate } },
