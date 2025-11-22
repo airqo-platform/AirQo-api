@@ -1367,7 +1367,7 @@ const createAccessRequest = {
         };
       }
 
-      const filter = { _id: request_id };
+      const filter = { _id: ObjectId(request_id) };
       const update = body;
 
       const responseFromModifyAccessRequest = await AccessRequestModel(
