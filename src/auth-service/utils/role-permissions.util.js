@@ -2615,7 +2615,7 @@ const rolePermissionUtil = {
         const roleArrayField = isNetworkRole ? "network_roles" : "group_roles";
         const contextField = isNetworkRole ? "network" : "group";
 
-        // Step 1: Pull any existing role for this context to ensure idempotency
+        // Step 1: Remove any existing role for this context before assigning the new role
         await UserModel(tenant).updateOne(
           { _id: user._id },
           {
