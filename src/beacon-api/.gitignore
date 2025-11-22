@@ -109,6 +109,9 @@ private/
 dump.rdb
 *.rdb
 
+# Google Cloud credentials
+service-account.json
+
 # Celery
 celerybeat-schedule
 celerybeat-schedule.db

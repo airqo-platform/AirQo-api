@@ -48,6 +48,9 @@ Configuration via environment variables. See `.env.example` for required variabl
 | `POSTGRES_DB` | Database name | Yes |
 | `SECRET_KEY` | JWT signing key | Yes |
 | `REDIS_URL` | Redis connection URL | No |
+| `ORG_TOKEN` | Organization token for firmware API | Yes (for firmware) |
+| `GCS_BUCKET_NAME` | Google Cloud Storage bucket name | Yes (for firmware) |
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | GCP service account JSON | Yes (for firmware) |
 | `ENVIRONMENT` | Deployment environment | No |
 
 ## API Documentation
@@ -73,6 +76,55 @@ Interactive API documentation available at:
   - Data transmission metrics
   - System health monitoring
   - Performance analytics
+
+- **Firmware** - `/firmware/*`
+  - Firmware upload and management
+  - Version control and distribution
+  - OTA (Over-The-Air) update support
+  - Multiple format support (.bin, .hex)
+  - See [Firmware Documentation](FIRMWARE_API.md) for details
+
+## Firmware Management
+
+The Beacon Service includes a comprehensive firmware management system for IoT device updates. Key features:
+
+- 📦 **Multi-format Support**: Upload .bin or .hex files (auto-converts hex to bin)
+- 🔐 **Secure Storage**: Google Cloud Storage backend with token authentication
+- 📊 **Version Control**: Track multiple firmware versions with type classification
+- 📥 **Efficient Distribution**: HTTP range request support for resumable downloads
+- ✅ **Data Integrity**: Automatic CRC32 checksum calculation and validation
+- 📝 **Change Tracking**: Built-in change log system (10 entries per version)
+
+### Quick Start
+
+```bash
+# Upload firmware
+curl -X POST "http://localhost:8000/firmware/upload" \
+  -F "org_token=YOUR_TOKEN" \
+  -F "firmware_version=1.0.0" \
+  -F "firmware_type=stable" \
+  -F "firmware_file=@firmware.hex"
+
+# Download firmware
+curl -O "http://localhost:8000/firmware/download?org_token=YOUR_TOKEN&file_type=bin&firmware_version=1.0.0"
+```
+
+### Documentation
+
+- 📘 [Full API Documentation](FIRMWARE_API.md)
+- 🔧 [Setup Guide](FIRMWARE_SETUP.md)
+- 📋 [Implementation Details](FIRMWARE_IMPLEMENTATION.md)
+- ⚡ [Quick Reference](FIRMWARE_QUICK_REF.md)
+
+### Required Configuration
+
+```env
+ORG_TOKEN=your-secret-token
+GCS_BUCKET_NAME=your-gcs-bucket
+GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'
+```
+
+See [Firmware Setup Guide](FIRMWARE_SETUP.md) for detailed configuration instructions.
 
 ## Health Checks
 

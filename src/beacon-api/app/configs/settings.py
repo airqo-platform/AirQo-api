@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     AIRQO_API_BASE_URL: Optional[str] = None
     AIRQO_RECENT_API_URL: Optional[str] = None
     
+    # Organization token for firmware operations
+    ORG_TOKEN: str = os.getenv("ORG_TOKEN", "")
+    
+    # Google Cloud Storage settings
+    GCS_BUCKET_NAME: str = os.getenv("GCS_BUCKET_NAME", "")
+    GOOGLE_APPLICATION_CREDENTIALS_JSON: Optional[str] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    
     class Config:
         case_sensitive = True
         env_file = ".env"
