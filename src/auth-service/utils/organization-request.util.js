@@ -480,10 +480,11 @@ const organizationRequest = {
 
           // Create the initial admin user
           const userBody = {
-            firstName:
-              orgRequest.contact_name.split(" ")[0] || orgRequest.contact_name,
+            firstName: orgRequest.contact_name.split(" ")[0] || "User",
             lastName:
-              orgRequest.contact_name.split(" ").slice(1).join(" ") || "",
+              orgRequest.contact_name.split(" ").slice(1).join(" ") ||
+              orgRequest.contact_name.split(" ")[0] ||
+              "User",
             email: orgRequest.contact_email,
             organization: orgRequest.organization_name,
             password: generatedPassword, // ✅ Generated password
