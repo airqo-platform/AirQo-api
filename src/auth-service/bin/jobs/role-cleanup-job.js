@@ -114,6 +114,7 @@ const cleanupUserRolesJob = async () => {
     while (skip < totalUsers && !processor.shouldStopExecution()) {
       const batch = await UserModel(tenant)
         .find()
+        .sort({ _id: 1 })
         .skip(skip)
         .limit(BATCH_SIZE)
         .lean();
@@ -150,8 +151,11 @@ const cleanupUserRolesJob = async () => {
   }
 };
 
+global.cronJobs = global.cronJobs || {};
+const jobName = "role-cleanup-job";
+
 if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
-  cron.schedule(JOB_SCHEDULE, cleanupUserRolesJob, {
+  global.cronJobs[jobName] = cron.schedule(JOB_SCHEDULE, cleanupUserRolesJob, {
     scheduled: true,
     timezone: TIMEZONE,
   });
