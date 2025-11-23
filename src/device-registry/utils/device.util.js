@@ -2214,7 +2214,7 @@ const deviceUtil = {
             status: httpStatus.BAD_REQUEST,
           };
         }
-        return { valid: true, data: idList.map((id) => ObjectId(id)) };
+        return { valid: true, data: idList.map((id) => new ObjectId(id)) };
       };
 
       // 1. Get cohorts associated with the user's groups
