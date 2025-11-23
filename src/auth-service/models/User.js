@@ -402,6 +402,12 @@ const UserSchema = new Schema(
     last_inactive_reminder_sent_at: {
       type: Date,
     },
+    cohorts: [
+      {
+        type: ObjectId,
+        ref: "cohort", // This ref is for documentation; not enforced across DBs
+      },
+    ],
   },
   { timestamps: true }
 );

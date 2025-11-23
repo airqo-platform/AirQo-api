@@ -1022,6 +1022,19 @@ const validateClaimDevice = [
     .customSanitizer((value) => ObjectId(value)),
 ];
 
+const validateListOrphanedDevices = [
+  query("user_id")
+    .exists()
+    .withMessage("user_id is a required query parameter")
+    .bail()
+    .notEmpty()
+    .withMessage("user_id must not be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .trim(),
+];
+
 const validateGetMyDevices = [
   query("user_id")
     .exists()
@@ -1359,4 +1372,5 @@ module.exports = {
   getNameFromId,
   suggestDeviceNames,
   validateGetDeviceCountSummary,
+  validateListOrphanedDevices,
 };
