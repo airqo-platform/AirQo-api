@@ -299,12 +299,6 @@ class InquiryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
     ordering_fields: ClassVar[List[str]] = ['role', 'email', 'order']
     ordering: ClassVar[List[str]] = ['order']
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        if hasattr(Inquiry, 'is_deleted'):
-            queryset = queryset.filter(is_deleted=False)
-        return queryset
-
     def list(self, request, *args, **kwargs):
         """Cached list view"""
         cache_key = self.get_cache_key('inquiry_list', query_params=request.query_params)
