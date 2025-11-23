@@ -15,7 +15,7 @@ class AfricanCountry(BaseModel):
         blank=True,
         resource_type='image'
     )
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta:
         ordering = ['order', '-id']
@@ -47,7 +47,7 @@ class AfricanCountry(BaseModel):
 
 class City(BaseModel):
     city_name = models.CharField(max_length=100)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     african_city = models.ForeignKey(
         AfricanCountry,
         null=True,
@@ -64,7 +64,7 @@ class City(BaseModel):
 
 class Content(BaseModel):
     title = models.CharField(max_length=150)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     city = models.ForeignKey(
         City,
         null=True,
@@ -81,7 +81,7 @@ class Content(BaseModel):
 
 class Description(BaseModel):
     paragraph = models.TextField()
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     content = models.ForeignKey(
         Content,
         null=True,
@@ -104,7 +104,7 @@ class Image(BaseModel):
         blank=True,
         resource_type='image'
     )
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     content = models.ForeignKey(
         Content,
         null=True,

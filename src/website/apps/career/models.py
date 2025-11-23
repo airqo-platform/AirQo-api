@@ -63,7 +63,7 @@ def append_short_name(sender, instance, *args, **kwargs):
 
 class JobDescription(BaseModel):
     description = models.TextField()
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     career = models.ForeignKey(
         'Career',
         null=True,
@@ -82,7 +82,7 @@ class JobDescription(BaseModel):
 
 class BulletDescription(BaseModel):
     name = models.CharField(max_length=30)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     career = models.ForeignKey(
         'Career',
         null=True,
@@ -100,7 +100,7 @@ class BulletDescription(BaseModel):
 
 class BulletPoint(BaseModel):
     point = models.TextField()
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     bullet = models.ForeignKey(
         BulletDescription,
         null=True,

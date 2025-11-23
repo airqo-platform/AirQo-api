@@ -92,7 +92,7 @@ class Event(SlugBaseModel):
     location_name = models.CharField(max_length=100, null=True, blank=True)
     location_link = models.URLField(null=True, blank=True)
     event_details = QuillField(default="No details available yet.")
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(SlugBaseModel.Meta):
         ordering = ["order", "-start_date"]
@@ -172,7 +172,7 @@ class Inquiry(BaseModel):
     inquiry = models.CharField(max_length=80)
     role = models.CharField(max_length=100, null=True, blank=True)
     email = models.EmailField()
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     event = models.ForeignKey(
         Event,
         null=True,
@@ -208,7 +208,7 @@ class Inquiry(BaseModel):
 class Program(BaseModel):
     date = models.DateField()
     program_details = models.TextField(default="No details available yet.")
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     event = models.ForeignKey(
         Event,
         null=True,
@@ -245,7 +245,7 @@ class Session(BaseModel):
     venue = models.CharField(max_length=80, null=True, blank=True)
     session_title = models.CharField(max_length=150)
     session_details = models.TextField(default="No details available yet.")
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     program = models.ForeignKey(
         Program,
         null=True,
@@ -291,7 +291,7 @@ class PartnerLogo(BaseModel):
         timeout=600,  # 10 minutes timeout
     )
     name = models.CharField(max_length=70)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     event = models.ForeignKey(
         Event,
         null=True,
@@ -344,7 +344,7 @@ class Resource(BaseModel):
         chunk_size=5*1024*1024,  # 5MB chunks for large files
         timeout=600,  # 10 minutes timeout
     )
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     event = models.ForeignKey(
         Event,
         null=True,

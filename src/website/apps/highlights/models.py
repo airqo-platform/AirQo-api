@@ -24,7 +24,7 @@ class Highlight(BaseModel):
 
     link = models.URLField()
     link_title = models.CharField(max_length=20, blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(BaseModel.Meta):
         """Model metadata inheriting from BaseModel.Meta to remain compatible
