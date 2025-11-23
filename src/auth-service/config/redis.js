@@ -144,6 +144,25 @@ const redisSetWithTTLAsync = async (key, value, ttlSeconds) => {
   }
 };
 
+const redisSetNXAsync = async (key, value, ttlSeconds) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for SETNX ${key}`);
+    return null;
+  }
+  try {
+    // 'EX' sets the expiration in seconds, 'NX' sets the key only if it does not already exist.
+    const result = await redis.set(key, value, {
+      EX: ttlSeconds,
+      NX: true,
+    });
+    // result will be 'OK' if the key was set, or null if the key already existed.
+    return result === "OK";
+  } catch (error) {
+    console.error(`Redis SETNX failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
 const redisPingAsync = async (timeout = 3000) => {
   if (!redis.isOpen) {
     throw new Error("Redis not available");
@@ -211,6 +230,7 @@ module.exports.redisDelAsync = redisDelAsync;
 module.exports.redisPingAsync = redisPingAsync;
 module.exports.redisUtils = redisUtils;
 module.exports.redisSetWithTTLAsync = redisSetWithTTLAsync;
+module.exports.redisSetNXAsync = redisSetNXAsync;
 
 // Compatibility exports for direct redis.method() usage
 module.exports.set = async (key, value, ttlType, ttlValue) => {
