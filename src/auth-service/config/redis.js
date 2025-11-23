@@ -147,7 +147,10 @@ const redisSetWithTTLAsync = async (key, value, ttlSeconds) => {
 const redisSetNXAsync = async (key, value, ttlSeconds) => {
   if (!redis.isOpen) {
     console.warn(`Redis not available for SETNX ${key}`);
-    return null;
+    throw new Error("Redis not available for distributed lock");
+  }
+  if (!ttlSeconds || ttlSeconds <= 0) {
+    throw new Error(`Invalid TTL for lock: ${ttlSeconds}`);
   }
   try {
     // 'EX' sets the expiration in seconds, 'NX' sets the key only if it does not already exist.
