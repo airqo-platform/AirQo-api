@@ -30,6 +30,7 @@ const {
   redisExpireAsync,
   redisDelAsync,
   redisSetWithTTLAsync,
+  redisSetNXAsync,
 } = require("@config/redis");
 const { tokenConfig } = require("@config/tokenStrategyConfig");
 
@@ -3691,16 +3692,14 @@ const createUserModule = {
       };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      // ✅ STEP 1: Create registration lock to prevent race conditions
-      const lockKey = `reg-${email.toLowerCase()}-${tenant}`;
+      // ✅ STEP 1: Use a distributed lock (Redis) to prevent race conditions
+      const lockKey = `reg-${email.toLowerCase()}-${dbTenant}`;
+      const lockAcquired = await redisSetNXAsync(lockKey, "locked", 30);
 
-      if (registrationLocks.has(lockKey)) {
-        logger.warn(`Duplicate registration attempt blocked for ${email}`, {
-          email,
-          tenant,
-          lockExists: true,
-        });
-
+      if (!lockAcquired) {
+        logger.warn(
+          `Duplicate registration attempt blocked by Redis lock for ${email}`
+        );
         return {
           success: false,
           message: "Registration already in progress for this email",
@@ -3709,18 +3708,12 @@ const createUserModule = {
             {
               param: "email",
               message:
-                "A registration for this email is already being processed. Please wait a moment and try again.",
+                "A registration for this email is currently being processed. Please wait a moment and try again.",
               location: "body",
             },
           ],
         };
       }
-
-      // Set lock with automatic cleanup
-      registrationLocks.set(lockKey, Date.now());
-      setTimeout(() => {
-        registrationLocks.delete(lockKey);
-      }, 30000); // 30 second lock
 
       try {
         // ✅ STEP 2: Check for existing user with enhanced logging
@@ -3936,8 +3929,14 @@ const createUserModule = {
           return responseFromCreateUser;
         }
       } finally {
-        // ✅ STEP 5: Always cleanup the lock
-        registrationLocks.delete(lockKey);
+        // ✅ STEP 5: Always release the Redis lock, with error handling
+        try {
+          await redisDelAsync(lockKey);
+        } catch (lockError) {
+          logger.error(
+            `Failed to release Redis lock for ${lockKey}: ${lockError.message}`
+          );
+        }
       }
     } catch (error) {
       logger.error(
@@ -6454,10 +6453,10 @@ const createUserModule = {
             { new: true, upsert: false, runValidators: true }
           );
           if (updatedUser) {
-            await createUserModule.ensureDefaultAirqoRole(
-              updatedUser,
-              dbTenant
-            );
+            // await createUserModule.ensureDefaultAirqoRole(
+            //   updatedUser,
+            //   dbTenant
+            // );
           }
         } catch (updateError) {
           logger.error(
