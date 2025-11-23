@@ -790,6 +790,22 @@ router.get(
   userController.list
 );
 
+router.post(
+  "/:user_id/cohorts/assign",
+  enhancedJWTAuth,
+  userValidations.assignCohorts,
+  validate,
+  userController.assignCohorts
+);
+
+router.get(
+  "/:user_id/cohorts",
+  enhancedJWTAuth,
+  userValidations.getUser,
+  validate,
+  userController.listCohorts
+);
+
 // ================================
 // ERROR HANDLING
 // ================================

@@ -20,6 +20,7 @@ const {
   validateOrganizationAssignment,
   validateOrganizationSwitch,
   validateQRCodeGeneration,
+  validateListOrphanedDevices,
   validateMigrationRequest,
   validateGetUserOrganizations,
   validatePrepareDeviceShipping,
@@ -144,6 +145,14 @@ router.get(
   validateGetDeviceCountSummary,
   validate,
   deviceController.getDeviceCountSummary
+);
+
+router.get(
+  "/orphaned",
+  validateTenant,
+  validateListOrphanedDevices,
+  validate,
+  deviceController.listOrphanedDevices
 );
 
 // SUMMARY ROUTE
