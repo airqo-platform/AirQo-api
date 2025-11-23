@@ -20,6 +20,10 @@ class BoardMemberViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['id', 'name', 'title', 'order', 'created', 'modified']
     ordering = ['order', 'name']
 
+    # Optimization settings
+    select_related_fields = []
+    prefetch_related_fields = ['descriptions']
+
     def get_serializer_class(self):  # type: ignore[override]
         return BoardMemberListSerializer if self.action == 'list' else BoardMemberDetailSerializer
 
