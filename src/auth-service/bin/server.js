@@ -42,6 +42,7 @@ require("@bin/jobs/preferences-log-job");
 require("@bin/jobs/dashboard-analytics-job");
 require("@bin/jobs/preferences-update-job");
 require("@bin/jobs/profile-picture-update-job");
+require("@bin/jobs/role-cleanup-job");
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
