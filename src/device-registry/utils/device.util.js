@@ -2219,12 +2219,13 @@ const deviceUtil = {
 
       // 1. Get cohorts associated with the user's groups
       let groupCohorts = [];
+      let groupObjectIds = [];
       if (group_ids) {
         const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
         if (!groupObjectIdsResult.valid) {
           return { success: false, ...groupObjectIdsResult };
         }
-        const groupObjectIds = groupObjectIdsResult.data;
+        groupObjectIds = groupObjectIdsResult.data;
         const groups = await CohortModel(tenant)
           .find({ groups: { $in: groupObjectIds } })
           .select("_id")
@@ -2254,11 +2255,6 @@ const deviceUtil = {
 
       // Deprecated: Also include devices assigned via the old organization model for backward compatibility
       if (group_ids) {
-        const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
-        if (!groupObjectIdsResult.valid) {
-          return { success: false, ...groupObjectIdsResult };
-        }
-        const groupObjectIds = groupObjectIdsResult.data;
         filter.$or.push({ assigned_organization_id: { $in: groupObjectIds } });
         filter.$or.push({
           "assigned_organization.id": { $in: groupObjectIds },
