@@ -21,6 +21,7 @@ class MemberListSerializer(serializers.ModelSerializer):
     public_identifier = serializers.SerializerMethodField()
     api_url = serializers.SerializerMethodField()
     has_slug = serializers.SerializerMethodField()
+    descriptions = MemberBiographySerializer(many=True, read_only=True)
 
     def get_picture_url(self, obj):
         @extend_schema_field(serializers.CharField(allow_null=True))
@@ -52,7 +53,7 @@ class MemberListSerializer(serializers.ModelSerializer):
         model = Member
         fields = [
             'id', 'name', 'title', 'about', 'picture_url', 'twitter', 'linked_in',
-            'order', 'created', 'modified', 'public_identifier', 'api_url', 'has_slug'
+            'order', 'created', 'modified', 'public_identifier', 'api_url', 'has_slug', 'descriptions'
         ]
     ref_name = 'MemberListV2'
 
