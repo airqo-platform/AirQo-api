@@ -4798,7 +4798,11 @@ const createUserModule = {
 
       const user = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { $addToSet: { cohorts: { $each: cohort_ids } } },
+        {
+          $addToSet: {
+            cohorts: { $each: cohort_ids.map((id) => new ObjectId(id)) },
+          },
+        },
         { new: true }
       );
 

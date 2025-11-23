@@ -2011,9 +2011,21 @@ const deviceUtil = {
         };
       }
 
+      if (!isValidObjectId(user_id)) {
+        return {
+          success: false,
+          message: "Invalid user_id format",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id must be a valid MongoDB ObjectId" },
+        };
+      }
+
       const filter = {
-        owner_id: user_id,
-        cohorts: { $exists: true, $size: 0 },
+        owner_id: new ObjectId(user_id),
+        $or: [
+          { cohorts: { $exists: true, $size: 0 } },
+          { cohorts: { $exists: false } },
+        ],
       };
 
       const responseFromListDevice = await DeviceModel(tenant).list(
@@ -2191,12 +2203,28 @@ const deviceUtil = {
         };
       }
 
+      const splitAndMapToObjectId = (ids) => {
+        if (!ids) return { valid: true, data: [] };
+        const idList = ids.split(",").map((id) => id.trim());
+        const invalidId = idList.find((id) => !isValidObjectId(id));
+        if (invalidId) {
+          return {
+            valid: false,
+            message: `Invalid ID format: ${invalidId}`,
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+        return { valid: true, data: idList.map((id) => ObjectId(id)) };
+      };
+
       // 1. Get cohorts associated with the user's groups
       let groupCohorts = [];
       if (group_ids) {
-        const groupObjectIds = group_ids
-          .split(",")
-          .map((id) => ObjectId(id.trim()));
+        const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
+        if (!groupObjectIdsResult.valid) {
+          return { success: false, ...groupObjectIdsResult };
+        }
+        const groupObjectIds = groupObjectIdsResult.data;
         const groups = await CohortModel(tenant)
           .find({ groups: { $in: groupObjectIds } })
           .select("_id")
@@ -2205,9 +2233,11 @@ const deviceUtil = {
       }
 
       // 2. Combine all cohort IDs: direct user cohorts and group cohorts
-      const directCohortIds = cohort_ids
-        ? cohort_ids.split(",").map((id) => ObjectId(id.trim()))
-        : [];
+      const directCohortIdsResult = splitAndMapToObjectId(cohort_ids);
+      if (!directCohortIdsResult.valid) {
+        return { success: false, ...directCohortIdsResult };
+      }
+      const directCohortIds = directCohortIdsResult.data;
       const allCohortIds = [...new Set([...directCohortIds, ...groupCohorts])];
 
       // 3. Build the comprehensive filter
@@ -2215,16 +2245,20 @@ const deviceUtil = {
         $or: [
           // Devices directly owned by the user
           { owner_id: new ObjectId(user_id) },
-          // Devices in any of the user's direct or group-based cohorts
-          { cohorts: { $in: allCohortIds } },
         ],
       };
 
+      if (allCohortIds.length > 0) {
+        filter.$or.push({ cohorts: { $in: allCohortIds } });
+      }
+
       // Deprecated: Also include devices assigned via the old organization model for backward compatibility
       if (group_ids) {
-        const groupObjectIds = group_ids
-          .split(",")
-          .map((id) => ObjectId(id.trim()));
+        const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
+        if (!groupObjectIdsResult.valid) {
+          return { success: false, ...groupObjectIdsResult };
+        }
+        const groupObjectIds = groupObjectIdsResult.data;
         filter.$or.push({ assigned_organization_id: { $in: groupObjectIds } });
         filter.$or.push({
           "assigned_organization.id": { $in: groupObjectIds },

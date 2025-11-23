@@ -1544,24 +1544,14 @@ const deviceController = {
         },
       });
     } catch (error) {
-      // Although the try block is simple, keeping the catch for consistency.
-      handleError(error, next);
-    }
-  },
-
-  assignDeviceToOrganization: async (req, res, next) => {
-    try {
-      return res.status(httpStatus.GONE).json({
-        success: false,
-        message:
-          "This endpoint is deprecated and will be removed in a future version.",
-        errors: {
-          message:
-            "Device-to-organization assignment is now managed through Cohorts. Please assign the device's cohort to the desired organization (Group) via the appropriate Cohort management endpoints.",
-        },
-      });
-    } catch (error) {
-      handleError(error, next);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
