@@ -1488,6 +1488,26 @@ const userController = {
       handleError(error, next);
     }
   },
+  assignCohorts: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.assignCohorts(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  listCohorts: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listCohorts(request, next);
+      sendResponse(res, result, "cohorts");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
 
   /**
    * Legacy login compatibility endpoint

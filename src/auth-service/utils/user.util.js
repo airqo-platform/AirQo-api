@@ -4790,6 +4790,80 @@ const createUserModule = {
     }
   },
 
+  assignCohorts: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { cohort_ids } = request.body;
+      const { tenant } = request.query;
+
+      const user = await UserModel(tenant).findByIdAndUpdate(
+        user_id,
+        { $addToSet: { cohorts: { $each: cohort_ids } } },
+        { new: true }
+      );
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Cohorts successfully assigned to user",
+        data: {
+          _id: user._id,
+          email: user.email,
+          cohorts: user.cohorts,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listCohorts: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant } = request.query;
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("cohorts")
+        .lean();
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+      return {
+        success: true,
+        message: "User cohorts listed successfully",
+        data: user.cohorts || [],
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   initiatePasswordReset: async ({ email, token, tenant }) => {
     try {
       const update = {

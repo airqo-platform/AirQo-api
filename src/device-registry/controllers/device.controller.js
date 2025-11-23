@@ -102,6 +102,39 @@ const deviceController = {
       );
     }
   },
+  listOrphanedDevices: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.listOrphanedDevices(request, next);
+      handleResponse({ result, res, key: "devices" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+
   getDeviceDetailsById: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -1501,34 +1534,34 @@ const deviceController = {
 
   assignDeviceToOrganization: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await createDeviceUtil.assignDeviceToOrganization(
-        request,
-        next
-      );
-      handleResponse({ result, res });
+      return res.status(httpStatus.GONE).json({
+        success: false,
+        message:
+          "This endpoint is deprecated and will be removed in a future version.",
+        errors: {
+          message:
+            "Device-to-organization assignment is now managed through Cohorts. Please assign the device's cohort to the desired organization (Group) via the appropriate Cohort management endpoints.",
+        },
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      // Although the try block is simple, keeping the catch for consistency.
+      handleError(error, next);
+    }
+  },
+
+  assignDeviceToOrganization: async (req, res, next) => {
+    try {
+      return res.status(httpStatus.GONE).json({
+        success: false,
+        message:
+          "This endpoint is deprecated and will be removed in a future version.",
+        errors: {
+          message:
+            "Device-to-organization assignment is now managed through Cohorts. Please assign the device's cohort to the desired organization (Group) via the appropriate Cohort management endpoints.",
+        },
+      });
+    } catch (error) {
+      handleError(error, next);
     }
   },
 

@@ -146,6 +146,14 @@ router.get(
   deviceController.getDeviceCountSummary
 );
 
+router.get(
+  "/orphaned",
+  validateTenant,
+  validateGetMyDevices,
+  validate,
+  deviceController.listOrphanedDevices
+);
+
 // SUMMARY ROUTE
 router.get(
   "/summary",
