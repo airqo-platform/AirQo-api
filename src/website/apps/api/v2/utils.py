@@ -35,7 +35,7 @@ class CachedViewSetMixin:
         from django.core.cache import cache
         return cache.get(cache_key)
 
-    def set_cached_response(self, cache_key: str, data: Dict, timeout: Optional[int] = None) -> None:
+    def set_cached_response(self, cache_key: str, data: Any, timeout: Optional[int] = None) -> None:
         """Set cached response data"""
         from django.core.cache import cache
         if timeout is None:

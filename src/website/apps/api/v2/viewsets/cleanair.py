@@ -305,6 +305,37 @@ class ForumEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Rea
 
         return queryset
 
+    def list(self, request, *args, **kwargs):
+        """Override list to add caching for forum events"""
+        query_params = dict(request.query_params.items())
+        cache_key = self.get_cache_key(
+            "forum_events_list", query_params=query_params)
+
+        # Try to get from cache first (cache for 5 minutes)
+        cached_response = self.get_cached_response(cache_key)
+        if cached_response:
+            return Response(cached_response)
+
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            paginated_response = self.get_paginated_response(serializer.data)
+
+            # Cache the response for 5 minutes
+            self.set_cached_response(
+                cache_key, paginated_response.data, self.cache_timeout_list)
+            return paginated_response
+
+        serializer = self.get_serializer(queryset, many=True)
+        response_data = serializer.data
+
+        # Cache the response for 5 minutes
+        self.set_cached_response(
+            cache_key, response_data, self.cache_timeout_list)
+        return Response(response_data)
+
     def retrieve(self, request, *args, **kwargs):
         """
         Override retrieve to prefetch related objects for full detail

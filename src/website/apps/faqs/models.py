@@ -10,7 +10,7 @@ class FAQ(models.Model):
 
     # Ordering field to allow manual rearrangement in the admin
     order = models.IntegerField(
-        default=1000, help_text="Lower values appear first")
+        default=1000, help_text="Lower values appear first", db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
