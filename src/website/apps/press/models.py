@@ -25,7 +25,7 @@ class Press(SlugBaseModel):
         timeout=600,  # 10 minutes timeout
     )
 
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class WebsiteCategory(models.TextChoices):
         AIRQO = "airqo", "AirQo"

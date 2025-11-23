@@ -42,7 +42,7 @@ class Partner(SlugBaseModel):
         timeout=600,  # 10 minutes timeout
     )
     partner_name = models.CharField(max_length=200)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     partner_link = models.URLField(null=True, blank=True)
     type = models.CharField(
         max_length=40,
@@ -88,7 +88,7 @@ class Partner(SlugBaseModel):
 
 class PartnerDescription(BaseModel):
     description = models.TextField(null=True, blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     partner = models.ForeignKey(
         Partner,
         null=True,

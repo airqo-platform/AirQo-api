@@ -29,14 +29,14 @@ from ..serializers.event import (
     PartnerLogoListSerializer, PartnerLogoDetailSerializer,
     ResourceListSerializer, ResourceDetailSerializer
 )
-from ..utils import OptimizedQuerySetMixin
+from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
 import logging
 from django.db import connection
 
 logger = logging.getLogger(__name__)
 
 
-class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     Event ViewSet with universal slug support and special date hierarchy
 
@@ -289,7 +289,7 @@ class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         })
 
 
-class InquiryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class InquiryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Inquiry ViewSet for event-related inquiries"""
     queryset = Inquiry.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
@@ -298,6 +298,33 @@ class InquiryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     search_fields: ClassVar[List[str]] = ['inquiry', 'role', 'email']
     ordering_fields: ClassVar[List[str]] = ['role', 'email', 'order']
     ordering: ClassVar[List[str]] = ['order']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if hasattr(Inquiry, 'is_deleted'):
+            queryset = queryset.filter(is_deleted=False)
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('inquiry_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('inquiry_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
     pagination_class = StandardPageNumberPagination
 
     # Performance optimization
@@ -317,7 +344,7 @@ class InquiryViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         return qs.select_related('event').order_by('order')
 
 
-class ProgramViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class ProgramViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Program ViewSet for event programs"""
     queryset = Program.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
@@ -343,8 +370,29 @@ class ProgramViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(is_deleted=False)
         return qs.select_related('event').prefetch_related('sessions').order_by('date', 'order')
 
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('program_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
 
-class SessionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('program_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class SessionViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Session ViewSet for event sessions"""
     queryset = Session.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
@@ -369,8 +417,29 @@ class SessionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(is_deleted=False)
         return qs.select_related('program', 'program__event').order_by('start_time', 'order')
 
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('session_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
 
-class PartnerLogoViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('session_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class PartnerLogoViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """PartnerLogo ViewSet for event partner logos"""
     queryset = PartnerLogo.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
@@ -395,8 +464,29 @@ class PartnerLogoViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(is_deleted=False)
         return qs.select_related('event').order_by('order')
 
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('partnerlogo_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
 
-class ResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('partnerlogo_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class ResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Resource ViewSet for event resources"""
     queryset = Resource.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
@@ -420,3 +510,24 @@ class ResourceViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         if hasattr(Resource, 'is_deleted'):
             qs = qs.filter(is_deleted=False)
         return qs.select_related('event').order_by('order')
+
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('resource_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('resource_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response

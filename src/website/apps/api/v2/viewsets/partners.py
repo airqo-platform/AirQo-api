@@ -3,6 +3,7 @@ Partners app viewsets for v2 API
 """
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
+from rest_framework.response import Response
 from typing import Optional, List, ClassVar
 
 from apps.partners.models import Partner, PartnerDescription
@@ -13,10 +14,10 @@ from ..serializers.partners import (
     PartnerListSerializer, PartnerDetailSerializer,
     PartnerDescriptionListSerializer, PartnerDescriptionDetailSerializer
 )
-from ..utils import OptimizedQuerySetMixin
+from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
 
 
-class PartnerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class PartnerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for Partner
 
@@ -53,14 +54,39 @@ class PartnerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.Rea
         """Optimized queryset with prefetch for descriptions"""
         queryset = super().get_queryset()
 
+        # Filter out deleted partners
+        if hasattr(Partner, 'is_deleted'):
+            queryset = queryset.filter(is_deleted=False)
+
         # For detail view, prefetch related descriptions to avoid N+1 queries
         if self.action == 'retrieve':
             queryset = queryset.prefetch_related('descriptions')
 
         return queryset
 
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('partner_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
 
-class PartnerDescriptionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('slug', ''))
+        cache_key = self.get_cache_key('partner_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class PartnerDescriptionViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for PartnerDescription
 
@@ -89,3 +115,30 @@ class PartnerDescriptionViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelVi
         if self.action == 'list':
             return PartnerDescriptionListSerializer
         return PartnerDescriptionDetailSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if hasattr(PartnerDescription, 'is_deleted'):
+            queryset = queryset.filter(is_deleted=False)
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('partnerdescription_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('partnerdescription_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
