@@ -77,56 +77,27 @@ const distance = {
     const lonDiff = lon2 - lon1;
     return latDiff * latDiff + lonDiff * lonDiff;
   },
-  calculateDistance: ({
-    latitude1,
-    longitude1,
-    latitude2,
-    longitude2,
-  } = {}) => {
-    // getting distance between latitudes and longitudes
-    const latitudeDisatnce = distance.degreesToRadians(latitude2 - latitude1);
-    const longitudeDisatnce = distance.degreesToRadians(
-      longitude2 - longitude1
-    );
-
-    // converting degrees to radians
-    latitude1 = distance.degreesToRadians(latitude1);
-    latitude2 = distance.degreesToRadians(latitude2);
-
-    // Applying Haversine formula
-    const haversine =
-      Math.pow(Math.sin(latitudeDisatnce / 2), 2) +
-      Math.pow(Math.sin(longitudeDisatnce / 2), 2) *
-        Math.cos(latitude1) *
-        Math.cos(latitude2);
-
-    // Earth's radius in kilometers
-    const radius = 6371;
-
-    const c = 2 * Math.asin(Math.sqrt(haversine));
-    return radius * c;
-  },
-  distanceBtnTwoPoints: (
+  calculateDistance: (
     { latitude1, longitude1, latitude2, longitude2 } = {},
     next
   ) => {
     try {
       // getting distance between latitudes and longitudes
-      const latitudeDisatnce = distance.degreesToRadians(latitude2 - latitude1);
-      const longitudeDisatnce = distance.degreesToRadians(
+      const latitudeDistance = distance.degreesToRadians(latitude2 - latitude1);
+      const longitudeDistance = distance.degreesToRadians(
         longitude2 - longitude1
       );
 
       // converting degrees to radians
-      latitude1 = distance.degreesToRadians(latitude1);
-      latitude2 = distance.degreesToRadians(latitude2);
+      const lat1Rad = distance.degreesToRadians(latitude1);
+      const lat2Rad = distance.degreesToRadians(latitude2);
 
       // Applying Haversine formula
       const haversine =
-        Math.pow(Math.sin(latitudeDisatnce / 2), 2) +
-        Math.pow(Math.sin(longitudeDisatnce / 2), 2) *
-          Math.cos(latitude1) *
-          Math.cos(latitude2);
+        Math.pow(Math.sin(latitudeDistance / 2), 2) +
+        Math.pow(Math.sin(longitudeDistance / 2), 2) *
+          Math.cos(lat1Rad) *
+          Math.cos(lat2Rad);
 
       // Earth's radius in kilometers
       const radius = 6371;
@@ -134,8 +105,20 @@ const distance = {
       const c = 2 * Math.asin(Math.sqrt(haversine));
       return radius * c;
     } catch (error) {
-      logger.error(`🐛🐛 Internal server error -- ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal server error -- calculateDistance -- ${error.message}`
+      );
+      return Infinity;
     }
+  },
+  distanceBtnTwoPoints: (
+    { latitude1, longitude1, latitude2, longitude2 } = {},
+    next
+  ) => {
+    return distance.calculateDistance(
+      { latitude1, longitude1, latitude2, longitude2 },
+      next
+    );
   },
   /**
    * Calculates the haversine distance between two points on Earth.
@@ -144,36 +127,22 @@ const distance = {
    * @returns {number} The distance in kilometers.
    */
   haversineDistance: (coords1, coords2) => {
-    try {
-      const toRad = (x) => (x * Math.PI) / 180;
-
-      const R = 6371; // Earth's mean radius in kilometers
-
-      const dLat = toRad(coords2.lat - coords1.lat);
-      const dLon = toRad(coords2.lng - coords1.lng);
-
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(coords1.lat)) *
-          Math.cos(toRad(coords2.lat)) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-      return R * c;
-    } catch (error) {
-      logger.error(
-        `🐛🐛 Internal server error -- haversineDistance -- ${error.message}`
-      );
-    }
+    return distance.calculateDistance({
+      latitude1: coords1.lat,
+      longitude1: coords1.lng,
+      latitude2: coords2.lat,
+      longitude2: coords2.lng,
+    });
   },
   degreesToRadians: (degrees) => {
     try {
       const pi = Math.PI;
       return degrees * (pi / 180);
     } catch (error) {
-      logger.error(`🐛🐛 Internal server error -- ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal server error -- degreesToRadians -- ${error.message}`
+      );
+      return NaN;
     }
   },
   radiansToDegrees: (radians) => {

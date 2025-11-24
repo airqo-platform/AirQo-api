@@ -17,7 +17,6 @@ router.use(metadataValidations.addCategoryQueryParam);
 router.post(
   "/routes/nearest-locations",
   metadataValidations.findNearestLocations,
-  pagination(),
   siteController.findNearestLocations
 );
 

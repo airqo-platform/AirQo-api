@@ -1497,7 +1497,7 @@ const createSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            const distanceBetweenTwoPoints = distance.distanceBtnTwoPoints(
+            const distanceBetweenTwoPoints = distance.calculateDistance(
               {
                 latitude1: latitude,
                 longitude1: longitude,
@@ -1592,11 +1592,46 @@ const createSite = {
       }
 
       const nearbySites = sites.filter((site) => {
-        const siteCoords = { lat: site.latitude, lng: site.longitude };
-        for (const point of polyline) {
-          if (distance.haversineDistance(siteCoords, point) <= radius) {
-            return true; // Site is close enough to a vertex
+        const siteCoords = {
+          latitude: site.latitude,
+          longitude: site.longitude,
+        };
+        for (let i = 0; i < polyline.length - 1; i++) {
+          const start = {
+            latitude: polyline[i].lat,
+            longitude: polyline[i].lng,
+          };
+          const end = {
+            latitude: polyline[i + 1].lat,
+            longitude: polyline[i + 1].lng,
+          };
+
+          // First, check distance to vertices
+          if (geolib.getDistance(siteCoords, start) <= radius * 1000) {
+            return true;
           }
+
+          // Then, check perpendicular distance to the line segment
+          const { distance: perpendicularDist } = geolib.getDistanceFromLine(
+            siteCoords,
+            start,
+            end
+          );
+
+          if (perpendicularDist <= radius * 1000) {
+            return true;
+          }
+        }
+        // Check distance to the last vertex
+        const lastPoint = polyline[polyline.length - 1];
+        if (
+          geolib.getDistance(siteCoords, {
+            latitude: lastPoint.lat,
+            longitude: lastPoint.lng,
+          }) <=
+          radius * 1000
+        ) {
+          return true;
         }
         return false;
       });
@@ -1624,12 +1659,19 @@ const createSite = {
       const nearbyDeviceIds = devices.map((device) => device._id);
 
       // Find cohorts and grids associated with the nearby devices/sites
-      const cohortIds = await DeviceModel(tenant).distinct("cohorts", {
-        _id: { $in: nearbyDeviceIds },
-      });
-      const gridIds = await SiteModel(tenant).distinct("grids", {
-        _id: { $in: nearbySiteIds },
-      });
+      let cohortIds = [];
+      if (nearbyDeviceIds.length > 0) {
+        cohortIds = await DeviceModel(tenant).distinct("cohorts", {
+          _id: { $in: nearbyDeviceIds },
+        });
+      }
+
+      let gridIds = [];
+      if (nearbySiteIds.length > 0) {
+        gridIds = await SiteModel(tenant).distinct("grids", {
+          _id: { $in: nearbySiteIds },
+        });
+      }
 
       return {
         success: true,

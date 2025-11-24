@@ -1,11 +1,5 @@
 // metadata.validators.js
-const {
-  oneOf,
-  query,
-  param,
-  body,
-  validationResult,
-} = require("express-validator");
+const { query, param, body, validationResult } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
