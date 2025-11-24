@@ -1,5 +1,5 @@
 // metadata.validators.js
-const { oneOf, query, param, validationResult } = require("express-validator");
+const { query, param, body, validationResult } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
@@ -214,6 +214,47 @@ const metadataValidations = {
   getDevice: [
     ...commonValidations.tenant,
     ...commonValidations.paramObjectId("device_id"),
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
+  ],
+  findNearestLocations: [
+    ...commonValidations.tenant,
+    body("polyline")
+      .exists()
+      .withMessage("polyline is required")
+      .bail()
+      .isArray({ min: 2 })
+      .withMessage("polyline must be an array with at least 2 points"),
+    body("polyline.*.lat")
+      .exists()
+      .withMessage("Each polyline point must have a lat property")
+      .bail()
+      .isFloat({ min: -90, max: 90 })
+      .withMessage("Invalid latitude value"),
+    body("polyline.*.lng")
+      .exists()
+      .withMessage("Each polyline point must have a lng property")
+      .bail()
+      .isFloat({ min: -180, max: 180 })
+      .withMessage("Invalid longitude value"),
+    body("radius")
+      .exists()
+      .withMessage("radius is required")
+      .bail()
+      .isFloat({ min: 0.1, max: 50 })
+      .withMessage("radius must be a number in kilometers between 0.1 and 50")
+      .toFloat(),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

@@ -1497,7 +1497,7 @@ const createSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            const distanceBetweenTwoPoints = distance.distanceBtnTwoPoints(
+            const distanceBetweenTwoPoints = distance.calculateDistance(
               {
                 latitude1: latitude,
                 longitude1: longitude,
@@ -1565,6 +1565,142 @@ const createSite = {
           { message: error.message }
         )
       );
+    }
+  },
+  findNearestLocations: async (request, next) => {
+    try {
+      const { tenant: rawTenant } = request.query;
+      const { polyline, radius } = request.body;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
+
+      // Fetch all active sites with their locations
+      const sites = await SiteModel(tenant)
+        .find({
+          latitude: { $ne: null },
+          longitude: { $ne: null },
+          isActive: true,
+        })
+        .select("_id name latitude longitude")
+        .lean();
+
+      if (isEmpty(sites)) {
+        return {
+          success: true,
+          message: "No active sites with location data found",
+          data: { sites: [], devices: [], cohorts: [], grids: [] },
+          status: httpStatus.OK,
+        };
+      }
+
+      const nearbySites = sites.filter((site) => {
+        const siteCoords = {
+          latitude: site.latitude,
+          longitude: site.longitude,
+        };
+        for (let i = 0; i < polyline.length - 1; i++) {
+          const start = {
+            latitude: polyline[i].lat,
+            longitude: polyline[i].lng,
+          };
+          const end = {
+            latitude: polyline[i + 1].lat,
+            longitude: polyline[i + 1].lng,
+          };
+
+          // First, check distance to vertices
+          if (geolib.getDistance(siteCoords, start) <= radius * 1000) {
+            return true;
+          }
+
+          // Then, check perpendicular distance to the line segment
+          const { distance: perpendicularDist } = geolib.getDistanceFromLine(
+            siteCoords,
+            start,
+            end
+          );
+
+          if (perpendicularDist <= radius * 1000) {
+            return true;
+          }
+        }
+        // Check distance to the last vertex
+        const lastPoint = polyline[polyline.length - 1];
+        if (
+          geolib.getDistance(siteCoords, {
+            latitude: lastPoint.lat,
+            longitude: lastPoint.lng,
+          }) <=
+          radius * 1000
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+      if (isEmpty(nearbySites)) {
+        return {
+          success: true,
+          message: `No sites found within a ${radius}km radius of the route`,
+          data: { sites: [], devices: [], cohorts: [], grids: [] },
+          status: httpStatus.OK,
+        };
+      }
+
+      const nearbySiteIds = nearbySites.map((site) => site._id);
+
+      // Find all active devices located at these nearby sites
+      const devices = await DeviceModel(tenant)
+        .find({
+          site_id: { $in: nearbySiteIds },
+          isActive: true,
+        })
+        .select("_id name site_id")
+        .lean();
+
+      const nearbyDeviceIds = devices.map((device) => device._id);
+
+      // Find cohorts and grids associated with the nearby devices/sites
+      let cohortIds = [];
+      if (nearbyDeviceIds.length > 0) {
+        cohortIds = await DeviceModel(tenant).distinct("cohorts", {
+          _id: { $in: nearbyDeviceIds },
+        });
+      }
+
+      let gridIds = [];
+      if (nearbySiteIds.length > 0) {
+        gridIds = await SiteModel(tenant).distinct("grids", {
+          _id: { $in: nearbySiteIds },
+        });
+      }
+
+      return {
+        success: true,
+        message: "Successfully found nearest locations to the route",
+        data: {
+          sites: nearbySiteIds,
+          devices: nearbyDeviceIds,
+          cohorts: cohortIds,
+          grids: gridIds,
+          count: {
+            sites: nearbySiteIds.length,
+            devices: nearbyDeviceIds.length,
+            cohorts: cohortIds.length,
+            grids: gridIds.length,
+          },
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };
