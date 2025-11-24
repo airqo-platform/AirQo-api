@@ -1,5 +1,6 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
+const CohortModel = require("@models/Cohort");
 const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
@@ -507,6 +508,25 @@ const createGrid = {
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
 
+      // Get IDs of private cohorts
+      const privateCohorts = await CohortModel(tenant)
+        .find({ visibility: false })
+        .select("_id")
+        .lean();
+      const privateCohortIds = privateCohorts.map((c) => c._id);
+
+      // Get IDs of devices in private cohorts
+      const privateDevices = await DeviceModel(tenant)
+        .find({
+          cohorts: { $in: privateCohortIds },
+        })
+        .select("site_id")
+        .lean();
+
+      const privateSiteIds = privateDevices
+        .map((d) => d.site_id)
+        .filter(Boolean);
+
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
       );
@@ -518,6 +538,17 @@ const createGrid = {
             localField: "_id",
             foreignField: "grids",
             as: "sites",
+          },
+        },
+        {
+          $addFields: {
+            sites: {
+              $filter: {
+                input: "$sites",
+                as: "site",
+                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+              },
+            },
           },
         },
       ];
