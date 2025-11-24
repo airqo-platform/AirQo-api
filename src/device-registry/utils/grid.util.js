@@ -508,24 +508,26 @@ const createGrid = {
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
 
-      // Get IDs of private cohorts
-      const privateCohorts = await CohortModel(tenant)
-        .find({ visibility: false })
-        .select("_id")
-        .lean();
-      const privateCohortIds = privateCohorts.map((c) => c._id);
+      // Optimized query to get all private site IDs in one go
+      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
+        { $match: { visibility: false } },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $unwind: "$devices" },
+        { $match: { "devices.site_id": { $ne: null } } },
+        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+      ]);
 
-      // Get IDs of devices in private cohorts
-      const privateDevices = await DeviceModel(tenant)
-        .find({
-          cohorts: { $in: privateCohortIds },
-        })
-        .select("site_id")
-        .lean();
-
-      const privateSiteIds = privateDevices
-        .map((d) => d.site_id)
-        .filter(Boolean);
+      const privateSiteIds =
+        privateSiteIdsResponse.length > 0
+          ? privateSiteIdsResponse[0].site_ids
+          : [];
 
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
@@ -1242,25 +1244,26 @@ const createGrid = {
   listCountries: async (request, next) => {
     try {
       const { tenant } = request.query;
+      // Optimized query to get all private site IDs in one go
+      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
+        { $match: { visibility: false } },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $unwind: "$devices" },
+        { $match: { "devices.site_id": { $ne: null } } },
+        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+      ]);
 
-      // Get IDs of private cohorts
-      const privateCohorts = await CohortModel(tenant)
-        .find({ visibility: false })
-        .select("_id")
-        .lean();
-      const privateCohortIds = privateCohorts.map((c) => c._id);
-
-      // Get IDs of devices in private cohorts
-      const privateDevices = await DeviceModel(tenant)
-        .find({
-          cohorts: { $in: privateCohortIds },
-        })
-        .select("site_id")
-        .lean();
-
-      const privateSiteIds = privateDevices
-        .map((d) => d.site_id)
-        .filter(Boolean);
+      const privateSiteIds =
+        privateSiteIdsResponse.length > 0
+          ? privateSiteIdsResponse[0].site_ids
+          : [];
       const pipeline = [
         {
           $match: { admin_level: "country" },
