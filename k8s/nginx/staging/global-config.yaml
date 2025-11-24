@@ -155,8 +155,10 @@ data:
     
     location = /auth {      
       if ($request_method = 'OPTIONS') { return 204; } 
+      if ($request_uri ~ '/website/api/v2/') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/users') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/devices/grids/summary') { return 200; }
+      if ($request_uri ~ '/api/(v1|v2)/devices/grids/countries') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/devices/events/running') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/grafana/api') { return 200; }    
