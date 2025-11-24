@@ -1567,6 +1567,99 @@ const createSite = {
       );
     }
   },
+  findNearestLocations: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { polyline, radius } = request.body;
+
+      // Fetch all active sites with their locations
+      const sites = await SiteModel(tenant)
+        .find({
+          latitude: { $ne: null },
+          longitude: { $ne: null },
+          isActive: true,
+        })
+        .select("_id name latitude longitude")
+        .lean();
+
+      if (isEmpty(sites)) {
+        return {
+          success: true,
+          message: "No active sites with location data found",
+          data: { sites: [], devices: [], cohorts: [], grids: [] },
+          status: httpStatus.OK,
+        };
+      }
+
+      const nearbySites = sites.filter((site) => {
+        const siteCoords = { lat: site.latitude, lng: site.longitude };
+        for (const point of polyline) {
+          if (distance.haversineDistance(siteCoords, point) <= radius) {
+            return true; // Site is close enough to a vertex
+          }
+        }
+        return false;
+      });
+
+      if (isEmpty(nearbySites)) {
+        return {
+          success: true,
+          message: `No sites found within a ${radius}km radius of the route`,
+          data: { sites: [], devices: [], cohorts: [], grids: [] },
+          status: httpStatus.OK,
+        };
+      }
+
+      const nearbySiteIds = nearbySites.map((site) => site._id);
+
+      // Find all active devices located at these nearby sites
+      const devices = await DeviceModel(tenant)
+        .find({
+          site_id: { $in: nearbySiteIds },
+          isActive: true,
+        })
+        .select("_id name site_id")
+        .lean();
+
+      const nearbyDeviceIds = devices.map((device) => device._id);
+
+      // Find cohorts and grids associated with the nearby devices/sites
+      const cohortIds = await DeviceModel(tenant).distinct("cohorts", {
+        _id: { $in: nearbyDeviceIds },
+      });
+      const gridIds = await SiteModel(tenant).distinct("grids", {
+        _id: { $in: nearbySiteIds },
+      });
+
+      return {
+        success: true,
+        message: "Successfully found nearest locations to the route",
+        data: {
+          sites: nearbySiteIds,
+          devices: nearbyDeviceIds,
+          cohorts: cohortIds,
+          grids: gridIds,
+          count: {
+            sites: nearbySiteIds.length,
+            devices: nearbyDeviceIds.length,
+            cohorts: cohortIds.length,
+            grids: gridIds.length,
+          },
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
 };
 
 module.exports = createSite;

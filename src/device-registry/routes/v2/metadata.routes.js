@@ -12,6 +12,15 @@ const { headers, pagination } = require("@validators/common");
 router.use(headers);
 router.use(metadataValidations.addCategoryQueryParam);
 
+/** Nearest Locations */
+
+router.post(
+  "/routes/nearest-locations",
+  metadataValidations.findNearestLocations,
+  pagination(),
+  siteController.findNearestLocations
+);
+
 router.get(
   "/sites",
   metadataValidations.listSites,

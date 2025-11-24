@@ -7,7 +7,7 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
-const createSiteUtil = require("@utils/site.util");
+const siteUtil = require("@utils/site.util");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-controller`);
@@ -43,7 +43,7 @@ function handleResponse({
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
 
-const manageSite = {
+const siteController = {
   getSiteDetailsById: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -52,7 +52,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.getSiteById(req, next);
+      const result = await siteUtil.getSiteById(req, next);
 
       handleResponse({ result, res });
     } catch (error) {
@@ -179,7 +179,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.create(request, next);
+      const result = await siteUtil.create(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -229,7 +229,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.generateMetadata(request, next);
+      const result = await siteUtil.generateMetadata(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -276,10 +276,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.findNearestWeatherStation(
-        request,
-        next
-      );
+      const result = await siteUtil.findNearestWeatherStation(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -329,7 +326,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.listWeatherStations(next);
+      const result = await siteUtil.listWeatherStations(next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -379,7 +376,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.findAirQlouds(request, next);
+      const result = await siteUtil.findAirQlouds(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -432,7 +429,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.delete(request, next);
+      const result = await siteUtil.delete(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -482,7 +479,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.update(request, next);
+      const result = await siteUtil.update(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -533,7 +530,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.updateManySites(request, next);
+      const result = await siteUtil.updateManySites(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -586,7 +583,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.refresh(request, next);
+      const result = await siteUtil.refresh(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -637,7 +634,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.findNearestSitesByCoordinates(
+      const result = await siteUtil.findNearestSitesByCoordinates(
         request,
         next
       );
@@ -694,7 +691,7 @@ const manageSite = {
         : req.query.tenant;
       request.query.detailLevel = "summary";
 
-      const result = await createSiteUtil.list(request, next);
+      const result = await siteUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -746,7 +743,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createSiteUtil.list(request, next);
+      const result = await siteUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -801,7 +798,7 @@ const manageSite = {
         ...req.params,
       };
 
-      const result = createSiteUtil.createApproximateCoordinates(
+      const result = siteUtil.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km, bearing },
         next
       );
@@ -840,6 +837,41 @@ const manageSite = {
       return;
     }
   },
+  findNearestLocations: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const result = await siteUtil.findNearestLocations(req, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json(result);
+      } else {
+        return res
+          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+          .json(result);
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
 };
 
-module.exports = manageSite;
+module.exports = siteController;

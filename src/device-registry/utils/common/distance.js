@@ -137,6 +137,37 @@ const distance = {
       logger.error(`🐛🐛 Internal server error -- ${error.message}`);
     }
   },
+  /**
+   * Calculates the haversine distance between two points on Earth.
+   * @param {{lat: number, lng: number}} coords1 - The first point's coordinates.
+   * @param {{lat: number, lng: number}} coords2 - The second point's coordinates.
+   * @returns {number} The distance in kilometers.
+   */
+  haversineDistance: (coords1, coords2) => {
+    try {
+      const toRad = (x) => (x * Math.PI) / 180;
+
+      const R = 6371; // Earth's mean radius in kilometers
+
+      const dLat = toRad(coords2.lat - coords1.lat);
+      const dLon = toRad(coords2.lng - coords1.lng);
+
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(coords1.lat)) *
+          Math.cos(toRad(coords2.lat)) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return R * c;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal server error -- haversineDistance -- ${error.message}`
+      );
+    }
+  },
   degreesToRadians: (degrees) => {
     try {
       const pi = Math.PI;
