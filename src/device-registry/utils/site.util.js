@@ -1569,8 +1569,9 @@ const createSite = {
   },
   findNearestLocations: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant: rawTenant } = request.query;
       const { polyline, radius } = request.body;
+      const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
 
       // Fetch all active sites with their locations
       const sites = await SiteModel(tenant)
