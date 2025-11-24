@@ -142,7 +142,7 @@ data:
               </p>
               <a href=\"/\" class=\"home-button\">Back to Home</a>
           </div>
-          <footer>
+          <footer >
               © 2024 AirQo. All rights reserved.
           </footer>
       </body>
@@ -154,6 +154,7 @@ data:
     location /airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3 { return 302 /#/platform/terms_and_conditions; }
 
     location = /auth {
+      if ($request_method = 'OPTIONS') { return 204; }
       if ($request_uri ~ '/website/api/(v1|v2)/') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/users') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/devices/grids/summary') { return 200; }
