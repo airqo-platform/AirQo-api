@@ -1242,6 +1242,25 @@ const createGrid = {
   listCountries: async (request, next) => {
     try {
       const { tenant } = request.query;
+
+      // Get IDs of private cohorts
+      const privateCohorts = await CohortModel(tenant)
+        .find({ visibility: false })
+        .select("_id")
+        .lean();
+      const privateCohortIds = privateCohorts.map((c) => c._id);
+
+      // Get IDs of devices in private cohorts
+      const privateDevices = await DeviceModel(tenant)
+        .find({
+          cohorts: { $in: privateCohortIds },
+        })
+        .select("site_id")
+        .lean();
+
+      const privateSiteIds = privateDevices
+        .map((d) => d.site_id)
+        .filter(Boolean);
       const pipeline = [
         {
           $match: { admin_level: "country" },
@@ -1252,6 +1271,17 @@ const createGrid = {
             localField: "_id",
             foreignField: "grids",
             as: "sites",
+          },
+        },
+        {
+          $addFields: {
+            sites: {
+              $filter: {
+                input: "$sites",
+                as: "site",
+                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+              },
+            },
           },
         },
         {
