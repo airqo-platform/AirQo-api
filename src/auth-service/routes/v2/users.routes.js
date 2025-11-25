@@ -643,6 +643,20 @@ router.post(
   userController.registerMobileUser
 );
 
+/**
+ * @route PATCH /api/v2/users/consent
+ * @desc Update user's analytics consent status
+ * @access Private
+ * @body {boolean} analytics - The new consent status for analytics.
+ */
+router.patch(
+  "/consent",
+  enhancedJWTAuth,
+  userValidations.updateConsent,
+  validate,
+  userController.updateConsent
+);
+
 router.post(
   "/verify-email/:token",
   userValidations.verifyMobileEmail,
@@ -774,6 +788,22 @@ router.get(
   enhancedJWTAuth,
   // requirePermissions([constants.USER_VIEW]),
   userController.list
+);
+
+router.post(
+  "/:user_id/cohorts/assign",
+  enhancedJWTAuth,
+  userValidations.assignCohorts,
+  validate,
+  userController.assignCohorts
+);
+
+router.get(
+  "/:user_id/cohorts",
+  enhancedJWTAuth,
+  userValidations.getUser,
+  validate,
+  userController.listCohorts
 );
 
 // ================================

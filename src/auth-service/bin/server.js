@@ -3,6 +3,11 @@ const express = require("express");
 const constants = require("@config/constants");
 const path = require("path");
 const cookieParser = require("cookie-parser");
+// const analyticsService = require("@services/analytics.service");
+// const {
+//   trackAPIRequest,
+//   attachUserId,
+// } = require("@middleware/analytics.middleware");
 const app = express();
 const bodyParser = require("body-parser");
 const session = require("express-session");
@@ -37,6 +42,7 @@ require("@bin/jobs/preferences-log-job");
 require("@bin/jobs/dashboard-analytics-job");
 require("@bin/jobs/preferences-update-job");
 require("@bin/jobs/profile-picture-update-job");
+require("@bin/jobs/role-cleanup-job");
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
@@ -129,6 +135,8 @@ app.use(
     parameterLimit: 50000,
   })
 );
+// app.use(attachUserId); // Attach user ID to all requests
+// app.use(trackAPIRequest); // Track all API requests
 
 // Header protection middleware - ensures headers exist before fileUpload
 app.use((req, res, next) => {

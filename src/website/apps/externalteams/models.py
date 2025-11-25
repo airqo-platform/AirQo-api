@@ -20,7 +20,7 @@ class ExternalTeamMember(BaseModel):
 
     twitter = models.URLField(max_length=255, null=True, blank=True)
     linked_in = models.URLField(max_length=255, null=True, blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta:
         ordering = ['order', 'name']
@@ -52,7 +52,7 @@ class ExternalTeamMember(BaseModel):
 
 class ExternalTeamMemberBiography(BaseModel):
     description = models.TextField(null=True, blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     member = models.ForeignKey(
         ExternalTeamMember,
         null=True,

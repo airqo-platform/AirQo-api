@@ -7,10 +7,13 @@ const ObjectId = mongoose.Types.ObjectId;
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
-const { transform } = require("node-json-transform");
+const {
+  generateFilter,
+  claimTokenUtil,
+  ActivityLogger,
+} = require("@utils/common");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
-const { generateFilter, claimTokenUtil } = require("@utils/common");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
@@ -1525,16 +1528,44 @@ const deviceUtil = {
       const { body } = request;
       const update = body;
       const filter = generateFilter.devices(request, next);
-      let opts = {};
-      const responseFromModifyDevice = await DeviceModel(tenant).modify(
-        {
-          filter,
-          update,
-          opts,
+
+      // Find the device ID for logging before the update
+      const device = await DeviceModel(tenant)
+        .findOne(filter)
+        .select("_id name")
+        .lean();
+      if (!device) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const trackingParams = {
+        operation_type: "UPDATE",
+        entity_type: "DEVICE",
+        entity_id: device._id,
+        tenant: tenant,
+        source_function: "updateOnPlatform",
+        metadata: {
+          device_name: device.name,
+          updated_fields: Object.keys(update),
         },
-        next
-      );
-      return responseFromModifyDevice;
+      };
+
+      return await ActivityLogger.trackOperation(async () => {
+        let opts = {};
+        const responseFromModifyDevice = await DeviceModel(tenant).modify(
+          {
+            filter,
+            update,
+            opts,
+          },
+          next
+        );
+        return responseFromModifyDevice;
+      }, trackingParams);
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
@@ -1946,6 +1977,7 @@ const deviceUtil = {
         success: true,
         message: "Device claimed successfully!",
         data: {
+          _id: updatedDevice._id,
           name: updatedDevice.name,
           long_name: updatedDevice.long_name,
           status: updatedDevice.status,
@@ -1963,6 +1995,55 @@ const deviceUtil = {
           { message: error.message }
         )
       );
+    }
+  },
+  listOrphanedDevices: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant, user_id } = query;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "user_id is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id query parameter is missing" },
+        };
+      }
+
+      if (!isValidObjectId(user_id)) {
+        return {
+          success: false,
+          message: "Invalid user_id format",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id must be a valid MongoDB ObjectId" },
+        };
+      }
+
+      const filter = {
+        owner_id: new ObjectId(user_id),
+        $or: [
+          { cohorts: { $exists: true, $size: 0 } },
+          { cohorts: { $exists: false } },
+        ],
+      };
+
+      const responseFromListDevice = await DeviceModel(tenant).list(
+        { filter },
+        next
+      );
+
+      return responseFromListDevice;
+    } catch (error) {
+      logger.error(`🐛🐛 listOrphanedDevices Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 
@@ -2101,7 +2182,7 @@ const deviceUtil = {
 
   getMyDevices: async (request, next) => {
     try {
-      const { user_id, organization_id } = request.query;
+      const { user_id, cohort_ids, group_ids } = request.query;
       const { tenant } = request.query;
 
       if (!user_id) {
@@ -2122,29 +2203,62 @@ const deviceUtil = {
         };
       }
 
-      if (organization_id && !isValidObjectId(organization_id)) {
-        return {
-          success: false,
-          message: "Invalid organization_id format",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: "organization_id must be a valid MongoDB ObjectId",
-          },
-        };
+      const splitAndMapToObjectId = (ids) => {
+        if (!ids) return { valid: true, data: [] };
+        const idList = ids.split(",").map((id) => id.trim());
+        const invalidId = idList.find((id) => !isValidObjectId(id));
+        if (invalidId) {
+          return {
+            valid: false,
+            message: `Invalid ID format: ${invalidId}`,
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+        return { valid: true, data: idList.map((id) => new ObjectId(id)) };
+      };
+
+      // 1. Get cohorts associated with the user's groups
+      let groupCohorts = [];
+      let groupObjectIds = [];
+      if (group_ids) {
+        const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
+        if (!groupObjectIdsResult.valid) {
+          return { success: false, ...groupObjectIdsResult };
+        }
+        groupObjectIds = groupObjectIdsResult.data;
+        const groups = await CohortModel(tenant)
+          .find({ groups: { $in: groupObjectIds } })
+          .select("_id")
+          .lean();
+        groupCohorts = groups.map((g) => g._id);
       }
 
-      // Build filter - handle both old and new organization fields
-      let filter = {};
-      if (organization_id) {
-        filter = {
-          $or: [
-            { owner_id: new ObjectId(user_id) },
-            { assigned_organization_id: new ObjectId(organization_id) },
-            { "assigned_organization.id": new ObjectId(organization_id) },
-          ],
-        };
-      } else {
-        filter = { owner_id: new ObjectId(user_id) };
+      // 2. Combine all cohort IDs: direct user cohorts and group cohorts
+      const directCohortIdsResult = splitAndMapToObjectId(cohort_ids);
+      if (!directCohortIdsResult.valid) {
+        return { success: false, ...directCohortIdsResult };
+      }
+      const directCohortIds = directCohortIdsResult.data;
+      const allCohortIds = [...new Set([...directCohortIds, ...groupCohorts])];
+
+      // 3. Build the comprehensive filter
+      const filter = {
+        $or: [
+          // Devices directly owned by the user
+          { owner_id: new ObjectId(user_id) },
+        ],
+      };
+
+      if (allCohortIds.length > 0) {
+        filter.$or.push({ cohorts: { $in: allCohortIds } });
+      }
+
+      // Deprecated: Also include devices assigned via the old organization model for backward compatibility
+      if (group_ids) {
+        filter.$or.push({ assigned_organization_id: { $in: groupObjectIds } });
+        filter.$or.push({
+          "assigned_organization.id": { $in: groupObjectIds },
+        });
       }
 
       // Query devices with both organization fields
@@ -2162,7 +2276,8 @@ const deviceUtil = {
         data: devices || [],
         status: httpStatus.OK,
         metadata: {
-          note: "Organization data is managed by the organization microservice",
+          note:
+            "Device access is determined by direct ownership and cohort/group membership.",
         },
       };
     } catch (error) {

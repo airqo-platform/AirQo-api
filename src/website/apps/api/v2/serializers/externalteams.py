@@ -17,6 +17,8 @@ class ExternalTeamMemberBiographySerializer(serializers.ModelSerializer):
 class ExternalTeamMemberListSerializer(serializers.ModelSerializer):
     """List serializer for ExternalTeamMember - optimized for listing"""
     picture_url = serializers.SerializerMethodField()
+    descriptions = ExternalTeamMemberBiographySerializer(
+        many=True, read_only=True)
 
     def get_picture_url(self, obj):
         return obj.get_picture_url()
@@ -25,7 +27,7 @@ class ExternalTeamMemberListSerializer(serializers.ModelSerializer):
         model = ExternalTeamMember
         fields = [
             'id', 'name', 'title', 'picture_url', 'twitter', 'linked_in',
-            'order', 'created', 'modified'
+            'order', 'created', 'modified', 'descriptions'
         ]
     ref_name = 'ExternalTeamMemberListV2'
 

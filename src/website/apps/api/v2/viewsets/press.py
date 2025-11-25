@@ -13,11 +13,11 @@ from apps.press.models import Press
 from ..serializers.press import PressListSerializer, PressDetailSerializer
 from ..filters.press import PressFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..utils import OptimizedQuerySetMixin
+from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
 from ..mixins import SlugModelViewSetMixin
 
 
-class PressViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class PressViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for Press model
 
@@ -91,6 +91,27 @@ class PressViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
             queryset = queryset.filter(is_deleted=False)
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('press_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('slug', ''))
+        cache_key = self.get_cache_key('press_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
 
     @action(detail=False, methods=['get'])
     def recent(self, request):

@@ -1,5 +1,6 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
+const CohortModel = require("@models/Cohort");
 const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
@@ -507,6 +508,27 @@ const createGrid = {
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
 
+      // Optimized query to get all private site IDs in one go
+      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
+        { $match: { visibility: false } },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $unwind: "$devices" },
+        { $match: { "devices.site_id": { $ne: null } } },
+        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+      ]);
+
+      const privateSiteIds =
+        privateSiteIdsResponse.length > 0
+          ? privateSiteIdsResponse[0].site_ids
+          : [];
+
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
       );
@@ -518,6 +540,17 @@ const createGrid = {
             localField: "_id",
             foreignField: "grids",
             as: "sites",
+          },
+        },
+        {
+          $addFields: {
+            sites: {
+              $filter: {
+                input: "$sites",
+                as: "site",
+                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+              },
+            },
           },
         },
       ];
@@ -1211,6 +1244,26 @@ const createGrid = {
   listCountries: async (request, next) => {
     try {
       const { tenant } = request.query;
+      // Optimized query to get all private site IDs in one go
+      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
+        { $match: { visibility: false } },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $unwind: "$devices" },
+        { $match: { "devices.site_id": { $ne: null } } },
+        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+      ]);
+
+      const privateSiteIds =
+        privateSiteIdsResponse.length > 0
+          ? privateSiteIdsResponse[0].site_ids
+          : [];
       const pipeline = [
         {
           $match: { admin_level: "country" },
@@ -1221,6 +1274,17 @@ const createGrid = {
             localField: "_id",
             foreignField: "grids",
             as: "sites",
+          },
+        },
+        {
+          $addFields: {
+            sites: {
+              $filter: {
+                input: "$sites",
+                as: "site",
+                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+              },
+            },
           },
         },
         {

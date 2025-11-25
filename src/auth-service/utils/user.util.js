@@ -14,6 +14,7 @@ const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth } = require("firebase-admin/auth");
 const httpStatus = require("http-status");
+const analyticsService = require("@services/analytics.service");
 const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
@@ -29,6 +30,7 @@ const {
   redisExpireAsync,
   redisDelAsync,
   redisSetWithTTLAsync,
+  redisSetNXAsync,
 } = require("@config/redis");
 const { tokenConfig } = require("@config/tokenStrategyConfig");
 
@@ -789,7 +791,7 @@ const createUserModule = {
       const user = await UserModel(dbTenant)
         .findOne(filter)
         .lean()
-        .select("email firstName lastName");
+        .select("email firstName lastName consent");
 
       if (!user) {
         return {
@@ -812,6 +814,49 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
+        try {
+          // PostHog Analytics: Update user properties
+          const distinctId = (user && user._id && user._id.toString()) || null;
+          if (distinctId) {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
+            const userConsented =
+              user.consent && user.consent.analytics === true;
+            const userProperties = {};
+
+            if (!dnt) {
+              // Start with non-PII properties
+              const baseProperties = ["organization", "jobTitle", "website"];
+
+              for (const key of baseProperties) {
+                if (
+                  Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)
+                ) {
+                  userProperties[key] = sanitizedUpdate[key];
+                }
+              }
+            }
+
+            // Conditionally add PII based on consent and global flag
+            if (allowPII && userConsented) {
+              if (sanitizedUpdate.firstName)
+                userProperties.firstName = sanitizedUpdate.firstName;
+              if (sanitizedUpdate.lastName)
+                userProperties.lastName = sanitizedUpdate.lastName;
+            }
+
+            if (Object.keys(userProperties).length > 0) {
+              analyticsService.identify(distinctId, userProperties);
+            }
+          }
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog identify/update error: ${analyticsError.message}`
+          );
+        }
+
         // 4. Prepare the payload for the email notification.
         const emailUpdatePayload = { ...sanitizedUpdate };
 
@@ -2203,7 +2248,7 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Create mobile registration lock
+      // ✅ STEP 2: Create registration lock
       const lockKey = `mobile-reg-${normalizedEmail}-${tenant}`;
 
       if (registrationLocks.has(lockKey)) {
@@ -3647,16 +3692,14 @@ const createUserModule = {
       };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      // ✅ STEP 1: Create registration lock to prevent race conditions
-      const lockKey = `reg-${email.toLowerCase()}-${tenant}`;
+      // ✅ STEP 1: Use a distributed lock (Redis) to prevent race conditions
+      const lockKey = `reg-${email.toLowerCase()}-${dbTenant}`;
+      const lockAcquired = await redisSetNXAsync(lockKey, "locked", 30);
 
-      if (registrationLocks.has(lockKey)) {
-        logger.warn(`Duplicate registration attempt blocked for ${email}`, {
-          email,
-          tenant,
-          lockExists: true,
-        });
-
+      if (!lockAcquired) {
+        logger.warn(
+          `Duplicate registration attempt blocked by Redis lock for ${email}`
+        );
         return {
           success: false,
           message: "Registration already in progress for this email",
@@ -3665,18 +3708,12 @@ const createUserModule = {
             {
               param: "email",
               message:
-                "A registration for this email is already being processed. Please wait a moment and try again.",
+                "A registration for this email is currently being processed. Please wait a moment and try again.",
               location: "body",
             },
           ],
         };
       }
-
-      // Set lock with automatic cleanup
-      registrationLocks.set(lockKey, Date.now());
-      setTimeout(() => {
-        registrationLocks.delete(lockKey);
-      }, 30000); // 30 second lock
 
       try {
         // ✅ STEP 2: Check for existing user with enhanced logging
@@ -3803,6 +3840,27 @@ const createUserModule = {
           const createdUser = await responseFromCreateUser.data;
           const user_id = createdUser._doc._id;
 
+          try {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            if (!dnt) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString() ||
+                null;
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "email_password",
+                  category,
+                });
+              }
+            }
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
           const token = accessCodeGenerator
             .generate(
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -3871,8 +3929,14 @@ const createUserModule = {
           return responseFromCreateUser;
         }
       } finally {
-        // ✅ STEP 5: Always cleanup the lock
-        registrationLocks.delete(lockKey);
+        // ✅ STEP 5: Always release the Redis lock, with error handling
+        try {
+          await redisDelAsync(lockKey);
+        } catch (lockError) {
+          logger.error(
+            `Failed to release Redis lock for ${lockKey}: ${lockError.message}`
+          );
+        }
       }
     } catch (error) {
       logger.error(
@@ -4063,6 +4127,27 @@ const createUserModule = {
 
         if (responseFromCreateUser.success === true) {
           const createdUser = responseFromCreateUser.data;
+
+          try {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            if (!dnt) {
+              const distinctId =
+                createdUser?._id?.toString() ||
+                createdUser?._doc?._id?.toString();
+              if (distinctId) {
+                analyticsService.track(distinctId, "user_registered", {
+                  method: "admin_creation",
+                  organization,
+                });
+              }
+            }
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog registration track error: ${analyticsError.message}`
+            );
+          }
 
           // ✅ STEP 6: Enhanced email sending with monitoring
           try {
@@ -4460,6 +4545,25 @@ const createUserModule = {
       // 1. Create a sanitized copy of the body for the database update.
       const sanitizedUpdate = { ...body };
 
+      // Comprehensive sanitization for 'interests' field
+      if ("interests" in sanitizedUpdate) {
+        const interestsValue = sanitizedUpdate.interests;
+        if (typeof interestsValue === "string") {
+          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
+          sanitizedUpdate.interests = interestsValue.trim()
+            ? [interestsValue.trim()]
+            : [];
+        } else if (Array.isArray(interestsValue)) {
+          // If it's an array, ensure all elements are strings and filter out any empty ones.
+          sanitizedUpdate.interests = interestsValue
+            .map((item) => (item ? String(item).trim() : ""))
+            .filter(Boolean);
+        } else {
+          // If it's null, undefined, or another type, remove it from the update payload.
+          delete sanitizedUpdate.interests;
+        }
+      }
+
       // Drop any keys with undefined values to prevent them from being written to the DB
       Object.keys(sanitizedUpdate).forEach((key) => {
         if (sanitizedUpdate[key] === undefined) {
@@ -4489,7 +4593,7 @@ const createUserModule = {
       const user = await UserModel(dbTenant)
         .findOne(filter)
         .lean()
-        .select("email firstName lastName");
+        .select("email firstName lastName consent");
 
       if (!user) {
         return {
@@ -4512,6 +4616,49 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
+        try {
+          // PostHog Analytics: Update user properties
+          const distinctId = (user && user._id && user._id.toString()) || null;
+          if (distinctId) {
+            const dnt =
+              request?.headers?.["dnt"] === "1" ||
+              request?.headers?.["sec-gpc"] === "1";
+            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
+            const userConsented =
+              user.consent && user.consent.analytics === true;
+            const userProperties = {};
+
+            if (!dnt) {
+              // Start with non-PII properties
+              const baseProperties = ["organization", "jobTitle", "website"];
+
+              for (const key of baseProperties) {
+                if (
+                  Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)
+                ) {
+                  userProperties[key] = sanitizedUpdate[key];
+                }
+              }
+
+              // Conditionally add PII based on consent and global flag
+              if (allowPII && userConsented) {
+                if (sanitizedUpdate.firstName)
+                  userProperties.firstName = sanitizedUpdate.firstName;
+                if (sanitizedUpdate.lastName)
+                  userProperties.lastName = sanitizedUpdate.lastName;
+              }
+
+              if (Object.keys(userProperties).length > 0) {
+                analyticsService.identify(distinctId, userProperties);
+              }
+            }
+          }
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog identify/update error: ${analyticsError.message}`
+          );
+        }
+
         // 4. Prepare the payload for the email notification.
         const emailUpdatePayload = { ...sanitizedUpdate };
 
@@ -4568,6 +4715,147 @@ const createUserModule = {
       }
     } catch (error) {
       logObject("the util error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateConsent: async (request, next) => {
+    try {
+      const { body, query, user } = request;
+      const { tenant } = query;
+      const { analytics } = body;
+
+      if (typeof analytics !== "boolean") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "The 'analytics' field must be a boolean value (true or false).",
+          })
+        );
+      }
+
+      const filter = { _id: user._id };
+      const update = {
+        $set: {
+          "consent.analytics": analytics,
+          "consent.lastUpdated": new Date(),
+        },
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        filter,
+        update,
+        {
+          new: true,
+        }
+      );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User not found.",
+          })
+        );
+      }
+
+      // TEMPORARILY DISABLED FOR STABILITY: Sync consent status with PostHog
+      // if (updatedUser) {
+      //   try {
+      //     analyticsService.identify(updatedUser._id.toString(), {
+      //       analytics_consent: analytics,
+      //     });
+      //   } catch (analyticsError) {
+      //     logger.error(
+      //       `PostHog identify/consent error: ${analyticsError.message}`
+      //     );
+      //   }
+      // }
+
+      return {
+        success: true,
+        message: "Consent settings updated successfully.",
+        data: updatedUser.consent,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  assignCohorts: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { cohort_ids } = request.body;
+      const { tenant } = request.query;
+
+      const user = await UserModel(tenant).findByIdAndUpdate(
+        user_id,
+        {
+          $addToSet: {
+            cohorts: { $each: cohort_ids.map((id) => new ObjectId(id)) },
+          },
+        },
+        { new: true }
+      );
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Cohorts successfully assigned to user",
+        data: {
+          _id: user._id,
+          email: user.email,
+          cohorts: user.cohorts,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listCohorts: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant } = request.query;
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("cohorts")
+        .lean();
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+      return {
+        success: true,
+        message: "User cohorts listed successfully",
+        data: user.cohorts || [],
+        status: httpStatus.OK,
+      };
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -5319,7 +5607,7 @@ const createUserModule = {
       });
 
       if (!group) {
-        return next(
+        next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "Organization not found",
           })
@@ -5956,7 +6244,7 @@ const createUserModule = {
       const { email, password, preferredStrategy, includeDebugInfo } = body;
       const { tenant } = query;
 
-      console.log("🔐 ENHANCED LOGIN:", {
+      logObject("🔐 ENHANCED LOGIN:", {
         email,
         tenant,
         preferredStrategy,
@@ -6033,16 +6321,30 @@ const createUserModule = {
         };
       }
 
+      try {
+        const dnt =
+          request?.headers?.["dnt"] === "1" ||
+          request?.headers?.["sec-gpc"] === "1";
+        const userConsented = user?.consent?.analytics === true;
+        if (!dnt && userConsented) {
+          analyticsService.track(user._id.toString(), "user_logged_in", {
+            method: "email_password",
+          });
+        }
+      } catch (analyticsError) {
+        logger.error(`PostHog login track error: ${analyticsError.message}`);
+      }
+
       // Initialize RBAC service
       const rbacService = new RBACService(dbTenant);
 
       // Get comprehensive permission data
-      console.log("🔍 Getting comprehensive permissions for user:", user._id);
+      logObject("🔍 Getting comprehensive permissions for user:", user._id);
       const loginPermissions = await rbacService.getUserPermissionsForLogin(
         user._id
       );
 
-      console.log("✅ Permissions calculated:", {
+      logObject("✅ Permissions calculated:", {
         allCount: loginPermissions.allPermissions?.length || 0,
         systemCount: loginPermissions.systemPermissions?.length || 0,
         groupCount: Object.keys(loginPermissions.groupPermissions).length,
@@ -6056,7 +6358,7 @@ const createUserModule = {
         preferredStrategy
       );
 
-      console.log("🎯 Using token strategy:", strategy);
+      logObject("🎯 Using token strategy:", strategy);
 
       // Initialize token factory
       const tokenFactory = new AbstractTokenFactory(dbTenant);
@@ -6151,10 +6453,10 @@ const createUserModule = {
             { new: true, upsert: false, runValidators: true }
           );
           if (updatedUser) {
-            await createUserModule.ensureDefaultAirqoRole(
-              updatedUser,
-              dbTenant
-            );
+            // await createUserModule.ensureDefaultAirqoRole(
+            //   updatedUser,
+            //   dbTenant
+            // );
           }
         } catch (updateError) {
           logger.error(
@@ -6254,7 +6556,7 @@ const createUserModule = {
           }),
       };
 
-      console.log("🎉 Enhanced login successful:", {
+      logObject("🎉 Enhanced login successful:", {
         userId: authResponse._id,
         permissionsCount: (authResponse.permissions || []).length,
         groupMemberships: (authResponse.groupMemberships || []).length,
@@ -6271,7 +6573,7 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛 Enhanced login error: ${error.message}`);
-      console.error("❌ ENHANCED LOGIN ERROR:", error);
+      logObject("❌ ENHANCED LOGIN ERROR:", error);
 
       return {
         success: false,
@@ -6671,7 +6973,7 @@ const createUserModule = {
       );
 
       const tokenFactory = new AbstractTokenFactory(dbTenant);
-      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES
+      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES from ATF service
       const strategies = Object.values(constants.TOKEN_STRATEGIES);
       const results = {};
       let baselineSize = 0;
@@ -6696,7 +6998,7 @@ const createUserModule = {
             tokenPreview: token.substring(0, 50) + "...",
           };
 
-          console.log(
+          logObject(
             `📊 ${strategy}: ${size} bytes (${results[strategy].compression} compression)`
           );
         } catch (error) {

@@ -43,7 +43,7 @@ class CleanAirResource(BaseModel):
         blank=False
     )
     resource_authors = models.CharField(max_length=200, default="AirQo")
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
@@ -111,7 +111,7 @@ class ForumEvent(BaseModel):
     )
     location_name = models.CharField(max_length=100, blank=True)
     location_link = models.URLField(blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
@@ -209,7 +209,7 @@ class Section(models.Model):
         default=[PAGE_ABOUT],
         help_text="Select the page(s) where this section should be displayed."
     )
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta:
         ordering = ['order', '-id']
@@ -286,7 +286,7 @@ class Partner(BaseModel):
     )
     name = models.CharField(max_length=70)
     website_link = models.URLField(blank=True, null=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     category = models.CharField(
         max_length=50,
         choices=PartnerCategoryChoices.choices(),
@@ -334,7 +334,7 @@ class Program(BaseModel):
     title = models.CharField(max_length=100)
     sub_text = QuillField(blank=True, null=True,
                           default="No details available yet.")
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     forum_event = models.ForeignKey(
         ForumEvent, null=True, blank=True, related_name="programs", on_delete=models.SET_NULL
     )
@@ -410,7 +410,7 @@ class Person(BaseModel):
     )
     twitter = models.URLField(blank=True)
     linked_in = models.URLField(blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     # Use ManyToManyField to allow a person to belong to multiple events.
     # If left empty, we will interpret that as "belongs to all events".
     forum_events = models.ManyToManyField(
@@ -442,7 +442,7 @@ def assign_all_forum_events(sender, instance, created, **kwargs):
 class ForumResource(BaseModel):
     resource_title = models.CharField(max_length=120)
     resource_authors = models.CharField(max_length=200, default="AirQo")
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     forum_event = models.ForeignKey(
         'ForumEvent', null=True, blank=True, related_name="forum_resources", on_delete=models.SET_NULL,
     )
@@ -459,7 +459,7 @@ class ResourceSession(BaseModel):
     forum_resource = models.ForeignKey(
         'ForumResource', related_name="resource_sessions", on_delete=models.CASCADE
     )
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
@@ -482,7 +482,7 @@ class ResourceFile(BaseModel):
     session = models.ForeignKey(
         'ResourceSession', related_name='resource_files', on_delete=models.CASCADE, null=True, blank=True
     )
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(BaseModel.Meta):
         ordering = ['order', '-id']

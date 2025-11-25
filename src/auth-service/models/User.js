@@ -32,8 +32,13 @@ function oneMonthFromNow() {
 }
 
 function validateProfilePicture(profilePicture) {
+  // Allow empty or null values, which indicates no profile picture.
+  if (profilePicture === null || profilePicture === "") {
+    return true;
+  }
+
   const urlRegex =
-    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/;
   if (!urlRegex.test(profilePicture)) {
     logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
     return false;
@@ -59,19 +64,7 @@ const networkRoleSchema = new Schema({
   },
   userType: {
     type: String,
-    enum: {
-      values: [
-        "guest",
-        "member",
-        "admin",
-        "super_admin",
-        "viewer",
-        "user",
-        "contributor",
-        "moderator",
-      ],
-      message: "{VALUE} is not a valid user type",
-    },
+    enum: constants.VALID_USER_TYPES,
     default: "guest",
   },
   createdAt: {
@@ -91,19 +84,7 @@ const groupRoleSchema = new Schema({
   },
   userType: {
     type: String,
-    enum: {
-      values: [
-        "guest",
-        "member",
-        "admin",
-        "super_admin",
-        "viewer",
-        "user",
-        "contributor",
-        "moderator",
-      ],
-      message: "{VALUE} is not a valid user type",
-    },
+    enum: constants.VALID_USER_TYPES,
     default: "guest",
   },
   createdAt: {
@@ -296,6 +277,15 @@ const UserSchema = new Schema(
       type: String,
       default: "airqo",
     },
+    consent: {
+      analytics: {
+        type: Boolean,
+        default: false, // Default to opt-out
+      },
+      lastUpdated: {
+        type: Date,
+      },
+    },
     long_organization: {
       type: String,
       default: "airqo",
@@ -336,9 +326,7 @@ const UserSchema = new Schema(
       maxLength: maxLengthOfProfilePictures,
       validate: {
         validator: function (v) {
-          const urlRegex =
-            /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
-          return urlRegex.test(v);
+          return validateProfilePicture(v);
         },
         message: `Profile picture URL must be a valid URL & must not exceed ${maxLengthOfProfilePictures} characters.`,
       },
@@ -414,19 +402,15 @@ const UserSchema = new Schema(
     last_inactive_reminder_sent_at: {
       type: Date,
     },
+    cohorts: [
+      {
+        type: ObjectId,
+        ref: "cohort", // This ref is for documentation; not enforced across DBs
+      },
+    ],
   },
   { timestamps: true }
 );
-
-const VALID_USER_TYPES = constants.VALID_USER_TYPES;
-
-UserSchema.path("network_roles.userType").validate(function (value) {
-  return VALID_USER_TYPES.includes(value);
-}, "Invalid userType value");
-
-UserSchema.path("group_roles.userType").validate(function (value) {
-  return VALID_USER_TYPES.includes(value);
-}, "Invalid userType value");
 
 UserSchema.pre("save", async function (next) {
   try {

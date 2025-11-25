@@ -1334,6 +1334,34 @@ const confirmMobileAccountDeletion = [
   ],
 ];
 
+const updateConsent = [
+  validateTenant,
+  [
+    body("analytics")
+      .exists()
+      .withMessage("the analytics field is required")
+      .isBoolean()
+      .withMessage("the analytics field must be a boolean"),
+  ],
+];
+
+const assignCohorts = [
+  validateTenant,
+  param("user_id")
+    .exists()
+    .withMessage("the user ID param is missing in the request")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("the user ID must be an object ID"),
+  body("cohort_ids")
+    .exists()
+    .withMessage("cohort_ids are required")
+    .isArray({ min: 1 })
+    .withMessage("cohort_ids must be a non-empty array of ObjectIDs"),
+  body("cohort_ids.*").isMongoId().withMessage("Each ID must be a valid ID"),
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -1386,4 +1414,6 @@ module.exports = {
   initiateAccountDeletion,
   confirmAccountDeletion,
   confirmMobileAccountDeletion,
+  updateConsent,
+  assignCohorts,
 };
