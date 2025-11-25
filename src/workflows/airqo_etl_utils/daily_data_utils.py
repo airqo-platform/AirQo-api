@@ -12,8 +12,7 @@ class DailyDataUtils:
     @staticmethod
     def average_data(data: pd.DataFrame) -> pd.DataFrame:
         """
-        Averages data in a pandas DataFrame on a daily basis for each device,
-        grouped by network and device ID. The function resamples data
+        Averages data in a pandas DataFrame on a daily basis for each device, grouped by network and device ID. The function resamples data
         to compute daily averages for numerical columns.
 
         Args:
@@ -25,8 +24,7 @@ class DailyDataUtils:
                 - "device_number": Device number.
 
         Returns:
-            pd.DataFrame: A DataFrame containing daily averages for each device,
-            including metadata columns such as "tenant", "device_id", "site_id",
+            pd.DataFrame: A DataFrame containing daily averages for each device, including metadata columns such as "tenant", "device_id", "site_id",
             and "device_number".
         """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
