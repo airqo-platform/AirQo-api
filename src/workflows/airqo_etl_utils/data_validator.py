@@ -83,6 +83,7 @@ class DataValidationUtils:
                 data[col] = (
                     data[col]
                     .astype(str)
+                    .str.strip("*,")  # Remove leading/trailing *, comma, period
                     .str.replace(
                         r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(\+\d{2}:\d{2}|Z)",
                         lambda m: f"{m.group(1)} {m.group(2)}.000Z",
