@@ -2858,63 +2858,270 @@ const deviceUtil = {
   },
   getShippingPreparationStatus: async (request, next) => {
     try {
-      const { device_names } = request.query;
+      const { device_names, include_qr, include_labels, mode } = request.query;
       const { tenant } = request.query;
+
+      const shouldIncludeQR = include_qr === "true" || include_qr === true;
+      const shouldIncludeLabels =
+        include_labels === "true" || include_labels === true;
+      const queryMode = mode || "all"; // "all", "strict", or "legacy"
 
       let filter = {};
 
       if (device_names) {
-        // Check specific devices
+        // When specific devices are requested, just filter by name
+        // Don't apply preparation status filters - let user query any device
         const deviceNameArray = Array.isArray(device_names)
           ? device_names
-          : device_names.split(",");
+          : device_names.split(",").map((name) => name.trim());
+
+        if (deviceNameArray.length === 0) {
+          return {
+            success: false,
+            message: "Invalid device_names parameter",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: "device_names cannot be empty" },
+          };
+        }
+
         filter.name = { $in: deviceNameArray };
+        logText(`🔍 Querying specific devices: ${deviceNameArray.join(", ")}`);
       } else {
-        // Get all devices with shipping preparation
-        filter.shipping_prepared_at = { $exists: true };
+        // When NO specific devices, use flexible preparation filters
+
+        switch (queryMode) {
+          case "strict":
+            // Only devices with shipping_prepared_at (new method)
+            filter.shipping_prepared_at = { $exists: true, $ne: null };
+            logText(
+              "📦 Query mode: STRICT - Only devices with shipping_prepared_at"
+            );
+            break;
+
+          case "legacy":
+            // Only devices with claim_token (old method)
+            filter.claim_token = { $exists: true, $ne: null };
+            filter.claim_status = "unclaimed";
+            logText("📦 Query mode: LEGACY - Only devices with claim_token");
+            break;
+
+          case "all":
+          default:
+            // ✅ BEST PRACTICE: Accept devices prepared by EITHER method
+            filter.$or = [
+              // New method: Has shipping_prepared_at
+              { shipping_prepared_at: { $exists: true, $ne: null } },
+              // Legacy method: Has claim_token and is unclaimed
+              {
+                claim_token: { $exists: true, $ne: null },
+                claim_status: "unclaimed",
+              },
+            ];
+            logText(
+              "📦 Query mode: ALL - Devices prepared by any method (recommended)"
+            );
+            break;
+        }
       }
+
+      logObject("🔍 Shipping status filter:", filter);
 
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status"
+          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status createdAt"
         )
-        .sort({ shipping_prepared_at: -1 })
-        .lean();
+        .sort({ shipping_prepared_at: -1, createdAt: -1 }) // Sort by preparation date, fallback to created date
+        .lean()
+        .exec();
+
+      logText(`📦 Found ${devices.length} devices matching filter`);
+
+      // Early return if no devices found
+      if (devices.length === 0) {
+        return {
+          success: true,
+          message: device_names
+            ? "Specified devices not found or not prepared for shipping"
+            : "No devices found prepared for shipping",
+          data: {
+            devices: [],
+            summary: {
+              total_devices: 0,
+              prepared_for_shipping: 0,
+              claimed_devices: 0,
+              deployed_devices: 0,
+            },
+            categorized: {
+              prepared_for_shipping: [],
+              claimed_devices: [],
+              deployed_devices: [],
+            },
+            metadata: {
+              query_timestamp: new Date().toISOString(),
+              query_mode: queryMode,
+              specific_devices_requested: !!device_names,
+              qr_codes_included: shouldIncludeQR,
+              labels_included: shouldIncludeLabels,
+            },
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      // Infer shipping_prepared_at for legacy devices
+      devices.forEach((device) => {
+        if (!device.shipping_prepared_at && device.claim_token) {
+          // For legacy devices, infer preparation date
+          device.shipping_prepared_at = device.createdAt || new Date();
+          device._is_legacy_device = true;
+          logText(
+            `ℹ️  Legacy device detected: ${device.name} (using createdAt as preparation date)`
+          );
+        }
+      });
+
+      // Only generate QR/labels if requested
+      let enhancedDevices = devices;
+
+      if (shouldIncludeQR || shouldIncludeLabels) {
+        logText(
+          `🎨 Generating ${shouldIncludeQR ? "QR codes" : ""} ${
+            shouldIncludeLabels ? "labels" : ""
+          } for ${devices.length} devices...`
+        );
+
+        enhancedDevices = await Promise.all(
+          devices.map(async (device) => {
+            try {
+              // Validate claim_token exists
+              if (!device.claim_token) {
+                logText(
+                  `⚠️  Device ${device.name} has no claim_token, skipping enhancement`
+                );
+                return {
+                  ...device,
+                  qr_generation_skipped: true,
+                  qr_generation_reason: "No claim token available",
+                };
+              }
+
+              const enhancedDevice = { ...device };
+
+              // Generate QR code data (needed for both QR and labels)
+              const qrCodeData = claimTokenUtil.generateQRCodeData(
+                device.name,
+                device.claim_token,
+                constants.DEPLOYMENT_URL
+              );
+
+              // Generate QR code image if requested
+              if (shouldIncludeQR) {
+                const qrCodeImage = await QRCode.toDataURL(
+                  JSON.stringify(qrCodeData),
+                  {
+                    type: "image/png",
+                    width: 256,
+                    margin: 2,
+                    color: {
+                      dark: "#000000",
+                      light: "#FFFFFF",
+                    },
+                    errorCorrectionLevel: "M",
+                  }
+                );
+                enhancedDevice.qr_code_image = qrCodeImage;
+                enhancedDevice.qr_code_data = qrCodeData;
+              }
+
+              // Generate label data if requested
+              if (shouldIncludeLabels) {
+                const labelData = claimTokenUtil.generateDeviceLabelData(
+                  device.name,
+                  device.claim_token,
+                  qrCodeData
+                );
+                enhancedDevice.label_data = labelData;
+              }
+
+              return enhancedDevice;
+            } catch (error) {
+              // Don't fail entire request if one device fails
+              logger.error(
+                `❌ Error enhancing device ${device.name}: ${error.message}`
+              );
+              return {
+                ...device,
+                qr_generation_failed: true,
+                qr_generation_error: error.message,
+              };
+            }
+          })
+        );
+
+        logText(`✅ Successfully processed ${enhancedDevices.length} devices`);
+      }
 
       // Categorize devices by status
-      const prepared = devices.filter(
+      const prepared = enhancedDevices.filter(
         (d) => d.claim_status === "unclaimed" && d.claim_token
       );
-      const claimed = devices.filter((d) => d.claim_status === "claimed");
-      const deployed = devices.filter((d) => d.status === "deployed");
+      const claimed = enhancedDevices.filter(
+        (d) => d.claim_status === "claimed"
+      );
+      const deployed = enhancedDevices.filter((d) => d.status === "deployed");
+      const legacy = enhancedDevices.filter((d) => d._is_legacy_device);
+
+      // Response metadata
+      const responseMetadata = {
+        query_timestamp: new Date().toISOString(),
+        qr_codes_included: shouldIncludeQR,
+        labels_included: shouldIncludeLabels,
+        filter_applied: device_names
+          ? "specific_devices"
+          : "all_prepared_devices",
+        query_mode: queryMode,
+        legacy_devices_count: legacy.length,
+        note:
+          legacy.length > 0
+            ? "Some devices use legacy preparation method (claim_token only)"
+            : "All devices use current preparation method",
+      };
 
       return {
         success: true,
         message: "Shipping preparation status retrieved successfully",
         data: {
-          devices: devices,
+          devices: enhancedDevices,
           summary: {
-            total_devices: devices.length,
+            total_devices: enhancedDevices.length,
             prepared_for_shipping: prepared.length,
             claimed_devices: claimed.length,
             deployed_devices: deployed.length,
+            legacy_devices: legacy.length,
           },
           categorized: {
             prepared_for_shipping: prepared,
             claimed_devices: claimed,
             deployed_devices: deployed,
           },
+          metadata: responseMetadata,
         },
         status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`🪲🪲 Get Shipping Status Error ${error.message}`);
-      next(
+      logObject("Full error details:", error);
+
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+            context: "getShippingPreparationStatus",
+            timestamp: new Date().toISOString(),
+          }
         )
       );
     }
