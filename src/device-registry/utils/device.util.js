@@ -4,6 +4,7 @@ const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const pLimit = require("p-limit");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
@@ -2856,11 +2857,58 @@ const deviceUtil = {
       );
     }
   },
+  /**
+   * Get shipping preparation status for devices.
+   *
+   * This endpoint retrieves devices that have been prepared for shipping, supporting both
+   * legacy devices (identified by claim_token) and new devices (identified by shipping_prepared_at).
+   *
+   * @param {Object} request - Express request object
+   * @param {Object} request.query - Query parameters
+   * @param {string|string[]} [request.query.device_names] - Optional device name(s) to query.
+   *        Can be a single name, comma-separated string, or array of names.
+   * @param {boolean|string} [request.query.include_qr=false] - Whether to generate QR codes.
+   *        Accepts boolean or "true"/"false" string. QR generation is CPU-intensive.
+   * @param {boolean|string} [request.query.include_labels=false] - Whether to generate label data.
+   *        Accepts boolean or "true"/"false" string.
+   * @param {string} [request.query.mode='all'] - Filter mode for device preparation status:
+   *        - 'all' (default): Returns devices prepared by either method (recommended)
+   *        - 'strict': Only devices with shipping_prepared_at field
+   *        - 'legacy': Only devices with claim_token (old preparation method)
+   * @param {string} request.query.tenant - Tenant identifier for multi-tenant data isolation
+   * @param {Function} next - Express next middleware function
+   *
+   * @returns {Promise<Object>} Result object with structure:
+   *   {
+   *     success: boolean,
+   *     message: string,
+   *     data: {
+   *       devices: Array<Device>,
+   *       summary: { total_devices, prepared_for_shipping, claimed_devices, deployed_devices, legacy_devices },
+   *       categorized: { prepared_for_shipping, claimed_devices, deployed_devices, legacy_devices },
+   *       metadata: { query_timestamp, qr_codes_included, labels_included, query_mode, ... }
+   *     },
+   *     status: number
+   *   }
+   *
+   * @example
+   * // Get all prepared devices (fast, no QR generation)
+   * GET /api/v2/devices/shipping-status?tenant=airqo
+   *
+   * @example
+   * // Get specific devices with QR codes for printing
+   * GET /api/v2/devices/shipping-status?device_names=device1,device2&include_qr=true&include_labels=true
+   *
+   * @example
+   * // Get only legacy devices
+   * GET /api/v2/devices/shipping-status?mode=legacy
+   */
   getShippingPreparationStatus: async (request, next) => {
     try {
       const { device_names, include_qr, include_labels, mode } = request.query;
       const { tenant } = request.query;
 
+      // Parse boolean flags with backward compatibility
       const shouldIncludeQR = include_qr === "true" || include_qr === true;
       const shouldIncludeLabels =
         include_labels === "true" || include_labels === true;
@@ -2869,8 +2917,8 @@ const deviceUtil = {
       let filter = {};
 
       if (device_names) {
-        // When specific devices are requested, just filter by name
-        // Don't apply preparation status filters - let user query any device
+        // When specific devices are requested, filter by name only
+        // NOTE: This returns devices regardless of preparation status to allow status checking
         const deviceNameArray = Array.isArray(device_names)
           ? device_names
           : device_names.split(",").map((name) => name.trim());
@@ -2885,16 +2933,21 @@ const deviceUtil = {
         }
 
         filter.name = { $in: deviceNameArray };
-        logText(`🔍 Querying specific devices: ${deviceNameArray.join(", ")}`);
+        logText(
+          `🔍 [SHIPPING-STATUS] Querying specific devices: ${deviceNameArray.join(
+            ", "
+          )}`
+        );
       } else {
         // When NO specific devices, use flexible preparation filters
+        // This is the KEY FIX - use $or to handle both legacy and new devices
 
         switch (queryMode) {
           case "strict":
             // Only devices with shipping_prepared_at (new method)
             filter.shipping_prepared_at = { $exists: true, $ne: null };
             logText(
-              "📦 Query mode: STRICT - Only devices with shipping_prepared_at"
+              "📦 [SHIPPING-STATUS] Query mode: STRICT - Only devices with shipping_prepared_at"
             );
             break;
 
@@ -2902,7 +2955,9 @@ const deviceUtil = {
             // Only devices with claim_token (old method)
             filter.claim_token = { $exists: true, $ne: null };
             filter.claim_status = "unclaimed";
-            logText("📦 Query mode: LEGACY - Only devices with claim_token");
+            logText(
+              "📦 [SHIPPING-STATUS] Query mode: LEGACY - Only devices with claim_token"
+            );
             break;
 
           case "all":
@@ -2918,31 +2973,34 @@ const deviceUtil = {
               },
             ];
             logText(
-              "📦 Query mode: ALL - Devices prepared by any method (recommended)"
+              "📦 [SHIPPING-STATUS] Query mode: ALL - Devices prepared by any method (recommended)"
             );
             break;
         }
       }
 
-      logObject("🔍 Shipping status filter:", filter);
+      logObject("🔍 [SHIPPING-STATUS] Final filter:", filter);
 
+      // Fetch devices from database
+      // Note: Sort will be done after legacy device inference for accuracy
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status createdAt"
+          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status createdAt tenant"
         )
-        .sort({ shipping_prepared_at: -1, createdAt: -1 }) // Sort by preparation date, fallback to created date
         .lean()
         .exec();
 
-      logText(`📦 Found ${devices.length} devices matching filter`);
+      logText(
+        `📦 [SHIPPING-STATUS] Found ${devices.length} devices matching filter`
+      );
 
       // Early return if no devices found
       if (devices.length === 0) {
         return {
           success: true,
           message: device_names
-            ? "Specified devices not found or not prepared for shipping"
+            ? "Specified devices not found"
             : "No devices found prepared for shipping",
           data: {
             devices: [],
@@ -2951,11 +3009,13 @@ const deviceUtil = {
               prepared_for_shipping: 0,
               claimed_devices: 0,
               deployed_devices: 0,
+              legacy_devices: 0,
             },
             categorized: {
               prepared_for_shipping: [],
               claimed_devices: [],
               deployed_devices: [],
+              legacy_devices: [],
             },
             metadata: {
               query_timestamp: new Date().toISOString(),
@@ -2963,103 +3023,145 @@ const deviceUtil = {
               specific_devices_requested: !!device_names,
               qr_codes_included: shouldIncludeQR,
               labels_included: shouldIncludeLabels,
+              tenant: tenant,
             },
           },
           status: httpStatus.OK,
         };
       }
 
-      // Infer shipping_prepared_at for legacy devices
+      // ✅ ENHANCEMENT: Infer shipping_prepared_at for legacy devices
+      // NOTE: This is for display purposes only - not persisted to database
+      // The inferred date helps with sorting and display consistency
       devices.forEach((device) => {
         if (!device.shipping_prepared_at && device.claim_token) {
-          // For legacy devices, infer preparation date
+          // For legacy devices, infer preparation date from createdAt
           device.shipping_prepared_at = device.createdAt || new Date();
-          device._is_legacy_device = true;
+          device.is_legacy_device = true; // Changed from _is_legacy_device (no underscore prefix)
+          device.preparation_date_inferred = true; // Explicit flag that this is derived
           logText(
-            `ℹ️  Legacy device detected: ${device.name} (using createdAt as preparation date)`
+            `ℹ️  [SHIPPING-STATUS] Legacy device detected: ${device.name} (inferred preparation date from createdAt)`
           );
         }
       });
 
-      // Only generate QR/labels if requested
+      // ✅ IMPROVEMENT: Sort AFTER inference for accurate ordering
+      // This ensures legacy devices with inferred dates sort correctly
+      devices.sort((a, b) => {
+        const aDate = a.shipping_prepared_at
+          ? new Date(a.shipping_prepared_at)
+          : a.createdAt
+          ? new Date(a.createdAt)
+          : new Date(0);
+        const bDate = b.shipping_prepared_at
+          ? new Date(b.shipping_prepared_at)
+          : b.createdAt
+          ? new Date(b.createdAt)
+          : new Date(0);
+        return bDate - aDate; // Descending order (newest first)
+      });
+
+      // ✅ OPTIMIZATION: Only generate QR/labels if requested
       let enhancedDevices = devices;
+      const enhancementErrors = [];
+      const enhancementSkipped = [];
 
       if (shouldIncludeQR || shouldIncludeLabels) {
         logText(
-          `🎨 Generating ${shouldIncludeQR ? "QR codes" : ""} ${
-            shouldIncludeLabels ? "labels" : ""
-          } for ${devices.length} devices...`
+          `🎨 [SHIPPING-STATUS] Generating ${
+            shouldIncludeQR ? "QR codes" : ""
+          } ${shouldIncludeLabels ? "labels" : ""} for ${
+            devices.length
+          } devices...`
         );
 
+        // ✅ PERFORMANCE: Use concurrency limit to prevent memory issues with large batches
+        // Process max 10 devices at a time instead of all in parallel
+        const limit = pLimit(10);
+
         enhancedDevices = await Promise.all(
-          devices.map(async (device) => {
-            try {
-              // Validate claim_token exists
-              if (!device.claim_token) {
-                logText(
-                  `⚠️  Device ${device.name} has no claim_token, skipping enhancement`
+          devices.map((device) =>
+            limit(async () => {
+              try {
+                // Validate claim_token exists
+                if (!device.claim_token) {
+                  const skipInfo = {
+                    device_name: device.name,
+                    reason: "No claim token available",
+                  };
+                  enhancementSkipped.push(skipInfo);
+                  logText(
+                    `⚠️  [SHIPPING-STATUS] Device ${device.name} has no claim_token, skipping enhancement`
+                  );
+                  return {
+                    ...device,
+                    qr_generation_skipped: true,
+                    qr_generation_reason: "No claim token available",
+                  };
+                }
+
+                const enhancedDevice = { ...device };
+
+                // Generate QR code data (needed for both QR and labels)
+                const qrCodeData = claimTokenUtil.generateQRCodeData(
+                  device.name,
+                  device.claim_token,
+                  constants.DEPLOYMENT_URL
+                );
+
+                // Generate QR code image if requested
+                if (shouldIncludeQR) {
+                  const qrCodeImage = await QRCode.toDataURL(
+                    JSON.stringify(qrCodeData),
+                    {
+                      type: "image/png",
+                      width: 256,
+                      margin: 2,
+                      color: {
+                        dark: "#000000",
+                        light: "#FFFFFF",
+                      },
+                      errorCorrectionLevel: "M",
+                    }
+                  );
+                  enhancedDevice.qr_code_image = qrCodeImage;
+                  enhancedDevice.qr_code_data = qrCodeData;
+                }
+
+                // Generate label data if requested
+                if (shouldIncludeLabels) {
+                  const labelData = claimTokenUtil.generateDeviceLabelData(
+                    device.name,
+                    device.claim_token,
+                    qrCodeData
+                  );
+                  enhancedDevice.label_data = labelData;
+                }
+
+                return enhancedDevice;
+              } catch (error) {
+                // ✅ RESILIENCE: Don't fail entire request if one device fails
+                const errorInfo = {
+                  device_name: device.name,
+                  error: error.message,
+                };
+                enhancementErrors.push(errorInfo);
+                logger.error(
+                  `❌ [SHIPPING-STATUS] Error enhancing device ${device.name}: ${error.message}`
                 );
                 return {
                   ...device,
-                  qr_generation_skipped: true,
-                  qr_generation_reason: "No claim token available",
+                  qr_generation_failed: true,
+                  qr_generation_error: error.message,
                 };
               }
-
-              const enhancedDevice = { ...device };
-
-              // Generate QR code data (needed for both QR and labels)
-              const qrCodeData = claimTokenUtil.generateQRCodeData(
-                device.name,
-                device.claim_token,
-                constants.DEPLOYMENT_URL
-              );
-
-              // Generate QR code image if requested
-              if (shouldIncludeQR) {
-                const qrCodeImage = await QRCode.toDataURL(
-                  JSON.stringify(qrCodeData),
-                  {
-                    type: "image/png",
-                    width: 256,
-                    margin: 2,
-                    color: {
-                      dark: "#000000",
-                      light: "#FFFFFF",
-                    },
-                    errorCorrectionLevel: "M",
-                  }
-                );
-                enhancedDevice.qr_code_image = qrCodeImage;
-                enhancedDevice.qr_code_data = qrCodeData;
-              }
-
-              // Generate label data if requested
-              if (shouldIncludeLabels) {
-                const labelData = claimTokenUtil.generateDeviceLabelData(
-                  device.name,
-                  device.claim_token,
-                  qrCodeData
-                );
-                enhancedDevice.label_data = labelData;
-              }
-
-              return enhancedDevice;
-            } catch (error) {
-              // Don't fail entire request if one device fails
-              logger.error(
-                `❌ Error enhancing device ${device.name}: ${error.message}`
-              );
-              return {
-                ...device,
-                qr_generation_failed: true,
-                qr_generation_error: error.message,
-              };
-            }
-          })
+            })
+          )
         );
 
-        logText(`✅ Successfully processed ${enhancedDevices.length} devices`);
+        logText(
+          `✅ [SHIPPING-STATUS] Successfully processed ${enhancedDevices.length} devices`
+        );
       }
 
       // Categorize devices by status
@@ -3070,9 +3172,9 @@ const deviceUtil = {
         (d) => d.claim_status === "claimed"
       );
       const deployed = enhancedDevices.filter((d) => d.status === "deployed");
-      const legacy = enhancedDevices.filter((d) => d._is_legacy_device);
+      const legacy = enhancedDevices.filter((d) => d.is_legacy_device);
 
-      // Response metadata
+      // ✅ ENHANCEMENT: Response metadata with error tracking
       const responseMetadata = {
         query_timestamp: new Date().toISOString(),
         qr_codes_included: shouldIncludeQR,
@@ -3082,11 +3184,30 @@ const deviceUtil = {
           : "all_prepared_devices",
         query_mode: queryMode,
         legacy_devices_count: legacy.length,
+        tenant: tenant,
+        // ✅ ERROR TRACKING: Statistics for QR/label generation issues
+        qr_generation_errors: enhancementErrors.length,
+        qr_generation_skipped: enhancementSkipped.length,
         note:
           legacy.length > 0
-            ? "Some devices use legacy preparation method (claim_token only)"
+            ? "Some devices use legacy preparation method (claim_token only). Their preparation dates are inferred from createdAt."
             : "All devices use current preparation method",
       };
+
+      // Include error details if any failures occurred
+      if (enhancementErrors.length > 0) {
+        responseMetadata.enhancement_errors = enhancementErrors;
+        logText(
+          `⚠️  [SHIPPING-STATUS] ${enhancementErrors.length} devices failed QR/label generation`
+        );
+      }
+
+      if (enhancementSkipped.length > 0) {
+        responseMetadata.enhancement_skipped = enhancementSkipped;
+        logText(
+          `ℹ️  [SHIPPING-STATUS] ${enhancementSkipped.length} devices skipped (no claim token)`
+        );
+      }
 
       return {
         success: true,
@@ -3104,14 +3225,15 @@ const deviceUtil = {
             prepared_for_shipping: prepared,
             claimed_devices: claimed,
             deployed_devices: deployed,
+            legacy_devices: legacy, // ✅ Include legacy devices array for consistency
           },
           metadata: responseMetadata,
         },
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🪲🪲 Get Shipping Status Error ${error.message}`);
-      logObject("Full error details:", error);
+      logger.error(`🐛 [SHIPPING-STATUS] Internal error: ${error.message}`);
+      logObject("[SHIPPING-STATUS] Error details:", error);
 
       return next(
         new HttpError(
