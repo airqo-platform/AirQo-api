@@ -192,6 +192,85 @@ describe("claimDevice", () => {
   });
 });
 
+describe("getShippingPreparationStatus", () => {
+  let findStub;
+
+  beforeEach(() => {
+    // Stub the find method on the mock model
+    const deviceModelMock = {
+      find: sinon.stub().returnsThis(),
+      select: sinon.stub().returnsThis(),
+      sort: sinon.stub().returnsThis(),
+      lean: sinon.stub(),
+    };
+    sinon.stub(DeviceModel, "model").returns(deviceModelMock);
+    findStub = deviceModelMock.lean;
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it("should correctly categorize prepared, claimed, and deployed devices", async () => {
+    const mockDevices = [
+      {
+        name: "device_prepared",
+        claim_status: "unclaimed",
+        claim_token: "token123",
+        status: "not deployed",
+      },
+      {
+        name: "device_claimed",
+        claim_status: "claimed",
+        status: "not deployed",
+      },
+      {
+        name: "device_deployed",
+        claim_status: "claimed",
+        status: "deployed",
+      },
+      {
+        name: "device_unprepared",
+        claim_status: "unclaimed",
+        claim_token: null,
+        status: "not deployed",
+      },
+    ];
+    findStub.resolves(mockDevices);
+
+    const request = { query: { tenant: "airqo" } };
+    const result = await deviceUtil.getShippingPreparationStatus(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.summary.total_devices).to.equal(4);
+    expect(result.data.summary.prepared_for_shipping).to.equal(1);
+    expect(result.data.summary.claimed_devices).to.equal(2);
+    expect(result.data.summary.deployed_devices).to.equal(1);
+
+    expect(result.data.categorized.prepared_for_shipping[0].name).to.equal(
+      "device_prepared"
+    );
+    expect(
+      result.data.categorized.claimed_devices.map((d) => d.name)
+    ).to.have.members(["device_claimed", "device_deployed"]);
+    expect(result.data.categorized.deployed_devices[0].name).to.equal(
+      "device_deployed"
+    );
+  });
+
+  it("should return an empty response when no devices are found", async () => {
+    findStub.resolves([]);
+
+    const request = { query: { tenant: "airqo" } };
+    const result = await deviceUtil.getShippingPreparationStatus(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.summary.total_devices).to.equal(0);
+    expect(result.data.categorized.prepared_for_shipping).to.be.an("array").that
+      .is.empty;
+  });
+});
+
 describe("createDevice", () => {
   describe("doesDeviceSearchExist", () => {
     it("should return success if search exists", async () => {
