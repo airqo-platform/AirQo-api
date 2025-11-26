@@ -21,6 +21,7 @@ const qs = require("qs");
 const stringSimilarity = require("string-similarity");
 const QRCode = require("qrcode");
 const { Kafka } = require("kafkajs");
+const { transform } = require("node-json-transform");
 const httpStatus = require("http-status");
 
 let organizationUtil = null;
@@ -1915,7 +1916,7 @@ const deviceUtil = {
   },
   claimDevice: async (request, next) => {
     try {
-      const { device_name, claim_token, user_id } = request.body;
+      const { device_name, claim_token, user_id, cohort_id } = request.body;
       const { tenant } = request.query;
 
       // Validate user_id
@@ -1929,17 +1930,17 @@ const deviceUtil = {
       }
 
       // Find unclaimed device
-      const device = await DeviceModel(tenant).findOne({
-        name: device_name,
-        claim_status: "unclaimed",
-      });
-
+      const device = await DeviceModel(tenant)
+        .findOne({ name: device_name, claim_status: "unclaimed" })
+        .lean();
       if (!device) {
         return {
           success: false,
           message: "Device not found or already claimed",
           status: httpStatus.NOT_FOUND,
-          errors: { message: "Device not available for claiming" },
+          errors: {
+            message: `Device ${device_name} is not available for claiming`,
+          },
         };
       }
 
@@ -1953,13 +1954,54 @@ const deviceUtil = {
         };
       }
 
-      // Claim the device - Use proper ObjectId creation
-      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
-        { name: device_name, claim_status: "unclaimed" },
+      let targetCohort;
+
+      if (cohort_id) {
+        // Case A: A specific cohort is provided by the frontend
+        logText(`Attempting to claim device for specific cohort: ${cohort_id}`);
+        targetCohort = await CohortModel(tenant)
+          .findById(cohort_id)
+          .lean();
+
+        if (!targetCohort) {
+          return {
+            success: false,
+            message: "Cohort not found",
+            status: httpStatus.NOT_FOUND,
+            errors: {
+              message: "The specified cohort does not exist",
+            },
+          };
+        }
+      } else {
+        // Case B: No cohort provided, use user's personal cohort (default behavior)
+        logText(`Claiming device for user's personal cohort: ${user_id}`);
+        const personalCohortName = `coh_user_${user_id.toString()}`;
+        const safeNetwork = device && device.network ? device.network : "airqo";
+
+        targetCohort = await CohortModel(tenant).findOneAndUpdate(
+          { name: personalCohortName },
+          {
+            $setOnInsert: {
+              name: personalCohortName,
+              description: `Personal cohort for user ${user_id.toString()}`,
+              network: safeNetwork,
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      }
+
+      // Atomically update the device
+      const updatedDevice = await DeviceModel(tenant).findByIdAndUpdate(
+        device._id,
         {
-          owner_id: new ObjectId(user_id), // Fixed ObjectId usage
-          claim_status: "claimed",
-          claimed_at: new Date(),
+          $set: {
+            owner_id: new ObjectId(user_id),
+            claim_status: "claimed",
+            claimed_at: new Date(),
+          },
+          $addToSet: { cohorts: targetCohort._id },
         },
         { new: true }
       );
@@ -1976,14 +2018,7 @@ const deviceUtil = {
       return {
         success: true,
         message: "Device claimed successfully!",
-        data: {
-          _id: updatedDevice._id,
-          name: updatedDevice.name,
-          long_name: updatedDevice.long_name,
-          status: updatedDevice.status,
-          claim_status: updatedDevice.claim_status,
-          claimed_at: updatedDevice.claimed_at,
-        },
+        data: updatedDevice,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -2842,7 +2877,7 @@ const deviceUtil = {
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at"
+          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status"
         )
         .sort({ shipping_prepared_at: -1 })
         .lean();
@@ -2852,7 +2887,7 @@ const deviceUtil = {
         (d) => d.claim_status === "unclaimed" && d.claim_token
       );
       const claimed = devices.filter((d) => d.claim_status === "claimed");
-      const deployed = devices.filter((d) => d.claim_status === "deployed");
+      const deployed = devices.filter((d) => d.status === "deployed");
 
       return {
         success: true,
