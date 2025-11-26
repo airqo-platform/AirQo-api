@@ -3,8 +3,6 @@ const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-const pLimit = require("p-limit");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
@@ -17,6 +15,7 @@ const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
+const ObjectId = mongoose.Types.ObjectId;
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
 const qs = require("qs");
 const stringSimilarity = require("string-similarity");
@@ -3075,13 +3074,12 @@ const deviceUtil = {
           } devices...`
         );
 
-        // ✅ PERFORMANCE: Use concurrency limit to prevent memory issues with large batches
-        // Process max 10 devices at a time instead of all in parallel
-        const limit = pLimit(10);
-
-        enhancedDevices = await Promise.all(
-          devices.map((device) =>
-            limit(async () => {
+        // Native batch processing to control concurrency without external libraries
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < devices.length; i += BATCH_SIZE) {
+          const batch = devices.slice(i, i + BATCH_SIZE);
+          const processedBatch = await Promise.all(
+            batch.map(async (device) => {
               try {
                 // Validate claim_token exists
                 if (!device.claim_token) {
@@ -3156,8 +3154,9 @@ const deviceUtil = {
                 };
               }
             })
-          )
-        );
+          );
+          enhancedDevices.push(...processedBatch);
+        }
 
         logText(
           `✅ [SHIPPING-STATUS] Successfully processed ${enhancedDevices.length} devices`
