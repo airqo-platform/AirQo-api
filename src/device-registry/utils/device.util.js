@@ -1,6 +1,7 @@
 "use strict";
 const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
+const CohortModel = require("@models/Cohort");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { isValidObjectId } = require("mongoose");
@@ -13,7 +14,6 @@ const {
 } = require("@utils/common");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
-const isEmpty = require("is-empty");
 const CohortModel = require("@models/Cohort");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
@@ -1976,6 +1976,7 @@ const deviceUtil = {
         // Case B: No cohort provided, use user's personal cohort (default behavior)
         logText(`Claiming device for user's personal cohort: ${user_id}`);
         const personalCohortName = `coh_user_${user_id.toString()}`;
+        const safeNetwork = device && device.network ? device.network : "airqo";
 
         targetCohort = await CohortModel(tenant).findOneAndUpdate(
           { name: personalCohortName },
@@ -1983,7 +1984,7 @@ const deviceUtil = {
             $setOnInsert: {
               name: personalCohortName,
               description: `Personal cohort for user ${user_id.toString()}`,
-              network: device.network,
+              network: safeNetwork,
             },
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }

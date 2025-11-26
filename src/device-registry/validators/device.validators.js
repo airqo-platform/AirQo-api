@@ -1025,7 +1025,8 @@ const validateClaimDevice = [
     .optional()
     .trim()
     .isMongoId()
-    .withMessage("cohort_id must be a valid MongoDB ObjectId"),
+    .withMessage("cohort_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
 ];
 
 const validateListOrphanedDevices = [
