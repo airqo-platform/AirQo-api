@@ -21,15 +21,29 @@ describe("claimDevice", () => {
   let findOneStub;
   let findByIdAndUpdateStub;
   let findOneAndUpdateStub;
+  let cohortFindByIdStub;
 
   beforeEach(() => {
-    findOneStub = sinon.stub(DeviceModel("airqo"), "findOne");
-    findByIdAndUpdateStub = sinon.stub(
-      DeviceModel("airqo"),
-      "findByIdAndUpdate"
-    );
-    findOneAndUpdateStub = sinon.stub(CohortModel("airqo"), "findOneAndUpdate");
-    sinon.stub(CohortModel("airqo"), "findById").returns({
+    // Stub the model factories to return mock instances
+    const deviceModelMock = {
+      findOne: sinon.stub(),
+      findByIdAndUpdate: sinon.stub(),
+    };
+    const cohortModelMock = {
+      findOneAndUpdate: sinon.stub(),
+      findById: sinon.stub(),
+    };
+    sinon.stub(DeviceModel, "model").returns(deviceModelMock);
+    sinon.stub(CohortModel, "model").returns(cohortModelMock);
+
+    // Assign stubs for individual tests to use
+    findOneStub = deviceModelMock.findOne;
+    findByIdAndUpdateStub = deviceModelMock.findByIdAndUpdate;
+    findOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
+    cohortFindByIdStub = cohortModelMock.findById;
+
+    // Default behavior for cohortFindByIdStub
+    cohortFindByIdStub.returns({
       lean: sinon.stub().resolves({ _id: "60c7a3e5f7e4f1001f5e8e1a" }),
     });
   });
@@ -140,7 +154,7 @@ describe("claimDevice", () => {
       }),
     });
     // Override the default stub for this test
-    CohortModel.findById
+    cohortFindByIdStub // No need to access CohortModel directly anymore
       .withArgs("60c7a3e5f7e4f1001f5e8e99")
       .returns({ lean: sinon.stub().resolves(null) });
 

@@ -14,7 +14,7 @@ const {
 } = require("@utils/common");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
-const CohortModel = require("@models/Cohort");
+const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
 const qs = require("qs");
