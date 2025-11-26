@@ -238,10 +238,20 @@ module.exports.redisSetNXAsync = redisSetNXAsync;
 // Compatibility exports for direct redis.method() usage
 module.exports.set = async (key, value, ttlType, ttlValue) => {
   // Compatible with ioredis.set(key, value, 'EX', seconds) pattern
-  if (ttlType === "EX" && typeof ttlValue === "number") {
-    return await redisSetWithTTLAsync(key, value, ttlValue);
-  } else {
-    return await redisSetAsync(key, value);
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for SET ${key}`);
+    return null;
+  }
+  try {
+    if (ttlType === "EX" && typeof ttlValue === "number") {
+      return await redis.setEx(key, ttlValue, value);
+    }
+    return await redis.set(key, value);
+  } catch (error) {
+    console.error(
+      `Redis SET compatibility failed for ${key}: ${error.message}`
+    );
+    throw error;
   }
 };
 module.exports.get = redisGetAsync;
