@@ -21,15 +21,16 @@ describe("claimDevice", () => {
   let findOneStub;
   let findByIdAndUpdateStub;
   let findOneAndUpdateStub;
+  let cohortFindByIdStub;
 
   beforeEach(() => {
-    findOneStub = sinon.stub(DeviceModel("airqo"), "findOne");
-    findByIdAndUpdateStub = sinon.stub(
-      DeviceModel("airqo"),
-      "findByIdAndUpdate"
-    );
-    findOneAndUpdateStub = sinon.stub(CohortModel("airqo"), "findOneAndUpdate");
-    sinon.stub(CohortModel("airqo"), "findById").returns({
+    const deviceModel = DeviceModel("airqo");
+    const cohortModel = CohortModel("airqo");
+
+    findOneStub = sinon.stub(deviceModel, "findOne");
+    findByIdAndUpdateStub = sinon.stub(deviceModel, "findByIdAndUpdate");
+    findOneAndUpdateStub = sinon.stub(cohortModel, "findOneAndUpdate");
+    cohortFindByIdStub = sinon.stub(cohortModel, "findById").returns({
       lean: sinon.stub().resolves({ _id: "60c7a3e5f7e4f1001f5e8e1a" }),
     });
   });
@@ -140,7 +141,7 @@ describe("claimDevice", () => {
       }),
     });
     // Override the default stub for this test
-    CohortModel.findById
+    cohortFindByIdStub
       .withArgs("60c7a3e5f7e4f1001f5e8e99")
       .returns({ lean: sinon.stub().resolves(null) });
 
