@@ -2877,7 +2877,7 @@ const deviceUtil = {
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at"
+          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status"
         )
         .sort({ shipping_prepared_at: -1 })
         .lean();
