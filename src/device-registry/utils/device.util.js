@@ -2887,7 +2887,7 @@ const deviceUtil = {
         (d) => d.claim_status === "unclaimed" && d.claim_token
       );
       const claimed = devices.filter((d) => d.claim_status === "claimed");
-      const deployed = devices.filter((d) => d.claim_status === "deployed");
+      const deployed = devices.filter((d) => d.status === "deployed");
 
       return {
         success: true,
