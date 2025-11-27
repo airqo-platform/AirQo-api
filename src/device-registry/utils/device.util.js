@@ -15,6 +15,7 @@ const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
+const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
 const qs = require("qs");
@@ -1921,63 +1922,77 @@ const deviceUtil = {
 
       // Validate user_id
       if (!user_id || !isValidObjectId(user_id)) {
-        return {
-          success: false,
-          message: "Invalid user_id",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "user_id must be a valid MongoDB ObjectId" },
-        };
+        throw new HttpError("Invalid user_id", httpStatus.BAD_REQUEST, {
+          message: "user_id must be a valid MongoDB ObjectId",
+        });
       }
 
       // Find unclaimed device
-      const device = await DeviceModel(tenant)
-        .findOne({ name: device_name, claim_status: "unclaimed" })
-        .lean();
+      const device = await DeviceModel(tenant).findOne({ name: device_name });
+
       if (!device) {
-        return {
-          success: false,
-          message: "Device not found or already claimed",
-          status: httpStatus.NOT_FOUND,
-          errors: {
-            message: `Device ${device_name} is not available for claiming`,
-          },
-        };
+        throw new HttpError("Device not found", httpStatus.NOT_FOUND, {
+          message: `Device ${device_name} does not exist`,
+        });
+      }
+
+      // Validate device status for claiming
+      if (device.claim_status !== "unclaimed") {
+        throw new HttpError("Device already claimed", httpStatus.CONFLICT, {
+          message: `Device ${device_name} is not available for claiming`,
+        });
+      }
+
+      // Edge Case: Prevent claiming a device that is still considered deployed
+      if (device.status === "deployed") {
+        throw new HttpError(
+          "Device is currently deployed",
+          httpStatus.CONFLICT,
+          {
+            message: "Device must be recalled before it can be re-claimed.",
+          }
+        );
       }
 
       // Optional: Verify claim token if provided
       if (device.claim_token && device.claim_token !== claim_token) {
-        return {
-          success: false,
-          message: "Invalid claim token",
-          status: httpStatus.FORBIDDEN,
-          errors: { message: "Claim token does not match" },
-        };
+        throw new HttpError("Invalid claim token", httpStatus.FORBIDDEN, {
+          message: "Claim token does not match",
+        });
+      }
+
+      // Edge Case: Check for claim token expiry using moment-timezone
+      // const timeZone = moment.tz.guess();
+      // const now = moment.tz(timeZone).toDate();
+      // Edge Case: Check for claim token expiry using UTC time for consistency
+      const now = new Date();
+      if (
+        device.claim_token_expires_at &&
+        now > device.claim_token_expires_at
+      ) {
+        throw new HttpError("Claim token has expired", httpStatus.GONE, {
+          message:
+            "This claim token has expired. Please contact support for a new one.",
+        });
       }
 
       let targetCohort;
 
       if (cohort_id) {
-        // Case A: A specific cohort is provided by the frontend
-        logText(`Attempting to claim device for specific cohort: ${cohort_id}`);
+        // Case A: A specific cohort is provided
         targetCohort = await CohortModel(tenant)
           .findById(cohort_id)
           .lean();
 
         if (!targetCohort) {
-          return {
-            success: false,
-            message: "Cohort not found",
-            status: httpStatus.NOT_FOUND,
-            errors: {
-              message: "The specified cohort does not exist",
-            },
-          };
+          throw new HttpError("Cohort not found", httpStatus.NOT_FOUND, {
+            message: "The specified cohort does not exist",
+          });
         }
       } else {
-        // Case B: No cohort provided, use user's personal cohort (default behavior)
-        logText(`Claiming device for user's personal cohort: ${user_id}`);
+        // Case B: No cohort provided, use user's personal cohort
         const personalCohortName = `coh_user_${user_id.toString()}`;
-        const safeNetwork = device && device.network ? device.network : "airqo";
+        const safeNetwork = device.network || "airqo";
 
         targetCohort = await CohortModel(tenant).findOneAndUpdate(
           { name: personalCohortName },
@@ -1992,14 +2007,18 @@ const deviceUtil = {
         );
       }
 
-      // Atomically update the device
-      const updatedDevice = await DeviceModel(tenant).findByIdAndUpdate(
-        device._id,
+      // Atomically update the device, checking for race condition
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { _id: device._id, claim_status: "unclaimed" }, // Atomic check
         {
           $set: {
             owner_id: new ObjectId(user_id),
             claim_status: "claimed",
             claimed_at: new Date(),
+            // Edge Case: Clean up previous deployment data on re-claim
+            deployment_date: null,
+            maintenance_date: null,
+            recall_date: null,
           },
           $addToSet: { cohorts: targetCohort._id },
         },
@@ -2007,12 +2026,9 @@ const deviceUtil = {
       );
 
       if (!updatedDevice) {
-        return {
-          success: false,
-          message: "Failed to claim device",
-          status: httpStatus.CONFLICT,
-          errors: { message: "Device may have been claimed by another user" },
-        };
+        throw new HttpError("Device already claimed", httpStatus.CONFLICT, {
+          message: "Device may have been claimed by another user.",
+        });
       }
 
       return {
@@ -2022,14 +2038,18 @@ const deviceUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🪲🪲 Claim Device Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (error instanceof HttpError) {
+        next(error);
+      } else {
+        logger.error(`🐛🐛 Claim Device Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
     }
   },
   listOrphanedDevices: async (request, next) => {
