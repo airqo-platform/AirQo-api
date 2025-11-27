@@ -244,6 +244,9 @@ describe("claimDevice", () => {
       claim_status: "unclaimed",
     });
 
+    // Add stub for cohort creation to allow the test to proceed
+    cohortFindOneAndUpdateStub.resolves({ _id: "some_cohort_id" });
+
     // Simulate race condition: findOneAndUpdate returns null because another process claimed it first
     findOneAndUpdateStub.resolves(null);
 
