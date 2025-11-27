@@ -385,6 +385,11 @@ const deviceSchema = new mongoose.Schema(
       sparse: true,
     },
 
+    claim_token_expires_at: {
+      type: Date,
+      default: null,
+    },
+
     assigned_organization_id: {
       type: ObjectId,
       default: null,
@@ -803,6 +808,7 @@ deviceSchema.methods = {
       owner_id: this.owner_id,
       claim_status: this.claim_status,
       claimed_at: this.claimed_at,
+      claim_token_expires_at: this.claim_token_expires_at,
       assigned_organization_id:
         this.assigned_organization_id || this.assigned_organization?.id || null,
       assigned_organization: this.assigned_organization,
