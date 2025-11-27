@@ -1962,8 +1962,10 @@ const deviceUtil = {
       }
 
       // Edge Case: Check for claim token expiry using moment-timezone
-      const timeZone = moment.tz.guess();
-      const now = moment.tz(timeZone).toDate();
+      // const timeZone = moment.tz.guess();
+      // const now = moment.tz(timeZone).toDate();
+      // Edge Case: Check for claim token expiry using UTC time for consistency
+      const now = new Date();
       if (
         device.claim_token_expires_at &&
         now > device.claim_token_expires_at
