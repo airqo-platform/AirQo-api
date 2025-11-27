@@ -2001,7 +2001,7 @@ const deviceUtil = {
               network: safeNetwork,
             },
           },
-          { upsert: true, new: true }
+          { upsert: true, new: true, setDefaultsOnInsert: true }
         );
       }
 
