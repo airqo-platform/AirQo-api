@@ -1029,6 +1029,46 @@ const validateClaimDevice = [
     .customSanitizer((value) => ObjectId(value)),
 ];
 
+const validateTransferDevice = [
+  body("device_name")
+    .exists()
+    .withMessage("device_name is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty"),
+
+  body("from_user_id")
+    .exists()
+    .withMessage("from_user_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("from_user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("from_user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)), // Only run if valid
+
+  body("to_user_id")
+    .exists()
+    .withMessage("to_user_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("to_user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("to_user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)), // Only run if valid
+
+  body("include_deployment_history")
+    .optional()
+    .isBoolean()
+    .withMessage("include_deployment_history must be a boolean value"),
+];
 const validateListOrphanedDevices = [
   query("user_id")
     .exists()
@@ -1364,6 +1404,7 @@ module.exports = {
   validateDecryptManyKeys,
   validateBulkUpdateDevices,
   validateClaimDevice,
+  validateTransferDevice,
   validateGetMyDevices,
   validateDeviceAvailability,
   validateOrganizationAssignment,

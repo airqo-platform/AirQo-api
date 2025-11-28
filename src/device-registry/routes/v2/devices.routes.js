@@ -28,6 +28,7 @@ const {
   validateGetShippingStatus,
   validateGenerateShippingLabels,
   validateGetDeviceCountSummary,
+  validateTransferDevice,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
 
@@ -276,6 +277,14 @@ router.post(
 // =============================================================================
 // SHIPPING PREPARATION ROUTES
 // =============================================================================
+
+//device transfers between users
+router.post(
+  "/transfer",
+  validateTransferDevice,
+  validate,
+  deviceController.transferDevice
+);
 
 // Prepare single device for shipping
 router.post(

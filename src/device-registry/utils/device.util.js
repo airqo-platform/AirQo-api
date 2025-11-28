@@ -2876,6 +2876,116 @@ const deviceUtil = {
       );
     }
   },
+
+  transferDevice: async (request, next) => {
+    try {
+      const {
+        device_name,
+        from_user_id,
+        to_user_id,
+        include_deployment_history = false,
+      } = request.body;
+      const { tenant } = request.query;
+
+      // 1. Verify current owner
+      const device = await DeviceModel(tenant).findOne({
+        name: device_name,
+        owner_id: from_user_id,
+      });
+
+      if (!device) {
+        throw new HttpError(
+          "Device not found or you do not own it",
+          httpStatus.FORBIDDEN
+        );
+      }
+
+      // 2. Verify device is recalled (not deployed)
+      if (device.status === "deployed") {
+        throw new HttpError(
+          "Device must be recalled before transfer",
+          httpStatus.CONFLICT
+        );
+      }
+
+      // 3. Find or create recipient's personal cohort
+      const recipientCohortName = `coh_user_${to_user_id.toString()}`;
+      const recipientCohort = await CohortModel(tenant).findOneAndUpdate(
+        { name: recipientCohortName },
+        {
+          $setOnInsert: {
+            name: recipientCohortName,
+            description: `Personal cohort for user ${to_user_id.toString()}`,
+            network: device.network || "airqo",
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      // 4. Prepare device update
+      const updates = {
+        $set: {
+          owner_id: to_user_id,
+          claimed_at: new Date(),
+          transferred_at: new Date(),
+          previous_owner_id: from_user_id,
+        },
+        $addToSet: { cohorts: recipientCohort._id },
+        $pull: { cohorts: { $in: device.cohorts } }, // A simple pull might be sufficient if user is only in their personal cohort
+      };
+
+      if (!include_deployment_history) {
+        updates.$unset = {
+          deployment_date: "",
+          maintenance_date: "",
+          recall_date: "",
+        };
+        // Optionally, archive previous sites instead of deleting
+        if (device.previous_sites && device.previous_sites.length > 0) {
+          updates.$set.archived_sites = device.previous_sites;
+          updates.$unset.previous_sites = "";
+        }
+      }
+
+      const transferredDevice = await DeviceModel(tenant).findByIdAndUpdate(
+        device._id,
+        updates,
+        { new: true }
+      );
+
+      // 5. Log transfer activity
+      await ActivityModel(tenant).create({
+        activityType: "transfer",
+        device: device_name,
+        device_id: device._id,
+        from_user_id,
+        to_user_id,
+        date: new Date(),
+        description: `Device transferred from user ${from_user_id} to user ${to_user_id}`,
+      });
+
+      return {
+        success: true,
+        message: "Device transferred successfully",
+        data: transferredDevice,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      if (error instanceof HttpError) {
+        next(error);
+      } else {
+        logger.error(`🪲🪲 Device Transfer Error: ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+    }
+  },
+
   /**
    * Get shipping preparation status for devices.
    *
