@@ -1473,14 +1473,18 @@ const deviceController = {
       const result = await createDeviceUtil.transferDevice(request, next);
       handleResponse({ result, res });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (error instanceof HttpError) {
+        next(error);
+      } else {
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
     }
   },
 

@@ -1036,7 +1036,12 @@ const validateTransferDevice = [
     .bail()
     .trim()
     .notEmpty()
-    .withMessage("device_name cannot be empty"),
+    .withMessage("device_name cannot be empty")
+    .bail()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
 
   body("from_user_id")
     .exists()

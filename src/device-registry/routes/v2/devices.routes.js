@@ -275,16 +275,21 @@ router.post(
 );
 
 // =============================================================================
-// SHIPPING PREPARATION ROUTES
+// DEVICE TRANSFER ROUTES
 // =============================================================================
 
-//device transfers between users
+// Transfer device ownership between users
 router.post(
   "/transfer",
+  validateTenant,
   validateTransferDevice,
   validate,
   deviceController.transferDevice
 );
+
+// =============================================================================
+// SHIPPING PREPARATION ROUTES
+// =============================================================================
 
 // Prepare single device for shipping
 router.post(
