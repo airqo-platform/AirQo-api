@@ -1074,6 +1074,37 @@ const validateTransferDevice = [
     .isBoolean()
     .withMessage("include_deployment_history must be a boolean value"),
 ];
+
+const validateBulkClaim = [
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+
+  body("devices")
+    .exists()
+    .withMessage("devices array is required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("devices must be a non-empty array"),
+
+  body("devices.*.device_name")
+    .exists()
+    .withMessage("device_name is required for each device")
+    .bail()
+    .notEmpty()
+    .withMessage("device_name cannot be empty")
+    .trim(),
+
+  body("devices.*.claim_token")
+    .optional()
+    .notEmpty()
+    .withMessage("claim_token cannot be empty if provided")
+    .trim(),
+];
+
 const validateListOrphanedDevices = [
   query("user_id")
     .exists()
@@ -1409,6 +1440,7 @@ module.exports = {
   validateDecryptManyKeys,
   validateBulkUpdateDevices,
   validateClaimDevice,
+  validateBulkClaim,
   validateTransferDevice,
   validateGetMyDevices,
   validateDeviceAvailability,

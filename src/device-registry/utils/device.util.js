@@ -2031,6 +2031,20 @@ const deviceUtil = {
         });
       }
 
+      // Log the claim activity
+      try {
+        await ActivityModel(tenant).create({
+          activityType: "claim",
+          device: updatedDevice.name,
+          device_id: updatedDevice._id,
+          date: updatedDevice.claimed_at,
+          user_id: updatedDevice.owner_id,
+          description: `Device claimed by user ${user_id}`,
+        });
+      } catch (logError) {
+        logger.error(`Failed to log claim activity: ${logError.message}`);
+      }
+
       return {
         success: true,
         message: "Device claimed successfully!",
@@ -2050,6 +2064,125 @@ const deviceUtil = {
           )
         );
       }
+    }
+  },
+  bulkClaim: async (request, next) => {
+    try {
+      const { user_id, devices } = request.body;
+      const { tenant } = request.query;
+
+      if (!user_id || !isValidObjectId(user_id)) {
+        throw new HttpError("Invalid user_id", httpStatus.BAD_REQUEST);
+      }
+
+      const results = {
+        successful_claims: [],
+        failed_claims: [],
+      };
+
+      // Find or create the user's personal cohort once
+      const personalCohortName = `coh_user_${user_id.toString()}`;
+      const targetCohort = await CohortModel(tenant).findOneAndUpdate(
+        { name: personalCohortName },
+        {
+          $setOnInsert: {
+            name: personalCohortName,
+            description: `Personal cohort for user ${user_id.toString()}`,
+            network: "airqo", // Default network, can be adjusted
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      for (const deviceToClaim of devices) {
+        const { device_name, claim_token } = deviceToClaim;
+
+        try {
+          const device = await DeviceModel(tenant).findOne({
+            name: device_name,
+          });
+
+          if (!device) {
+            throw new Error("Device not found");
+          }
+
+          if (device.claim_status !== "unclaimed") {
+            throw new Error("Device already claimed or not available");
+          }
+
+          if (device.status === "deployed") {
+            throw new Error("Device is currently deployed");
+          }
+
+          if (device.claim_token && device.claim_token !== claim_token) {
+            throw new Error("Invalid claim token");
+          }
+
+          const now = new Date();
+          if (
+            device.claim_token_expires_at &&
+            now > device.claim_token_expires_at
+          ) {
+            throw new Error("Claim token has expired");
+          }
+
+          const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+            { _id: device._id, claim_status: "unclaimed" },
+            {
+              $set: {
+                owner_id: new ObjectId(user_id),
+                claim_status: "claimed",
+                claimed_at: now,
+                deployment_date: null,
+                maintenance_date: null,
+                recall_date: null,
+              },
+              $addToSet: { cohorts: targetCohort._id },
+            },
+            { new: true }
+          );
+
+          if (!updatedDevice) {
+            throw new Error("Device may have been claimed by another user");
+          }
+
+          results.successful_claims.push({
+            device_name: updatedDevice.name,
+            message: "Claimed successfully",
+          });
+
+          // Log activity for each successful claim
+          await ActivityModel(tenant).create({
+            activityType: "claim",
+            device: updatedDevice.name,
+            device_id: updatedDevice._id,
+            date: updatedDevice.claimed_at,
+            user_id: updatedDevice.owner_id,
+            description: `Device claimed by user ${user_id} in bulk operation`,
+          });
+        } catch (error) {
+          results.failed_claims.push({
+            device_name,
+            error: error.message,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: "Bulk claim operation completed.",
+        data: results,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Bulk Claim Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   listOrphanedDevices: async (request, next) => {
