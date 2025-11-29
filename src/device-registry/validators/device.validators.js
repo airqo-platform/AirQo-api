@@ -1080,8 +1080,10 @@ const validateBulkClaim = [
     .exists()
     .withMessage("user_id is required")
     .bail()
+    .trim()
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId")
+    .bail()
     .customSanitizer((value) => ObjectId(value)),
 
   body("devices")
@@ -1095,9 +1097,9 @@ const validateBulkClaim = [
     .exists()
     .withMessage("device_name is required for each device")
     .bail()
+    .trim()
     .notEmpty()
     .withMessage("device_name cannot be empty")
-    .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
       "device_name can only contain letters, numbers, spaces, hyphens and underscores"
@@ -1105,9 +1107,9 @@ const validateBulkClaim = [
 
   body("devices.*.claim_token")
     .optional()
+    .trim()
     .notEmpty()
-    .withMessage("claim_token cannot be empty if provided")
-    .trim(),
+    .withMessage("claim_token cannot be empty if provided"),
 ];
 
 const validateListOrphanedDevices = [
