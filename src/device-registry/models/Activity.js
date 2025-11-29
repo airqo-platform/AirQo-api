@@ -81,6 +81,13 @@ const activitySchema = new Schema(
       operational_hours: { type: String, trim: true },
       movement_pattern: { type: String, trim: true },
     },
+    status: {
+      type: String,
+      enum: ["pending", "in-progress", "completed", "failed"],
+      default: "pending",
+      trim: true,
+      lowercase: true,
+    },
   },
   {
     timestamps: true,
@@ -121,6 +128,7 @@ activitySchema.pre("save", function(next) {
 activitySchema.index({ site_id: 1, createdAt: -1 });
 activitySchema.index({ device_id: 1, createdAt: -1 });
 activitySchema.index({ device: 1, createdAt: -1 });
+activitySchema.index({ status: 1 });
 
 activitySchema.methods = {
   toJSON() {
@@ -132,6 +140,7 @@ activitySchema.methods = {
       date: this.date,
       description: this.description,
       activityType: this.activityType,
+      status: this.status,
       activity_codes: this.activity_codes,
       maintenanceType: this.maintenanceType,
       recallType: this.recallType,
