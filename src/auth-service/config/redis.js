@@ -224,19 +224,21 @@ process.on("SIGINT", async () => {
   }
 });
 
-// Export everything needed
-module.exports = redis;
-module.exports.redisGetAsync = redisGetAsync;
-module.exports.redisSetAsync = redisSetAsync;
-module.exports.redisExpireAsync = redisExpireAsync;
-module.exports.redisDelAsync = redisDelAsync;
-module.exports.redisPingAsync = redisPingAsync;
-module.exports.redisUtils = redisUtils;
-module.exports.redisSetWithTTLAsync = redisSetWithTTLAsync;
-module.exports.redisSetNXAsync = redisSetNXAsync;
+const redisWrapper = {
+  redisGetAsync,
+  redisSetAsync,
+  redisExpireAsync,
+  redisDelAsync,
+  redisPingAsync,
+  redisUtils,
+  redisSetWithTTLAsync,
+  redisSetNXAsync,
+  get: redisGetAsync,
+  del: redisDelAsync,
+};
 
 // Compatibility exports for direct redis.method() usage
-module.exports.set = async (key, value, ttlType, ttlValue) => {
+redisWrapper.set = async (key, value, ttlType, ttlValue) => {
   // Compatible with ioredis.set(key, value, 'EX', seconds) pattern
   if (!redis.isOpen) {
     console.warn(`Redis not available for SET ${key}`);
@@ -254,5 +256,6 @@ module.exports.set = async (key, value, ttlType, ttlValue) => {
     throw error;
   }
 };
-module.exports.get = redisGetAsync;
-module.exports.del = redisDelAsync;
+
+module.exports = redisWrapper;
+module.exports.redis = redis; // Export the raw client if needed elsewhere
