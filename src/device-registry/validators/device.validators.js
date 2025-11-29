@@ -1346,6 +1346,12 @@ const validateBulkPrepareDeviceShipping = [
     .trim()
     .isIn(["hex", "readable"])
     .withMessage("token_type must be either 'hex' or 'readable'"),
+
+  body("batch_name")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("batch_name cannot be empty if provided"),
 ];
 
 const validateGetShippingStatus = [
@@ -1409,6 +1415,16 @@ const validateGenerateShippingLabels = [
     }),
 ];
 
+const validateGetShippingBatchDetails = [
+  param("id")
+    .exists()
+    .withMessage("The batch ID is missing in the request path.")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("Invalid batch ID. Must be a valid MongoDB ObjectId."),
+];
+
 const validateGetDeviceCountSummary = [
   query("group_id")
     .optional()
@@ -1459,6 +1475,7 @@ module.exports = {
   validatePrepareDeviceShipping,
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
+  validateGetShippingBatchDetails,
   validateGenerateShippingLabels,
   getIdFromName,
   getNameFromId,

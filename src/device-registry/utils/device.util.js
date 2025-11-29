@@ -2,6 +2,7 @@
 const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
+const ShippingBatchModel = require("@models/ShippingBatch");
 const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
@@ -2869,6 +2870,7 @@ const deviceUtil = {
       const { device_name, token_type = "hex" } = request.body;
       const { tenant } = request.query;
 
+      let deviceId;
       // Check if device exists
       const device = await DeviceModel(tenant).findOne({ name: device_name });
 
@@ -2880,6 +2882,7 @@ const deviceUtil = {
           errors: { message: `Device ${device_name} does not exist` },
         };
       }
+      deviceId = device._id;
 
       // Generate claim token based on type
       const claimToken =
@@ -2931,6 +2934,7 @@ const deviceUtil = {
         success: true,
         message: "Device prepared for shipping successfully",
         data: {
+          device_id: deviceId,
           device_name: device_name,
           claim_token: claimToken,
           token_type: token_type,
@@ -2954,7 +2958,7 @@ const deviceUtil = {
   },
   prepareBulkDevicesForShipping: async (request, next) => {
     try {
-      const { device_names, token_type = "hex" } = request.body;
+      const { device_names, token_type = "hex", batch_name } = request.body;
       const { tenant } = request.query;
 
       if (!Array.isArray(device_names) || device_names.length === 0) {
@@ -2999,6 +3003,26 @@ const deviceUtil = {
         }
       }
 
+      // If a batch_name is provided, create a shipping batch record
+      if (batch_name && successful.length > 0) {
+        const successfulDeviceIds = successful.map((d) => d.device_id);
+        try {
+          await ShippingBatchModel(tenant).create({
+            batch_name,
+            devices: successfulDeviceIds,
+            device_names: successful.map((d) => d.device_name),
+            tenant,
+            // created_by: request.user._id // Assuming user is available in request
+          });
+          logText(`📦 Shipping batch '${batch_name}' created successfully.`);
+        } catch (batchError) {
+          logText(
+            `❗ Failed to create shipping batch '${batch_name}': ${batchError.message}`
+          );
+          logObject("Batch creation error details", batchError);
+        }
+      }
+
       return {
         success: true,
         message: `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed`,
@@ -3015,6 +3039,117 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🪲🪲 Bulk Prepare Devices Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listShippingBatches: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const MAX_LIMIT =
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES) || 1000;
+      const _skip = Math.max(0, parseInt(request.query.skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(request.query.limit, 10) || MAX_LIMIT)
+      );
+
+      const batches = await ShippingBatchModel(tenant)
+        .find({})
+        .sort({ createdAt: -1 })
+        .skip(_skip)
+        .limit(_limit)
+        .lean();
+
+      const total = await ShippingBatchModel(tenant).countDocuments({});
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit, // Use sanitized value
+        skip: _skip, // Use sanitized value
+        page: Math.floor(_skip / _limit) + 1, // Correct page calculation
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          meta.nextPage = `${baseUrl}?skip=${nextSkip}&limit=${_limit}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "Shipping batches retrieved successfully",
+        data: batches.map((batch) => {
+          return {
+            _id: batch._id,
+            batch_name: batch.batch_name,
+            device_count: Array.isArray(batch.devices)
+              ? batch.devices.length
+              : 0,
+            createdAt: batch.createdAt,
+            updatedAt: batch.updatedAt,
+          };
+        }),
+        meta,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 List Shipping Batches Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getShippingBatchDetails: async (request, next) => {
+    try {
+      const { id } = request.params;
+      const { tenant } = request.query;
+
+      if (!isValidObjectId(id)) {
+        return next(
+          new HttpError("Invalid batch ID format", httpStatus.BAD_REQUEST)
+        );
+      }
+
+      const batch = await ShippingBatchModel(tenant)
+        .findById(id)
+        .populate("devices", "name long_name claim_status status")
+        .lean();
+
+      if (!batch) {
+        return next(
+          new HttpError("Shipping batch not found", httpStatus.NOT_FOUND)
+        );
+      }
+
+      return {
+        success: true,
+        message: "Shipping batch details retrieved successfully",
+        data: batch,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Get Shipping Batch Details Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

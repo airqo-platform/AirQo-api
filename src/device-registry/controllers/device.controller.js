@@ -1973,6 +1973,67 @@ const deviceController = {
       );
     }
   },
+  listShippingBatches: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.listShippingBatches(request, next);
+
+      return res.status(result.status || httpStatus.OK).json({
+        success: result.success,
+        message: result.message,
+        batches: result.data,
+        meta: result.meta,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 List Shipping Batches Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getShippingBatchDetails: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.getShippingBatchDetails(
+        request,
+        next
+      );
+      handleResponse({ result, res, key: "batch" });
+    } catch (error) {
+      // Let the utility's error handling pass through
+      next(error);
+    }
+  },
   getMobileDevicesMetadataAnalysis: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
