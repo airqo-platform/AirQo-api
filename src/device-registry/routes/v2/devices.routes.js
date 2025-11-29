@@ -15,6 +15,7 @@ const {
   validateBulkUpdateDevices,
   validateDeviceIdParam,
   validateClaimDevice,
+  validateBulkClaim,
   validateGetMyDevices,
   validateDeviceAvailability,
   validateOrganizationAssignment,
@@ -45,6 +46,14 @@ router.post(
   validateClaimDevice,
   validate,
   deviceController.claimDevice
+);
+
+router.post(
+  "/claim/bulk",
+  validateTenant,
+  validateBulkClaim,
+  validate,
+  deviceController.bulkClaimDevice
 );
 
 router.get(

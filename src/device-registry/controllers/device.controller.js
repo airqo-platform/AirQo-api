@@ -1454,6 +1454,39 @@ const deviceController = {
     }
   },
 
+  bulkClaimDevice: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.bulkClaim(request, next);
+      handleResponse({ res, result });
+    } catch (error) {
+      if (error instanceof HttpError) {
+        next(error);
+      } else {
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+    }
+  },
   transferDevice: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
