@@ -28,6 +28,7 @@ const {
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
   validateGenerateShippingLabels,
+  validateGetShippingBatchDetails,
   validateGetDeviceCountSummary,
   validateTransferDevice,
 } = require("@validators/device.validators");
@@ -334,6 +335,24 @@ router.post(
   validateGenerateShippingLabels,
   validate,
   deviceController.generateShippingLabels
+);
+
+// Get a list of all shipping batches
+router.get(
+  "/shipping-batches",
+  validateTenant,
+  pagination(),
+  validate,
+  deviceController.listShippingBatches
+);
+
+// Get details of a specific shipping batch
+router.get(
+  "/shipping-batches/:id",
+  validateTenant,
+  validateGetShippingBatchDetails,
+  validate,
+  deviceController.getShippingBatchDetails
 );
 
 // =============================================================================

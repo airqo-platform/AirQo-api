@@ -2,6 +2,7 @@
 const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
+const ShippingBatchModel = require("@models/ShippingBatch");
 const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
@@ -2869,6 +2870,7 @@ const deviceUtil = {
       const { device_name, token_type = "hex" } = request.body;
       const { tenant } = request.query;
 
+      let deviceId;
       // Check if device exists
       const device = await DeviceModel(tenant).findOne({ name: device_name });
 
@@ -2880,6 +2882,7 @@ const deviceUtil = {
           errors: { message: `Device ${device_name} does not exist` },
         };
       }
+      deviceId = device._id;
 
       // Generate claim token based on type
       const claimToken =
@@ -2931,6 +2934,7 @@ const deviceUtil = {
         success: true,
         message: "Device prepared for shipping successfully",
         data: {
+          device_id: deviceId,
           device_name: device_name,
           claim_token: claimToken,
           token_type: token_type,
@@ -2954,7 +2958,7 @@ const deviceUtil = {
   },
   prepareBulkDevicesForShipping: async (request, next) => {
     try {
-      const { device_names, token_type = "hex" } = request.body;
+      const { device_names, token_type = "hex", batch_name } = request.body;
       const { tenant } = request.query;
 
       if (!Array.isArray(device_names) || device_names.length === 0) {
@@ -2999,6 +3003,21 @@ const deviceUtil = {
         }
       }
 
+      // If a batch_name is provided, create a shipping batch record
+      if (batch_name && successful.length > 0) {
+        const successfulDeviceIds = successful.map((d) => d.device_id);
+        const successfulDeviceNames = successful.map((d) => d.device_name);
+
+        await ShippingBatchModel(tenant).create({
+          batch_name,
+          devices: successfulDeviceIds,
+          device_names: successfulDeviceNames,
+          tenant,
+          // created_by: request.user._id // Assuming user is available in request
+        });
+        logText(`📦 Shipping batch '${batch_name}' created successfully.`);
+      }
+
       return {
         success: true,
         message: `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed`,
@@ -3022,6 +3041,65 @@ const deviceUtil = {
           { message: error.message }
         )
       );
+    }
+  },
+  listShippingBatches: async (request, next) => {
+    try {
+      const { tenant, limit, skip } = request.query;
+      const batches = await ShippingBatchModel(tenant)
+        .find({})
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const total = await ShippingBatchModel(tenant).countDocuments({});
+
+      return {
+        success: true,
+        message: "Shipping batches retrieved successfully",
+        data: batches.map((batch) => ({
+          ...batch,
+          device_count: batch.devices ? batch.devices.length : 0,
+        })),
+        meta: { total, limit, skip },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 List Shipping Batches Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getShippingBatchDetails: async (request, next) => {
+    try {
+      const { id } = request.params;
+      const { tenant } = request.query;
+
+      const batch = await ShippingBatchModel(tenant)
+        .findById(id)
+        .populate("devices", "name long_name claim_status status")
+        .lean();
+
+      if (!batch) {
+        throw new HttpError("Shipping batch not found", httpStatus.NOT_FOUND);
+      }
+
+      return {
+        success: true,
+        message: "Shipping batch details retrieved successfully",
+        data: batch,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Get Shipping Batch Details Error ${error.message}`);
+      // Let the controller handle HttpError instances
+      throw error;
     }
   },
 
