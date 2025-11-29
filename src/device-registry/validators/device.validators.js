@@ -1351,8 +1351,7 @@ const validateBulkPrepareDeviceShipping = [
     .optional()
     .trim()
     .notEmpty()
-    .withMessage("batch_name cannot be empty if provided")
-    .withMessage("token_type must be either 'hex' or 'readable'"),
+    .withMessage("batch_name cannot be empty if provided"),
 ];
 
 const validateGetShippingStatus = [

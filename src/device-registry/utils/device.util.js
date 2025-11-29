@@ -3006,16 +3006,21 @@ const deviceUtil = {
       // If a batch_name is provided, create a shipping batch record
       if (batch_name && successful.length > 0) {
         const successfulDeviceIds = successful.map((d) => d.device_id);
-        const successfulDeviceNames = successful.map((d) => d.device_name);
-
-        await ShippingBatchModel(tenant).create({
-          batch_name,
-          devices: successfulDeviceIds,
-          device_names: successfulDeviceNames,
-          tenant,
-          // created_by: request.user._id // Assuming user is available in request
-        });
-        logText(`📦 Shipping batch '${batch_name}' created successfully.`);
+        try {
+          await ShippingBatchModel(tenant).create({
+            batch_name,
+            devices: successfulDeviceIds,
+            device_names: successful.map((d) => d.device_name),
+            tenant,
+            // created_by: request.user._id // Assuming user is available in request
+          });
+          logText(`📦 Shipping batch '${batch_name}' created successfully.`);
+        } catch (batchError) {
+          logText(
+            `❗ Failed to create shipping batch '${batch_name}': ${batchError.message}`
+          );
+          logObject("Batch creation error details", batchError);
+        }
       }
 
       return {
@@ -3045,24 +3050,55 @@ const deviceUtil = {
   },
   listShippingBatches: async (request, next) => {
     try {
-      const { tenant, limit, skip } = request.query;
+      const { tenant } = request.query;
+      const MAX_LIMIT =
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES) || 1000;
+      const _skip = Math.max(0, parseInt(request.query.skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(request.query.limit, 10) || MAX_LIMIT)
+      );
+
       const batches = await ShippingBatchModel(tenant)
         .find({})
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
+        .skip(_skip)
+        .limit(_limit)
         .lean();
 
       const total = await ShippingBatchModel(tenant).countDocuments({});
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          meta.nextPage = `${baseUrl}?skip=${nextSkip}&limit=${_limit}`;
+        }
+      }
 
       return {
         success: true,
         message: "Shipping batches retrieved successfully",
         data: batches.map((batch) => ({
           ...batch,
-          device_count: batch.devices ? batch.devices.length : 0,
         })),
-        meta: { total, limit, skip },
+        meta,
         status: httpStatus.OK,
       };
     } catch (error) {
