@@ -3079,9 +3079,9 @@ const deviceUtil = {
 
       const meta = {
         total,
-        limit: _limit,
-        skip: _skip,
-        page: Math.floor(_skip / _limit) + 1,
+        limit: _limit, // Use sanitized value
+        skip: _skip, // Use sanitized value
+        page: Math.floor(_skip / _limit) + 1, // Correct page calculation
         totalPages: Math.ceil(total / _limit),
       };
 
