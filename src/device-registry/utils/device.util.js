@@ -3095,9 +3095,17 @@ const deviceUtil = {
       return {
         success: true,
         message: "Shipping batches retrieved successfully",
-        data: batches.map((batch) => ({
-          ...batch,
-        })),
+        data: batches.map((batch) => {
+          return {
+            _id: batch._id,
+            batch_name: batch.batch_name,
+            device_count: Array.isArray(batch.devices)
+              ? batch.devices.length
+              : 0,
+            createdAt: batch.createdAt,
+            updatedAt: batch.updatedAt,
+          };
+        }),
         meta,
         status: httpStatus.OK,
       };
