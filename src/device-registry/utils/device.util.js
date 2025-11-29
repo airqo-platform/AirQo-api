@@ -3125,6 +3125,12 @@ const deviceUtil = {
       const { id } = request.params;
       const { tenant } = request.query;
 
+      if (!isValidObjectId(id)) {
+        return next(
+          new HttpError("Invalid batch ID format", httpStatus.BAD_REQUEST)
+        );
+      }
+
       const batch = await ShippingBatchModel(tenant)
         .findById(id)
         .populate("devices", "name long_name claim_status status")
