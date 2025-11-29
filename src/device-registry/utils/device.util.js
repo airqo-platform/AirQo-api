@@ -2876,6 +2876,155 @@ const deviceUtil = {
       );
     }
   },
+
+  transferDevice: async (request, next) => {
+    try {
+      const {
+        device_name,
+        from_user_id,
+        to_user_id,
+        include_deployment_history = false,
+      } = request.body;
+      const { tenant } = request.query;
+
+      // Step 1: Initial read to get device state for cohort and site history.
+      const deviceToTransfer = await DeviceModel(tenant).findOne({
+        name: device_name,
+        owner_id: from_user_id,
+      });
+
+      if (!deviceToTransfer) {
+        throw new HttpError(
+          "Device not found or you are not the owner",
+          httpStatus.FORBIDDEN
+        );
+      }
+
+      // Step 2: Verify device is recalled (not actively deployed).
+      if (deviceToTransfer.status === "deployed") {
+        throw new HttpError(
+          "Device must be recalled before transfer",
+          httpStatus.CONFLICT
+        );
+      }
+
+      // Step 3: Prepare cohort and activity data BEFORE the main update.
+      const recipientCohortName = `coh_user_${to_user_id.toString()}`;
+      const recipientCohort = await CohortModel(tenant).findOneAndUpdate(
+        { name: recipientCohortName },
+        {
+          $setOnInsert: {
+            name: recipientCohortName,
+            description: `Personal cohort for user ${to_user_id.toString()}`,
+            network: deviceToTransfer.network || "airqo",
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const previousOwnerCohort = await CohortModel(tenant)
+        .findOne({ name: `coh_user_${from_user_id.toString()}` })
+        .select("_id")
+        .lean();
+
+      // Step 4: Create a 'pending' activity log.
+      const pendingActivity = await ActivityModel(tenant).create({
+        activityType: "transfer",
+        device: device_name,
+        device_id: deviceToTransfer._id,
+        from_user_id,
+        to_user_id,
+        date: new Date(),
+        description: `Pending transfer from user ${from_user_id} to user ${to_user_id}`,
+        status: "pending", // Add a status field
+      });
+
+      // Step 5: Prepare the atomic device update operation.
+      const updates = {
+        $set: {
+          owner_id: to_user_id,
+          claimed_at: new Date(),
+          transferred_at: new Date(),
+          previous_owner: from_user_id,
+        },
+        $addToSet: { cohorts: recipientCohort._id },
+      };
+
+      if (previousOwnerCohort) {
+        updates.$pull = { cohorts: previousOwnerCohort._id };
+      }
+
+      if (include_deployment_history === false) {
+        updates.$unset = {
+          deployment_date: "",
+          maintenance_date: "",
+          recall_date: "",
+          previous_sites: "",
+        };
+        if (
+          deviceToTransfer.previous_sites &&
+          deviceToTransfer.previous_sites.length > 0
+        ) {
+          const existingArchived = deviceToTransfer.archived_sites || [];
+          updates.$set.archived_sites = [
+            ...existingArchived,
+            ...deviceToTransfer.previous_sites,
+          ];
+        }
+      }
+
+      // Step 6: Execute the atomic device transfer. This is the critical step.
+      const transferredDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { _id: deviceToTransfer._id, owner_id: from_user_id },
+        updates,
+        { new: true }
+      );
+
+      // Step 7: Handle the outcome of the critical step.
+      if (!transferredDevice) {
+        // If the transfer failed, attempt to clean up the pending activity log.
+        await ActivityModel(tenant).deleteOne({ _id: pendingActivity._id });
+        throw new HttpError(
+          "Device transfer failed. Ownership may have changed during the operation.",
+          httpStatus.CONFLICT
+        );
+      }
+
+      // Step 8: Finalize the activity log.
+      try {
+        await ActivityModel(tenant).findByIdAndUpdate(pendingActivity._id, {
+          $set: {
+            status: "completed",
+            description: `Device transferred from user ${from_user_id} to user ${to_user_id}`,
+          },
+        });
+      } catch (logError) {
+        // If this fails, the transfer is already done. Log this for manual review.
+        logger.error(
+          `CRITICAL: Device ${device_name} was transferred, but failed to update activity log ${pendingActivity._id} to 'completed'. Error: ${logError.message}`
+        );
+      }
+
+      return {
+        success: true,
+        message: "Device transferred successfully",
+        data: transferredDevice,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      // Let the controller handle the error propagation.
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      logger.error(`🪲🪲 Device Transfer Error: ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+    }
+  },
+
   /**
    * Get shipping preparation status for devices.
    *

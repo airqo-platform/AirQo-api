@@ -28,6 +28,7 @@ const {
   validateGetShippingStatus,
   validateGenerateShippingLabels,
   validateGetDeviceCountSummary,
+  validateTransferDevice,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
 
@@ -271,6 +272,19 @@ router.post(
   "/fix-metadata-conflicts",
   validateTenant,
   deviceController.fixMetadataConflicts
+);
+
+// =============================================================================
+// DEVICE TRANSFER ROUTES
+// =============================================================================
+
+// Transfer device ownership between users
+router.post(
+  "/transfer",
+  validateTenant,
+  validateTransferDevice,
+  validate,
+  deviceController.transferDevice
 );
 
 // =============================================================================
