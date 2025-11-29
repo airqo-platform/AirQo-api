@@ -1081,7 +1081,8 @@ const validateBulkClaim = [
     .withMessage("user_id is required")
     .bail()
     .isMongoId()
-    .withMessage("user_id must be a valid MongoDB ObjectId"),
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
 
   body("devices")
     .exists()
@@ -1096,7 +1097,11 @@ const validateBulkClaim = [
     .bail()
     .notEmpty()
     .withMessage("device_name cannot be empty")
-    .trim(),
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
 
   body("devices.*.claim_token")
     .optional()

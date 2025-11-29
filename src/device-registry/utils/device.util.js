@@ -2080,7 +2080,15 @@ const deviceUtil = {
         failed_claims: [],
       };
 
+      // Batch fetch all devices by name to avoid N+1 queries
+      const deviceNames = devices.map((d) => d.device_name);
+      const deviceDocs = await DeviceModel(tenant).find({
+        name: { $in: deviceNames },
+      });
+      const deviceMap = new Map(deviceDocs.map((d) => [d.name, d]));
+
       // Find or create the user's personal cohort once
+      const firstDevice = deviceDocs[0];
       const personalCohortName = `coh_user_${user_id.toString()}`;
       const targetCohort = await CohortModel(tenant).findOneAndUpdate(
         { name: personalCohortName },
@@ -2088,7 +2096,7 @@ const deviceUtil = {
           $setOnInsert: {
             name: personalCohortName,
             description: `Personal cohort for user ${user_id.toString()}`,
-            network: "airqo", // Default network, can be adjusted
+            network: firstDevice ? firstDevice.network || "airqo" : "airqo",
           },
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -2098,9 +2106,7 @@ const deviceUtil = {
         const { device_name, claim_token } = deviceToClaim;
 
         try {
-          const device = await DeviceModel(tenant).findOne({
-            name: device_name,
-          });
+          const device = deviceMap.get(device_name);
 
           if (!device) {
             throw new Error("Device not found");
@@ -2146,20 +2152,29 @@ const deviceUtil = {
             throw new Error("Device may have been claimed by another user");
           }
 
-          results.successful_claims.push({
+          const successEntry = {
             device_name: updatedDevice.name,
             message: "Claimed successfully",
-          });
+          };
 
-          // Log activity for each successful claim
-          await ActivityModel(tenant).create({
-            activityType: "claim",
-            device: updatedDevice.name,
-            device_id: updatedDevice._id,
-            date: updatedDevice.claimed_at,
-            user_id: updatedDevice.owner_id,
-            description: `Device claimed by user ${user_id} in bulk operation`,
-          });
+          // Log activity for each successful claim (non-fatal on failure)
+          try {
+            await ActivityModel(tenant).create({
+              activityType: "claim",
+              device: updatedDevice.name,
+              device_id: updatedDevice._id,
+              date: updatedDevice.claimed_at,
+              user_id: updatedDevice.owner_id,
+              description: `Device claimed by user ${user_id} in bulk operation`,
+            });
+          } catch (logError) {
+            logger.error(
+              `Failed to log bulk claim activity for device ${updatedDevice.name}: ${logError.message}`
+            );
+            successEntry.logging_error = true;
+          }
+
+          results.successful_claims.push(successEntry);
         } catch (error) {
           results.failed_claims.push({
             device_name,
