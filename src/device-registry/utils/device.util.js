@@ -3052,7 +3052,7 @@ const deviceUtil = {
     try {
       const { tenant } = request.query;
       const MAX_LIMIT =
-        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES) || 1000;
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES) || 1000;
       const _skip = Math.max(0, parseInt(request.query.skip, 10) || 0);
       const _limit = Math.min(
         MAX_LIMIT,
@@ -3131,7 +3131,9 @@ const deviceUtil = {
         .lean();
 
       if (!batch) {
-        throw new HttpError("Shipping batch not found", httpStatus.NOT_FOUND);
+        return next(
+          new HttpError("Shipping batch not found", httpStatus.NOT_FOUND)
+        );
       }
 
       return {
@@ -3142,8 +3144,13 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🪲🪲 Get Shipping Batch Details Error ${error.message}`);
-      // Let the controller handle HttpError instances
-      throw error;
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
