@@ -1029,6 +1029,89 @@ const validateClaimDevice = [
     .customSanitizer((value) => ObjectId(value)),
 ];
 
+const validateTransferDevice = [
+  body("device_name")
+    .exists()
+    .withMessage("device_name is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty")
+    .bail()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+
+  body("from_user_id")
+    .exists()
+    .withMessage("from_user_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("from_user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("from_user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)), // Only run if valid
+
+  body("to_user_id")
+    .exists()
+    .withMessage("to_user_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("to_user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("to_user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)), // Only run if valid
+
+  body("include_deployment_history")
+    .optional()
+    .isBoolean()
+    .withMessage("include_deployment_history must be a boolean value"),
+];
+
+const validateBulkClaim = [
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+
+  body("devices")
+    .exists()
+    .withMessage("devices array is required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("devices must be a non-empty array"),
+
+  body("devices.*.device_name")
+    .exists()
+    .withMessage("device_name is required for each device")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+
+  body("devices.*.claim_token")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("claim_token cannot be empty if provided"),
+];
+
 const validateListOrphanedDevices = [
   query("user_id")
     .exists()
@@ -1263,6 +1346,12 @@ const validateBulkPrepareDeviceShipping = [
     .trim()
     .isIn(["hex", "readable"])
     .withMessage("token_type must be either 'hex' or 'readable'"),
+
+  body("batch_name")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("batch_name cannot be empty if provided"),
 ];
 
 const validateGetShippingStatus = [
@@ -1326,6 +1415,16 @@ const validateGenerateShippingLabels = [
     }),
 ];
 
+const validateGetShippingBatchDetails = [
+  param("id")
+    .exists()
+    .withMessage("The batch ID is missing in the request path.")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("Invalid batch ID. Must be a valid MongoDB ObjectId."),
+];
+
 const validateGetDeviceCountSummary = [
   query("group_id")
     .optional()
@@ -1364,6 +1463,8 @@ module.exports = {
   validateDecryptManyKeys,
   validateBulkUpdateDevices,
   validateClaimDevice,
+  validateBulkClaim,
+  validateTransferDevice,
   validateGetMyDevices,
   validateDeviceAvailability,
   validateOrganizationAssignment,
@@ -1374,6 +1475,7 @@ module.exports = {
   validatePrepareDeviceShipping,
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
+  validateGetShippingBatchDetails,
   validateGenerateShippingLabels,
   getIdFromName,
   getNameFromId,

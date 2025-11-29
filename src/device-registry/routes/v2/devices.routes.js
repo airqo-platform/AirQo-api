@@ -15,6 +15,7 @@ const {
   validateBulkUpdateDevices,
   validateDeviceIdParam,
   validateClaimDevice,
+  validateBulkClaim,
   validateGetMyDevices,
   validateDeviceAvailability,
   validateOrganizationAssignment,
@@ -27,7 +28,9 @@ const {
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
   validateGenerateShippingLabels,
+  validateGetShippingBatchDetails,
   validateGetDeviceCountSummary,
+  validateTransferDevice,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
 
@@ -44,6 +47,14 @@ router.post(
   validateClaimDevice,
   validate,
   deviceController.claimDevice
+);
+
+router.post(
+  "/claim/bulk",
+  validateTenant,
+  validateBulkClaim,
+  validate,
+  deviceController.bulkClaimDevice
 );
 
 router.get(
@@ -274,6 +285,19 @@ router.post(
 );
 
 // =============================================================================
+// DEVICE TRANSFER ROUTES
+// =============================================================================
+
+// Transfer device ownership between users
+router.post(
+  "/transfer",
+  validateTenant,
+  validateTransferDevice,
+  validate,
+  deviceController.transferDevice
+);
+
+// =============================================================================
 // SHIPPING PREPARATION ROUTES
 // =============================================================================
 
@@ -311,6 +335,24 @@ router.post(
   validateGenerateShippingLabels,
   validate,
   deviceController.generateShippingLabels
+);
+
+// Get a list of all shipping batches
+router.get(
+  "/shipping-batches",
+  validateTenant,
+  pagination(),
+  validate,
+  deviceController.listShippingBatches
+);
+
+// Get details of a specific shipping batch
+router.get(
+  "/shipping-batches/:id",
+  validateTenant,
+  validateGetShippingBatchDetails,
+  validate,
+  deviceController.getShippingBatchDetails
 );
 
 // =============================================================================

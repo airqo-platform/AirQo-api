@@ -2,6 +2,7 @@
 const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
+const ShippingBatchModel = require("@models/ShippingBatch");
 const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
@@ -2031,6 +2032,20 @@ const deviceUtil = {
         });
       }
 
+      // Log the claim activity
+      try {
+        await ActivityModel(tenant).create({
+          activityType: "claim",
+          device: updatedDevice.name,
+          device_id: updatedDevice._id,
+          date: updatedDevice.claimed_at,
+          user_id: updatedDevice.owner_id,
+          description: `Device claimed by user ${user_id}`,
+        });
+      } catch (logError) {
+        logger.error(`Failed to log claim activity: ${logError.message}`);
+      }
+
       return {
         success: true,
         message: "Device claimed successfully!",
@@ -2050,6 +2065,140 @@ const deviceUtil = {
           )
         );
       }
+    }
+  },
+  bulkClaim: async (request, next) => {
+    try {
+      const { user_id, devices } = request.body;
+      const { tenant } = request.query;
+
+      if (!user_id || !isValidObjectId(user_id)) {
+        throw new HttpError("Invalid user_id", httpStatus.BAD_REQUEST);
+      }
+
+      const results = {
+        successful_claims: [],
+        failed_claims: [],
+      };
+
+      // Batch fetch all devices by name to avoid N+1 queries
+      const deviceNames = devices.map((d) => d.device_name);
+      const deviceDocs = await DeviceModel(tenant).find({
+        name: { $in: deviceNames },
+      });
+      const deviceMap = new Map(deviceDocs.map((d) => [d.name, d]));
+
+      // Find or create the user's personal cohort once
+      const firstDevice = deviceDocs[0];
+      const personalCohortName = `coh_user_${user_id.toString()}`;
+      const targetCohort = await CohortModel(tenant).findOneAndUpdate(
+        { name: personalCohortName },
+        {
+          $setOnInsert: {
+            name: personalCohortName,
+            description: `Personal cohort for user ${user_id.toString()}`,
+            network: firstDevice ? firstDevice.network || "airqo" : "airqo",
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      for (const deviceToClaim of devices) {
+        const { device_name, claim_token } = deviceToClaim;
+
+        try {
+          const device = deviceMap.get(device_name);
+
+          if (!device) {
+            throw new Error("Device not found");
+          }
+
+          if (device.claim_status !== "unclaimed") {
+            throw new Error("Device already claimed or not available");
+          }
+
+          if (device.status === "deployed") {
+            throw new Error("Device is currently deployed");
+          }
+
+          if (device.claim_token && device.claim_token !== claim_token) {
+            throw new Error("Invalid claim token");
+          }
+
+          const now = new Date();
+          if (
+            device.claim_token_expires_at &&
+            now > device.claim_token_expires_at
+          ) {
+            throw new Error("Claim token has expired");
+          }
+
+          const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+            { _id: device._id, claim_status: "unclaimed" },
+            {
+              $set: {
+                owner_id: new ObjectId(user_id),
+                claim_status: "claimed",
+                claimed_at: now,
+                deployment_date: null,
+                maintenance_date: null,
+                recall_date: null,
+              },
+              $addToSet: { cohorts: targetCohort._id },
+            },
+            { new: true }
+          );
+
+          if (!updatedDevice) {
+            throw new Error("Device may have been claimed by another user");
+          }
+
+          const successEntry = {
+            device_name: updatedDevice.name,
+            message: "Claimed successfully",
+          };
+
+          // Log activity for each successful claim (non-fatal on failure)
+          try {
+            await ActivityModel(tenant).create({
+              activityType: "claim",
+              device: updatedDevice.name,
+              device_id: updatedDevice._id,
+              date: updatedDevice.claimed_at,
+              user_id: updatedDevice.owner_id,
+              description: `Device claimed by user ${user_id} in bulk operation`,
+            });
+          } catch (logError) {
+            logger.error(
+              `Failed to log bulk claim activity for device ${updatedDevice.name}: ${logError.message}`
+            );
+            successEntry.logging_error = true;
+          }
+
+          results.successful_claims.push(successEntry);
+        } catch (error) {
+          results.failed_claims.push({
+            device_name,
+            error: error.message,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: "Bulk claim operation completed.",
+        data: results,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Bulk Claim Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   listOrphanedDevices: async (request, next) => {
@@ -2721,6 +2870,7 @@ const deviceUtil = {
       const { device_name, token_type = "hex" } = request.body;
       const { tenant } = request.query;
 
+      let deviceId;
       // Check if device exists
       const device = await DeviceModel(tenant).findOne({ name: device_name });
 
@@ -2732,6 +2882,7 @@ const deviceUtil = {
           errors: { message: `Device ${device_name} does not exist` },
         };
       }
+      deviceId = device._id;
 
       // Generate claim token based on type
       const claimToken =
@@ -2783,6 +2934,7 @@ const deviceUtil = {
         success: true,
         message: "Device prepared for shipping successfully",
         data: {
+          device_id: deviceId,
           device_name: device_name,
           claim_token: claimToken,
           token_type: token_type,
@@ -2806,7 +2958,7 @@ const deviceUtil = {
   },
   prepareBulkDevicesForShipping: async (request, next) => {
     try {
-      const { device_names, token_type = "hex" } = request.body;
+      const { device_names, token_type = "hex", batch_name } = request.body;
       const { tenant } = request.query;
 
       if (!Array.isArray(device_names) || device_names.length === 0) {
@@ -2851,6 +3003,26 @@ const deviceUtil = {
         }
       }
 
+      // If a batch_name is provided, create a shipping batch record
+      if (batch_name && successful.length > 0) {
+        const successfulDeviceIds = successful.map((d) => d.device_id);
+        try {
+          await ShippingBatchModel(tenant).create({
+            batch_name,
+            devices: successfulDeviceIds,
+            device_names: successful.map((d) => d.device_name),
+            tenant,
+            // created_by: request.user._id // Assuming user is available in request
+          });
+          logText(`📦 Shipping batch '${batch_name}' created successfully.`);
+        } catch (batchError) {
+          logText(
+            `❗ Failed to create shipping batch '${batch_name}': ${batchError.message}`
+          );
+          logObject("Batch creation error details", batchError);
+        }
+      }
+
       return {
         success: true,
         message: `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed`,
@@ -2876,6 +3048,266 @@ const deviceUtil = {
       );
     }
   },
+  listShippingBatches: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const MAX_LIMIT =
+        Number(constants.DEFAULT_LIMIT_FOR_QUERYING_DEVICES) || 1000;
+      const _skip = Math.max(0, parseInt(request.query.skip, 10) || 0);
+      const _limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parseInt(request.query.limit, 10) || MAX_LIMIT)
+      );
+
+      const batches = await ShippingBatchModel(tenant)
+        .find({})
+        .sort({ createdAt: -1 })
+        .skip(_skip)
+        .limit(_limit)
+        .lean();
+
+      const total = await ShippingBatchModel(tenant).countDocuments({});
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit, // Use sanitized value
+        skip: _skip, // Use sanitized value
+        page: Math.floor(_skip / _limit) + 1, // Correct page calculation
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          meta.nextPage = `${baseUrl}?skip=${nextSkip}&limit=${_limit}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "Shipping batches retrieved successfully",
+        data: batches.map((batch) => {
+          return {
+            _id: batch._id,
+            batch_name: batch.batch_name,
+            device_count: Array.isArray(batch.devices)
+              ? batch.devices.length
+              : 0,
+            createdAt: batch.createdAt,
+            updatedAt: batch.updatedAt,
+          };
+        }),
+        meta,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 List Shipping Batches Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getShippingBatchDetails: async (request, next) => {
+    try {
+      const { id } = request.params;
+      const { tenant } = request.query;
+
+      if (!isValidObjectId(id)) {
+        return next(
+          new HttpError("Invalid batch ID format", httpStatus.BAD_REQUEST)
+        );
+      }
+
+      const batch = await ShippingBatchModel(tenant)
+        .findById(id)
+        .populate("devices", "name long_name claim_status status")
+        .lean();
+
+      if (!batch) {
+        return next(
+          new HttpError("Shipping batch not found", httpStatus.NOT_FOUND)
+        );
+      }
+
+      return {
+        success: true,
+        message: "Shipping batch details retrieved successfully",
+        data: batch,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Get Shipping Batch Details Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  transferDevice: async (request, next) => {
+    try {
+      const {
+        device_name,
+        from_user_id,
+        to_user_id,
+        include_deployment_history = false,
+      } = request.body;
+      const { tenant } = request.query;
+
+      // Step 1: Initial read to get device state for cohort and site history.
+      const deviceToTransfer = await DeviceModel(tenant).findOne({
+        name: device_name,
+        owner_id: from_user_id,
+      });
+
+      if (!deviceToTransfer) {
+        throw new HttpError(
+          "Device not found or you are not the owner",
+          httpStatus.FORBIDDEN
+        );
+      }
+
+      // Step 2: Verify device is recalled (not actively deployed).
+      if (deviceToTransfer.status === "deployed") {
+        throw new HttpError(
+          "Device must be recalled before transfer",
+          httpStatus.CONFLICT
+        );
+      }
+
+      // Step 3: Prepare cohort and activity data BEFORE the main update.
+      const recipientCohortName = `coh_user_${to_user_id.toString()}`;
+      const recipientCohort = await CohortModel(tenant).findOneAndUpdate(
+        { name: recipientCohortName },
+        {
+          $setOnInsert: {
+            name: recipientCohortName,
+            description: `Personal cohort for user ${to_user_id.toString()}`,
+            network: deviceToTransfer.network || "airqo",
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const previousOwnerCohort = await CohortModel(tenant)
+        .findOne({ name: `coh_user_${from_user_id.toString()}` })
+        .select("_id")
+        .lean();
+
+      // Step 4: Create a 'pending' activity log.
+      const pendingActivity = await ActivityModel(tenant).create({
+        activityType: "transfer",
+        device: device_name,
+        device_id: deviceToTransfer._id,
+        from_user_id,
+        to_user_id,
+        date: new Date(),
+        description: `Pending transfer from user ${from_user_id} to user ${to_user_id}`,
+        status: "pending", // Add a status field
+      });
+
+      // Step 5: Prepare the atomic device update operation.
+      const updates = {
+        $set: {
+          owner_id: to_user_id,
+          claimed_at: new Date(),
+          transferred_at: new Date(),
+          previous_owner: from_user_id,
+        },
+        $addToSet: { cohorts: recipientCohort._id },
+      };
+
+      if (previousOwnerCohort) {
+        updates.$pull = { cohorts: previousOwnerCohort._id };
+      }
+
+      if (include_deployment_history === false) {
+        updates.$unset = {
+          deployment_date: "",
+          maintenance_date: "",
+          recall_date: "",
+          previous_sites: "",
+        };
+        if (
+          deviceToTransfer.previous_sites &&
+          deviceToTransfer.previous_sites.length > 0
+        ) {
+          const existingArchived = deviceToTransfer.archived_sites || [];
+          updates.$set.archived_sites = [
+            ...existingArchived,
+            ...deviceToTransfer.previous_sites,
+          ];
+        }
+      }
+
+      // Step 6: Execute the atomic device transfer. This is the critical step.
+      const transferredDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { _id: deviceToTransfer._id, owner_id: from_user_id },
+        updates,
+        { new: true }
+      );
+
+      // Step 7: Handle the outcome of the critical step.
+      if (!transferredDevice) {
+        // If the transfer failed, attempt to clean up the pending activity log.
+        await ActivityModel(tenant).deleteOne({ _id: pendingActivity._id });
+        throw new HttpError(
+          "Device transfer failed. Ownership may have changed during the operation.",
+          httpStatus.CONFLICT
+        );
+      }
+
+      // Step 8: Finalize the activity log.
+      try {
+        await ActivityModel(tenant).findByIdAndUpdate(pendingActivity._id, {
+          $set: {
+            status: "completed",
+            description: `Device transferred from user ${from_user_id} to user ${to_user_id}`,
+          },
+        });
+      } catch (logError) {
+        // If this fails, the transfer is already done. Log this for manual review.
+        logger.error(
+          `CRITICAL: Device ${device_name} was transferred, but failed to update activity log ${pendingActivity._id} to 'completed'. Error: ${logError.message}`
+        );
+      }
+
+      return {
+        success: true,
+        message: "Device transferred successfully",
+        data: transferredDevice,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      // Let the controller handle the error propagation.
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      logger.error(`🪲🪲 Device Transfer Error: ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+    }
+  },
+
   /**
    * Get shipping preparation status for devices.
    *
