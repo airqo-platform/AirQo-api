@@ -3131,15 +3131,26 @@ const deviceUtil = {
         );
       }
 
+      // Step 1: Fetch the batch document without populating devices.
       const batch = await ShippingBatchModel(tenant)
         .findById(id)
-        .populate("devices", "name long_name claim_status status")
         .lean();
 
       if (!batch) {
         return next(
           new HttpError("Shipping batch not found", httpStatus.NOT_FOUND)
         );
+      }
+
+      // Step 2: Manually "populate" the devices if they exist.
+      if (batch.devices && batch.devices.length > 0) {
+        const deviceDetails = await DeviceModel(tenant)
+          .find({ _id: { $in: batch.devices } })
+          .select("name long_name claim_status status claim_token createdAt")
+          .lean();
+
+        // Step 3: Replace the array of ObjectIds with the array of device documents.
+        batch.devices = deviceDetails;
       }
 
       return {
