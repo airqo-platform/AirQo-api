@@ -22,15 +22,16 @@ describe("Configuration tests", () => {
 
   describe("Development configuration", () => {
     beforeEach(() => {
-      processEnvStub.value({ ANALYTICS_DEV_BASE_URL: "http://localhost:5000" });
+      processEnvStub.value({
+        ANALYTICS_DEV_BASE_URL: "http://localhost:5000",
+        DEV_DEFAULT_NETWORK: "airqo_dev",
+      });
     });
 
     it("should have the correct DEFAULT_NETWORK value", () => {
-      // This test seems to be checking a stubbed value on an empty object.
-      // It should be updated if devConfig is expected to have this property.
-      const devConfig = { DEFAULT_NETWORK: "devNetwork" }; // Mocking for this test case
-
-      expect(devConfig.DEFAULT_NETWORK).to.equal("devNetwork");
+      expect(devConfig.DEFAULT_NETWORK).to.equal(
+        process.env.DEV_DEFAULT_NETWORK
+      );
     });
 
     // Add more tests for other properties in the devConfig object
