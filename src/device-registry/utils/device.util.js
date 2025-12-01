@@ -1945,14 +1945,21 @@ const deviceUtil = {
       }
 
       // Edge Case: Prevent claiming a device that is still considered deployed
+      // MODIFICATION: Instead of throwing an error, we will now automatically recall the device.
       if (device.status === "deployed") {
-        throw new HttpError(
-          "Device is currently deployed",
-          httpStatus.CONFLICT,
-          {
-            message: "Device must be recalled before it can be re-claimed.",
-          }
+        logText(
+          `Device ${device_name} is currently deployed. Automatically recalling before claiming.`
         );
+        await ActivityModel(tenant).create({
+          activityType: "recall",
+          device: device.name,
+          device_id: device._id,
+          date: new Date(),
+          user_id: user_id, // The user initiating the claim is performing the recall
+          description: "Device automatically recalled during claim operation.",
+        });
+        // Update the local device object to reflect the change for subsequent steps
+        device.status = "recalled";
       }
 
       // Optional: Verify claim token if provided
@@ -2118,7 +2125,19 @@ const deviceUtil = {
           }
 
           if (device.status === "deployed") {
-            throw new Error("Device is currently deployed");
+            logText(
+              `Device ${device_name} is currently deployed. Automatically recalling before bulk claiming.`
+            );
+            await ActivityModel(tenant).create({
+              activityType: "recall",
+              device: device.name,
+              device_id: device._id,
+              date: new Date(),
+              user_id: user_id,
+              description:
+                "Device automatically recalled during bulk claim operation.",
+            });
+            device.status = "recalled"; // Update local state
           }
 
           if (device.claim_token && device.claim_token !== claim_token) {
@@ -2883,6 +2902,19 @@ const deviceUtil = {
         };
       }
       deviceId = device._id;
+
+      // Prevent preparing a device that is currently deployed
+      if (device.status === "deployed") {
+        return {
+          success: false,
+          message:
+            "Device is currently deployed and cannot be prepared for shipping",
+          status: httpStatus.CONFLICT,
+          errors: {
+            message: "Recall the device before preparing it for shipping.",
+          },
+        };
+      }
 
       // Generate claim token based on type
       const claimToken =
