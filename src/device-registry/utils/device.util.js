@@ -3131,7 +3131,7 @@ const deviceUtil = {
         );
       }
 
-      // Step 1: Fetch the batch document without populating devices.
+      // Step 1: Fetch the batch document. Devices will be populated manually.
       const batch = await ShippingBatchModel(tenant)
         .findById(id)
         .lean();
@@ -3142,15 +3142,42 @@ const deviceUtil = {
         );
       }
 
-      // Step 2: Manually "populate" the devices if they exist.
+      // Step 2: Manually "populate" the devices to preserve order and track missing ones.
       if (batch.devices && batch.devices.length > 0) {
+        const requestedDeviceIds = batch.devices;
+
         const deviceDetails = await DeviceModel(tenant)
-          .find({ _id: { $in: batch.devices } })
+          .find({ _id: { $in: requestedDeviceIds } })
           .select("name long_name claim_status status claim_token createdAt")
           .lean();
 
-        // Step 3: Replace the array of ObjectIds with the array of device documents.
-        batch.devices = deviceDetails;
+        // Create a map for efficient, order-preserving lookup.
+        const deviceMap = new Map(
+          deviceDetails.map((d) => [d._id.toString(), d])
+        );
+
+        const orderedDevices = [];
+        const missingDeviceIds = [];
+
+        requestedDeviceIds.forEach((id) => {
+          const device = deviceMap.get(id.toString());
+          if (device) {
+            orderedDevices.push(device);
+          } else {
+            missingDeviceIds.push(id.toString());
+          }
+        });
+
+        // Step 3: Replace the array of ObjectIds with the ordered array of found device documents.
+        batch.devices = orderedDevices;
+
+        if (missingDeviceIds.length > 0) {
+          logger.warn(
+            `⚠️ Batch ${id}: ${missingDeviceIds.length} device references were not found in the database.`
+          );
+          batch.missing_device_count = missingDeviceIds.length;
+          batch.missing_device_ids = missingDeviceIds;
+        }
       }
 
       return {
