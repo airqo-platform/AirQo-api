@@ -1950,16 +1950,24 @@ const deviceUtil = {
         logText(
           `Device ${device_name} is currently deployed. Automatically recalling before claiming.`
         );
+        const recallDate = new Date();
+        // Persist the recall state to the database
+        await DeviceModel(tenant).updateOne(
+          { _id: device._id },
+          { $set: { status: "recalled", site_id: null, grid_id: null } }
+        );
         await ActivityModel(tenant).create({
           activityType: "recall",
           device: device.name,
           device_id: device._id,
-          date: new Date(),
+          date: recallDate,
           user_id: user_id, // The user initiating the claim is performing the recall
           description: "Device automatically recalled during claim operation.",
         });
         // Update the local device object to reflect the change for subsequent steps
         device.status = "recalled";
+        device.site_id = null;
+        device.grid_id = null;
       }
 
       // Optional: Verify claim token if provided
@@ -2125,19 +2133,24 @@ const deviceUtil = {
           }
 
           if (device.status === "deployed") {
-            logText(
-              `Device ${device_name} is currently deployed. Automatically recalling before bulk claiming.`
+            const recallDate = new Date();
+            // Persist the recall state to the database
+            await DeviceModel(tenant).updateOne(
+              { _id: device._id },
+              { $set: { status: "recalled", site_id: null, grid_id: null } }
             );
             await ActivityModel(tenant).create({
               activityType: "recall",
               device: device.name,
               device_id: device._id,
-              date: new Date(),
+              date: recallDate,
               user_id: user_id,
               description:
                 "Device automatically recalled during bulk claim operation.",
             });
             device.status = "recalled"; // Update local state
+            device.site_id = null;
+            device.grid_id = null;
           }
 
           if (device.claim_token && device.claim_token !== claim_token) {
