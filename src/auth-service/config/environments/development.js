@@ -17,7 +17,7 @@ const devConfig = {
   QUERY_MONGO_URI: process.env.QUERY_MONGO_DEV_URI,
   DB_NAME: process.env.MONGO_DEV,
   PWD_RESET: `${process.env.ANALYTICS_DEV_BASE_URL}/reset`,
-  LOGIN_PAGE: `${process.env.ANALYTICS_DEV_BASE_URL}/login`,
+  LOGIN_PAGE: `${process.env.ANALYTICS_DEV_BASE_URL}/user/login`,
   FORGOT_PAGE: `${process.env.ANALYTICS_DEV_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.ANALYTICS_DEV_BASE_URL,
   ANALYTICS_BASE_URL: "http://localhost:5000",
