@@ -60,7 +60,7 @@ describe("Configuration tests", () => {
 
     it("should have the correct value for LOGIN_PAGE", () => {
       expect(devConfig.LOGIN_PAGE).to.equal(
-        `${process.env.ANALYTICS_DEV_BASE_URL}/login`
+        `${process.env.ANALYTICS_DEV_BASE_URL}/user/login`
       );
     });
 
@@ -132,7 +132,7 @@ describe("Configuration tests", () => {
 
     it("should have the correct value for LOGIN_PAGE", () => {
       expect(prodConfig.LOGIN_PAGE).to.equal(
-        `${process.env.ANALYTICS_PRODUCTION_BASE_URL}/login`
+        `${process.env.ANALYTICS_PRODUCTION_BASE_URL}/user/login`
       );
     });
 
@@ -215,7 +215,7 @@ describe("Configuration tests", () => {
 
     it("should have the correct value for LOGIN_PAGE", () => {
       expect(stageConfig.LOGIN_PAGE).to.equal(
-        `${process.env.ANALYTICS_STAGING_BASE_URL}/login`
+        `${process.env.ANALYTICS_STAGING_BASE_URL}/user/login`
       );
     });
 
