@@ -4,8 +4,20 @@ from django_quill.fields import QuillField
 
 
 class FAQ(models.Model):
+    CATEGORY_CHOICES = [
+        ('general', 'General'),
+        ('hardware', 'Hardware'),
+        ('software', 'Software'),
+    ]
+
     question = models.CharField(max_length=255)
     answer = QuillField(blank=True, default="")
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default='general',
+        help_text="Category for the FAQ"
+    )
     is_active = models.BooleanField(default=True)
 
     # Ordering field to allow manual rearrangement in the admin

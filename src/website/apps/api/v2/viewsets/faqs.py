@@ -43,6 +43,7 @@ class FAQViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyMo
         'id',
         'order',
         'question',
+        'category',
         'is_active',
         'created_at',
         'updated_at',
@@ -58,6 +59,7 @@ class FAQViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyMo
         'id',
         'question',
         'answer',
+        'category',
         'is_active',
         'created_at',
         'updated_at'

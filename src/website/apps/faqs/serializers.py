@@ -14,7 +14,7 @@ class FAQSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FAQ
-        fields = ['id', 'question', 'answer',
+        fields = ['id', 'question', 'answer', 'category',
                   'is_active', 'created_at', 'updated_at', 'answer_html']
 
     def get_answer(self, obj):
