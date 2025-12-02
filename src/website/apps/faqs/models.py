@@ -3,23 +3,22 @@ from django.db import models
 from django_quill.fields import QuillField
 
 
-class FAQ(models.Model):
-    CATEGORY_CHOICES = [
-        ('general', 'General'),
-        ('hardware', 'Hardware'),
-        ('software', 'Software'),
-    ]
+class Category(models.Model):
+    name = models.CharField(max_length=50, unique=True)
 
+    class Meta:
+        verbose_name_plural = "Categories"
+
+    def __str__(self):
+        return self.name
+
+
+class FAQ(models.Model):
     question = models.CharField(max_length=255)
     answer = QuillField(blank=True, default="")
-    category = models.CharField(
-        max_length=20,
-        choices=CATEGORY_CHOICES,
-        default='general',
-        help_text="Category for the FAQ"
-    )
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
-
+            
     # Ordering field to allow manual rearrangement in the admin
     order = models.IntegerField(
         default=1000, help_text="Lower values appear first", db_index=True)

@@ -2,8 +2,17 @@
 FAQs app serializers for v2 API
 """
 from rest_framework import serializers
-from apps.faqs.models import FAQ
+from apps.faqs.models import FAQ, Category
 from ..utils import DynamicFieldsSerializerMixin, SanitizedHTMLField
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    """
+    Serializer for Category
+    """
+    class Meta:
+        model = Category
+        fields = ['id', 'name']
 
 
 class FAQListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
@@ -14,6 +23,7 @@ class FAQListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerialize
     answer = SanitizedHTMLField(read_only=True)
     # Explicit rendered HTML convenience field
     answer_html = SanitizedHTMLField(source='answer', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
         model = FAQ
@@ -23,6 +33,7 @@ class FAQListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerialize
             'answer',
             'answer_html',
             'category',
+            'category_name',
             'is_active',
             'created_at',
             'updated_at',
@@ -38,6 +49,7 @@ class FAQDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
     answer = SanitizedHTMLField(read_only=True)
     # Explicit rendered HTML convenience field
     answer_html = SanitizedHTMLField(source='answer', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
         model = FAQ
@@ -47,6 +59,7 @@ class FAQDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
             'answer',
             'answer_html',
             'category',
+            'category_name',
             'is_active',
             'created_at',
             'updated_at',

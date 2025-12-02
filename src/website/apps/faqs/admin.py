@@ -1,7 +1,13 @@
 # faqs/admin.py
 from django.contrib import admin
 from utils.admin import BaseQuillAdmin
-from .models import FAQ
+from .models import FAQ, Category
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
 
 
 @admin.register(FAQ)

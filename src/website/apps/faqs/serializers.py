@@ -11,10 +11,11 @@ class FAQSerializer(serializers.ModelSerializer):
     answer = serializers.SerializerMethodField()
     # Provide rendered HTML explicitly for clients that want HTML output
     answer_html = serializers.SerializerMethodField()
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
         model = FAQ
-        fields = ['id', 'question', 'answer', 'category',
+        fields = ['id', 'question', 'answer', 'category', 'category_name',
                   'is_active', 'created_at', 'updated_at', 'answer_html']
 
     def get_answer(self, obj):

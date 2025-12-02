@@ -8,11 +8,24 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 
-from apps.faqs.models import FAQ
-from ..serializers.faqs import FAQListSerializer, FAQDetailSerializer
+from apps.faqs.models import FAQ, Category
+from ..serializers.faqs import FAQListSerializer, FAQDetailSerializer, CategorySerializer
 from ..filters.faqs import FAQFilterSet
 from ..pagination import StandardPageNumberPagination
 from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
+
+
+class CategoryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for Category model
+    """
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    pagination_class = StandardPageNumberPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['id', 'name']
+    ordering = ['name']
 
 
 class FAQViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
@@ -59,7 +72,7 @@ class FAQViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyMo
         'id',
         'question',
         'answer',
-        'category',
+        'category__name',
         'is_active',
         'created_at',
         'updated_at'
