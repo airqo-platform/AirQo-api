@@ -13,10 +13,16 @@ class Category(models.Model):
         return self.name
 
 
+def get_default_category():
+    """Get the default category (General), creating it if it doesn't exist."""
+    category, created = Category.objects.get_or_create(name='General')
+    return category.id  # type: ignore
+
+
 class FAQ(models.Model):
     question = models.CharField(max_length=255)
     answer = QuillField(blank=True, default="")
-    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, default=get_default_category)  # type: ignore
     is_active = models.BooleanField(default=True)
             
     # Ordering field to allow manual rearrangement in the admin
