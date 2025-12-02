@@ -1916,6 +1916,7 @@ const deviceUtil = {
       );
     }
   },
+
   claimDevice: async (request, next) => {
     try {
       const { device_name, claim_token, user_id, cohort_id } = request.body;
@@ -1944,15 +1945,100 @@ const deviceUtil = {
         });
       }
 
-      // Edge Case: Prevent claiming a device that is still considered deployed
+      // MODIFICATION: Instead of throwing an error, we will now automatically recall the device.
       if (device.status === "deployed") {
-        throw new HttpError(
-          "Device is currently deployed",
-          httpStatus.CONFLICT,
-          {
-            message: "Device must be recalled before it can be re-claimed.",
-          }
+        logText(
+          `Device ${device_name} is currently deployed. Automatically recalling before claiming.`
         );
+
+        const recallDate = new Date();
+
+        const updateOperation = {
+          $set: {
+            status: "recalled",
+            isActive: false,
+            recall_date: recallDate,
+          },
+          $unset: {
+            height: "",
+            mountType: "",
+            powerType: "",
+            isPrimaryInLocation: "",
+            site_id: null,
+            grid_id: null,
+          },
+        };
+
+        if (device.site_id) {
+          updateOperation.$addToSet = { previous_sites: device.site_id };
+        }
+
+        // Persist the recall state to the database atomically
+        const recallResult = await DeviceModel(tenant).updateOne(
+          { _id: device._id, status: "deployed" },
+          updateOperation
+        );
+
+        if (recallResult.modifiedCount === 0) {
+          throw new HttpError(
+            "Device status may have changed during the operation. Please try again.",
+            httpStatus.CONFLICT
+          );
+        }
+
+        try {
+          await ActivityModel(tenant).create({
+            activityType: "recallment",
+            device: device.name,
+            device_id: device._id,
+            date: recallDate,
+            user_id: user_id, // The user initiating the claim is performing the recall
+            description:
+              "Device automatically recalled during claim operation.",
+          });
+        } catch (logError) {
+          logger.error(
+            `Failed to log automatic recall activity for ${device.name}: ${logError.message}`
+          );
+        }
+
+        const recalledDevice = await DeviceModel(tenant)
+          .findById(device._id)
+          .lean();
+
+        // Publish recall message to Kafka
+        try {
+          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: recallTopic,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify({
+                  updatedDevice: recalledDevice,
+                  user_id: user_id,
+                }),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+          logText(
+            `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`
+          );
+        } catch (error) {
+          logger.error(
+            `internal server error -- while publishing recall message to Kafka -- ${error.message}`
+          );
+        }
+
+        // Update the local device object to reflect the change for subsequent steps
+        device.status = "recalled";
+        device.site_id = null;
+        device.grid_id = null;
       }
 
       // Optional: Verify claim token if provided
@@ -1962,9 +2048,6 @@ const deviceUtil = {
         });
       }
 
-      // Edge Case: Check for claim token expiry using moment-timezone
-      // const timeZone = moment.tz.guess();
-      // const now = moment.tz(timeZone).toDate();
       // Edge Case: Check for claim token expiry using UTC time for consistency
       const now = new Date();
       if (
@@ -2067,6 +2150,7 @@ const deviceUtil = {
       }
     }
   },
+
   bulkClaim: async (request, next) => {
     try {
       const { user_id, devices } = request.body;
@@ -2118,7 +2202,92 @@ const deviceUtil = {
           }
 
           if (device.status === "deployed") {
-            throw new Error("Device is currently deployed");
+            logText(
+              `Device ${device_name} is currently deployed. Automatically recalling before bulk claiming.`
+            );
+            const recallDate = new Date();
+
+            const updateOperation = {
+              $set: {
+                status: "recalled",
+                isActive: false,
+                recall_date: recallDate,
+              },
+              $unset: {
+                height: "",
+                mountType: "",
+                powerType: "",
+                isPrimaryInLocation: "",
+                site_id: null,
+                grid_id: null,
+              },
+            };
+
+            if (device.site_id) {
+              updateOperation.$addToSet = { previous_sites: device.site_id };
+            }
+
+            const recallResult = await DeviceModel(tenant).updateOne(
+              { _id: device._id, status: "deployed" },
+              updateOperation
+            );
+
+            if (recallResult.modifiedCount === 0) {
+              throw new Error("Device status changed during recall operation");
+            }
+
+            try {
+              await ActivityModel(tenant).create({
+                activityType: "recallment",
+                device: device.name,
+                device_id: device._id,
+                date: recallDate,
+                user_id: user_id,
+                description:
+                  "Device automatically recalled during bulk claim operation.",
+              });
+            } catch (logError) {
+              logger.error(
+                `Failed to log recall activity for ${device.name}: ${logError.message}`
+              );
+            }
+
+            const recalledDevice = await DeviceModel(tenant)
+              .findById(device._id)
+              .lean();
+
+            // Publish recall message to Kafka
+            try {
+              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+              const kafkaProducer = kafka.producer({
+                groupId: constants.UNIQUE_PRODUCER_GROUP,
+              });
+              await kafkaProducer.connect();
+              await kafkaProducer.send({
+                topic: recallTopic,
+                messages: [
+                  {
+                    action: "create",
+                    value: JSON.stringify({
+                      updatedDevice: recalledDevice,
+                      user_id: user_id,
+                    }),
+                  },
+                ],
+              });
+              await kafkaProducer.disconnect();
+              logText(
+                `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`
+              );
+            } catch (error) {
+              logger.error(
+                `internal server error -- while publishing recall message to Kafka -- ${error.message}`
+              );
+            }
+
+            device.status = "recalled"; // Update local state
+            device.site_id = null;
+            device.grid_id = null;
           }
 
           if (device.claim_token && device.claim_token !== claim_token) {
@@ -2201,6 +2370,7 @@ const deviceUtil = {
       );
     }
   },
+
   listOrphanedDevices: async (request, next) => {
     try {
       const { query } = request;
@@ -2883,6 +3053,19 @@ const deviceUtil = {
         };
       }
       deviceId = device._id;
+
+      // Prevent preparing a device that is currently deployed
+      if (device.status === "deployed") {
+        return {
+          success: false,
+          message:
+            "Device is currently deployed and cannot be prepared for shipping",
+          status: httpStatus.CONFLICT,
+          errors: {
+            message: "Recall the device before preparing it for shipping.",
+          },
+        };
+      }
 
       // Generate claim token based on type
       const claimToken =
