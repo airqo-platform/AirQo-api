@@ -2142,6 +2142,9 @@ const deviceUtil = {
           }
 
           if (device.status === "deployed") {
+            logText(
+              `Device ${device_name} is currently deployed. Automatically recalling before bulk claiming.`
+            );
             const recallDate = new Date();
             // Persist the recall state to the database
             await DeviceModel(tenant).updateOne(
