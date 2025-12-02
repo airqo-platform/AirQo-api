@@ -1954,7 +1954,16 @@ const deviceUtil = {
         // Persist the recall state to the database
         await DeviceModel(tenant).updateOne(
           { _id: device._id },
-          { $set: { status: "recalled", site_id: null, grid_id: null } }
+          {
+            $set: {
+              status: "recalled",
+              isActive: false,
+              site_id: null,
+              grid_id: null,
+              recall_date: recallDate,
+            },
+            $addToSet: { previous_sites: device.site_id },
+          }
         );
         await ActivityModel(tenant).create({
           activityType: "recall",
@@ -2137,7 +2146,16 @@ const deviceUtil = {
             // Persist the recall state to the database
             await DeviceModel(tenant).updateOne(
               { _id: device._id },
-              { $set: { status: "recalled", site_id: null, grid_id: null } }
+              {
+                $set: {
+                  status: "recalled",
+                  isActive: false,
+                  site_id: null,
+                  grid_id: null,
+                  recall_date: recallDate,
+                },
+                $addToSet: { previous_sites: device.site_id },
+              }
             );
             await ActivityModel(tenant).create({
               activityType: "recall",
