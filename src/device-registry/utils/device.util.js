@@ -1950,29 +1950,52 @@ const deviceUtil = {
         logText(
           `Device ${device_name} is currently deployed. Automatically recalling before claiming.`
         );
+
         const recallDate = new Date();
-        // Persist the recall state to the database
-        await DeviceModel(tenant).updateOne(
-          { _id: device._id },
-          {
-            $set: {
-              status: "recalled",
-              isActive: false,
-              site_id: null,
-              grid_id: null,
-              recall_date: recallDate,
-            },
-            $addToSet: { previous_sites: device.site_id },
-          }
+
+        const updateOperation = {
+          $set: {
+            status: "recalled",
+            isActive: false,
+            site_id: null,
+            grid_id: null,
+            recall_date: recallDate,
+          },
+        };
+
+        if (device.site_id) {
+          updateOperation.$addToSet = { previous_sites: device.site_id };
+        }
+
+        // Persist the recall state to the database atomically
+        const recallResult = await DeviceModel(tenant).updateOne(
+          { _id: device._id, status: "deployed" },
+          updateOperation
         );
-        await ActivityModel(tenant).create({
-          activityType: "recall",
-          device: device.name,
-          device_id: device._id,
-          date: recallDate,
-          user_id: user_id, // The user initiating the claim is performing the recall
-          description: "Device automatically recalled during claim operation.",
-        });
+
+        if (recallResult.modifiedCount === 0) {
+          throw new HttpError(
+            "Device status may have changed during the operation. Please try again.",
+            httpStatus.CONFLICT
+          );
+        }
+
+        try {
+          await ActivityModel(tenant).create({
+            activityType: "recall",
+            device: device.name,
+            device_id: device._id,
+            date: recallDate,
+            user_id: user_id, // The user initiating the claim is performing the recall
+            description:
+              "Device automatically recalled during claim operation.",
+          });
+        } catch (logError) {
+          logger.error(
+            `Failed to log automatic recall activity for ${device.name}: ${logError.message}`
+          );
+        }
+
         // Update the local device object to reflect the change for subsequent steps
         device.status = "recalled";
         device.site_id = null;
@@ -2146,29 +2169,46 @@ const deviceUtil = {
               `Device ${device_name} is currently deployed. Automatically recalling before bulk claiming.`
             );
             const recallDate = new Date();
-            // Persist the recall state to the database
-            await DeviceModel(tenant).updateOne(
-              { _id: device._id },
-              {
-                $set: {
-                  status: "recalled",
-                  isActive: false,
-                  site_id: null,
-                  grid_id: null,
-                  recall_date: recallDate,
-                },
-                $addToSet: { previous_sites: device.site_id },
-              }
+
+            const updateOperation = {
+              $set: {
+                status: "recalled",
+                isActive: false,
+                site_id: null,
+                grid_id: null,
+                recall_date: recallDate,
+              },
+            };
+
+            if (device.site_id) {
+              updateOperation.$addToSet = { previous_sites: device.site_id };
+            }
+
+            const recallResult = await DeviceModel(tenant).updateOne(
+              { _id: device._id, status: "deployed" },
+              updateOperation
             );
-            await ActivityModel(tenant).create({
-              activityType: "recall",
-              device: device.name,
-              device_id: device._id,
-              date: recallDate,
-              user_id: user_id,
-              description:
-                "Device automatically recalled during bulk claim operation.",
-            });
+
+            if (recallResult.modifiedCount === 0) {
+              throw new Error("Device status changed during recall operation");
+            }
+
+            try {
+              await ActivityModel(tenant).create({
+                activityType: "recall",
+                device: device.name,
+                device_id: device._id,
+                date: recallDate,
+                user_id: user_id,
+                description:
+                  "Device automatically recalled during bulk claim operation.",
+              });
+            } catch (logError) {
+              logger.error(
+                `Failed to log recall activity for ${device.name}: ${logError.message}`
+              );
+            }
+
             device.status = "recalled"; // Update local state
             device.site_id = null;
             device.grid_id = null;
