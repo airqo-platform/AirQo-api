@@ -1916,6 +1916,7 @@ const deviceUtil = {
       );
     }
   },
+
   claimDevice: async (request, next) => {
     try {
       const { device_name, claim_token, user_id, cohort_id } = request.body;
@@ -1944,7 +1945,6 @@ const deviceUtil = {
         });
       }
 
-      // Edge Case: Prevent claiming a device that is still considered deployed
       // MODIFICATION: Instead of throwing an error, we will now automatically recall the device.
       if (device.status === "deployed") {
         logText(
@@ -1957,9 +1957,15 @@ const deviceUtil = {
           $set: {
             status: "recalled",
             isActive: false,
+            recall_date: recallDate,
+          },
+          $unset: {
+            height: "",
+            mountType: "",
+            powerType: "",
+            isPrimaryInLocation: "",
             site_id: null,
             grid_id: null,
-            recall_date: recallDate,
           },
         };
 
@@ -1982,7 +1988,7 @@ const deviceUtil = {
 
         try {
           await ActivityModel(tenant).create({
-            activityType: "recall",
+            activityType: "recallment",
             device: device.name,
             device_id: device._id,
             date: recallDate,
@@ -1993,6 +1999,39 @@ const deviceUtil = {
         } catch (logError) {
           logger.error(
             `Failed to log automatic recall activity for ${device.name}: ${logError.message}`
+          );
+        }
+
+        const recalledDevice = await DeviceModel(tenant)
+          .findById(device._id)
+          .lean();
+
+        // Publish recall message to Kafka
+        try {
+          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: recallTopic,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify({
+                  updatedDevice: recalledDevice,
+                  user_id: user_id,
+                }),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+          logText(
+            `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`
+          );
+        } catch (error) {
+          logger.error(
+            `internal server error -- while publishing recall message to Kafka -- ${error.message}`
           );
         }
 
@@ -2009,9 +2048,6 @@ const deviceUtil = {
         });
       }
 
-      // Edge Case: Check for claim token expiry using moment-timezone
-      // const timeZone = moment.tz.guess();
-      // const now = moment.tz(timeZone).toDate();
       // Edge Case: Check for claim token expiry using UTC time for consistency
       const now = new Date();
       if (
@@ -2114,6 +2150,7 @@ const deviceUtil = {
       }
     }
   },
+
   bulkClaim: async (request, next) => {
     try {
       const { user_id, devices } = request.body;
@@ -2174,9 +2211,15 @@ const deviceUtil = {
               $set: {
                 status: "recalled",
                 isActive: false,
+                recall_date: recallDate,
+              },
+              $unset: {
+                height: "",
+                mountType: "",
+                powerType: "",
+                isPrimaryInLocation: "",
                 site_id: null,
                 grid_id: null,
-                recall_date: recallDate,
               },
             };
 
@@ -2195,7 +2238,7 @@ const deviceUtil = {
 
             try {
               await ActivityModel(tenant).create({
-                activityType: "recall",
+                activityType: "recallment",
                 device: device.name,
                 device_id: device._id,
                 date: recallDate,
@@ -2206,6 +2249,39 @@ const deviceUtil = {
             } catch (logError) {
               logger.error(
                 `Failed to log recall activity for ${device.name}: ${logError.message}`
+              );
+            }
+
+            const recalledDevice = await DeviceModel(tenant)
+              .findById(device._id)
+              .lean();
+
+            // Publish recall message to Kafka
+            try {
+              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+              const kafkaProducer = kafka.producer({
+                groupId: constants.UNIQUE_PRODUCER_GROUP,
+              });
+              await kafkaProducer.connect();
+              await kafkaProducer.send({
+                topic: recallTopic,
+                messages: [
+                  {
+                    action: "create",
+                    value: JSON.stringify({
+                      updatedDevice: recalledDevice,
+                      user_id: user_id,
+                    }),
+                  },
+                ],
+              });
+              await kafkaProducer.disconnect();
+              logText(
+                `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`
+              );
+            } catch (error) {
+              logger.error(
+                `internal server error -- while publishing recall message to Kafka -- ${error.message}`
               );
             }
 
@@ -2294,6 +2370,7 @@ const deviceUtil = {
       );
     }
   },
+
   listOrphanedDevices: async (request, next) => {
     try {
       const { query } = request;
