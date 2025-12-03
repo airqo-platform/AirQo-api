@@ -965,8 +965,27 @@ const groupUtil = {
           );
         } catch (kafkaError) {
           logger.error(
-            `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}`
+            `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}`,
+            { grp_id, tenant, error: kafkaError }
           );
+          // Rollback group, role, and user assignment if Kafka publishing fails
+          await Promise.all([
+            GroupModel(tenant).findByIdAndDelete(grp_id),
+            RoleModel(tenant).findByIdAndDelete(role_id),
+            UserModel(tenant).findByIdAndUpdate(user._id, {
+              $pull: { group_roles: { group: grp_id } },
+            }),
+          ]);
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Failed to publish group.created event to Kafka. Group and role creation rolled back.`,
+              }
+            )
+          );
+          return;
         }
 
         return responseFromRegisterGroup;
