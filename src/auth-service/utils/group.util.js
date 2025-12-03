@@ -16,36 +16,10 @@ const logger = require("log4js").getLogger(
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError, logText } = require("@utils/shared");
 const { Kafka } = require("kafkajs");
-let kafkaProducer = null;
-
-const getKafkaProducer = async () => {
-  if (!kafkaProducer) {
-    const kafka = new Kafka({
-      clientId: constants.KAFKA_CLIENT_ID,
-      brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-    });
-    const producer = kafka.producer();
-    await producer.connect();
-    kafkaProducer = producer;
-
-    // Graceful shutdown
-    process.on("SIGINT", async () => {
-      if (kafkaProducer) {
-        await kafkaProducer.disconnect();
-        kafkaProducer = null;
-      }
-      process.exit();
-    });
-    process.on("SIGTERM", async () => {
-      if (kafkaProducer) {
-        await kafkaProducer.disconnect();
-        kafkaProducer = null;
-      }
-      process.exit();
-    });
-  }
-  return kafkaProducer;
-};
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 const isUserAssignedToGroup = (user, grp_id) => {
   if (user && user.group_roles && user.group_roles.length > 0) {
     return user.group_roles.some((assignment) => {
@@ -963,8 +937,9 @@ const groupUtil = {
 
         // Publish group.created event to Kafka
         try {
-          const producer = await getKafkaProducer();
-          await producer.send({
+          const kafkaProducer = kafka.producer();
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
             topic: constants.GROUPS_TOPIC,
             messages: [
               {
@@ -977,7 +952,6 @@ const groupUtil = {
                     groupName: responseFromRegisterGroup.data.grp_title,
                     groupDescription:
                       responseFromRegisterGroup.data.grp_description,
-                      responseFromRegisterGroup.data.grp_description,
                     tenant: tenant,
                     createdBy: user._id,
                   },
@@ -985,27 +959,14 @@ const groupUtil = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
           logger.info(
             `Successfully published group.created event for group ID: ${grp_id}`
           );
         } catch (kafkaError) {
           logger.error(
-            `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}`,
-            { grp_id, tenant, error: kafkaError }
+            `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}`
           );
-          // Rollback group and role creation if Kafka publishing fails
-          await GroupModel(tenant).findByIdAndDelete(grp_id);
-          await RoleModel(tenant).findByIdAndDelete(role_id);
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Failed to publish group.created event to Kafka. Group and role creation rolled back.`,
-              }
-            )
-          );
-          return;
         }
 
         return responseFromRegisterGroup;
