@@ -27,6 +27,7 @@ const stageConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  GROUPS_TOPIC: process.env.GROUPS_TOPIC_STAGE || "groups-topic",
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:

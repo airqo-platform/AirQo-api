@@ -35,6 +35,10 @@ const cohortSchema = new Schema(
       trim: true,
       default: false,
     },
+    grp_id: {
+      type: ObjectId,
+      ref: "group",
+    },
     cohort_tags: {
       type: Array,
       default: [],
@@ -103,6 +107,7 @@ cohortSchema.methods.toJSON = function() {
     network,
     groups,
     visibility,
+    grp_id,
   } = this;
   return {
     _id,
@@ -113,6 +118,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_codes,
     network,
     groups,
+    grp_id,
   };
 };
 

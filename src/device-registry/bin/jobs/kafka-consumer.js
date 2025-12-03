@@ -12,6 +12,7 @@ const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
+const CohortModel = require("@models/Cohort");
 
 const { stringify } = require("@utils/common");
 
@@ -392,6 +393,52 @@ const consumeForecasts = async (messageData) => {
   }
 };
 
+const handleGroupCreated = async (payload) => {
+  try {
+    const { groupId, groupName, tenant, createdBy } = payload;
+
+    if (!groupId || !groupName || !tenant) {
+      logger.error(
+        `Invalid group.created payload received: Missing required fields.`
+      );
+      return;
+    }
+
+    const cohortName = `coh_group_${groupId.toString()}`;
+    const cohortDescription = `Default cohort for organization: ${groupName}`;
+
+    // Check if a cohort with this name already exists to prevent duplicates
+    const existingCohort = await CohortModel(tenant).findOne({
+      name: cohortName,
+    });
+
+    if (existingCohort) {
+      logger.warn(
+        `Cohort '${cohortName}' already exists for group ID ${groupId}. Skipping creation.`
+      );
+      return;
+    }
+
+    // Create the default cohort
+    await CohortModel(tenant).create({
+      name: cohortName,
+      description: cohortDescription,
+      network: tenant, // Assuming network is the same as tenant
+      created_by: createdBy,
+      grp_id: groupId, // Link the cohort to the group
+    });
+
+    logger.info(
+      `Successfully created default cohort '${cohortName}' for group ID ${groupId}.`
+    );
+  } catch (error) {
+    logger.error(
+      `Error handling group.created event: ${error.message}`,
+      payload
+    );
+  }
+};
+
 const kafkaConsumer = async () => {
   try {
     const kafka = new Kafka({
@@ -409,6 +456,7 @@ const kafkaConsumer = async () => {
     const topicOperations = {
       "hourly-measurements-topic": consumeHourlyMeasurements,
       "airqo.forecasts": consumeForecasts,
+      [constants.GROUPS_TOPIC]: handleGroupCreated,
     };
 
     await consumer.connect();
@@ -427,10 +475,14 @@ const kafkaConsumer = async () => {
           const operation = topicOperations[topic];
           if (operation) {
             const messageData = message.value.toString();
-            logger.debug(
-              `KAFKA: Processing message from topic: ${topic}, partition: ${partition}`
-            );
-            await operation(messageData);
+            if (topic === constants.GROUPS_TOPIC) {
+              const event = JSON.parse(messageData);
+              if (event.type === "group.created") {
+                await operation(event.payload);
+              }
+            } else {
+              await operation(messageData);
+            }
           } else {
             logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
           }
