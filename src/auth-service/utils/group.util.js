@@ -981,7 +981,7 @@ const groupUtil = {
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
               {
-                message: `Failed to publish group.created event to Kafka. Group and role creation rolled back.`,
+                message: `A system communication error occurred while creating the organization. The operation has been safely rolled back. Please try again.`,
               }
             )
           );
