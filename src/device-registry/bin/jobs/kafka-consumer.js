@@ -13,6 +13,7 @@ const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
 const CohortModel = require("@models/Cohort");
+const axios = require("axios");
 
 const { stringify } = require("@utils/common");
 
@@ -395,45 +396,74 @@ const consumeForecasts = async (messageData) => {
 
 const handleGroupCreated = async (payload) => {
   try {
-    const { groupId, groupName, tenant, createdBy } = payload;
+    const { groupId, groupName, tenant } = payload;
 
     if (!groupId || !groupName || !tenant) {
       logger.error(
-        `Invalid group.created payload received: Missing required fields.`
+        `KAFKA-CONSUMER: Invalid group.created payload received: Missing required fields.`,
+        payload
       );
       return;
     }
 
-    const cohortName = `coh_group_${groupId.toString()}`;
+    // 1. Validate that the group actually exists in the auth-service
+    let groupDetails;
+    try {
+      const response = await axios.get(
+        `${constants.AUTH_SERVICE_URL}/groups/${groupId}`,
+        {
+          headers: { "x-api-key": constants.INTER_SERVICE_TOKEN },
+          params: { tenant },
+        }
+      );
+      groupDetails = response.data.data;
+      if (isEmpty(groupDetails)) {
+        logger.warn(
+          `KAFKA-CONSUMER: Group with ID ${groupId} not found in auth-service for tenant ${tenant}. Skipping cohort creation.`
+        );
+        return;
+      }
+    } catch (error) {
+      logger.error(
+        `KAFKA-CONSUMER: Error fetching group details for ID ${groupId} from auth-service: ${error.message}`,
+        payload
+      );
+      // Stop processing if we can't verify the group
+      return;
+    }
+
+    const cohortName = `coh_group_${groupId}`;
     const cohortDescription = `Default cohort for organization: ${groupName}`;
 
-    // Check if a cohort with this name already exists to prevent duplicates
+    // 2. Check for idempotency: if a cohort with this name already exists, skip.
     const existingCohort = await CohortModel(tenant).findOne({
       name: cohortName,
     });
 
     if (existingCohort) {
       logger.warn(
-        `Cohort '${cohortName}' already exists for group ID ${groupId}. Skipping creation.`
+        `KAFKA-CONSUMER: Cohort '${cohortName}' already exists for group ID ${groupId}. Skipping creation.`
       );
       return;
     }
 
-    // Create the default cohort
+    // 3. Create the default cohort
+    // Derive network from group data, fall back to tenant if not present
+    const network = groupDetails.network || tenant;
+
     await CohortModel(tenant).create({
       name: cohortName,
       description: cohortDescription,
-      network: tenant, // Assuming network is the same as tenant
-      created_by: createdBy,
+      network: network,
       grp_id: groupId, // Link the cohort to the group
     });
 
     logger.info(
-      `Successfully created default cohort '${cohortName}' for group ID ${groupId}.`
+      `KAFKA-CONSUMER: Successfully created default cohort '${cohortName}' for group ID ${groupId} in network '${network}'.`
     );
   } catch (error) {
     logger.error(
-      `Error handling group.created event: ${error.message}`,
+      `KAFKA-CONSUMER: Error handling group.created event: ${error.message}`,
       payload
     );
   }

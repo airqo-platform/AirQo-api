@@ -95,6 +95,7 @@ cohortSchema.plugin(uniqueValidator, {
   message: `{VALUE} is a duplicate value!`,
 });
 
+cohortSchema.index({ grp_id: 1 });
 cohortSchema.index({ geoHash: 1 });
 
 cohortSchema.methods.toJSON = function() {
