@@ -33,6 +33,7 @@ class FAQFilterSet(django_filters.FilterSet):
         fields = {
             'question': ['exact', 'icontains'],
             'answer': ['icontains'],
+            'category': ['exact'],
             'is_active': ['exact'],
             'created_at': ['exact', 'gte', 'lte'],
             'updated_at': ['exact', 'gte', 'lte'],

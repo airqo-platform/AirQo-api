@@ -15,6 +15,11 @@ const logger = require("log4js").getLogger(
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError, logText } = require("@utils/shared");
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 const isUserAssignedToGroup = (user, grp_id) => {
   if (user && user.group_roles && user.group_roles.length > 0) {
     return user.group_roles.some((assignment) => {
@@ -928,6 +933,59 @@ const groupUtil = {
           ) {
             responseFromRegisterGroup.message += ` (organization slug auto-generated: ${organizationSlug})`;
           }
+        }
+
+        // Publish group.created event to Kafka
+        try {
+          const kafkaProducer = kafka.producer();
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: constants.GROUPS_TOPIC,
+            messages: [
+              {
+                key: grp_id.toString(),
+                value: JSON.stringify({
+                  type: "group.created",
+                  timestamp: new Date().toISOString(),
+                  payload: {
+                    groupId: grp_id,
+                    groupName: responseFromRegisterGroup.data.grp_title,
+                    groupDescription:
+                      responseFromRegisterGroup.data.grp_description,
+                    tenant: tenant,
+                    createdBy: user._id,
+                  },
+                }),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+          logger.info(
+            `Successfully published group.created event for group ID: ${grp_id}`
+          );
+        } catch (kafkaError) {
+          logger.error(
+            `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}`,
+            { grp_id, tenant, error: kafkaError }
+          );
+          // Rollback group, role, and user assignment if Kafka publishing fails
+          await Promise.all([
+            GroupModel(tenant).findByIdAndDelete(grp_id),
+            RoleModel(tenant).findByIdAndDelete(role_id),
+            UserModel(tenant).findByIdAndUpdate(user._id, {
+              $pull: { group_roles: { group: grp_id } },
+            }),
+          ]);
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `A system communication error occurred while creating the organization. The operation has been safely rolled back. Please try again.`,
+              }
+            )
+          );
+          return;
         }
 
         return responseFromRegisterGroup;

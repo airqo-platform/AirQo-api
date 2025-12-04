@@ -35,6 +35,10 @@ const cohortSchema = new Schema(
       trim: true,
       default: false,
     },
+    grp_id: {
+      type: ObjectId,
+      ref: "group",
+    },
     cohort_tags: {
       type: Array,
       default: [],
@@ -91,6 +95,7 @@ cohortSchema.plugin(uniqueValidator, {
   message: `{VALUE} is a duplicate value!`,
 });
 
+cohortSchema.index({ grp_id: 1 });
 cohortSchema.index({ geoHash: 1 });
 
 cohortSchema.methods.toJSON = function() {
@@ -103,6 +108,7 @@ cohortSchema.methods.toJSON = function() {
     network,
     groups,
     visibility,
+    grp_id,
   } = this;
   return {
     _id,
@@ -113,6 +119,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_codes,
     network,
     groups,
+    grp_id,
   };
 };
 

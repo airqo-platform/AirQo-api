@@ -27,6 +27,7 @@ const devConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  GROUPS_TOPIC: process.env.GROUPS_TOPIC_DEV || "groups-topic",
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,

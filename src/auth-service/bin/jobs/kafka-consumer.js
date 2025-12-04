@@ -416,6 +416,7 @@ const kafkaConsumer = async () => {
       ["deploy-topic"]: emailsForDeployedDevices,
       ["recall-topic"]: emailsForRecalledDevices,
       ["sites-topic"]: operationForSiteCreated,
+      [constants.GROUPS_TOPIC]: () => {}, // No-op for auth-service, just acknowledging the topic
     };
 
     await consumer.connect();
