@@ -37,7 +37,7 @@ SUPERSET_PUBLIC_URL = env("SUPERSET_PUBLIC_URL")
 PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_port": 1, "x_prefix": 0}
 
 CORS_OPTIONS = {
-    "origins": [SUPERSET_PUBLIC_URL],
+    "origins": env.list("ORIGINS"),
     "supports_credentials": True,
     "allow_headers": ["Content-Type", "X-CSRFToken", "Authorization"],
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
