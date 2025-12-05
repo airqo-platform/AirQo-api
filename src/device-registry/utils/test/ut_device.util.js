@@ -272,12 +272,14 @@ describe("bulkClaim", () => {
   let findStub;
   let findOneAndUpdateStub;
   let cohortFindOneAndUpdateStub;
+  let cohortFindByIdStub;
   let createActivityStub;
 
   beforeEach(() => {
     const deviceModelMock = {
       find: sinon.stub(),
       findOneAndUpdate: sinon.stub(),
+      updateOne: sinon.stub().resolves({ modifiedCount: 1 }),
     };
     const cohortModelMock = {
       findOneAndUpdate: sinon.stub(),
@@ -293,6 +295,7 @@ describe("bulkClaim", () => {
     findStub = deviceModelMock.find;
     findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
     cohortFindOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
+    cohortFindByIdStub = cohortModelMock.findById;
     createActivityStub = activityModelMock.create;
 
     // Default stubs
@@ -398,6 +401,69 @@ describe("bulkClaim", () => {
       await deviceUtil.bulkClaim(request, (err) => (error = err));
     } catch (err) {}
     expect(error.status).to.equal(httpStatus.BAD_REQUEST);
+  });
+});
+
+describe("bulkClaim with cohort_id", () => {
+  let findStub;
+  let findOneAndUpdateStub;
+  let cohortFindByIdStub;
+  let createActivityStub;
+
+  beforeEach(() => {
+    const deviceModelMock = {
+      find: sinon.stub(),
+      findOneAndUpdate: sinon.stub(),
+      updateOne: sinon.stub().resolves({ modifiedCount: 1 }),
+    };
+    const cohortModelMock = {
+      findById: sinon.stub(),
+    };
+    const activityModelMock = {
+      create: sinon.stub().resolves({}),
+    };
+
+    sinon.stub(DeviceModel, "model").returns(deviceModelMock);
+    sinon.stub(CohortModel, "model").returns(cohortModelMock);
+    sinon.stub(ActivityModel, "model").returns(activityModelMock);
+
+    findStub = deviceModelMock.find;
+    findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
+    cohortFindByIdStub = cohortModelMock.findById;
+    createActivityStub = activityModelMock.create;
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it("should successfully claim devices and assign to a specific cohort", async () => {
+    const specificCohortId = "61f8e726e911c000139c3b08";
+    const request = {
+      body: {
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        devices: [{ device_name: "device_A" }],
+        cohort_id: specificCohortId,
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findStub.resolves([{ name: "device_A", claim_status: "unclaimed" }]);
+    cohortFindByIdStub.returns({
+      lean: () => Promise.resolve({ _id: specificCohortId }),
+    });
+    findOneAndUpdateStub.resolves({
+      name: "device_A",
+      claim_status: "claimed",
+    });
+
+    const result = await deviceUtil.bulkClaim(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.successful_claims).to.have.lengthOf(1);
+    expect(
+      findOneAndUpdateStub.firstCall.args[1].$addToSet.cohorts.toString()
+    ).to.equal(specificCohortId);
   });
 });
 

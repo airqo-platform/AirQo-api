@@ -2188,17 +2188,19 @@ const deviceUtil = {
         // Case B: No cohort provided, use user's personal cohort
         const firstDevice = deviceDocs[0];
         const personalCohortName = `coh_user_${user_id.toString()}`;
-        targetCohort = await CohortModel(tenant).findOneAndUpdate(
-          { name: personalCohortName },
-          {
-            $setOnInsert: {
-              name: personalCohortName,
-              description: `Personal cohort for user ${user_id.toString()}`,
-              network: firstDevice ? firstDevice.network || "airqo" : "airqo",
+        targetCohort = await CohortModel(tenant)
+          .findOneAndUpdate(
+            { name: personalCohortName },
+            {
+              $setOnInsert: {
+                name: personalCohortName,
+                description: `Personal cohort for user ${user_id.toString()}`,
+                network: firstDevice ? firstDevice.network || "airqo" : "airqo",
+              },
             },
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          )
+          .lean();
       }
 
       for (const deviceToClaim of devices) {
