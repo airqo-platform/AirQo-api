@@ -3,13 +3,12 @@ Helper functions for on-demand performance data fetching
 These functions are used by API endpoints to fetch missing data before returning results
 """
 import logging
-from typing import List, Optional
-from datetime import datetime, date, timedelta
-from sqlmodel import Session, select, and_
+from typing import List
+from datetime import datetime
+from sqlmodel import Session, select
 
 from app.models.device import Device
-from app.models.airqloud import AirQloud, AirQloudDevice
-from app.models.performance import DevicePerformance, AirQloudPerformance
+from app.models.airqloud import AirQloud
 from app.crud.fetch_log import device_fetch_log, airqloud_fetch_log
 from cronjobs.performance_jobs.fetch_thingspeak_data_v2 import EnhancedThingSpeakDataFetcher
 
@@ -39,7 +38,6 @@ def ensure_device_performance_data(
         # Convert to dates for fetch log check
         start_dt = start_date.date()
         end_dt = end_date.date()
-        today = date.today()
         
         # Check if we need to fetch any data
         missing_ranges = device_fetch_log.get_missing_date_ranges(
@@ -105,7 +103,6 @@ def ensure_airqloud_performance_data(
         # Convert to dates for fetch log check
         start_dt = start_date.date()
         end_dt = end_date.date()
-        today = date.today()
         
         # Check if we need to calculate any data
         missing_ranges = airqloud_fetch_log.get_missing_date_ranges(

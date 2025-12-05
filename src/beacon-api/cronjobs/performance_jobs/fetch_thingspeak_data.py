@@ -397,8 +397,9 @@ class ThingSpeakDataFetcher:
                 logger.warning(f"No devices found for airqloud {airqloud.id}")
                 return []
             
-            device_ids = [ad.id for ad in airqloud_devices]
-            logger.info(f"Airqloud {airqloud.id} has {len(device_ids)} devices: {device_ids[:5]}...")  # Show first 5
+            # Use the 'name' field which contains the actual device_id that matches dim_device.device_id
+            device_ids = [ad.name for ad in airqloud_devices if ad.name]
+            logger.info(f"Airqloud {airqloud.id} has {len(device_ids)} devices: {device_ids[:5]}...")  # Show first 5 device IDs
             
             # Check existing device performance data
             existing_device_performances = self.session.exec(

@@ -437,7 +437,7 @@ class CRUDDevice(CRUDBase[Device, DeviceCreate, DeviceUpdate]):
         ).first() or 0
         not_deployed = db.exec(
             select(func.count(Device.device_key)).where(
-                and_(network_filter, (Device.status != "deployed") | (Device.status == None))
+                and_(network_filter, (Device.status != "deployed") | (Device.status.is_(None)))
             )
         ).first() or 0
         recalled = db.exec(

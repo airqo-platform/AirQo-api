@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List
 from sqlmodel import Session, select, and_
 from datetime import datetime
 from app.crud.base import CRUDBase

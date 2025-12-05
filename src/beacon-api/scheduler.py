@@ -2,7 +2,6 @@ import logging
 import sys
 import os
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 # Add the current directory to python path to allow imports from app
 # This assumes the script is run from the project root

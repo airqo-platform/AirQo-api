@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import math
 import requests
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, date, timezone
 from sqlmodel import Session, select, and_
 from app.configs.database import SessionLocal
@@ -20,7 +20,7 @@ from app.models.device import Device
 from app.models.airqloud import AirQloud, AirQloudDevice
 from app.models.performance import (
     DevicePerformance, DevicePerformanceCreate,
-    AirQloudPerformance, AirQloudPerformanceCreate
+    AirQloudPerformanceCreate
 )
 from app.crud.performance import device_performance, airqloud_performance
 from app.crud.fetch_log import device_fetch_log, airqloud_fetch_log

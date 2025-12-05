@@ -157,116 +157,6 @@ async def get_map_data(
     return result
 
 
-@router.get("/{device_id}")
-async def get_device(
-    *,
-    db: Session = Depends(get_db),
-    device_id: str,
-    background_tasks: BackgroundTasks
-):
-    from app.models.field_value import FieldValues
-    
-    device = device_crud.get_by_device_id(db, device_id=device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    
-    # Check if device has null keys and trigger background update for ALL devices with null keys
-    if device.read_key is None or device.write_key is None or device.channel_id is None:
-        background_tasks.add_task(update_all_null_device_keys_background)
-    
-    # Get location from dim_location
-    location = db.exec(
-        select(Location)
-        .where(Location.device_key == device.device_key)
-        .where(Location.is_active.is_(True))
-        .order_by(Location.recorded_at.desc())
-        .limit(1)
-    ).first()
-    
-    # Get recent reading from fact_device_readings
-    recent_reading = db.exec(
-        select(DeviceReading)
-        .where(DeviceReading.device_key == device.device_key)
-        .order_by(DeviceReading.created_at.desc())
-        .limit(1)
-    ).first()
-    
-    # Get last 50 field data entries
-    field_data_entries = db.exec(
-        select(FieldValues)
-        .where(FieldValues.device_id == device_id)
-        .order_by(FieldValues.created_at.desc())
-        .limit(50)
-    ).all()
-    
-    # Format field data entries
-    field_data = []
-    for entry in field_data_entries:
-        field_data.append({
-            "id": str(entry.id),  # UUID
-            "entry_id": entry.entry_id,  # Sequential integer ID
-            "timestamp": entry.created_at.isoformat() if entry.created_at else None,
-            "field1": entry.field1,
-            "field2": entry.field2,
-            "field3": entry.field3,
-            "field4": entry.field4,
-            "field5": entry.field5,
-            "field6": entry.field6,
-            "field7": entry.field7,
-            "field8": entry.field8,
-            "field9": entry.field9,
-            "field10": entry.field10,
-            "field11": entry.field11,
-            "field12": entry.field12,
-            "field13": entry.field13,
-            "field14": entry.field14,
-            "field15": entry.field15
-        })
-    
-    # Build response with all device data plus location, recent reading, and field data
-    device_data = {
-        "device_key": device.device_key,
-        "device_id": device.device_id,
-        "device_name": device.device_name,
-        "network": device.network,
-        "category": device.category,
-        "is_active": device.is_active,
-        "status": device.status,
-        "is_online": device.is_online,
-        "mount_type": device.mount_type,
-        "power_type": device.power_type,
-        "height": device.height,
-        "next_maintenance": device.next_maintenance.isoformat() if device.next_maintenance else None,
-        "first_seen": device.first_seen.isoformat() if device.first_seen else None,
-        "last_updated": device.last_updated.isoformat() if device.last_updated else None,
-        "created_at": device.created_at.isoformat() if device.created_at else None,
-        "updated_at": device.updated_at.isoformat() if device.updated_at else None,
-        # New fields added
-        "read_key": device.read_key,
-        "write_key": device.write_key,
-        "channel_id": device.channel_id,
-        "network_id": device.network_id,
-        "current_firmware": device.current_firmware,
-        "previous_firmware": device.previous_firmware,
-        "target_firmware": device.target_firmware,
-        "location": {
-            "latitude": location.latitude,
-            "longitude": location.longitude,
-        } if location else None,
-        "recent_reading": {
-            "site_name": recent_reading.site_name,
-            "temperature": recent_reading.temperature,
-            "humidity": recent_reading.humidity,
-            "pm2_5": recent_reading.pm2_5,
-            "pm10": recent_reading.pm10,
-            "timestamp": recent_reading.created_at.isoformat() if recent_reading.created_at else None
-        } if recent_reading else None,
-        "field_data": field_data
-    }
-    
-    return device_data
-
-
 # @router.post("/", response_model=DeviceRead)
 # async def create_device(
 #     *,
@@ -307,186 +197,6 @@ async def debug_device_ids(
     return {
         "total_found": len(devices),
         "device_ids": [{"device_id": d.device_id, "device_name": d.device_name} for d in devices]
-    }
-
-
-@router.patch("/{device_id}/details", response_model=DeviceRead)
-async def update_device_firmware(
-    *,
-    db: Session = Depends(get_db),
-    device_id: str,
-    firmware_update: DeviceFirmwareUpdate
-):
-    """
-    Update device firmware versions and network_id only.
-    
-    This endpoint allows updating only firmware-related fields:
-    - network_id: Network identifier for the device
-    - current_firmware: Current firmware version
-    - previous_firmware: Previous firmware version  
-    - target_firmware: Target firmware version for updates
-    
-    All fields are optional - only provided fields will be updated.
-    """
-    logger.info(f"Attempting to update firmware for device_id: {device_id}")
-    
-    device = device_crud.get_by_device_id(db, device_id=device_id)
-    if not device:
-        logger.warning(f"Device not found with device_id: {device_id}")
-        # Let's try to find similar device IDs for debugging
-        all_devices = db.exec(select(Device.device_id, Device.device_name).limit(5)).all()
-        available_ids = [{"device_id": d.device_id, "device_name": d.device_name} for d in all_devices]
-        logger.info(f"Sample device IDs in database: {available_ids}")
-        raise HTTPException(
-            status_code=404, 
-            detail={
-                "message": f"Device not found with device_id: {device_id}",
-                "available_device_ids": available_ids
-            }
-        )
-    
-    logger.info(f"Found device: {device.device_name} (key: {device.device_key})")
-    
-    # Convert Pydantic model to dict and filter out None values
-    firmware_data = firmware_update.model_dump(exclude_unset=True, exclude_none=True)
-    
-    if not firmware_data:
-        raise HTTPException(status_code=400, detail="No valid firmware fields provided for update")
-    
-    logger.info(f"Updating firmware data: {firmware_data}")
-    
-    try:
-        updated_device = device_crud.update_firmware(db, device_id=device_id, firmware_data=firmware_data)
-        
-        if not updated_device:
-            raise HTTPException(status_code=404, detail="Device not found during update")
-        
-        logger.info(f"Successfully updated device firmware for {device_id}")
-        return updated_device
-        
-    except ValueError as e:
-        # Handle firmware not found errors
-        logger.error(f"Firmware validation error: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        # Handle any other database/integrity errors
-        logger.error(f"Database error updating firmware: {str(e)}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to update device firmware")
-
-
-# @router.delete("/{device_id}")
-# async def delete_device(
-#     *,
-#     db: Session = Depends(get_db),
-#     device_id: str
-# ):
-#     device = device_crud.get_by_device_id(db, device_id=device_id)
-#     if not device:
-#         raise HTTPException(status_code=404, detail="Device not found")
-    
-#     device_crud.remove(db, id=device.device_key)
-#     return {"message": "Device deleted successfully"}
-
-
-@router.get("/{device_id}/performance")
-async def get_device_performance(
-    *,
-    db: Session = Depends(get_db),
-    device_id: str,
-    days: int = Query(7, ge=1, le=90, description="Number of days to analyze")
-):
-    device = device_crud.get_by_device_id(db, device_id=device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    end_date = datetime.now(timezone.utc)
-    start_date = end_date - timedelta(days=days)
-    readings_query = select(DeviceReading).where(
-        DeviceReading.device_key == device.device_key,
-        DeviceReading.created_at >= start_date,
-        DeviceReading.created_at <= end_date
-    )
-    readings = db.exec(readings_query).all()
-    total_hours = days * 24
-    expected_readings = total_hours * 2
-    actual_readings = len(readings)
-    uptime_percentage = (actual_readings / expected_readings * 100) if expected_readings > 0 else 0
-    valid_readings = [r for r in readings if r.pm2_5 is not None or r.pm10 is not None]
-    data_completeness = (len(valid_readings) / actual_readings * 100) if actual_readings > 0 else 0
-    pm2_5_values = []
-    pm10_values = []
-    temp_values = []
-    humidity_values = []
-    
-    for r in readings:
-        if hasattr(r, 'pm2_5') and r.pm2_5 is not None:
-            pm2_5_values.append(r.pm2_5)
-        if hasattr(r, 'pm10') and r.pm10 is not None:
-            pm10_values.append(r.pm10)
-        if hasattr(r, 'temperature') and r.temperature is not None:
-            temp_values.append(r.temperature)
-        if hasattr(r, 'humidity') and r.humidity is not None:
-            humidity_values.append(r.humidity)
-    
-    return {
-        "device_id": device.device_id,
-        "device_name": device.device_name,
-        "period": {
-            "start": start_date.isoformat(),
-            "end": end_date.isoformat(),
-            "days": days
-        },
-        "metrics": {
-            "uptime_percentage": round(uptime_percentage, 2),
-            "data_completeness": round(data_completeness, 2),
-            "total_readings": actual_readings,
-            "valid_readings": len(valid_readings),
-            "error_readings": actual_readings - len(valid_readings)
-        },
-        "averages": {
-            "pm2_5": round(sum(pm2_5_values) / len(pm2_5_values), 2) if pm2_5_values else None,
-            "pm10": round(sum(pm10_values) / len(pm10_values), 2) if pm10_values else None,
-            "temperature": round(sum(temp_values) / len(temp_values), 2) if temp_values else None,
-            "humidity": round(sum(humidity_values) / len(humidity_values), 2) if humidity_values else None
-        },
-        "status": {
-            "current_status": device.status,
-            "is_active": device.is_active,
-            "is_online": device.is_online,
-            "last_updated": device.last_updated.isoformat() if device.last_updated else None
-        }
-    }
-
-
-@router.get("/{device_id}/readings")
-async def get_device_readings(
-    *,
-    db: Session = Depends(get_db),
-    device_id: str,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    limit: int = Query(100, ge=1, le=1000)
-):
-    device = device_crud.get_by_device_id(db, device_id=device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    
-    query = select(DeviceReading).where(DeviceReading.device_key == device.device_key)
-    
-    if start_date:
-        query = query.where(DeviceReading.created_at >= start_date)
-    if end_date:
-        query = query.where(DeviceReading.created_at <= end_date)
-    
-    query = query.order_by(DeviceReading.created_at.desc()).limit(limit)
-    
-    readings = db.exec(query).all()
-    
-    return {
-        "device_id": device_id,
-        "device_name": device.device_name,
-        "count": len(readings),
-        "readings": readings
     }
 
 
@@ -822,4 +532,282 @@ async def get_reliability_metrics(
         },
         "devices_with_longest_downtime": top_devices,
         "timestamp": current_time.isoformat()
+    }
+
+
+# =============================================================================
+# PARAMETERIZED ROUTES - These must come AFTER all static path routes
+# to avoid path conflicts (e.g., /{device_id} would capture /offline/list)
+# =============================================================================
+
+@router.get("/{device_id}")
+async def get_device(
+    *,
+    db: Session = Depends(get_db),
+    device_id: str,
+    background_tasks: BackgroundTasks
+):
+    from app.models.field_value import FieldValues
+    
+    device = device_crud.get_by_device_id(db, device_id=device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    # Check if device has null keys and trigger background update for ALL devices with null keys
+    if device.read_key is None or device.write_key is None or device.channel_id is None:
+        background_tasks.add_task(update_all_null_device_keys_background)
+    
+    # Get location from dim_location
+    location = db.exec(
+        select(Location)
+        .where(Location.device_key == device.device_key)
+        .where(Location.is_active.is_(True))
+        .order_by(Location.recorded_at.desc())
+        .limit(1)
+    ).first()
+    
+    # Get recent reading from fact_device_readings
+    recent_reading = db.exec(
+        select(DeviceReading)
+        .where(DeviceReading.device_key == device.device_key)
+        .order_by(DeviceReading.created_at.desc())
+        .limit(1)
+    ).first()
+    
+    # Get last 50 field data entries
+    field_data_entries = db.exec(
+        select(FieldValues)
+        .where(FieldValues.device_id == device_id)
+        .order_by(FieldValues.created_at.desc())
+        .limit(50)
+    ).all()
+    
+    # Format field data entries
+    field_data = []
+    for entry in field_data_entries:
+        field_data.append({
+            "id": str(entry.id),  # UUID
+            "entry_id": entry.entry_id,  # Sequential integer ID
+            "timestamp": entry.created_at.isoformat() if entry.created_at else None,
+            "field1": entry.field1,
+            "field2": entry.field2,
+            "field3": entry.field3,
+            "field4": entry.field4,
+            "field5": entry.field5,
+            "field6": entry.field6,
+            "field7": entry.field7,
+            "field8": entry.field8,
+            "field9": entry.field9,
+            "field10": entry.field10,
+            "field11": entry.field11,
+            "field12": entry.field12,
+            "field13": entry.field13,
+            "field14": entry.field14,
+            "field15": entry.field15
+        })
+    
+    # Build response with all device data plus location, recent reading, and field data
+    device_data = {
+        "device_key": device.device_key,
+        "device_id": device.device_id,
+        "device_name": device.device_name,
+        "network": device.network,
+        "category": device.category,
+        "is_active": device.is_active,
+        "status": device.status,
+        "is_online": device.is_online,
+        "mount_type": device.mount_type,
+        "power_type": device.power_type,
+        "height": device.height,
+        "next_maintenance": device.next_maintenance.isoformat() if device.next_maintenance else None,
+        "first_seen": device.first_seen.isoformat() if device.first_seen else None,
+        "last_updated": device.last_updated.isoformat() if device.last_updated else None,
+        "created_at": device.created_at.isoformat() if device.created_at else None,
+        "updated_at": device.updated_at.isoformat() if device.updated_at else None,
+        # New fields added
+        "read_key": device.read_key,
+        "write_key": device.write_key,
+        "channel_id": device.channel_id,
+        "network_id": device.network_id,
+        "current_firmware": device.current_firmware,
+        "previous_firmware": device.previous_firmware,
+        "target_firmware": device.target_firmware,
+        "location": {
+            "latitude": location.latitude,
+            "longitude": location.longitude,
+        } if location else None,
+        "recent_reading": {
+            "site_name": recent_reading.site_name,
+            "temperature": recent_reading.temperature,
+            "humidity": recent_reading.humidity,
+            "pm2_5": recent_reading.pm2_5,
+            "pm10": recent_reading.pm10,
+            "timestamp": recent_reading.created_at.isoformat() if recent_reading.created_at else None
+        } if recent_reading else None,
+        "field_data": field_data
+    }
+    
+    return device_data
+
+
+@router.patch("/{device_id}/details", response_model=DeviceRead)
+async def update_device_firmware(
+    *,
+    db: Session = Depends(get_db),
+    device_id: str,
+    firmware_update: DeviceFirmwareUpdate
+):
+    """
+    Update device firmware versions and network_id only.
+    
+    This endpoint allows updating only firmware-related fields:
+    - network_id: Network identifier for the device
+    - current_firmware: Current firmware version
+    - previous_firmware: Previous firmware version  
+    - target_firmware: Target firmware version for updates
+    
+    All fields are optional - only provided fields will be updated.
+    """
+    logger.info(f"Attempting to update firmware for device_id: {device_id}")
+    
+    device = device_crud.get_by_device_id(db, device_id=device_id)
+    if not device:
+        logger.warning(f"Device not found with device_id: {device_id}")
+        # Log sample device IDs for server-side debugging only
+        all_devices = db.exec(select(Device.device_id, Device.device_name).limit(5)).all()
+        available_ids = [{"device_id": d.device_id, "device_name": d.device_name} for d in all_devices]
+        logger.info(f"Sample device IDs in database: {available_ids}")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Device not found with device_id: {device_id}"
+        )
+    
+    logger.info(f"Found device: {device.device_name} (key: {device.device_key})")
+    
+    # Convert Pydantic model to dict and filter out None values
+    firmware_data = firmware_update.model_dump(exclude_unset=True, exclude_none=True)
+    
+    if not firmware_data:
+        raise HTTPException(status_code=400, detail="No valid firmware fields provided for update")
+    
+    logger.info(f"Updating firmware data: {firmware_data}")
+    
+    try:
+        updated_device = device_crud.update_firmware(db, device_id=device_id, firmware_data=firmware_data)
+        
+        if not updated_device:
+            raise HTTPException(status_code=404, detail="Device not found during update")
+        
+        logger.info(f"Successfully updated device firmware for {device_id}")
+        return updated_device
+        
+    except ValueError as e:
+        # Handle firmware not found errors
+        logger.error(f"Firmware validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Handle any other database/integrity errors
+        logger.error(f"Database error updating firmware: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update device firmware")
+
+
+@router.get("/{device_id}/performance")
+async def get_device_performance(
+    *,
+    db: Session = Depends(get_db),
+    device_id: str,
+    days: int = Query(7, ge=1, le=90, description="Number of days to analyze")
+):
+    device = device_crud.get_by_device_id(db, device_id=device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+    readings_query = select(DeviceReading).where(
+        DeviceReading.device_key == device.device_key,
+        DeviceReading.created_at >= start_date,
+        DeviceReading.created_at <= end_date
+    )
+    readings = db.exec(readings_query).all()
+    total_hours = days * 24
+    expected_readings = total_hours * 2
+    actual_readings = len(readings)
+    uptime_percentage = (actual_readings / expected_readings * 100) if expected_readings > 0 else 0
+    valid_readings = [r for r in readings if r.pm2_5 is not None or r.pm10 is not None]
+    data_completeness = (len(valid_readings) / actual_readings * 100) if actual_readings > 0 else 0
+    pm2_5_values = []
+    pm10_values = []
+    temp_values = []
+    humidity_values = []
+    
+    for r in readings:
+        if hasattr(r, 'pm2_5') and r.pm2_5 is not None:
+            pm2_5_values.append(r.pm2_5)
+        if hasattr(r, 'pm10') and r.pm10 is not None:
+            pm10_values.append(r.pm10)
+        if hasattr(r, 'temperature') and r.temperature is not None:
+            temp_values.append(r.temperature)
+        if hasattr(r, 'humidity') and r.humidity is not None:
+            humidity_values.append(r.humidity)
+    
+    return {
+        "device_id": device.device_id,
+        "device_name": device.device_name,
+        "period": {
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+            "days": days
+        },
+        "metrics": {
+            "uptime_percentage": round(uptime_percentage, 2),
+            "data_completeness": round(data_completeness, 2),
+            "total_readings": actual_readings,
+            "valid_readings": len(valid_readings),
+            "error_readings": actual_readings - len(valid_readings)
+        },
+        "averages": {
+            "pm2_5": round(sum(pm2_5_values) / len(pm2_5_values), 2) if pm2_5_values else None,
+            "pm10": round(sum(pm10_values) / len(pm10_values), 2) if pm10_values else None,
+            "temperature": round(sum(temp_values) / len(temp_values), 2) if temp_values else None,
+            "humidity": round(sum(humidity_values) / len(humidity_values), 2) if humidity_values else None
+        },
+        "status": {
+            "current_status": device.status,
+            "is_active": device.is_active,
+            "is_online": device.is_online,
+            "last_updated": device.last_updated.isoformat() if device.last_updated else None
+        }
+    }
+
+
+@router.get("/{device_id}/readings")
+async def get_device_readings(
+    *,
+    db: Session = Depends(get_db),
+    device_id: str,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    limit: int = Query(100, ge=1, le=1000)
+):
+    device = device_crud.get_by_device_id(db, device_id=device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    query = select(DeviceReading).where(DeviceReading.device_key == device.device_key)
+    
+    if start_date:
+        query = query.where(DeviceReading.created_at >= start_date)
+    if end_date:
+        query = query.where(DeviceReading.created_at <= end_date)
+    
+    query = query.order_by(DeviceReading.created_at.desc()).limit(limit)
+    
+    readings = db.exec(query).all()
+    
+    return {
+        "device_id": device_id,
+        "device_name": device.device_name,
+        "count": len(readings),
+        "readings": readings
     }

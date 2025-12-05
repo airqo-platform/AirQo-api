@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from sqlmodel import Session, select, and_, or_
 from datetime import date, datetime, timedelta, timezone
 from app.crud.base import CRUDBase

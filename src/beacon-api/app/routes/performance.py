@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Body
 from sqlmodel import Session, select
 from typing import List, Literal
 from datetime import datetime, timedelta, timezone
@@ -12,8 +12,6 @@ from app.models.device import Device
 from app.models.airqloud import AirQloud
 from app.crud import device_performance, airqloud_performance
 from app.utils.performance_fetcher import (
-    ensure_device_performance_data,
-    ensure_airqloud_performance_data,
     ensure_multiple_devices_performance_data,
     ensure_multiple_airqlouds_performance_data
 )

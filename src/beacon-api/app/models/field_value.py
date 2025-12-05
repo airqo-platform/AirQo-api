@@ -1,5 +1,4 @@
 from sqlmodel import Field, SQLModel
-from sqlalchemy import Column, Integer
 from typing import Optional
 from datetime import datetime, timezone
 import uuid as uuid_pkg

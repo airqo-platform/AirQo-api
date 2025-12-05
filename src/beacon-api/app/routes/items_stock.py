@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlmodel import Session
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 from app.crud.items_stock import items_stock as items_stock_crud, items_stock_history as history_crud
 from app.models.items_stock import (
     ItemsStockCreate, ItemsStockRead, ItemsStockUpdate, ItemsStockWithHistory,
-    ItemsStockHistoryRead, ItemsStockResponse, ItemsStockHistoryResponse,
-    StockMovementSummary, ChangeType
+    ItemsStockResponse
 )
 from app.deps import get_db
 

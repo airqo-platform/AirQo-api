@@ -4,7 +4,7 @@ from uuid import UUID
 from app.crud.base import CRUDBase
 from app.models.items_stock import (
     ItemsStock, ItemsStockCreate, ItemsStockUpdate, ItemsStockHistory, 
-    ChangeType, StockMovementSummary, ItemsStockRead
+    ChangeType, ItemsStockRead
 )
 
 
@@ -81,7 +81,7 @@ class CRUDItemsStock(CRUDBase[ItemsStock, ItemsStockCreate, ItemsStockUpdate]):
             change = self._get_stock_change(db, item.id)
             stock_in_details = self._get_last_stock_in_details(db, item.id)
             
-            item_dict = item.dict()
+            item_dict = item.model_dump()
             item_dict['change'] = change
             item_dict['last_stocked_at'] = stock_in_details['last_stocked_at']
             item_dict['last_stock_addition'] = stock_in_details['last_stock_addition']
@@ -101,7 +101,7 @@ class CRUDItemsStock(CRUDBase[ItemsStock, ItemsStockCreate, ItemsStockUpdate]):
         change = self._get_stock_change(db, item_id)
         stock_in_details = self._get_last_stock_in_details(db, item_id)
         
-        item_dict = item.dict()
+        item_dict = item.model_dump()
         item_dict['change'] = change
         item_dict['last_stocked_at'] = stock_in_details['last_stocked_at']
         item_dict['last_stock_addition'] = stock_in_details['last_stock_addition']
@@ -176,10 +176,14 @@ class CRUDItemsStock(CRUDBase[ItemsStock, ItemsStockCreate, ItemsStockUpdate]):
         # Perform the update
         updated_obj = self.update(db=db, db_obj=db_obj, obj_in=obj_in)
         
-        # Return enriched version with change field
+        # Return enriched version with change field and stock-in details
         change = self._get_stock_change(db, item_id)
-        item_dict = updated_obj.dict()
+        stock_in_details = self._get_last_stock_in_details(db, item_id)
+        item_dict = updated_obj.model_dump()
         item_dict['change'] = change
+        item_dict['last_stocked_at'] = stock_in_details['last_stocked_at']
+        item_dict['last_stock_addition'] = stock_in_details['last_stock_addition']
+        item_dict['stock_after_last_addition'] = stock_in_details['stock_after_last_addition']
         return ItemsStockRead(**item_dict)
 
 
@@ -237,59 +241,6 @@ class CRUDItemsStockHistory(CRUDBase[ItemsStockHistory, None, None]):
         
         return history, total
     
-    # def get_stock_movements(
-    #     self, 
-    #     db: Session, 
-    #     *, 
-    #     item_id: Optional[UUID] = None
-    # ) -> List[ItemsStockHistory]:
-    #     """Get only stock movement records (STOCK_IN/STOCK_OUT)."""
-    #     statement = select(self.model).where(
-    #         self.model.change_type.in_([ChangeType.STOCK_IN, ChangeType.STOCK_OUT])
-    #     )
-        
-    #     if item_id:
-    #         statement = statement.where(self.model.item_id == item_id)
-            
-    #     statement = statement.order_by(desc(self.model.changed_at))
-    #     return db.exec(statement).all()
-    
-    # def get_movement_summary(self, db: Session) -> List[StockMovementSummary]:
-    #     """Get summary of stock movements."""
-    #     # This would need raw SQL in a real implementation
-    #     # For now, let's get the data and process it
-    #     movements = self.get_stock_movements(db=db)
-        
-    #     summary = {}
-    #     for movement in movements:
-    #         change_type = movement.change_type
-    #         if change_type not in summary:
-    #             summary[change_type] = {
-    #                 'transaction_count': 0,
-    #                 'total_quantity_moved': 0
-    #             }
-            
-    #         summary[change_type]['transaction_count'] += 1
-            
-    #         if change_type == ChangeType.STOCK_IN:
-    #             quantity_moved = movement.new_stock - (movement.old_stock or 0)
-    #         elif change_type == ChangeType.STOCK_OUT:
-    #             quantity_moved = (movement.old_stock or 0) - movement.new_stock
-    #         else:
-    #             quantity_moved = 0
-                
-    #         summary[change_type]['total_quantity_moved'] += quantity_moved
-        
-    #     return [
-    #         StockMovementSummary(
-    #             change_type=change_type,
-    #             transaction_count=data['transaction_count'],
-    #             total_quantity_moved=data['total_quantity_moved']
-    #         )
-    #         for change_type, data in summary.items()
-    #     ]
-
-
 # Create instances
 items_stock = CRUDItemsStock(ItemsStock)
 items_stock_history = CRUDItemsStockHistory(ItemsStockHistory)

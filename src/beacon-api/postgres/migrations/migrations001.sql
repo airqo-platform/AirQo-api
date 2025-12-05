@@ -786,35 +786,8 @@ CREATE INDEX IF NOT EXISTS idx_fact_device_status_device_timestamp ON fact_devic
 CREATE INDEX IF NOT EXISTS idx_fact_device_readings_device_key ON fact_device_readings(device_key);
 CREATE INDEX IF NOT EXISTS idx_fact_device_readings_created_at ON fact_device_readings(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_fact_device_readings_device_created_at ON fact_device_readings(device_key, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_fact_device_readings_s1_pm2_5 ON fact_device_readings(pm2_5) WHERE pm2_5 IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_fact_device_readings_s2_pm2_5 ON fact_device_readings(pm2_5) WHERE pm2_5 IS NOT NULL; -- Note: original SQL had s1_pm2_5 and s2_pm2_5 but table def has pm2_5. Assuming pm2_5 is correct based on table def.
--- Correction: The original SQL had `s1_pm2_5` in index but `pm2_5` in table. I will stick to `pm2_5` as per table definition in this script.
--- If the original SQL had `s1_pm2_5` it might be a typo in the original SQL or I missed a column.
--- Checking 01-init.sql again...
--- CREATE TABLE fact_device_readings (... pm2_5 FLOAT ...);
--- CREATE INDEX idx_fact_device_readings_s1_pm2_5 ON fact_device_readings(s1_pm2_5) WHERE s1_pm2_5 IS NOT NULL;
--- This implies `s1_pm2_5` column exists or the index definition is wrong in 01-init.sql.
--- Given I am replicating 01-init.sql structure, I should check if I missed columns.
--- In 01-init.sql: `pm2_5 FLOAT, pm10 FLOAT`. No `s1_pm2_5`.
--- So the index in 01-init.sql refers to a column that doesn't exist in the table definition in the same file?
--- Or maybe I missed it. Let me check the file content provided in attachment.
--- Attachment 01-init.sql:
--- CREATE TABLE fact_device_readings ( ... pm2_5 FLOAT, ... );
--- CREATE INDEX idx_fact_device_readings_s1_pm2_5 ON fact_device_readings(s1_pm2_5) WHERE s1_pm2_5 IS NOT NULL;
--- This looks like a bug in the original 01-init.sql provided.
--- However, I must follow "sets the database to this structure in the sql file".
--- If the SQL file is invalid (index on non-existent column), I should probably fix it or replicate it.
--- Since I cannot create an index on a non-existent column, I will assume `pm2_5` is the intended column for `s1_pm2_5` index or I should add `s1_pm2_5` column?
--- The user said "sets the database to this structure".
--- I will assume `pm2_5` is the column and create index on `pm2_5`.
 CREATE INDEX IF NOT EXISTS idx_fact_device_readings_pm2_5 ON fact_device_readings(pm2_5) WHERE pm2_5 IS NOT NULL;
--- I will skip the s2_pm2_5 index if the column doesn't exist.
-
-CREATE INDEX IF NOT EXISTS idx_fact_device_readings_category ON fact_device_readings(network); -- Original used device_category, but table has network. Checking...
--- Original: CREATE INDEX idx_fact_device_readings_category ON fact_device_readings(device_category);
--- Table: ... network VARCHAR(50), ...
--- No device_category column in fact_device_readings in 01-init.sql.
--- I will skip invalid indexes from the original file to avoid errors.
+CREATE INDEX IF NOT EXISTS idx_fact_device_readings_pm10 ON fact_device_readings(pm10) WHERE pm10 IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_fact_health_tips_reading_key ON fact_health_tips(reading_key);
 CREATE INDEX IF NOT EXISTS idx_fact_health_tips_aqi_category ON fact_health_tips(aqi_category);

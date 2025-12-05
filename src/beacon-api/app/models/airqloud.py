@@ -1,4 +1,4 @@
-from sqlmodel import Field, SQLModel, Relationship
+from sqlmodel import Field, SQLModel
 from typing import Optional, List
 from datetime import datetime
 from pydantic import ConfigDict

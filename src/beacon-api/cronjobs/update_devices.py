@@ -13,11 +13,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import requests
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime, timezone
 from sqlmodel import Session, select, func, or_, and_
 from app.configs.database import SessionLocal
-from app.models.device import Device, DeviceCreate, DeviceUpdate
+from app.models.device import Device
 from app.crud.device import CRUDDevice
 from dotenv import load_dotenv
 
@@ -346,10 +346,8 @@ class DeviceUpdater:
         if current_value is None and new_value is not None:
             return True
         
-        # For read_key, write_key and channel_id, prioritize filling null values
+        # For read_key, write_key and channel_id, don't update if current value exists (preserve existing data)
         if field_name in ['read_key', 'write_key', 'channel_id']:
-            if current_value is None and new_value is not None:
-                return True
             # Don't update if current value exists (preserve existing data)
             return False
         

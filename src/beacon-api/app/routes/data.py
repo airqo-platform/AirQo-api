@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func, and_, or_
+from sqlmodel import Session, select, func, and_
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from app.deps import get_db
 from app.models import Device, FirmwareDownloadState
-from app.models.metadata_value import MetadataValues, MetadataValuesCreate, MetadataValuesUpdate, MetadataValuesRead
+from app.models.metadata_value import MetadataValues, MetadataValuesCreate, MetadataValuesRead
 from app.models.config_value import ConfigValues, ConfigValuesCreate, ConfigValuesUpdate, ConfigValuesRead
-from app.models.field_value import FieldValues, FieldValuesRead
+from app.models.field_value import FieldValuesRead
 from app.crud.device import device as device_crud
 from app.crud.metadata_value import metadata_values as metadata_crud
 from app.crud.config_value import config_values as config_crud
@@ -483,23 +483,23 @@ async def get_combined_device_data(
             latest_metadata = metadata_crud.get_latest_by_device(db, device_id=device.device_id)
             
             # Apply date filters if any data exists
+            # Each timestamp must satisfy ALL applicable bounds (both start_date AND end_date)
+            # Record is valid if at least one timestamp passes all checks
             if start_date or end_date:
                 valid_item = False
                 
-                if latest_field and start_date and latest_field.created_at >= start_date:
-                    valid_item = True
-                if latest_field and end_date and latest_field.created_at <= end_date:
-                    valid_item = True
-                if latest_config and start_date and latest_config.created_at >= start_date:
-                    valid_item = True
-                if latest_config and end_date and latest_config.created_at <= end_date:
-                    valid_item = True
-                if latest_metadata and start_date and latest_metadata.created_at >= start_date:
-                    valid_item = True
-                if latest_metadata and end_date and latest_metadata.created_at <= end_date:
-                    valid_item = True
+                # Check each timestamp independently - must satisfy ALL applicable bounds
+                for ts in [latest_field, latest_config, latest_metadata]:
+                    if ts is None:
+                        continue
+                    # Check if this timestamp satisfies all applicable bounds
+                    passes_start = start_date is None or ts.created_at >= start_date
+                    passes_end = end_date is None or ts.created_at <= end_date
+                    if passes_start and passes_end:
+                        valid_item = True
+                        break
                 
-                if not valid_item and (start_date or end_date):
+                if not valid_item:
                     continue
             
             # Determine the most recent created_at timestamp

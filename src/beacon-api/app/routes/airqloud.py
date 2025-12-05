@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File, Form, BackgroundTasks
 from sqlmodel import Session
 from typing import List, Optional
-import uuid
 import string
 import random
 from datetime import datetime, timezone, timedelta
@@ -11,12 +10,9 @@ import json
 
 from app.deps import get_db
 from app.models import (
-    AirQloud,
     AirQloudCreate,
     AirQloudUpdate,
     AirQloudRead,
-    AirQloudWithDeviceCount,
-    AirQloudWithPerformance,
     AirQloudDeviceCreate,
     AirQloudDeviceRead,
     AirQloudSingleBulkCreateResponse

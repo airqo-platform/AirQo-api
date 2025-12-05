@@ -4,11 +4,10 @@ from sqlmodel import Session
 from typing import Optional, List
 import uuid as uuid_pkg
 import re
-import os
 import logging
 
 from app.deps import get_db
-from app.models.firmware import Firmware, FirmwareRead, FirmwareUpdate, FirmwareType
+from app.models.firmware import FirmwareRead, FirmwareUpdate, FirmwareType
 from app.crud.firmware import firmware as firmware_crud
 from app.configs.settings import settings
 

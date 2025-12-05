@@ -505,9 +505,8 @@ CREATE INDEX idx_fact_device_status_device_timestamp ON fact_device_status(devic
 CREATE INDEX idx_fact_device_readings_device_key ON fact_device_readings(device_key);
 CREATE INDEX idx_fact_device_readings_created_at ON fact_device_readings(created_at DESC);
 CREATE INDEX idx_fact_device_readings_device_created_at ON fact_device_readings(device_key, created_at DESC);
-CREATE INDEX idx_fact_device_readings_s1_pm2_5 ON fact_device_readings(s1_pm2_5) WHERE s1_pm2_5 IS NOT NULL;
-CREATE INDEX idx_fact_device_readings_s2_pm2_5 ON fact_device_readings(s2_pm2_5) WHERE s2_pm2_5 IS NOT NULL;
-CREATE INDEX idx_fact_device_readings_category ON fact_device_readings(device_category);
+CREATE INDEX idx_fact_device_readings_pm2_5 ON fact_device_readings(pm2_5) WHERE pm2_5 IS NOT NULL;
+CREATE INDEX idx_fact_device_readings_pm10 ON fact_device_readings(pm10) WHERE pm10 IS NOT NULL;
 
 CREATE INDEX idx_fact_health_tips_reading_key ON fact_health_tips(reading_key);
 CREATE INDEX idx_fact_health_tips_aqi_category ON fact_health_tips(aqi_category);

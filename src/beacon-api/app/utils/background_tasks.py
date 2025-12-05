@@ -6,8 +6,7 @@ Uses in-memory locks to prevent duplicate fetches for the same resources.
 """
 import logging
 from typing import List, Set
-from datetime import datetime, timedelta, timezone
-from sqlmodel import Session
+from datetime import datetime
 import threading
 
 from app.configs.database import SessionLocal
@@ -19,6 +18,9 @@ logger = logging.getLogger(__name__)
 _active_device_fetches: Set[str] = set()
 _active_airqloud_fetches: Set[str] = set()
 _lock = threading.Lock()
+
+# Track if a bulk device key update is already running
+_device_keys_update_running: bool = False
 
 
 def _get_fetch_key(resource_id: str, start_date: datetime, end_date: datetime) -> str:
@@ -209,10 +211,6 @@ def get_active_fetches_count() -> dict:
             "active_airqloud_fetches": len(_active_airqloud_fetches),
             "device_keys_update_running": _device_keys_update_running
         }
-
-
-# Track if a bulk device key update is already running
-_device_keys_update_running: bool = False
 
 
 def update_all_null_device_keys_background():

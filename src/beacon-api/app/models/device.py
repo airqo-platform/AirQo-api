@@ -3,7 +3,6 @@ from sqlalchemy import Enum as SQLAlchemyEnum
 from typing import Optional
 from datetime import datetime, timezone
 from enum import Enum
-import uuid as uuid_pkg
 
 
 class FirmwareDownloadState(str, Enum):

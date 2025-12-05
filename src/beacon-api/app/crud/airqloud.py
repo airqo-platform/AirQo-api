@@ -10,8 +10,6 @@ from app.models.airqloud import (
     AirQloudUpdate,
     AirQloudDevice,
     AirQloudDeviceCreate,
-    AirQloudDeviceUpdate,
-    AirQloudWithDeviceCount
 )
 import logging
 

@@ -1,4 +1,4 @@
-from sqlmodel import Field, SQLModel, Column, String
+from sqlmodel import Field, SQLModel
 from typing import Optional, List
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
