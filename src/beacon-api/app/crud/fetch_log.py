@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 from sqlmodel import Session, select, and_, or_
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from app.crud.base import CRUDBase
 from app.models.fetch_log import (
     DeviceFetchLog, DeviceFetchLogCreate, DeviceFetchLogUpdate,
@@ -150,7 +150,7 @@ class CRUDDeviceFetchLog(CRUDBase[DeviceFetchLog, DeviceFetchLogCreate, DeviceFe
             primary_log.start_date = merged_start
             primary_log.end_date = merged_end
             primary_log.complete = merged_complete
-            primary_log.updated_at = datetime.utcnow()
+            primary_log.updated_at = datetime.now(timezone.utc)
             
             db.add(primary_log)
             db.commit()
@@ -304,7 +304,7 @@ class CRUDAirQloudFetchLog(CRUDBase[AirQloudFetchLog, AirQloudFetchLogCreate, Ai
             primary_log.start_date = merged_start
             primary_log.end_date = merged_end
             primary_log.complete = merged_complete
-            primary_log.updated_at = datetime.utcnow()
+            primary_log.updated_at = datetime.now(timezone.utc)
             
             db.add(primary_log)
             db.commit()

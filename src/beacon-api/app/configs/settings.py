@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    TIMEZONE: str = "Africa/Kampala"
+    TIMEZONE: str = "UTC"
     UPTIME_THRESHOLD_GOOD: float = 90.0
     UPTIME_THRESHOLD_MODERATE: float = 70.0
     DATA_COMPLETENESS_THRESHOLD_GOOD: float = 85.0

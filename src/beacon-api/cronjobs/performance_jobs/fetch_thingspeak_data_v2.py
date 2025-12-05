@@ -9,6 +9,7 @@ from pathlib import Path
 # Add the parent directory to the path so we can import from app
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import math
 import requests
 import logging
 from typing import List, Dict, Any, Optional, Tuple
@@ -226,10 +227,12 @@ class EnhancedThingSpeakDataFetcher:
                 
                 field1 = feed.get('field1')
                 field3 = feed.get('field3')
+                field7 = feed.get('field7')
                 
                 hourly_data[hour_key].append({
                     'field1': field1,
                     'field3': field3,
+                    'field7': field7,
                     'timestamp': timestamp
                 })
             
@@ -240,23 +243,51 @@ class EnhancedThingSpeakDataFetcher:
                 freq = len(data_points)
                 
                 error_margins = []
+                sum_s1 = 0.0
+                sum_s2 = 0.0
+                sum_sq_s1 = 0.0
+                sum_sq_s2 = 0.0
+                sum_prod = 0.0
+                battery_values = []
+                
                 for point in data_points:
                     try:
                         field1_val = float(point['field1']) if point['field1'] else None
                         field3_val = float(point['field3']) if point['field3'] else None
+                        field7_val = float(point['field7']) if point.get('field7') else None
+                        
+                        if field1_val is not None:
+                            sum_s1 += field1_val
+                            sum_sq_s1 += field1_val ** 2
+                            
+                        if field3_val is not None:
+                            sum_s2 += field3_val
+                            sum_sq_s2 += field3_val ** 2
                         
                         if field1_val is not None and field3_val is not None:
                             error_margins.append(abs(field1_val - field3_val))
+                            sum_prod += field1_val * field3_val
+                            
+                        if field7_val is not None:
+                            battery_values.append(field7_val)
+                            
                     except (ValueError, TypeError):
                         continue
                 
                 avg_error_margin = sum(error_margins) / len(error_margins) if error_margins else 0
+                avg_battery = sum(battery_values) / len(battery_values) if battery_values else None
                 
                 performance_records.append(DevicePerformanceCreate(
                     device_id=device_id,
                     freq=freq,
                     error_margin=round(avg_error_margin, 2),
-                    timestamp=hour
+                    timestamp=hour,
+                    sum_s1=round(sum_s1, 2),
+                    sum_s2=round(sum_s2, 2),
+                    sum_sq_s1=round(sum_sq_s1, 2),
+                    sum_sq_s2=round(sum_sq_s2, 2),
+                    sum_product=round(sum_prod, 2),
+                    avg_battery=round(avg_battery, 2) if avg_battery is not None else None
                 ))
             
             logger.info(f"Calculated {len(performance_records)} hourly performance records for device {device_id}")
@@ -464,8 +495,11 @@ class EnhancedThingSpeakDataFetcher:
                                           for p in performances))
                     device_uptimes.append(unique_hours)
                     
-                    # Collect error margins from this device
-                    all_error_margins.extend([p.error_margin for p in performances if p.error_margin is not None])
+                    # Collect error margins from this device (filter out None and NaN values)
+                    all_error_margins.extend([
+                        p.error_margin for p in performances 
+                        if p.error_margin is not None and not math.isnan(p.error_margin)
+                    ])
                 else:
                     # Device has no data for this day - counts as 0 hours
                     device_uptimes.append(0)
@@ -636,7 +670,7 @@ class EnhancedThingSpeakDataFetcher:
         """Main execution method with fetch log tracking"""
         # Default date range: last 24 hours
         if not end_date:
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
         if not start_date:
             start_date = end_date - timedelta(days=1)
         
@@ -736,7 +770,7 @@ def main():
     if args.end_date:
         end_date = datetime.strptime(args.end_date, '%Y-%m-%d')
     else:
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
     
     if args.start_date:
         start_date = datetime.strptime(args.start_date, '%Y-%m-%d')

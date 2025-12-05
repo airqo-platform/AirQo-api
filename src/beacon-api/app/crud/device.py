@@ -44,7 +44,7 @@ class CRUDDevice(CRUDBase[Device, DeviceCreate, DeviceUpdate]):
         return db.exec(statement).all()
     
     def get_offline_devices(self, db: Session, *, hours: int = 24) -> List[Device]:
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         statement = select(Device).where(
             (Device.is_online == False) | 
             (Device.last_updated < cutoff_time) | 
@@ -55,7 +55,7 @@ class CRUDDevice(CRUDBase[Device, DeviceCreate, DeviceUpdate]):
     def update_last_seen(self, db: Session, *, device_key: int) -> Device:
         device = self.get(db, id=device_key)
         if device:
-            device.last_updated = datetime.utcnow()
+            device.last_updated = datetime.now(timezone.utc)
             db.add(device)
             db.commit()
             db.refresh(device)
@@ -95,7 +95,7 @@ class CRUDDevice(CRUDBase[Device, DeviceCreate, DeviceUpdate]):
             try:
                 for field, value in update_fields.items():
                     setattr(device, field, value)
-                device.updated_at = datetime.utcnow()
+                device.updated_at = datetime.now(timezone.utc)
                 db.add(device)
                 db.commit()
                 db.refresh(device)

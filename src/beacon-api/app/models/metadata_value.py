@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid as uuid_pkg
 
 
@@ -32,7 +32,7 @@ class MetadataValues(MetadataValuesBase, table=True):
         index=True,
         nullable=False,
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class MetadataValuesCreate(MetadataValuesBase):

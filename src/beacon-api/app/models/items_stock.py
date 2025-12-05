@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel, Column, String
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from enum import Enum
 
@@ -23,8 +23,8 @@ class ItemsStock(ItemsStockBase, table=True):
     __tablename__ = "items_stock"
     
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    created_date: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ItemsStockCreate(ItemsStockBase):
@@ -60,7 +60,7 @@ class ItemsStockHistory(ItemsStockHistoryBase, table=True):
     __tablename__ = "items_stock_history"
     
     history_id: UUID = Field(default_factory=uuid4, primary_key=True)
-    changed_at: datetime = Field(default_factory=datetime.utcnow)
+    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ItemsStockHistoryRead(ItemsStockHistoryBase):

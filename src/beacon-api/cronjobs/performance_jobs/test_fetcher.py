@@ -8,7 +8,7 @@ from pathlib import Path
 # Add the parent directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.configs.database import SessionLocal
 from cronjobs.performance_jobs.fetch_thingspeak_data import ThingSpeakDataFetcher
 from sqlmodel import select
@@ -45,7 +45,7 @@ def test_fetcher():
         print(f"\n📊 Testing with device: {test_device.device_id}")
         
         # Test with last 1 day
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=1)
         
         print(f"📅 Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")

@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File, Form, BackgroundTasks
 from sqlmodel import Session
 from typing import List, Optional
 import uuid
 import string
 import random
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import csv
 import io
 import json
@@ -22,6 +22,10 @@ from app.models import (
     AirQloudSingleBulkCreateResponse
 )
 from app.crud import airqloud as airqloud_crud
+from app.utils.background_tasks import (
+    fetch_missing_airqloud_performance_background,
+    fetch_single_airqloud_with_devices_background
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -46,6 +50,7 @@ def generate_unique_airqloud_id(db: Session) -> str:
 async def get_airqlouds(
     *,
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks,
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Number of items to return"),
     country: Optional[str] = Query(None, description="Filter by country"),
@@ -55,6 +60,11 @@ async def get_airqlouds(
 ):
     """
     Get all AirQlouds with device counts and optionally performance data.
+    
+    **Behavior:**
+    - Returns current data from the database immediately
+    - If performance data is missing, it triggers a background fetch/computation
+    - Subsequent requests will include the updated data
     
     **Query Parameters:**
     - **skip**: Number of records to skip (for pagination)
@@ -109,14 +119,29 @@ async def get_airqlouds(
     """
     try:
         if include_performance:
+            # Return current data without waiting for missing data fetch
             airqlouds = airqloud_crud.get_all_with_performance(
                 db, 
                 skip=skip, 
                 limit=limit,
                 country=country,
                 search=search,
-                days=performance_days
+                days=performance_days,
+                fetch_missing=False  # Don't block on fetching missing data
             )
+            
+            # Trigger background fetch for missing data
+            airqloud_ids = [aq["id"] for aq in airqlouds]
+            if airqloud_ids:
+                end_date = datetime.now(timezone.utc) - timedelta(days=1)
+                start_date = end_date - timedelta(days=performance_days-1)
+                background_tasks.add_task(
+                    fetch_missing_airqloud_performance_background,
+                    airqloud_ids,
+                    start_date,
+                    end_date
+                )
+                logger.info(f"Triggered background fetch for {len(airqloud_ids)} airqlouds")
         else:
             airqlouds = airqloud_crud.get_all_with_device_counts(
                 db, 
@@ -129,20 +154,24 @@ async def get_airqlouds(
     except Exception as e:
         logger.error(f"Error fetching AirQlouds: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch AirQlouds: {str(e)}")
-        logger.error(f"Error fetching AirQlouds: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch AirQlouds: {str(e)}")
 
 
 @router.get("/{airqloud_id}")
 async def get_airqloud(
     *,
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks,
     airqloud_id: str = Path(..., description="AirQloud ID"),
     include_performance: bool = Query(False, description="Include performance data for the past N days"),
     performance_days: int = Query(14, ge=1, le=365, description="Number of days of performance data to include starting from yesterday (default: 14)")
 ):
     """
     Get a specific AirQloud by ID with device count and optionally performance data.
+    
+    **Behavior:**
+    - Returns current data from the database immediately
+    - If performance data is missing, it triggers a background fetch/computation
+    - Subsequent requests will include the updated data
     
     **Path Parameters:**
     - **airqloud_id**: ID of the AirQloud
@@ -169,11 +198,30 @@ async def get_airqloud(
     """
     try:
         if include_performance:
+            # Return current data without waiting for missing data fetch
             airqloud = airqloud_crud.get_with_performance(
                 db, 
                 airqloud_id=airqloud_id,
-                days=performance_days
+                days=performance_days,
+                fetch_missing=False  # Don't block on fetching missing data
             )
+            
+            if airqloud:
+                # Get device IDs for background fetch
+                devices = airqloud_crud.get_devices(db, airqloud_id=airqloud_id, include_inactive=False)
+                device_ids = [device.id for device in devices]
+                
+                # Trigger background fetch for missing data
+                end_date = datetime.now(timezone.utc) - timedelta(days=1)
+                start_date = end_date - timedelta(days=performance_days-1)
+                background_tasks.add_task(
+                    fetch_single_airqloud_with_devices_background,
+                    airqloud_id,
+                    device_ids,
+                    start_date,
+                    end_date
+                )
+                logger.info(f"Triggered background fetch for airqloud {airqloud_id} with {len(device_ids)} devices")
         else:
             airqloud = airqloud_crud.get_with_device_count(db, airqloud_id=airqloud_id)
         
@@ -218,7 +266,7 @@ async def create_airqloud(
         # Create the AirQloud data with generated ID and timestamp
         airqloud_data = airqloud_in.model_dump()
         airqloud_data['id'] = unique_id
-        airqloud_data['created_at'] = datetime.utcnow()
+        airqloud_data['created_at'] = datetime.now(timezone.utc)
         
         # Create AirQloud instance for database
         from app.models.airqloud import AirQloud

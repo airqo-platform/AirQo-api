@@ -1,6 +1,7 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from sqlmodel import Session, select, func
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import math
 
 from app.crud.base import CRUDBase
 from app.models.airqloud import (
@@ -15,6 +16,20 @@ from app.models.airqloud import (
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_float(value: Union[float, int, None]) -> Union[float, int, None]:
+    """Sanitize float values to be JSON compliant.
+    
+    Converts NaN, Infinity, and -Infinity to None since these values
+    are not valid JSON.
+    """
+    if value is None:
+        return None
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+    return value
 
 
 class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
@@ -220,12 +235,18 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         db: Session,
         *,
         airqloud_id: str,
-        days: int = 30
+        days: int = 30,
+        fetch_missing: bool = True
     ) -> Optional[Dict[str, Any]]:
-        """Get an AirQloud with device count and performance data for the past N days"""
+        """Get an AirQloud with device count and performance data for the past N days
+        
+        Args:
+            db: Database session
+            airqloud_id: AirQloud ID to fetch
+            days: Number of days of performance history
+            fetch_missing: If True, fetch missing data synchronously. If False, return current data only.
+        """
         from app.crud.performance import airqloud_performance, device_performance
-        from app.utils.performance_fetcher import ensure_airqloud_performance_data
-        from app.routes.performance import generate_complete_timestamps
         
         # Get the AirQloud with device count
         airqloud_data = self.get_with_device_count(db, airqloud_id=airqloud_id)
@@ -233,7 +254,7 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
             return None
         
         # Calculate date range (past N days from yesterday)
-        end_date = datetime.utcnow() - timedelta(days=1)  # Start from yesterday
+        end_date = datetime.now(timezone.utc) - timedelta(days=1)  # Start from yesterday
         start_date = end_date - timedelta(days=days-1)    # Adjust to get exactly N days
         
         # Get all devices in the airqloud
@@ -244,9 +265,11 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         device_info_map = {device.id: {"name": device.name, "device_id": device.id} for device in devices}
         logger.info(f"Found {len(device_ids)} devices in airqloud {airqloud_id}")
         
-        # Ensure performance data exists (fetch missing data if needed)
-        logger.info(f"Ensuring performance data for airqloud {airqloud_id} from {start_date} to {end_date}")
-        ensure_airqloud_performance_data(db, airqloud_id, start_date, end_date)
+        # Optionally ensure performance data exists (fetch missing data)
+        if fetch_missing:
+            from app.utils.performance_fetcher import ensure_airqloud_performance_data
+            logger.info(f"Ensuring performance data for airqloud {airqloud_id} from {start_date} to {end_date}")
+            ensure_airqloud_performance_data(db, airqloud_id, start_date, end_date)
         
         # Fetch airqloud performance
         performance_records = airqloud_performance.get_performance_by_airqloud(
@@ -257,17 +280,17 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         )
         
         # Convert airqloud performance records to compact arrays
-        freq_list = [p.freq for p in performance_records]
-        error_margin_list = [p.error_margin for p in performance_records]
+        freq_list = [sanitize_float(p.freq) for p in performance_records]
+        error_margin_list = [sanitize_float(p.error_margin) for p in performance_records]
         timestamp_list = [p.timestamp for p in performance_records]
         
         # Fetch device performance for all devices in the airqloud
         device_performance_data = []
         if device_ids:
-            from app.utils.performance_fetcher import ensure_multiple_devices_performance_data
-            
-            # Ensure device data exists
-            ensure_multiple_devices_performance_data(db, device_ids, start_date, end_date)
+            if fetch_missing:
+                from app.utils.performance_fetcher import ensure_multiple_devices_performance_data
+                # Ensure device data exists
+                ensure_multiple_devices_performance_data(db, device_ids, start_date, end_date)
             
             # Get device performance records
             device_performance_records = device_performance.get_performance_by_devices(
@@ -286,8 +309,8 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
                         "error_margin": [],
                         "timestamp": []
                     }
-                device_performance_map[p.device_id]["freq"].append(p.freq)
-                device_performance_map[p.device_id]["error_margin"].append(p.error_margin)
+                device_performance_map[p.device_id]["freq"].append(sanitize_float(p.freq))
+                device_performance_map[p.device_id]["error_margin"].append(sanitize_float(p.error_margin))
                 device_performance_map[p.device_id]["timestamp"].append(p.timestamp)
             
             # Convert to list format with device names
@@ -317,11 +340,21 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         limit: int = 100,
         country: Optional[str] = None,
         search: Optional[str] = None,
-        days: int = 30
+        days: int = 30,
+        fetch_missing: bool = True
     ) -> List[Dict[str, Any]]:
-        """Get all AirQlouds with device counts and performance data for the past N days"""
+        """Get all AirQlouds with device counts and performance data for the past N days
+        
+        Args:
+            db: Database session
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+            country: Filter by country
+            search: Search term
+            days: Number of days of performance history
+            fetch_missing: If True, fetch missing data synchronously. If False, return current data only.
+        """
         from app.crud.performance import airqloud_performance
-        from app.utils.performance_fetcher import ensure_multiple_airqlouds_performance_data
         
         # Get all airqlouds with device counts (now includes search)
         airqlouds = self.get_all_with_device_counts(
@@ -333,7 +366,7 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         )
         
         # Calculate date range (past N days from yesterday)
-        end_date = datetime.utcnow() - timedelta(days=1)  # Start from yesterday
+        end_date = datetime.now(timezone.utc) - timedelta(days=1)  # Start from yesterday
         start_date = end_date - timedelta(days=days-1)    # Adjust to get exactly N days
         
         # Collect all airqloud IDs
@@ -342,9 +375,11 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         if not airqloud_ids:
             return []
         
-        # Ensure performance data exists for all airqlouds
-        logger.info(f"Ensuring performance data for {len(airqloud_ids)} airqlouds")
-        ensure_multiple_airqlouds_performance_data(db, airqloud_ids, start_date, end_date)
+        # Optionally ensure performance data exists for all airqlouds
+        if fetch_missing:
+            from app.utils.performance_fetcher import ensure_multiple_airqlouds_performance_data
+            logger.info(f"Ensuring performance data for {len(airqloud_ids)} airqlouds")
+            ensure_multiple_airqlouds_performance_data(db, airqloud_ids, start_date, end_date)
         
         # Get all performance data at once
         all_performance_records = airqloud_performance.get_performance_by_airqlouds(
@@ -363,8 +398,8 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
                     "error_margin": [],
                     "timestamp": []
                 }
-            performance_by_airqloud[p.airqloud_id]["freq"].append(p.freq)
-            performance_by_airqloud[p.airqloud_id]["error_margin"].append(p.error_margin)
+            performance_by_airqloud[p.airqloud_id]["freq"].append(sanitize_float(p.freq))
+            performance_by_airqloud[p.airqloud_id]["error_margin"].append(sanitize_float(p.error_margin))
             performance_by_airqloud[p.airqloud_id]["timestamp"].append(p.timestamp)
         
         # Add performance data arrays to each airqloud
@@ -428,7 +463,7 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
                 'country': airqloud_country,
                 'visibility': airqloud_visibility,
                 'number_of_devices': 0,  # Will be updated after adding devices
-                'created_at': datetime.utcnow()
+                'created_at': datetime.now(timezone.utc)
             }
             
             airqloud = AirQloud(**airqloud_create_data)
@@ -470,26 +505,56 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
                                 break
                     
                     if found_device:
-                        # Check if device is already in this AirQloud
-                        existing_relationship = db.exec(
+                        # Check if device already exists in dim_airqloud_device table (any AirQloud)
+                        existing_device_entry = db.exec(
                             select(AirQloudDevice)
                             .where(AirQloudDevice.id == found_device.device_id)
-                            .where(AirQloudDevice.cohort_id == airqloud.id)
                         ).first()
                         
-                        if not existing_relationship:
-                            # Create AirQloud-Device relationship
+                        if existing_device_entry:
+                            if existing_device_entry.cohort_id == airqloud.id:
+                                # Device already in this AirQloud
+                                device_errors.append({
+                                    "row": row_idx + 1,
+                                    "device_data": device_row,
+                                    "error": f"Device {found_device.device_id} already exists in this AirQloud",
+                                    "search_attempts": search_attempts
+                                })
+                            else:
+                                # Device exists in another AirQloud - update it to belong to new AirQloud
+                                old_cohort = existing_device_entry.cohort_id
+                                existing_device_entry.cohort_id = airqloud.id
+                                existing_device_entry.long_name = f"{found_device.device_name} - {airqloud.name}"
+                                existing_device_entry.device_number = device_count + 1
+                                existing_device_entry.is_active = True
+                                existing_device_entry.is_online = found_device.is_online
+                                existing_device_entry.status = found_device.status
+                                existing_device_entry.network = found_device.network
+                                db.add(existing_device_entry)
+                                device_count += 1
+                                
+                                devices_added.append({
+                                    "row": row_idx + 1,
+                                    "device_id": found_device.device_id,
+                                    "device_name": found_device.device_name,
+                                    "search_used": search_attempts[-1] if search_attempts else "unknown",
+                                    "status": found_device.status,
+                                    "network": found_device.network,
+                                    "note": f"Moved from AirQloud {old_cohort}"
+                                })
+                        else:
+                            # Create new AirQloud-Device relationship
                             airqloud_device = AirQloudDevice(
                                 id=found_device.device_id,
                                 cohort_id=airqloud.id,
                                 name=found_device.device_name,
                                 long_name=f"{found_device.device_name} - {airqloud.name}",
                                 device_number=device_count + 1,
-                                is_active=found_device.is_active,
+                                is_active=True,
                                 is_online=found_device.is_online,
                                 status=found_device.status,
                                 network=found_device.network,
-                                created_at=datetime.utcnow()
+                                created_at=datetime.now(timezone.utc)
                             )
                             db.add(airqloud_device)
                             device_count += 1
@@ -501,13 +566,6 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
                                 "search_used": search_attempts[-1] if search_attempts else "unknown",
                                 "status": found_device.status,
                                 "network": found_device.network
-                            })
-                        else:
-                            device_errors.append({
-                                "row": row_idx + 1,
-                                "device_data": device_row,
-                                "error": f"Device {found_device.device_id} already exists in this AirQloud",
-                                "search_attempts": search_attempts
                             })
                     else:
                         device_errors.append({

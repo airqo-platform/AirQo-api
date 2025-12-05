@@ -1,7 +1,7 @@
 from sqlmodel import Field, SQLModel, Column
 from sqlalchemy import Enum as SQLAlchemyEnum
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import uuid as uuid_pkg
 
@@ -25,8 +25,8 @@ class DeviceBase(SQLModel):
     power_type: Optional[str] = None
     height: Optional[float] = None
     next_maintenance: Optional[datetime] = None
-    first_seen: Optional[datetime] = Field(default_factory=datetime.utcnow)
-    last_updated: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    first_seen: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_updated: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # New fields
     read_key: Optional[str] = Field(default=None, unique=True, max_length=100)
@@ -46,8 +46,8 @@ class Device(DeviceBase, table=True):
     __tablename__ = "dim_device"
     
     device_key: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)})
 
 class DeviceCreate(DeviceBase):
     pass

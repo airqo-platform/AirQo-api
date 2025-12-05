@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import requests
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import Session, select, func, or_, and_
 from app.configs.database import SessionLocal
 from app.models.device import Device, DeviceCreate, DeviceUpdate
@@ -173,9 +173,9 @@ class DeviceUpdater:
             'power_type': api_device.get('powerType'),
             'height': api_device.get('height'),
             'next_maintenance': next_maintenance,
-            'last_updated': last_updated or datetime.utcnow(),
-            'created_at': created_at or datetime.utcnow(),
-            'updated_at': last_updated or datetime.utcnow(),
+            'last_updated': last_updated or datetime.now(timezone.utc),
+            'created_at': created_at or datetime.now(timezone.utc),
+            'updated_at': last_updated or datetime.now(timezone.utc),
             'read_key': api_device.get('readKey'),
             'write_key': api_device.get('writeKey'),
             'channel_id': api_device.get('device_number'),
@@ -400,7 +400,7 @@ class DeviceUpdater:
                     for field, value in update_data.items():
                         setattr(existing_device, field, value)
                     
-                    existing_device.updated_at = datetime.utcnow()
+                    existing_device.updated_at = datetime.now(timezone.utc)
                     self.session.add(existing_device)
                     self.session.commit()
                     
@@ -435,6 +435,112 @@ class DeviceUpdater:
             logger.error(f"Error getting device count: {e}")
             return 0
     
+    def update_single_device(self, device_id: str) -> bool:
+        """
+        Fetch and update a single device from Platform API.
+        This is more efficient than fetching all devices when only one needs updating.
+        
+        Args:
+            device_id: The device ID to update
+            
+        Returns:
+            True if device was successfully updated, False otherwise
+        """
+        logger.info(f"Fetching single device: {device_id}")
+        
+        try:
+            # First get the device from our database to get the device_name
+            existing_device = self.crud.get_by_device_id(self.session, device_id=device_id)
+            if not existing_device:
+                logger.warning(f"Device {device_id} not found in database")
+                return False
+            
+            # Fetch from Platform API - use device name for filtering if available
+            params = {
+                'tenant': DEFAULT_TENANT,
+                'detailLevel': 'summary',
+                'limit': 100  # Fetch a reasonable batch to find our device
+            }
+            
+            response = requests.get(DEVICES_ENDPOINT, params=params, headers=self.headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('success'):
+                logger.error(f"API returned unsuccessful response: {data.get('message')}")
+                return False
+            
+            # Find the specific device in the response
+            api_device = None
+            for device in data.get('devices', []):
+                if device.get('_id') == device_id:
+                    api_device = device
+                    break
+            
+            # If not found in first batch, we need to paginate
+            if not api_device:
+                skip = 100
+                while True:
+                    params['skip'] = skip
+                    response = requests.get(DEVICES_ENDPOINT, params=params, headers=self.headers, timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if not data.get('success') or not data.get('devices'):
+                        break
+                    
+                    for device in data.get('devices', []):
+                        if device.get('_id') == device_id:
+                            api_device = device
+                            break
+                    
+                    if api_device or not data.get('meta', {}).get('nextPage'):
+                        break
+                    
+                    skip += 100
+            
+            if not api_device:
+                logger.warning(f"Device {device_id} not found in Platform API")
+                return False
+            
+            # Prepare for decryption if needed
+            encrypted_read_key = api_device.get('readKey')
+            encrypted_write_key = api_device.get('writeKey')
+            device_number = api_device.get('device_number')
+            
+            decrypted_keys_mapping = {}
+            if device_number and (encrypted_read_key or encrypted_write_key):
+                devices_to_decrypt = [{
+                    'device_number': device_number,
+                    'encrypted_read_key': encrypted_read_key,
+                    'encrypted_write_key': encrypted_write_key
+                }]
+                decrypted_keys_mapping = self.decrypt_keys(devices_to_decrypt)
+            
+            # Parse and update the device
+            device_data = self.parse_device_from_api(api_device)
+            
+            # Apply decrypted keys if available
+            if device_number and device_number in decrypted_keys_mapping:
+                decrypted_keys = decrypted_keys_mapping[device_number]
+                if 'read_key' in decrypted_keys:
+                    device_data['read_key'] = decrypted_keys['read_key']
+                if 'write_key' in decrypted_keys:
+                    device_data['write_key'] = decrypted_keys['write_key']
+            
+            # Update the device in database
+            self.update_or_create_device(device_data)
+            
+            logger.info(f"Successfully updated device {device_id}")
+            return True
+            
+        except requests.RequestException as e:
+            logger.error(f"Error fetching device {device_id} from Platform API: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error updating device {device_id}: {e}")
+            return False
+
     def get_devices_missing_keys(self) -> List[Device]:
         """Get AirQo network devices missing read_key, write_key, or channel_id"""
         try:
@@ -460,7 +566,7 @@ class DeviceUpdater:
             logger.info("No devices missing keys - skipping CSV creation")
             return ""
         
-        csv_filename = Path(__file__).parent / f"devices_missing_keys_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        csv_filename = Path(__file__).parent / f"devices_missing_keys_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
         
         try:
             with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
@@ -501,7 +607,7 @@ class DeviceUpdater:
             logger.info("All devices from server were processed successfully")
             return ""
         
-        csv_filename = Path(__file__).parent / f"server_fetch_failures_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        csv_filename = Path(__file__).parent / f"server_fetch_failures_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
         
         try:
             with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:

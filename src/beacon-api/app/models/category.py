@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel, Column, String
 from typing import Optional, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class CategoryBase(SQLModel):
@@ -57,8 +57,8 @@ class Category(CategoryBase, table=True):
     config9: Optional[str] = Field(default=None, sa_column=Column(String(100)))
     config10: Optional[str] = Field(default=None, sa_column=Column(String(100)))
     
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)})
 
 
 class CategoryCreate(CategoryBase):

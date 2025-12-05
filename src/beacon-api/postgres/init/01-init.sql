@@ -2,7 +2,7 @@
 -- Creates tables and relationships for IoT device analytics
 -- Updated to accept all values from AirQo API
 
-SET timezone = 'Africa/Kampala';
+SET timezone = 'UTC';
 
 -- Create enum types
 CREATE TYPE firmware_download_state_enum AS ENUM ('updated', 'pending', 'failed');
@@ -352,6 +352,12 @@ CREATE TABLE fact_device_performance (
     device_id VARCHAR(100) NOT NULL,
     freq INTEGER,
     error_margin FLOAT,
+    sum_s1 FLOAT,
+    sum_s2 FLOAT,
+    sum_sq_s1 FLOAT,
+    sum_sq_s2 FLOAT,
+    sum_product FLOAT,
+    avg_battery FLOAT,
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     

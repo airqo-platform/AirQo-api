@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func, and_, or_
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, Field
 from app.deps import get_db
 from app.models import Device, FirmwareDownloadState
@@ -511,7 +511,7 @@ async def get_combined_device_data(
             if latest_metadata:
                 created_timestamps.append(latest_metadata.created_at)
             
-            latest_created_at = max(created_timestamps) if created_timestamps else datetime.utcnow()
+            latest_created_at = max(created_timestamps) if created_timestamps else datetime.now(timezone.utc)
             
             items.append({
                 "device_id": device.device_id,

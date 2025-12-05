@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import uuid as uuid_pkg
 
@@ -43,8 +43,8 @@ class Firmware(FirmwareBase, table=True):
         index=True,
         nullable=False,
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)})
 
 
 class FirmwareCreate(FirmwareBase):

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlmodel import Session, select, func, and_
 from typing import Optional
 from datetime import datetime, timedelta, timezone
@@ -6,6 +6,7 @@ from app.deps import get_db
 from app.models import Device, DeviceRead, DeviceCreate, DeviceUpdate, DeviceFirmwareUpdate, DeviceReading, Site
 from app.models.location import Location
 from app.crud import device as device_crud
+from app.utils.background_tasks import update_all_null_device_keys_background
 import logging
 
 logger = logging.getLogger(__name__)
@@ -160,13 +161,18 @@ async def get_map_data(
 async def get_device(
     *,
     db: Session = Depends(get_db),
-    device_id: str
+    device_id: str,
+    background_tasks: BackgroundTasks
 ):
     from app.models.field_value import FieldValues
     
     device = device_crud.get_by_device_id(db, device_id=device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+    
+    # Check if device has null keys and trigger background update for ALL devices with null keys
+    if device.read_key is None or device.write_key is None or device.channel_id is None:
+        background_tasks.add_task(update_all_null_device_keys_background)
     
     # Get location from dim_location
     location = db.exec(

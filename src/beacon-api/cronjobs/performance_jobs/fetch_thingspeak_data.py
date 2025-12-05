@@ -10,10 +10,11 @@ from pathlib import Path
 # Add the parent directory to the path so we can import from app
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import math
 import requests
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlmodel import Session, select, and_
 from app.configs.database import SessionLocal
 from app.models.device import Device
@@ -282,8 +283,11 @@ class ThingSpeakDataFetcher:
                                       for p in performances))
                 device_uptimes.append(unique_hours)
                 
-                # Collect error margins
-                all_error_margins.extend([p.error_margin for p in performances if p.error_margin is not None])
+                # Collect error margins (filter out None and NaN values)
+                all_error_margins.extend([
+                    p.error_margin for p in performances 
+                    if p.error_margin is not None and not math.isnan(p.error_margin)
+                ])
             
             # Calculate average uptime across all devices (max is 24)
             avg_uptime = sum(device_uptimes) / len(device_uptimes) if device_uptimes else 0
@@ -508,7 +512,7 @@ class ThingSpeakDataFetcher:
         """
         # Default date range: last 24 hours
         if not end_date:
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
         if not start_date:
             start_date = end_date - timedelta(days=1)
         
@@ -607,12 +611,12 @@ def main():
     end_date = None
     
     if args.end_date:
-        end_date = datetime.strptime(args.end_date, '%Y-%m-%d')
+        end_date = datetime.strptime(args.end_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
     else:
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
     
     if args.start_date:
-        start_date = datetime.strptime(args.start_date, '%Y-%m-%d')
+        start_date = datetime.strptime(args.start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
     else:
         start_date = end_date - timedelta(days=args.days)
     

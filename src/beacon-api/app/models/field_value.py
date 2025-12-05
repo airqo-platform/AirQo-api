@@ -1,7 +1,7 @@
 from sqlmodel import Field, SQLModel
 from sqlalchemy import Column, Integer
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid as uuid_pkg
 
 
@@ -34,7 +34,7 @@ class FieldValues(FieldValuesBase, table=True):
         nullable=False,
     )
     entry_id: Optional[int] = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FieldValuesCreate(FieldValuesBase):

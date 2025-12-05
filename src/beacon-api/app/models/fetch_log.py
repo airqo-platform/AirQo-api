@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel, UniqueConstraint
 from typing import Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 
 class DeviceFetchLogBase(SQLModel):
@@ -16,8 +16,8 @@ class DeviceFetchLog(DeviceFetchLogBase, table=True):
     __tablename__ = "fetch_log_device"
     
     log_id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('device_id', 'start_date', 'end_date', name='uq_device_fetch_log'),
@@ -56,8 +56,8 @@ class AirQloudFetchLog(AirQloudFetchLogBase, table=True):
     __tablename__ = "fetch_log_airqloud"
     
     log_id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('airqloud_id', 'start_date', 'end_date', name='uq_airqloud_fetch_log'),

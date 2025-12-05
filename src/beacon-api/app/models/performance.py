@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel, UniqueConstraint
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class DevicePerformanceBase(SQLModel):
@@ -8,7 +8,15 @@ class DevicePerformanceBase(SQLModel):
     device_id: str = Field(foreign_key="dim_device.device_id")
     freq: Optional[int] = Field(default=None)
     error_margin: Optional[float] = Field(default=None)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    # New statistical fields
+    sum_s1: Optional[float] = Field(default=None)
+    sum_s2: Optional[float] = Field(default=None)
+    sum_sq_s1: Optional[float] = Field(default=None)
+    sum_sq_s2: Optional[float] = Field(default=None)
+    sum_product: Optional[float] = Field(default=None)
+    avg_battery: Optional[float] = Field(default=None)
 
 
 class DevicePerformance(DevicePerformanceBase, table=True):
@@ -16,7 +24,7 @@ class DevicePerformance(DevicePerformanceBase, table=True):
     __tablename__ = "fact_device_performance"
     
     performance_key: Optional[int] = Field(default=None, primary_key=True)
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('device_id', 'timestamp', name='uq_device_performance_id_timestamp'),
@@ -39,7 +47,7 @@ class AirQloudPerformanceBase(SQLModel):
     airqloud_id: str = Field(foreign_key="dim_airqloud.id")
     freq: Optional[int] = Field(default=None)
     error_margin: Optional[float] = Field(default=None)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class AirQloudPerformance(AirQloudPerformanceBase, table=True):
@@ -47,7 +55,7 @@ class AirQloudPerformance(AirQloudPerformanceBase, table=True):
     __tablename__ = "fact_airqloud_performance"
     
     performance_key: Optional[int] = Field(default=None, primary_key=True)
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('airqloud_id', 'timestamp', name='uq_airqloud_performance_id_timestamp'),
