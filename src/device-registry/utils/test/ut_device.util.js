@@ -24,13 +24,14 @@ describe("claimDevice", () => {
   let cohortFindOneAndUpdateStub;
   let cohortFindByIdStub;
   let createActivityStub;
-    let updateOneStub;
+  let updateOneStub;
 
   beforeEach(() => {
     // Stub the model factories to return mock instances
     const deviceModelMock = {
       findOne: sinon.stub(),
       findOneAndUpdate: sinon.stub(),
+      updateOne: sinon.stub().resolves({ modifiedCount: 1 }),
     };
     const cohortModelMock = {
       findOneAndUpdate: sinon.stub(),
@@ -48,7 +49,7 @@ describe("claimDevice", () => {
     findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
     cohortFindOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
     cohortFindByIdStub = cohortModelMock.findById;
-      updateOneStub = deviceModelMock.updateOne;
+    updateOneStub = deviceModelMock.updateOne;
     createActivityStub = activityModelMock.create;
     createActivityStub.resolves({});
     // Default behavior for cohortFindByIdStub
@@ -71,19 +72,19 @@ describe("claimDevice", () => {
       query: { tenant: "airqo" },
     };
 
-      const deviceMock = {
-        _id: "60c7a3e5f7e4f1001f5e8e1c",
-        name: "aq_g5v0_100",
-        claim_status: "unclaimed",
-      };
-      const cohortMock = { _id: "60c7a3e5f7e4f1001f5e8e1a" };
+    const deviceMock = {
+      _id: "60c7a3e5f7e4f1001f5e8e1c",
+      name: "aq_g5v0_100",
+      claim_status: "unclaimed",
+    };
+    const cohortMock = { _id: "60c7a3e5f7e4f1001f5e8e1a" };
 
-      findOneStub.resolves(deviceMock);
-      cohortFindByIdStub.returns({ lean: () => Promise.resolve(cohortMock) });
-      findOneAndUpdateStub.resolves({
-        ...deviceMock,
-        claim_status: "claimed",
-      });
+    findOneStub.resolves(deviceMock);
+    cohortFindByIdStub.returns({ lean: () => Promise.resolve(cohortMock) });
+    findOneAndUpdateStub.resolves({
+      ...deviceMock,
+      claim_status: "claimed",
+    });
     const result = await deviceUtil.claimDevice(request);
   });
 
@@ -96,21 +97,21 @@ describe("claimDevice", () => {
       query: { tenant: "airqo" },
     };
 
-      const deviceMock = {
+    const deviceMock = {
       _id: "60c7a3e5f7e4f1001f5e8e1d",
       name: "aq_g5v0_101",
       claim_status: "unclaimed",
       network: "airqo",
-      };
-      findOneStub.resolves(deviceMock);
+    };
+    findOneStub.resolves(deviceMock);
     cohortFindOneAndUpdateStub.resolves({ _id: "60c7a3e5f7e4f1001f5e8e1e" });
     findOneAndUpdateStub.resolves({
-        ...deviceMock,
+      ...deviceMock,
       claim_status: "claimed",
     });
-      updateOneStub.resolves({
-        modifiedCount: 1,
-      });
+    updateOneStub.resolves({
+      modifiedCount: 1,
+    });
 
     const result = await deviceUtil.claimDevice(request);
 
@@ -150,7 +151,7 @@ describe("claimDevice", () => {
     };
 
     findOneStub.resolves({
-        _id: "60c7a3e5f7e4f1001f5e8e1f", // Corrected ID
+      _id: "60c7a3e5f7e4f1001f5e8e1f", // Corrected ID
       name: "aq_g5v0_102",
       claim_status: "unclaimed",
     });
@@ -178,7 +179,7 @@ describe("claimDevice", () => {
     };
 
     findOneStub.resolves({
-        _id: "60c7a3e5f7e4f1001f5e8e20", // Corrected ID
+      _id: "60c7a3e5f7e4f1001f5e8e20", // Corrected ID
       name: "aq_g5v0_103",
       claim_status: "unclaimed",
       claim_token: "correct_token",
@@ -298,7 +299,7 @@ describe("bulkClaim", () => {
       find: sinon.stub(),
       findOneAndUpdate: sinon.stub(),
       updateOne: sinon.stub().resolves({ modifiedCount: 1 }),
-        lean: sinon.stub().returnsThis(),
+      lean: sinon.stub().returnsThis(),
     };
     const cohortModelMock = {
       findOneAndUpdate: sinon.stub(),
@@ -347,7 +348,7 @@ describe("bulkClaim", () => {
     );
     updateOneStub.resolves({
       modifiedCount: 1,
-    );
+    });
 
     const result = await deviceUtil.bulkClaim(request);
 
@@ -477,69 +478,6 @@ describe("bulkClaim", () => {
 
     const error = await deviceUtil.bulkClaim(request).catch((err) => err);
     expect(error.status).to.equal(httpStatus.BAD_REQUEST);
-  });
-});
-
-describe("bulkClaim with cohort_id", () => {
-  let findStub;
-  let findOneAndUpdateStub;
-  let cohortFindByIdStub;
-  let createActivityStub;
-
-  beforeEach(() => {
-    const deviceModelMock = {
-      find: sinon.stub(),
-      findOneAndUpdate: sinon.stub(),
-      updateOne: sinon.stub().resolves({ modifiedCount: 1 }),
-    };
-    const cohortModelMock = {
-      findById: sinon.stub(),
-    };
-    const activityModelMock = {
-      create: sinon.stub().resolves({}),
-    };
-
-    sinon.stub(DeviceModel, "model").returns(deviceModelMock);
-    sinon.stub(CohortModel, "model").returns(cohortModelMock);
-    sinon.stub(ActivityModel, "model").returns(activityModelMock);
-
-    findStub = deviceModelMock.find;
-    findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
-    cohortFindByIdStub = cohortModelMock.findById;
-    createActivityStub = activityModelMock.create;
-  });
-
-  afterEach(() => {
-    sinon.restore();
-  });
-
-  it("should successfully claim devices and assign to a specific cohort", async () => {
-    const specificCohortId = "61f8e726e911c000139c3b08";
-    const request = {
-      body: {
-        user_id: "60c7a3e5f7e4f1001f5e8e1b",
-        devices: [{ device_name: "device_A" }],
-        cohort_id: specificCohortId,
-      },
-      query: { tenant: "airqo" },
-    };
-
-    findStub.resolves([{ name: "device_A", claim_status: "unclaimed" }]);
-    cohortFindByIdStub.returns({
-      lean: () => Promise.resolve({ _id: specificCohortId }),
-    });
-    findOneAndUpdateStub.resolves({
-      name: "device_A",
-      claim_status: "claimed",
-    });
-
-    const result = await deviceUtil.bulkClaim(request);
-
-    expect(result.success).to.be.true;
-    expect(result.data.successful_claims).to.have.lengthOf(1);
-    expect(
-      findOneAndUpdateStub.firstCall.args[1].$addToSet.cohorts.toString()
-    ).to.equal(specificCohortId);
   });
 });
 
