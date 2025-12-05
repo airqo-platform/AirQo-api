@@ -5,7 +5,7 @@ from uuid import UUID
 from app.crud.items_stock import items_stock as items_stock_crud, items_stock_history as history_crud
 from app.models.items_stock import (
     ItemsStockCreate, ItemsStockRead, ItemsStockUpdate, ItemsStockWithHistory,
-    ItemsStockResponse
+    ItemsStockResponse, ItemsStockHistoryRead
 )
 from app.deps import get_db
 
@@ -229,9 +229,11 @@ def get_item_stock_with_history(
             db=db, item_id=item_id, skip=0, limit=history_limit
         )
         
+        history_read = [ItemsStockHistoryRead.model_validate(h) for h in history]
+        
         return ItemsStockWithHistory(
             **item.dict(),
-            history=history
+            history=history_read
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error retrieving item history: {str(e)}")

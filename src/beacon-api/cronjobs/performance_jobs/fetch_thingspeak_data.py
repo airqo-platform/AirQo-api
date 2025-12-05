@@ -110,18 +110,20 @@ class ThingSpeakDataFetcher:
                 if len(feeds) < MAX_RECORDS_PER_REQUEST:
                     break
                 
-                # Get the timestamp of the earliest record in this batch
-                # and use it as the end date for the next request
-                earliest_record = feeds[-1]  # Feeds are typically ordered newest to oldest
-                earliest_timestamp = earliest_record.get('created_at')
+                # Get the timestamp of the oldest record in this batch
+                # and use it as the end date for the next request.
+                # ThingSpeak returns feeds in ascending order (oldest to newest),
+                # so feeds[0] is the oldest record in this batch.
+                oldest_record = feeds[0]
+                oldest_timestamp = oldest_record.get('created_at')
                 
-                if not earliest_timestamp:
-                    logger.warning(f"No timestamp found in record, stopping pagination")
+                if not oldest_timestamp:
+                    logger.warning("No timestamp found in record, stopping pagination")
                     break
                 
                 # Parse the timestamp and set it as the new end date
                 # Subtract 1 second to avoid fetching the same record again
-                current_end = datetime.fromisoformat(earliest_timestamp.replace('Z', '+00:00'))
+                current_end = datetime.fromisoformat(oldest_timestamp.replace('Z', '+00:00'))
                 current_end = current_end - timedelta(seconds=1)
                 
                 # Safety check: if we've moved past the start date, stop
