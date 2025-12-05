@@ -1110,6 +1110,13 @@ const validateBulkClaim = [
     .trim()
     .notEmpty()
     .withMessage("claim_token cannot be empty if provided"),
+
+  body("cohort_id")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage("cohort_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
 ];
 
 const validateListOrphanedDevices = [

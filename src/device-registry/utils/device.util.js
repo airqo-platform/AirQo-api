@@ -2153,7 +2153,7 @@ const deviceUtil = {
 
   bulkClaim: async (request, next) => {
     try {
-      const { user_id, devices } = request.body;
+      const { user_id, devices, cohort_id } = request.body;
       const { tenant } = request.query;
 
       if (!user_id || !isValidObjectId(user_id)) {
@@ -2172,20 +2172,36 @@ const deviceUtil = {
       });
       const deviceMap = new Map(deviceDocs.map((d) => [d.name, d]));
 
-      // Find or create the user's personal cohort once
-      const firstDevice = deviceDocs[0];
-      const personalCohortName = `coh_user_${user_id.toString()}`;
-      const targetCohort = await CohortModel(tenant).findOneAndUpdate(
-        { name: personalCohortName },
-        {
-          $setOnInsert: {
-            name: personalCohortName,
-            description: `Personal cohort for user ${user_id.toString()}`,
-            network: firstDevice ? firstDevice.network || "airqo" : "airqo",
-          },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+      let targetCohort;
+      if (cohort_id) {
+        // Case A: A specific cohort is provided
+        targetCohort = await CohortModel(tenant)
+          .findById(cohort_id)
+          .lean();
+
+        if (!targetCohort) {
+          throw new HttpError("Cohort not found", httpStatus.NOT_FOUND, {
+            message: "The specified cohort does not exist",
+          });
+        }
+      } else {
+        // Case B: No cohort provided, use user's personal cohort
+        const firstDevice = deviceDocs[0];
+        const personalCohortName = `coh_user_${user_id.toString()}`;
+        targetCohort = await CohortModel(tenant)
+          .findOneAndUpdate(
+            { name: personalCohortName },
+            {
+              $setOnInsert: {
+                name: personalCohortName,
+                description: `Personal cohort for user ${user_id.toString()}`,
+                network: firstDevice ? firstDevice.network || "airqo" : "airqo",
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          )
+          .lean();
+      }
 
       for (const deviceToClaim of devices) {
         const { device_name, claim_token } = deviceToClaim;
