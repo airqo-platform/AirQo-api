@@ -251,6 +251,13 @@ async def get_upcoming_maintenance_devices(
     
     device_keys = [device.device_key for device in devices]
     
+    if not device_keys:
+        return {
+            "threshold_days": days,
+            "count": 0,
+            "devices": []
+        }
+    
     # Batch query for latest readings to get site names
     reading_subquery = (
         select(
@@ -319,6 +326,12 @@ async def get_overdue_maintenance_devices(
     ).all()
     
     device_keys = [device.device_key for device in devices]
+    
+    if not device_keys:
+        return {
+            "count": 0,
+            "devices": []
+        }
     
     # Batch query for latest readings to get site names
     reading_subquery = (
@@ -673,10 +686,6 @@ async def update_device_firmware(
     device = device_crud.get_by_device_id(db, device_id=device_id)
     if not device:
         logger.warning(f"Device not found with device_id: {device_id}")
-        # Log sample device IDs for server-side debugging only
-        all_devices = db.exec(select(Device.device_id, Device.device_name).limit(5)).all()
-        available_ids = [{"device_id": d.device_id, "device_name": d.device_name} for d in all_devices]
-        logger.info(f"Sample device IDs in database: {available_ids}")
         raise HTTPException(
             status_code=404, 
             detail=f"Device not found with device_id: {device_id}"

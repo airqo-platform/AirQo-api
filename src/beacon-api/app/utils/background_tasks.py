@@ -5,7 +5,7 @@ These tasks run after the response is sent to the client.
 Uses in-memory locks to prevent duplicate fetches for the same resources.
 """
 import logging
-from typing import List, Set
+from typing import List, Set, Optional
 from datetime import datetime
 import threading
 
@@ -21,6 +21,10 @@ _lock = threading.Lock()
 
 # Track if a bulk device key update is already running
 _device_keys_update_running: bool = False
+# Track when the last device keys update was triggered (for throttling)
+_last_device_keys_update: Optional[datetime] = None
+# Minimum interval between device key update attempts (5 minutes)
+_DEVICE_KEYS_UPDATE_THROTTLE_SECONDS = 300
 
 
 def _get_fetch_key(resource_id: str, start_date: datetime, end_date: datetime) -> str:
@@ -206,10 +210,17 @@ def fetch_single_airqloud_with_devices_background(
 def get_active_fetches_count() -> dict:
     """Get the count of currently active background fetches (for monitoring)"""
     with _lock:
+        throttle_remaining = None
+        if _last_device_keys_update is not None:
+            elapsed = (datetime.now() - _last_device_keys_update).total_seconds()
+            if elapsed < _DEVICE_KEYS_UPDATE_THROTTLE_SECONDS:
+                throttle_remaining = int(_DEVICE_KEYS_UPDATE_THROTTLE_SECONDS - elapsed)
+        
         return {
             "active_device_fetches": len(_active_device_fetches),
             "active_airqloud_fetches": len(_active_airqloud_fetches),
-            "device_keys_update_running": _device_keys_update_running
+            "device_keys_update_running": _device_keys_update_running,
+            "device_keys_throttle_remaining_seconds": throttle_remaining
         }
 
 
@@ -220,30 +231,43 @@ def update_all_null_device_keys_background():
     
     Reuses the DeviceUpdater class from cronjobs/update_devices.py to avoid code duplication.
     
-    Uses locking to prevent multiple simultaneous bulk updates.
+    Uses locking to prevent multiple simultaneous bulk updates and throttling to prevent
+    redundant task scheduling from concurrent requests.
     """
-    global _device_keys_update_running
+    global _device_keys_update_running, _last_device_keys_update
     
-    # Check if an update is already running
+    # Check if an update is already running or was recently triggered
     with _lock:
+        now = datetime.now()
+        
+        # Check throttle - skip if last update was triggered recently
+        if _last_device_keys_update is not None:
+            elapsed = (now - _last_device_keys_update).total_seconds()
+            if elapsed < _DEVICE_KEYS_UPDATE_THROTTLE_SECONDS:
+                logger.debug(f"[Background] Device key update throttled, {_DEVICE_KEYS_UPDATE_THROTTLE_SECONDS - elapsed:.0f}s remaining")
+                return
+        
         if _device_keys_update_running:
             logger.info("[Background] Bulk device key update already running, skipping")
             return
+        
         _device_keys_update_running = True
+        _last_device_keys_update = now
     
     logger.info("[Background] Starting bulk update for all devices with null keys")
     
     try:
-        # Import the DeviceUpdater from cronjobs
+        # Import the DeviceUpdater from cronjobs using importlib
         import sys
+        import importlib.util
         from pathlib import Path
         
-        # Ensure cronjobs directory is in path
-        cronjobs_path = str(Path(__file__).parent.parent.parent / "cronjobs")
-        if cronjobs_path not in sys.path:
-            sys.path.insert(0, cronjobs_path)
-        
-        from update_devices import DeviceUpdater
+        # Dynamically load the update_devices module from cronjobs directory
+        cronjobs_path = Path(__file__).parent.parent.parent / "cronjobs" / "update_devices.py"
+        spec = importlib.util.spec_from_file_location("update_devices", cronjobs_path)
+        update_devices_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(update_devices_module)
+        DeviceUpdater = update_devices_module.DeviceUpdater
         
         with SessionLocal() as db:
             updater = DeviceUpdater(db)

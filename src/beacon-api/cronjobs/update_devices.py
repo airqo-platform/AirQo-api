@@ -47,14 +47,25 @@ if not API_TOKEN:
 class DeviceUpdater:
     """Handle device updates from Platform API"""
     
-    def __init__(self, session: Session):
+    def __init__(self, session: Session, force_update_keys: bool = False):
+        """
+        Initialize the DeviceUpdater.
+        
+        Args:
+            session: SQLModel database session
+            force_update_keys: If True, allows updating read_key, write_key, and channel_id
+                              even when they already have values. Use this for key rotation
+                              or data correction scenarios. Default is False (set-once behavior).
+        """
         self.session = session
+        self.force_update_keys = force_update_keys
         self.crud = CRUDDevice(Device)
         self.stats = {
             'total_fetched': 0,
             'new_devices': 0,
             'updated_devices': 0,
             'null_updates': 0,
+            'key_updates': 0,
             'decrypted_read_keys': 0,
             'decrypted_write_keys': 0,
             'batches_processed': 0,
@@ -331,8 +342,15 @@ class DeviceUpdater:
     
     def should_update_field(self, current_value: Any, new_value: Any, field_name: str) -> bool:
         """
-        Determine if a field should be updated
-        Prioritizes updating null values
+        Determine if a field should be updated.
+        
+        Key fields (read_key, write_key, channel_id) follow a "set-once" policy by default:
+        - They are only populated when the current value is None
+        - Once set, they are NOT updated during normal sync operations
+        - This preserves manually corrected data and prevents accidental overwrites
+        
+        To enable key updates (for key rotation or data correction), initialize
+        DeviceUpdater with force_update_keys=True.
         
         Args:
             current_value: Current value in database
@@ -346,9 +364,10 @@ class DeviceUpdater:
         if current_value is None and new_value is not None:
             return True
         
-        # For read_key, write_key and channel_id, don't update if current value exists (preserve existing data)
+        # For key fields, only update if force_update_keys is enabled
         if field_name in ['read_key', 'write_key', 'channel_id']:
-            # Don't update if current value exists (preserve existing data)
+            if self.force_update_keys and new_value is not None and current_value != new_value:
+                return True
             return False
         
         # For other fields, update if new value is different and not None
@@ -378,6 +397,7 @@ class DeviceUpdater:
                 # Update existing device
                 update_data = {}
                 null_field_updated = False
+                key_field_updated = False
                 
                 for field, new_value in device_data.items():
                     if field in ['device_id', 'device_key']:  # Skip primary/unique keys
@@ -392,6 +412,11 @@ class DeviceUpdater:
                         if current_value is None and new_value is not None:
                             null_field_updated = True
                             logger.info(f"Updating null field '{field}' for device {device_id}")
+                        
+                        # Track if we're updating a key field (force update scenario)
+                        if field in ['read_key', 'write_key', 'channel_id'] and current_value is not None:
+                            key_field_updated = True
+                            logger.info(f"Force updating key field '{field}' for device {device_id}")
                 
                 if update_data:
                     # Update the device
@@ -405,6 +430,8 @@ class DeviceUpdater:
                     self.stats['updated_devices'] += 1
                     if null_field_updated:
                         self.stats['null_updates'] += 1
+                    if key_field_updated:
+                        self.stats['key_updates'] += 1
                     
                     logger.info(f"Updated device: {device_id} ({len(update_data)} fields)")
                 else:
@@ -759,19 +786,21 @@ class DeviceUpdater:
             
             logger.info("=" * 80)
             logger.info("Device update job completed successfully")
-            logger.info(f"Statistics:")
+            logger.info("Statistics:")
             logger.info(f"  - Devices fetched from API: {self.stats['total_fetched']}")
             logger.info(f"  - Database count before: {db_count_before}")
             logger.info(f"  - Database count after: {db_count_after}")
             logger.info(f"  - New devices created: {self.stats['new_devices']}")
             logger.info(f"  - Devices updated: {self.stats['updated_devices']}")
             logger.info(f"  - Null values filled: {self.stats['null_updates']}")
+            logger.info(f"  - Key fields force-updated: {self.stats['key_updates']}")
             logger.info(f"  - Batches processed: {self.stats['batches_processed']}")
             logger.info(f"  - Read keys decrypted: {self.stats['decrypted_read_keys']}")
             logger.info(f"  - Write keys decrypted: {self.stats['decrypted_write_keys']}")
             logger.info(f"  - AirQo devices missing keys: {self.stats['devices_missing_keys']}")
             logger.info(f"  - Missing keys CSV: {missing_keys_csv if missing_keys_csv else 'None'}")
             logger.info(f"  - Server failures CSV: {server_failures_csv if server_failures_csv else 'None'}")
+            logger.info(f"  - Force update keys enabled: {self.force_update_keys}")
             logger.info(f"  - Errors: {self.stats['errors']}")
             logger.info("=" * 80)
             
