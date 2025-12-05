@@ -48,6 +48,9 @@ Configuration via environment variables. See `.env.example` for required variabl
 | `POSTGRES_DB` | Database name | Yes |
 | `SECRET_KEY` | JWT signing key | Yes |
 | `REDIS_URL` | Redis connection URL | No |
+| `ORG_TOKEN` | Organization token for firmware API | Yes (for firmware) |
+| `GCS_BUCKET_NAME` | Google Cloud Storage bucket name | Yes (for firmware) |
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | GCP service account JSON | Yes (for firmware) |
 | `ENVIRONMENT` | Deployment environment | No |
 
 ## API Documentation
@@ -73,6 +76,13 @@ Interactive API documentation available at:
   - Data transmission metrics
   - System health monitoring
   - Performance analytics
+
+- **Firmware** - `/firmware/*`
+  - Firmware upload and management
+  - Version control and distribution
+  - OTA (Over-The-Air) update support
+  - Multiple format support (.bin, .hex)
+  - See [Firmware Documentation](FIRMWARE_API.md) for details
 
 ## Health Checks
 
