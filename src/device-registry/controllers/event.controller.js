@@ -1046,6 +1046,20 @@ const createEvent = {
         },
       };
 
+      const { cohort_id } = { ...req.query, ...req.params };
+
+      if (cohort_id) {
+        await processCohortIds(cohort_id, request);
+        if (isEmpty(request.query.device_id)) {
+          // No devices found for this cohort, return empty
+          return res.status(httpStatus.OK).json({
+            success: true,
+            message: "No devices found for the provided cohort.",
+            measurements: [],
+          });
+        }
+      }
+
       const result = await createEventUtil.read(request, next);
 
       if (isEmpty(result) || res.headersSent) {

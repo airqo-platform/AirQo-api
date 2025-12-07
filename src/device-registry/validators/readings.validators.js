@@ -447,6 +447,14 @@ function decimalPlaces(num) {
 
 // Convert validation arrays to proper middleware functions
 const readingsValidations = {
+  map: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      commonValidations.optionalObjectId("cohort_id"),
+    ];
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
   nearestReadings: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
