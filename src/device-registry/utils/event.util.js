@@ -2424,7 +2424,7 @@ const createEvent = {
       return;
     }
   },
-  read: async (request, next) => {
+  read: async (request, filter = {}, next) => {
     try {
       let missingDataMessage = "";
       const {
@@ -2448,7 +2448,7 @@ const createEvent = {
 
       const readingsResponse = await ReadingModel(tenant).recent(
         {
-          filter: {},
+          filter,
           skip: skip || 0,
           limit: limit || 1000,
         },
