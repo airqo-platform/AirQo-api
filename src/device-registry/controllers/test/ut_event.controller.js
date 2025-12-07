@@ -1,16 +1,19 @@
 require("module-alias/register");
 const chai = require("chai");
-const chaiHttp = require("chai-http");
 const sinon = require("sinon");
 const sinonChai = require("sinon-chai");
 const expect = chai.expect;
 const should = chai.should();
 const chaiHttp = require("chai-http");
+const httpStatus = require("http-status");
+const { HttpError } = require("@utils/shared");
+const createEventUtil = require("@utils/event.util");
+const { readingsForMap } = require("@controllers/event.controller");
 
 chai.use(sinonChai);
 chai.use(chaiHttp);
 
-const { createEvent } = require("@controllers/create-event");
+const { createEvent } = require("@controllers/event.controller");
 
 describe("Create Event Controller", () => {
   describe("addValues", () => {
@@ -380,6 +383,76 @@ describe("Create Event Controller", () => {
         httpStatus.INTERNAL_SERVER_ERROR
       );
       expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+  });
+
+  describe("readingsForMap", () => {
+    let req, res, next;
+
+    beforeEach(() => {
+      req = {
+        query: { tenant: "airqo" },
+        params: {},
+      };
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+      next = sinon.spy();
+      sinon.stub(createEventUtil, "processCohortIds").resolves();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return measurements when no cohort_id is provided", async () => {
+      const mockResult = {
+        success: true,
+        data: [{ measurement: "data" }],
+        message: "Success",
+      };
+      sinon.stub(createEventUtil, "read").resolves(mockResult);
+
+      await readingsForMap(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Success",
+        measurements: [{ measurement: "data" }],
+      });
+    });
+
+    it("should return measurements for a valid cohort_id with devices", async () => {
+      req.query.cohort_id = "valid_cohort_id";
+      req.query.device_id = "device1,device2"; // Simulating processCohortIds populating this
+
+      const mockResult = {
+        success: true,
+        data: [{ measurement: "cohort_data" }],
+        message: "Cohort success",
+      };
+      sinon.stub(createEventUtil, "read").resolves(mockResult);
+
+      await readingsForMap(req, res, next);
+
+      expect(createEventUtil.processCohortIds).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Cohort success",
+        measurements: [{ measurement: "cohort_data" }],
+      });
+    });
+
+    it("should return a 400 Bad Request when cohort_id has no devices", async () => {
+      req.query.cohort_id = "empty_cohort_id";
+      // processCohortIds will not populate device_id for an empty cohort
+
+      await readingsForMap(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.BAD_REQUEST);
     });
   });
 

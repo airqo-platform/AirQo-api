@@ -1051,11 +1051,13 @@ const createEvent = {
       if (cohort_id) {
         await processCohortIds(cohort_id, request);
         if (isEmpty(request.query.device_id)) {
-          // No devices found for this cohort, return empty
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: "No devices found for the provided cohort.",
-            measurements: [],
+          // No devices found for this cohort, return error consistent with other endpoints
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            errors: {
+              message: `Unable to process measurements for the provided Cohort ID ${cohort_id}`,
+            },
+            message: "Bad Request Error",
           });
         }
       }
