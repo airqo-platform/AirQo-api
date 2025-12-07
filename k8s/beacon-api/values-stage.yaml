@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-beacon-api
-  tag: stage-cb3ca9ee-1756918634
+  tag: stage-c06e6586-1765055526
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
