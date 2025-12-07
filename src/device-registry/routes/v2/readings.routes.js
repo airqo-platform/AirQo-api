@@ -115,7 +115,7 @@ const routes = [
   {
     method: "get",
     path: "/map",
-    middlewares: [],
+    middlewares: [checkValidation("map")],
     controller: "readingsForMap",
   },
   {
