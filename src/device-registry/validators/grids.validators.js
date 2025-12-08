@@ -860,6 +860,10 @@ const gridsValidations = {
   ],
   listCountries: [
     ...commonValidations.tenant,
+    query("cohort_id")
+      .optional()
+      .isMongoId()
+      .withMessage("cohort_id must be a valid MongoDB ObjectId"),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
