@@ -492,6 +492,7 @@ const gridsValidations = {
     commonValidations.validObjectId("id"),
     commonValidations.nameQuery,
     commonValidations.adminLevelQuery,
+    commonValidations.validObjectId("cohort_id"),
   ],
   deleteGrid: [
     ...commonValidations.tenant,

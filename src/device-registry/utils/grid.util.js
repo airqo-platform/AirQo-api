@@ -14,6 +14,7 @@ const constants = require("@config/constants");
 const { generateFilter, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
+const eventUtil = require("@utils/event.util");
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
 const kafka = new Kafka({
@@ -501,12 +502,32 @@ const createGrid = {
         sortBy,
         order,
       } = request.query;
+      const { cohort_id } = request.query;
       const filter = generateFilter.grids(request, next);
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
+
+      let cohortSiteIds = [];
+      if (cohort_id) {
+        // We need to get devices for the cohort, then sites for those devices
+        const cohortDevicesResponse = await eventUtil.getDevicesFromCohort({
+          tenant,
+          cohort_id,
+        });
+        if (cohortDevicesResponse.success) {
+          const deviceIds = cohortDevicesResponse.data
+            .split(",")
+            .map((id) => ObjectId(id));
+          const devices = await DeviceModel(tenant).find(
+            { _id: { $in: deviceIds } },
+            "site_id"
+          );
+          cohortSiteIds = devices.map((d) => d.site_id).filter(Boolean);
+        }
+      }
 
       // Optimized query to get all private site IDs in one go
       const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
@@ -551,6 +572,18 @@ const createGrid = {
                 cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
               },
             },
+            // If cohort_id is provided, further filter the sites
+            sites: cohort_id
+              ? {
+                  $filter: {
+                    input: "$sites",
+                    as: "site",
+                    cond: {
+                      $in: ["$$site._id", cohortSiteIds],
+                    },
+                  },
+                }
+              : "$sites",
           },
         },
       ];
