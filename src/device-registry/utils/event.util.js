@@ -932,7 +932,11 @@ const processCohortIds = async (cohort_ids, request) => {
   const flattened = [].concat(...validDeviceIdResults);
 
   if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
-    request.query.device_id = validDeviceIdResults.join(",");
+    // When a cohort_id is provided, it should be the source of truth for devices.
+    // We will replace any existing device_id filter.
+    // The use of a Set handles potential duplicates if a device is in multiple cohorts.
+    const uniqueDeviceIds = [...new Set(flattened)];
+    request.query.device_id = uniqueDeviceIds.join(",");
   }
 };
 const processAirQloudIds = async (airqloud_ids, request) => {
