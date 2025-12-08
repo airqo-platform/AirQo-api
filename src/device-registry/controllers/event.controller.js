@@ -1050,7 +1050,7 @@ const createEvent = {
       const { cohort_id } = { ...req.query, ...req.params };
 
       if (cohort_id) {
-        const cohortProcessingResponse = await processCohortIds(
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
           request
         );
@@ -1058,11 +1058,9 @@ const createEvent = {
           cohortProcessingResponse &&
           cohortProcessingResponse.success === false
         ) {
-          return res.status(cohortProcessingResponse.status).json({
-            success: false,
-            message: cohortProcessingResponse.message,
-            errors: cohortProcessingResponse.errors,
-          });
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
         } else if (isEmpty(request.query.device_id)) {
           // No devices found for this cohort, return error consistent with other endpoints
           return res.status(httpStatus.BAD_REQUEST).json({
@@ -1426,7 +1424,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1520,7 +1530,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1608,7 +1630,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1696,7 +1730,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1778,7 +1824,19 @@ const createEvent = {
       const { cohort_id, grid_id } = { ...req.query, ...req.params };
       let locationErrors = 0;
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -2948,7 +3006,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -3031,7 +3101,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          return res
+            .status(cohortProcessingResponse.status)
+            .json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }

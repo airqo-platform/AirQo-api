@@ -484,7 +484,11 @@ const createCohort = {
           ? agg.totalCount[0].count
           : 0;
 
-      if (isEmpty(paginatedResults) && filter._id) {
+      if (
+        isEmpty(paginatedResults) &&
+        filter._id &&
+        Object.keys(filter).length === 1
+      ) {
         return {
           success: false,
           message: "Cohort not found",
