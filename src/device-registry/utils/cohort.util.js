@@ -484,6 +484,17 @@ const createCohort = {
           ? agg.totalCount[0].count
           : 0;
 
+      if (isEmpty(paginatedResults) && filter._id) {
+        return {
+          success: false,
+          message: "Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `Cohort with ID ${filter._id} does not exist`,
+          },
+        };
+      }
+
       const baseUrl =
         typeof request.protocol === "string" &&
         typeof request.get === "function" &&

@@ -780,9 +780,9 @@ const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
     if (responseFromListCohort.data.length > 1 || isEmpty(cohortDetails)) {
       return {
         success: false,
-        message: "Bad Request Error",
-        errors: { message: "No distinct Cohort found in this search" },
-        status: httpStatus.BAD_REQUEST,
+        message: "Cohort not found",
+        errors: { message: "The provided Cohort ID does not exist" },
+        status: httpStatus.NOT_FOUND,
       };
     }
     const assignedDevices = cohortDetails.devices || [];
