@@ -1058,9 +1058,9 @@ const createEvent = {
           cohortProcessingResponse &&
           cohortProcessingResponse.success === false
         ) {
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         } else if (isEmpty(request.query.device_id)) {
           // No devices found for this cohort, return error consistent with other endpoints
           return res.status(httpStatus.BAD_REQUEST).json({
@@ -1433,9 +1433,9 @@ const createEvent = {
           cohortProcessingResponse.success === false
         ) {
           // Stop execution and return the error from cohort processing
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
@@ -1501,6 +1501,7 @@ const createEvent = {
       return;
     }
   },
+
   listAverages: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1539,9 +1540,9 @@ const createEvent = {
           cohortProcessingResponse.success === false
         ) {
           // Stop execution and return the error from cohort processing
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
@@ -1601,6 +1602,7 @@ const createEvent = {
       return;
     }
   },
+
   listAveragesV2: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1639,9 +1641,9 @@ const createEvent = {
           cohortProcessingResponse.success === false
         ) {
           // Stop execution and return the error from cohort processing
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
@@ -1701,6 +1703,7 @@ const createEvent = {
       return;
     }
   },
+
   listAveragesV3: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1739,9 +1742,9 @@ const createEvent = {
           cohortProcessingResponse.success === false
         ) {
           // Stop execution and return the error from cohort processing
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
@@ -1801,6 +1804,7 @@ const createEvent = {
       return;
     }
   },
+
   listHistorical: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1833,9 +1837,9 @@ const createEvent = {
           cohortProcessingResponse.success === false
         ) {
           // Stop execution and return the error from cohort processing
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
@@ -1896,6 +1900,7 @@ const createEvent = {
       return;
     }
   },
+
   listRunningDevices: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2898,6 +2903,7 @@ const createEvent = {
       return;
     }
   },
+
   listByGrid: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2980,6 +2986,7 @@ const createEvent = {
       return;
     }
   },
+
   listByCohort: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -3015,9 +3022,9 @@ const createEvent = {
           cohortProcessingResponse.success === false
         ) {
           // Stop execution and return the error from cohort processing
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
@@ -3075,6 +3082,7 @@ const createEvent = {
       return;
     }
   },
+
   listByCohortHistorical: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -3110,9 +3118,9 @@ const createEvent = {
           cohortProcessingResponse.success === false
         ) {
           // Stop execution and return the error from cohort processing
-          return res
-            .status(cohortProcessingResponse.status)
-            .json(cohortProcessingResponse);
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
         }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
@@ -3170,6 +3178,7 @@ const createEvent = {
       return;
     }
   },
+
   listByLatLong: async (req, res, next) => {
     try {
       let { latitude, longitude } = req.params;

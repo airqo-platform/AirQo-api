@@ -916,6 +916,10 @@ const processCohortIds = async (cohort_ids, request) => {
         return {
           success: false,
           message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          errors: {
+            message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          },
+          status: httpStatus.BAD_REQUEST,
         };
       }
       const arrayOfDevices = responseFromGetDevicesOfCohort.data.split(",");
@@ -948,8 +952,15 @@ const processCohortIds = async (cohort_ids, request) => {
     // The use of a Set handles potential duplicates if a device is in multiple cohorts.
     const uniqueDeviceIds = [...new Set(flattened)];
     request.query.device_id = uniqueDeviceIds.join(",");
-  } else if (isEmpty(validDeviceIdResults)) {
-    return invalidDeviceIdResults[0];
+  } else if (isEmpty(flattened)) {
+    return {
+      success: false,
+      status: httpStatus.BAD_REQUEST,
+      message: "No device IDs could be resolved from the provided Cohort IDs",
+      errors: {
+        message: "No device IDs could be resolved from the provided Cohort IDs",
+      },
+    };
   }
 };
 const processAirQloudIds = async (airqloud_ids, request) => {
