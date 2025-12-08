@@ -1333,7 +1333,7 @@ const createGrid = {
   },
   listCountries: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, cohort_id } = request.query;
       // Optimized query to get all private site IDs in one go
       const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
         { $match: { visibility: false } },
@@ -1354,6 +1354,26 @@ const createGrid = {
         privateSiteIdsResponse.length > 0
           ? privateSiteIdsResponse[0].site_ids
           : [];
+
+      let cohortSiteIds = [];
+      if (cohort_id) {
+        const devicesInCohort = await DeviceModel(tenant)
+          .find({ cohorts: cohort_id, site_id: { $ne: null } })
+          .distinct("site_id");
+
+        cohortSiteIds = devicesInCohort;
+
+        // If a cohort_id is provided but no sites are found for it, return an empty array.
+        if (cohortSiteIds.length === 0) {
+          return {
+            success: true,
+            message: "No countries found for the specified cohort.",
+            data: [],
+            status: httpStatus.OK,
+          };
+        }
+      }
+
       const pipeline = [
         {
           $match: { admin_level: "country" },
@@ -1372,7 +1392,15 @@ const createGrid = {
               $filter: {
                 input: "$sites",
                 as: "site",
-                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+                cond:
+                  cohort_id && cohortSiteIds.length > 0
+                    ? {
+                        $and: [
+                          { $not: { $in: ["$$site._id", privateSiteIds] } },
+                          { $in: ["$$site._id", cohortSiteIds] },
+                        ],
+                      }
+                    : { $not: { $in: ["$$site._id", privateSiteIds] } },
               },
             },
           },
