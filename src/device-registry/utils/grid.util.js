@@ -1392,23 +1392,17 @@ const createGrid = {
               $filter: {
                 input: "$sites",
                 as: "site",
-                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+                cond:
+                  cohort_id && cohortSiteIds.length > 0
+                    ? {
+                        $and: [
+                          { $not: { $in: ["$$site._id", privateSiteIds] } },
+                          { $in: ["$$site._id", cohortSiteIds] },
+                        ],
+                      }
+                    : { $not: { $in: ["$$site._id", privateSiteIds] } },
               },
             },
-            // If cohort_id is provided, further filter sites to only include those in the cohort
-            ...(cohort_id && cohortSiteIds.length > 0
-              ? [
-                  {
-                    sites: {
-                      $filter: {
-                        input: "$sites",
-                        as: "site",
-                        cond: { $in: ["$$site._id", cohortSiteIds] },
-                      },
-                    },
-                  },
-                ]
-              : []),
           },
         },
         {
