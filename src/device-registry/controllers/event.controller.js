@@ -988,6 +988,7 @@ const createEvent = {
         query: {
           ...req.query,
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+          recent: "yes",
         },
       };
 
@@ -1062,7 +1063,16 @@ const createEvent = {
         }
       }
 
-      const result = await createEventUtil.read(request, next);
+      // Directly create the filter for the 'read' utility
+      const filter = {};
+      if (request.query.device_id) {
+        const deviceIds = request.query.device_id
+          .split(",")
+          .map((id) => id.trim());
+        filter.device_id = { $in: deviceIds };
+      }
+
+      const result = await createEventUtil.read(request, filter, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
