@@ -1052,7 +1052,6 @@ const createEvent = {
       if (cohort_id) {
         await processCohortIds(cohort_id, request);
         if (isEmpty(request.query.device_id)) {
-          request.query.device_id = [];
           // No devices found for this cohort, return error consistent with other endpoints
           return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
