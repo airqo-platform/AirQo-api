@@ -932,8 +932,7 @@ const processCohortIds = async (cohort_ids, request) => {
   const flattened = [].concat(...validDeviceIdResults);
 
   if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
-    // When a cohort_id is provided, it should be the source of truth for devices.
-    // We will replace any existing device_id filter.
+    // When cohort_id is provided, set device_id filter based on devices in those cohorts.
     // The use of a Set handles potential duplicates if a device is in multiple cohorts.
     const uniqueDeviceIds = [...new Set(flattened)];
     request.query.device_id = uniqueDeviceIds.join(",");
