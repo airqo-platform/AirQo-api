@@ -120,6 +120,12 @@ const PERMISSION_DEFINITIONS = [
   { name: "TOKEN_MANAGE", description: "Manage API tokens" },
   { name: "TOKEN_ANALYZE", description: "Analyze token usage" },
 
+  // Shipping Management
+  { name: "SHIPPING_VIEW", description: "View shipping information" },
+  { name: "SHIPPING_CREATE", description: "Create shipping batches" },
+  { name: "SHIPPING_EDIT", description: "Edit shipping information" },
+  { name: "SHIPPING_DELETE", description: "Delete shipping records" },
+
   // Legacy Permissions (to be phased out)
   {
     name: "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
