@@ -1358,7 +1358,12 @@ const createGrid = {
       let cohortSiteIds = [];
       if (cohort_id) {
         const devicesInCohort = await DeviceModel(tenant)
-          .find({ cohorts: cohort_id, site_id: { $ne: null } })
+          .find({
+            cohorts: {
+              $in: Array.isArray(cohort_id) ? cohort_id : [cohort_id],
+            },
+            site_id: { $ne: null },
+          })
           .distinct("site_id");
 
         cohortSiteIds = devicesInCohort;
