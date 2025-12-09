@@ -22,13 +22,20 @@ describe("Grid Util", () => {
 
     it("should return a list of countries without cohort filtering", async () => {
       const request = { query: { tenant: "airqo" } };
-      sandbox.stub(CohortModel.prototype, "aggregate").resolves([]);
-      sandbox
-        .stub(GridModel.prototype, "aggregate")
+      const cohortAggregateStub = sandbox.stub().resolves([]);
+      const gridAggregateStub = sandbox
+        .stub()
         .resolves([
           { country: "uganda", sites: 10 },
           { country: "kenya", sites: 5 },
         ]);
+
+      sandbox.stub(CohortModel, "default").returns({
+        aggregate: cohortAggregateStub,
+      });
+      sandbox.stub(GridModel, "default").returns({
+        aggregate: gridAggregateStub,
+      });
 
       const result = await gridUtil.listCountries(request);
 
@@ -43,15 +50,23 @@ describe("Grid Util", () => {
       const cohortId = "620f8b9a9b7e4b001f7e8b1a";
       const request = { query: { tenant: "airqo", cohort_id: cohortId } };
 
-      sandbox.stub(CohortModel.prototype, "aggregate").resolves([]);
-      const deviceModelStub = sandbox.stub(DeviceModel.prototype, "find");
-      deviceModelStub.returns({
+      const cohortAggregateStub = sandbox.stub().resolves([]);
+      const deviceFindStub = sandbox.stub().returns({
         distinct: sandbox.stub().resolves(["site_id_1"]),
       });
-      sandbox
-        .stub(GridModel.prototype, "aggregate")
+      const gridAggregateStub = sandbox
+        .stub()
         .resolves([{ country: "uganda", sites: 1 }]);
 
+      sandbox.stub(CohortModel, "default").returns({
+        aggregate: cohortAggregateStub,
+      });
+      sandbox.stub(DeviceModel, "default").returns({
+        find: deviceFindStub,
+      });
+      sandbox.stub(GridModel, "default").returns({
+        aggregate: gridAggregateStub,
+      });
       const result = await gridUtil.listCountries(request);
 
       expect(result.success).to.be.true;
@@ -59,7 +74,7 @@ describe("Grid Util", () => {
         .to.be.an("array")
         .with.lengthOf(1);
       expect(result.data[0].country).to.equal("uganda");
-      sinon.assert.calledWith(deviceModelStub, {
+      sinon.assert.calledWith(deviceFindStub, {
         cohorts: { $in: [cohortId] },
         site_id: { $ne: null },
       });
@@ -74,25 +89,33 @@ describe("Grid Util", () => {
         query: { tenant: "airqo", cohort_id: cohortIds },
       };
 
-      sandbox.stub(CohortModel.prototype, "aggregate").resolves([]);
-      const deviceModelStub = sandbox.stub(DeviceModel.prototype, "find");
-      deviceModelStub.returns({
+      const cohortAggregateStub = sandbox.stub().resolves([]);
+      const deviceFindStub = sandbox.stub().returns({
         distinct: sandbox.stub().resolves(["site_id_1", "site_id_2"]),
       });
-      sandbox
-        .stub(GridModel.prototype, "aggregate")
+      const gridAggregateStub = sandbox
+        .stub()
         .resolves([
           { country: "uganda", sites: 1 },
           { country: "kenya", sites: 1 },
         ]);
 
+      sandbox.stub(CohortModel, "default").returns({
+        aggregate: cohortAggregateStub,
+      });
+      sandbox.stub(DeviceModel, "default").returns({
+        find: deviceFindStub,
+      });
+      sandbox.stub(GridModel, "default").returns({
+        aggregate: gridAggregateStub,
+      });
       const result = await gridUtil.listCountries(request);
 
       expect(result.success).to.be.true;
       expect(result.data)
         .to.be.an("array")
         .with.lengthOf(2);
-      sinon.assert.calledWith(deviceModelStub, {
+      sinon.assert.calledWith(deviceFindStub, {
         cohorts: { $in: cohortIds },
         site_id: { $ne: null },
       });
@@ -102,13 +125,19 @@ describe("Grid Util", () => {
       const cohortId = "620f8b9a9b7e4b001f7e8b1c";
       const request = { query: { tenant: "airqo", cohort_id: cohortId } };
 
-      sandbox.stub(CohortModel.prototype, "aggregate").resolves([]);
-      const deviceModelStub = sandbox.stub(DeviceModel.prototype, "find");
-      deviceModelStub.returns({
+      const cohortAggregateStub = sandbox.stub().resolves([]);
+      const deviceFindStub = sandbox.stub().returns({
         distinct: sandbox.stub().resolves([]), // No sites found
       });
-      const gridAggregateStub = sandbox.stub(GridModel.prototype, "aggregate");
+      const gridAggregateStub = sandbox.stub();
 
+      sandbox.stub(CohortModel, "default").returns({
+        aggregate: cohortAggregateStub,
+      });
+      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
+      sandbox.stub(GridModel, "default").returns({
+        aggregate: gridAggregateStub,
+      });
       const result = await gridUtil.listCountries(request);
 
       expect(result.success).to.be.true;
