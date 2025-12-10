@@ -1418,12 +1418,12 @@ const createGrid = {
           },
         },
         {
+          $match: { sites: { $gt: 0 } },
+        },
+        {
           $sort: {
             country: 1,
           },
-        },
-        {
-          $match: { sites: { $gt: 0 } },
         },
       ];
 
