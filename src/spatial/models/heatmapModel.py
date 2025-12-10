@@ -466,6 +466,7 @@ class AirQualityGrids(BaseAirQoAPI):
             "kampala_central",
             "greater_kampala",
             "city_of_tshwane",
+            
         ]
         exclude_names_set = {n.lower() for n in exclude_names}
 
