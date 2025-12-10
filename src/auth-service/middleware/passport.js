@@ -1517,12 +1517,12 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i); //NOSONAR
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
     if (!match || !match[2]) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'", //NOSONAR
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
         })
       );
     }
@@ -1536,13 +1536,41 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
+    // ========================================
+    // ADD ROUTE BLOCKING CHECK HERE (BEFORE JWT VERIFICATION)
+    // ========================================
+    const endpoint =
+      req.headers["x-original-uri"] || req.originalUrl || req.url;
+
+    // Check if this endpoint should be blocked from JWT authentication
+    for (const route of specificRoutes) {
+      if (matchesRoute(endpoint, route.uri)) {
+        logger.warn(
+          `JWT blocked for endpoint: ${endpoint} - requires query token`
+        );
+
+        return res.status(httpStatus.UNAUTHORIZED).json({
+          success: false,
+          message:
+            "This endpoint requires query token authentication, JWT is not allowed",
+          errors: {
+            message:
+              route.description ||
+              "JWT authentication not permitted for this endpoint",
+          },
+        });
+      }
+    }
+    // ========================================
+    // END ROUTE BLOCKING CHECK
+    // ========================================
+
     jwt.verify(
       token,
       constants.JWT_SECRET,
       { ignoreExpiration: true },
       async (err, decoded) => {
         if (err) {
-          // This handles malformed tokens, but not expiration
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
               message: `Invalid token: ${err.message}`,
@@ -1568,7 +1596,7 @@ const enhancedJWTAuth = (req, res, next) => {
           "airqo";
         const tenant = String(tenantRaw).toLowerCase();
 
-        // 2. Check if a refresh is needed (proactive sliding window OR reactive grace period)
+        // 2. Check if a refresh is needed
         if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
           try {
             const userIdForRefresh = decoded.id || decoded._id;
@@ -1595,7 +1623,6 @@ const enhancedJWTAuth = (req, res, next) => {
                 refreshError.message
               }`
             );
-            // Do not fail the request, just log the error. The current token is still valid (or within grace).
           }
         }
 
@@ -1617,7 +1644,6 @@ const enhancedJWTAuth = (req, res, next) => {
           );
         }
 
-        // For compatibility, merge DB user data with token claims
         req.user = { ...user, ...decoded };
         next();
       }
