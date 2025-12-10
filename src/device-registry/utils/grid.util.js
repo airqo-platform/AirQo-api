@@ -1422,6 +1422,9 @@ const createGrid = {
             country: 1,
           },
         },
+        {
+          $match: { sites: { $gt: 0 } },
+        },
       ];
 
       const results = await GridModel(tenant).aggregate(pipeline);
