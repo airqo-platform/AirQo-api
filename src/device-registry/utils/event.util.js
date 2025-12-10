@@ -777,12 +777,21 @@ const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
     logObject("responseFromListCohort.data[0]", responseFromListCohort.data[0]);
     const cohortDetails = responseFromListCohort.data[0];
 
-    if (responseFromListCohort.data.length > 1 || isEmpty(cohortDetails)) {
+    if (isEmpty(cohortDetails)) {
       return {
         success: false,
-        message: "Bad Request Error",
-        errors: { message: "No distinct Cohort found in this search" },
-        status: httpStatus.BAD_REQUEST,
+        message: "Cohort not found",
+        errors: { message: `Cohort with ID ${cohort_id} does not exist` },
+        status: httpStatus.NOT_FOUND,
+      };
+    } else if (responseFromListCohort.data.length > 1) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: `Data integrity issue: Multiple cohorts found for ID ${cohort_id}`,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
     const assignedDevices = cohortDetails.devices || [];
@@ -898,6 +907,7 @@ const processCohortIds = async (cohort_ids, request) => {
             responseFromGetDevicesOfCohort
           )}`
         );
+        // Return the error response to the caller
         return responseFromGetDevicesOfCohort;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
@@ -906,6 +916,10 @@ const processCohortIds = async (cohort_ids, request) => {
         return {
           success: false,
           message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          errors: {
+            message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          },
+          status: httpStatus.BAD_REQUEST,
         };
       }
       const arrayOfDevices = responseFromGetDevicesOfCohort.data.split(",");
@@ -919,10 +933,12 @@ const processCohortIds = async (cohort_ids, request) => {
     (result) => result.success === false
   );
 
+  // Return the first error found to the controller
   if (!isEmpty(invalidDeviceIdResults)) {
     logger.error(
       `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
     );
+    return invalidDeviceIdResults[0];
   }
 
   const validDeviceIdResults = deviceIdsResults.filter(
@@ -932,7 +948,19 @@ const processCohortIds = async (cohort_ids, request) => {
   const flattened = [].concat(...validDeviceIdResults);
 
   if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
-    request.query.device_id = validDeviceIdResults.join(",");
+    // When cohort_id is provided, set device_id filter based on devices in those cohorts.
+    // The use of a Set handles potential duplicates if a device is in multiple cohorts.
+    const uniqueDeviceIds = [...new Set(flattened)];
+    request.query.device_id = uniqueDeviceIds.join(",");
+  } else if (isEmpty(flattened)) {
+    return {
+      success: false,
+      status: httpStatus.BAD_REQUEST,
+      message: "No device IDs could be resolved from the provided Cohort IDs",
+      errors: {
+        message: "No device IDs could be resolved from the provided Cohort IDs",
+      },
+    };
   }
 };
 const processAirQloudIds = async (airqloud_ids, request) => {
@@ -2424,7 +2452,7 @@ const createEvent = {
       return;
     }
   },
-  read: async (request, next) => {
+  read: async (request, filter = {}, next) => {
     try {
       let missingDataMessage = "";
       const {
@@ -2448,7 +2476,7 @@ const createEvent = {
 
       const readingsResponse = await ReadingModel(tenant).recent(
         {
-          filter: {},
+          filter,
           skip: skip || 0,
           limit: limit || 1000,
         },
