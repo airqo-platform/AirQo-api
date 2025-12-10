@@ -3693,26 +3693,37 @@ const createUserModule = {
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       // ✅ STEP 1: Use a distributed lock (Redis) to prevent race conditions
+      let lockAcquired = false;
       const lockKey = `reg-${email.toLowerCase()}-${dbTenant}`;
-      const lockAcquired = await redisSetNXAsync(lockKey, "locked", 30);
-
-      if (!lockAcquired) {
-        logger.warn(
-          `Duplicate registration attempt blocked by Redis lock for ${email}`
+      try {
+        lockAcquired = await redisSetNXAsync(lockKey, "locked", 30);
+        if (!lockAcquired) {
+          logger.warn(
+            `Duplicate registration attempt blocked by Redis lock for ${email}`
+          );
+          return {
+            success: false,
+            message: "Registration already in progress for this email",
+            status: httpStatus.CONFLICT,
+            errors: [
+              {
+                param: "email",
+                message:
+                  "A registration for this email is currently being processed. Please wait a moment and try again.",
+                location: "body",
+              },
+            ],
+          };
+        }
+      } catch (lockError) {
+        // Make Redis lock a soft dependency. If Redis is down, log it but proceed.
+        // This increases availability at the small risk of a race condition.
+        logger.error(
+          `REDIS-LOCK-ERROR: Failed to acquire registration lock for ${email}: ${lockError.message}`
         );
-        return {
-          success: false,
-          message: "Registration already in progress for this email",
-          status: httpStatus.CONFLICT,
-          errors: [
-            {
-              param: "email",
-              message:
-                "A registration for this email is currently being processed. Please wait a moment and try again.",
-              location: "body",
-            },
-          ],
-        };
+        logger.warn(
+          `Proceeding with registration for ${email} without a lock. This may not be safe under high concurrency.`
+        );
       }
 
       try {
@@ -3930,12 +3941,14 @@ const createUserModule = {
         }
       } finally {
         // ✅ STEP 5: Always release the Redis lock, with error handling
-        try {
-          await redisDelAsync(lockKey);
-        } catch (lockError) {
-          logger.error(
-            `Failed to release Redis lock for ${lockKey}: ${lockError.message}`
-          );
+        if (lockAcquired) {
+          try {
+            await redisDelAsync(lockKey);
+          } catch (lockError) {
+            logger.error(
+              `Failed to release Redis lock for ${lockKey}: ${lockError.message}`
+            );
+          }
         }
       }
     } catch (error) {

@@ -1559,6 +1559,7 @@ UserSchema.methods = {
       preferredTokenStrategy: this.preferredTokenStrategy,
       loginCount: this.loginCount,
       timezone: this.timezone,
+      cohorts: this.cohorts,
     };
   },
 };
