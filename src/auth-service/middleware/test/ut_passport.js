@@ -1,6 +1,7 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
+const proxyquire = require("proxyquire");
 const jwt = require("jsonwebtoken");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -8,8 +9,9 @@ const { HttpError } = require("@utils/shared");
 
 describe("enhancedJWTAuth Middleware Unit Tests", () => {
   let req, res, next;
-  let jwtVerifyStub, UserModelStub, loggerStub;
+  let jwtVerifyStub, UserModelStub, loggerStub, tokenFactoryStub;
   let enhancedJWTAuth;
+  let passport;
 
   beforeEach(() => {
     // Reset request/response/next for each test
@@ -21,34 +23,60 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
     };
 
     res = {
-      set: sinon.stub(),
+      set: sinon.stub().returnsThis(), // ✅ FIXED: Added returnsThis() for chaining
       status: sinon.stub().returnsThis(),
       json: sinon.stub(),
     };
 
     next = sinon.stub();
 
-    // Stub dependencies
-    jwtVerifyStub = sinon.stub(jwt, "verify");
-    UserModelStub = sinon.stub().returns({
+    // Stub JWT verify
+    jwtVerifyStub = sinon.stub();
+
+    // Setup User Model stub with proper structure
+    const createUserModelStub = (tenant) => ({
       findById: sinon.stub().returns({
         lean: sinon.stub().resolves({
           _id: "user123",
           email: "test@example.com",
           firstName: "Test",
           lastName: "User",
+          tenant: tenant || "airqo",
         }),
       }),
     });
 
+    UserModelStub = sinon
+      .stub()
+      .callsFake((tenant) => createUserModelStub(tenant));
+
+    // Setup logger stub
     loggerStub = {
       warn: sinon.stub(),
       error: sinon.stub(),
+      info: sinon.stub(),
     };
 
-    // Mock the enhancedJWTAuth middleware (you'll need to import this properly)
-    // For this example, we're assuming the middleware is exported
-    enhancedJWTAuth = require("@middleware/passport").enhancedJWTAuth;
+    // Setup token factory stub matching class instantiation
+    tokenFactoryStub = sinon.stub().returns({
+      createToken: sinon.stub().resolves({
+        token: "new-access-token",
+        refreshToken: "new-refresh-token",
+      }),
+    });
+
+    // ✅ FIXED: Use proxyquire to inject all dependencies
+    passport = proxyquire("@middleware/passport", {
+      "@models/User": UserModelStub,
+      "@utils/log": loggerStub,
+      "@utils/token-factory": { AbstractTokenFactory: tokenFactoryStub },
+      jsonwebtoken: {
+        verify: jwtVerifyStub,
+        "@noCallThru": true, // Prevent fallback to real jsonwebtoken
+      },
+    });
+
+    enhancedJWTAuth = passport.enhancedJWTAuth;
   });
 
   afterEach(() => {
@@ -122,6 +150,14 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
   describe("Route Blocking for Query-Token-Only Endpoints", () => {
     beforeEach(() => {
       req.headers.authorization = "JWT validtoken123";
+
+      // Stub successful JWT verification for route blocking tests
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+      });
     });
 
     it("should block JWT access to /api/v2/devices/events", async () => {
@@ -134,7 +170,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       expect(next.firstCall.args[0].statusCode).to.equal(
         httpStatus.UNAUTHORIZED
       );
-      expect(next.firstCall.args[0].errors.message).to.include("query token");
+      expect(next.firstCall.args[0].errors.message).to.match(/query token/i);
     });
 
     it("should block JWT access to /api/v2/devices/measurements", async () => {
@@ -195,6 +231,17 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
     });
+
+    it("should log warning when blocking JWT access", async () => {
+      req.originalUrl = "/api/v2/devices/events";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(loggerStub.warn.calledOnce).to.be.true;
+      expect(loggerStub.warn.firstCall.args[0]).to.match(
+        /JWT blocked|query token/i
+      );
+    });
   });
 
   describe("JWT Access to Non-Blocked Endpoints", () => {
@@ -216,6 +263,8 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
 
       // Should NOT return an error - should proceed with JWT verification
       expect(jwtVerifyStub.calledOnce).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.undefined; // No error
     });
 
     it("should allow JWT access to /api/v2/users/profile/enhanced", async () => {
@@ -224,6 +273,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       await enhancedJWTAuth(req, res, next);
 
       expect(jwtVerifyStub.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.undefined;
     });
 
     it("should allow JWT access to /api/v2/devices/sites", async () => {
@@ -232,6 +282,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       await enhancedJWTAuth(req, res, next);
 
       expect(jwtVerifyStub.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.undefined;
     });
   });
 
@@ -296,12 +347,13 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         });
       });
 
-      // Mock user not found
-      UserModelStub = sinon.stub().returns({
+      // Override UserModelStub for this test to return null
+      UserModelStub.reset();
+      UserModelStub.callsFake(() => ({
         findById: sinon.stub().returns({
           lean: sinon.stub().resolves(null),
         }),
-      });
+      }));
 
       await enhancedJWTAuth(req, res, next);
 
@@ -333,9 +385,13 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
 
       await enhancedJWTAuth(req, res, next);
 
-      expect(res.set.calledWith("X-Access-Token")).to.be.true;
+      expect(res.set.calledWith("X-Access-Token", sinon.match.string)).to.be
+        .true;
       expect(
-        res.set.calledWith("Access-Control-Expose-Headers", "X-Access-Token")
+        res.set.calledWith(
+          "Access-Control-Expose-Headers",
+          sinon.match(/X-Access-Token/)
+        )
       ).to.be.true;
     });
 
@@ -351,16 +407,18 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         });
       });
 
-      // Mock token factory failure
-      const tokenFactoryStub = sinon
-        .stub()
-        .throws(new Error("Token creation failed"));
+      // Override token factory to throw error
+      tokenFactoryStub.reset();
+      tokenFactoryStub.returns({
+        createToken: sinon.stub().rejects(new Error("Token creation failed")),
+      });
 
       await enhancedJWTAuth(req, res, next);
 
       // Should still proceed despite refresh failure
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.undefined; // No error passed
+      expect(loggerStub.error.called).to.be.true;
     });
   });
 
