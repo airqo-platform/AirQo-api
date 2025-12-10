@@ -2,15 +2,13 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const proxyquire = require("proxyquire");
-const jwt = require("jsonwebtoken");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { HttpError } = require("@utils/shared");
 
 describe("enhancedJWTAuth Middleware Unit Tests", () => {
   let req, res, next;
   let jwtVerifyStub, UserModelStub, loggerStub, tokenFactoryStub;
-  let enhancedJWTAuth;
+  let enhancedJWTAuth, HttpError;
   let passport;
 
   beforeEach(() => {
@@ -23,56 +21,80 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
     };
 
     res = {
-      set: sinon.stub().returnsThis(), // ✅ FIXED: Added returnsThis() for chaining
+      set: sinon.stub().returnsThis(),
       status: sinon.stub().returnsThis(),
-      json: sinon.stub(),
+      json: sinon.stub().returnsThis(),
     };
 
     next = sinon.stub();
 
+    // Mock HttpError
+    HttpError = class MockHttpError extends Error {
+      constructor(message, statusCode, errors) {
+        super(message);
+        this.message = message;
+        this.statusCode = statusCode;
+        this.errors = errors;
+      }
+    };
+
     // Stub JWT verify
     jwtVerifyStub = sinon.stub();
 
-    // Setup User Model stub with proper structure
-    const createUserModelStub = (tenant) => ({
+    // Stub UserModel
+    UserModelStub = sinon.stub().returns({
       findById: sinon.stub().returns({
         lean: sinon.stub().resolves({
           _id: "user123",
           email: "test@example.com",
           firstName: "Test",
           lastName: "User",
-          tenant: tenant || "airqo",
         }),
       }),
     });
 
-    UserModelStub = sinon
-      .stub()
-      .callsFake((tenant) => createUserModelStub(tenant));
-
-    // Setup logger stub
+    // Stub logger (from @utils/common)
     loggerStub = {
       warn: sinon.stub(),
       error: sinon.stub(),
       info: sinon.stub(),
     };
 
-    // Setup token factory stub matching class instantiation
+    // Stub token factory (from @services/atf.service)
     tokenFactoryStub = sinon.stub().returns({
-      createToken: sinon.stub().resolves({
-        token: "new-access-token",
-        refreshToken: "new-refresh-token",
-      }),
+      createToken: sinon.stub().resolves("new-refreshed-token"),
     });
 
-    // ✅ FIXED: Use proxyquire to inject all dependencies
+    // Stub userUtil
+    const userUtilStub = {
+      _getEffectiveTokenStrategy: sinon
+        .stub()
+        .returns("NO_ROLES_AND_PERMISSIONS"),
+    };
+
+    // Use proxyquire with CORRECT paths
     passport = proxyquire("@middleware/passport", {
       "@models/User": UserModelStub,
-      "@utils/log": loggerStub,
-      "@utils/token-factory": { AbstractTokenFactory: tokenFactoryStub },
+      "@utils/common": {
+        winstonLogger: loggerStub,
+        mailer: {},
+        stringify: sinon.stub(),
+      },
+      "@services/atf.service": {
+        AbstractTokenFactory: tokenFactoryStub,
+      },
+      "@utils/user.util": userUtilStub,
+      "@utils/shared": {
+        HttpError,
+        logObject: sinon.stub(),
+        logText: sinon.stub(),
+        logElement: sinon.stub(),
+        extractErrorsFromRequest: sinon.stub(),
+      },
       jsonwebtoken: {
         verify: jwtVerifyStub,
-        "@noCallThru": true, // Prevent fallback to real jsonwebtoken
+        sign: sinon.stub(),
+        "@noCallThru": true,
       },
     });
 
@@ -150,14 +172,6 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
   describe("Route Blocking for Query-Token-Only Endpoints", () => {
     beforeEach(() => {
       req.headers.authorization = "JWT validtoken123";
-
-      // Stub successful JWT verification for route blocking tests
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        });
-      });
     });
 
     it("should block JWT access to /api/v2/devices/events", async () => {
@@ -170,7 +184,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       expect(next.firstCall.args[0].statusCode).to.equal(
         httpStatus.UNAUTHORIZED
       );
-      expect(next.firstCall.args[0].errors.message).to.match(/query token/i);
+      expect(next.firstCall.args[0].errors.message).to.include("query token");
     });
 
     it("should block JWT access to /api/v2/devices/measurements", async () => {
@@ -212,6 +226,63 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
     });
 
+    it("should block JWT access to /api/v2/analytics/data-download", async () => {
+      req.originalUrl = "/api/v2/analytics/data-download";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
+    });
+
+    it("should block JWT access to /api/v2/analytics/data-export", async () => {
+      req.originalUrl = "/api/v2/analytics/data-export";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
+    });
+
+    it("should block JWT access to /api/v2/analytics/forecasts/hourly", async () => {
+      req.originalUrl = "/api/v2/analytics/forecasts/hourly";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
+    });
+
+    it("should block JWT access to /api/v2/analytics/forecasts/daily", async () => {
+      req.originalUrl = "/api/v2/analytics/forecasts/daily";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+    });
+
+    it("should block JWT access to /api/v2/analytics/heatmaps", async () => {
+      req.originalUrl = "/api/v2/analytics/heatmaps";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
+    });
+
     it("should block JWT access to endpoints with query parameters", async () => {
       req.originalUrl = "/api/v2/devices/events?startDate=2024-01-01";
 
@@ -230,17 +301,6 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       // Should block based on x-original-uri, not originalUrl
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
-    });
-
-    it("should log warning when blocking JWT access", async () => {
-      req.originalUrl = "/api/v2/devices/events";
-
-      await enhancedJWTAuth(req, res, next);
-
-      expect(loggerStub.warn.calledOnce).to.be.true;
-      expect(loggerStub.warn.firstCall.args[0]).to.match(
-        /JWT blocked|query token/i
-      );
     });
   });
 
@@ -305,7 +365,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
     });
 
     it("should return 401 for expired token beyond grace period", async () => {
-      const GRACE_PERIOD_SECONDS = 300; // 5 minutes
+      const GRACE_PERIOD_SECONDS = constants.JWT_GRACE_PERIOD_SECONDS || 300;
       const expiredTime =
         Math.floor(Date.now() / 1000) - GRACE_PERIOD_SECONDS - 100;
 
@@ -347,13 +407,12 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         });
       });
 
-      // Override UserModelStub for this test to return null
-      UserModelStub.reset();
-      UserModelStub.callsFake(() => ({
+      // Mock user not found
+      UserModelStub.returns({
         findById: sinon.stub().returns({
           lean: sinon.stub().resolves(null),
         }),
-      }));
+      });
 
       await enhancedJWTAuth(req, res, next);
 
@@ -372,7 +431,8 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
     });
 
     it("should set X-Access-Token header when token needs refresh", async () => {
-      const REFRESH_WINDOW_SECONDS = 600; // 10 minutes
+      const REFRESH_WINDOW_SECONDS =
+        constants.JWT_REFRESH_WINDOW_SECONDS || 600;
       const expiringTime =
         Math.floor(Date.now() / 1000) + REFRESH_WINDOW_SECONDS - 100;
 
@@ -385,18 +445,15 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
 
       await enhancedJWTAuth(req, res, next);
 
-      expect(res.set.calledWith("X-Access-Token", sinon.match.string)).to.be
-        .true;
+      expect(res.set.calledWith("X-Access-Token")).to.be.true;
       expect(
-        res.set.calledWith(
-          "Access-Control-Expose-Headers",
-          sinon.match(/X-Access-Token/)
-        )
+        res.set.calledWith("Access-Control-Expose-Headers", "X-Access-Token")
       ).to.be.true;
     });
 
     it("should not fail request when token refresh fails", async () => {
-      const REFRESH_WINDOW_SECONDS = 600;
+      const REFRESH_WINDOW_SECONDS =
+        constants.JWT_REFRESH_WINDOW_SECONDS || 600;
       const expiringTime =
         Math.floor(Date.now() / 1000) + REFRESH_WINDOW_SECONDS - 100;
 
@@ -407,8 +464,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         });
       });
 
-      // Override token factory to throw error
-      tokenFactoryStub.reset();
+      // Mock token factory failure
       tokenFactoryStub.returns({
         createToken: sinon.stub().rejects(new Error("Token creation failed")),
       });
@@ -418,7 +474,6 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       // Should still proceed despite refresh failure
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.undefined; // No error passed
-      expect(loggerStub.error.called).to.be.true;
     });
   });
 
@@ -427,7 +482,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       req.headers.authorization = "JWT validtoken123";
       req.originalUrl = "/api/v2/users/profile";
 
-      // Force an unexpected error
+      // Force an unexpected error by making jwt.verify throw
       jwtVerifyStub.throws(new Error("Unexpected error"));
 
       await enhancedJWTAuth(req, res, next);
@@ -469,10 +524,21 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       expect(UserModelStub.calledWith("usembassy")).to.be.true;
     });
 
-    it("should default to 'airqo' tenant when not specified", async () => {
+    it("should use constants.DEFAULT_TENANT when not specified", async () => {
+      // Use the actual constant value from config
+      const expectedTenant = constants.DEFAULT_TENANT || "airqo";
+
       await enhancedJWTAuth(req, res, next);
 
-      expect(UserModelStub.calledWith("airqo")).to.be.true;
+      expect(UserModelStub.calledWith(expectedTenant.toLowerCase())).to.be.true;
+    });
+
+    it("should convert tenant to lowercase", async () => {
+      req.query.tenant = "KCCA";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(UserModelStub.calledWith("kcca")).to.be.true;
     });
   });
 
@@ -507,6 +573,43 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       await enhancedJWTAuth(req, res, next);
 
       expect(req.analyticsUserId).to.equal("objectid123");
+    });
+  });
+
+  describe("Logger Integration", () => {
+    it("should log warnings when blocking JWT access", async () => {
+      req.headers.authorization = "JWT validtoken123";
+      req.originalUrl = "/api/v2/devices/events";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(loggerStub.warn.calledOnce).to.be.true;
+      expect(loggerStub.warn.firstCall.args[0]).to.include("JWT blocked");
+    });
+
+    it("should log errors for token refresh failures", async () => {
+      req.headers.authorization = "JWT validtoken123";
+      req.originalUrl = "/api/v2/users/profile";
+
+      const REFRESH_WINDOW_SECONDS =
+        constants.JWT_REFRESH_WINDOW_SECONDS || 600;
+      const expiringTime =
+        Math.floor(Date.now() / 1000) + REFRESH_WINDOW_SECONDS - 100;
+
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: expiringTime,
+        });
+      });
+
+      tokenFactoryStub.returns({
+        createToken: sinon.stub().rejects(new Error("Refresh failed")),
+      });
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(loggerStub.error.called).to.be.true;
     });
   });
 });
