@@ -7,8 +7,8 @@ replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-beacon-api
   tag: prod-ab059787-1757565125
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
@@ -29,6 +29,13 @@ affinity:
               values:
                 - moderate-usage
         weight: 1
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: beacon-config-files
 ingress:
   enabled: false
 service:
