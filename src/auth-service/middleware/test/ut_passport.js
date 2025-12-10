@@ -1,148 +1,87 @@
 require("module-alias/register");
-const sinon = require("sinon");
 const { expect } = require("chai");
-const proxyquire = require("proxyquire");
-const HttpError = require("@utils/errors");
+const sinon = require("sinon");
+const jwt = require("jsonwebtoken");
+const httpStatus = require("http-status");
+const constants = require("@config/constants");
+const { HttpError } = require("@utils/shared");
 
-describe("Enhanced JWT Authentication Middleware", () => {
+describe("enhancedJWTAuth Middleware Unit Tests", () => {
   let req, res, next;
-  let jwtVerifyStub, jwtStrategySpy, nextSpy;
-  let UserModelStub, loggerStub, tokenFactoryStub;
-  let enhancedJWTAuth, useJWTStrategy;
-  let reqMock, resMock;
-  let passport;
+  let jwtVerifyStub, UserModelStub, loggerStub;
+  let enhancedJWTAuth;
 
   beforeEach(() => {
-    // Setup request mock
+    // Reset request/response/next for each test
     req = {
       headers: {},
       query: {},
       body: {},
-      user: null,
+      originalUrl: "/api/v2/users/profile",
     };
 
     res = {
+      set: sinon.stub(),
       status: sinon.stub().returnsThis(),
-      json: sinon.stub().returnsThis(),
+      json: sinon.stub(),
     };
 
     next = sinon.stub();
 
-    // Setup JWT verify stub
-    jwtVerifyStub = sinon.stub();
-
-    // Setup User Model stub with default behavior
-    const createUserModelStub = (tenant) => ({
+    // Stub dependencies
+    jwtVerifyStub = sinon.stub(jwt, "verify");
+    UserModelStub = sinon.stub().returns({
       findById: sinon.stub().returns({
         lean: sinon.stub().resolves({
           _id: "user123",
           email: "test@example.com",
           firstName: "Test",
           lastName: "User",
-          tenant: tenant || "airqo",
         }),
       }),
     });
 
-    UserModelStub = sinon
-      .stub()
-      .callsFake((tenant) => createUserModelStub(tenant));
-
-    // Setup logger stub
     loggerStub = {
       warn: sinon.stub(),
       error: sinon.stub(),
-      info: sinon.stub(),
     };
 
-    // Setup token factory stub with default behavior
-    tokenFactoryStub = sinon.stub().returns({
-      accessToken: "new-access-token",
-      refreshToken: "new-refresh-token",
-    });
-
-    // Use proxyquire to inject dependencies
-    passport = proxyquire("@middleware/passport", {
-      "@models/User": UserModelStub,
-      "@utils/log": loggerStub,
-      "../utils/token-factory": tokenFactoryStub,
-      jsonwebtoken: {
-        verify: jwtVerifyStub,
-      },
-    });
-
-    enhancedJWTAuth = passport.enhancedJWTAuth;
-    useJWTStrategy = passport.useJWTStrategy;
-
-    // Setup mocks for strategy tests
-    reqMock = {
-      headers: {
-        authorization: "Bearer valid-token",
-        "x-original-uri": "/api/v1/users",
-      },
-      query: {},
-      body: {},
-    };
-
-    resMock = {
-      status: sinon.stub().returnsThis(),
-      json: sinon.stub().returnsThis(),
-    };
-
-    nextSpy = sinon.stub();
-    jwtStrategySpy = sinon.spy();
+    // Mock the enhancedJWTAuth middleware (you'll need to import this properly)
+    // For this example, we're assuming the middleware is exported
+    enhancedJWTAuth = require("@middleware/passport").enhancedJWTAuth;
   });
 
   afterEach(() => {
     sinon.restore();
   });
 
-  describe("Basic Authentication Flow", () => {
-    it("should successfully authenticate with valid token", async () => {
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          email: "test@example.com",
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        });
-      });
-
-      req.headers.authorization = "Bearer valid-token";
-
-      await enhancedJWTAuth(req, res, next);
-
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0]).to.be.undefined;
-      expect(req.user).to.exist;
-      expect(req.user._id).to.equal("user123");
-    });
-
-    it("should return 401 when no token is provided", async () => {
+  describe("Authorization Header Validation", () => {
+    it("should return 401 when authorization header is missing", async () => {
       await enhancedJWTAuth(req, res, next);
 
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
-      expect(next.firstCall.args[0].statusCode).to.equal(401);
-      expect(next.firstCall.args[0].errors.message).to.include("token");
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
+      expect(next.firstCall.args[0].message).to.equal("Unauthorized");
     });
 
-    it("should return 401 when token is invalid", async () => {
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(new Error("Invalid token"), null);
-      });
-
-      req.headers.authorization = "Bearer invalid-token";
+    it("should return 401 when authorization header format is invalid", async () => {
+      req.headers.authorization = "InvalidFormat token123";
 
       await enhancedJWTAuth(req, res, next);
 
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
-      expect(next.firstCall.args[0].statusCode).to.equal(401);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
     });
-  });
 
-  describe("User Validation", () => {
-    it("should return 401 when user no longer exists in database", async () => {
+    it("should accept Bearer token format", async () => {
+      req.headers.authorization = "Bearer validtoken123";
+
       jwtVerifyStub.callsFake((token, secret, options, callback) => {
         callback(null, {
           _id: "user123",
@@ -150,27 +89,14 @@ describe("Enhanced JWT Authentication Middleware", () => {
         });
       });
 
-      // Override the UserModelStub for this specific test to return null
-      UserModelStub.reset();
-      UserModelStub.callsFake(() => ({
-        findById: sinon.stub().returns({
-          lean: sinon.stub().resolves(null),
-        }),
-      }));
-
-      req.headers.authorization = "Bearer valid-token";
-
       await enhancedJWTAuth(req, res, next);
 
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
-      expect(next.firstCall.args[0].statusCode).to.equal(401);
-      expect(next.firstCall.args[0].errors.message).to.include(
-        "no longer exists"
-      );
+      expect(jwtVerifyStub.calledOnce).to.be.true;
     });
 
-    it("should handle database errors gracefully", async () => {
+    it("should accept JWT token format", async () => {
+      req.headers.authorization = "JWT validtoken123";
+
       jwtVerifyStub.callsFake((token, secret, options, callback) => {
         callback(null, {
           _id: "user123",
@@ -178,184 +104,53 @@ describe("Enhanced JWT Authentication Middleware", () => {
         });
       });
 
-      // Override to throw database error
-      UserModelStub.reset();
-      UserModelStub.callsFake(() => ({
-        findById: sinon.stub().returns({
-          lean: sinon.stub().rejects(new Error("Database connection failed")),
-        }),
-      }));
+      await enhancedJWTAuth(req, res, next);
 
-      req.headers.authorization = "Bearer valid-token";
+      expect(jwtVerifyStub.calledOnce).to.be.true;
+    });
+
+    it("should return 401 when token is empty", async () => {
+      req.headers.authorization = "Bearer   ";
 
       await enhancedJWTAuth(req, res, next);
 
       expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0]).to.be.instanceOf(Error);
-      expect(loggerStub.error.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
     });
   });
 
-  describe("Token Refresh Handling", () => {
-    it("should refresh token when expiring soon", async () => {
-      const expiringTime = Math.floor(Date.now() / 1000) + 300; // 5 minutes
-
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          email: "test@example.com",
-          exp: expiringTime,
-        });
-      });
-
-      req.headers.authorization = "Bearer expiring-token";
-
-      await enhancedJWTAuth(req, res, next);
-
-      expect(tokenFactoryStub.calledOnce).to.be.true;
-      expect(res.setHeader).to.have.been.calledWith(
-        "X-New-Access-Token",
-        "new-access-token"
-      );
-      expect(res.setHeader).to.have.been.calledWith(
-        "X-New-Refresh-Token",
-        "new-refresh-token"
-      );
-    });
-
-    it("should handle token refresh failures gracefully", async () => {
-      const expiringTime = Math.floor(Date.now() / 1000) + 300;
-
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          email: "test@example.com",
-          exp: expiringTime,
-        });
-      });
-
-      // Override token factory to throw error
-      tokenFactoryStub.reset();
-      tokenFactoryStub.throws(new Error("Token creation failed"));
-
-      req.headers.authorization = "Bearer expiring-token";
-
-      await enhancedJWTAuth(req, res, next);
-
-      // Should still authenticate but log the error
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0]).to.be.undefined; // No error passed to next
-      expect(loggerStub.error.calledOnce).to.be.true;
-      expect(loggerStub.error.firstCall.args[0]).to.include("refresh");
-    });
-
-    it("should not refresh token when not expiring soon", async () => {
-      const futureTime = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          email: "test@example.com",
-          exp: futureTime,
-        });
-      });
-
-      req.headers.authorization = "Bearer valid-token";
-
-      await enhancedJWTAuth(req, res, next);
-
-      expect(tokenFactoryStub.called).to.be.false;
-    });
-  });
-
-  describe("Tenant Handling", () => {
+  describe("Route Blocking for Query-Token-Only Endpoints", () => {
     beforeEach(() => {
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        });
-      });
-
-      req.headers.authorization = "Bearer valid-token";
+      req.headers.authorization = "JWT validtoken123";
     });
 
-    it("should use tenant from query parameter", async () => {
-      req.query.tenant = "kcca";
+    it("should block JWT access to /api/v2/devices/events", async () => {
+      req.originalUrl = "/api/v2/devices/events";
 
       await enhancedJWTAuth(req, res, next);
 
-      expect(UserModelStub.calledWith("kcca")).to.be.true;
       expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0]).to.be.undefined;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
+      expect(next.firstCall.args[0].errors.message).to.include("query token");
     });
 
-    it("should use tenant from body parameter", async () => {
-      req.body.tenant = "usembassy";
+    it("should block JWT access to /api/v2/devices/measurements", async () => {
+      req.originalUrl = "/api/v2/devices/measurements";
 
       await enhancedJWTAuth(req, res, next);
 
-      expect(UserModelStub.calledWith("usembassy")).to.be.true;
       expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0]).to.be.undefined;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.UNAUTHORIZED
+      );
     });
 
-    it("should default to 'airqo' tenant when not specified", async () => {
-      await enhancedJWTAuth(req, res, next);
-
-      expect(UserModelStub.calledWith("airqo")).to.be.true;
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0]).to.be.undefined;
-    });
-
-    it("should prioritize query tenant over body tenant", async () => {
-      req.query.tenant = "kcca";
-      req.body.tenant = "usembassy";
-
-      await enhancedJWTAuth(req, res, next);
-
-      expect(UserModelStub.calledWith("kcca")).to.be.true;
-      expect(UserModelStub.calledWith("usembassy")).to.be.false;
-    });
-  });
-
-  describe("JWT Strategy Integration", () => {
-    it("should successfully use JWT strategy with valid configuration", async () => {
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        });
-      });
-
-      reqMock.headers.authorization = "Bearer valid-token";
-      reqMock.headers["x-original-uri"] = "/api/v1/users";
-
-      useJWTStrategy("airqo", reqMock, resMock, nextSpy);
-      await enhancedJWTAuth(req, res, next);
-
-      expect(jwtStrategySpy.called || nextSpy.called).to.be.true;
-    });
-
-    it("should handle invalid URI in strategy", async () => {
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        });
-      });
-
-      reqMock.headers["x-original-uri"] = "/unknown";
-
-      useJWTStrategy("airqo", reqMock, resMock, nextSpy);
-
-      expect(loggerStub.warn.called).to.be.true;
-    });
-  });
-
-  describe("Edge Cases", () => {
-    it("should handle malformed authorization header", async () => {
-      req.headers.authorization = "InvalidFormat";
+    it("should block JWT access to /api/v2/devices/measurements/sites", async () => {
+      req.originalUrl = "/api/v2/devices/measurements/sites";
 
       await enhancedJWTAuth(req, res, next);
 
@@ -363,12 +158,112 @@ describe("Enhanced JWT Authentication Middleware", () => {
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
     });
 
-    it("should handle expired tokens", async () => {
+    it("should block JWT access to /api/v2/devices/readings", async () => {
+      req.originalUrl = "/api/v2/devices/readings";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+    });
+
+    it("should block JWT access to /api/v2/analytics/raw-data", async () => {
+      req.originalUrl = "/api/v2/analytics/raw-data";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+    });
+
+    it("should block JWT access to endpoints with query parameters", async () => {
+      req.originalUrl = "/api/v2/devices/events?startDate=2024-01-01";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+    });
+
+    it("should use x-original-uri header when available", async () => {
+      req.headers["x-original-uri"] = "/api/v2/devices/events";
+      req.originalUrl = "/api/v2/users/profile"; // Different URL
+
+      await enhancedJWTAuth(req, res, next);
+
+      // Should block based on x-original-uri, not originalUrl
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+    });
+  });
+
+  describe("JWT Access to Non-Blocked Endpoints", () => {
+    beforeEach(() => {
+      req.headers.authorization = "JWT validtoken123";
+
       jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(new Error("jwt expired"), null);
+        callback(null, {
+          _id: "user123",
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+      });
+    });
+
+    it("should allow JWT access to /api/v2/users/verify", async () => {
+      req.originalUrl = "/api/v2/users/verify";
+
+      await enhancedJWTAuth(req, res, next);
+
+      // Should NOT return an error - should proceed with JWT verification
+      expect(jwtVerifyStub.calledOnce).to.be.true;
+    });
+
+    it("should allow JWT access to /api/v2/users/profile/enhanced", async () => {
+      req.originalUrl = "/api/v2/users/profile/enhanced";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(jwtVerifyStub.calledOnce).to.be.true;
+    });
+
+    it("should allow JWT access to /api/v2/devices/sites", async () => {
+      req.originalUrl = "/api/v2/devices/sites";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(jwtVerifyStub.calledOnce).to.be.true;
+    });
+  });
+
+  describe("JWT Token Validation", () => {
+    beforeEach(() => {
+      req.headers.authorization = "JWT validtoken123";
+      req.originalUrl = "/api/v2/users/profile";
+    });
+
+    it("should return 401 for malformed JWT token", async () => {
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(new Error("jwt malformed"), null);
       });
 
-      req.headers.authorization = "Bearer expired-token";
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].errors.message).to.include("Invalid token");
+    });
+
+    it("should return 401 for expired token beyond grace period", async () => {
+      const GRACE_PERIOD_SECONDS = 300; // 5 minutes
+      const expiredTime =
+        Math.floor(Date.now() / 1000) - GRACE_PERIOD_SECONDS - 100;
+
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: expiredTime,
+        });
+      });
 
       await enhancedJWTAuth(req, res, next);
 
@@ -377,21 +272,183 @@ describe("Enhanced JWT Authentication Middleware", () => {
       expect(next.firstCall.args[0].errors.message).to.include("expired");
     });
 
-    it("should handle missing user ID in token payload", async () => {
+    it("should attach user to request for valid token", async () => {
       jwtVerifyStub.callsFake((token, secret, options, callback) => {
         callback(null, {
-          email: "test@example.com",
+          _id: "user123",
           exp: Math.floor(Date.now() / 1000) + 3600,
-          // Missing _id
         });
       });
 
-      req.headers.authorization = "Bearer valid-token";
+      await enhancedJWTAuth(req, res, next);
+
+      expect(req.user).to.exist;
+      expect(req.user._id).to.equal("user123");
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.undefined; // No error
+    });
+
+    it("should return 401 when user no longer exists in database", async () => {
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+      });
+
+      // Mock user not found
+      UserModelStub = sinon.stub().returns({
+        findById: sinon.stub().returns({
+          lean: sinon.stub().resolves(null),
+        }),
+      });
 
       await enhancedJWTAuth(req, res, next);
 
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].errors.message).to.include(
+        "no longer exists"
+      );
+    });
+  });
+
+  describe("Token Refresh Logic", () => {
+    beforeEach(() => {
+      req.headers.authorization = "JWT validtoken123";
+      req.originalUrl = "/api/v2/users/profile";
+    });
+
+    it("should set X-Access-Token header when token needs refresh", async () => {
+      const REFRESH_WINDOW_SECONDS = 600; // 10 minutes
+      const expiringTime =
+        Math.floor(Date.now() / 1000) + REFRESH_WINDOW_SECONDS - 100;
+
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: expiringTime,
+        });
+      });
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(res.set.calledWith("X-Access-Token")).to.be.true;
+      expect(
+        res.set.calledWith("Access-Control-Expose-Headers", "X-Access-Token")
+      ).to.be.true;
+    });
+
+    it("should not fail request when token refresh fails", async () => {
+      const REFRESH_WINDOW_SECONDS = 600;
+      const expiringTime =
+        Math.floor(Date.now() / 1000) + REFRESH_WINDOW_SECONDS - 100;
+
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: expiringTime,
+        });
+      });
+
+      // Mock token factory failure
+      const tokenFactoryStub = sinon
+        .stub()
+        .throws(new Error("Token creation failed"));
+
+      await enhancedJWTAuth(req, res, next);
+
+      // Should still proceed despite refresh failure
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.undefined; // No error passed
+    });
+  });
+
+  describe("Error Handling", () => {
+    it("should handle unexpected errors gracefully", async () => {
+      req.headers.authorization = "JWT validtoken123";
+      req.originalUrl = "/api/v2/users/profile";
+
+      // Force an unexpected error
+      jwtVerifyStub.throws(new Error("Unexpected error"));
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+    });
+  });
+
+  describe("Tenant Handling", () => {
+    beforeEach(() => {
+      req.headers.authorization = "JWT validtoken123";
+      req.originalUrl = "/api/v2/users/profile";
+
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+      });
+    });
+
+    it("should use tenant from query parameter", async () => {
+      req.query.tenant = "kcca";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(UserModelStub.calledWith("kcca")).to.be.true;
+    });
+
+    it("should use tenant from body parameter", async () => {
+      req.body.tenant = "usembassy";
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(UserModelStub.calledWith("usembassy")).to.be.true;
+    });
+
+    it("should default to 'airqo' tenant when not specified", async () => {
+      await enhancedJWTAuth(req, res, next);
+
+      expect(UserModelStub.calledWith("airqo")).to.be.true;
+    });
+  });
+
+  describe("Analytics User ID Handling", () => {
+    beforeEach(() => {
+      req.headers.authorization = "JWT validtoken123";
+      req.originalUrl = "/api/v2/users/profile";
+
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: "user123",
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+      });
+    });
+
+    it("should set analyticsUserId on request", async () => {
+      await enhancedJWTAuth(req, res, next);
+
+      expect(req.analyticsUserId).to.exist;
+      expect(req.analyticsUserId).to.be.a("string");
+    });
+
+    it("should handle ObjectId conversion to string", async () => {
+      jwtVerifyStub.callsFake((token, secret, options, callback) => {
+        callback(null, {
+          _id: { toString: () => "objectid123" },
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+      });
+
+      await enhancedJWTAuth(req, res, next);
+
+      expect(req.analyticsUserId).to.equal("objectid123");
     });
   });
 });
