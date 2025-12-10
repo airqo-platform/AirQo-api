@@ -1517,12 +1517,12 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i); //NOSONAR
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
     if (!match || !match[2]) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'", //NOSONAR
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
         })
       );
     }
@@ -1536,13 +1536,42 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
+    // ========================================
+    // ROUTE BLOCKING CHECK (BEFORE JWT VERIFICATION)
+    // Critical security check: Block JWT tokens from query-token-only endpoints
+    // ========================================
+    const endpoint =
+      req.headers["x-original-uri"] || req.originalUrl || req.url;
+
+    // Check if this endpoint should be blocked from JWT authentication
+    for (const route of specificRoutes) {
+      if (matchesRoute(endpoint, route.uri)) {
+        logger.warn(
+          `JWT blocked for endpoint: ${endpoint} - requires query token`
+        );
+
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message:
+              "This endpoint requires query token authentication, JWT is not allowed",
+            route:
+              route.description ||
+              "JWT authentication not permitted for this endpoint",
+          })
+        );
+      }
+    }
+    // ========================================
+    // END ROUTE BLOCKING CHECK
+    // ========================================
+
     jwt.verify(
       token,
       constants.JWT_SECRET,
       { ignoreExpiration: true },
       async (err, decoded) => {
+        // This handles malformed tokens, but not expiration
         if (err) {
-          // This handles malformed tokens, but not expiration
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
               message: `Invalid token: ${err.message}`,
