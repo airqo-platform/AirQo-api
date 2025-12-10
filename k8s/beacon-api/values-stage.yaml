@@ -29,6 +29,13 @@ affinity:
               values:
                 - moderate-usage
         weight: 1
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: beacon-config-files
 ingress:
   enabled: false
 service:
