@@ -1537,7 +1537,8 @@ const enhancedJWTAuth = (req, res, next) => {
     }
 
     // ========================================
-    // ADD ROUTE BLOCKING CHECK HERE (BEFORE JWT VERIFICATION)
+    // ROUTE BLOCKING CHECK (BEFORE JWT VERIFICATION)
+    // Critical security check: Block JWT tokens from query-token-only endpoints
     // ========================================
     const endpoint =
       req.headers["x-original-uri"] || req.originalUrl || req.url;
@@ -1549,16 +1550,15 @@ const enhancedJWTAuth = (req, res, next) => {
           `JWT blocked for endpoint: ${endpoint} - requires query token`
         );
 
-        return res.status(httpStatus.UNAUTHORIZED).json({
-          success: false,
-          message:
-            "This endpoint requires query token authentication, JWT is not allowed",
-          errors: {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
             message:
+              "This endpoint requires query token authentication, JWT is not allowed",
+            route:
               route.description ||
               "JWT authentication not permitted for this endpoint",
-          },
-        });
+          })
+        );
       }
     }
     // ========================================
@@ -1570,6 +1570,7 @@ const enhancedJWTAuth = (req, res, next) => {
       constants.JWT_SECRET,
       { ignoreExpiration: true },
       async (err, decoded) => {
+        // This handles malformed tokens, but not expiration
         if (err) {
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
@@ -1596,7 +1597,7 @@ const enhancedJWTAuth = (req, res, next) => {
           "airqo";
         const tenant = String(tenantRaw).toLowerCase();
 
-        // 2. Check if a refresh is needed
+        // 2. Check if a refresh is needed (proactive sliding window OR reactive grace period)
         if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
           try {
             const userIdForRefresh = decoded.id || decoded._id;
@@ -1623,6 +1624,7 @@ const enhancedJWTAuth = (req, res, next) => {
                 refreshError.message
               }`
             );
+            // Do not fail the request, just log the error. The current token is still valid (or within grace).
           }
         }
 
@@ -1644,6 +1646,7 @@ const enhancedJWTAuth = (req, res, next) => {
           );
         }
 
+        // For compatibility, merge DB user data with token claims
         req.user = { ...user, ...decoded };
         next();
       }
