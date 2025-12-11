@@ -44,3 +44,5 @@ linux/mac
 Run the Flask App
 
 - `flask run`
+
+Note: Currently requires redis for caching.
