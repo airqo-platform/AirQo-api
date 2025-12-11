@@ -1,4 +1,4 @@
-# Authentication Service..
+# Authentication Service.
 
 This authentication microservice is a crucial component of our application's security infrastructure. It handles user authentication & authorization, ensuring that only authenticated users can access protected resources.
 

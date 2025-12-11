@@ -283,6 +283,7 @@ const dbProjections = {
     profilePicture: 1,
     phoneNumber: 1,
     timezone: 1,
+    cohorts: 1,
     networks: {
       $cond: {
         if: {

@@ -14,6 +14,8 @@ const constants = require("@config/constants");
 const { generateFilter, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
+const eventUtil = require("@utils/event.util");
+const mongoose = require("mongoose");
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
 const kafka = new Kafka({
@@ -501,12 +503,88 @@ const createGrid = {
         sortBy,
         order,
       } = request.query;
+      const { cohort_id } = request.query;
       const filter = generateFilter.grids(request, next);
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
+
+      let cohortSiteIds = [];
+      if (cohort_id) {
+        // We need to get devices for the cohort, then sites for those devices
+        const cohortDevicesResponse = await eventUtil.getDevicesFromCohort({
+          tenant,
+          cohort_id,
+        });
+        if (!cohortDevicesResponse.success) {
+          return {
+            success: false,
+            message:
+              cohortDevicesResponse.message ||
+              "Failed to retrieve devices for the specified cohort",
+            errors: cohortDevicesResponse.errors || {
+              message: "Cohort device retrieval failed",
+            },
+            status: cohortDevicesResponse.status || httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (
+          typeof cohortDevicesResponse.data === "string" &&
+          cohortDevicesResponse.data
+        ) {
+          const deviceIds = cohortDevicesResponse.data
+            .split(",")
+            .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
+            .map((id) => ObjectId(id));
+
+          if (deviceIds.length === 0) {
+            return {
+              success: true,
+              message: "No devices found in the specified cohort",
+              data: [],
+              status: httpStatus.OK,
+              meta: {
+                total: 0,
+                limit: _limit,
+                skip: _skip,
+                page: 1,
+                totalPages: 0,
+              },
+            };
+          }
+
+          const cohortSiteIdsResult = await DeviceModel(tenant).aggregate([
+            { $match: { _id: { $in: deviceIds } } },
+            { $match: { site_id: { $ne: null } } },
+            { $group: { _id: null, siteIds: { $addToSet: "$site_id" } } },
+          ]);
+          cohortSiteIds =
+            cohortSiteIdsResult.length > 0
+              ? cohortSiteIdsResult[0].siteIds
+              : [];
+        }
+      }
+
+      // Handle case where cohort_id is provided but no sites are found
+      if (cohort_id && cohortSiteIds.length === 0) {
+        logger.info(`No sites found for cohort_id: ${cohort_id}`);
+        return {
+          success: true,
+          message: "No sites found for the specified cohort(s)",
+          data: [],
+          status: httpStatus.OK,
+          meta: {
+            total: 0,
+            limit: _limit,
+            skip: _skip,
+            page: 1,
+            totalPages: 0,
+          },
+        };
+      }
 
       // Optimized query to get all private site IDs in one go
       const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
@@ -551,6 +629,18 @@ const createGrid = {
                 cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
               },
             },
+            // If cohort_id is provided, further filter the sites
+            sites: cohort_id
+              ? {
+                  $filter: {
+                    input: "$sites",
+                    as: "site",
+                    cond: {
+                      $in: ["$$site._id", cohortSiteIds],
+                    },
+                  },
+                }
+              : "$sites",
           },
         },
       ];
@@ -1243,7 +1333,7 @@ const createGrid = {
   },
   listCountries: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, cohort_id } = request.query;
       // Optimized query to get all private site IDs in one go
       const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
         { $match: { visibility: false } },
@@ -1264,6 +1354,31 @@ const createGrid = {
         privateSiteIdsResponse.length > 0
           ? privateSiteIdsResponse[0].site_ids
           : [];
+
+      let cohortSiteIds = [];
+      if (cohort_id) {
+        const devicesInCohort = await DeviceModel(tenant)
+          .find({
+            cohorts: {
+              $in: Array.isArray(cohort_id) ? cohort_id : [cohort_id],
+            },
+            site_id: { $ne: null },
+          })
+          .distinct("site_id");
+
+        cohortSiteIds = devicesInCohort;
+
+        // If a cohort_id is provided but no sites are found for it, return an empty array.
+        if (cohortSiteIds.length === 0) {
+          return {
+            success: true,
+            message: "No countries found for the specified cohort.",
+            data: [],
+            status: httpStatus.OK,
+          };
+        }
+      }
+
       const pipeline = [
         {
           $match: { admin_level: "country" },
@@ -1282,7 +1397,15 @@ const createGrid = {
               $filter: {
                 input: "$sites",
                 as: "site",
-                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+                cond:
+                  cohort_id && cohortSiteIds.length > 0
+                    ? {
+                        $and: [
+                          { $not: { $in: ["$$site._id", privateSiteIds] } },
+                          { $in: ["$$site._id", cohortSiteIds] },
+                        ],
+                      }
+                    : { $not: { $in: ["$$site._id", privateSiteIds] } },
               },
             },
           },
@@ -1293,6 +1416,9 @@ const createGrid = {
             country: { $toLower: "$name" },
             sites: { $size: "$sites" },
           },
+        },
+        {
+          $match: { sites: { $gt: 0 } },
         },
         {
           $sort: {

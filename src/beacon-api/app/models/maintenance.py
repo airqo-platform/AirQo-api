@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class MaintenanceRecordBase(SQLModel):
@@ -20,8 +20,8 @@ class MaintenanceRecord(MaintenanceRecordBase, table=True):
     __tablename__ = "maintenance_records"
     
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)})
 
 
 class MaintenanceRecordCreate(MaintenanceRecordBase):

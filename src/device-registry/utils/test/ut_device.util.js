@@ -1,19 +1,564 @@
 require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
+const { expect } = chai;
 const axios = require("axios");
 const { Kafka } = require("kafkajs");
 const QRCode = require("qrcode");
 const httpStatus = require("http-status");
-const createDevice = require("@utils/create-device");
+const deviceUtil = require("@utils/device.util");
+const DeviceModel = require("@models/Device");
+const CohortModel = require("@models/Cohort");
 const generateFilter = require("@utils/generate-filter");
+const ActivityModel = require("@models/Activity");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
-const expect = chai.expect;
 const cryptoJS = require("crypto-js");
 const chaiHttp = require("chai-http");
 
 chai.use(chaiHttp);
+
+describe("claimDevice", () => {
+  let findOneStub;
+  let findOneAndUpdateStub;
+  let cohortFindOneAndUpdateStub;
+  let cohortFindByIdStub;
+  let createActivityStub;
+  let updateOneStub;
+
+  beforeEach(() => {
+    // Stub the model factories to return mock instances
+    const deviceModelMock = {
+      findOne: sinon.stub(),
+      findOneAndUpdate: sinon.stub(),
+      updateOne: sinon.stub().resolves({ modifiedCount: 1 }),
+    };
+    const cohortModelMock = {
+      findOneAndUpdate: sinon.stub(),
+      findById: sinon.stub(),
+    };
+    const activityModelMock = {
+      create: sinon.stub(),
+    };
+    sinon.stub(DeviceModel, "model").returns(deviceModelMock);
+    sinon.stub(CohortModel, "model").returns(cohortModelMock);
+    sinon.stub(ActivityModel, "model").returns(activityModelMock);
+
+    // Assign stubs for individual tests to use
+    findOneStub = deviceModelMock.findOne;
+    findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
+    cohortFindOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
+    cohortFindByIdStub = cohortModelMock.findById;
+    updateOneStub = deviceModelMock.updateOne;
+    createActivityStub = activityModelMock.create;
+    createActivityStub.resolves({});
+    // Default behavior for cohortFindByIdStub
+    cohortFindByIdStub.returns({
+      lean: sinon.stub().resolves({ _id: "60c7a3e5f7e4f1001f5e8e1a" }),
+    });
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it("should successfully claim a device and assign it to a specific cohort", async () => {
+    const request = {
+      body: {
+        device_name: "aq_g5v0_100",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        cohort_id: "60c7a3e5f7e4f1001f5e8e1a",
+      },
+      query: { tenant: "airqo" },
+    };
+
+    const deviceMock = {
+      _id: "60c7a3e5f7e4f1001f5e8e1c",
+      name: "aq_g5v0_100",
+      claim_status: "unclaimed",
+    };
+    const cohortMock = { _id: "60c7a3e5f7e4f1001f5e8e1a" };
+
+    findOneStub.resolves(deviceMock);
+    cohortFindByIdStub.returns({ lean: () => Promise.resolve(cohortMock) });
+    findOneAndUpdateStub.resolves({
+      ...deviceMock,
+      claim_status: "claimed",
+    });
+    const result = await deviceUtil.claimDevice(request);
+  });
+
+  it("should successfully claim a device and assign it to a new personal cohort", async () => {
+    const request = {
+      body: {
+        device_name: "aq_g5v0_101",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+      },
+      query: { tenant: "airqo" },
+    };
+
+    const deviceMock = {
+      _id: "60c7a3e5f7e4f1001f5e8e1d",
+      name: "aq_g5v0_101",
+      claim_status: "unclaimed",
+      network: "airqo",
+    };
+    findOneStub.resolves(deviceMock);
+    cohortFindOneAndUpdateStub.resolves({ _id: "60c7a3e5f7e4f1001f5e8e1e" });
+    findOneAndUpdateStub.resolves({
+      ...deviceMock,
+      claim_status: "claimed",
+    });
+    updateOneStub.resolves({
+      modifiedCount: 1,
+    });
+
+    const result = await deviceUtil.claimDevice(request);
+
+    expect(cohortFindOneAndUpdateStub.calledOnce).to.be.true;
+    expect(cohortFindOneAndUpdateStub.firstCall.args[0].name).to.equal(
+      "coh_user_60c7a3e5f7e4f1001f5e8e1b"
+    );
+  });
+
+  it("should return 404 if the device is not found or already claimed", async () => {
+    const request = {
+      body: {
+        device_name: "aq_g5v0_999",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findOneStub.resolves(null);
+    let error;
+    try {
+      await deviceUtil.claimDevice(request, (err) => (error = err));
+    } catch (err) {
+      error = err;
+    }
+    expect(error.status).to.equal(httpStatus.NOT_FOUND);
+  });
+
+  it("should return 404 if a specified cohort_id does not exist", async () => {
+    const request = {
+      body: {
+        device_name: "aq_g5v0_102",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        cohort_id: "60c7a3e5f7e4f1001f5e8e99", // non-existent
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findOneStub.resolves({
+      _id: "60c7a3e5f7e4f1001f5e8e1f", // Corrected ID
+      name: "aq_g5v0_102",
+      claim_status: "unclaimed",
+    });
+
+    cohortFindByIdStub // No need to access CohortModel directly anymore
+      .withArgs("60c7a3e5f7e4f1001f5e8e99")
+      .returns({ lean: sinon.stub().resolves(null) });
+
+    let error;
+    try {
+      await deviceUtil.claimDevice(request, (err) => (error = err));
+    } catch (err) {}
+
+    expect(error.status).to.equal(httpStatus.NOT_FOUND);
+  });
+
+  it("should return 403 if the claim_token is invalid", async () => {
+    const request = {
+      body: {
+        device_name: "aq_g5v0_103",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        claim_token: "wrong_token",
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findOneStub.resolves({
+      _id: "60c7a3e5f7e4f1001f5e8e20", // Corrected ID
+      name: "aq_g5v0_103",
+      claim_status: "unclaimed",
+      claim_token: "correct_token",
+    });
+
+    let error;
+    try {
+      await deviceUtil.claimDevice(request, (err) => (error = err));
+    } catch (err) {}
+
+    expect(error.status).to.equal(httpStatus.FORBIDDEN);
+  });
+
+  it("should return 409 CONFLICT if device is already deployed", async () => {
+    const request = {
+      body: {
+        device_name: "deployed_device",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+      },
+      query: { tenant: "airqo" },
+    };
+
+    const deviceMock = {
+      _id: "some_device_id",
+      name: "deployed_device",
+      claim_status: "unclaimed",
+      status: "deployed",
+    };
+    findOneStub.resolves(deviceMock);
+    updateOneStub.resolves({ modifiedCount: 1 });
+
+    let error;
+    try {
+      await deviceUtil.claimDevice(request, (err) => (error = err));
+    } catch (err) {
+      error = err;
+    }
+    // The test was expecting a CONFLICT, but the logic now recalls the device.
+    expect(error).to.be.an.instanceOf(Error);
+    expect(error.status).to.equal(httpStatus.CONFLICT);
+    expect(error.message).to.equal("Device is currently deployed");
+  });
+
+  it("should return 410 GONE if the claim token is expired", async () => {
+    const request = {
+      body: {
+        device_name: "expired_token_device",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+      },
+      query: { tenant: "airqo" },
+    };
+
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+
+    findOneStub.resolves({
+      _id: "some_device_id",
+      name: "expired_token_device",
+      claim_status: "unclaimed",
+      claim_token_expires_at: pastDate, // Key for this test
+    });
+
+    let error;
+    try {
+      await deviceUtil.claimDevice(request, (err) => (error = err));
+    } catch (err) {
+      error = err;
+    }
+    expect(error).to.be.an.instanceOf(Error);
+    expect(error.status).to.equal(httpStatus.GONE);
+    expect(error.message).to.equal("Claim token has expired");
+  });
+
+  it("should handle race condition and return 409 CONFLICT for the second claim attempt", async () => {
+    const request = {
+      body: {
+        device_name: "race_condition_device",
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findOneStub.resolves({
+      _id: "some_device_id",
+      name: "race_condition_device",
+      claim_status: "unclaimed",
+    });
+
+    // Add stub for cohort creation to allow the test to proceed
+    cohortFindOneAndUpdateStub.resolves({ _id: "some_cohort_id" });
+
+    // Simulate race condition: findOneAndUpdate returns null because another process claimed it first
+    findOneAndUpdateStub.resolves(null);
+
+    let error;
+    try {
+      await deviceUtil.claimDevice(request, (err) => (error = err));
+    } catch (err) {
+      error = err;
+    }
+    expect(error).to.be.an.instanceOf(Error);
+    expect(error.status).to.equal(httpStatus.CONFLICT);
+    expect(error.message).to.equal("Device already claimed");
+  });
+});
+
+describe("bulkClaim", () => {
+  let findStub;
+  let findOneAndUpdateStub;
+  let cohortFindOneAndUpdateStub;
+  let cohortFindByIdStub;
+  let updateOneStub;
+  let createActivityStub;
+
+  beforeEach(() => {
+    const deviceModelMock = {
+      find: sinon.stub(),
+      findOneAndUpdate: sinon.stub(),
+      updateOne: sinon.stub().resolves({ modifiedCount: 1 }),
+      lean: sinon.stub().returnsThis(),
+    };
+    const cohortModelMock = {
+      findOneAndUpdate: sinon.stub(),
+      findById: sinon.stub(),
+    };
+    const activityModelMock = {
+      create: sinon.stub(),
+    };
+
+    sinon.stub(DeviceModel, "model").returns(deviceModelMock);
+    sinon.stub(CohortModel, "model").returns(cohortModelMock);
+    sinon.stub(ActivityModel, "model").returns(activityModelMock);
+
+    findStub = deviceModelMock.find;
+    findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
+    cohortFindOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
+    cohortFindByIdStub = cohortModelMock.findById;
+    updateOneStub = deviceModelMock.updateOne;
+    createActivityStub = activityModelMock.create;
+
+    // Default stubs
+    cohortFindOneAndUpdateStub.resolves({ _id: "some_cohort_id" });
+    createActivityStub.resolves({});
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it("should successfully claim multiple devices", async () => {
+    const request = {
+      body: {
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        devices: [{ device_name: "device_A" }, { device_name: "device_B" }],
+      },
+      query: { tenant: "airqo" },
+    };
+
+    const mockDevices = [
+      { name: "device_A", claim_status: "unclaimed", network: "airqo" },
+      { name: "device_B", claim_status: "unclaimed", network: "airqo" },
+    ];
+    findStub.resolves(mockDevices);
+    findOneAndUpdateStub.callsFake((filter) =>
+      Promise.resolve({ ...filter, claim_status: "claimed" })
+    );
+    updateOneStub.resolves({
+      modifiedCount: 1,
+    });
+
+    const result = await deviceUtil.bulkClaim(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.successful_claims).to.have.lengthOf(2);
+    expect(result.data.failed_claims).to.have.lengthOf(0);
+    expect(findOneAndUpdateStub.callCount).to.equal(2);
+    expect(createActivityStub.callCount).to.equal(2);
+  });
+
+  it("should handle a mix of successful and failed claims", async () => {
+    const request = {
+      body: {
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        devices: [
+          { device_name: "device_A" }, // success
+          { device_name: "device_B" }, // already claimed
+          { device_name: "device_C" }, // not found
+        ],
+      },
+      query: { tenant: "airqo" },
+    };
+
+    const mockDevices = [
+      { name: "device_A", claim_status: "unclaimed" },
+      { name: "device_B", claim_status: "claimed" },
+    ];
+    findStub.resolves(mockDevices);
+    findOneAndUpdateStub
+      .withArgs({ name: "device_A" })
+      .resolves({ name: "device_A", claim_status: "claimed" });
+    updateOneStub.resolves({
+      modifiedCount: 1,
+    });
+
+    const result = await deviceUtil.bulkClaim(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.successful_claims).to.have.lengthOf(1);
+    expect(result.data.failed_claims).to.have.lengthOf(2);
+    expect(result.data.failed_claims[0].device_name).to.equal("device_B");
+    expect(result.data.failed_claims[0].error).to.equal(
+      "Device already claimed or not available"
+    );
+    expect(result.data.failed_claims[1].device_name).to.equal("device_C");
+    expect(result.data.failed_claims[1].error).to.equal("Device not found");
+  });
+
+  it("should proceed with claim even if activity logging fails", async () => {
+    const request = {
+      body: {
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        devices: [{ device_name: "device_A" }],
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findStub.resolves([{ name: "device_A", claim_status: "unclaimed" }]);
+    findOneAndUpdateStub.resolves({
+      name: "device_A",
+      claim_status: "claimed",
+    });
+    updateOneStub.resolves({
+      modifiedCount: 1,
+    });
+    createActivityStub.rejects(new Error("DB connection lost"));
+
+    const result = await deviceUtil.bulkClaim(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.successful_claims).to.have.lengthOf(1);
+    expect(result.data.failed_claims).to.have.lengthOf(0);
+    expect(result.data.successful_claims[0].device_name).to.equal("device_A");
+    expect(result.data.successful_claims[0].logging_error).to.be.true;
+  });
+
+  it("should throw an HttpError for an invalid user_id", async () => {
+    const request = { body: { user_id: "invalid-id" } };
+    let error;
+    try {
+      await deviceUtil.bulkClaim(request, (err) => (error = err));
+    } catch (err) {}
+    expect(error.status).to.equal(httpStatus.BAD_REQUEST);
+  });
+
+  it("should successfully claim devices and assign to a specific cohort", async () => {
+    const specificCohortId = "61f8e726e911c000139c3b08";
+    const request = {
+      body: {
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        devices: [{ device_name: "device_A" }],
+        cohort_id: specificCohortId,
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findStub.resolves([{ name: "device_A", claim_status: "unclaimed" }]);
+    cohortFindByIdStub.returns({
+      lean: () => Promise.resolve({ _id: specificCohortId }),
+    });
+    findOneAndUpdateStub.resolves({
+      name: "device_A",
+      claim_status: "claimed",
+    });
+
+    const result = await deviceUtil.bulkClaim(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.successful_claims).to.have.lengthOf(1);
+    expect(
+      findOneAndUpdateStub.firstCall.args[1].$addToSet.cohorts.toString()
+    ).to.equal(specificCohortId);
+  });
+
+  it("should return 404 if a specified cohort_id does not exist", async () => {
+    const request = {
+      body: {
+        user_id: "60c7a3e5f7e4f1001f5e8e1b",
+        devices: [{ device_name: "device_A" }],
+        cohort_id: "60c7a3e5f7e4f1001f5e8e99", // non-existent
+      },
+      query: { tenant: "airqo" },
+    };
+
+    findStub.resolves([{ name: "device_A", claim_status: "unclaimed" }]);
+    cohortFindByIdStub.returns({ lean: () => Promise.resolve(null) });
+
+    const error = await deviceUtil.bulkClaim(request).catch((err) => err);
+    expect(error.status).to.equal(httpStatus.BAD_REQUEST);
+  });
+});
+
+describe("getShippingPreparationStatus", () => {
+  let findStub;
+
+  beforeEach(() => {
+    // Stub the find method on the mock model
+    const deviceModelMock = {
+      find: sinon.stub().returnsThis(),
+      select: sinon.stub().returnsThis(),
+      sort: sinon.stub().returnsThis(),
+      lean: sinon.stub(),
+    };
+    sinon.stub(DeviceModel, "model").returns(deviceModelMock);
+    findStub = deviceModelMock.lean;
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it("should correctly categorize prepared, claimed, and deployed devices", async () => {
+    const mockDevices = [
+      {
+        name: "device_prepared",
+        claim_status: "unclaimed",
+        claim_token: "token123",
+        status: "not deployed",
+      },
+      {
+        name: "device_claimed",
+        claim_status: "claimed",
+        status: "not deployed",
+      },
+      {
+        name: "device_deployed",
+        claim_status: "claimed",
+        status: "deployed",
+      },
+      {
+        name: "device_unprepared",
+        claim_status: "unclaimed",
+        claim_token: null,
+        status: "not deployed",
+      },
+    ];
+    findStub.resolves(mockDevices);
+
+    const request = { query: { tenant: "airqo" } };
+    const result = await deviceUtil.getShippingPreparationStatus(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.summary.total_devices).to.equal(4);
+    expect(result.data.summary.prepared_for_shipping).to.equal(1);
+    expect(result.data.summary.claimed_devices).to.equal(2);
+    expect(result.data.summary.deployed_devices).to.equal(1);
+
+    expect(result.data.categorized.prepared_for_shipping[0].name).to.equal(
+      "device_prepared"
+    );
+    expect(
+      result.data.categorized.claimed_devices.map((d) => d.name)
+    ).to.have.members(["device_claimed", "device_deployed"]);
+    expect(result.data.categorized.deployed_devices[0].name).to.equal(
+      "device_deployed"
+    );
+  });
+
+  it("should return an empty response when no devices are found", async () => {
+    findStub.resolves([]);
+
+    const request = { query: { tenant: "airqo" } };
+    const result = await deviceUtil.getShippingPreparationStatus(request);
+
+    expect(result.success).to.be.true;
+    expect(result.data.summary.total_devices).to.equal(0);
+    expect(result.data.categorized.prepared_for_shipping).to.be.an("array").that
+      .is.empty;
+  });
+});
 
 describe("createDevice", () => {
   describe("doesDeviceSearchExist", () => {

@@ -17,7 +17,7 @@ const stageConfig = {
   QUERY_MONGO_URI: process.env.QUERY_MONGO_STAGE_URI,
   DB_NAME: process.env.MONGO_STAGE,
   PWD_RESET: `${process.env.ANALYTICS_STAGING_BASE_URL}/reset`,
-  LOGIN_PAGE: `${process.env.ANALYTICS_STAGING_BASE_URL}/login`,
+  LOGIN_PAGE: `${process.env.ANALYTICS_STAGING_BASE_URL}/user/login`,
   FORGOT_PAGE: `${process.env.ANALYTICS_STAGING_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.ANALYTICS_STAGING_BASE_URL,
   ANALYTICS_BASE_URL: "https://staging-analytics.airqo.net",
@@ -27,6 +27,7 @@ const stageConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  GROUPS_TOPIC: process.env.GROUPS_TOPIC_STAGE || "groups-topic",
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:

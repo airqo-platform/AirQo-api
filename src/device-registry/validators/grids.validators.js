@@ -492,6 +492,21 @@ const gridsValidations = {
     commonValidations.validObjectId("id"),
     commonValidations.nameQuery,
     commonValidations.adminLevelQuery,
+    query("cohort_id")
+      .optional()
+      .notEmpty()
+      .withMessage("cohort_id cannot be empty if provided")
+      .customSanitizer((value) => {
+        if (typeof value === "string" && value.includes(",")) {
+          return value.split(",").map((id) => id.trim());
+        }
+        return value;
+      })
+      .custom((value) => {
+        const ids = Array.isArray(value) ? value : [value];
+        return ids.every((id) => isValidObjectId(id));
+      })
+      .withMessage("cohort_id must be valid ObjectId(s)"),
   ],
   deleteGrid: [
     ...commonValidations.tenant,
@@ -845,6 +860,21 @@ const gridsValidations = {
   ],
   listCountries: [
     ...commonValidations.tenant,
+    query("cohort_id")
+      .optional()
+      .notEmpty()
+      .withMessage("cohort_id cannot be empty if provided")
+      .customSanitizer((value) => {
+        if (typeof value === "string" && value.includes(",")) {
+          return value.split(",").map((id) => id.trim());
+        }
+        return value;
+      })
+      .custom((value) => {
+        const ids = Array.isArray(value) ? value : [value];
+        return ids.every((id) => isValidObjectId(id));
+      })
+      .withMessage("cohort_id must be valid ObjectId(s)"),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

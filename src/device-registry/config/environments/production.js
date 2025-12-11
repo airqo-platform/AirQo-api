@@ -22,6 +22,7 @@ const prodConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  GROUPS_TOPIC: process.env.GROUPS_TOPIC_PROD || "groups-topic",
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
