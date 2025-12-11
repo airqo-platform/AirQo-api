@@ -232,9 +232,9 @@ class ProductionConfig(BaseConfig):
     """Production environment settings."""
 
     MONGO_URI = env_var("MONGO_GCE_URI")
-    DB_NAME = env_var("MONGO_PROD")
-    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_PROD")
-    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_PROD")
+    DB_NAME = env_var("MONGO_DB_NAME")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS")
+    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS")
 
 
 class DevelopmentConfig(BaseConfig):
@@ -243,9 +243,9 @@ class DevelopmentConfig(BaseConfig):
     FLASK_DEBUG = env_var("FLASK_DEBUG")
     DEVELOPMENT = True
     MONGO_URI = env_var("MONGO_LOCAL_URI")
-    DB_NAME = env_var("MONGO_DEV")
-    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
-    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
+    DB_NAME = env_var("MONGO_DB_NAME")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS")
+    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS")
 
 
 class TestingConfig(BaseConfig):
@@ -254,9 +254,9 @@ class TestingConfig(BaseConfig):
     TESTING = True
     FLASK_DEBUG = env_var("FLASK_DEBUG")
     MONGO_URI = env_var("MONGO_GCE_URI")
-    DB_NAME = env_var("MONGO_STAGE")
-    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
-    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
+    DB_NAME = env_var("MONGO_DB_NAME")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS")
+    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS")
 
 
 config = {
