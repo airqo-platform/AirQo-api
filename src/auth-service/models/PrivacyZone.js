@@ -66,7 +66,21 @@ PrivacyZoneSchema.statics = {
         .skip(skip)
         .limit(limit)
         .lean();
-      return createSuccessResponse("list", privacyZones, "privacy zone");
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: privacyZones,
+        message: "successfully listed the privacy zones",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       logger.error(`Error on list privacy zones: ${error.message}`);
       return createErrorResponse(error, "list", logger, "privacy zone");

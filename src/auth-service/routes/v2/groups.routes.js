@@ -31,7 +31,7 @@ const {
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(groupValidations.pagination);
+router.use(pagination());
 
 // Debug middleware for development
 if (process.env.NODE_ENV !== "production") {
@@ -86,6 +86,7 @@ router.get(
   "/:grp_id",
   groupValidations.getGroupById,
   enhancedJWTAuth,
+  pagination(), // Applying pagination as list is called
   requireGroupAccess([constants.GROUP_VIEW]),
   groupController.list
 );
@@ -94,6 +95,7 @@ router.get(
   "/:grp_id/summary",
   groupValidations.getGroupById,
   enhancedJWTAuth,
+  pagination(), // Applying pagination as list is called
   requireGroupAccess([constants.GROUP_VIEW]),
   groupController.list
 );
@@ -241,6 +243,7 @@ router.get(
   "/:grp_id/manager/dashboard",
   enhancedJWTAuth,
   requireGroupManagerAccess(),
+  pagination(),
   groupController.getManagerDashboard
 );
 
@@ -248,6 +251,7 @@ router.get(
   "/:grp_id/analytics",
   groupValidations.getGroupAnalytics,
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.getGroupAnalytics
 );
@@ -266,6 +270,7 @@ router.get(
   "/:grp_id/access-requests",
   groupValidations.manageAccessRequests,
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.manageAccessRequests
 );
@@ -317,6 +322,7 @@ router.get(
   "/:grp_id/activity-log",
   groupValidations.getActivityLog,
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.getGroupActivityLog
 );
@@ -326,6 +332,7 @@ router.get(
   "/:grp_id/members/search",
   groupValidations.searchGroupMembers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions(
     [constants.MEMBER_VIEW, constants.MEMBER_SEARCH],
     "grp_id"

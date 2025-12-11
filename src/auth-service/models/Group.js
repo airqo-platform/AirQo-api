@@ -318,6 +318,8 @@ GroupSchema.statics = {
         delete filter.category;
       }
 
+      const totalCount = await this.countDocuments(filter);
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -339,10 +341,19 @@ GroupSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "group", {
+      return {
+        success: true,
+        data: response,
         message: "successfully retrieved the groups",
-        emptyMessage: "groups do not exist, please crosscheck",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (err) {
       logObject("the error for listing a group", err);
       return createErrorResponse(err, "list", logger, "group");

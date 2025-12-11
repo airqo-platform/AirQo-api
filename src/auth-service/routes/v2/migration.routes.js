@@ -13,18 +13,21 @@ router.use(enhancedJWTAuth);
 router.get(
   "/audit-deprecated-fields",
   migrationValidations.auditDeprecatedFields,
+  pagination(), // Apply pagination here
   migrationController.auditDeprecatedFields
 );
 
 router.get(
   "/migration-status",
   migrationValidations.getMigrationStatus,
+  pagination(), // Apply pagination here
   migrationController.getMigrationStatus
 );
 
 router.get(
   "/migration-plan",
   migrationValidations.getMigrationPlan,
+  pagination(), // Apply pagination here
   migrationController.getMigrationPlan
 );
 

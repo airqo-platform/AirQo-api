@@ -6,13 +6,13 @@ const permissionValidations = require("@validators/permissions.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(permissionValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.get(
   "/",
   permissionValidations.list,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createPermissionController.list
 );
 
@@ -40,6 +40,7 @@ router.delete(
 router.get(
   "/:permission_id",
   permissionValidations.getById,
+  pagination(), // Apply pagination here as it calls list
   enhancedJWTAuth,
   createPermissionController.list
 );

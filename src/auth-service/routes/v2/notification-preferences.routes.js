@@ -6,13 +6,13 @@ const { validate, headers, pagination } = require("@validators/common");
 const router = express.Router();
 
 router.use(headers);
-router.use(notificationPreferenceValidations.pagination(20, 100));
 
 // List Notification Preferences
 router.get(
   "/list",
   notificationPreferenceValidations.listValidation, // Changed from list to listValidation
   enhancedJWTAuth,
+  pagination(20, 100), // Apply pagination here
   NotificationPreferenceController.list
 );
 
@@ -77,6 +77,7 @@ router.get(
   "/:preference_id/history",
   notificationPreferenceValidations.historyValidation, // Changed
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   NotificationPreferenceController.getNotificationHistory
 );
 

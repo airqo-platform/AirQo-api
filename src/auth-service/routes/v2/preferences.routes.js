@@ -6,8 +6,7 @@ const preferenceValidations = require("@validators/preferences.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(preferenceValidations.pagination(100, 1000));
+router.use(headers); // Keep headers global
 
 router.post(
   "/upsert",
@@ -37,6 +36,7 @@ router.post("/", preferenceValidations.create, preferenceController.create);
 
 router.get("/", preferenceValidations.list, preferenceController.list);
 
+// No pagination for DELETE
 router.delete(
   "/:user_id",
   preferenceValidations.deletePreference,
@@ -47,6 +47,7 @@ router.delete(
 router.get(
   "/selected-sites",
   preferenceValidations.getSelectedSites,
+  pagination(), // Apply pagination here
   preferenceController.listSelectedSites
 );
 
@@ -74,6 +75,7 @@ router.delete(
 router.get(
   "/recent/:user_id",
   preferenceValidations.getPreferenceByUserId,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   preferenceController.getMostRecent
 );
@@ -81,6 +83,7 @@ router.get(
 router.get(
   "/all/:user_id",
   preferenceValidations.getPreferenceByUserId,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   preferenceController.listAll
 );
@@ -109,6 +112,7 @@ router.delete(
 router.get(
   "/:deviceId/charts",
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   preferenceValidations.getChartConfigurations,
   preferenceController.getChartConfigurations
 );
@@ -136,6 +140,7 @@ router.get(
 router.get(
   "/theme/user/:user_id",
   preferenceValidations.getUserPersonalTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getUserPersonalTheme
 );
@@ -151,6 +156,7 @@ router.put(
 router.get(
   "/theme/user/:user_id/group/:group_id",
   preferenceValidations.getUserGroupTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getUserGroupTheme
 );
@@ -166,6 +172,7 @@ router.put(
 router.get(
   "/theme/user/:user_id/group",
   preferenceValidations.getUserDefaultGroupTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getUserDefaultGroupTheme
 );
@@ -181,6 +188,7 @@ router.put(
 router.get(
   "/theme/user/:user_id/network/:network_id",
   preferenceValidations.getUserNetworkTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getUserNetworkTheme
 );
@@ -196,6 +204,7 @@ router.put(
 router.get(
   "/theme/user/:user_id/network",
   preferenceValidations.getUserDefaultNetworkTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getUserDefaultNetworkTheme
 );
@@ -215,6 +224,7 @@ router.put(
 router.get(
   "/theme/organization/group/:group_id",
   preferenceValidations.getGroupTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getGroupTheme
 );
@@ -230,6 +240,7 @@ router.put(
 router.get(
   "/theme/organization/network/:network_id",
   preferenceValidations.getNetworkTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getNetworkTheme
 );
@@ -249,6 +260,7 @@ router.put(
 router.get(
   "/theme/effective/:user_id",
   preferenceValidations.getEffectiveTheme,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   preferenceController.getEffectiveTheme
 );
@@ -256,6 +268,7 @@ router.get(
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
+  pagination(), // Apply pagination here as it calls list
   enhancedJWTAuth,
   preferenceController.list
 );

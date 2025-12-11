@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
+const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const {
   createSuccessResponse,
@@ -52,7 +53,7 @@ const LocationDataSchema = new Schema(
 LocationDataSchema.index({ userId: 1, timestamp: -1 });
 
 LocationDataSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     // In a real scenario, this would likely be a bulk insert operation
     // from a mobile device, not a single point registration.
     try {
@@ -64,7 +65,7 @@ LocationDataSchema.statics = {
     }
   },
 
-  async list({ filter = {}, skip = 0, limit = 1000 } = {}) {
+  async list({ filter = {}, skip = 0, limit = 1000 } = {}, next) {
     try {
       const locationData = await this.find(filter)
         .sort({ timestamp: -1 })
@@ -72,18 +73,27 @@ LocationDataSchema.statics = {
         .limit(limit)
         .lean();
       const total = await this.countDocuments(filter);
-      return createSuccessResponse(
-        "list",
-        { data: locationData, total },
-        "location data"
-      );
+
+      return {
+        success: true,
+        data: locationData,
+        message: "successfully listed the location data",
+        status: httpStatus.OK,
+        meta: {
+          total: total,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(total / limit) || 1,
+        },
+      };
     } catch (error) {
       logger.error(`Error on list location data: ${error.message}`);
       return createErrorResponse(error, "list", logger, "location data");
     }
   },
 
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true, runValidators: true, context: "query" };
       const updatedPoint = await this.findOneAndUpdate(filter, update, options);
@@ -106,7 +116,7 @@ LocationDataSchema.statics = {
     }
   },
 
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const removedPoint = await this.findOneAndRemove(filter);
       if (!removedPoint) {
@@ -128,7 +138,7 @@ LocationDataSchema.statics = {
     }
   },
 
-  async removeMany({ filter = {} } = {}) {
+  async removeMany({ filter = {} } = {}, next) {
     try {
       const result = await this.deleteMany(filter);
       return createSuccessResponse("delete", result, "location data points");

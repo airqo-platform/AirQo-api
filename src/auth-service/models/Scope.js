@@ -84,6 +84,8 @@ ScopeSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const scopes = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
@@ -108,10 +110,19 @@ ScopeSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", scopes, "scope", {
+      return {
+        success: true,
+        data: scopes,
         message: "successfully listed the Scopes",
-        emptyMessage: "no Scopes exist",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "scope");
     }

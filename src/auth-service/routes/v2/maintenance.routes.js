@@ -6,8 +6,7 @@ const maintenanceValidations = require("@validators/maintenance.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(maintenanceValidations.pagination);
+router.use(headers); // Keep headers global
 router.use(maintenanceValidations.setDefaultTenant);
 
 const products = ["mobile", "website", "analytics"];
@@ -37,6 +36,7 @@ products.forEach((product) => {
   router.get(
     `/${product}`,
     setProductQueryParam(product),
+    pagination(), // Apply pagination here
     maintenanceValidations.list,
     createMaintenanceController.list
   );

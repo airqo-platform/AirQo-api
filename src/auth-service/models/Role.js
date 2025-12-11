@@ -215,6 +215,8 @@ RoleSchema.statics = {
         delete filter.category;
       }
 
+      const totalCount = await this.countDocuments(filter);
+
       const roles = await this.aggregate()
         .match(filter)
         .lookup({
@@ -228,6 +230,14 @@ RoleSchema.statics = {
           localField: "group_id",
           foreignField: "_id",
           as: "group",
+        })
+        .unwind({
+          path: "$network",
+          preserveNullAndEmptyArrays: true,
+        })
+        .unwind({
+          path: "$group",
+          preserveNullAndEmptyArrays: true,
         })
         .lookup({
           from: "permissions",
@@ -256,10 +266,19 @@ RoleSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", roles, "role", {
-        message: "successfully listed the roles",
-        emptyMessage: "roles not found for this operation",
-      });
+      return {
+        success: true,
+        data: roles,
+        message: "Successfully retrieved the roles",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "role");
     }

@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const userController = require("@controllers/user.controller");
 const userValidations = require("@validators/users.validators");
-const { validate, headers, pagination } = require("@validators/common");
+const { validate, headers, pagination } = require("@validators/common"); // Ensure pagination is imported
 const constants = require("@config/constants");
 const {
   setLocalAuth,
@@ -30,8 +30,6 @@ const {
 } = require("@middleware/permissionAuth");
 
 router.use(headers);
-router.use(userValidations.pagination);
-
 // ================================
 // AUTHENTICATION ROUTES
 // ================================
@@ -578,6 +576,7 @@ router.get(
   "/combined",
   userValidations.tenant,
   enhancedJWTAuth,
+  pagination(),
   userController.listUsersAndAccessRequests
 );
 
@@ -585,6 +584,7 @@ router.get(
   "/verify/:user_id/:token",
   userValidations.verifyEmail,
   userController.verifyEmail
+  // No pagination here, it's a single verification
 );
 
 router.get(
@@ -735,6 +735,7 @@ router.get(
   "/stats",
   userValidations.tenant,
   enhancedJWTAuth,
+  pagination(), // Assuming listStatistics is a list-like operation
   requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listStatistics
 );
@@ -743,6 +744,7 @@ router.get(
   "/cache",
   userValidations.cache,
   enhancedJWTAuth,
+  pagination(), // Assuming listCache is a list-like operation
   requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listCache
 );
@@ -751,6 +753,7 @@ router.get(
   "/logs",
   userValidations.tenant,
   enhancedJWTAuth,
+  pagination(), // Assuming listLogs is a list-like operation
   requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listLogs
 );
@@ -777,6 +780,7 @@ router.get(
   "/:user_id/profile/enhanced",
   enhancedJWTAuth,
   userValidations.getEnhancedProfileForUser,
+  pagination(), // Assuming this can return a list of profiles or a single one with pagination
   validate,
   // requirePermissions([constants.USER_VIEW]),
   userController.getEnhancedProfileForUser
@@ -785,6 +789,7 @@ router.get(
 router.get(
   "/:user_id",
   userValidations.getUser,
+  pagination(),
   enhancedJWTAuth,
   // requirePermissions([constants.USER_VIEW]),
   userController.list
@@ -802,6 +807,7 @@ router.get(
   "/:user_id/cohorts",
   enhancedJWTAuth,
   userValidations.getUser,
+  pagination(),
   validate,
   userController.listCohorts
 );

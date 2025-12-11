@@ -114,10 +114,21 @@ AccessRequestSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", data, "access request", {
-        message: "successfully listed the access requests", // Fixed grammar: "access_requests" → "access requests"
-        emptyMessage: "no access requests exist", // Fixed grammar
-      });
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: data,
+        message: "successfully listed the access requests",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "access request");
     }
