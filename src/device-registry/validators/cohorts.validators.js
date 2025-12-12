@@ -336,12 +336,21 @@ const cohortValidations = {
   listCohortsSummary: [
     ...commonValidations.tenant,
     oneOf([
-      commonValidations.validObjectId("id"),
       query("cohort_id")
         .optional()
         .notEmpty()
         .isString()
-        .withMessage("cohort_id must be a string"),
+        .withMessage("cohort_id must be a string")
+        .bail()
+        .custom((value) => {
+          const ids = value.split(",").map((id) => id.trim());
+          for (const id of ids) {
+            if (!isValidObjectId(id)) {
+              throw new Error(`Invalid cohort_id: ${id}`);
+            }
+          }
+          return true;
+        }),
       commonValidations.name,
     ]),
     handleValidationErrors,

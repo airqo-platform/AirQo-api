@@ -1815,15 +1815,24 @@ const generateFilter = {
       ];
     }
 
+    // Establish a clear priority for identifiers: id > cohort_id > name
     if (id) {
-      filter["_id"] = ObjectId(id);
-    }
+      filter._id = ObjectId(id);
+    } else if (cohort_id) {
+      if (typeof cohort_id === "string" && cohort_id.includes(",")) {
+        const cohortIds = cohort_id
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => mongoose.Types.ObjectId(id));
 
-    if (cohort_id) {
-      filter["_id"] = ObjectId(cohort_id);
-    }
-
-    if (name) {
+        if (cohortIds.length > 0) {
+          filter._id = { $in: cohortIds };
+        }
+      } else if (mongoose.Types.ObjectId.isValid(cohort_id)) {
+        filter._id = ObjectId(cohort_id);
+      }
+    } else if (name) {
       filter["name"] = name;
     }
 
