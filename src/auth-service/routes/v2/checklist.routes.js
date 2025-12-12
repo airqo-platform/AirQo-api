@@ -6,8 +6,7 @@ const checklistValidations = require("@validators/checklist.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(checklistValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.post(
   "/upsert",
@@ -33,12 +32,14 @@ router.post(
 router.get(
   "/",
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   checklistValidations.list,
   createChecklistController.list
 );
 
 router.delete(
   "/:user_id",
+  // No pagination for DELETE
   enhancedJWTAuth,
   checklistValidations.deleteChecklist,
   createChecklistController.delete

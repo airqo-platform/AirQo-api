@@ -31,7 +31,6 @@ const {
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(groupValidations.pagination);
 
 // Debug middleware for development
 if (process.env.NODE_ENV !== "production") {
@@ -60,6 +59,7 @@ router.get(
   "/",
   groupValidations.list,
   enhancedJWTAuth,
+  pagination(),
   requirePermissions([constants.GROUP_VIEW]),
   groupController.list
 );
@@ -68,6 +68,7 @@ router.get(
   "/summary",
   groupValidations.listSummary,
   enhancedJWTAuth,
+  pagination(),
   requirePermissions([constants.GROUP_VIEW]),
   groupController.listSummary
 );
@@ -86,6 +87,7 @@ router.get(
   "/:grp_id",
   groupValidations.getGroupById,
   enhancedJWTAuth,
+  pagination(), // Applying pagination as list is called
   requireGroupAccess([constants.GROUP_VIEW]),
   groupController.list
 );
@@ -94,6 +96,7 @@ router.get(
   "/:grp_id/summary",
   groupValidations.getGroupById,
   enhancedJWTAuth,
+  pagination(), // Applying pagination as list is called
   requireGroupAccess([constants.GROUP_VIEW]),
   groupController.list
 );
@@ -128,6 +131,7 @@ router.get(
 router.get(
   "/:grp_id/members",
   enhancedJWTAuth,
+  pagination(),
   requireGroupAccess([constants.MEMBER_VIEW, constants.GROUP_VIEW]),
   groupController.getMembers
 );
@@ -204,6 +208,7 @@ router.get(
   "/:grp_id/assigned-users",
   groupValidations.listAssignedUsers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions([constants.MEMBER_VIEW], "grp_id"),
   groupController.listAssignedUsers
 );
@@ -212,6 +217,7 @@ router.get(
   "/:grp_id/all-users",
   groupValidations.listAllGroupUsers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions(
     [constants.MEMBER_VIEW, constants.USER_VIEW],
     "grp_id"
@@ -223,6 +229,7 @@ router.get(
   "/:grp_id/available-users",
   groupValidations.listAvailableUsers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupUserManagement(),
   groupController.listAvailableUsers
 );
@@ -232,6 +239,7 @@ router.get(
   "/:grp_id/roles",
   groupValidations.listRolesForGroup,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions([constants.ROLE_VIEW], "grp_id"),
   groupController.listRolesForGroup
 );
@@ -241,6 +249,7 @@ router.get(
   "/:grp_id/manager/dashboard",
   enhancedJWTAuth,
   requireGroupManagerAccess(),
+  pagination(),
   groupController.getManagerDashboard
 );
 
@@ -248,6 +257,7 @@ router.get(
   "/:grp_id/analytics",
   groupValidations.getGroupAnalytics,
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.getGroupAnalytics
 );
@@ -266,6 +276,7 @@ router.get(
   "/:grp_id/access-requests",
   groupValidations.manageAccessRequests,
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.manageAccessRequests
 );
@@ -299,6 +310,7 @@ router.post(
 router.get(
   "/:grp_id/invitations",
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.listGroupInvitations
 );
@@ -317,6 +329,7 @@ router.get(
   "/:grp_id/activity-log",
   groupValidations.getActivityLog,
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.getGroupActivityLog
 );
@@ -326,6 +339,7 @@ router.get(
   "/:grp_id/members/search",
   groupValidations.searchGroupMembers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions(
     [constants.MEMBER_VIEW, constants.MEMBER_SEARCH],
     "grp_id"
@@ -370,6 +384,7 @@ router.delete(
 router.get(
   "/:grp_id/cohorts",
   enhancedJWTAuth,
+  pagination(),
   requireGroupMembership("grp_id"),
   groupValidations.listGroupCohorts,
   groupController.listGroupCohorts

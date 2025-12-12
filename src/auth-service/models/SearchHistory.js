@@ -106,6 +106,8 @@ SearchHistorySchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const inclusionProjection =
         constants.SEARCH_HISTORIES_INCLUSION_PROJECTION;
       const exclusionProjection =
@@ -128,10 +130,19 @@ SearchHistorySchema.statics = {
 
       const search_histories = pipeline;
 
-      return createSuccessResponse("list", search_histories, "search history", {
+      return {
+        success: true,
+        data: search_histories,
         message: "successfully listed the Search Histories",
-        emptyMessage: "no Search Histories exist",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "search history");
     }

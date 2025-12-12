@@ -6,13 +6,13 @@ const clientValidations = require("@validators/clients.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(clientValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.get(
   "/",
   clientValidations.list,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createClientController.list
 );
 

@@ -48,6 +48,7 @@ const handleStandardResponse = (res, result, responseConfig = {}) => {
     res.status(status).json({
       success: true,
       message: successMessage,
+      ...(result.meta && { meta: result.meta }),
       [successKey]: result.data,
     });
   } else if (result.success === false) {

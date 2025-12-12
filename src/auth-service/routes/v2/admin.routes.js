@@ -13,9 +13,7 @@ const {
 } = require("@middleware/groupNetworkAuth");
 
 const { validate, headers, pagination } = require("@validators/common");
-
-router.use(headers);
-router.use(adminValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.post(
   "/super-admin",
@@ -79,6 +77,7 @@ router.get(
   "/audit/users",
   adminValidations.auditValidation,
   adminValidations.userSearchValidation,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   requirePermissions([constants.SUPER_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditUsers
@@ -87,6 +86,7 @@ router.get(
 router.get(
   "/audit/roles",
   adminValidations.auditValidation,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   requirePermissions([constants.SUPER_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditRoles
@@ -95,6 +95,7 @@ router.get(
 router.get(
   "/audit/permissions",
   adminValidations.auditValidation,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   requirePermissions([constants.SUPER_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditPermissions

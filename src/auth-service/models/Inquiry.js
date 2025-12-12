@@ -76,7 +76,21 @@ InquirySchema.statics = {
         .limit(limit)
         .exec();
 
-      return createSuccessResponse("list", inquiries, "inquiry");
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: inquiries,
+        message: "successfully listed the inquiries",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "inquiry");
     }

@@ -6,13 +6,13 @@ const typeValidations = require("@validators/types.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(typeValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.get(
   "/:user_type/users",
   typeValidations.listUsersWithUserType,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createUserTypeController.listUsersWithUserType
 );
 
@@ -20,6 +20,7 @@ router.get(
   "/:user_type/available_users",
   typeValidations.listAvailableUsersForUserType,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createUserTypeController.listAvailableUsersForUserType
 );
 

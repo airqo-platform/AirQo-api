@@ -9,8 +9,7 @@ const { requireSystemAdmin } = require("@middleware/adminAccess");
 const rateLimit = require("express-rate-limit");
 const onboardingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 
-router.use(headers);
-router.use(organizationRequestValidations.pagination);
+router.use(headers); // Keep headers global
 
 // Create organization request (public endpoint)
 router.post(
@@ -25,6 +24,7 @@ router.get(
   "/",
   enhancedJWTAuth,
   requireSystemAdmin(),
+  pagination(), // Apply pagination here
   organizationRequestValidations.list,
   validate,
   organizationRequestController.list

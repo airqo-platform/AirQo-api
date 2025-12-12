@@ -193,10 +193,21 @@ CampaignSchema.statics = {
         .limit(limit)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "campaign", {
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: response,
         message: "Successfully retrieved campaigns",
-        emptyMessage: "No campaigns found",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       logger.error(`Campaign Listing Error: ${error.message}`);
       return createErrorResponse(error, "list", logger, "campaign");

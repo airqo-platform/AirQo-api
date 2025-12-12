@@ -994,18 +994,30 @@ UserSchema.statics = {
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "successfully retrieved the user details",
           data: response,
-          totalCount,
           status: httpStatus.OK,
+          message: "successfully retrieved the user details",
+          meta: {
+            total: totalCount,
+            skip: skip,
+            limit: limit,
+            page: Math.floor(skip / limit) + 1,
+            pages: Math.ceil(totalCount / limit) || 1,
+          },
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
           message: "no users exist",
           data: [],
-          totalCount,
           status: httpStatus.OK,
+          meta: {
+            total: 0,
+            skip: skip,
+            limit: limit,
+            page: 1,
+            pages: 0,
+          },
         };
       }
     } catch (error) {

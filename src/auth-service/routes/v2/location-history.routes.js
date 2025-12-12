@@ -6,13 +6,13 @@ const locationHistoryValidations = require("@validators/location-history.validat
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(locationHistoryValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.get(
   "/",
   locationHistoryValidations.list,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createLocationHistoryController.list
 );
 
@@ -20,6 +20,7 @@ router.get(
   "/users/:firebase_user_id",
   locationHistoryValidations.listByUserId,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createLocationHistoryController.list
 );
 

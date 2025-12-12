@@ -5,6 +5,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
 const log4js = require("log4js");
@@ -117,6 +118,8 @@ activitySchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       logObject("filter", filter);
       const inclusionProjection = constants.ACTIVITIES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.ACTIVITIES_EXCLUSION_PROJECTION(
@@ -136,10 +139,19 @@ activitySchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "activity", {
-        message: "successfully retrieved the activities", // Fixed grammar: "activitys" → "activities"
-        emptyMessage: "activities do not exist, please crosscheck", // Fixed grammar
-      });
+      return {
+        success: true,
+        data: response,
+        message: "successfully retrieved the activities",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (err) {
       return createErrorResponse(err, "list", logger, "activity");
     }

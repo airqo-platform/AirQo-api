@@ -78,6 +78,8 @@ BlacklistedIPPrefixSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const inclusionProjection = constants.IP_PREFIX_INCLUSION_PROJECTION;
       const exclusionProjection = constants.IP_PREFIX_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
@@ -96,10 +98,19 @@ BlacklistedIPPrefixSchema.statics = {
         .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "IP prefix", {
+      return {
+        success: true,
+        data: response,
         message: "successfully retrieved the prefix details",
-        emptyMessage: "No prefix found, please crosscheck provided details",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "IP prefix");
     }
