@@ -45,4 +45,4 @@ Run the Flask App
 
 - `flask run`
 
-Note: Currently requires redis for caching.
+Note: Currently requires redis for caching. The app heavily depends on caching and only supports redis at the moment.
