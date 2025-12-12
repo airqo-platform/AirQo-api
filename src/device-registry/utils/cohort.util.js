@@ -439,7 +439,23 @@ const createCohort = {
   list: async (request, next) => {
     try {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
-      const filter = generateFilter.cohorts(request, next);
+      let filter = generateFilter.cohorts(request, next);
+
+      // Manually handle multiple cohort_ids if provided as a comma-separated string
+      if (
+        request.query.cohort_id &&
+        typeof request.query.cohort_id === "string"
+      ) {
+        const cohortIds = request.query.cohort_id
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => mongoose.Types.ObjectId(id));
+
+        if (cohortIds.length > 0) {
+          filter._id = { $in: cohortIds };
+        }
+      }
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));

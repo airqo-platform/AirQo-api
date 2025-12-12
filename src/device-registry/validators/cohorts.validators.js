@@ -335,7 +335,15 @@ const cohortValidations = {
 
   listCohortsSummary: [
     ...commonValidations.tenant,
-    oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
+    oneOf([
+      commonValidations.validObjectId("id"),
+      query("cohort_id")
+        .optional()
+        .notEmpty()
+        .isString()
+        .withMessage("cohort_id must be a string"),
+      commonValidations.name,
+    ]),
     handleValidationErrors,
   ],
 

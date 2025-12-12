@@ -239,7 +239,6 @@ router.get(
   "/:grp_id/roles",
   groupValidations.listRolesForGroup,
   enhancedJWTAuth,
-  pagination(),
   requireGroupPermissions([constants.ROLE_VIEW], "grp_id"),
   groupController.listRolesForGroup
 );
