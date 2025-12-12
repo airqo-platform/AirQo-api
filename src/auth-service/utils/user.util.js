@@ -490,42 +490,57 @@ const createUserModule = {
   listUsersAndAccessRequests: async (request, next) => {
     try {
       const { query, body } = request;
-      const { tenant, skip, limit } = { ...body, ...query };
+      const { tenant, skip: rawSkip, limit: rawLimit } = { ...body, ...query };
+      const skip = Number.isFinite(Number(rawSkip))
+        ? Math.max(0, parseInt(rawSkip, 10))
+        : 0;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.max(1, parseInt(rawLimit, 10))
+        : 100;
       const filter = generateFilter.users(request, next);
 
-      const combinedResults = await UserModel(tenant).aggregate([
+      // Step 1: Get paginated users and total count in one aggregation
+      const userAggregationResult = await UserModel(tenant).aggregate([
         { $match: filter },
         {
           $facet: {
-            users: [
-              { $skip: skip ? parseInt(skip) : 0 },
-              { $limit: limit ? parseInt(limit) : 100 },
-            ],
-            accessRequests: [
+            paginatedUsers: [
+              { $skip: skip },
+              { $limit: limit },
+              // Project necessary fields for the user list and for the subsequent lookup
               {
-                $lookup: {
-                  from: "access_requests",
-                  localField: "email",
-                  foreignField: "email",
-                  as: "access_requests",
+                $project: {
+                  _id: 1,
+                  email: 1,
+                  firstName: 1,
+                  lastName: 1,
+                  isActive: 1,
+                  jobTitle: 1,
+                  verified: 1,
                 },
               },
-              { $unwind: "$access_requests" },
-              { $replaceRoot: { newRoot: "$access_requests" } },
             ],
-            totalUsers: [{ $count: "count" }],
+            totalUsersCount: [{ $count: "count" }],
           },
         },
       ]);
 
-      const users = combinedResults[0].users;
-      const accessRequests = combinedResults[0].accessRequests;
+      const paginatedUsers = userAggregationResult[0].paginatedUsers || [];
       const totalCount =
-        combinedResults[0].totalUsers.length > 0
-          ? combinedResults[0].totalUsers[0].count
-          : 0;
+        userAggregationResult[0].totalUsersCount[0]?.count || 0;
 
-      const data = { users, access_requests: accessRequests };
+      // Step 2: Extract emails from the paginated users
+      const paginatedUserEmails = paginatedUsers.map((user) => user.email);
+
+      // Step 3: Fetch access requests only for the paginated users
+      const accessRequests = await AccessRequestModel(tenant)
+        .find({
+          email: { $in: paginatedUserEmails },
+        })
+        .lean();
+
+      const data = { users: paginatedUsers, access_requests: accessRequests };
+      const safeLimit = limit > 0 ? limit : 1;
 
       return {
         success: true,
@@ -536,8 +551,8 @@ const createUserModule = {
           total: totalCount,
           skip,
           limit,
-          page: Math.floor(skip / limit) + 1,
-          pages: Math.ceil(totalCount / limit) || 1,
+          page: Math.floor(skip / safeLimit) + 1,
+          pages: Math.ceil(totalCount / safeLimit) || 1,
         },
       };
     } catch (error) {

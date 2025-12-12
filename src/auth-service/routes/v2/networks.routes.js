@@ -33,6 +33,7 @@ router.get(
 router.get(
   "/summary",
   networkValidations.listSummary,
+  enhancedJWTAuth,
   pagination(),
   createNetworkController.listSummary
 );

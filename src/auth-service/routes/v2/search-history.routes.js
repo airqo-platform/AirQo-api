@@ -11,16 +11,16 @@ router.use(headers); // Keep headers global
 router.get(
   "/",
   searchHistoryValidations.list,
+  pagination(),
   enhancedJWTAuth,
-  pagination(), // Apply pagination here
   createSearchHistoryController.list
 );
 
 router.get(
   "/users/:firebase_user_id",
   searchHistoryValidations.listByUserId,
+  pagination(),
   enhancedJWTAuth,
-  pagination(), // Apply pagination here
   createSearchHistoryController.list
 );
 
