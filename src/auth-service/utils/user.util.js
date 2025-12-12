@@ -505,6 +505,7 @@ const createUserModule = {
         {
           $facet: {
             paginatedUsers: [
+              { $sort: { _id: 1 } },
               { $skip: skip },
               { $limit: limit },
               // Project necessary fields for the user list and for the subsequent lookup
