@@ -1219,7 +1219,7 @@ jobs:
           cd src/spatial/
           gcloud secrets versions access latest --secret="prod-env-spatial" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-spatial-api-config | kubectl replace -f - -n production
-          gcloud secrets versions access latest --secret="prod-key-device-monitoring-service-account" > google_application_credentials.json
+          gcloud secrets versions access latest --secret="spatial-bucket-access-secret" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-spatial-api-config-files | kubectl replace -f - -n production
 
   ### RabbitMQ ###
