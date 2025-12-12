@@ -743,7 +743,6 @@ const specificRoutes = [
   // ============================================
   {
     uri: [
-      "/api/v2/devices/grids",
       "/api/v2/metadata/sites",
       "/api/v2/metadata/devices",
       "/api/v2/metadata/grids",
