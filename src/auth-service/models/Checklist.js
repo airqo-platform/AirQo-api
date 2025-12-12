@@ -104,16 +104,28 @@ ChecklistSchema.statics = {
 
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const checklists = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit) // Preserve higher limit (1000)
         .exec();
 
-      return createSuccessResponse("list", checklists, "checklist", {
+      const safeLimit = limit > 0 ? limit : 1;
+      return {
+        success: true,
+        data: checklists,
         message: "successfully listed the checklists",
-        emptyMessage: "no checklists found for this search",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / safeLimit) + 1,
+          pages: Math.ceil(totalCount / safeLimit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "checklist");
     }

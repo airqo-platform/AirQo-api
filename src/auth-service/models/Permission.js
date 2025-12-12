@@ -87,6 +87,8 @@ PermissionSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const permissions = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
@@ -118,10 +120,19 @@ PermissionSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", permissions, "permission", {
+      return {
+        success: true,
+        data: permissions,
         message: "successfully listed the permissions",
-        emptyMessage: "no permissions exist",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "permission");
     }

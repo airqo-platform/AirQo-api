@@ -429,6 +429,8 @@ NetworkSchema.statics = {
         delete filter.category;
       }
 
+      const totalCount = await this.countDocuments(filter);
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -503,11 +505,19 @@ NetworkSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "network", {
+      return {
+        success: true,
+        data: response,
         message: "successfully retrieved the network details",
-        emptyMessage:
-          "No network details exist for this operation, please crosscheck",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("error", err);

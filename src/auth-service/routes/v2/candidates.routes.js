@@ -7,8 +7,7 @@ const { enhancedJWTAuth } = require("@middleware/passport");
 
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(candidateValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.post(
   "/register",
@@ -20,6 +19,7 @@ router.get(
   "/",
   candidateValidations.list,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createCandidateController.list
 );
 

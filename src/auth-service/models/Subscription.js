@@ -117,10 +117,21 @@ SubscriptionSchema.statics = {
         .limit(limit)
         .exec();
 
-      return createSuccessResponse("list", subscriptions, "subscription", {
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: subscriptions,
         message: "Successfully listed the subscriptions",
-        emptyMessage: "No subscriptions found for this search",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "subscription");
     }

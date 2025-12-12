@@ -117,10 +117,21 @@ logSchema.statics = {
         .limit(limit ? limit : 1000) // Preserve higher default limit
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", logs, "log", {
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: logs,
         message: "successfully listed the logs",
-        emptyMessage: "logs not found for this operation",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "log");
     }

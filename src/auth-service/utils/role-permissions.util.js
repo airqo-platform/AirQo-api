@@ -1957,10 +1957,12 @@ const rolePermissionUtil = {
   listRole: async (request, next) => {
     try {
       const { query, params } = request;
-      const { tenant } = query;
+      const { tenant, limit, skip } = query;
       const filter = generateFilter.roles(request, next);
       const responseFromListRole = await RoleModel(tenant.toLowerCase()).list(
         {
+          limit,
+          skip,
           filter,
         },
         next

@@ -119,11 +119,34 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
       const result = await userUtil.listUsersAndAccessRequests(request, next);
-      sendResponse(res, result, "users");
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          meta: result.meta,
+          combined_results: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
     } catch (error) {
       handleError(error, next);
     }
   },
+
   googleCallback: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

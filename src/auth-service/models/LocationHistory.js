@@ -112,6 +112,8 @@ LocationHistorySchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const inclusionProjection =
         constants.LOCATION_HISTORIES_INCLUSION_PROJECTION;
       const exclusionProjection =
@@ -134,15 +136,19 @@ LocationHistorySchema.statics = {
 
       const location_histories = pipeline;
 
-      return createSuccessResponse(
-        "list",
-        location_histories,
-        "location history",
-        {
-          message: "successfully listed the Location Histories",
-          emptyMessage: "no Location Histories exist",
-        }
-      );
+      return {
+        success: true,
+        data: location_histories,
+        message: "successfully listed the Location Histories",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "location history");
     }

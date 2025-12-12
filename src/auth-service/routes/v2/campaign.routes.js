@@ -7,8 +7,6 @@ const { validate, headers, pagination } = require("@validators/common");
 const router = express.Router();
 
 router.use(headers);
-router.use(campaignValidations.pagination(20, 100));
-
 // Create Campaign
 router.post(
   "/create",
@@ -22,6 +20,7 @@ router.get(
   "/list",
   campaignValidations.list,
   enhancedJWTAuth,
+  pagination(20, 100), // Apply pagination here
   CampaignController.listCampaigns
 );
 
@@ -62,6 +61,7 @@ router.get(
   "/:id/updates",
   campaignValidations.idOperation,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   CampaignController.getCampaignUpdates
 );
 
@@ -70,6 +70,7 @@ router.get(
   "/stats",
   campaignValidations.tenantOperation,
   enhancedJWTAuth,
+  // No pagination for stats, usually aggregated
   CampaignController.getCampaignStats
 );
 
@@ -86,6 +87,7 @@ router.get(
   "/:id/donations",
   campaignValidations.idOperation,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   CampaignController.getCampaignDonations
 );
 

@@ -6,12 +6,12 @@ const searchHistoryValidations = require("@validators/search-history.validators"
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(searchHistoryValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.get(
   "/",
   searchHistoryValidations.list,
+  pagination(),
   enhancedJWTAuth,
   createSearchHistoryController.list
 );
@@ -19,6 +19,7 @@ router.get(
 router.get(
   "/users/:firebase_user_id",
   searchHistoryValidations.listByUserId,
+  pagination(),
   enhancedJWTAuth,
   createSearchHistoryController.list
 );

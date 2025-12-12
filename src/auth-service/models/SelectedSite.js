@@ -107,6 +107,8 @@ SelectedSiteSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const response = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
@@ -114,10 +116,19 @@ SelectedSiteSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "selected site", {
+      return {
+        success: true,
+        data: response,
         message: "successfully retrieved the selected site details",
-        emptyMessage: "no selected sites exist",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "selected site");
     }
