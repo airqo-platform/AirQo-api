@@ -1823,13 +1823,11 @@ const generateFilter = {
         const cohortIds = cohort_id
           .split(",")
           .map((id) => id.trim())
-          .filter((id) => mongoose.Types.ObjectId.isValid(id))
-          .map((id) => mongoose.Types.ObjectId(id));
-
+          .map((id) => ObjectId(id));
         if (cohortIds.length > 0) {
           filter._id = { $in: cohortIds };
         }
-      } else if (mongoose.Types.ObjectId.isValid(cohort_id)) {
+      } else {
         filter._id = ObjectId(cohort_id);
       }
     } else if (name) {
