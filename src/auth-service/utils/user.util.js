@@ -489,65 +489,56 @@ const createUserModule = {
   },
   listUsersAndAccessRequests: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { query, body } = request;
+      const { tenant, skip, limit } = { ...body, ...query };
       const filter = generateFilter.users(request, next);
-      const combinedData = await UserModel(tenant)
-        .aggregate([
-          {
-            $lookup: {
-              from: "access_requests",
-              localField: "email",
-              foreignField: "email",
-              as: "accessRequests",
-            },
-          },
-          {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              isActive: 1,
-              jobTitle: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
+
+      const combinedResults = await UserModel(tenant).aggregate([
+        { $match: filter },
+        {
+          $facet: {
+            users: [
+              { $skip: skip ? parseInt(skip) : 0 },
+              { $limit: limit ? parseInt(limit) : 100 },
+            ],
+            accessRequests: [
+              {
+                $lookup: {
+                  from: "access_requests",
+                  localField: "email",
+                  foreignField: "email",
+                  as: "access_requests",
                 },
               },
-              verified: 1,
-              accessRequests: {
-                $cond: [
-                  {
-                    $eq: [{ $size: "$accessRequests" }, 0],
-                  },
-                  [null],
-                  {
-                    $map: {
-                      input: "$accessRequests",
-                      as: "ar",
-                      in: {
-                        _id: "$$ar._id",
-                        status: "$$ar.status",
-                        targetId: "$$ar.targetId",
-                        requestType: "$$ar.requestType",
-                        createdAt: "$$ar.createdAt",
-                      },
-                    },
-                  },
-                ],
-              },
-            },
+              { $unwind: "$access_requests" },
+              { $replaceRoot: { newRoot: "$access_requests" } },
+            ],
+            totalUsers: [{ $count: "count" }],
           },
-        ])
-        .match(filter)
-        .exec();
+        },
+      ]);
+
+      const users = combinedResults[0].users;
+      const accessRequests = combinedResults[0].accessRequests;
+      const totalCount =
+        combinedResults[0].totalUsers.length > 0
+          ? combinedResults[0].totalUsers[0].count
+          : 0;
+
+      const data = { users, access_requests: accessRequests };
 
       return {
         success: true,
-        message: "User and access request data retrieved successfully",
-        data: combinedData,
+        message: "Successfully retrieved the combined results",
+        data,
         status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -560,6 +551,7 @@ const createUserModule = {
       );
     }
   },
+
   listCache: async (request, next) => {
     try {
       return {

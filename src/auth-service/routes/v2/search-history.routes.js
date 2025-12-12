@@ -55,7 +55,6 @@ router.delete(
 router.get(
   "/:search_history_id",
   searchHistoryValidations.getById,
-  pagination(), // Apply pagination here as it calls list
   enhancedJWTAuth,
   createSearchHistoryController.list
 );

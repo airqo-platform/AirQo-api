@@ -31,7 +31,6 @@ router.post(
   "/",
   roleValidations.create,
   enhancedJWTAuth,
-  pagination(),
   roleController.create
 );
 

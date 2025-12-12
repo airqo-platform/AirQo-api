@@ -11,6 +11,5 @@ const ObjectId = mongoose.Types.ObjectId;
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 module.exports = router;

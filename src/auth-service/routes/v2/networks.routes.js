@@ -12,7 +12,6 @@ const {
 const constants = require("@config/constants");
 
 router.use(headers);
-router.use(pagination());
 
 router.put(
   "/:net_id/assign-user/:user_id",

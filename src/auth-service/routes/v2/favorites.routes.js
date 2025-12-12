@@ -55,7 +55,6 @@ router.delete(
 router.get(
   "/:favorite_id",
   favoriteValidations.getById,
-  pagination(), // Apply pagination here as it calls list
   enhancedJWTAuth,
   createFavoriteController.list
 );

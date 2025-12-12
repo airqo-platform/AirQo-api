@@ -112,6 +112,7 @@ ChecklistSchema.statics = {
         .limit(limit) // Preserve higher limit (1000)
         .exec();
 
+      const safeLimit = limit > 0 ? limit : 1;
       return {
         success: true,
         data: checklists,
@@ -121,8 +122,8 @@ ChecklistSchema.statics = {
           total: totalCount,
           skip,
           limit,
-          page: Math.floor(skip / limit) + 1,
-          pages: Math.ceil(totalCount / limit) || 1,
+          page: Math.floor(skip / safeLimit) + 1,
+          pages: Math.ceil(totalCount / safeLimit) || 1,
         },
       };
     } catch (error) {

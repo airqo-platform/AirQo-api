@@ -34,7 +34,12 @@ router.put(
 
 router.post("/", preferenceValidations.create, preferenceController.create);
 
-router.get("/", preferenceValidations.list, preferenceController.list);
+router.get(
+  "/",
+  preferenceValidations.list,
+  pagination(),
+  preferenceController.list
+);
 
 // No pagination for DELETE
 router.delete(

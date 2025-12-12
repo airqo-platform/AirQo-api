@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const httpStatus = require("http-status");
 const { logObject } = require("@utils/shared");
 const {
   createSuccessResponse,

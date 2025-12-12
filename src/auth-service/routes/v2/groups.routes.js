@@ -31,7 +31,6 @@ const {
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 // Debug middleware for development
 if (process.env.NODE_ENV !== "production") {
@@ -60,6 +59,7 @@ router.get(
   "/",
   groupValidations.list,
   enhancedJWTAuth,
+  pagination(),
   requirePermissions([constants.GROUP_VIEW]),
   groupController.list
 );
@@ -68,6 +68,7 @@ router.get(
   "/summary",
   groupValidations.listSummary,
   enhancedJWTAuth,
+  pagination(),
   requirePermissions([constants.GROUP_VIEW]),
   groupController.listSummary
 );
@@ -130,6 +131,7 @@ router.get(
 router.get(
   "/:grp_id/members",
   enhancedJWTAuth,
+  pagination(),
   requireGroupAccess([constants.MEMBER_VIEW, constants.GROUP_VIEW]),
   groupController.getMembers
 );
@@ -206,6 +208,7 @@ router.get(
   "/:grp_id/assigned-users",
   groupValidations.listAssignedUsers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions([constants.MEMBER_VIEW], "grp_id"),
   groupController.listAssignedUsers
 );
@@ -214,6 +217,7 @@ router.get(
   "/:grp_id/all-users",
   groupValidations.listAllGroupUsers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions(
     [constants.MEMBER_VIEW, constants.USER_VIEW],
     "grp_id"
@@ -225,6 +229,7 @@ router.get(
   "/:grp_id/available-users",
   groupValidations.listAvailableUsers,
   enhancedJWTAuth,
+  pagination(),
   requireGroupUserManagement(),
   groupController.listAvailableUsers
 );
@@ -234,6 +239,7 @@ router.get(
   "/:grp_id/roles",
   groupValidations.listRolesForGroup,
   enhancedJWTAuth,
+  pagination(),
   requireGroupPermissions([constants.ROLE_VIEW], "grp_id"),
   groupController.listRolesForGroup
 );
@@ -304,6 +310,7 @@ router.post(
 router.get(
   "/:grp_id/invitations",
   enhancedJWTAuth,
+  pagination(),
   requireGroupManagerAccess(),
   groupController.listGroupInvitations
 );
@@ -377,6 +384,7 @@ router.delete(
 router.get(
   "/:grp_id/cohorts",
   enhancedJWTAuth,
+  pagination(),
   requireGroupMembership("grp_id"),
   groupValidations.listGroupCohorts,
   groupController.listGroupCohorts

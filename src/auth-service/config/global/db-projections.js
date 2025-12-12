@@ -216,7 +216,6 @@ const dbProjections = {
       "role_users.subscriptionStatus": 0,
       "role_users.theme": 0,
       "role_users.preferredTokenStrategy": 0,
-      "role_users.interests": 0,
       "role_users.deletionToken": 0,
       "role_users.deletionTokenExpires": 0,
       "role_users.status": 0,

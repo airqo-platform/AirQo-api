@@ -40,7 +40,6 @@ router.delete(
 router.get(
   "/:permission_id",
   permissionValidations.getById,
-  pagination(), // Apply pagination here as it calls list
   enhancedJWTAuth,
   createPermissionController.list
 );

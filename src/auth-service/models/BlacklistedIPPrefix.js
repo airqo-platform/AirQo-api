@@ -78,6 +78,8 @@ BlacklistedIPPrefixSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const inclusionProjection = constants.IP_PREFIX_INCLUSION_PROJECTION;
       const exclusionProjection = constants.IP_PREFIX_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"

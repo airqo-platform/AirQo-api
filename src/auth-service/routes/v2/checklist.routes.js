@@ -48,7 +48,6 @@ router.delete(
 router.get(
   "/:user_id",
   enhancedJWTAuth,
-  pagination(), // Apply pagination here as it calls list
   checklistValidations.getChecklistByUserId,
   createChecklistController.list
 );

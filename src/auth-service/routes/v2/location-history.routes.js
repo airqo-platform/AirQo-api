@@ -55,7 +55,6 @@ router.delete(
 router.get(
   "/:location_history_id",
   locationHistoryValidations.getById,
-  pagination(), // Apply pagination here as it calls list
   enhancedJWTAuth,
   createLocationHistoryController.list
 );

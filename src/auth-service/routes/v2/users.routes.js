@@ -780,7 +780,6 @@ router.get(
   "/:user_id/profile/enhanced",
   enhancedJWTAuth,
   userValidations.getEnhancedProfileForUser,
-  pagination(), // Assuming this can return a list of profiles or a single one with pagination
   validate,
   // requirePermissions([constants.USER_VIEW]),
   userController.getEnhancedProfileForUser

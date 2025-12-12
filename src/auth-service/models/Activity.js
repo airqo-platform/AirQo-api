@@ -5,6 +5,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
 const log4js = require("log4js");

@@ -215,9 +215,7 @@ RoleSchema.statics = {
         delete filter.category;
       }
 
-      const totalCount = await this.countDocuments(filter);
-
-      const roles = await this.aggregate()
+      const results = await this.aggregate()
         .match(filter)
         .lookup({
           from: "networks",
@@ -262,9 +260,20 @@ RoleSchema.statics = {
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .facet({
+          paginatedResults: [
+            { $skip: skip ? skip : 0 },
+            { $limit: limit ? limit : 100 },
+          ],
+          totalCount: [{ $count: "count" }],
+        })
         .allowDiskUse(true);
+
+      const roles = results[0].paginatedResults;
+      const totalCount =
+        results[0].totalCount.length > 0 ? results[0].totalCount[0].count : 0;
+
+      const safeLimit = limit > 0 ? limit : 1;
 
       return {
         success: true,
@@ -275,8 +284,8 @@ RoleSchema.statics = {
           total: totalCount,
           skip,
           limit,
-          page: Math.floor(skip / limit) + 1,
-          pages: Math.ceil(totalCount / limit) || 1,
+          page: Math.floor(skip / safeLimit) + 1,
+          pages: Math.ceil(totalCount / safeLimit) || 1,
         },
       };
     } catch (error) {
