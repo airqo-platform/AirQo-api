@@ -6,14 +6,14 @@ const surveyValidations = require("@validators/surveys.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(surveyValidations.pagination);
+router.use(headers); // Keep headers global
 
 // Get all available surveys
 router.get(
   "/",
   surveyValidations.list,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createSurveyController.list
 );
 
@@ -22,6 +22,7 @@ router.get(
   "/:survey_id",
   surveyValidations.getSurveyById,
   enhancedJWTAuth,
+  // No pagination for single item retrieval
   createSurveyController.getById
 );
 
@@ -62,6 +63,7 @@ router.get(
   "/responses",
   surveyValidations.listResponses,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createSurveyController.listResponses
 );
 
@@ -70,6 +72,7 @@ router.get(
   "/stats/:survey_id",
   surveyValidations.getSurveyStats,
   enhancedJWTAuth,
+  // No pagination for stats, usually aggregated
   createSurveyController.getStats
 );
 

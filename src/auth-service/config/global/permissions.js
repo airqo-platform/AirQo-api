@@ -244,7 +244,6 @@ const DEFAULT_ROLE_DEFINITIONS = {
           "ANALYTICS_",
           "DATA_",
           "SETTINGS_",
-          "SHIPPING_",
         ].some((prefix) => p.startsWith(prefix))
       ),
     ].filter((value, index, self) => self.indexOf(value) === index),
@@ -262,7 +261,6 @@ const DEFAULT_ROLE_DEFINITIONS = {
       PERMISSIONS.DEVICE_VIEW,
       PERMISSIONS.DEVICE_CLAIM,
       PERMISSIONS.DEVICE_DEPLOY,
-      PERMISSIONS.NETWORK_VIEW,
       PERMISSIONS.API_ACCESS,
       PERMISSIONS.TOKEN_GENERATE,
     ],

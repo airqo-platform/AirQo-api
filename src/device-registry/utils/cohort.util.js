@@ -489,12 +489,15 @@ const createCohort = {
         filter._id &&
         Object.keys(filter).length === 1
       ) {
+        const idString = filter._id.$in
+          ? `[${filter._id.$in.join(", ")}]`
+          : filter._id;
         return {
           success: false,
           message: "Cohort not found",
           status: httpStatus.NOT_FOUND,
           errors: {
-            message: `Cohort with ID ${filter._id} does not exist`,
+            message: `Cohort with ID ${idString} does not exist`,
           },
         };
       }

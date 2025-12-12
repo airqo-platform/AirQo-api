@@ -7,8 +7,6 @@ const { validate, headers, pagination } = require("@validators/common");
 const router = express.Router();
 
 router.use(headers);
-router.use(transactionValidations.pagination(100, 1000));
-
 // Checkout Session
 router.post(
   "/checkout",
@@ -30,6 +28,7 @@ router.get(
   "/list",
   transactionValidations.tenantOperation,
   enhancedJWTAuth,
+  pagination(100, 1000), // Apply pagination here
   TransactionController.listTransactions
 );
 
@@ -46,6 +45,7 @@ router.get(
   "/stats",
   transactionValidations.tenantOperation,
   enhancedJWTAuth,
+  // No pagination for stats, usually aggregated
   TransactionController.getTransactionStats
 );
 
@@ -110,6 +110,7 @@ router.get(
   "/transaction-history",
   transactionValidations.history,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   TransactionController.getExtendedTransactionHistory
 );
 

@@ -206,6 +206,7 @@ OrganizationRequestSchema.statics = {
       ];
 
       const data = await this.aggregate(pipeline);
+      const totalCount = await this.countDocuments(filter);
 
       return createSuccessResponse("list", data, "organization request", {
         message: "Successfully retrieved organization requests",

@@ -489,65 +489,72 @@ const createUserModule = {
   },
   listUsersAndAccessRequests: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { query, body } = request;
+      const { tenant, skip: rawSkip, limit: rawLimit } = { ...body, ...query };
+      const skip = Number.isFinite(Number(rawSkip))
+        ? Math.max(0, parseInt(rawSkip, 10))
+        : 0;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.max(1, parseInt(rawLimit, 10))
+        : 100;
       const filter = generateFilter.users(request, next);
-      const combinedData = await UserModel(tenant)
-        .aggregate([
-          {
-            $lookup: {
-              from: "access_requests",
-              localField: "email",
-              foreignField: "email",
-              as: "accessRequests",
-            },
-          },
-          {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              isActive: 1,
-              jobTitle: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
+
+      // Step 1: Get paginated users and total count in one aggregation
+      const userAggregationResult = await UserModel(tenant).aggregate([
+        { $match: filter },
+        {
+          $facet: {
+            paginatedUsers: [
+              { $sort: { _id: 1 } },
+              { $skip: skip },
+              { $limit: limit },
+              // Project necessary fields for the user list and for the subsequent lookup
+              {
+                $project: {
+                  _id: 1,
+                  email: 1,
+                  firstName: 1,
+                  lastName: 1,
+                  isActive: 1,
+                  jobTitle: 1,
+                  verified: 1,
                 },
               },
-              verified: 1,
-              accessRequests: {
-                $cond: [
-                  {
-                    $eq: [{ $size: "$accessRequests" }, 0],
-                  },
-                  [null],
-                  {
-                    $map: {
-                      input: "$accessRequests",
-                      as: "ar",
-                      in: {
-                        _id: "$$ar._id",
-                        status: "$$ar.status",
-                        targetId: "$$ar.targetId",
-                        requestType: "$$ar.requestType",
-                        createdAt: "$$ar.createdAt",
-                      },
-                    },
-                  },
-                ],
-              },
-            },
+            ],
+            totalUsersCount: [{ $count: "count" }],
           },
-        ])
-        .match(filter)
-        .exec();
+        },
+      ]);
+
+      const paginatedUsers = userAggregationResult[0].paginatedUsers || [];
+      const totalCount =
+        userAggregationResult[0].totalUsersCount[0]?.count || 0;
+
+      // Step 2: Extract emails from the paginated users
+      const paginatedUserEmails = paginatedUsers.map((user) => user.email);
+
+      // Step 3: Fetch access requests only for the paginated users
+      const accessRequests = await AccessRequestModel(tenant)
+        .find({
+          email: { $in: paginatedUserEmails },
+        })
+        .lean();
+
+      const data = { users: paginatedUsers, access_requests: accessRequests };
+      const safeLimit = limit > 0 ? limit : 1;
 
       return {
         success: true,
-        message: "User and access request data retrieved successfully",
-        data: combinedData,
+        message: "Successfully retrieved the combined results",
+        data,
         status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / safeLimit) + 1,
+          pages: Math.ceil(totalCount / safeLimit) || 1,
+        },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -560,6 +567,7 @@ const createUserModule = {
       );
     }
   },
+
   listCache: async (request, next) => {
     try {
       return {

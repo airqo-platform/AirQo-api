@@ -1815,15 +1815,22 @@ const generateFilter = {
       ];
     }
 
+    // Establish a clear priority for identifiers: id > cohort_id > name
     if (id) {
-      filter["_id"] = ObjectId(id);
-    }
-
-    if (cohort_id) {
-      filter["_id"] = ObjectId(cohort_id);
-    }
-
-    if (name) {
+      filter._id = ObjectId(id);
+    } else if (cohort_id) {
+      if (typeof cohort_id === "string" && cohort_id.includes(",")) {
+        const cohortIds = cohort_id
+          .split(",")
+          .map((id) => id.trim())
+          .map((id) => ObjectId(id));
+        if (cohortIds.length > 0) {
+          filter._id = { $in: cohortIds };
+        }
+      } else {
+        filter._id = ObjectId(cohort_id);
+      }
+    } else if (name) {
       filter["name"] = name;
     }
 

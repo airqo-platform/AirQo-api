@@ -215,7 +215,7 @@ RoleSchema.statics = {
         delete filter.category;
       }
 
-      const roles = await this.aggregate()
+      const results = await this.aggregate()
         .match(filter)
         .lookup({
           from: "networks",
@@ -228,6 +228,14 @@ RoleSchema.statics = {
           localField: "group_id",
           foreignField: "_id",
           as: "group",
+        })
+        .unwind({
+          path: "$network",
+          preserveNullAndEmptyArrays: true,
+        })
+        .unwind({
+          path: "$group",
+          preserveNullAndEmptyArrays: true,
         })
         .lookup({
           from: "permissions",
@@ -252,14 +260,34 @@ RoleSchema.statics = {
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .facet({
+          paginatedResults: [
+            { $skip: skip ? skip : 0 },
+            { $limit: limit ? limit : 100 },
+          ],
+          totalCount: [{ $count: "count" }],
+        })
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", roles, "role", {
-        message: "successfully listed the roles",
-        emptyMessage: "roles not found for this operation",
-      });
+      const roles = results[0].paginatedResults;
+      const totalCount =
+        results[0].totalCount.length > 0 ? results[0].totalCount[0].count : 0;
+
+      const safeLimit = limit > 0 ? limit : 1;
+
+      return {
+        success: true,
+        data: roles,
+        message: "Successfully retrieved the roles",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / safeLimit) + 1,
+          pages: Math.ceil(totalCount / safeLimit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "role");
     }

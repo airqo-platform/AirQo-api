@@ -120,6 +120,8 @@ CandidateSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const inclusionProjection = constants.CANDIDATES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.CANDIDATES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
@@ -150,10 +152,19 @@ CandidateSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", data, "candidate", {
+      return {
+        success: true,
+        data: data,
         message: "successfully listed the candidates",
-        emptyMessage: "no candidates exist",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "candidate");
     }

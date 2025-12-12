@@ -72,10 +72,21 @@ GuestUserSchema.statics = {
         .limit(limit)
         .exec();
 
-      return createSuccessResponse("list", guestUsers, "guest user", {
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: guestUsers,
         message: "successfully listed the guest users",
-        emptyMessage: "No guest users found",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (err) {
       return createErrorResponse(err, "list", logger, "guest user");
     }

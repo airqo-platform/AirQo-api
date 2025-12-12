@@ -89,6 +89,8 @@ WhitelistedIPSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       logObject("filtering here", filter);
       const inclusionProjection = constants.IPS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.IPS_EXCLUSION_PROJECTION(
@@ -108,10 +110,19 @@ WhitelistedIPSchema.statics = {
         .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "whitelisted IP", {
+      return {
+        success: true,
+        data: response,
         message: "successfully retrieved the ip details",
-        emptyMessage: "No ips found, please crosscheck provided details",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "whitelisted IP");
     }

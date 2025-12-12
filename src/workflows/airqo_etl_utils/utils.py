@@ -295,28 +295,61 @@ class Utils:
     @staticmethod
     def execute_and_forget_async_task(job: AsyncTask) -> None:
         """
-        Executes an asynchronous coroutine in a background daemon thread without blocking the main thread.
+        Executes an asynchronous coroutine in a background thread with proper resource cleanup.
 
-        This function is useful for "execute-and-forget" style background tasks, where the result of the coroutine is not needed immediately, and you don't want the main application to wait for its completion.
+        This function ensures that async tasks run to completion without causing resource leaks
+        such as semaphore warnings. The thread is allowed to complete naturally rather than
+        being forcibly terminated.
 
         Args:
             job(Coroutine): An awaitable coroutine object to be executed asynchronously.
 
         Notes:
-            - The coroutine is executed inside a new event loop.
-            - The thread is marked as a daemon, so it won't prevent the program from exiting.
-            - Exceptions in the coroutine are not propagated to the main thread. Handle them within the coroutine.
+            - The coroutine is executed inside a new event loop in a separate thread
+            - Thread is non-daemon to prevent premature termination
+            - Proper error handling prevents resource leaks
+            - Event loop is properly closed after task completion
         """
 
         def _run():
+            loop = None
             try:
+                # Create and set new event loop for this thread
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(job())
-            finally:
-                loop.close()
 
-        Thread(target=_run, daemon=True).start()
+                # Run the coroutine to completion
+                loop.run_until_complete(job())
+
+            except Exception as e:
+                logger.exception(f"Async task failed: {e}")
+            finally:
+                # Ensure proper cleanup
+                if loop and not loop.is_closed():
+                    try:
+                        # Cancel any remaining tasks
+                        pending_tasks = [
+                            task for task in asyncio.all_tasks(loop) if not task.done()
+                        ]
+                        if pending_tasks:
+                            for task in pending_tasks:
+                                task.cancel()
+                            # Wait for cancelled tasks to complete
+                            loop.run_until_complete(
+                                asyncio.gather(*pending_tasks, return_exceptions=True)
+                            )
+                    except Exception as cleanup_error:
+                        logger.exception(f"Error during task cleanup: {cleanup_error}")
+                    finally:
+                        # Close the event loop
+                        loop.close()
+
+        # Use non-daemon thread to ensure completion
+        thread = Thread(target=_run, daemon=False)
+        thread.start()
+
+        # Don't join() here to maintain "fire and forget" behavior
+        # but the non-daemon thread will complete naturally
 
     @staticmethod
     def parse_api_response(

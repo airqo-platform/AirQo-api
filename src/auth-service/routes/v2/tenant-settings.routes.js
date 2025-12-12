@@ -5,13 +5,13 @@ const tenantSettingsValidations = require("@validators/tenant-settings.validator
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(tenantSettingsValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.get(
   "/",
   tenantSettingsValidations.list,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   tenantSettingsController.list
 );
 
@@ -39,6 +39,7 @@ router.delete(
 router.get(
   "/:id",
   tenantSettingsValidations.listInformation,
+  pagination(), // Apply pagination here as it calls list
   enhancedJWTAuth,
   tenantSettingsController.list
 );

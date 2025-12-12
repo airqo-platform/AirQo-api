@@ -3,10 +3,9 @@ const router = express.Router();
 const guestUserController = require("@controllers/guest-user.controller");
 const guestUserValidations = require("@validators/guest-user.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
-const { validate, headers } = require("@validators/common");
+const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(guestUserValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.post(
   "/",
@@ -23,6 +22,7 @@ router.post(
 router.get(
   "/",
   guestUserValidations.list,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   validate,
   guestUserController.list
