@@ -42,7 +42,7 @@ def generate_unique_airqloud_id(db: Session) -> str:
             return airqloud_id
 
 
-@router.get("/")
+@router.get("")
 async def get_airqlouds(
     *,
     db: Session = Depends(get_db),
@@ -231,7 +231,7 @@ async def get_airqloud(
         raise HTTPException(status_code=500, detail=f"Failed to fetch AirQloud: {str(e)}")
 
 
-@router.post("/", response_model=AirQloudRead, status_code=201)
+@router.post("", response_model=AirQloudRead, status_code=201)
 async def create_airqloud(
     *,
     db: Session = Depends(get_db),

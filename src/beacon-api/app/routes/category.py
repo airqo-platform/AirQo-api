@@ -8,7 +8,7 @@ from app.deps import get_db
 router = APIRouter()
 
 
-@router.post("/", response_model=CategoryRead, status_code=201)
+@router.post("", response_model=CategoryRead, status_code=201)
 def create_category(
     *,
     db: Session = Depends(get_db),
@@ -26,7 +26,7 @@ def create_category(
     return category_crud.create(db=db, obj_in=category_in)
 
 
-@router.get("/", response_model=List[CategoryRead])
+@router.get("", response_model=List[CategoryRead])
 def list_categories(
     *,
     db: Session = Depends(get_db),
