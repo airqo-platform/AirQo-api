@@ -188,6 +188,13 @@ router.post(
   "/soft",
   validateTenant,
   validateCreateDevice,
+  body("user_id")
+    .exists()
+    .withMessage("user_id is a mandatory field")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+  validate,
   deviceController.createOnPlatform
 );
 
