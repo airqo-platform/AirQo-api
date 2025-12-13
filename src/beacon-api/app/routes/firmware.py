@@ -150,7 +150,7 @@ async def upload_firmware(
         raise
 
 
-@router.get("/", response_model=List[FirmwareRead])
+@router.get("", response_model=List[FirmwareRead])
 def list_firmwares(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Number of items to return"),
