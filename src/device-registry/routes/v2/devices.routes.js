@@ -31,6 +31,7 @@ const {
   validateGetShippingBatchDetails,
   validateGetDeviceCountSummary,
   validateTransferDevice,
+  validateUserIdBody,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
 
@@ -188,6 +189,8 @@ router.post(
   "/soft",
   validateTenant,
   validateCreateDevice,
+  validateUserIdBody,
+  validate,
   deviceController.createOnPlatform
 );
 
