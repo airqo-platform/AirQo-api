@@ -1289,7 +1289,9 @@ const deviceUtil = {
       const { body } = request;
 
       // Automatically assign the user who is importing the device as the owner
-      body.owner_id = body.user_id;
+      if (body.user_id) {
+        body.owner_id = body.user_id;
+      }
 
       try {
         const defaultCohort = await CohortModel(tenant)
