@@ -1288,32 +1288,68 @@ const deviceUtil = {
       const { tenant } = request.query;
       const { body } = request;
 
+      // Validate user_id for ownership and personal cohort assignment
+      if (!body.user_id || !isValidObjectId(body.user_id)) {
+        throw new HttpError("Invalid user_id provided", httpStatus.BAD_REQUEST);
+      }
+
+      // Initialize cohorts array if it doesn't exist to prevent runtime errors
+      if (!body.cohorts) {
+        body.cohorts = [];
+      }
       // Automatically assign the user who is importing the device as the owner
       if (body.user_id) {
         body.owner_id = body.user_id;
       }
 
       try {
+        // --- START: New logic for cohort assignment ---
+        const { user_id, cohort_id } = body;
+        let targetCohort;
+
+        if (cohort_id) {
+          // Case A: A specific cohort is provided during import
+          targetCohort = await CohortModel(tenant)
+            .findById(cohort_id)
+            .lean();
+          if (!targetCohort) {
+            // If a specific cohort is requested but not found, it's an error.
+            throw new HttpError(
+              `Specified cohort with ID ${cohort_id} not found.`,
+              httpStatus.NOT_FOUND
+            );
+          }
+        } else {
+          // Case B: No cohort provided, use or create the user's personal cohort
+          const personalCohortName = `coh_user_${user_id.toString()}`;
+          targetCohort = await CohortModel(tenant).findOneAndUpdate(
+            { name: personalCohortName },
+            {
+              $setOnInsert: {
+                name: personalCohortName,
+                description: `Personal cohort for user ${user_id.toString()}`,
+                network: body.network || "airqo", // Use device network or default
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+        }
+
+        // Add the target cohort (personal or specified) to the device
+        if (targetCohort) {
+          body.cohorts.push(targetCohort._id);
+        }
+        // --- END: New logic for cohort assignment ---
+
+        // Add device to the main default cohort as well
         const defaultCohort = await CohortModel(tenant)
           .findOne({ name: constants.DEFAULT_COHORT_NAME })
           .select("_id")
           .lean();
+
         if (defaultCohort) {
-          // Initialize cohorts array if it doesn't exist
-          if (!body.cohorts) {
-            body.cohorts = [];
-          }
-
-          // Add airqo cohort if not already present
-          const airqoCohortId = defaultCohort._id.toString();
-          const existingCohortIds = body.cohorts.map((id) => String(id));
-
-          if (!existingCohortIds.includes(airqoCohortId)) {
-            body.cohorts.push(defaultCohort._id);
-            logText(`Added device to default 'airqo' cohort: ${airqoCohortId}`);
-          }
+          body.cohorts.push(defaultCohort._id);
         } else {
-          logText("💔 No default 'airqo' cohort found.");
           logger.warn(
             `💔 Default 'airqo' cohort not found in tenant: ${tenant}. Device will be created without default cohort.`
           );
@@ -1323,6 +1359,18 @@ const deviceUtil = {
           `🪲🪲 Error finding default cohort: ${cohortError.message}. Continuing with device creation.`
         );
         // Don't fail device creation if cohort lookup fails
+      }
+
+      // Ensure cohorts array has unique values before saving
+      // and gracefully handle any invalid ObjectIDs that might be present.
+      try {
+        body.cohorts = [...new Set(body.cohorts.map(String))]
+          .filter((id) => isValidObjectId(id))
+          .map((id) => ObjectId(id));
+      } catch (cohortNormalizationError) {
+        logger.error(
+          `🪲 Error normalizing cohorts array: ${cohortNormalizationError.message}`
+        );
       }
 
       const responseFromRegisterDevice = await DeviceModel(tenant).register(
