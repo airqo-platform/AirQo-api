@@ -1456,6 +1456,16 @@ const validateGetDeviceCountSummary = [
     .trim(),
 ];
 
+const validateUserIdBody = [
+  body("user_id")
+    .exists()
+    .withMessage("user_id is a mandatory field")
+    .bail()
+    .notEmpty()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+];
+
 module.exports = {
   validateTenant,
   pagination,
@@ -1489,4 +1499,5 @@ module.exports = {
   suggestDeviceNames,
   validateGetDeviceCountSummary,
   validateListOrphanedDevices,
+  validateUserIdBody,
 };
