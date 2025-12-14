@@ -1288,6 +1288,15 @@ const deviceUtil = {
       const { tenant } = request.query;
       const { body } = request;
 
+      // Validate user_id for ownership and personal cohort assignment
+      if (!body.user_id || !isValidObjectId(body.user_id)) {
+        throw new HttpError("Invalid user_id provided", httpStatus.BAD_REQUEST);
+      }
+
+      // Initialize cohorts array if it doesn't exist to prevent runtime errors
+      if (!body.cohorts) {
+        body.cohorts = [];
+      }
       // Automatically assign the user who is importing the device as the owner
       if (body.user_id) {
         body.owner_id = body.user_id;
@@ -1304,8 +1313,10 @@ const deviceUtil = {
             .findById(cohort_id)
             .lean();
           if (!targetCohort) {
-            logger.warn(
-              `Specified cohort_id ${cohort_id} not found during import. Skipping assignment.`
+            // If a specific cohort is requested but not found, it's an error.
+            throw new HttpError(
+              `Specified cohort with ID ${cohort_id} not found.`,
+              httpStatus.NOT_FOUND
             );
           }
         } else {
@@ -1322,11 +1333,6 @@ const deviceUtil = {
             },
             { upsert: true, new: true, setDefaultsOnInsert: true }
           );
-        }
-
-        // Initialize cohorts array if it doesn't exist
-        if (!body.cohorts) {
-          body.cohorts = [];
         }
 
         // Add the target cohort (personal or specified) to the device
@@ -1356,9 +1362,16 @@ const deviceUtil = {
       }
 
       // Ensure cohorts array has unique values before saving
-      body.cohorts = [...new Set(body.cohorts.map(String))].map((id) =>
-        ObjectId(id)
-      );
+      // and gracefully handle any invalid ObjectIDs that might be present.
+      try {
+        body.cohorts = [...new Set(body.cohorts.map(String))]
+          .filter((id) => isValidObjectId(id))
+          .map((id) => ObjectId(id));
+      } catch (cohortNormalizationError) {
+        logger.error(
+          `🪲 Error normalizing cohorts array: ${cohortNormalizationError.message}`
+        );
+      }
 
       const responseFromRegisterDevice = await DeviceModel(tenant).register(
         body,
