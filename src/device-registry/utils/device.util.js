@@ -1294,26 +1294,56 @@ const deviceUtil = {
       }
 
       try {
+        // --- START: New logic for cohort assignment ---
+        const { user_id, cohort_id } = body;
+        let targetCohort;
+
+        if (cohort_id) {
+          // Case A: A specific cohort is provided during import
+          targetCohort = await CohortModel(tenant)
+            .findById(cohort_id)
+            .lean();
+          if (!targetCohort) {
+            logger.warn(
+              `Specified cohort_id ${cohort_id} not found during import. Skipping assignment.`
+            );
+          }
+        } else {
+          // Case B: No cohort provided, use or create the user's personal cohort
+          const personalCohortName = `coh_user_${user_id.toString()}`;
+          targetCohort = await CohortModel(tenant).findOneAndUpdate(
+            { name: personalCohortName },
+            {
+              $setOnInsert: {
+                name: personalCohortName,
+                description: `Personal cohort for user ${user_id.toString()}`,
+                network: body.network || "airqo", // Use device network or default
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+        }
+
+        // Initialize cohorts array if it doesn't exist
+        if (!body.cohorts) {
+          body.cohorts = [];
+        }
+
+        // Add the target cohort (personal or specified) to the device
+        if (targetCohort) {
+          body.cohorts.push(targetCohort._id);
+        }
+        // --- END: New logic for cohort assignment ---
+
+        // Add device to the main default cohort as well
         const defaultCohort = await CohortModel(tenant)
           .findOne({ name: constants.DEFAULT_COHORT_NAME })
           .select("_id")
           .lean();
+
         if (defaultCohort) {
-          // Initialize cohorts array if it doesn't exist
-          if (!body.cohorts) {
-            body.cohorts = [];
-          }
-
-          // Add airqo cohort if not already present
-          const airqoCohortId = defaultCohort._id.toString();
-          const existingCohortIds = body.cohorts.map((id) => String(id));
-
-          if (!existingCohortIds.includes(airqoCohortId)) {
-            body.cohorts.push(defaultCohort._id);
-            logText(`Added device to default 'airqo' cohort: ${airqoCohortId}`);
-          }
+          body.cohorts.push(defaultCohort._id);
         } else {
-          logText("💔 No default 'airqo' cohort found.");
           logger.warn(
             `💔 Default 'airqo' cohort not found in tenant: ${tenant}. Device will be created without default cohort.`
           );
@@ -1324,6 +1354,11 @@ const deviceUtil = {
         );
         // Don't fail device creation if cohort lookup fails
       }
+
+      // Ensure cohorts array has unique values before saving
+      body.cohorts = [...new Set(body.cohorts.map(String))].map((id) =>
+        ObjectId(id)
+      );
 
       const responseFromRegisterDevice = await DeviceModel(tenant).register(
         body,
