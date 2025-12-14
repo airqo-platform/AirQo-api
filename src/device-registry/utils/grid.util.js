@@ -629,15 +629,17 @@ const createGrid = {
                 cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
               },
             },
-            // If cohort_id is provided, further filter the sites
+          },
+        },
+        // If cohort_id is provided, further filter the sites
+        {
+          $addFields: {
             sites: cohort_id
               ? {
                   $filter: {
                     input: "$sites",
                     as: "site",
-                    cond: {
-                      $in: ["$$site._id", cohortSiteIds],
-                    },
+                    cond: { $in: ["$$site._id", cohortSiteIds] },
                   },
                 }
               : "$sites",
