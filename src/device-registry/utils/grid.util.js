@@ -14,7 +14,6 @@ const constants = require("@config/constants");
 const { generateFilter, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
-const eventUtil = require("@utils/event.util");
 const mongoose = require("mongoose");
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
@@ -39,6 +38,42 @@ function filterOutPrivateIDs(privateIds, randomIds) {
 
   return filteredIds;
 }
+
+const getSiteIdsFromCohort = async (tenant, cohort_id) => {
+  try {
+    const cohortIdArray = Array.isArray(cohort_id)
+      ? cohort_id
+      : cohort_id.split(",").map((id) => id.trim());
+
+    const devicesInCohort = await DeviceModel(tenant)
+      .find({
+        cohorts: { $in: cohortIdArray },
+        site_id: { $ne: null },
+      })
+      .distinct("site_id");
+
+    if (devicesInCohort.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: "No sites found for the specified cohort(s).",
+      };
+    }
+
+    return {
+      success: true,
+      data: devicesInCohort,
+      message: "Successfully retrieved site IDs from cohort(s).",
+    };
+  } catch (error) {
+    logger.error(`Error in getSiteIdsFromCohort: ${error.message}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+    };
+  }
+};
 
 const createGrid = {
   batchCreate: async (request, next) => {
@@ -512,60 +547,12 @@ const createGrid = {
       const sortField = sortBy ? sortBy : "createdAt";
 
       let cohortSiteIds = [];
-      if (cohort_id) {
-        // We need to get devices for the cohort, then sites for those devices
-        const cohortDevicesResponse = await eventUtil.getDevicesFromCohort({
-          tenant,
-          cohort_id,
-        });
-        if (!cohortDevicesResponse.success) {
-          return {
-            success: false,
-            message:
-              cohortDevicesResponse.message ||
-              "Failed to retrieve devices for the specified cohort",
-            errors: cohortDevicesResponse.errors || {
-              message: "Cohort device retrieval failed",
-            },
-            status: cohortDevicesResponse.status || httpStatus.BAD_REQUEST,
-          };
+      if (cohort_id && cohort_id.trim() !== "") {
+        const siteIdsResponse = await getSiteIdsFromCohort(tenant, cohort_id);
+        if (!siteIdsResponse.success) {
+          return siteIdsResponse; // Propagate error
         }
-
-        if (
-          typeof cohortDevicesResponse.data === "string" &&
-          cohortDevicesResponse.data
-        ) {
-          const deviceIds = cohortDevicesResponse.data
-            .split(",")
-            .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
-            .map((id) => ObjectId(id));
-
-          if (deviceIds.length === 0) {
-            return {
-              success: true,
-              message: "No devices found in the specified cohort",
-              data: [],
-              status: httpStatus.OK,
-              meta: {
-                total: 0,
-                limit: _limit,
-                skip: _skip,
-                page: 1,
-                totalPages: 0,
-              },
-            };
-          }
-
-          const cohortSiteIdsResult = await DeviceModel(tenant).aggregate([
-            { $match: { _id: { $in: deviceIds } } },
-            { $match: { site_id: { $ne: null } } },
-            { $group: { _id: null, siteIds: { $addToSet: "$site_id" } } },
-          ]);
-          cohortSiteIds =
-            cohortSiteIdsResult.length > 0
-              ? cohortSiteIdsResult[0].siteIds
-              : [];
-        }
+        cohortSiteIds = siteIdsResponse.data;
       }
 
       // Handle case where cohort_id is provided but no sites are found
@@ -573,7 +560,7 @@ const createGrid = {
         logger.info(`No sites found for cohort_id: ${cohort_id}`);
         return {
           success: true,
-          message: "No sites found for the specified cohort(s)",
+          message: "No grids found for the specified cohort(s).",
           data: [],
           status: httpStatus.OK,
           meta: {
@@ -1359,22 +1346,17 @@ const createGrid = {
 
       let cohortSiteIds = [];
       if (cohort_id) {
-        const devicesInCohort = await DeviceModel(tenant)
-          .find({
-            cohorts: {
-              $in: Array.isArray(cohort_id) ? cohort_id : [cohort_id],
-            },
-            site_id: { $ne: null },
-          })
-          .distinct("site_id");
-
-        cohortSiteIds = devicesInCohort;
+        const siteIdsResponse = await getSiteIdsFromCohort(tenant, cohort_id);
+        if (!siteIdsResponse.success) {
+          return siteIdsResponse;
+        }
+        cohortSiteIds = siteIdsResponse.data;
 
         // If a cohort_id is provided but no sites are found for it, return an empty array.
         if (cohortSiteIds.length === 0) {
           return {
             success: true,
-            message: "No countries found for the specified cohort.",
+            message: "No countries found for the specified cohort(s).",
             data: [],
             status: httpStatus.OK,
           };
