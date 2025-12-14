@@ -10,7 +10,6 @@ const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
-const eventUtil = require("@utils/event.util");
 const { generateFilter } = require("@utils/common");
 const geolib = require("geolib");
 const { Kafka } = require("kafkajs");
@@ -31,6 +30,63 @@ describe("Grid Util", () => {
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  describe("getSiteIdsFromCohort", () => {
+    it("should return site IDs for a given cohort_id", async () => {
+      const tenant = "airqo";
+      const cohortId = new mongoose.Types.ObjectId().toString();
+      const siteIds = [
+        new mongoose.Types.ObjectId(),
+        new mongoose.Types.ObjectId(),
+      ];
+      const deviceFindStub = sandbox.stub().returns({
+        distinct: sandbox.stub().resolves(siteIds),
+      });
+      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
+
+      const result = await gridUtil.getSiteIdsFromCohort(tenant, cohortId);
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal(siteIds);
+      sinon.assert.calledWith(deviceFindStub, {
+        cohorts: { $in: [cohortId] },
+        site_id: { $ne: null },
+      });
+    });
+
+    it("should return an empty array if no devices are in the cohort", async () => {
+      const tenant = "airqo";
+      const cohortId = new mongoose.Types.ObjectId().toString();
+      const deviceFindStub = sandbox.stub().returns({
+        distinct: sandbox.stub().resolves([]),
+      });
+      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
+
+      const result = await gridUtil.getSiteIdsFromCohort(tenant, cohortId);
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.be.an("array").that.is.empty;
+      expect(result.message).to.equal(
+        "No sites found for the specified cohort(s)."
+      );
+    });
+
+    it("should handle database errors gracefully", async () => {
+      const tenant = "airqo";
+      const cohortId = new mongoose.Types.ObjectId().toString();
+      const dbError = new Error("Database connection failed");
+      const deviceFindStub = sandbox.stub().returns({
+        distinct: sandbox.stub().rejects(dbError),
+      });
+      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
+
+      const result = await gridUtil.getSiteIdsFromCohort(tenant, cohortId);
+
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Internal Server Error");
+      expect(result.errors.message).to.equal(dbError.message);
+    });
   });
 
   describe("create", () => {
@@ -162,12 +218,10 @@ describe("Grid Util", () => {
       sandbox
         .stub(CohortModel, "default")
         .returns({ aggregate: sandbox.stub().resolves([]) });
-      sandbox
-        .stub(eventUtil, "getDevicesFromCohort")
-        .resolves({ success: true, data: "device1,device2" });
-      sandbox.stub(DeviceModel, "default").returns({
-        aggregate: sandbox.stub().resolves([{ siteIds: cohortSiteIds }]),
+      const deviceFindStub = sandbox.stub().returns({
+        distinct: sandbox.stub().resolves(cohortSiteIds),
       });
+      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
 
       await gridUtil.list(request);
 
@@ -186,20 +240,21 @@ describe("Grid Util", () => {
       ).to.deep.equal(cohortSiteIds);
     });
 
-    it("should return empty if cohort has no devices", async () => {
+    it("should return empty if cohort has no sites", async () => {
       const cohortId = new mongoose.Types.ObjectId().toString();
       const request = { query: { tenant: "airqo", cohort_id: cohortId } };
 
-      sandbox
-        .stub(eventUtil, "getDevicesFromCohort")
-        .resolves({ success: true, data: "" });
+      const deviceFindStub = sandbox.stub().returns({
+        distinct: sandbox.stub().resolves([]),
+      });
+      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
 
       const result = await gridUtil.list(request);
 
       expect(result.success).to.be.true;
       expect(result.data).to.be.an("array").that.is.empty;
       expect(result.message).to.equal(
-        "No devices found in the specified cohort"
+        "No grids found for the specified cohort(s)."
       );
     });
   });
@@ -241,6 +296,7 @@ describe("Grid Util", () => {
     it("should find sites within a grid's shape", async () => {
       const gridId = new mongoose.Types.ObjectId();
       const request = { query: { tenant: "airqo", id: gridId.toString() } };
+      const next = sinon.spy();
       const gridShape = {
         type: "Polygon",
         coordinates: [[[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]],
@@ -257,32 +313,24 @@ describe("Grid Util", () => {
       };
 
       sandbox.stub(generateFilter, "grids").returns({ _id: gridId });
-      sandbox
-        .stub(GridModel, "default")
-        .returns({
-          findOne: sandbox
-            .stub()
-            .returns({
-              lean: sandbox.stub().resolves({ _id: gridId, shape: gridShape }),
-            }),
-        });
-      sandbox
-        .stub(DeviceModel, "default")
-        .returns({
-          distinct: sandbox.stub().resolves([siteIn._id, siteOut._id]),
-        });
-      sandbox
-        .stub(SiteModel, "default")
-        .returns({
-          find: sandbox
-            .stub()
-            .returns({ lean: sandbox.stub().resolves([siteIn, siteOut]) }),
-        });
+      sandbox.stub(GridModel, "default").returns({
+        findOne: sandbox.stub().returns({
+          lean: sandbox.stub().resolves({ _id: gridId, shape: gridShape }),
+        }),
+      });
+      sandbox.stub(DeviceModel, "default").returns({
+        distinct: sandbox.stub().resolves([siteIn._id, siteOut._id]),
+      });
+      sandbox.stub(SiteModel, "default").returns({
+        find: sandbox
+          .stub()
+          .returns({ lean: sandbox.stub().resolves([siteIn, siteOut]) }),
+      });
       sandbox
         .stub(geolib, "isPointInPolygon")
         .callsFake((point) => point.latitude === 0.5);
 
-      const result = await gridUtil.findSites(request, gridShape);
+      const result = await gridUtil.findSites(request, gridShape, next);
 
       expect(result.success).to.be.true;
       expect(result.data)
@@ -380,19 +428,13 @@ describe("Grid Util", () => {
       };
       const privateGridId = new mongoose.Types.ObjectId();
 
-      sandbox
-        .stub(GridModel, "default")
-        .returns({
-          find: sandbox
-            .stub()
-            .returns({
-              select: sandbox
-                .stub()
-                .returns({
-                  lean: sandbox.stub().resolves([{ _id: privateGridId }]),
-                }),
-            }),
-        });
+      sandbox.stub(GridModel, "default").returns({
+        find: sandbox.stub().returns({
+          select: sandbox.stub().returns({
+            lean: sandbox.stub().resolves([{ _id: privateGridId }]),
+          }),
+        }),
+      });
       sandbox
         .stub(SiteModel, "default")
         .returns({ find: sandbox.stub().resolves([{ _id: privateSiteId }]) });
@@ -422,15 +464,11 @@ describe("Grid Util", () => {
         centers: [{ latitude: -0.0236, longitude: 37.9062 }],
       };
 
-      sandbox
-        .stub(GridModel, "default")
-        .returns({
-          find: sandbox
-            .stub()
-            .returns({
-              lean: sandbox.stub().resolves([ugandaGrid, kenyaGrid]),
-            }),
-        });
+      sandbox.stub(GridModel, "default").returns({
+        find: sandbox.stub().returns({
+          lean: sandbox.stub().resolves([ugandaGrid, kenyaGrid]),
+        }),
+      });
       sandbox.stub(geolib, "getDistance").callsFake((p1, p2) => {
         if (p2.latitude === ugandaGrid.centers[0].latitude) return 100; // Mock distance
         if (p2.latitude === kenyaGrid.centers[0].latitude) return 500;
