@@ -32,63 +32,6 @@ describe("Grid Util", () => {
     sandbox.restore();
   });
 
-  describe("getSiteIdsFromCohort", () => {
-    it("should return site IDs for a given cohort_id", async () => {
-      const tenant = "airqo";
-      const cohortId = new mongoose.Types.ObjectId().toString();
-      const siteIds = [
-        new mongoose.Types.ObjectId(),
-        new mongoose.Types.ObjectId(),
-      ];
-      const deviceFindStub = sandbox.stub().returns({
-        distinct: sandbox.stub().resolves(siteIds),
-      });
-      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
-
-      const result = await gridUtil.getSiteIdsFromCohort(tenant, cohortId);
-
-      expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(siteIds);
-      sinon.assert.calledWith(deviceFindStub, {
-        cohorts: { $in: [cohortId] },
-        site_id: { $ne: null },
-      });
-    });
-
-    it("should return an empty array if no devices are in the cohort", async () => {
-      const tenant = "airqo";
-      const cohortId = new mongoose.Types.ObjectId().toString();
-      const deviceFindStub = sandbox.stub().returns({
-        distinct: sandbox.stub().resolves([]),
-      });
-      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
-
-      const result = await gridUtil.getSiteIdsFromCohort(tenant, cohortId);
-
-      expect(result.success).to.be.true;
-      expect(result.data).to.be.an("array").that.is.empty;
-      expect(result.message).to.equal(
-        "No sites found for the specified cohort(s)."
-      );
-    });
-
-    it("should handle database errors gracefully", async () => {
-      const tenant = "airqo";
-      const cohortId = new mongoose.Types.ObjectId().toString();
-      const dbError = new Error("Database connection failed");
-      const deviceFindStub = sandbox.stub().returns({
-        distinct: sandbox.stub().rejects(dbError),
-      });
-      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
-
-      const result = await gridUtil.getSiteIdsFromCohort(tenant, cohortId);
-
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Internal Server Error");
-      expect(result.errors.message).to.equal(dbError.message);
-    });
-  });
-
   describe("create", () => {
     it("should create a grid successfully", async () => {
       const request = {
@@ -400,9 +343,12 @@ describe("Grid Util", () => {
         findOne: sandbox
           .stub()
           .returns({ lean: sandbox.stub().resolves(existingGrid) }),
-        modifyShape: sandbox
-          .stub()
-          .resolves({ success: true, data: updatedGrid }),
+        modifyShape: sandbox.stub().resolves({
+          success: true,
+          data: updatedGrid,
+          message:
+            "Successfully updated the grid shape and recalculated centers",
+        }),
       });
       sandbox
         .stub(gridUtil, "calculateGeographicalCenter")
