@@ -31,6 +31,7 @@ const {
   validateGetShippingBatchDetails,
   validateGetDeviceCountSummary,
   validateTransferDevice,
+  validateUserIdBody,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
 
@@ -188,12 +189,7 @@ router.post(
   "/soft",
   validateTenant,
   validateCreateDevice,
-  body("user_id")
-    .exists()
-    .withMessage("user_id is a mandatory field")
-    .bail()
-    .isMongoId()
-    .withMessage("user_id must be a valid MongoDB ObjectId"),
+  validateUserIdBody,
   validate,
   deviceController.createOnPlatform
 );
