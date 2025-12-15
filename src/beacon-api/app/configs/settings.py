@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # Organization token for firmware operations
     ORG_TOKEN: str = os.getenv("ORG_TOKEN", "")
     
+    # Platform API settings
+    PLATFORM_BASE_URL: str = os.getenv("PLATFORM_BASE_URL", "https://staging-platform.airqo.net/api/v2")
+    TOKEN: str = os.getenv("TOKEN", "")
+    
     # Google Cloud Storage settings
     GCS_BUCKET_NAME: str = os.getenv("GCS_BUCKET_NAME", "")
     GOOGLE_APPLICATION_CREDENTIALS_JSON: Optional[str] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")

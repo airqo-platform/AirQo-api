@@ -67,21 +67,19 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         if not airqloud:
             return None
         
-        # Count devices
-        device_count_stmt = (
-            select(func.count(AirQloudDevice.id))
-            .where(AirQloudDevice.cohort_id == airqloud_id)
-            .where(AirQloudDevice.is_active == True)
-        )
-        device_count = db.exec(device_count_stmt).first() or 0
+        # Use number_of_devices from AirQloud (synced from Platform API)
+        # This is the authoritative count from the Platform
+        device_count = airqloud.number_of_devices or 0
         
         # Convert to dict and add device count
         result = {
             "id": airqloud.id,
             "name": airqloud.name,
             "country": airqloud.country,
+            "network": airqloud.network,
             "visibility": airqloud.visibility,
             "is_active": airqloud.is_active,
+            "number_of_devices": airqloud.number_of_devices,
             "created_at": airqloud.created_at,
             "device_count": device_count
         }
@@ -112,25 +110,24 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
                 (AirQloud.country.ilike(search_pattern))
             )
         
-        airqloud_query = airqloud_query.order_by(AirQloud.name).offset(skip).limit(limit)
+        # Order by is_active (active first), then by name
+        airqloud_query = airqloud_query.order_by(AirQloud.is_active.desc(), AirQloud.name).offset(skip).limit(limit)
         airqlouds = db.exec(airqloud_query).all()
         
-        # Get device counts for all AirQlouds
+        # Build results using number_of_devices from AirQloud (synced from Platform API)
         results = []
         for airqloud in airqlouds:
-            device_count_stmt = (
-                select(func.count(AirQloudDevice.id))
-                .where(AirQloudDevice.cohort_id == airqloud.id)
-                .where(AirQloudDevice.is_active == True)
-            )
-            device_count = db.exec(device_count_stmt).first() or 0
+            # Use number_of_devices from AirQloud - this is the authoritative count from Platform
+            device_count = airqloud.number_of_devices or 0
             
             results.append({
                 "id": airqloud.id,
                 "name": airqloud.name,
                 "country": airqloud.country,
+                "network": airqloud.network,
                 "visibility": airqloud.visibility,
                 "is_active": airqloud.is_active,
+                "number_of_devices": airqloud.number_of_devices,
                 "created_at": airqloud.created_at,
                 "device_count": device_count
             })
@@ -367,25 +364,27 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         end_date = datetime.now(timezone.utc) - timedelta(days=1)  # Start from yesterday
         start_date = end_date - timedelta(days=days-1)    # Adjust to get exactly N days
         
-        # Collect all airqloud IDs
-        airqloud_ids = [aq["id"] for aq in airqlouds]
+        # Only fetch performance data for active airqlouds
+        active_airqloud_ids = [aq["id"] for aq in airqlouds if aq.get("is_active") == True]
         
-        if not airqloud_ids:
+        if not airqlouds:
             return []
         
-        # Optionally ensure performance data exists for all airqlouds
-        if fetch_missing:
+        # Optionally ensure performance data exists for active airqlouds only
+        if fetch_missing and active_airqloud_ids:
             from app.utils.performance_fetcher import ensure_multiple_airqlouds_performance_data
-            logger.info(f"Ensuring performance data for {len(airqloud_ids)} airqlouds")
-            ensure_multiple_airqlouds_performance_data(db, airqloud_ids, start_date, end_date)
+            logger.info(f"Ensuring performance data for {len(active_airqloud_ids)} active airqlouds")
+            ensure_multiple_airqlouds_performance_data(db, active_airqloud_ids, start_date, end_date)
         
-        # Get all performance data at once
-        all_performance_records = airqloud_performance.get_performance_by_airqlouds(
-            db,
-            airqloud_ids=airqloud_ids,
-            start_date=start_date,
-            end_date=end_date
-        )
+        # Get performance data only for active airqlouds
+        all_performance_records = []
+        if active_airqloud_ids:
+            all_performance_records = airqloud_performance.get_performance_by_airqlouds(
+                db,
+                airqloud_ids=active_airqloud_ids,
+                start_date=start_date,
+                end_date=end_date
+            )
         
         # Group performance records by airqloud_id and extract into arrays
         performance_by_airqloud = {}
