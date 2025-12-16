@@ -159,6 +159,43 @@ router.get(
   deviceController.getDeviceCountSummary
 );
 
+// NEW STATUS-BASED LISTING ENDPOINTS
+router.get(
+  "/status/operational",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listOperationalDevices
+);
+
+router.get(
+  "/status/transmitting",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listTransmittingDevices
+);
+
+router.get(
+  "/status/data-available",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listDataAvailableDevices
+);
+
+router.get(
+  "/status/not-transmitting",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listNotTransmittingDevices
+);
+
 router.get(
   "/orphaned",
   validateTenant,
