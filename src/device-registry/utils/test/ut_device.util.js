@@ -17,6 +17,117 @@ const chaiHttp = require("chai-http");
 chai.use(chaiHttp);
 
 describe("Device Util", () => {
+  describe("getDeviceCountSummary", () => {
+    let sandbox;
+    let aggregateStub;
+    let generateFilterStub;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+      const deviceModelMock = {
+        aggregate: sinon.stub(),
+      };
+      sandbox.stub(DeviceModel, "default").returns(deviceModelMock);
+      aggregateStub = deviceModelMock.aggregate;
+      generateFilterStub = sandbox.stub(generateFilter, "devices");
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should return a summary of device counts successfully", async () => {
+      const request = { query: { tenant: "airqo" } };
+      const filter = { network: "airqo" };
+      generateFilterStub.returns(filter);
+
+      const mockAggregationResult = [
+        {
+          total_monitors: 100,
+          operational: 70,
+          transmitting: 15,
+          not_transmitting: 10,
+          data_available: 5,
+        },
+      ];
+      aggregateStub.resolves(mockAggregationResult);
+
+      const result = await deviceUtil.getDeviceCountSummary(request);
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.deep.equal({
+        total_monitors: 100,
+        operational: 70,
+        transmitting: 15,
+        not_transmitting: 10,
+        data_available: 5,
+      });
+      expect(aggregateStub.calledOnce).to.be.true;
+      const pipeline = aggregateStub.getCall(0).args[0];
+      expect(pipeline[0].$match).to.deep.equal(filter);
+    });
+
+    it("should return a summary with all zeros when no devices match the filter", async () => {
+      const request = { query: { tenant: "airqo", network: "kcca" } };
+      const filter = { network: "kcca" };
+      generateFilterStub.returns(filter);
+
+      // Simulate empty aggregation result
+      aggregateStub.resolves([]);
+
+      const result = await deviceUtil.getDeviceCountSummary(request);
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.deep.equal({
+        total_monitors: 0,
+        operational: 0,
+        transmitting: 0,
+        not_transmitting: 0,
+        data_available: 0,
+      });
+      expect(aggregateStub.calledOnce).to.be.true;
+    });
+
+    it("should correctly apply network and cohort filters from the request", async () => {
+      const cohortId = new mongoose.Types.ObjectId();
+      const request = {
+        query: {
+          tenant: "airqo",
+          network: "airqo",
+          cohort_id: cohortId.toString(),
+        },
+      };
+      const filter = { network: "airqo", cohorts: { $in: [cohortId] } };
+      generateFilterStub.returns(filter);
+
+      aggregateStub.resolves([]); // Result doesn't matter, just checking the filter
+
+      await deviceUtil.getDeviceCountSummary(request);
+
+      expect(generateFilterStub.calledOnceWith(request)).to.be.true;
+      expect(aggregateStub.calledOnce).to.be.true;
+      const pipeline = aggregateStub.getCall(0).args[0];
+      expect(pipeline[0].$match).to.deep.equal(filter);
+    });
+
+    it("should handle database errors gracefully", async () => {
+      const request = { query: { tenant: "airqo" } };
+      const next = sinon.spy();
+      generateFilterStub.returns({});
+      const dbError = new Error("Database connection failed");
+      aggregateStub.rejects(dbError);
+
+      await deviceUtil.getDeviceCountSummary(request, next);
+
+      expect(next.calledOnce).to.be.true;
+      const error = next.firstCall.args[0];
+      expect(error).to.be.an.instanceOf(Error);
+      expect(error.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(error.message).to.equal("Internal Server Error");
+    });
+  });
   describe("createOnPlatform", () => {
     let deviceRegisterStub,
       cohortFindByIdStub,
