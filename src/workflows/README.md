@@ -120,9 +120,13 @@ Run this command.
 sh run-workflows-only.sh
 ```
 
-Note: You may need to run this command to initialize your Cloud shell if you haven't already or if you're facing authentication errors.  
+Note: You may need to run this command to initialize your Cloud shell if you haven't already or if you're facing authentication errors.
 `export LD_LIBRARY_PATH=/usr/local/lib`
 
 ### Access Preview.
 
 Access the web preview in your Browser by clicking on the web preview button and proceed to login.
+
+### TODO
+
+Update documentation on docker compose and kubernetes configurations
