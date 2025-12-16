@@ -1505,7 +1505,12 @@ const generateFilter = {
         const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
         filter.cohorts = { $in: cohortIds };
       } else {
-        filter.cohorts = ObjectId(cohort_id);
+        // To support both single ID and array for consistency in the Device model,
+        // we can use $in for a single ID as well.
+        // This also helps prevent errors if a non-array value is somehow stored.
+        filter.cohorts = {
+          $in: [ObjectId(cohort_id.trim())],
+        };
       }
     }
     return filter;
