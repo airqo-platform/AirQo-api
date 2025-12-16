@@ -100,6 +100,12 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "atmospheric_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "hPa."
+  },
+  {
     "name": "s1_pressure",
     "type": "FLOAT",
     "mode": "NULLABLE"

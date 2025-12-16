@@ -389,7 +389,7 @@ class Config:
         "rhum_corrected": "humidity",
         "rco2_corrected": "co2",
         "tvoc": "tvoc_",
-        "tvocIndex": "tvov",
+        "tvocIndex": "tvoc",
         "noxIndex": "no",
         "timestamp": "timestamp",
         "longitude": "longitude",
