@@ -1,21 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, BackgroundTasks
 from sqlmodel import Session
-from typing import List, Optional
-import string
-import random
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
-import csv
-import io
-import json
 
 from app.deps import get_db
 from app.models import (
-    AirQloudCreate,
     AirQloudUpdate,
     AirQloudRead,
-    AirQloudDeviceCreate,
     AirQloudDeviceRead,
-    AirQloudSingleBulkCreateResponse
 )
 from app.crud import airqloud as airqloud_crud
 from app.utils.background_tasks import (
@@ -29,20 +21,104 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def generate_unique_airqloud_id(db: Session) -> str:
-    """Generate a unique AirQloud ID"""
-    while True:
-        # Generate a random 12-character ID with letters and numbers
-        id_chars = string.ascii_lowercase + string.digits
-        airqloud_id = 'aq_' + ''.join(random.choices(id_chars, k=10))
-        
-        # Check if ID already exists
-        existing = airqloud_crud.get(db, id=airqloud_id)
-        if not existing:
-            return airqloud_id
+def run_airqloud_sync(force_sync: bool = False) -> Dict[str, Any]:
+    """
+    Run the airqloud sync from Platform API.
+    This is extracted to be callable from both the endpoint and scheduled jobs.
+    """
+    from app.configs.database import SessionLocal
+    from cronjobs.update_airqlouds import AirQloudUpdater
+    
+    session = SessionLocal()
+    try:
+        updater = AirQloudUpdater(session)
+        results = updater.run(force_sync=force_sync)
+        return results
+    finally:
+        session.close()
 
 
-@router.get("/")
+@router.post("/sync", status_code=200)
+async def sync_airqlouds(
+    *,
+    background_tasks: BackgroundTasks,
+    force: bool = Query(False, description="Force full sync even if counts match"),
+    run_in_background: bool = Query(True, description="Run sync in background (default: true)")
+):
+    """
+    Trigger sync of AirQlouds (cohorts) from Platform API.
+    
+    This endpoint fetches the latest cohorts from the Platform API and updates
+    the local database. Use this to manually refresh airqloud data.
+    
+    **Query Parameters:**
+    - **force**: Force full sync even if API and DB counts match (default: false)
+    - **run_in_background**: Run sync in background and return immediately (default: true)
+    
+    **Behavior:**
+    - Compares API total count with database count
+    - If counts differ (or force=true), fetches and syncs all cohorts
+    - Creates new airqlouds, updates existing ones
+    - Preserves manually-set country field
+    - Soft-deletes devices removed from cohorts
+    
+    **Returns:**
+    - If run_in_background=true: Acknowledgment that sync was triggered
+    - If run_in_background=false: Full sync statistics
+    
+    **Examples:**
+    - `POST /airqlouds/sync` - Trigger background sync
+    - `POST /airqlouds/sync?force=true` - Force full sync in background
+    - `POST /airqlouds/sync?run_in_background=false` - Run sync and wait for results
+    """
+    try:
+        if run_in_background:
+            # Run in background and return immediately
+            background_tasks.add_task(run_airqloud_sync, force)
+            logger.info(f"Triggered background airqloud sync (force={force})")
+            return {
+                "success": True,
+                "message": "Airqloud sync triggered in background",
+                "force": force
+            }
+        else:
+            # Run synchronously and return results
+            logger.info(f"Starting synchronous airqloud sync (force={force})")
+            results = run_airqloud_sync(force)
+            
+            if results.get('success'):
+                return {
+                    "success": True,
+                    "message": "Airqloud sync completed successfully",
+                    "statistics": {
+                        "total_fetched": results.get('total_fetched', 0),
+                        "new_airqlouds": results.get('new_airqlouds', 0),
+                        "updated_airqlouds": results.get('updated_airqlouds', 0),
+                        "new_devices": results.get('new_devices', 0),
+                        "updated_devices": results.get('updated_devices', 0),
+                        "deactivated_devices": results.get('deactivated_devices', 0),
+                        "errors": results.get('errors', 0),
+                        "db_count_before": results.get('db_count_before', 0),
+                        "db_count_after": results.get('db_count_after', 0),
+                    }
+                }
+            else:
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Sync failed: {results.get('error', 'Unknown error')}"
+                )
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering airqloud sync: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to trigger sync: {str(e)}")
+
+
+# REMOVED: generate_unique_airqloud_id - no longer needed as IDs come from Platform API
+
+
+@router.get("")
 async def get_airqlouds(
     *,
     db: Session = Depends(get_db),
@@ -231,55 +307,9 @@ async def get_airqloud(
         raise HTTPException(status_code=500, detail=f"Failed to fetch AirQloud: {str(e)}")
 
 
-@router.post("/", response_model=AirQloudRead, status_code=201)
-async def create_airqloud(
-    *,
-    db: Session = Depends(get_db),
-    airqloud_in: AirQloudCreate
-):
-    """
-    Create a new AirQloud.
-    
-    **Request Body:**
-    Only the `name` field is required. All other fields are optional.
-    ```json
-    {
-        "name": "Kampala Central",
-        "country": "Uganda",
-        "visibility": true,
-        "is_active": false,
-        "number_of_devices": 0
-    }
-    ```
-    
-    **Returns:**
-    The created AirQloud details with an auto-generated unique ID.
-    """
-    try:
-        # Generate a unique ID
-        unique_id = generate_unique_airqloud_id(db)
-        
-        # Create the AirQloud data with generated ID and timestamp
-        airqloud_data = airqloud_in.model_dump()
-        airqloud_data['id'] = unique_id
-        airqloud_data['created_at'] = datetime.now(timezone.utc)
-        
-        # Create AirQloud instance for database
-        from app.models.airqloud import AirQloud
-        airqloud = AirQloud(**airqloud_data)
-        
-        # Save to database
-        db.add(airqloud)
-        db.commit()
-        db.refresh(airqloud)
-        
-        logger.info(f"Created AirQloud: {airqloud.name} (ID: {airqloud.id})")
-        return airqloud
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating AirQloud: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create AirQloud: {str(e)}")
+# REMOVED: Manual creation endpoint - AirQlouds are synced from Platform API cohorts
+# @router.post("", response_model=AirQloudRead, status_code=201)
+# async def create_airqloud(...):
 
 
 @router.put("/{airqloud_id}", response_model=AirQloudRead)
@@ -290,7 +320,10 @@ async def update_airqloud(
     airqloud_in: AirQloudUpdate
 ):
     """
-    Update an existing AirQloud.
+    Update an existing AirQloud's country field.
+    
+    **Note:** AirQlouds are synced from the Platform API. Only the country field
+    can be manually updated as it is managed locally in the beacon database.
     
     **Path Parameters:**
     - **airqloud_id**: ID of the AirQloud to update
@@ -298,11 +331,7 @@ async def update_airqloud(
     **Request Body:**
     ```json
     {
-        "name": "Updated Kampala Central",
-        "country": "Uganda",
-        "visibility": true,
-        "is_active": true,
-        "number_of_devices": 10
+        "country": "Uganda"
     }
     ```
     
@@ -315,7 +344,7 @@ async def update_airqloud(
             raise HTTPException(status_code=404, detail="AirQloud not found")
         
         airqloud = airqloud_crud.update(db, db_obj=airqloud, obj_in=airqloud_in)
-        logger.info(f"Updated AirQloud: {airqloud.name} (ID: {airqloud.id})")
+        logger.info(f"Updated AirQloud country: {airqloud.name} (ID: {airqloud.id}) -> {airqloud.country}")
         return airqloud
     except HTTPException:
         raise
@@ -324,127 +353,21 @@ async def update_airqloud(
         raise HTTPException(status_code=500, detail=f"Failed to update AirQloud: {str(e)}")
 
 
-@router.delete("/{airqloud_id}", status_code=204)
-async def delete_airqloud(
-    *,
-    db: Session = Depends(get_db),
-    airqloud_id: str = Path(..., description="AirQloud ID")
-):
-    """
-    Delete an AirQloud.
-    
-    **Path Parameters:**
-    - **airqloud_id**: ID of the AirQloud to delete
-    
-    **Note:** This will also remove all device associations.
-    """
-    try:
-        airqloud = airqloud_crud.get(db, id=airqloud_id)
-        if not airqloud:
-            raise HTTPException(status_code=404, detail="AirQloud not found")
-        
-        airqloud_crud.remove(db, id=airqloud_id)
-        logger.info(f"Deleted AirQloud: {airqloud.name} (ID: {airqloud.id})")
-        return None
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting AirQloud {airqloud_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete AirQloud: {str(e)}")
+# REMOVED: Manual creation endpoint - AirQlouds are synced from Platform API
+# @router.post("", response_model=AirQloudRead, status_code=201)
+# async def create_airqloud(...):
 
+# REMOVED: Delete endpoint - AirQlouds are synced from Platform API
+# @router.delete("/{airqloud_id}", status_code=204)
+# async def delete_airqloud(...):
 
-@router.post("/{airqloud_id}/devices", response_model=AirQloudDeviceRead, status_code=201)
-async def add_device_to_airqloud(
-    *,
-    db: Session = Depends(get_db),
-    airqloud_id: str = Path(..., description="AirQloud ID"),
-    device_in: AirQloudDeviceCreate
-):
-    """
-    Add a device to an AirQloud.
-    
-    **Path Parameters:**
-    - **airqloud_id**: ID of the AirQloud
-    
-    **Request Body:**
-    ```json
-    {
-        "id": "device_001",
-        "cohort_id": "airqloud_001",
-        "name": "Device 1",
-        "long_name": "Air Quality Device 1",
-        "device_number": 1,
-        "is_active": true,
-        "is_online": true,
-        "status": "active",
-        "network": "airqo"
-    }
-    ```
-    
-    **Returns:**
-    The created device-AirQloud relationship.
-    """
-    try:
-        # Verify AirQloud exists
-        airqloud = airqloud_crud.get(db, id=airqloud_id)
-        if not airqloud:
-            raise HTTPException(status_code=404, detail="AirQloud not found")
-        
-        # Add device to AirQloud
-        airqloud_device = airqloud_crud.add_device(
-            db,
-            airqloud_id=airqloud_id,
-            device_data=device_in
-        )
-        logger.info(f"Added device {device_in.id} to AirQloud {airqloud.name}")
-        return airqloud_device
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error adding device to AirQloud {airqloud_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to add device: {str(e)}")
+# REMOVED: Add device endpoint - Devices are synced from Platform API cohorts
+# @router.post("/{airqloud_id}/devices", response_model=AirQloudDeviceRead, status_code=201)
+# async def add_device_to_airqloud(...):
 
-
-@router.delete("/{airqloud_id}/devices/{device_id}", status_code=204)
-async def remove_device_from_airqloud(
-    *,
-    db: Session = Depends(get_db),
-    airqloud_id: str = Path(..., description="AirQloud ID"),
-    device_id: str = Path(..., description="Device ID")
-):
-    """
-    Remove a device from an AirQloud (soft delete).
-    
-    **Path Parameters:**
-    - **airqloud_id**: ID of the AirQloud
-    - **device_id**: ID of the device to remove
-    """
-    try:
-        # Verify AirQloud exists
-        airqloud = airqloud_crud.get(db, id=airqloud_id)
-        if not airqloud:
-            raise HTTPException(status_code=404, detail="AirQloud not found")
-        
-        # Remove device
-        success = airqloud_crud.remove_device(
-            db,
-            airqloud_id=airqloud_id,
-            device_id=device_id
-        )
-        
-        if not success:
-            raise HTTPException(
-                status_code=404, 
-                detail="Device not found in this AirQloud"
-            )
-        
-        logger.info(f"Removed device {device_id} from AirQloud {airqloud.name}")
-        return None
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error removing device from AirQloud {airqloud_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to remove device: {str(e)}")
+# REMOVED: Remove device endpoint - Devices are synced from Platform API cohorts
+# @router.delete("/{airqloud_id}/devices/{device_id}", status_code=204)
+# async def remove_device_from_airqloud(...):
 
 
 @router.get("/{airqloud_id}/devices", response_model=List[AirQloudDeviceRead])
@@ -491,120 +414,6 @@ async def get_airqloud_devices(
         raise HTTPException(status_code=500, detail=f"Failed to fetch devices: {str(e)}")
 
 
-@router.post("/create-with-devices", response_model=AirQloudSingleBulkCreateResponse, status_code=201)
-async def create_airqloud_with_devices_csv(
-    *,
-    db: Session = Depends(get_db),
-    file: UploadFile = File(..., description="CSV file containing device data"),
-    name: str = Form(..., description="Name of the AirQloud"),
-    country: Optional[str] = Form(None, description="Country of the AirQloud"),
-    visibility: Optional[bool] = Form(None, description="Visibility of the AirQloud"),
-    column_mappings: str = Form(..., description="JSON string mapping CSV columns to device fields")
-):
-    """
-    Create a single AirQloud and add all devices from CSV to it.
-    
-    **Form Parameters:**
-    - **file**: CSV file containing device identifiers
-    - **name**: Name of the AirQloud (required)
-    - **country**: Country of the AirQloud (optional)
-    - **visibility**: Visibility boolean (optional)
-    - **column_mappings**: JSON string mapping CSV columns to device fields
-    
-    **Column Mappings Format:**
-    ```json
-    {
-        "device": "device_id",
-        "read": "read_key", 
-        "channel": "channel_id"
-    }
-    ```
-    
-    **Supported Device Fields:**
-    - `device_id`: Device ID
-    - `read_key`: Device read key
-    - `channel_id`: Device channel ID
-    
-    **CSV Example:**
-    ```csv
-    device,read,channel,description
-    device_001,RK001,101,"Air quality sensor 1"
-    device_002,RK002,102,"Air quality sensor 2"
-    ,,103,"Channel only device"
-    ```
-    
-    **Column Mappings Example:**
-    ```json
-    {"device": "device_id", "read": "read_key", "channel": "channel_id"}
-    ```
-    
-    **Returns:**
-    Details of created AirQloud, successfully added devices, errors, and summary statistics.
-    """
-    
-    # Validate file type
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="File must be a CSV file")
-    
-    try:
-        # Parse column mappings
-        try:
-            mappings = json.loads(column_mappings)
-            if not isinstance(mappings, dict):
-                raise ValueError("Column mappings must be a JSON object")
-        except json.JSONDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON in column_mappings: {str(e)}")
-        
-        # Validate mapping values
-        valid_fields = ["device_id", "read_key", "channel_id"]
-        for csv_col, device_field in mappings.items():
-            if device_field not in valid_fields:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Invalid device field '{device_field}'. Must be one of: {', '.join(valid_fields)}"
-                )
-        
-        if not mappings:
-            raise HTTPException(status_code=400, detail="At least one column mapping is required")
-        
-        # Read CSV file
-        content = await file.read()
-        csv_content = content.decode('utf-8')
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
-        
-        # Validate that mapped columns exist in CSV
-        csv_columns = csv_reader.fieldnames or []
-        for csv_col in mappings.keys():
-            if csv_col not in csv_columns:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Column '{csv_col}' not found in CSV. Available columns: {', '.join(csv_columns)}"
-                )
-        
-        # Parse CSV data
-        devices_data = []
-        for row in csv_reader:
-            devices_data.append(row)
-        
-        if not devices_data:
-            raise HTTPException(status_code=400, detail="No device data found in CSV file")
-        
-        # Create AirQloud with devices
-        logger.info(f"Creating AirQloud '{name}' with {len(devices_data)} devices using mappings: {mappings}")
-        result = airqloud_crud.create_single_airqloud_with_devices_csv(
-            db,
-            airqloud_name=name,
-            airqloud_country=country,
-            airqloud_visibility=visibility,
-            devices_data=devices_data,
-            column_mappings=mappings
-        )
-        
-        logger.info(f"AirQloud creation completed: {result['summary']}")
-        return AirQloudSingleBulkCreateResponse(**result)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating AirQloud with devices: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create AirQloud: {str(e)}")
+# REMOVED: Bulk CSV create endpoint - AirQlouds are synced from Platform API cohorts
+# @router.post("/create-with-devices", response_model=AirQloudSingleBulkCreateResponse, status_code=201)
+# async def create_airqloud_with_devices_csv(...):

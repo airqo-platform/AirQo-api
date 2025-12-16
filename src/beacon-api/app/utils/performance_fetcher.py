@@ -125,6 +125,11 @@ def ensure_airqloud_performance_data(
             logger.error(f"AirQloud {airqloud_id} not found")
             return False
         
+        # Skip inactive airqlouds
+        if not airqloud.is_active:
+            logger.info(f"AirQloud {airqloud_id}: Skipping - airqloud is inactive")
+            return True  # Return True to not count as failure
+        
         # Calculate missing data
         fetcher = EnhancedThingSpeakDataFetcher(db)
         success = fetcher.process_airqloud_with_fetch_log(airqloud, start_date, end_date)
@@ -193,6 +198,7 @@ def ensure_multiple_airqlouds_performance_data(
 ) -> dict:
     """
     Ensure performance data exists for multiple airqlouds.
+    Only processes active airqlouds - inactive ones are skipped.
     
     Args:
         db: Database session
@@ -203,14 +209,27 @@ def ensure_multiple_airqlouds_performance_data(
     Returns:
         Dictionary with success/failure counts
     """
+    # Filter to only active airqlouds
+    active_airqlouds = db.exec(
+        select(AirQloud).where(
+            AirQloud.id.in_(airqloud_ids),
+            AirQloud.is_active == True
+        )
+    ).all()
+    active_ids = {aq.id for aq in active_airqlouds}
+    skipped_count = len(airqloud_ids) - len(active_ids)
+    
+    if skipped_count > 0:
+        logger.info(f"Skipping {skipped_count} inactive airqlouds")
+    
     results = {
         'total': len(airqloud_ids),
         'success': 0,
         'failed': 0,
-        'skipped': 0
+        'skipped': skipped_count
     }
     
-    for airqloud_id in airqloud_ids:
+    for airqloud_id in active_ids:
         try:
             success = ensure_airqloud_performance_data(db, airqloud_id, start_date, end_date)
             if success:

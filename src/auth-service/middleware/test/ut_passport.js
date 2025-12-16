@@ -344,6 +344,17 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       expect(jwtVerifyStub.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.undefined;
     });
+
+    it("should allow JWT access to /api/v2/devices/grids", async () => {
+      req.originalUrl = "/api/v2/devices/grids";
+
+      await enhancedJWTAuth(req, res, next);
+
+      // Should NOT return an error - should proceed with JWT verification
+      expect(jwtVerifyStub.calledOnce).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.undefined; // No error
+    });
   });
 
   describe("JWT Token Validation", () => {

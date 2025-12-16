@@ -272,6 +272,7 @@ CREATE TABLE IF NOT EXISTS dim_airqloud (
 
 ALTER TABLE dim_airqloud ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE dim_airqloud ADD COLUMN IF NOT EXISTS country TEXT;
+ALTER TABLE dim_airqloud ADD COLUMN IF NOT EXISTS network TEXT;
 ALTER TABLE dim_airqloud ADD COLUMN IF NOT EXISTS visibility BOOLEAN;
 ALTER TABLE dim_airqloud ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE;
 ALTER TABLE dim_airqloud ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ;
@@ -292,6 +293,8 @@ ALTER TABLE dim_airqloud_device ADD COLUMN IF NOT EXISTS is_online BOOLEAN;
 ALTER TABLE dim_airqloud_device ADD COLUMN IF NOT EXISTS last_active TIMESTAMPTZ;
 ALTER TABLE dim_airqloud_device ADD COLUMN IF NOT EXISTS status TEXT;
 ALTER TABLE dim_airqloud_device ADD COLUMN IF NOT EXISTS network TEXT;
+ALTER TABLE dim_airqloud_device ADD COLUMN IF NOT EXISTS raw_online_status TEXT;
+ALTER TABLE dim_airqloud_device ADD COLUMN IF NOT EXISTS last_raw_data TIMESTAMPTZ;
 ALTER TABLE dim_airqloud_device ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ;
 
 -- Constraints for dim_airqloud_device
@@ -925,3 +928,40 @@ CREATE TRIGGER trigger_items_stock_history_delete
     AFTER DELETE ON items_stock
     FOR EACH ROW EXECUTE FUNCTION track_items_stock_changes();
 
+
+-- Migration: Change dim_airqloud_device primary key to composite (id, cohort_id)
+-- This allows the same device to belong to multiple cohorts
+DO $$
+BEGIN
+    -- Check if we need to migrate (old schema has id as single PK)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE table_name = 'dim_airqloud_device' 
+        AND constraint_type = 'PRIMARY KEY'
+        AND constraint_name = 'dim_airqloud_device_pkey'
+    ) THEN
+        -- Check if it's the old single-column PK
+        IF (
+            SELECT COUNT(*) FROM information_schema.key_column_usage 
+            WHERE table_name = 'dim_airqloud_device' 
+            AND constraint_name = 'dim_airqloud_device_pkey'
+        ) = 1 THEN
+            -- Delete existing data to allow schema change (will be re-synced)
+            DELETE FROM dim_airqloud_device;
+            
+            -- Drop old primary key
+            ALTER TABLE dim_airqloud_device DROP CONSTRAINT dim_airqloud_device_pkey;
+            
+            -- Make cohort_id NOT NULL
+            ALTER TABLE dim_airqloud_device ALTER COLUMN cohort_id SET NOT NULL;
+            
+            -- Add composite primary key
+            ALTER TABLE dim_airqloud_device ADD PRIMARY KEY (id, cohort_id);
+            
+            RAISE NOTICE 'Migrated dim_airqloud_device to composite primary key (id, cohort_id)';
+        END IF;
+    END IF;
+END$$;
+
+-- Add index for efficient lookups by cohort_id
+CREATE INDEX IF NOT EXISTS idx_dim_airqloud_device_composite ON dim_airqloud_device(id, cohort_id);

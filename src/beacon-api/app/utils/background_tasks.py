@@ -96,6 +96,7 @@ def fetch_missing_airqloud_performance_background(
     """
     Background task to fetch/compute missing performance data for airqlouds.
     Creates its own database session since this runs after the response.
+    Only processes active airqlouds - inactive ones are skipped.
     
     Uses locking to prevent duplicate fetches for the same airqlouds.
     
@@ -105,6 +106,33 @@ def fetch_missing_airqloud_performance_background(
         end_date: End of date range
     """
     if not airqloud_ids:
+        return
+    
+    # Filter to only active airqlouds first
+    try:
+        with SessionLocal() as db:
+            from app.models.airqloud import AirQloud
+            from sqlmodel import select
+            
+            active_airqlouds = db.exec(
+                select(AirQloud).where(
+                    AirQloud.id.in_(airqloud_ids),
+                    AirQloud.is_active == True
+                )
+            ).all()
+            active_ids = [aq.id for aq in active_airqlouds]
+            
+            skipped_count = len(airqloud_ids) - len(active_ids)
+            if skipped_count > 0:
+                logger.info(f"[Background] Skipping {skipped_count} inactive airqlouds")
+            
+            if not active_ids:
+                logger.info(f"[Background] No active airqlouds to process")
+                return
+                
+            airqloud_ids = active_ids
+    except Exception as e:
+        logger.error(f"[Background] Error filtering active airqlouds: {str(e)}")
         return
     
     # Filter out airqlouds that are already being processed

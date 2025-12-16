@@ -1,5 +1,3 @@
-// utils/organization.util.js - ENHANCED: DRY Principles Applied
-
 const axios = require("axios");
 const { logText, HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
@@ -13,7 +11,7 @@ console.log("constants.AUTH_SERVICE_URL", constants.AUTH_SERVICE_URL);
 
 class OrganizationUtil {
   constructor() {
-    // ✅ DEFENSIVE: Don't throw errors in constructor
+    //DEFENSIVE: Don't throw errors in constructor
     this.authServiceUrl = constants.AUTH_SERVICE_URL;
     this.isConfigured = !!this.authServiceUrl;
     this.timeoutMs = 5000;
@@ -32,7 +30,7 @@ class OrganizationUtil {
     }
   }
 
-  // ✅ CHECK CONFIGURATION: Before each method call
+  //CHECK CONFIGURATION: Before each method call
   _checkConfiguration() {
     if (!this.isConfigured) {
       return {
@@ -50,7 +48,7 @@ class OrganizationUtil {
   }
 
   /**
-   * ✅ DRY HELPER: Build consistent request headers for all API calls
+   * Build consistent request headers for all API calls
    * @returns {object} - Headers object for HTTP requests
    */
   buildRequestHeaders() {
@@ -66,7 +64,7 @@ class OrganizationUtil {
   }
 
   /**
-   * ✅ DRY HELPER: Generic HTTP request handler with consistent error handling
+   * Generic HTTP request handler with consistent error handling
    * @private
    * @param {string} endpoint - API endpoint path
    * @param {string} method - HTTP method (GET, POST, etc.)
@@ -111,7 +109,7 @@ class OrganizationUtil {
   }
 
   /**
-   * ✅ DRY HELPER: Standardized error response formatting
+   *  Standardized error response formatting
    * @private
    * @param {Error} error - Error object
    * @param {string} operation - Operation description for logging
@@ -137,7 +135,7 @@ class OrganizationUtil {
     };
   }
 
-  // ✅ PROTECTED: Check configuration before proceeding
+  // Check configuration before proceeding
   async validateUserOrganizationMembership(request) {
     const configCheck = this._checkConfiguration();
     if (configCheck) return configCheck;
@@ -241,7 +239,7 @@ class OrganizationUtil {
     }
   }
 
-  // ✅ PROTECTED: Check configuration before proceeding
+  //Check configuration before proceeding
   async switchOrganizationContext(request) {
     const configCheck = this._checkConfiguration();
     if (configCheck) return configCheck;
@@ -325,12 +323,12 @@ class OrganizationUtil {
     }
   }
 
-  // ✅ UTILITY: Check if organization features are available
+  //  Check if organization features are available
   isAvailable() {
     return this.isConfigured;
   }
 
-  // ✅ UTILITY: Get configuration status
+  // Get configuration status
   getStatus() {
     return {
       configured: this.isConfigured,
@@ -341,7 +339,7 @@ class OrganizationUtil {
   }
 
   /**
-   * ✅ NEW UTILITY: Health check for auth service
+   * Health check for auth service
    * @returns {Promise<object>} - Health check result
    */
   async healthCheck() {

@@ -1255,6 +1255,9 @@ const generateFilter = {
       last_active_after,
       serial_number,
       mobility,
+      isOnline,
+      rawOnlineStatus,
+      cohort_id,
       authRequired,
       deployment_type_include_legacy,
     } = { ...req.query, ...req.params };
@@ -1394,6 +1397,20 @@ const generateFilter = {
       }
     }
 
+    if (isOnline !== undefined) {
+      const boolValue = toBooleanSafe(isOnline);
+      if (boolValue !== undefined) {
+        filter.isOnline = boolValue;
+      }
+    }
+
+    if (rawOnlineStatus !== undefined) {
+      const boolValue = toBooleanSafe(rawOnlineStatus);
+      if (boolValue !== undefined) {
+        filter.rawOnlineStatus = boolValue;
+      }
+    }
+
     if (category || device_category) {
       const categoryValue = category || device_category;
       filter["category"] = categoryValue;
@@ -1480,6 +1497,20 @@ const generateFilter = {
 
       if (validStatusArray.length > 0) {
         filter.status = { $in: validStatusArray };
+      }
+    }
+
+    if (cohort_id) {
+      if (typeof cohort_id === "string" && cohort_id.includes(",")) {
+        const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
+        filter.cohorts = { $in: cohortIds };
+      } else {
+        // To support both single ID and array for consistency in the Device model,
+        // we can use $in for a single ID as well.
+        // This also helps prevent errors if a non-array value is somehow stored.
+        filter.cohorts = {
+          $in: [ObjectId(cohort_id.trim())],
+        };
       }
     }
     return filter;
@@ -1815,15 +1846,22 @@ const generateFilter = {
       ];
     }
 
+    // Establish a clear priority for identifiers: id > cohort_id > name
     if (id) {
-      filter["_id"] = ObjectId(id);
-    }
-
-    if (cohort_id) {
-      filter["_id"] = ObjectId(cohort_id);
-    }
-
-    if (name) {
+      filter._id = ObjectId(id);
+    } else if (cohort_id) {
+      if (typeof cohort_id === "string" && cohort_id.includes(",")) {
+        const cohortIds = cohort_id
+          .split(",")
+          .map((id) => id.trim())
+          .map((id) => ObjectId(id));
+        if (cohortIds.length > 0) {
+          filter._id = { $in: cohortIds };
+        }
+      } else {
+        filter._id = ObjectId(cohort_id);
+      }
+    } else if (name) {
       filter["name"] = name;
     }
 

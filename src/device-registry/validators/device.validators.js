@@ -1454,6 +1454,21 @@ const validateGetDeviceCountSummary = [
       return true;
     })
     .trim(),
+  query("network")
+    .optional()
+    .isString()
+    .withMessage("network must be a string")
+    .trim(),
+];
+
+const validateUserIdBody = [
+  body("user_id")
+    .exists()
+    .withMessage("user_id is a mandatory field")
+    .bail()
+    .notEmpty()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
 ];
 
 module.exports = {
@@ -1489,4 +1504,5 @@ module.exports = {
   suggestDeviceNames,
   validateGetDeviceCountSummary,
   validateListOrphanedDevices,
+  validateUserIdBody,
 };

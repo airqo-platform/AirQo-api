@@ -8,6 +8,7 @@ class AirQloudBase(SQLModel):
     """Base model for AirQloud"""
     name: Optional[str] = Field(default=None, index=True)
     country: Optional[str] = Field(default=None, index=True)
+    network: Optional[str] = Field(default=None, index=True)
     visibility: Optional[bool] = Field(default=None, index=True)
     is_active: Optional[bool] = Field(default=False, index=True)
     number_of_devices: Optional[int] = Field(default=None)
@@ -35,12 +36,9 @@ class AirQloudCreate(SQLModel):
 
 
 class AirQloudUpdate(SQLModel):
-    """Schema for updating an AirQloud"""
-    name: Optional[str] = None
+    """Schema for updating an AirQloud - only country and is_active can be edited manually"""
     country: Optional[str] = None
-    visibility: Optional[bool] = None
     is_active: Optional[bool] = None
-    number_of_devices: Optional[int] = None
 
 
 class AirQloudRead(AirQloudBase):
@@ -71,7 +69,6 @@ class AirQloudWithPerformance(AirQloudRead):
 
 class AirQloudDeviceBase(SQLModel):
     """Base model for AirQloud-Device relationship"""
-    cohort_id: Optional[str] = Field(default=None, foreign_key="dim_airqloud.id")
     name: Optional[str] = Field(default=None, index=True)
     long_name: Optional[str] = Field(default=None)
     device_number: Optional[int] = Field(default=None)
@@ -80,17 +77,17 @@ class AirQloudDeviceBase(SQLModel):
     last_active: Optional[datetime] = Field(default=None)
     status: Optional[str] = Field(default=None, index=True)
     network: Optional[str] = Field(default=None, index=True)
+    raw_online_status: Optional[str] = Field(default=None)
+    last_raw_data: Optional[datetime] = Field(default=None)
 
 
 class AirQloudDevice(AirQloudDeviceBase, table=True):
-    """AirQloud-Device junction table model"""
+    """AirQloud-Device junction table model - allows same device in multiple cohorts"""
     __tablename__ = "dim_airqloud_device"
     
-    id: str = Field(
-        primary_key=True,
-        index=True,
-        nullable=False,
-    )
+    # Composite primary key: device can belong to multiple cohorts
+    id: str = Field(primary_key=True, index=True, nullable=False)
+    cohort_id: str = Field(primary_key=True, foreign_key="dim_airqloud.id", nullable=False)
     created_at: Optional[datetime] = Field(default=None)
 
 

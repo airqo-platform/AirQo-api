@@ -31,14 +31,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import settings for Platform API configuration
+from app.configs.settings import settings
+
 # Platform API configuration
-PLATFORM_BASE_URL = "https://staging-platform.airqo.net/api/v2"
+PLATFORM_BASE_URL = settings.PLATFORM_BASE_URL
 DEVICES_ENDPOINT = f"{PLATFORM_BASE_URL}/devices/summary"
 DECRYPT_ENDPOINT = f"{PLATFORM_BASE_URL}/devices/decrypt/bulk"
 DEFAULT_TENANT = "airqo"
 PAGE_LIMIT = 50   # Number of devices per page (matches batch size)
 BATCH_SIZE = 50   # Process devices in batches of 50
-API_TOKEN = os.getenv("TOKEN", "")
+API_TOKEN = settings.TOKEN
 
 if not API_TOKEN:
     logger.warning("TOKEN not found in environment variables. API requests may fail.")

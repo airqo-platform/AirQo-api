@@ -193,8 +193,8 @@ CREATE TABLE dim_airqloud (
 );
 
 CREATE TABLE dim_airqloud_device (
-    id TEXT PRIMARY KEY,
-    cohort_id TEXT REFERENCES dim_airqloud(id),
+    id TEXT NOT NULL,
+    cohort_id TEXT NOT NULL REFERENCES dim_airqloud(id),
     name TEXT,
     long_name TEXT,
     device_number INT,
@@ -203,7 +203,10 @@ CREATE TABLE dim_airqloud_device (
     last_active TIMESTAMPTZ,
     status TEXT,
     network TEXT,
-    created_at TIMESTAMPTZ
+    raw_online_status TEXT,
+    last_raw_data TIMESTAMPTZ,
+    created_at TIMESTAMPTZ,
+    PRIMARY KEY (id, cohort_id)  -- Composite key: device can belong to multiple cohorts
 );
 
 CREATE TABLE config_values (
