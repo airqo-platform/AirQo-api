@@ -178,64 +178,66 @@ const getDeviceCategoriesAddFieldsStage = () => {
 const deviceUtil = {
   getDeviceCountSummary: async (request, next) => {
     try {
-      const { tenant, group_id, cohort_id } = request.query;
+      const { tenant } = request.query;
+      const filter = generateFilter.devices(request, next);
 
-      // 1. Build the initial filter based on group or cohort
-      const filter = {};
-      if (group_id) {
-        const groupIds = group_id.split(",").map((id) => id.trim());
-        filter.groups = { $in: groupIds };
-      }
-      if (cohort_id) {
-        const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
-        filter.cohorts = { $in: cohortIds };
-      }
-
-      // 2. Create the aggregation pipeline with $facet
       const pipeline = [
         { $match: filter },
         {
           $facet: {
-            deployed: [{ $match: { status: "deployed" } }, { $count: "count" }],
-            recalled: [{ $match: { status: "recalled" } }, { $count: "count" }],
-            undeployed: [
-              { $match: { status: "not deployed" } },
+            total_monitors: [{ $count: "count" }],
+            operational: [
+              { $match: { isOnline: true, rawOnlineStatus: true } },
               { $count: "count" },
             ],
-            online: [{ $match: { isOnline: true } }, { $count: "count" }],
-            offline: [{ $match: { isOnline: false } }, { $count: "count" }],
-            maintenance_overdue: [
-              {
-                $match: {
-                  nextMaintenance: { $lt: new Date() },
-                  status: "deployed",
-                },
-              },
+            transmitting: [
+              { $match: { isOnline: false, rawOnlineStatus: true } },
+              { $count: "count" },
+            ],
+            "data available": [
+              { $match: { isOnline: true, rawOnlineStatus: false } },
+              { $count: "count" },
+            ],
+            "not transmitting": [
+              { $match: { isOnline: false, rawOnlineStatus: false } },
               { $count: "count" },
             ],
           },
         },
+        {
+          $project: {
+            total_monitors: {
+              $ifNull: [{ $arrayElemAt: ["$total_monitors.count", 0] }, 0],
+            },
+            operational: {
+              $ifNull: [{ $arrayElemAt: ["$operational.count", 0] }, 0],
+            },
+            transmitting: {
+              $ifNull: [{ $arrayElemAt: ["$transmitting.count", 0] }, 0],
+            },
+            "not transmitting": {
+              $ifNull: [{ $arrayElemAt: ["$not transmitting.count", 0] }, 0],
+            },
+            "data available": {
+              $ifNull: [{ $arrayElemAt: ["$data available.count", 0] }, 0],
+            },
+          },
+        },
       ];
 
-      // 3. Execute the aggregation
       const results = await DeviceModel(tenant).aggregate(pipeline);
 
-      // 4. Format the response
-      const counts = results[0];
-      const summary = {
-        deployed: counts.deployed[0] ? counts.deployed[0].count : 0,
-        recalled: counts.recalled[0] ? counts.recalled[0].count : 0,
-        undeployed: counts.undeployed[0] ? counts.undeployed[0].count : 0,
-        online: counts.online[0] ? counts.online[0].count : 0,
-        offline: counts.offline[0] ? counts.offline[0].count : 0,
-        maintenance_overdue: counts.maintenance_overdue[0]
-          ? counts.maintenance_overdue[0].count
-          : 0,
+      const summary = results[0] || {
+        total_monitors: 0,
+        operational: 0,
+        transmitting: 0,
+        "not transmitting": 0,
+        "data available": 0,
       };
 
       return {
         success: true,
-        message: "Successfully retrieved device count summary.",
+        message: "Successfully retrieved network health summary.",
         data: summary,
         status: httpStatus.OK,
       };

@@ -1454,6 +1454,11 @@ const validateGetDeviceCountSummary = [
       return true;
     })
     .trim(),
+  query("network")
+    .optional()
+    .isString()
+    .withMessage("network must be a string")
+    .trim(),
 ];
 
 const validateUserIdBody = [
