@@ -194,11 +194,11 @@ const deviceUtil = {
               { $match: { isOnline: false, rawOnlineStatus: true } },
               { $count: "count" },
             ],
-            "data available": [
+            data_available: [
               { $match: { isOnline: true, rawOnlineStatus: false } },
               { $count: "count" },
             ],
-            "not transmitting": [
+            not_transmitting: [
               { $match: { isOnline: false, rawOnlineStatus: false } },
               { $count: "count" },
             ],
@@ -215,11 +215,11 @@ const deviceUtil = {
             transmitting: {
               $ifNull: [{ $arrayElemAt: ["$transmitting.count", 0] }, 0],
             },
-            "not transmitting": {
-              $ifNull: [{ $arrayElemAt: ["$not transmitting.count", 0] }, 0],
+            not_transmitting: {
+              $ifNull: [{ $arrayElemAt: ["$not_transmitting.count", 0] }, 0],
             },
-            "data available": {
-              $ifNull: [{ $arrayElemAt: ["$data available.count", 0] }, 0],
+            data_available: {
+              $ifNull: [{ $arrayElemAt: ["$data_available.count", 0] }, 0],
             },
           },
         },
@@ -231,8 +231,8 @@ const deviceUtil = {
         total_monitors: 0,
         operational: 0,
         transmitting: 0,
-        "not transmitting": 0,
-        "data available": 0,
+        not_transmitting: 0,
+        data_available: 0,
       };
 
       return {
