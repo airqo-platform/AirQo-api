@@ -134,6 +134,146 @@ const deviceController = {
       return;
     }
   },
+  listOperationalDevices: async (req, res, next) => {
+    try {
+      logText("listing operational devices...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Force filters for this status
+      request.query.isOnline = true;
+      request.query.rawOnlineStatus = true;
+      request.query.detailLevel = "summary";
+
+      const result = await createDeviceUtil.list(request, next);
+      handleResponse({ result, res, key: "devices" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listTransmittingDevices: async (req, res, next) => {
+    try {
+      logText("listing transmitting devices...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Force filters for this status
+      request.query.isOnline = false;
+      request.query.rawOnlineStatus = true;
+      request.query.detailLevel = "summary";
+
+      const result = await createDeviceUtil.list(request, next);
+      handleResponse({ result, res, key: "devices" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listDataAvailableDevices: async (req, res, next) => {
+    try {
+      logText("listing data available devices...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Force filters for this status
+      request.query.isOnline = true;
+      request.query.rawOnlineStatus = false;
+      request.query.detailLevel = "summary";
+
+      const result = await createDeviceUtil.list(request, next);
+      handleResponse({ result, res, key: "devices" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listNotTransmittingDevices: async (req, res, next) => {
+    try {
+      logText("listing not transmitting devices...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Force filters for this status
+      request.query.isOnline = false;
+      request.query.rawOnlineStatus = false;
+      request.query.detailLevel = "summary";
+
+      const result = await createDeviceUtil.list(request, next);
+      handleResponse({ result, res, key: "devices" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 
   getDeviceDetailsById: async (req, res, next) => {
     try {

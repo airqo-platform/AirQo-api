@@ -1255,6 +1255,9 @@ const generateFilter = {
       last_active_after,
       serial_number,
       mobility,
+      isOnline,
+      rawOnlineStatus,
+      cohort_id,
       authRequired,
       deployment_type_include_legacy,
     } = { ...req.query, ...req.params };
@@ -1394,6 +1397,20 @@ const generateFilter = {
       }
     }
 
+    if (isOnline !== undefined) {
+      const boolValue = toBooleanSafe(isOnline);
+      if (boolValue !== undefined) {
+        filter.isOnline = boolValue;
+      }
+    }
+
+    if (rawOnlineStatus !== undefined) {
+      const boolValue = toBooleanSafe(rawOnlineStatus);
+      if (boolValue !== undefined) {
+        filter.rawOnlineStatus = boolValue;
+      }
+    }
+
     if (category || device_category) {
       const categoryValue = category || device_category;
       filter["category"] = categoryValue;
@@ -1480,6 +1497,15 @@ const generateFilter = {
 
       if (validStatusArray.length > 0) {
         filter.status = { $in: validStatusArray };
+      }
+    }
+
+    if (cohort_id) {
+      if (typeof cohort_id === "string" && cohort_id.includes(",")) {
+        const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
+        filter.cohorts = { $in: cohortIds };
+      } else {
+        filter.cohorts = ObjectId(cohort_id);
       }
     }
     return filter;
