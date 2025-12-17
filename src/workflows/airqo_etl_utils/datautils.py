@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import configuration as Config
 from .commons import download_file_from_gcs, drop_rows_with_bad_data
@@ -2398,7 +2398,7 @@ class DataUtils:
                 len(validation_requests), os.cpu_count() or 2
             )
 
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Submit all validation requests
                 futures = [
                     executor.submit(process_validation_request, request)
@@ -2493,6 +2493,6 @@ class DataUtils:
             )
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 f"Data quality validation failed for {device_category.value} {data_type.value}: {str(e)}"
             )
