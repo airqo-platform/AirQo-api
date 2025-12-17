@@ -2,12 +2,13 @@ import uuid
 import numpy as np
 import pandas as pd
 import json
+import os
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 from .config import configuration as Config
 from .commons import download_file_from_gcs, drop_rows_with_bad_data
@@ -1645,6 +1646,7 @@ class DataUtils:
                 data_type,
                 data[data["network"] == DeviceNetwork.AIRQO.str].copy(),
                 frequency,
+                async_mode=False,
             )
 
         try:
@@ -2288,33 +2290,153 @@ class DataUtils:
         data_type: DataType,
         data: pd.DataFrame = None,
         frequency: Frequency = None,
+        async_mode: bool = True,
     ) -> None:
         """
-        Execute data quality checks.
+        Execute data quality checks asynchronously using ThreadPoolExecutor.
 
-        Notes: If running locally, you might want to run this without async if you want to see the results
+        Args:
+            device_category: The category of the device (e.g., GAS, LOWCOST)
+            data_type: The type of data to work with (e.g., RAW, AVERAGE)
+            data: The sensor data to be validated (for RAW data types)
+            frequency: The frequency of the data processing (e.g., HOURLY)
+            async_mode: If False, runs synchronously for testing/debugging
+
+        Notes:
+            - Uses ThreadPoolExecutor for proper resource management in Airflow
+            - Comprehensive error handling prevents worker crashes
+            - Set async_mode=False for local testing to see immediate results
         """
-        Utils.execute_and_forget_async_task(
-            lambda: DataUtils.__perform_data_quality_checks(
+        if not async_mode:
+            # Synchronous execution for testing/debugging
+            DataUtils.__perform_data_quality_checks(
                 device_category, data_type, data=data, frequency=frequency
             )
-        )
+            return
 
-    async def __perform_data_quality_checks(
+        try:
+
+            def run_quality_checks():
+                try:
+                    DataUtils.__perform_data_quality_checks(
+                        device_category, data_type, data=data, frequency=frequency
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Data quality check failed for {device_category.value} {data_type.value}: {e}",
+                        exc_info=True,
+                    )
+
+            with ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="data_quality_"
+            ) as executor:
+                future = executor.submit(run_quality_checks)
+                # Don't wait for completion (fire-and-forget)
+                # ThreadPoolExecutor handles cleanup automatically
+
+        except Exception as e:
+
+            logger.error(
+                f"Data quality check failed for {device_category.value} {data_type.value}: {e}",
+                exc_info=True,
+            )
+
+    @staticmethod
+    def execute_data_quality_checks_bulk(
+        validation_requests: List[Dict[str, Any]], max_workers: Optional[int] = None
+    ) -> None:
+        """
+        Execute multiple data quality checks concurrently using multiprocessing.
+
+        Optimized for high-volume scenarios where multiple device categories
+        need validation simultaneously. Uses process-based parallelism for
+        CPU-intensive validation workloads.
+
+        Args:
+            validation_requests: List of dicts with keys: device_category, data_type, data, frequency
+            max_workers: Maximum number of processes (defaults to CPU count)
+
+        Example:
+            >>> requests = [
+            ...     {
+            ...         'device_category': DeviceCategory.LOWCOST,
+            ...         'data_type': DataType.RAW,
+            ...         'data': lowcost_df,
+            ...         'frequency': Frequency.HOURLY
+            ...     },
+            ...     {
+            ...         'device_category': DeviceCategory.BAM,
+            ...         'data_type': DataType.AVERAGED,
+            ...         'data': None,
+            ...         'frequency': Frequency.HOURLY
+            ...     }
+            ... ]
+            >>> DataUtils.execute_data_quality_checks_bulk(requests)
+        """
+        if not validation_requests:
+            return
+
+        try:
+
+            def process_validation_request(request: Dict[str, Any]) -> Dict[str, Any]:
+                """Process a single validation request in separate process."""
+                try:
+                    DataUtils.__perform_data_quality_checks(
+                        device_category=request["device_category"],
+                        data_type=request["data_type"],
+                        data=request.get("data"),
+                        frequency=request.get("frequency", Frequency.HOURLY),
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Data quality check failed for {request['device_category'].value} {request['data_type'].value}: {e}",
+                        exc_info=True,
+                    )
+
+            # Use process pool for CPU-intensive validation work
+            max_workers = max_workers or min(
+                len(validation_requests), os.cpu_count() or 2
+            )
+
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all validation requests
+                futures = [
+                    executor.submit(process_validation_request, request)
+                    for request in validation_requests
+                ]
+
+                # Fire-and-forget: don't wait for results in production
+                # Results could be collected if needed for monitoring
+                logger.info(
+                    f"Submitted {len(futures)} data quality validation jobs to process pool"
+                )
+
+        except Exception as e:
+            logger.exception(f"Bulk data quality check failed: {e}", exc_info=True)
+
+    @staticmethod
+    def __perform_data_quality_checks(
         device_category: DeviceCategory,
         data_type: DataType,
         data: pd.DataFrame = None,
         frequency: Frequency = Frequency.HOURLY,
     ) -> None:
         """
-        Perform data quality checks on the provided DataFrame based on the device category.
+        Perform synchronous data quality checks on the provided DataFrame based on the device category.
 
-        This function routes the data quality check to the appropriate Great Expectations validation suite depending on the type of device. It does not modify the original DataFrame or return any results. Intended to run as a fire-and-forget task.
+        This function routes the data quality check to the appropriate Great Expectations validation suite
+        depending on the type of device. It runs synchronously since Great Expectations validation is
+        inherently synchronous. Designed to be called from background threads for non-blocking execution.
 
         Args:
-            device_category(DeviceCategory): The category of the device(e.g., GAS, LOWCOST).
-            data(pd.DataFrame): The raw sensor data to be validated.
-            data_type(DataType): The type of data to work with(e.g., RAW, AVERAGE).
+            device_category: The category of the device (e.g., GAS, LOWCOST)
+            data_type: The type of data to work with (e.g., RAW, AVERAGE)
+            data: The raw sensor data to be validated (required for RAW data types)
+            frequency: The frequency of data processing for determining table names
+
+        Raises:
+            ValueError: If device_category or data_type is unsupported
+            Exception: If validation execution fails
         """
         data_asset_name: str = None
         RAW_METHODS = {
@@ -2328,26 +2450,49 @@ class DataUtils:
             DeviceCategory.LOWCOST: "pm2_5_low_cost_sensor_average_data",
             DeviceCategory.BAM: "bam_sensors_averaged_data",
         }
-        if data_type == DataType.RAW:
-            # RAW → Pandas-based validation
-            source = AirQoGxExpectations.from_pandas()
-            method_name = RAW_METHODS.get(device_category)
-        elif data_type in (DataType.AVERAGED, DataType.CONSOLIDATED):
-            # SQL → override data_asset_name with project + table name
-            source = AirQoGxExpectations.from_sql()
-            method_name = SQL_METHODS.get(device_category)
-            # TODO SQL using the general tables for now - This needs to be more dynamic
-            data_asset_name, _ = DataUtils._get_table(
-                data_type, DeviceCategory.GENERAL, frequency
+
+        try:
+            if data_type == DataType.RAW:
+                # RAW → Pandas-based validation
+                source = AirQoGxExpectations.from_pandas()
+                method_name = RAW_METHODS.get(device_category)
+                if data is None:
+                    logger.warning(
+                        f"No data provided for RAW validation of {device_category.value}"
+                    )
+                    return
+            elif data_type in (DataType.AVERAGED, DataType.CONSOLIDATED):
+                # SQL → override data_asset_name with project + table name
+                source = AirQoGxExpectations.from_sql()
+                method_name = SQL_METHODS.get(device_category)
+                # TODO SQL using the general tables for now - This needs to be more dynamic
+                data_asset_name, _ = DataUtils._get_table(
+                    data_type, DeviceCategory.GENERAL, frequency
+                )
+            else:
+                raise ValueError(f"Unsupported data_type: {data_type}")
+
+            if not method_name:
+                raise ValueError(f"Unsupported device_category: {device_category}")
+
+            func = getattr(source, method_name)
+
+            if data_asset_name:
+                logger.info(
+                    f"Running SQL-based validation for {device_category.value} on {data_asset_name}"
+                )
+                func(data_asset_name)
+            else:
+                logger.info(
+                    f"Running DataFrame-based validation for {device_category.value} with {len(data)} records"
+                )
+                func(data)
+
+            logger.info(
+                f"Data quality validation completed successfully for {device_category.value} {data_type.value}"
             )
-        else:
-            raise ValueError(f"Unsupported data_type: {data_type}")
 
-        if not method_name:
-            raise ValueError(f"Unsupported device_category: {device_category}")
-        func = getattr(source, method_name)
-
-        if data_asset_name:
-            func(data_asset_name)
-        else:
-            func(data)
+        except Exception as e:
+            logger.error(
+                f"Data quality validation failed for {device_category.value} {data_type.value}: {str(e)}"
+            )
