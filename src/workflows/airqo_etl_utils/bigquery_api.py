@@ -323,10 +323,14 @@ class BigQueryApi:
         job_config = bigquery.LoadJobConfig(
             write_disposition=job_action.get_name(),
         )
-        job = self.client.load_table_from_dataframe(
-            dataframe, table, job_config=job_config
-        )
-        job.result()
+        try:
+            job = self.client.load_table_from_dataframe(
+                dataframe, table, job_config=job_config
+            )
+            job.result()
+        except google_api_exceptions.GoogleCloudError as e:
+            logger.exception(f"BigQuery load job failed: {e}")
+            raise
 
         destination_table = self.client.get_table(table)
         logger.info(f"Loaded {len(dataframe)} rows to {table}")
