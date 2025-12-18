@@ -230,6 +230,20 @@ const validateSiteQueryParams = oneOf([
     .withMessage(
       "the online_status value is not among the expected ones which include: online, offline"
     ),
+  query("isOnline")
+    .optional()
+    .notEmpty()
+    .withMessage("isOnline should not be empty if provided")
+    .bail()
+    .isBoolean()
+    .withMessage("isOnline must be a boolean value (true or false)"),
+  query("rawOnlineStatus")
+    .optional()
+    .notEmpty()
+    .withMessage("rawOnlineStatus should not be empty if provided")
+    .bail()
+    .isBoolean()
+    .withMessage("rawOnlineStatus must be a boolean value (true or false)"),
   query("category")
     .optional()
     .notEmpty()
