@@ -1540,6 +1540,8 @@ const generateFilter = {
       last_active,
       last_active_before,
       last_active_after,
+      isOnline,
+      rawOnlineStatus,
     } = { ...req.query, ...req.params };
     const filter = {};
 
@@ -1625,6 +1627,31 @@ const generateFilter = {
         filter["isOnline"] = true;
       } else if (online_status.toLowerCase() === "offline") {
         filter["isOnline"] = false;
+      }
+    }
+
+    const toBooleanSafe = (value) => {
+      if (value === undefined) return undefined;
+      if (typeof value === "boolean") return value;
+      const stringValue = String(value)
+        .toLowerCase()
+        .trim();
+      if (["true", "yes", "1"].includes(stringValue)) return true;
+      if (["false", "no", "0"].includes(stringValue)) return false;
+      return undefined;
+    };
+
+    if (isOnline !== undefined) {
+      const boolValue = toBooleanSafe(isOnline);
+      if (boolValue !== undefined) {
+        filter.isOnline = boolValue;
+      }
+    }
+
+    if (rawOnlineStatus !== undefined) {
+      const boolValue = toBooleanSafe(rawOnlineStatus);
+      if (boolValue !== undefined) {
+        filter.rawOnlineStatus = boolValue;
       }
     }
 
