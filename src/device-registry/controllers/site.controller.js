@@ -75,6 +75,37 @@ const listSitesByStatus = async (req, res, next, statusFilters, logMessage) => {
 };
 
 const siteController = {
+  getSiteCountSummary: async (req, res, next) => {
+    try {
+      logText("getting site count summary...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await siteUtil.getSiteCountSummary(request, next);
+
+      handleResponse({ res, result, key: "summary" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getSiteDetailsById: async (req, res, next) => {
     try {
       const { id } = req.params;

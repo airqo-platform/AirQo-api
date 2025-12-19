@@ -15,6 +15,7 @@ const {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
+  validateGetSiteCountSummary,
   validateBulkUpdateSites,
 } = require("@validators/site.validators");
 const { validate } = require("@validators/common");
@@ -36,6 +37,14 @@ router.get(
   validateSiteQueryParams,
   pagination(),
   siteController.listSummary
+);
+
+router.get(
+  "/summary/count",
+  validateTenant,
+  validateGetSiteCountSummary,
+  validate,
+  siteController.getSiteCountSummary
 );
 
 // STATUS-BASED LISTING ENDPOINTS
