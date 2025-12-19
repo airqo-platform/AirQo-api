@@ -527,6 +527,34 @@ const validateBulkUpdateSites = [
   ...validateUpdateSite,
 ];
 
+const validateGetSiteCountSummary = [
+  query("group_id")
+    .optional()
+    .isString()
+    .withMessage("group_id must be a string")
+    .trim(),
+  query("cohort_id")
+    .optional()
+    .isString()
+    .withMessage("cohort_id must be a string")
+    .custom((value) => {
+      if (value) {
+        const ids = value.split(",");
+        for (const id of ids) {
+          if (!mongoose.Types.ObjectId.isValid(id.trim())) {
+            throw new Error(`Invalid cohort ID format: ${id.trim()}`);
+          }
+        }
+      }
+      return true;
+    }),
+  query("network")
+    .optional()
+    .isString()
+    .withMessage("network must be a string")
+    .trim(),
+];
+
 module.exports = {
   validateTenant: createTenantValidation({ isOptional: true }),
   validateSiteIdentifier,
@@ -540,6 +568,7 @@ module.exports = {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
+  validateGetSiteCountSummary,
   validateBulkUpdateSites,
   validateSiteIdParam,
   validateCategoryField,
