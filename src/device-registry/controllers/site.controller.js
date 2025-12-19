@@ -63,6 +63,10 @@ const listSitesByStatus = async (req, res, next, statusFilters, logMessage) => {
 
     const result = await siteUtil.list(request, next);
 
+    if (isEmpty(result) || res.headersSent) {
+      return;
+    }
+
     if (result.success === true) {
       const status = result.status ? result.status : httpStatus.OK;
       return res.status(status).json({
