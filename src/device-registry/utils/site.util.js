@@ -44,7 +44,7 @@ const getSiteCountSummary = async (request, next) => {
       { $match: filter },
       {
         $facet: {
-          // We will calculate total_sites in the $project stage
+          total_sites: [{ $count: "count" }],
           operational: [
             { $match: { isOnline: true, rawOnlineStatus: true } },
             { $count: "count" },
@@ -65,6 +65,9 @@ const getSiteCountSummary = async (request, next) => {
       },
       {
         $project: {
+          total_sites: {
+            $ifNull: [{ $arrayElemAt: ["$total_sites.count", 0] }, 0],
+          },
           operational: {
             $ifNull: [{ $arrayElemAt: ["$operational.count", 0] }, 0],
           },
@@ -79,26 +82,17 @@ const getSiteCountSummary = async (request, next) => {
           },
         },
       },
-      {
-        $project: {
-          operational: 1,
-          transmitting: 1,
-          not_transmitting: 1,
-          data_available: 1,
-          total_sites: {
-            $add: [
-              "$operational",
-              "$transmitting",
-              "$not_transmitting",
-              "$data_available",
-            ],
-          },
-        },
-      },
     ];
 
     const results = await SiteModel(tenant).aggregate(pipeline);
-    const summary = results[0] || {};
+    const defaultSummary = {
+      total_sites: 0,
+      operational: 0,
+      transmitting: 0,
+      not_transmitting: 0,
+      data_available: 0,
+    };
+    const summary = results[0] || defaultSummary;
 
     return {
       success: true,
