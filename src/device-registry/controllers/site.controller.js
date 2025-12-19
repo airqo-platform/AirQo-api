@@ -63,7 +63,29 @@ const listSitesByStatus = async (req, res, next, statusFilters, logMessage) => {
 
     const result = await siteUtil.list(request, next);
 
-    handleResponse({ result, res, key: "sites" });
+    if (isEmpty(result) || res.headersSent) {
+      return;
+    }
+
+    if (result.success === true) {
+      const status = result.status ? result.status : httpStatus.OK;
+      return res.status(status).json({
+        success: true,
+        message: result.message,
+        meta: result.meta || {},
+        sites: result.data,
+      });
+    } else {
+      const status = result.status ? result.status : httpStatus.BAD_REQUEST;
+      return res.status(status).json({
+        success: false,
+        message: result.message,
+        errors: result.errors
+          ? result.errors
+          : { message: "Internal Server Error" },
+        meta: result.meta || {},
+      });
+    }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
