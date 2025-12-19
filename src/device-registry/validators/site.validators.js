@@ -527,6 +527,24 @@ const validateBulkUpdateSites = [
   ...validateUpdateSite,
 ];
 
+const validateGetSiteCountSummary = [
+  query("group_id")
+    .optional()
+    .isString()
+    .withMessage("group_id must be a string")
+    .trim(),
+  query("cohort_id")
+    .optional()
+    .isMongoId()
+    .withMessage("cohort_id must be a valid MongoDB ObjectId")
+    .trim(),
+  query("network")
+    .optional()
+    .isString()
+    .withMessage("network must be a string")
+    .trim(),
+];
+
 module.exports = {
   validateTenant: createTenantValidation({ isOptional: true }),
   validateSiteIdentifier,
@@ -540,6 +558,7 @@ module.exports = {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
+  validateGetSiteCountSummary,
   validateBulkUpdateSites,
   validateSiteIdParam,
   validateCategoryField,
