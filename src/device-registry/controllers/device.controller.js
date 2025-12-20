@@ -1972,6 +1972,45 @@ const deviceController = {
     }
   },
 
+  createShippingBatch: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.createShippingBatch(request, next);
+
+      if (result.success) {
+        return res.status(result.status || httpStatus.CREATED).json({
+          success: true,
+          message: result.message,
+          batch: result.data,
+        });
+      } else {
+        return res
+          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+          .json({
+            success: false,
+            message: result.message,
+            errors: result.errors,
+          });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Create Shipping Batch Error ${error.message}`);
+      next(error);
+    }
+  },
+
   getShippingPreparationStatus: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2115,6 +2154,53 @@ const deviceController = {
     } catch (error) {
       // Let the utility's error handling pass through
       next(error);
+    }
+  },
+  removeDevicesFromShippingBatch: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.removeDevicesFromShippingBatch(
+        request,
+        next
+      );
+
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else {
+        return res
+          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+          .json({
+            success: false,
+            message: result.message,
+            errors: result.errors,
+          });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Remove Devices From Batch Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   getMobileDevicesMetadataAnalysis: async (req, res, next) => {

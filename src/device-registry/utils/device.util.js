@@ -3227,6 +3227,7 @@ const deviceUtil = {
       const results = [];
       const successful = [];
       const failed = [];
+      let batchCreated = false;
 
       for (const deviceName of device_names) {
         try {
@@ -3269,6 +3270,7 @@ const deviceUtil = {
             // created_by: request.user._id // Assuming user is available in request
           });
           logText(`📦 Shipping batch '${batch_name}' created successfully.`);
+          batchCreated = true;
         } catch (batchError) {
           logText(
             `❗ Failed to create shipping batch '${batch_name}': ${batchError.message}`
@@ -3277,9 +3279,14 @@ const deviceUtil = {
         }
       }
 
+      const message =
+        `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed.` +
+        (batchCreated
+          ? ` Shipping batch '${batch_name}' was created.`
+          : " No shipping batch was created as 'batch_name' was not provided.");
       return {
         success: true,
-        message: `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed`,
+        message: message,
         data: {
           successful_preparations: successful,
           failed_preparations: failed,
@@ -3300,6 +3307,84 @@ const deviceUtil = {
           { message: error.message }
         )
       );
+    }
+  },
+  createShippingBatch: async (request, next) => {
+    try {
+      const { device_names, token_type = "hex", batch_name } = request.body;
+      const { tenant } = request.query;
+
+      // Check for duplicate batch name
+      const existingBatch = await ShippingBatchModel(tenant).findOne({
+        batch_name,
+      });
+      if (existingBatch) {
+        return {
+          success: false,
+          message: "Batch name already exists",
+          status: httpStatus.CONFLICT,
+          errors: {
+            message: `A shipping batch with the name '${batch_name}' already exists.`,
+          },
+        };
+      }
+
+      const successful = [];
+      const failed = [];
+
+      for (const deviceName of device_names) {
+        try {
+          const deviceRequest = {
+            body: { device_name: deviceName, token_type },
+            query: { tenant },
+          };
+
+          const result = await deviceUtil.prepareDeviceForShipping(
+            deviceRequest,
+            next
+          );
+
+          if (result.success) {
+            successful.push(result.data);
+          } else {
+            failed.push({
+              device_name: deviceName,
+              error: result.message || result.errors?.message,
+            });
+          }
+        } catch (error) {
+          failed.push({
+            device_name: deviceName,
+            error: error.message,
+          });
+        }
+      }
+
+      if (successful.length === 0) {
+        return {
+          success: false,
+          message: "No devices could be prepared for shipping.",
+          status: httpStatus.BAD_REQUEST,
+          errors: { failed_preparations: failed },
+        };
+      }
+
+      const successfulDeviceIds = successful.map((d) => d.device_id);
+      const newBatch = await ShippingBatchModel(tenant).create({
+        batch_name,
+        devices: successfulDeviceIds,
+        device_names: successful.map((d) => d.device_name),
+        tenant,
+      });
+
+      return {
+        success: true,
+        message: `Shipping batch '${batch_name}' created successfully. ${successful.length} devices prepared, ${failed.length} failed.`,
+        data: newBatch,
+        status: httpStatus.CREATED,
+      };
+    } catch (error) {
+      next(error);
     }
   },
   listShippingBatches: async (request, next) => {
@@ -3442,6 +3527,98 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🪲🪲 Get Shipping Batch Details Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  removeDevicesFromShippingBatch: async (request, next) => {
+    try {
+      const { id } = request.params;
+      const { device_names: requestedDeviceNames } = request.body;
+      const { tenant } = request.query;
+
+      // Validate batch exists
+      const batch = await ShippingBatchModel(tenant)
+        .findById(id)
+        .lean();
+      if (!batch) {
+        return {
+          success: false,
+          message: "Shipping batch not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `Batch with ID '${id}' does not exist` },
+        };
+      }
+
+      const existingDeviceNamesInBatch = new Set(batch.device_names || []);
+      const devicesToRemove = [];
+      const devicesNotFound = [];
+
+      for (const name of requestedDeviceNames) {
+        if (existingDeviceNamesInBatch.has(name)) {
+          devicesToRemove.push(name);
+        } else {
+          devicesNotFound.push(name);
+        }
+      }
+
+      if (devicesToRemove.length === 0) {
+        return {
+          success: true,
+          status: httpStatus.OK,
+          message:
+            "No devices removed. None of the provided devices were found in the batch.",
+          data: {
+            batch: batch,
+            summary: {
+              removed_count: 0,
+              not_found_count: devicesNotFound.length,
+              devices_not_found: devicesNotFound,
+            },
+          },
+        };
+      }
+
+      // Find device IDs for the names that will be removed
+      const devices = await DeviceModel(tenant)
+        .find({ name: { $in: devicesToRemove } })
+        .select("_id")
+        .lean();
+      const deviceIdsToRemove = devices.map((d) => d._id);
+
+      // Update the batch using atomic operators to remove names and IDs
+      const updatedBatch = await ShippingBatchModel(tenant).findByIdAndUpdate(
+        id,
+        {
+          $pull: {
+            device_names: { $in: devicesToRemove },
+            devices: { $in: deviceIdsToRemove },
+          },
+        },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: `Operation complete: ${devicesToRemove.length} devices removed, ${devicesNotFound.length} not found.`,
+        data: {
+          batch: updatedBatch,
+          summary: {
+            removed_count: devicesToRemove.length,
+            devices_removed: devicesToRemove,
+            not_found_count: devicesNotFound.length,
+            devices_not_found: devicesNotFound,
+          },
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Remove Devices From Batch Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
