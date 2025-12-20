@@ -1994,7 +1994,7 @@ const deviceController = {
         return res.status(result.status || httpStatus.CREATED).json({
           success: true,
           message: result.message,
-          batch: result.data,
+          batch_creation_results: result.data,
         });
       } else {
         return res

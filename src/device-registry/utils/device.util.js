@@ -2193,6 +2193,7 @@ const deviceUtil = {
     } catch (error) {
       if (error instanceof HttpError) {
         next(error);
+        return;
       } else {
         logger.error(`🐛🐛 Claim Device Error ${error.message}`);
         next(
@@ -3331,6 +3332,7 @@ const deviceUtil = {
 
       const successful = [];
       const failed = [];
+      const preparedDeviceIds = [];
 
       for (const deviceName of device_names) {
         try {
@@ -3346,6 +3348,7 @@ const deviceUtil = {
 
           if (result.success) {
             successful.push(result.data);
+            preparedDeviceIds.push(result.data.device_id);
           } else {
             failed.push({
               device_name: deviceName,
@@ -3369,22 +3372,58 @@ const deviceUtil = {
         };
       }
 
-      const successfulDeviceIds = successful.map((d) => d.device_id);
-      const newBatch = await ShippingBatchModel(tenant).create({
-        batch_name,
-        devices: successfulDeviceIds,
-        device_names: successful.map((d) => d.device_name),
-        tenant,
-      });
+      let newBatch;
+      try {
+        const successfulDeviceIds = successful.map((d) => d.device_id);
+        newBatch = await ShippingBatchModel(tenant).create({
+          batch_name,
+          devices: successfulDeviceIds,
+          device_names: successful.map((d) => d.device_name),
+          tenant,
+        });
+      } catch (batchError) {
+        logger.error(
+          `Failed to create shipping batch, rolling back device preparations: ${batchError.message}`
+        );
+        // If batch creation fails, rollback the preparations on the devices
+        await DeviceModel(tenant).updateMany(
+          { _id: { $in: preparedDeviceIds } },
+          {
+            $set: {
+              claim_status: "unclaimed", // Revert status
+              claim_token: null, // Remove token
+              shipping_prepared_at: null, // Unset preparation date
+            },
+          }
+        );
+
+        return {
+          success: false,
+          message:
+            "Batch creation failed; device preparations have been rolled back.",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: batchError.message },
+        };
+      }
 
       return {
         success: true,
         message: `Shipping batch '${batch_name}' created successfully. ${successful.length} devices prepared, ${failed.length} failed.`,
-        data: newBatch,
+        data: {
+          batch: newBatch,
+          successful_preparations: successful,
+          failed_preparations: failed,
+          summary: {
+            total_requested: device_names.length,
+            successful_count: successful.length,
+            failed_count: failed.length,
+          },
+        },
         status: httpStatus.CREATED,
       };
     } catch (error) {
       next(error);
+      return;
     }
   },
   listShippingBatches: async (request, next) => {
@@ -3556,63 +3595,83 @@ const deviceUtil = {
       }
 
       const existingDeviceNamesInBatch = new Set(batch.device_names || []);
-      const devicesToRemove = [];
-      const devicesNotFound = [];
+      const devicesInBatchToRemove = [];
+      const devicesNotInBatch = [];
 
       for (const name of requestedDeviceNames) {
         if (existingDeviceNamesInBatch.has(name)) {
-          devicesToRemove.push(name);
+          devicesInBatchToRemove.push(name);
         } else {
-          devicesNotFound.push(name);
+          devicesNotInBatch.push(name);
         }
       }
 
-      if (devicesToRemove.length === 0) {
+      if (devicesInBatchToRemove.length === 0) {
         return {
           success: true,
           status: httpStatus.OK,
           message:
             "No devices removed. None of the provided devices were found in the batch.",
           data: {
-            batch: batch,
+            batch,
             summary: {
               removed_count: 0,
-              not_found_count: devicesNotFound.length,
-              devices_not_found: devicesNotFound,
+              not_found_in_batch_count: devicesNotInBatch.length,
+              devices_not_found_in_batch: devicesNotInBatch,
             },
           },
         };
       }
 
-      // Find device IDs for the names that will be removed
-      const devices = await DeviceModel(tenant)
-        .find({ name: { $in: devicesToRemove } })
+      // Find which of the devices to remove actually exist in the DB
+      const foundDevices = await DeviceModel(tenant)
+        .find({ name: { $in: devicesInBatchToRemove } })
         .select("_id")
         .lean();
-      const deviceIdsToRemove = devices.map((d) => d._id);
+
+      const foundDeviceIds = new Set(foundDevices.map((d) => d._id.toString()));
+      const foundDeviceNames = new Set(
+        (await DeviceModel(tenant)
+          .find({ _id: { $in: Array.from(foundDeviceIds) } })
+          .select("name")
+          .lean()).map((d) => d.name)
+      );
+
+      const successfullyRemovedNames = devicesInBatchToRemove.filter((name) =>
+        foundDeviceNames.has(name)
+      );
+      const cleanedUpNames = devicesInBatchToRemove.filter(
+        (name) => !foundDeviceNames.has(name)
+      );
 
       // Update the batch using atomic operators to remove names and IDs
       const updatedBatch = await ShippingBatchModel(tenant).findByIdAndUpdate(
         id,
         {
           $pull: {
-            device_names: { $in: devicesToRemove },
-            devices: { $in: deviceIdsToRemove },
+            // Remove all requested names from the batch's name list
+            device_names: { $in: devicesInBatchToRemove },
+            // Only remove IDs of devices that were actually found
+            devices: { $in: Array.from(foundDeviceIds) },
           },
         },
         { new: true }
       );
 
+      const message = `Operation complete: ${successfullyRemovedNames.length} devices removed, ${cleanedUpNames.length} dangling references cleaned, ${devicesNotInBatch.length} not found in batch.`;
+
       return {
         success: true,
-        message: `Operation complete: ${devicesToRemove.length} devices removed, ${devicesNotFound.length} not found.`,
+        message,
         data: {
           batch: updatedBatch,
           summary: {
-            removed_count: devicesToRemove.length,
-            devices_removed: devicesToRemove,
-            not_found_count: devicesNotFound.length,
-            devices_not_found: devicesNotFound,
+            successfully_removed_count: successfullyRemovedNames.length,
+            successfully_removed: successfullyRemovedNames,
+            cleaned_up_count: cleanedUpNames.length,
+            cleaned_up_dangling_references: cleanedUpNames,
+            not_found_in_batch_count: devicesNotInBatch.length,
+            devices_not_found_in_batch: devicesNotInBatch,
           },
         },
         status: httpStatus.OK,

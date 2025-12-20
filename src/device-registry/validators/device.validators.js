@@ -1511,8 +1511,10 @@ const validateRemoveDevicesFromBatch = [
     .exists()
     .withMessage("device_names is required")
     .bail()
-    .isArray({ min: 1 })
-    .withMessage("device_names must be a non-empty array of strings")
+    .isArray({ min: 1, max: 50 })
+    .withMessage(
+      "device_names must be a non-empty array of strings with at most 50 items"
+    )
     .bail()
     .custom((deviceNames) => {
       const invalidNames = deviceNames.filter(
