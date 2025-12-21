@@ -3332,7 +3332,7 @@ const deviceUtil = {
 
       const successful = [];
       const failed = [];
-      const preparedDeviceIds = [];
+      const originalDeviceStates = [];
 
       for (const deviceName of device_names) {
         try {
@@ -3341,6 +3341,17 @@ const deviceUtil = {
             query: { tenant },
           };
 
+          // Store original state before modification
+          const originalDevice = await DeviceModel(tenant)
+            .findOne({ name: deviceName })
+            .lean();
+          if (originalDevice) {
+            originalDeviceStates.push({
+              _id: originalDevice._id,
+              ...originalDevice,
+            });
+          }
+
           const result = await deviceUtil.prepareDeviceForShipping(
             deviceRequest,
             next
@@ -3348,7 +3359,6 @@ const deviceUtil = {
 
           if (result.success) {
             successful.push(result.data);
-            preparedDeviceIds.push(result.data.device_id);
           } else {
             failed.push({
               device_name: deviceName,
@@ -3385,17 +3395,20 @@ const deviceUtil = {
         logger.error(
           `Failed to create shipping batch, rolling back device preparations: ${batchError.message}`
         );
-        // If batch creation fails, rollback the preparations on the devices
-        await DeviceModel(tenant).updateMany(
-          { _id: { $in: preparedDeviceIds } },
-          {
-            $set: {
-              claim_status: "unclaimed", // Revert status
-              claim_token: null, // Remove token
-              shipping_prepared_at: null, // Unset preparation date
-            },
-          }
-        );
+
+        // If batch creation fails, restore original device states
+        const rollbackPromises = originalDeviceStates.map((originalState) => {
+          const { _id, ...restoreData } = originalState;
+          return DeviceModel(tenant).updateOne({ _id }, { $set: restoreData });
+        });
+
+        await Promise.all(rollbackPromises)
+          .then(() => {
+            logText("📦 Rollback successful for all prepared devices.");
+          })
+          .catch((rollbackError) => {
+            logger.error(`CRITICAL: Rollback failed: ${rollbackError.message}`);
+          });
 
         return {
           success: false,

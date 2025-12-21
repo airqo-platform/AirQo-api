@@ -1382,6 +1382,16 @@ const validateCreateShippingBatch = [
       if (invalidNames.length > 0) {
         throw new Error(`Invalid device names: ${invalidNames.join(", ")}`);
       }
+
+      // Check for duplicates
+      const duplicates = deviceNames.filter(
+        (name, index) => deviceNames.indexOf(name) !== index
+      );
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Duplicate device names found: ${[...new Set(duplicates)].join(", ")}`
+        );
+      }
       return true;
     }),
 
