@@ -656,6 +656,300 @@ const generateFilter = {
 
     return filter;
   },
+  signals: (request, next) => {
+    const { query, params } = request;
+    const {
+      device,
+      device_number,
+      site,
+      frequency,
+      startTime,
+      endTime,
+      device_id,
+      site_id,
+      grid_id,
+      limit,
+      skip,
+      external,
+      metadata,
+      tenant,
+      recent,
+      page,
+      network,
+      index,
+      running,
+      brief,
+      deployment_type,
+    } = { ...query, ...params };
+
+    // Constants for date calculations
+    const today = monthsInfront(0);
+    const oneWeekBack = addDays(-7);
+
+    // Initial filter object
+    const filter = {
+      day: {
+        $gte: generateDateFormatWithoutHrs(oneWeekBack),
+        $lte: generateDateFormatWithoutHrs(today),
+      },
+      "values.time": {
+        $gte: oneWeekBack,
+        $lte: today,
+      },
+      "values.device": {},
+      "values.site": {},
+      "values.device_id": {},
+      "values.site_id": {},
+      "values.device_number": {},
+      device_number: {},
+    };
+
+    // Handle metadata and external properties
+    if (metadata) {
+      filter["metadata"] = metadata;
+    }
+
+    if (external) {
+      filter["external"] = external;
+    }
+
+    // Handle index filtering
+    if (!index) {
+      delete filter["values.pm2_5.value"];
+    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
+      const range = constants.AQI_INDEX[index];
+      filter["values.pm2_5.value"] = {};
+      filter["values.pm2_5.value"]["$gte"] = range.min;
+      // Only set $lte if max is not null
+      if (range.max !== null) {
+        filter["values.pm2_5.value"]["$lte"] = range.max;
+      }
+      filter["index"] = index;
+    } else {
+      delete filter["values.pm2_5.value"];
+    }
+
+    // Handle startTime and endTime filtering
+    if (startTime) {
+      if (!isTimeEmpty(startTime)) {
+        const start = new Date(startTime);
+        filter["values.time"]["$gte"] = start;
+      } else {
+        delete filter["values.time"];
+      }
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
+    }
+
+    if (endTime) {
+      if (!isTimeEmpty(endTime)) {
+        const end = new Date(endTime);
+        filter["values.time"]["$lte"] = end;
+      } else {
+        delete filter["values.time"];
+      }
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
+    }
+
+    // Handle startTime and endTime corner cases
+    if (startTime && !endTime) {
+      if (!isTimeEmpty(startTime)) {
+        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
+      } else {
+        delete filter["values.time"];
+      }
+      const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
+        startTime,
+        1
+      );
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+        addedTwoWeeksToProvidedDateTime
+      );
+    }
+
+    if (!startTime && endTime) {
+      if (!isTimeEmpty(endTime)) {
+        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+      } else {
+        delete filter["values.time"];
+      }
+      const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+        endTime,
+        -1
+      );
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+        removedTwoWeeksFromProvidedDateTime
+      );
+    }
+
+    if (startTime && endTime) {
+      const weeks = getDifferenceInWeeks(startTime, endTime);
+      logObject("the weeks between provided dates", weeks);
+      if (weeks > 1) {
+        if (!isTimeEmpty(endTime)) {
+          filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
+            endTime,
+            -1
+          );
+        } else {
+          delete filter["values.time"];
+        }
+        const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+          endTime,
+          -1
+        );
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+          removedTwoWeeksFromProvidedDateTime
+        );
+      }
+    }
+
+    // Handle unique names for sites and devices
+    if (device) {
+      const deviceArray = device
+        .toString()
+        .split(",")
+        .map((value) =>
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+        );
+      const mergedArray = [...deviceArray, ...device.toString().split(",")];
+      filter["values.device"]["$in"] = mergedArray;
+      filter["device"] = true;
+    } else {
+      delete filter["values.device"];
+      filter["device"] = false;
+    }
+
+    if (device && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (page) {
+      filter["page"] = page;
+    }
+
+    if (limit) {
+      filter["limit"] = limit;
+    }
+
+    if (skip) {
+      filter["skip"] = skip;
+    }
+
+    // Handle device_number filtering
+    if (device_number) {
+      const deviceArray = device_number.toString().split(",");
+      filter["device_number"]["$in"] = deviceArray;
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (device_number && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_number) {
+      delete filter["device_number"];
+      delete filter["values.device_number"];
+    }
+
+    // Handle site filtering
+    if (site) {
+      filter["values.site"]["$in"] = site.toString().split(",");
+      filter["metadata"] = "site_id";
+    }
+
+    if (site && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site) {
+      delete filter["values.site"];
+    }
+
+    // Handle unique ids for devices and sites
+    if (device_id) {
+      logObject("device_id", device_id);
+      const deviceIdArray = device_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.device_id"]["$in"] = deviceIdArray;
+    }
+
+    if (device_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_id) {
+      delete filter["values.device_id"];
+    }
+
+    if (site_id) {
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.site_id"]["$in"] = siteIdArray;
+      filter["metadata"] = "site_id";
+    }
+
+    if (site_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site_id) {
+      delete filter["values.site_id"];
+    }
+
+    // Handle frequency, recent, network, and tenant
+    if (frequency) {
+      filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    } else {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
+    }
+
+    if (recent) {
+      filter["recent"] = recent;
+    }
+
+    if (network) {
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
+    }
+
+    if (tenant) {
+      filter["tenant"] = tenant;
+    }
+
+    // Handle running and brief properties
+    if (running) {
+      filter["running"] = running;
+    }
+
+    if (brief) {
+      filter["brief"] = brief;
+    }
+
+    // Handle deployment type filtering
+    if (deployment_type) {
+      filter.deployment_type = deployment_type;
+    }
+
+    // Handle grid_id for mobile deployments
+    if (grid_id) {
+      const gridIdArray = grid_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.grid_id"] = { $in: gridIdArray };
+    }
+
+    return filter;
+  },
   telemetry: (request) => {
     const { query, params } = request;
     const { device, device_id, site_id, site, frequency } = {
