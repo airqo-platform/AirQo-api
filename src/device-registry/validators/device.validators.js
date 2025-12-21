@@ -1361,6 +1361,54 @@ const validateBulkPrepareDeviceShipping = [
     .withMessage("batch_name cannot be empty if provided"),
 ];
 
+const validateCreateShippingBatch = [
+  body("device_names")
+    .exists()
+    .withMessage("device_names is required")
+    .bail()
+    .isArray({ min: 1, max: 50 })
+    .withMessage("device_names must be an array with 1-50 device names")
+    .bail()
+    .custom((deviceNames) => {
+      // Check each device name format
+      const invalidNames = deviceNames.filter(
+        (name) =>
+          typeof name !== "string" ||
+          name.trim().length < 3 ||
+          name.trim().length > 50 ||
+          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+      );
+
+      if (invalidNames.length > 0) {
+        throw new Error(`Invalid device names: ${invalidNames.join(", ")}`);
+      }
+
+      // Check for duplicates
+      const duplicates = deviceNames.filter(
+        (name, index) => deviceNames.indexOf(name) !== index
+      );
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Duplicate device names found: ${[...new Set(duplicates)].join(", ")}`
+        );
+      }
+      return true;
+    }),
+
+  body("token_type")
+    .optional()
+    .trim()
+    .isIn(["hex", "readable"])
+    .withMessage("token_type must be either 'hex' or 'readable'"),
+
+  body("batch_name")
+    .exists()
+    .withMessage("batch_name is a required field")
+    .bail()
+    .notEmpty()
+    .withMessage("batch_name cannot be empty"),
+];
+
 const validateGetShippingStatus = [
   query("device_names")
     .optional()
@@ -1461,6 +1509,34 @@ const validateGetDeviceCountSummary = [
     .trim(),
 ];
 
+const validateRemoveDevicesFromBatch = [
+  param("id")
+    .exists()
+    .withMessage("The batch ID is missing in the request path.")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("Invalid batch ID. Must be a valid MongoDB ObjectId."),
+  body("device_names")
+    .exists()
+    .withMessage("device_names is required")
+    .bail()
+    .isArray({ min: 1, max: 50 })
+    .withMessage(
+      "device_names must be a non-empty array of strings with at most 50 items"
+    )
+    .bail()
+    .custom((deviceNames) => {
+      const invalidNames = deviceNames.filter(
+        (name) => typeof name !== "string" || name.trim().length === 0
+      );
+      if (invalidNames.length > 0) {
+        throw new Error("All device names must be non-empty strings");
+      }
+      return true;
+    }),
+];
+
 const validateUserIdBody = [
   body("user_id")
     .exists()
@@ -1505,4 +1581,6 @@ module.exports = {
   validateGetDeviceCountSummary,
   validateListOrphanedDevices,
   validateUserIdBody,
+  validateCreateShippingBatch,
+  validateRemoveDevicesFromBatch,
 };
