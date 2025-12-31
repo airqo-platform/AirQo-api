@@ -29,8 +29,8 @@ router.post("/", cohortValidations.createCohort, createCohortController.create);
 
 router.get(
   "/",
-  cohortValidations.listCohorts,
   pagination(),
+  cohortValidations.listCohorts,
   createCohortController.list
 );
 
@@ -50,8 +50,8 @@ router.get(
 
 router.get(
   "/users",
-  cohortValidations.listUserCohorts,
   pagination(),
+  cohortValidations.listUserCohorts,
   createCohortController.listUserCohorts
 );
 
