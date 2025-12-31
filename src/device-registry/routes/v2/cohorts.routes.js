@@ -48,6 +48,13 @@ router.get(
   createCohortController.listDashboard
 );
 
+router.get(
+  "/users",
+  cohortValidations.listUserCohorts,
+  pagination(),
+  createCohortController.listUserCohorts
+);
+
 router.put(
   "/:cohort_id/assign-device/:device_id",
   cohortValidations.assignOneDeviceToCohort,

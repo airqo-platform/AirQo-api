@@ -441,6 +441,9 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
+      // Exclude individual user cohorts from the main list
+      filter.name = { ...(filter.name || {}), $not: /^coh_user_/i };
+
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
@@ -552,6 +555,106 @@ const createCohort = {
     }
   },
 
+  listUserCohorts: async (request, next) => {
+    try {
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
+      const filter = generateFilter.cohorts(request, next);
+
+      // Filter for only individual user cohorts
+      filter.name = { ...(filter.name || {}), $regex: /^coh_user_/i };
+
+      const _skip = Math.max(0, parseInt(skip, 10) || 0);
+      const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
+      const sortOrder = order === "asc" ? 1 : -1;
+      const sortField = sortBy ? sortBy : "createdAt";
+
+      const pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $project: constants.COHORTS_INCLUSION_PROJECTION },
+        { $project: constants.COHORTS_EXCLUSION_PROJECTION(detailLevel) },
+        {
+          $facet: {
+            paginatedResults: [
+              { $sort: { [sortField]: sortOrder } },
+              { $skip: _skip },
+              { $limit: _limit },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const results = await CohortModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const agg =
+        Array.isArray(results) && results[0]
+          ? results[0]
+          : { paginatedResults: [], totalCount: [] };
+      const paginatedResults = agg.paginatedResults || [];
+      const total =
+        Array.isArray(agg.totalCount) && agg.totalCount[0]
+          ? agg.totalCount[0].count
+          : 0;
+
+      const baseUrl =
+        typeof request.protocol === "string" &&
+        typeof request.get === "function" &&
+        typeof request.originalUrl === "string"
+          ? `${request.protocol}://${request.get("host")}${
+              request.originalUrl.split("?")[0]
+            }`
+          : "";
+
+      const meta = {
+        total,
+        limit: _limit,
+        skip: _skip,
+        page: Math.floor(_skip / _limit) + 1,
+        totalPages: Math.ceil(total / _limit),
+      };
+
+      if (baseUrl) {
+        const nextSkip = _skip + _limit;
+        if (nextSkip < total) {
+          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+        }
+
+        const prevSkip = _skip - _limit;
+        if (prevSkip >= 0) {
+          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved user cohorts",
+        data: paginatedResults,
+        status: httpStatus.OK,
+        meta,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   verify: async (request, next) => {
     try {
       const { tenant } = request.query;
