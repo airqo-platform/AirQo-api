@@ -441,24 +441,22 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
-      // Exclude individual user cohorts from the main list.
-      // This handles cases where filter.name is a string, an object, or undefined.
-      const userCohortExclusion = { $not: /^coh_user_/i };
+      // Exclude individual user cohorts. Use $and to correctly combine with other name filters.
+      const userCohortExclusion = { name: { $not: /^coh_user_/i } };
       if (filter.name) {
-        if (typeof filter.name === "string") {
-          // If name is a string, convert to an $and condition to combine filters
-          filter.$and = [
-            ...(filter.$and || []),
-            { name: { $eq: filter.name, ...userCohortExclusion } },
-          ];
-          delete filter.name;
-        } else if (typeof filter.name === "object") {
-          // If name is already an object (e.g., with $in), merge the exclusion
-          filter.name = { ...filter.name, ...userCohortExclusion };
-        }
+        // If filter.name is a string, it's treated as an implicit $eq.
+        // If it's an object, it contains operators like $in.
+        // In both cases, we create a separate object for the $and array.
+        const existingNameFilter = { name: filter.name };
+        filter.$and = [
+          ...(filter.$and || []),
+          existingNameFilter,
+          userCohortExclusion,
+        ];
+        delete filter.name;
       } else {
         // If no name filter exists, just add the exclusion
-        filter.name = userCohortExclusion;
+        filter.name = userCohortExclusion.name;
       }
 
       const result = await createCohort._list(request, filter, next);
@@ -601,23 +599,22 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
-      // Filter for only individual user cohorts
-      const userCohortInclusion = { $regex: /^coh_user_/i };
+      // Filter for only individual user cohorts. Use $and to correctly combine with other name filters.
+      const userCohortInclusion = { name: { $regex: /^coh_user_/i } };
       if (filter.name) {
-        if (typeof filter.name === "string") {
-          // If name is a string, combine it with the regex using $and
-          filter.$and = [
-            ...(filter.$and || []),
-            { name: { $eq: filter.name, ...userCohortInclusion } },
-          ];
-          delete filter.name;
-        } else if (typeof filter.name === "object") {
-          // If name is already an object (e.g., with $in), merge the regex
-          filter.name = { ...filter.name, ...userCohortInclusion };
-        }
+        // If filter.name is a string, it's treated as an implicit $eq.
+        // If it's an object, it contains operators like $in.
+        // In both cases, we create a separate object for the $and array.
+        const existingNameFilter = { name: filter.name };
+        filter.$and = [
+          ...(filter.$and || []),
+          existingNameFilter,
+          userCohortInclusion,
+        ];
+        delete filter.name;
       } else {
         // If no name filter exists, just add the regex filter
-        filter.name = userCohortInclusion;
+        filter.name = userCohortInclusion.name;
       }
 
       const result = await createCohort._list(request, filter, next);
