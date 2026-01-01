@@ -441,6 +441,7 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
+      const originalFilter = { ...filter };
       // Exclude individual user cohorts. Use $and to correctly combine with other name filters.
       const userCohortExclusion = { name: { $not: /^coh_user_/i } };
       if (filter.name) {
@@ -463,12 +464,12 @@ const createCohort = {
 
       if (
         isEmpty(result.data) &&
-        filter._id &&
-        Object.keys(filter).length === 1
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
       ) {
-        const idString = filter._id.$in
-          ? `[${filter._id.$in.join(", ")}]`
-          : filter._id;
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
         return {
           success: false,
           message: "Cohort not found",
