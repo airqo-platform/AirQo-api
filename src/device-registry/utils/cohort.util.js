@@ -441,6 +441,64 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
+      const originalFilter = { ...filter };
+      // Exclude individual user cohorts. Use $and to correctly combine with other name filters.
+      const userCohortExclusion = { name: { $not: /^coh_user_/i } };
+      if (filter.name) {
+        // If filter.name is a string, it's treated as an implicit $eq.
+        // If it's an object, it contains operators like $in.
+        // In both cases, we create a separate object for the $and array.
+        const existingNameFilter = { name: filter.name };
+        filter.$and = [
+          ...(filter.$and || []),
+          existingNameFilter,
+          userCohortExclusion,
+        ];
+        delete filter.name;
+      } else {
+        // If no name filter exists, just add the exclusion
+        filter.name = userCohortExclusion.name;
+      }
+
+      const result = await createCohort._list(request, filter, next);
+
+      if (
+        isEmpty(result.data) &&
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
+      ) {
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
+        return {
+          success: false,
+          message: "Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `Cohort with ID ${idString} does not exist`,
+          },
+        };
+      }
+
+      return {
+        ...result,
+        message: "Successfully retrieved cohorts",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  _list: async (request, filter, next) => {
+    try {
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
@@ -484,24 +542,6 @@ const createCohort = {
           ? agg.totalCount[0].count
           : 0;
 
-      if (
-        isEmpty(paginatedResults) &&
-        filter._id &&
-        Object.keys(filter).length === 1
-      ) {
-        const idString = filter._id.$in
-          ? `[${filter._id.$in.join(", ")}]`
-          : filter._id;
-        return {
-          success: false,
-          message: "Cohort not found",
-          status: httpStatus.NOT_FOUND,
-          errors: {
-            message: `Cohort with ID ${idString} does not exist`,
-          },
-        };
-      }
-
       const baseUrl =
         typeof request.protocol === "string" &&
         typeof request.get === "function" &&
@@ -535,10 +575,73 @@ const createCohort = {
 
       return {
         success: true,
-        message: "Successfully retrieved cohorts",
         data: paginatedResults,
         status: httpStatus.OK,
         meta,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error on _list: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      // Ensure we don't proceed with a partial result
+      return {
+        success: false,
+      };
+    }
+  },
+
+  listUserCohorts: async (request, next) => {
+    try {
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
+      const filter = generateFilter.cohorts(request, next);
+
+      const originalFilter = { ...filter };
+      // Filter for only individual user cohorts. Use $and to correctly combine with other name filters.
+      const userCohortInclusion = { name: { $regex: /^coh_user_/i } };
+      if (filter.name) {
+        // If filter.name is a string, it's treated as an implicit $eq.
+        // If it's an object, it contains operators like $in.
+        // In both cases, we create a separate object for the $and array.
+        const existingNameFilter = { name: filter.name };
+        filter.$and = [
+          ...(filter.$and || []),
+          existingNameFilter,
+          userCohortInclusion,
+        ];
+        delete filter.name;
+      } else {
+        // If no name filter exists, just add the regex filter
+        filter.name = userCohortInclusion.name;
+      }
+
+      const result = await createCohort._list(request, filter, next);
+
+      if (
+        isEmpty(result.data) &&
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
+      ) {
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
+        return {
+          success: false,
+          message: "User Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `User Cohort with ID ${idString} does not exist`,
+          },
+        };
+      }
+
+      return {
+        ...result,
+        message: "Successfully retrieved user cohorts",
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -551,7 +654,6 @@ const createCohort = {
       );
     }
   },
-
   verify: async (request, next) => {
     try {
       const { tenant } = request.query;
