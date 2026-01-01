@@ -600,6 +600,7 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
+      const originalFilter = { ...filter };
       // Filter for only individual user cohorts. Use $and to correctly combine with other name filters.
       const userCohortInclusion = { name: { $regex: /^coh_user_/i } };
       if (filter.name) {
@@ -619,6 +620,24 @@ const createCohort = {
       }
 
       const result = await createCohort._list(request, filter, next);
+
+      if (
+        isEmpty(result.data) &&
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
+      ) {
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
+        return {
+          success: false,
+          message: "User Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `User Cohort with ID ${idString} does not exist`,
+          },
+        };
+      }
 
       return {
         ...result,
