@@ -7,7 +7,7 @@ const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { generateFilter } = require("@utils/common");
+const { generateFilter, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-cohort-util`
@@ -263,7 +263,7 @@ const createCohort = {
             messages: [
               {
                 action: "create",
-                value: JSON.stringify(responseFromRegisterCohort.data),
+                value: stringify(responseFromRegisterCohort.data),
               },
             ],
           });

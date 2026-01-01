@@ -3,7 +3,7 @@ const NetworkModel = require("@models/Network");
 const PermissionModel = require("@models/Permission");
 const RoleModel = require("@models/Role");
 const UserModel = require("@models/User");
-const { generateFilter } = require("@utils/common");
+const { generateFilter, stringify } = require("@utils/common");
 const httpStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
 const isEmpty = require("is-empty");
@@ -253,7 +253,7 @@ const createNetwork = {
             messages: [
               {
                 action: "create",
-                value: JSON.stringify(responseFromRegisterNetwork.data),
+                value: stringify(responseFromRegisterNetwork.data),
               },
             ],
           });
@@ -1115,7 +1115,7 @@ const createNetwork = {
           await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.NETWORK_EVENTS_TOPIC,
-            messages: [{ action: "update", value: JSON.stringify(update) }],
+            messages: [{ action: "update", value: stringify(update) }],
           });
           await kafkaProducer.disconnect();
         } catch (error) {
@@ -1206,7 +1206,7 @@ const createNetwork = {
           await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.NETWORK_EVENTS_TOPIC,
-            messages: [{ action: "delete", value: JSON.stringify(filter) }],
+            messages: [{ action: "delete", value: stringify(filter) }],
           });
           await kafkaProducer.disconnect();
         } catch (error) {
