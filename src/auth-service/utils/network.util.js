@@ -21,6 +21,12 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
+
 const isUserAssignedToNetwork = (user, networkId) => {
   if (user && user.network_roles && user.network_roles.length > 0) {
     return user.network_roles.some((assignment) => {
@@ -237,6 +243,24 @@ const createNetwork = {
       logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
 
       if (responseFromRegisterNetwork.success === true) {
+        try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: constants.NETWORK_EVENTS_TOPIC,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterNetwork.data),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
         const net_id = responseFromRegisterNetwork.data._doc._id;
         if (isEmpty(net_id)) {
@@ -1082,6 +1106,22 @@ const createNetwork = {
         },
         next
       );
+
+      if (responseFromModifyNetwork.success === true) {
+        try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: constants.NETWORK_EVENTS_TOPIC,
+            messages: [{ action: "update", value: JSON.stringify(update) }],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
+      }
       return responseFromModifyNetwork;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1157,6 +1197,22 @@ const createNetwork = {
         },
         next
       );
+
+      if (networkDeleteResult.success === true) {
+        try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: constants.NETWORK_EVENTS_TOPIC,
+            messages: [{ action: "delete", value: JSON.stringify(filter) }],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
+      }
       const data = {
         userUpdate: {
           modifiedCount: userUpdateResult.nModified,

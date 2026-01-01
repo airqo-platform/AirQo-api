@@ -83,12 +83,12 @@ const createCohort = {
         };
       }
       const network = await NetworkModel(tenant)
-        .find(filter)
+        .findOne(filter)
         .lean();
 
       logObject("network", network);
 
-      if (network.length !== 1) {
+      if (!network) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -96,7 +96,7 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       } else {
-        const networkId = network[0]._id;
+        const networkId = network._id;
         const responseFromUpdateNetwork = await NetworkModel(
           tenant
         ).findByIdAndUpdate(ObjectId(networkId), body, { new: true });
@@ -141,12 +141,12 @@ const createCohort = {
       const filter = generateFilter.networks(request, next);
 
       const network = await NetworkModel(tenant)
-        .find(filter)
+        .findOne(filter)
         .lean();
 
       logObject("network", network);
 
-      if (network.length !== 1) {
+      if (!network) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -154,7 +154,7 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       } else {
-        const networkId = network[0]._id;
+        const networkId = network._id;
         const responseFromDeleteNetwork = await NetworkModel(
           tenant
         ).findByIdAndDelete(ObjectId(networkId));
