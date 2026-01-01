@@ -333,6 +333,33 @@ const cohortValidations = {
     handleValidationErrors,
   ],
 
+  listUserCohorts: [
+    ...commonValidations.tenant,
+    // This endpoint is for listing all user cohorts and does not support filtering by id or name.
+    // The underlying utility overrides any name filter with a regex to find user-specific cohorts.
+    query("id")
+      .not()
+      .exists()
+      .withMessage(
+        "filtering by id is not supported on this endpoint; use the general /cohorts endpoint instead"
+      ),
+    query("name")
+      .not()
+      .exists()
+      .withMessage("filtering by name is not supported on this endpoint"),
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
+    handleValidationErrors,
+  ],
   listCohortsSummary: [
     ...commonValidations.tenant,
     oneOf([
