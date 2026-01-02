@@ -6,6 +6,7 @@ const logger = log4js.getLogger(
 const NetworkModel = require("@models/Network");
 const cron = require("node-cron");
 const axios = require("axios");
+const { Types } = require("mongoose");
 const { logObject, logText } = require("@utils/shared");
 const { getSchedule } = require("@utils/common");
 
@@ -58,31 +59,51 @@ const initializeApiClient = () => {
  * @returns {Promise<Array>} A list of networks from the auth-service.
  */
 const fetchAuthServiceNetworks = async () => {
-  try {
-    const apiClient = initializeApiClient();
-    if (!apiClient) {
-      logger.error("API client is not initialized; cannot fetch networks.");
-      return [];
-    }
-
-    const response = await apiClient.get("/api/v2/users/networks", {
-      headers: { "x-api-key": constants.API_TOKEN },
-      params: { tenant: "airqo" }, // Assuming a default tenant
-    });
-
-    if (response.data && response.data.success) {
-      return response.data.networks || [];
-    } else {
-      logger.error(
-        `Failed to fetch networks from auth-service: ${response.data.message ||
-          "Unknown error"}`
-      );
-      return [];
-    }
-  } catch (error) {
-    logger.error(`Error calling auth-service for networks: ${error.message}`);
+  const apiClient = initializeApiClient();
+  if (!apiClient) {
+    logger.error("API client is not initialized; cannot fetch networks.");
     return [];
   }
+
+  let allNetworks = [];
+  let page = 1;
+  const limit = 100; // Fetch 100 networks per page
+  let hasMore = true;
+
+  while (hasMore) {
+    try {
+      const response = await apiClient.get("/api/v2/users/networks", {
+        headers: { "x-api-key": constants.API_TOKEN },
+        params: { tenant: "airqo", page, limit },
+      });
+
+      if (response.data && response.data.success) {
+        const networks = response.data.networks || [];
+        if (networks.length > 0) {
+          allNetworks = allNetworks.concat(networks);
+        }
+
+        // Stop if we receive fewer networks than the limit, indicating the last page
+        if (networks.length < limit) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        logger.error(
+          `Failed to fetch page ${page} of networks: ${response.data.message ||
+            "Unknown error"}`
+        );
+        hasMore = false; // Stop on error
+      }
+    } catch (error) {
+      logger.error(
+        `Error on page ${page} calling auth-service: ${error.message}`
+      );
+      hasMore = false; // Stop on critical error
+    }
+  }
+  return allNetworks;
 };
 
 /**
@@ -151,7 +172,7 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
       // Network exists here but not in auth-service, so delete it.
       bulkOps.push({
         deleteOne: {
-          filter: { _id: registryNetId },
+          filter: { _id: Types.ObjectId(registryNetId) },
         },
       });
     }
