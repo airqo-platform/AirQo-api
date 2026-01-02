@@ -1184,14 +1184,9 @@ const createNetwork = {
 
       if (networkDeleteResult.success === true) {
         try {
-          const networkEventPayload = {
-            networkData: {
-              _id: filter._id,
-            },
-          };
           await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
             action: "delete",
-            value: networkEventPayload,
+            value: { _id: filter._id },
           });
         } catch (error) {
           logger.error(`Kafka send error on network delete: ${error.message}`);
