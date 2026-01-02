@@ -50,8 +50,52 @@ const initializeApiClient = () => {
     );
     return null;
   }
-  return axios.create({ baseURL: constants.API_BASE_URL });
+
+  const apiClient = axios.create({
+    baseURL: constants.API_BASE_URL,
+  });
+
+  // Add request interceptor to append token as a query parameter
+  apiClient.interceptors.request.use(
+    (config) => {
+      if (constants.API_TOKEN) {
+        config.params = {
+          ...config.params,
+          token: constants.API_TOKEN,
+        };
+      }
+      return config;
+    },
+    (error) => {
+      logger.error("API request interceptor error:", error);
+      return Promise.reject(error);
+    }
+  );
+
+  // Add response interceptor for better error handling
+  apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.code === "ECONNABORTED") {
+        logger.error(
+          `API request timeout: ${error.config?.url}`,
+          error.message
+        );
+      } else if (error.response?.status === 401) {
+        logger.error("API authentication failed - check your API_TOKEN");
+      } else if (error.response?.status >= 500) {
+        logger.error(
+          `API server error: ${error.response?.status} ${error.response?.statusText}`
+        );
+      }
+      return Promise.reject(error);
+    }
+  );
+
+  return apiClient;
 };
+
+const apiClient = initializeApiClient();
 
 /**
  * Fetches all networks from the auth-service.
@@ -59,7 +103,6 @@ const initializeApiClient = () => {
  * @returns {Promise<Array>} A list of networks from the auth-service.
  */
 const fetchAuthServiceNetworks = async () => {
-  const apiClient = initializeApiClient();
   if (!apiClient) {
     logger.error("API client is not initialized; cannot fetch networks.");
     return [];
@@ -72,8 +115,8 @@ const fetchAuthServiceNetworks = async () => {
 
   while (hasMore) {
     try {
+      // The interceptor will automatically add the 'token' query param
       const response = await apiClient.get("/api/v2/users/networks", {
-        headers: { "x-api-key": constants.API_TOKEN },
         params: { tenant: "airqo", page, limit },
       });
 
