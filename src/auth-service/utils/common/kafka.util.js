@@ -67,15 +67,26 @@ producer.on(producer.events.DISCONNECT, () => {
 // Connect the producer when the module is loaded.
 connectProducer();
 
-// Graceful shutdown
-process.on("SIGINT", async () => {
+// Graceful shutdown handler
+const gracefulShutdown = async (signal) => {
+  logger.info(`Received ${signal}. Shutting down Kafka producer gracefully...`);
   isShuttingDown = true;
   if (producerConnected) {
-    await producer.disconnect();
-    logger.info("Kafka producer disconnected due to application termination.");
+    try {
+      await producer.flush();
+      logger.info("All pending Kafka messages have been flushed.");
+      await producer.disconnect();
+      logger.info("Kafka producer disconnected successfully.");
+    } catch (error) {
+      logger.error("Error during Kafka producer shutdown:", error);
+    }
   }
-  process.exit();
-});
+  process.exit(0);
+};
+
+// Register shutdown listeners
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 const publishKafkaEvent = async (topic, event) => {
   if (!producerConnected) {
@@ -91,6 +102,7 @@ const publishKafkaEvent = async (topic, event) => {
     });
   } catch (error) {
     logger.error(`Failed to send message to topic "${topic}":`, error);
+    throw error; // Rethrow the error to notify the caller
   }
 };
 
