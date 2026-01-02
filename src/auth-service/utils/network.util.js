@@ -3,7 +3,11 @@ const NetworkModel = require("@models/Network");
 const PermissionModel = require("@models/Permission");
 const RoleModel = require("@models/Role");
 const UserModel = require("@models/User");
-const { generateFilter } = require("@utils/common");
+const {
+  generateFilter,
+  stringify,
+  publishKafkaEvent,
+} = require("@utils/common");
 const httpStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
 const isEmpty = require("is-empty");
@@ -237,6 +241,14 @@ const createNetwork = {
       logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
 
       if (responseFromRegisterNetwork.success === true) {
+        try {
+          await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
+            action: "create",
+            value: responseFromRegisterNetwork.data,
+          });
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
         const net_id = responseFromRegisterNetwork.data._doc._id;
         if (isEmpty(net_id)) {
@@ -1082,6 +1094,18 @@ const createNetwork = {
         },
         next
       );
+
+      if (responseFromModifyNetwork.success === true) {
+        try {
+          const networkEventPayload = { ...filter, ...update };
+          await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
+            action: "update",
+            value: networkEventPayload,
+          });
+        } catch (error) {
+          logger.error(`Kafka send error on network update: ${error.message}`);
+        }
+      }
       return responseFromModifyNetwork;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1157,6 +1181,17 @@ const createNetwork = {
         },
         next
       );
+
+      if (networkDeleteResult.success === true) {
+        try {
+          await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
+            action: "delete",
+            value: { _id: filter._id },
+          });
+        } catch (error) {
+          logger.error(`Kafka send error on network delete: ${error.message}`);
+        }
+      }
       const data = {
         userUpdate: {
           modifiedCount: userUpdateResult.nModified,
