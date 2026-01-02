@@ -12,25 +12,64 @@ const kafka = new Kafka({
 const producer = kafka.producer();
 
 let producerConnected = false;
+let isConnecting = false;
+let isShuttingDown = false;
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY = 1000; // 1 second
 
-const connectProducer = async () => {
-  if (!producerConnected) {
-    try {
-      await producer.connect();
-      producerConnected = true;
-      logger.info("Kafka producer connected successfully.");
-    } catch (error) {
-      logger.error("Failed to connect Kafka producer:", error);
-      // Optional: implement a retry mechanism
+const connectProducer = async (retryCount = 0) => {
+  if (isConnecting || producerConnected) return;
+  isConnecting = true;
+
+  try {
+    await producer.connect();
+    producerConnected = true;
+    isConnecting = false;
+    logger.info("✅ Kafka producer connected successfully.");
+  } catch (error) {
+    isConnecting = false;
+    logger.error(`❌ Failed to connect Kafka producer: ${error.message}`);
+
+    if (retryCount < MAX_RETRIES && !isShuttingDown) {
+      const delay =
+        INITIAL_RETRY_DELAY * Math.pow(2, retryCount) + Math.random() * 1000;
+      logger.info(
+        `Retrying Kafka connection in ${Math.round(
+          delay / 1000
+        )}s... (Attempt ${retryCount + 1}/${MAX_RETRIES})`
+      );
+      setTimeout(() => connectProducer(retryCount + 1), delay);
+    } else {
+      logger.error(
+        "💀 Max Kafka connection retries reached. Producer will not connect."
+      );
     }
   }
 };
+
+// Event listeners for the producer
+producer.on(producer.events.CONNECT, () => {
+  logger.info("Internal Kafka producer has connected to the broker.");
+});
+
+producer.on(producer.events.DISCONNECT, () => {
+  logger.warn("🔥 Kafka producer disconnected. Attempting to reconnect...");
+  producerConnected = false;
+  if (!isShuttingDown) {
+    try {
+      connectProducer();
+    } catch (error) {
+      logger.error(`Error during reconnect attempt: ${error.message}`);
+    }
+  }
+});
 
 // Connect the producer when the module is loaded.
 connectProducer();
 
 // Graceful shutdown
 process.on("SIGINT", async () => {
+  isShuttingDown = true;
   if (producerConnected) {
     await producer.disconnect();
     logger.info("Kafka producer disconnected due to application termination.");
@@ -40,10 +79,9 @@ process.on("SIGINT", async () => {
 
 const publishKafkaEvent = async (topic, event) => {
   if (!producerConnected) {
-    logger.error(
-      `Kafka producer not connected. Message for topic "${topic}" was not sent.`
-    );
-    return;
+    const errorMessage = `Kafka producer not connected. Message for topic "${topic}" was not sent.`;
+    logger.error(errorMessage);
+    throw new Error(errorMessage);
   }
 
   try {
