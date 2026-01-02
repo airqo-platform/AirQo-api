@@ -3,7 +3,11 @@ const NetworkModel = require("@models/Network");
 const PermissionModel = require("@models/Permission");
 const RoleModel = require("@models/Role");
 const UserModel = require("@models/User");
-const { generateFilter, stringify } = require("@utils/common");
+const {
+  generateFilter,
+  stringify,
+  publishKafkaEvent,
+} = require("@utils/common");
 const httpStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
 const isEmpty = require("is-empty");
@@ -20,12 +24,6 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
-
-const { Kafka } = require("kafkajs");
-const kafka = new Kafka({
-  clientId: constants.KAFKA_CLIENT_ID,
-  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-});
 
 const isUserAssignedToNetwork = (user, networkId) => {
   if (user && user.network_roles && user.network_roles.length > 0) {
@@ -244,20 +242,10 @@ const createNetwork = {
 
       if (responseFromRegisterNetwork.success === true) {
         try {
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
+            action: "create",
+            value: responseFromRegisterNetwork.data,
           });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
-            topic: constants.NETWORK_EVENTS_TOPIC,
-            messages: [
-              {
-                action: "create",
-                value: stringify(responseFromRegisterNetwork.data),
-              },
-            ],
-          });
-          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
         }
@@ -1109,17 +1097,13 @@ const createNetwork = {
 
       if (responseFromModifyNetwork.success === true) {
         try {
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          const networkEventPayload = { ...filter, ...update };
+          await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
+            action: "update",
+            value: networkEventPayload,
           });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
-            topic: constants.NETWORK_EVENTS_TOPIC,
-            messages: [{ action: "update", value: stringify(update) }],
-          });
-          await kafkaProducer.disconnect();
         } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
+          logger.error(`Kafka send error on network update: ${error.message}`);
         }
       }
       return responseFromModifyNetwork;
@@ -1200,17 +1184,17 @@ const createNetwork = {
 
       if (networkDeleteResult.success === true) {
         try {
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          const networkEventPayload = {
+            networkData: {
+              _id: filter._id,
+            },
+          };
+          await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
+            action: "delete",
+            value: networkEventPayload,
           });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
-            topic: constants.NETWORK_EVENTS_TOPIC,
-            messages: [{ action: "delete", value: stringify(filter) }],
-          });
-          await kafkaProducer.disconnect();
         } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
+          logger.error(`Kafka send error on network delete: ${error.message}`);
         }
       }
       const data = {
