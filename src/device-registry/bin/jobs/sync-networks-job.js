@@ -146,7 +146,7 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
       // Network exists in auth-service but not here, so create it.
       bulkOps.push({
         insertOne: {
-          document: { ...authNet, _id: authNet._id },
+          document: { ...authNet, _id: Types.ObjectId(authNet._id) },
         },
       });
     } else {
@@ -158,7 +158,7 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
         const { _id, ...updateData } = authNet;
         bulkOps.push({
           updateOne: {
-            filter: { _id: authNet._id },
+            filter: { _id: Types.ObjectId(authNet._id) },
             update: { $set: updateData },
           },
         });
