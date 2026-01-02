@@ -9,9 +9,7 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
-const producer = kafka.producer({
-  groupId: constants.UNIQUE_PRODUCER_GROUP,
-});
+const producer = kafka.producer();
 
 let producerConnected = false;
 

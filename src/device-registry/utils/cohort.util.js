@@ -254,9 +254,7 @@ const createCohort = {
 
       if (responseFromRegisterCohort.success === true) {
         try {
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
+          const kafkaProducer = kafka.producer();
           await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.COHORT_TOPIC,
