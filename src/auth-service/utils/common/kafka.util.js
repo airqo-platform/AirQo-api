@@ -3,6 +3,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- kafka-util`);
 const stringify = require("./stringify.util");
+const { isDevelopment } = require("@utils/shared");
 
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -64,31 +65,43 @@ producer.on(producer.events.DISCONNECT, () => {
   }
 });
 
-// Connect the producer when the module is loaded.
-connectProducer();
+if (!isDevelopment()) {
+  // Connect the producer when the module is loaded.
+  connectProducer();
 
-// Graceful shutdown handler
-const gracefulShutdown = async (signal) => {
-  logger.info(`Received ${signal}. Shutting down Kafka producer gracefully...`);
-  isShuttingDown = true;
-  if (producerConnected) {
-    try {
-      await producer.flush();
-      logger.info("All pending Kafka messages have been flushed.");
-      await producer.disconnect();
-      logger.info("Kafka producer disconnected successfully.");
-    } catch (error) {
-      logger.error("Error during Kafka producer shutdown:", error);
+  // Graceful shutdown handler
+  const gracefulShutdown = async (signal) => {
+    logger.info(
+      `Received ${signal}. Shutting down Kafka producer gracefully...`
+    );
+    isShuttingDown = true;
+    if (producerConnected) {
+      try {
+        await producer.flush();
+        logger.info("All pending Kafka messages have been flushed.");
+        await producer.disconnect();
+        logger.info("Kafka producer disconnected successfully.");
+      } catch (error) {
+        logger.error("Error during Kafka producer shutdown:", error);
+      }
     }
-  }
-  process.exit(0);
-};
+    process.exit(0);
+  };
 
-// Register shutdown listeners
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  // Register shutdown listeners
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+} else {
+  logger.warn("Kafka producer is disabled in development mode.");
+}
 
 const publishKafkaEvent = async (topic, event) => {
+  if (isDevelopment()) {
+    logger.info(
+      `KAFKA-DEV-SKIP: Skipping event publish to topic "${topic}" in development mode.`
+    );
+    return;
+  }
   if (!producerConnected) {
     const errorMessage = `Kafka producer not connected. Message for topic "${topic}" was not sent.`;
     logger.error(errorMessage);
