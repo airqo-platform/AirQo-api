@@ -76,13 +76,17 @@ const initializeApiClient = () => {
   apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-      if (error.code === "ECONNABORTED") {
+      if (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN") {
+        logger.error(
+          `API DNS resolution error for ${error.config?.baseURL}. Check API_BASE_URL and network connectivity.`
+        );
+      } else if (error.code === "ECONNABORTED") {
         logger.error(
           `API request timeout: ${error.config?.url}`,
           error.message
         );
       } else if (error.response?.status === 401) {
-        logger.error("API authentication failed - check your API_TOKEN");
+        logger.error("API authentication failed (401) - check your API_TOKEN");
       } else if (error.response?.status >= 500) {
         logger.error(
           `API server error: ${error.response?.status} ${error.response?.statusText}`
@@ -141,7 +145,9 @@ const fetchAuthServiceNetworks = async () => {
       }
     } catch (error) {
       logger.error(
-        `Error on page ${page} calling auth-service: ${error.message}`
+        `Error on page ${page} calling auth-service. Message: ${
+          error.message
+        }. Code: ${error.code || "N/A"}`
       );
       hasMore = false; // Stop on critical error
     }
@@ -255,12 +261,12 @@ const performNetworkSync = async () => {
     try {
       const { isValid, missingConfigs } = validateConfiguration();
       if (!isValid) {
-        logger.error(
+        global.dedupLogger.error(
           `🚫 ${JOB_NAME} skipped: Missing required configuration - ${missingConfigs.join(
             ", "
           )}`
         );
-        logger.error(
+        global.dedupLogger.error(
           `🔧 Please set the following environment variables: ${missingConfigs.join(
             ", "
           )}`
