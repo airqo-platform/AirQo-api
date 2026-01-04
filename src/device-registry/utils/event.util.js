@@ -1506,6 +1506,112 @@ const createEvent = {
       );
     }
   },
+  getRepresentativeAirQuality: async (request, next) => {
+    try {
+      const { tenant, grid_id, cohort_id } = request.query;
+      let site_ids = [];
+
+      if (grid_id) {
+        const sitesResponse = await createEvent.processGridIds(
+          grid_id,
+          request,
+          next
+        );
+        if (request.query.site_id) {
+          site_ids = request.query.site_id.split(",");
+        }
+      } else if (cohort_id) {
+        const devicesResponse = await createEvent.processCohortIds(
+          cohort_id,
+          request,
+          next
+        );
+        if (request.query.device_id) {
+          const deviceIds = request.query.device_id.split(",");
+          const devices = await DeviceModel(tenant)
+            .find({ _id: { $in: deviceIds } })
+            .select("site_id")
+            .lean();
+          site_ids = devices
+            .map((d) => d.site_id)
+            .filter((id) => id)
+            .map((id) => id.toString());
+        }
+      }
+
+      if (site_ids.length === 0) {
+        return {
+          success: true,
+          message: "No sites found for the provided Grid or Cohort ID.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      const readings = await ReadingModel(tenant)
+        .find({ site_id: { $in: site_ids } })
+        .sort({ time: -1 })
+        .lean();
+
+      if (isEmpty(readings)) {
+        return {
+          success: true,
+          message: "No recent readings available for the specified group.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      const latestReadings = Object.values(
+        readings.reduce((acc, curr) => {
+          if (
+            !acc[curr.site_id] ||
+            new Date(curr.time) > new Date(acc[curr.site_id].time)
+          ) {
+            acc[curr.site_id] = curr;
+          }
+          return acc;
+        }, {})
+      );
+
+      const backgroundSitesReadings = latestReadings.filter(
+        (reading) =>
+          reading.siteDetails && // Check if siteDetails exists
+          reading.siteDetails.site_category && // Safely check if site_category exists
+          (reading.siteDetails.site_category.category === "urban background" ||
+            reading.siteDetails.site_category.category === "background")
+      );
+
+      let representativeReading;
+      if (backgroundSitesReadings.length > 0) {
+        representativeReading = backgroundSitesReadings.reduce((max, curr) =>
+          max.pm2_5.value > curr.pm2_5.value ? max : curr
+        );
+      } else {
+        representativeReading = latestReadings.reduce((max, curr) =>
+          max.pm2_5.value > curr.pm2_5.value ? max : curr
+        );
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: representativeReading,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getRepresentativeAirQuality -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   latestFromBigQuery: async (req, next) => {
     try {
       const { query } = req;

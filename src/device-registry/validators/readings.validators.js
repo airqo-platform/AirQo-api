@@ -637,8 +637,22 @@ const readingsValidations = {
   },
 };
 
+const validateGetRepresentativeAQForGrid = [
+  ...commonValidations.tenant,
+  commonValidations.requiredObjectId("grid_id", param),
+  commonValidations.errorHandler,
+];
+
+const validateGetRepresentativeAQForCohort = [
+  ...commonValidations.tenant,
+  commonValidations.requiredObjectId("cohort_id", param),
+  commonValidations.errorHandler,
+];
+
 module.exports = {
   ...readingsValidations,
   pagination: commonValidations.pagination,
   validateOptionalObjectId: commonValidations.optionalObjectId,
+  validateGetRepresentativeAQForGrid,
+  validateGetRepresentativeAQForCohort,
 };
