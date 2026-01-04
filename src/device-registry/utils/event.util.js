@@ -1546,14 +1546,22 @@ const createEvent = {
         }
         if (request.query.device_id) {
           const deviceIds = request.query.device_id.split(",");
-          const devices = await DeviceModel(tenant)
-            .find({ _id: { $in: deviceIds } })
-            .select("site_id")
-            .lean();
-          site_ids = devices
-            .map((d) => d.site_id)
-            .filter((id) => id)
-            .map((id) => id.toString());
+          try {
+            const devices = await DeviceModel(tenant)
+              .find({ _id: { $in: deviceIds } })
+              .select("site_id")
+              .lean();
+            site_ids = devices
+              .map((d) => d.site_id)
+              .filter((id) => id)
+              .map((id) => id.toString());
+          } catch (error) {
+            logger.error(
+              `🐛🐛 DB error fetching devices for cohort: ${error.message}`
+            );
+            // Re-throw the error to be caught by the main handler
+            throw error;
+          }
         }
       }
 
