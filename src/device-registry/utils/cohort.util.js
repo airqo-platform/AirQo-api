@@ -440,26 +440,28 @@ const createCohort = {
       const filter = generateFilter.cohorts(request, next);
 
       const originalFilter = { ...filter };
-      // Exclude individual user cohorts. Use $and to correctly combine with other name filters.
-      const userCohortExclusion = { name: { $not: /^coh_user_/i } };
-      if (filter.name) {
-        // If filter.name is a string, it's treated as an implicit $eq.
-        // If it's an object, it contains operators like $in.
-        // In both cases, we create a separate object for the $and array.
-        const existingNameFilter = { name: filter.name };
-        filter.$and = [
-          ...(filter.$and || []),
-          existingNameFilter,
-          userCohortExclusion,
-        ];
-        delete filter.name;
-      } else {
-        // If no name filter exists, just add the exclusion
-        filter.name = userCohortExclusion.name;
+
+      // Only exclude user cohorts if we are not fetching by a specific ID
+      if (!filter._id) {
+        const userCohortExclusion = { name: { $not: /^coh_user_/i } };
+        if (filter.name) {
+          // If a name filter already exists, combine it with the exclusion using $and
+          const existingNameFilter = { name: filter.name };
+          filter.$and = [
+            ...(filter.$and || []),
+            existingNameFilter,
+            userCohortExclusion,
+          ];
+          delete filter.name;
+        } else {
+          // If no name filter, just add the exclusion directly
+          filter.name = userCohortExclusion.name;
+        }
       }
 
       const result = await createCohort._list(request, filter, next);
 
+      // Handle case where a specific cohort ID was requested but not found
       if (
         isEmpty(result.data) &&
         originalFilter._id &&
