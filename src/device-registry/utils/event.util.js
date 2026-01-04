@@ -1506,6 +1506,164 @@ const createEvent = {
       );
     }
   },
+  getRepresentativeAirQuality: async (request, next) => {
+    try {
+      const { tenant, grid_id, cohort_id } = request.query;
+
+      if ((grid_id && cohort_id) || (!grid_id && !cohort_id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message: "Provide either grid_id or cohort_id, but not both.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      let site_ids = [];
+
+      if (grid_id) {
+        const sitesResponse = await createEvent.processGridIds(
+          grid_id,
+          request,
+          next
+        );
+        if (sitesResponse && sitesResponse.success === false) {
+          return sitesResponse;
+        }
+        if (request.query.site_id) {
+          site_ids = request.query.site_id.split(",");
+        }
+      } else if (cohort_id) {
+        const devicesResponse = await createEvent.processCohortIds(
+          cohort_id,
+          request,
+          next
+        );
+        if (devicesResponse && devicesResponse.success === false) {
+          return devicesResponse;
+        }
+        if (request.query.device_id) {
+          const deviceIds = request.query.device_id.split(",");
+          try {
+            const devices = await DeviceModel(tenant)
+              .find({ _id: { $in: deviceIds } })
+              .select("site_id")
+              .lean();
+            site_ids = devices
+              .map((d) => d.site_id)
+              .filter((id) => id)
+              .map((id) => id.toString());
+          } catch (error) {
+            logger.error(
+              `🐛🐛 DB error fetching devices for cohort: ${error.message}`
+            );
+            // Re-throw the error to be caught by the main handler
+            throw error;
+          }
+        }
+      }
+
+      if (site_ids.length === 0) {
+        return {
+          success: true,
+          message: "No sites found for the provided Grid or Cohort ID.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      // Optimization: Use aggregation to fetch only the latest reading per site
+      // from the last 3 days, instead of all historical data.
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const latestReadings = await ReadingModel(tenant).aggregate([
+        {
+          $match: {
+            site_id: { $in: site_ids },
+            time: { $gte: threeDaysAgo },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+      ]);
+
+      if (isEmpty(latestReadings)) {
+        return {
+          success: true,
+          message: "No recent readings available for the specified group.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      const backgroundSitesReadings = latestReadings.filter(
+        (reading) =>
+          reading.siteDetails && // Check if siteDetails exists
+          reading.siteDetails.site_category && // Safely check if site_category exists
+          (reading.siteDetails.site_category.category === "urban background" ||
+            reading.siteDetails.site_category.category === "background")
+      );
+
+      // Helper to ensure we only process readings with a valid pm2_5 value
+      const hasValidPm25 = (reading) =>
+        reading && reading.pm2_5 && typeof reading.pm2_5.value === "number";
+
+      let representativeReading;
+
+      const validBackgroundReadings = backgroundSitesReadings.filter(
+        hasValidPm25
+      );
+
+      if (validBackgroundReadings.length > 0) {
+        representativeReading = validBackgroundReadings.reduce((max, curr) =>
+          max.pm2_5.value > curr.pm2_5.value ? max : curr
+        );
+      } else {
+        const validLatestReadings = latestReadings.filter(hasValidPm25);
+        if (validLatestReadings.length > 0) {
+          representativeReading = validLatestReadings.reduce((max, curr) =>
+            max.pm2_5.value > curr.pm2_5.value ? max : curr
+          );
+        } else {
+          // No valid readings found at all
+          return {
+            success: true,
+            message:
+              "No valid PM2.5 readings available for the specified group.",
+            data: {},
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: representativeReading,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getRepresentativeAirQuality -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   latestFromBigQuery: async (req, next) => {
     try {
       const { query } = req;
