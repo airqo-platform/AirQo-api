@@ -1509,6 +1509,18 @@ const createEvent = {
   getRepresentativeAirQuality: async (request, next) => {
     try {
       const { tenant, grid_id, cohort_id } = request.query;
+
+      if ((grid_id && cohort_id) || (!grid_id && !cohort_id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message: "Provide either grid_id or cohort_id, but not both.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       let site_ids = [];
 
       if (grid_id) {
@@ -1517,6 +1529,9 @@ const createEvent = {
           request,
           next
         );
+        if (sitesResponse && sitesResponse.success === false) {
+          return sitesResponse;
+        }
         if (request.query.site_id) {
           site_ids = request.query.site_id.split(",");
         }
@@ -1526,6 +1541,9 @@ const createEvent = {
           request,
           next
         );
+        if (devicesResponse && devicesResponse.success === false) {
+          return devicesResponse;
+        }
         if (request.query.device_id) {
           const deviceIds = request.query.device_id.split(",");
           const devices = await DeviceModel(tenant)
@@ -1548,12 +1566,29 @@ const createEvent = {
         };
       }
 
-      const readings = await ReadingModel(tenant)
-        .find({ site_id: { $in: site_ids } })
-        .sort({ time: -1 })
-        .lean();
+      // Optimization: Use aggregation to fetch only the latest reading per site
+      // from the last 3 days, instead of all historical data.
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-      if (isEmpty(readings)) {
+      const latestReadings = await ReadingModel(tenant).aggregate([
+        {
+          $match: {
+            site_id: { $in: site_ids },
+            time: { $gte: threeDaysAgo },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+      ]);
+
+      if (isEmpty(latestReadings)) {
         return {
           success: true,
           message: "No recent readings available for the specified group.",
@@ -1561,18 +1596,6 @@ const createEvent = {
           status: httpStatus.OK,
         };
       }
-
-      const latestReadings = Object.values(
-        readings.reduce((acc, curr) => {
-          if (
-            !acc[curr.site_id] ||
-            new Date(curr.time) > new Date(acc[curr.site_id].time)
-          ) {
-            acc[curr.site_id] = curr;
-          }
-          return acc;
-        }, {})
-      );
 
       const backgroundSitesReadings = latestReadings.filter(
         (reading) =>
@@ -1582,15 +1605,36 @@ const createEvent = {
             reading.siteDetails.site_category.category === "background")
       );
 
+      // Helper to ensure we only process readings with a valid pm2_5 value
+      const hasValidPm25 = (reading) =>
+        reading && reading.pm2_5 && typeof reading.pm2_5.value === "number";
+
       let representativeReading;
-      if (backgroundSitesReadings.length > 0) {
-        representativeReading = backgroundSitesReadings.reduce((max, curr) =>
+
+      const validBackgroundReadings = backgroundSitesReadings.filter(
+        hasValidPm25
+      );
+
+      if (validBackgroundReadings.length > 0) {
+        representativeReading = validBackgroundReadings.reduce((max, curr) =>
           max.pm2_5.value > curr.pm2_5.value ? max : curr
         );
       } else {
-        representativeReading = latestReadings.reduce((max, curr) =>
-          max.pm2_5.value > curr.pm2_5.value ? max : curr
-        );
+        const validLatestReadings = latestReadings.filter(hasValidPm25);
+        if (validLatestReadings.length > 0) {
+          representativeReading = validLatestReadings.reduce((max, curr) =>
+            max.pm2_5.value > curr.pm2_5.value ? max : curr
+          );
+        } else {
+          // No valid readings found at all
+          return {
+            success: true,
+            message:
+              "No valid PM2.5 readings available for the specified group.",
+            data: {},
+            status: httpStatus.OK,
+          };
+        }
       }
 
       return {
