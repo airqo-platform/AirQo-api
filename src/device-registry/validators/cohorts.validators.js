@@ -478,8 +478,38 @@ const cohortValidations = {
       .bail()
       .notEmpty()
       .withMessage("the admin secret should not be empty"),
-    ...commonValidations.name,
-    ...commonValidations.description,
+    body("net_name")
+      .exists()
+      .withMessage("the net_name is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the net_name must not be empty")
+      .trim(),
+    body("net_email")
+      .exists()
+      .withMessage("the net_email is required")
+      .bail()
+      .isEmail()
+      .withMessage("the net_email is not a valid email address")
+      .trim(),
+    body("net_website")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_website must not be empty if provided")
+      .bail()
+      .isURL()
+      .withMessage("the net_website is not a valid URL")
+      .trim(),
+    body("net_category")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_category must not be empty if provided")
+      .trim(),
+    body("net_description")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_description must not be empty if provided")
+      .trim(),
     handleValidationErrors,
   ],
   updateNetwork: [

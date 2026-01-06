@@ -3,6 +3,7 @@ const { Schema } = mongoose;
 const isEmpty = require("is-empty");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
+const cryptoJS = require("crypto-js");
 const { logObject, HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -15,29 +16,36 @@ const NetworkSchema = new Schema(
     // New fields
     net_name: {
       type: String,
+      required: [true, "net_name is required"],
+      unique: true,
       trim: true,
     },
     net_acronym: {
       type: String,
+      unique: true,
       trim: true,
     },
     net_status: {
       type: String,
+      enum: ["active", "inactive"],
       default: "inactive",
     },
     net_manager: {
       type: ObjectId,
-      ref: "user",
     },
     net_manager_username: { type: String },
     net_manager_firstname: { type: String },
     net_manager_lastname: { type: String },
     net_email: {
       type: String,
+      required: [true, "net_email is required"],
+      unique: true,
+      match: [/\S+@\S+\.\S+/, "is invalid"],
       trim: true,
     },
     net_website: {
       type: String,
+      match: [/^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/i, "is invalid"],
       trim: true,
     },
     net_category: {
@@ -48,6 +56,8 @@ const NetworkSchema = new Schema(
     },
     net_api_key: {
       type: String,
+      // Encrypted at rest. See pre-save hook.
+      select: false,
     },
     net_description: {
       type: String,
@@ -61,6 +71,8 @@ const NetworkSchema = new Schema(
     name: {
       type: String,
       trim: true,
+      required: true,
+      unique: true,
     },
     description: {
       type: String,
@@ -72,33 +84,39 @@ const NetworkSchema = new Schema(
   }
 );
 
+// Encrypt API key before saving
+NetworkSchema.pre("save", function(next) {
+  if (this.isModified("net_api_key") && this.net_api_key) {
+    this.net_api_key = cryptoJS.AES.encrypt(
+      this.net_api_key,
+      constants.KEY_ENCRYPTION_KEY
+    ).toString();
+  }
+  next();
+});
 // Pre-save hook for backward compatibility
 NetworkSchema.pre("save", function(next) {
-  // Sync from new fields to old fields
-  if (this.isModified("net_name") && !this.name) {
-    this.name = this.net_name;
+  // Prioritize new fields as the source of truth
+  if (this.isModified("net_name")) {
+    this.net_name = this.name;
+  } else if (this.isModified("name") && !this.isModified("net_name")) {
+    this.net_name = this.name;
   }
-  if (this.isModified("net_description") && !this.description) {
+
+  if (this.isModified("net_acronym")) {
+    // If acronym changes, it might affect the unique name.
+    // Let's assume for now they are kept in sync if name isn't also changing.
+  } else if (this.isModified("name") && !this.isModified("net_acronym")) {
+    this.net_acronym = this.name;
+  }
+
+  if (this.isModified("net_description")) {
     this.description = this.net_description;
-  }
-
-  // Sync from old fields to new fields
-  if (this.isModified("name") && !this.net_name) {
-    this.net_name = this.name;
-  }
-  if (this.isModified("name") && !this.net_acronym) {
-    this.net_acronym = this.name;
-  }
-  if (this.isModified("description") && !this.net_description) {
+  } else if (
+    this.isModified("description") &&
+    !this.isModified("net_description")
+  ) {
     this.net_description = this.description;
-  }
-
-  // Ensure required fields have a value
-  if (!this.net_name && this.name) {
-    this.net_name = this.name;
-  }
-  if (!this.net_acronym && this.name) {
-    this.net_acronym = this.name;
   }
 
   next();
@@ -120,8 +138,15 @@ NetworkSchema.methods.toJSON = function() {
     net_description,
     net_profile_picture,
     createdAt,
+    updatedAt,
     name,
     description,
+    net_manager,
+    net_manager_username,
+    net_manager_firstname,
+    net_manager_lastname,
+    net_data_source,
+    net_api_key,
   } = this.toObject();
 
   return {
@@ -135,13 +160,17 @@ NetworkSchema.methods.toJSON = function() {
     net_category,
     net_description,
     net_profile_picture,
+    net_manager,
+    net_manager_username,
+    net_manager_firstname,
+    net_manager_lastname,
+    net_data_source,
+    net_api_key,
     // Old fields
     name,
     description,
-    createdAt: new Date(createdAt)
-      .toISOString()
-      .slice(0, 19)
-      .replace("T", " "),
+    createdAt: new Date(createdAt).toISOString().slice(0, 19),
+    updatedAt: new Date(updatedAt).toISOString().slice(0, 19),
   };
 };
 
@@ -158,14 +187,11 @@ NetworkSchema.statics.register = async function(args, next) {
         status: httpStatus.CREATED,
       };
     }
-    return {
-      success: false,
-      message: "network not created despite successful operation",
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-      errors: {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: "network not created despite successful operation",
-      },
-    };
+      })
+    );
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     let response = {
@@ -247,6 +273,7 @@ NetworkSchema.statics.modify = async function(
 
     const modifiedUpdateBody = { ...update };
     delete modifiedUpdateBody._id;
+    delete modifiedUpdateBody.name;
 
     const updatedNetwork = await this.findOneAndUpdate(
       filter,
@@ -262,12 +289,12 @@ NetworkSchema.statics.modify = async function(
         status: httpStatus.OK,
       };
     }
-    return {
-      success: false,
-      message: "network does not exist, please crosscheck",
-      status: httpStatus.BAD_REQUEST,
-      errors: { message: "network does not exist, please crosscheck" },
-    };
+    next(
+      new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        ...filter,
+        message: "network does not exist, please crosscheck",
+      })
+    );
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
@@ -298,12 +325,12 @@ NetworkSchema.statics.remove = async function({ filter = {} } = {}, next) {
         status: httpStatus.OK,
       };
     }
-    return {
-      success: false,
-      message: "network does not exist, please crosscheck",
-      status: httpStatus.BAD_REQUEST,
-      errors: { message: "network does not exist, please crosscheck" },
-    };
+    next(
+      new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        ...filter,
+        message: "network does not exist, please crosscheck",
+      })
+    );
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
