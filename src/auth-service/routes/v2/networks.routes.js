@@ -21,11 +21,17 @@ router.put(
   createNetworkController.assignOneUser
 );
 
-router.get("/", networkValidations.list, createNetworkController.list);
+router.get(
+  "/",
+  networkValidations.list,
+  pagination(),
+  createNetworkController.list
+);
 
 router.get(
   "/summary",
   networkValidations.listSummary,
+  pagination(),
   createNetworkController.listSummary
 );
 
