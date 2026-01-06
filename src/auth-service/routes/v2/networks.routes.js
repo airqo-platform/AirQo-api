@@ -21,20 +21,11 @@ router.put(
   createNetworkController.assignOneUser
 );
 
-router.get(
-  "/",
-  networkValidations.list,
-  enhancedJWTAuth,
-  pagination(),
-  // requirePermissions([constants.NETWORK_VIEW]),
-  createNetworkController.list
-);
+router.get("/", networkValidations.list, createNetworkController.list);
 
 router.get(
   "/summary",
   networkValidations.listSummary,
-  enhancedJWTAuth,
-  pagination(),
   createNetworkController.listSummary
 );
 
