@@ -196,7 +196,7 @@ router.delete(
 router.get(
   "/whitelist-ip",
   validateTenant,
-  pagination(), // Apply pagination here
+  pagination(),
   enhancedJWTAuth,
   createTokenController.listWhitelistedIp
 );
