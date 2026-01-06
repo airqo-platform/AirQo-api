@@ -27,9 +27,6 @@ const validateConfiguration = () => {
   if (!constants.API_BASE_URL) {
     missingConfigs.push("API_BASE_URL");
   }
-  if (!constants.API_TOKEN) {
-    missingConfigs.push("API_TOKEN");
-  }
   return {
     isValid: missingConfigs.length === 0,
     missingConfigs,
@@ -55,23 +52,6 @@ const initializeApiClient = () => {
     baseURL: constants.API_BASE_URL,
   });
 
-  // Add request interceptor to append token as a query parameter
-  apiClient.interceptors.request.use(
-    (config) => {
-      if (constants.API_TOKEN) {
-        config.params = {
-          ...config.params,
-          token: constants.API_TOKEN,
-        };
-      }
-      return config;
-    },
-    (error) => {
-      logger.error("API request interceptor error:", error);
-      return Promise.reject(error);
-    }
-  );
-
   // Add response interceptor for better error handling
   apiClient.interceptors.response.use(
     (response) => response,
@@ -85,8 +65,6 @@ const initializeApiClient = () => {
           `API request timeout: ${error.config?.url}`,
           error.message
         );
-      } else if (error.response?.status === 401) {
-        logger.error("API authentication failed (401) - check your API_TOKEN");
       } else if (error.response?.status >= 500) {
         logger.error(
           `API server error: ${error.response?.status} ${error.response?.statusText}`
@@ -119,7 +97,6 @@ const fetchAuthServiceNetworks = async () => {
 
   while (hasMore) {
     try {
-      // The interceptor will automatically add the 'token' query param
       const response = await apiClient.get("/api/v2/users/networks", {
         params: { tenant: "airqo", page, limit },
       });
