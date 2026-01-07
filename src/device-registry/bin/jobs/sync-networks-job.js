@@ -189,7 +189,9 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
         bulkOps.push({
           updateOne: {
             filter: { _id: Types.ObjectId(authNet._id) },
-            update: { $set: updateData },
+            update: {
+              $set: { ...updateData, name: authNet.net_name },
+            },
           },
         });
       }
