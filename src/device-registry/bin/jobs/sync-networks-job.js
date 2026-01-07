@@ -166,36 +166,38 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
 
   // Identify networks to create or update
   for (const [authNetId, authNet] of authNetworkMap.entries()) {
-    const registryNet = registryNetworkMap.get(authNetId);
+    // Explicitly pick fields to prevent unexpected data from auth-service
+    const updateData = {
+      net_name: authNet.net_name,
+      net_acronym: authNet.net_acronym,
+      net_status: authNet.net_status,
+      net_manager: authNet.net_manager,
+      net_manager_username: authNet.net_manager_username,
+      net_manager_firstname: authNet.net_manager_firstname,
+      net_manager_lastname: authNet.net_manager_lastname,
+      net_email: authNet.net_email,
+      net_website: authNet.net_website,
+      net_category: authNet.net_category,
+      net_data_source: authNet.net_data_source,
+      net_description: authNet.net_description,
+      net_profile_picture: authNet.net_profile_picture,
+    };
 
-    if (!registryNet) {
-      // Network exists in auth-service but not here, so create it.
-      bulkOps.push({
-        insertOne: {
-          document: {
-            ...authNet,
-            name: authNet.net_name, // Explicitly set legacy name field
-            _id: Types.ObjectId(authNet._id),
+    bulkOps.push({
+      updateOne: {
+        filter: { _id: Types.ObjectId(authNetId) },
+        update: {
+          $set: {
+            ...updateData,
+            name: authNet.net_name, // Ensure legacy name is always in sync
+          },
+          $setOnInsert: {
+            _id: Types.ObjectId(authNetId), // Set _id only on insert
           },
         },
-      });
-    } else {
-      // Network exists in both, check if an update is needed.
-      // A simple check on updatedAt is efficient.
-      const authTime = new Date(authNet.updatedAt).getTime();
-      const registryTime = new Date(registryNet.updatedAt).getTime();
-      if (authTime > registryTime) {
-        const { _id, ...updateData } = authNet;
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: Types.ObjectId(authNet._id) },
-            update: {
-              $set: { ...updateData, name: authNet.net_name },
-            },
-          },
-        });
-      }
-    }
+        upsert: true,
+      },
+    });
   }
 
   // Identify networks to delete
