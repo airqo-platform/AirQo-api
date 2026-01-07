@@ -166,36 +166,22 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
 
   // Identify networks to create or update
   for (const [authNetId, authNet] of authNetworkMap.entries()) {
-    const registryNet = registryNetworkMap.get(authNetId);
-
-    if (!registryNet) {
-      // Network exists in auth-service but not here, so create it.
-      bulkOps.push({
-        insertOne: {
-          document: {
-            ...authNet,
-            name: authNet.net_name, // Explicitly set legacy name field
-            _id: Types.ObjectId(authNet._id),
+    const { _id, ...updateData } = authNet;
+    bulkOps.push({
+      updateOne: {
+        filter: { _id: Types.ObjectId(authNetId) },
+        update: {
+          $set: {
+            ...updateData,
+            name: authNet.net_name, // Ensure legacy name is always in sync
+          },
+          $setOnInsert: {
+            _id: Types.ObjectId(authNetId), // Set _id only on insert
           },
         },
-      });
-    } else {
-      // Network exists in both, check if an update is needed.
-      // A simple check on updatedAt is efficient.
-      const authTime = new Date(authNet.updatedAt).getTime();
-      const registryTime = new Date(registryNet.updatedAt).getTime();
-      if (authTime > registryTime) {
-        const { _id, ...updateData } = authNet;
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: Types.ObjectId(authNet._id) },
-            update: {
-              $set: { ...updateData, name: authNet.net_name },
-            },
-          },
-        });
-      }
-    }
+        upsert: true,
+      },
+    });
   }
 
   // Identify networks to delete
