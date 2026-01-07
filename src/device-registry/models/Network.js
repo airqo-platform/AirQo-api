@@ -96,16 +96,16 @@ NetworkSchema.pre("save", function(next) {
 });
 // Pre-save hook for backward compatibility
 NetworkSchema.pre("save", function(next) {
-  // Prioritize new fields as the source of truth for synchronization
+  // Establish net_name as the source of truth for the legacy 'name' field.
   if (this.isModified("net_name")) {
-    this.name = this.net_name;
+    this.name = this.net_name; // Always sync from new to old
   } else if (this.isModified("name") && !this.isModified("net_name")) {
-    this.net_name = this.name;
+    this.net_name = this.name; // Sync from old to new only if new wasn't modified
   }
 
-  // Also sync acronym for consistency, assuming it should match the name
-  if (this.isModified("name") && !this.isModified("net_acronym")) {
-    this.net_acronym = this.name;
+  // Populate acronym from net_name ONLY if acronym is missing.
+  if (!this.net_acronym && this.net_name) {
+    this.net_acronym = this.net_name;
   }
 
   if (this.isModified("net_description")) {
