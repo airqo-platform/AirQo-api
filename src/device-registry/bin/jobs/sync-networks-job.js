@@ -166,7 +166,23 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
 
   // Identify networks to create or update
   for (const [authNetId, authNet] of authNetworkMap.entries()) {
-    const { _id, ...updateData } = authNet;
+    // Explicitly pick fields to prevent unexpected data from auth-service
+    const updateData = {
+      net_name: authNet.net_name,
+      net_acronym: authNet.net_acronym,
+      net_status: authNet.net_status,
+      net_manager: authNet.net_manager,
+      net_manager_username: authNet.net_manager_username,
+      net_manager_firstname: authNet.net_manager_firstname,
+      net_manager_lastname: authNet.net_manager_lastname,
+      net_email: authNet.net_email,
+      net_website: authNet.net_website,
+      net_category: authNet.net_category,
+      net_data_source: authNet.net_data_source,
+      net_description: authNet.net_description,
+      net_profile_picture: authNet.net_profile_picture,
+    };
+
     bulkOps.push({
       updateOne: {
         filter: { _id: Types.ObjectId(authNetId) },
