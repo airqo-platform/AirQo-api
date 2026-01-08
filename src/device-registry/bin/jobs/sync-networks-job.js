@@ -183,16 +183,34 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
       net_profile_picture: authNet.net_profile_picture,
     };
 
+    // This two-step operation handles cases where the _id might differ but the unique 'name' exists.
+    // 1. Try to update the document matching the _id from auth-service.
     bulkOps.push({
       updateOne: {
         filter: { _id: Types.ObjectId(authNetId) },
         update: {
           $set: {
             ...updateData,
-            name: authNet.net_name, // Ensure legacy name is always in sync
+            name: authNet.net_name,
+          },
+        },
+      },
+    });
+
+    // 2. If the first operation did not find a document (i.e., it's not an update),
+    //    then perform an upsert based on the unique 'name'. This will either
+    //    update an existing document that has a different _id but the same name,
+    //    or insert a new document if neither _id nor name exists.
+    bulkOps.push({
+      updateOne: {
+        filter: { name: authNet.net_name },
+        update: {
+          $set: {
+            ...updateData,
+            name: authNet.net_name,
           },
           $setOnInsert: {
-            _id: Types.ObjectId(authNetId), // Set _id only on insert
+            _id: Types.ObjectId(authNetId), // Set the _id from auth-service on insert
           },
         },
         upsert: true,
