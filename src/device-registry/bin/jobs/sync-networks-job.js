@@ -155,17 +155,19 @@ const fetchDeviceRegistryNetworks = async () => {
  * @param {Array} registryNetworks - Networks from the local DB (device-registry).
  */
 const reconcileNetworks = async (authNetworks, registryNetworks) => {
+  // Use 'name' as the unique key for synchronization, not '_id'
   const authNetworkMap = new Map(
-    authNetworks.map((net) => [net._id.toString(), net])
+    authNetworks.map((net) => [net.net_name, net])
   );
   const registryNetworkMap = new Map(
-    registryNetworks.map((net) => [net._id.toString(), net])
+    // Ensure we use 'name' which is guaranteed to be consistent
+    registryNetworks.map((net) => [net.name, net])
   );
 
   const bulkOps = [];
 
   // Identify networks to create or update
-  for (const [authNetId, authNet] of authNetworkMap.entries()) {
+  for (const [authNetName, authNet] of authNetworkMap.entries()) {
     // Explicitly pick fields to prevent unexpected data from auth-service
     const updateData = {
       net_name: authNet.net_name,
@@ -185,14 +187,16 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
 
     bulkOps.push({
       updateOne: {
-        filter: { _id: Types.ObjectId(authNetId) },
+        // Use the unique 'name' for filtering
+        filter: { name: authNetName },
         update: {
           $set: {
             ...updateData,
-            name: authNet.net_name, // Ensure legacy name is always in sync
+            name: authNet.net_name, // keep legacy name in sync
           },
           $setOnInsert: {
-            _id: Types.ObjectId(authNetId), // Set _id only on insert
+            // Preserve the original _id from auth-service on first insert
+            _id: Types.ObjectId(authNet._id),
           },
         },
         upsert: true,
@@ -201,12 +205,12 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
   }
 
   // Identify networks to delete
-  for (const registryNetId of registryNetworkMap.keys()) {
-    if (!authNetworkMap.has(registryNetId)) {
+  for (const registryNetName of registryNetworkMap.keys()) {
+    if (!authNetworkMap.has(registryNetName)) {
       // Network exists here but not in auth-service, so delete it.
       bulkOps.push({
         deleteOne: {
-          filter: { _id: Types.ObjectId(registryNetId) },
+          filter: { name: registryNetName },
         },
       });
     }
