@@ -1,0 +1,48 @@
+# Node
+node_modules/
+dist/
+*.log
+
+# Build outputs
+packages/*/dist/
+packages/*/node_modules/
+
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# pnpm
+ 
+shrinkwrap.yaml
+
+# Test/coverage
+coverage/
+.nyc_output/
+
+# Misc
+.env*
+*.local
+*.cache/
+
+# Flutter
+.packages
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-*
+build/
+
+# Changesets
+.changeset/*.tmp
+.changeset/output.json
+
+# Ignore generated icon components (rebuildable)
+packages/react/src/components/
+packages/flutter/lib/
+packages/vue/src/components/
