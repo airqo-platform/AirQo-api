@@ -2,7 +2,7 @@
 
 > A comprehensive, production-ready icon library with **1,383 high-quality SVG icons** across 22 categories, designed for React and Flutter applications with enhanced search capabilities.
 
-[![NPM Version](https://img.shields.io/npm/v/@airqo/icons-react?style=flat-square&logo=npm)](https://www.npmjs.com/package/@airqo/icons-react)
+[![NPM Version](https://img.shields.io/npm/v/@airqo/icons-react?style=flat-square&logo=npm)](https://www.npmjs.com/package/@airqo/icons-react).
 [![Flutter Package](https://img.shields.io/pub/v/airqo_icons_flutter?style=flat-square&logo=flutter)](https://pub.dev/packages/airqo_icons_flutter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/airqo-platform/airqo-libraries?style=flat-square&logo=github)](https://github.com/airqo-platform/airqo-libraries)
@@ -79,7 +79,7 @@ pnpm add @airqo/icons-react
 > ```
 
 ```tsx
-import { FlagsUganda, GeneralHome, ChartsBarChart } from '@airqo/icons-react';
+import { FlagsUganda, GeneralHome, ChartsBarChart } from "@airqo/icons-react";
 
 function App() {
   return (
@@ -101,7 +101,7 @@ npm install fuse.js
 ```
 
 ```tsx
-import { AirQOIconsUtils, useIconSearch } from '@airqo/icons-react';
+import { AirQOIconsUtils, useIconSearch } from "@airqo/icons-react";
 // Now you can use AirQOIconsUtils.searchIcons or useIconSearch
 ```
 
@@ -190,23 +190,23 @@ Only import the icons you need for optimal bundle size:
 
 ```tsx
 // ✅ Good - Tree shakable
-import { FlagsUganda, GeneralHome } from '@airqo/icons-react';
+import { FlagsUganda, GeneralHome } from "@airqo/icons-react";
 
 // ❌ Avoid - Imports entire library
-import * as Icons from '@airqo/icons-react';
+import * as Icons from "@airqo/icons-react";
 ```
 
 ### Custom Styling (React)
 
 ```tsx
-import { GeneralHome } from '@airqo/icons-react';
+import { GeneralHome } from "@airqo/icons-react";
 
 function StyledIcon() {
   return (
     <GeneralHome
       size={48}
       className="text-blue-500 hover:text-blue-700 transition-colors"
-      style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
+      style={{ filter: "drop-shadow(2px 2px 4px rgba(0,0,0,0.3))" }}
     />
   );
 }
