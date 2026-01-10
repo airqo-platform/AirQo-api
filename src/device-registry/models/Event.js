@@ -1079,6 +1079,7 @@ async function fetchData(model, filter) {
   let projection = { _id: 0 };
   let siteProjection = {};
   let deviceProjection = {};
+  let gridProjection = {};
   let sort = { time: -1 };
 
   delete search["external"];
@@ -1193,6 +1194,20 @@ async function fetchData(model, filter) {
     }
     Object.assign(projection, siteProjection);
   }
+
+  // Always apply grid projection
+  if (brief === "yes") {
+    gridProjection = constants.EVENTS_METADATA_PROJECTION(
+      "brief_grid",
+      "gridDetails"
+    );
+  } else {
+    gridProjection = constants.EVENTS_METADATA_PROJECTION(
+      "grid",
+      "gridDetails"
+    );
+  }
+  Object.assign(projection, gridProjection);
 
   if (isHistorical) {
     const historicalExclusions = getHistoricalComputedFieldsExclusion(
@@ -1339,6 +1354,18 @@ async function fetchData(model, filter) {
         ]);
       }
 
+      // Always lookup grid details for mobile devices
+      pipeline = pipeline.append([
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "gridDetails",
+          },
+        },
+      ]);
+
       pipeline = pipeline.lookup({
         from,
         localField,
@@ -1409,6 +1436,7 @@ async function fetchData(model, filter) {
         stc_v: { $first: "$stc_v" },
         stc: { $first: "$stc" },
         [as]: elementAtIndex0,
+        gridDetails: { $first: { $arrayElemAt: ["$gridDetails", 0] } },
       };
 
       if (!isHistorical) {
@@ -1596,7 +1624,9 @@ async function fetchData(model, filter) {
           _device_number: "$device_number",
           [_as]: elementAtIndex0,
           ...(isHistorical
-            ? {}
+            ? {
+                _gridDetails: { $first: { $arrayElemAt: ["$gridDetails", 0] } },
+              }
             : {
                 _battery: "$battery",
                 _location: "$location",
@@ -1646,7 +1676,7 @@ async function fetchData(model, filter) {
           frequency: "$_frequency",
           [as]: "$" + _as,
           ...(isHistorical
-            ? {}
+            ? { gridDetails: "$_gridDetails" }
             : {
                 battery: "$_battery",
                 location: "$_location",
