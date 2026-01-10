@@ -766,6 +766,7 @@ function buildEarlyProjection(isHistorical) {
     device_number: 1,
     site: 1,
     site_id: 1,
+    grid_id: 1,
     frequency: 1,
     pm2_5: 1,
     pm10: 1,
@@ -1649,9 +1650,7 @@ async function fetchData(model, filter) {
           ...(isHistorical
             ? search.grid_id
               ? {
-                  _gridDetails: {
-                    $first: { $arrayElemAt: ["$gridDetails", 0] },
-                  },
+                  _gridDetails: { $arrayElemAt: ["$gridDetails", 0] },
                 }
               : {}
             : {
