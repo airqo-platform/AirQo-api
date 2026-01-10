@@ -485,7 +485,9 @@ const handleNetworkEvents = async (messageData) => {
     switch (action) {
       case "create":
         logText("KAFKA-CONSUMER: Creating network in device-registry...");
-        response = await createCohortUtil.createNetwork(request);
+        response = await createCohortUtil.createNetwork(request, (err) => {
+          if (err) logger.error(`Error in createNetwork callback: ${err}`);
+        });
         break;
       case "update":
         logText("KAFKA-CONSUMER: Updating network in device-registry...");
@@ -495,7 +497,7 @@ const handleNetworkEvents = async (messageData) => {
           );
           return;
         }
-        request.query.name = networkData.net_name; // Use the unique network name
+        request.query.name = networkData.net_name;
         response = await createCohortUtil.updateNetwork(request, (err) => {
           if (err) logger.error(`Error in updateNetwork callback: ${err}`);
         });
@@ -508,7 +510,7 @@ const handleNetworkEvents = async (messageData) => {
           );
           return;
         }
-        request.query.name = networkData.net_name; // Use the unique network name
+        request.query.name = networkData.net_name;
         response = await createCohortUtil.deleteNetwork(request, (err) => {
           if (err) logger.error(`Error in deleteNetwork callback: ${err}`);
         });
