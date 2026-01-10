@@ -1196,7 +1196,7 @@ async function fetchData(model, filter) {
   }
 
   // Conditionally apply grid projection only if grid_id is in the query
-  if (search && search.grid_id) {
+  if (search.grid_id) {
     if (brief === "yes") {
       gridProjection = constants.EVENTS_METADATA_PROJECTION(
         "brief_grid",
@@ -1357,7 +1357,7 @@ async function fetchData(model, filter) {
       }
 
       // Conditionally lookup grid details only if grid_id is part of the query
-      if (search && search.grid_id) {
+      if (search.grid_id) {
         pipeline = pipeline.append([
           {
             $lookup: {
@@ -1455,7 +1455,7 @@ async function fetchData(model, filter) {
       }
 
       // Conditionally add gridDetails to the group stage
-      if (search && search.grid_id) {
+      if (search.grid_id) {
         groupStage.gridDetails = {
           $first: { $arrayElemAt: ["$gridDetails", 0] },
         };
@@ -1605,7 +1605,7 @@ async function fetchData(model, filter) {
       ];
 
       // Conditionally lookup grid details only if grid_id is part of the query
-      if (search && search.grid_id) {
+      if (search.grid_id) {
         histPipeline.push({
           $lookup: {
             from: "grids",
@@ -1647,7 +1647,7 @@ async function fetchData(model, filter) {
           _device_number: "$device_number",
           [_as]: elementAtIndex0,
           ...(isHistorical
-            ? search && search.grid_id
+            ? search.grid_id
               ? {
                   _gridDetails: {
                     $first: { $arrayElemAt: ["$gridDetails", 0] },
@@ -1703,7 +1703,7 @@ async function fetchData(model, filter) {
           frequency: "$_frequency",
           [as]: "$" + _as,
           ...(isHistorical
-            ? search && search.grid_id
+            ? search.grid_id
               ? { gridDetails: "$_gridDetails" }
               : {}
             : {
