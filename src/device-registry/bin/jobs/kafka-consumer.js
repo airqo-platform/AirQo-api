@@ -489,12 +489,14 @@ const handleNetworkEvents = async (messageData) => {
         break;
       case "update":
         logText("KAFKA-CONSUMER: Updating network in device-registry...");
-        request.params = { net_id: networkData._id }; // Assuming _id is passed for updates
+        // Use the unique network name for updates, not the _id
+        request.query.name = networkData.net_name;
         response = await createCohortUtil.updateNetwork(request);
         break;
       case "delete":
         logText("KAFKA-CONSUMER: Deleting network from device-registry...");
-        request.params = { net_id: networkData._id }; // Assuming _id is passed for deletes
+        // Use the unique network name for deletes, not the _id
+        request.query.name = networkData.net_name;
         response = await createCohortUtil.deleteNetwork(request);
         break;
       default:
