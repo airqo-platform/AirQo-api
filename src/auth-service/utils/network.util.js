@@ -244,7 +244,7 @@ const createNetwork = {
         try {
           await publishKafkaEvent(constants.NETWORK_EVENTS_TOPIC, {
             action: "create",
-            value: JSON.stringify(responseFromRegisterNetwork.data.toJSON()),
+            value: responseFromRegisterNetwork.data.toJSON(),
           });
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);

@@ -489,15 +489,29 @@ const handleNetworkEvents = async (messageData) => {
         break;
       case "update":
         logText("KAFKA-CONSUMER: Updating network in device-registry...");
-        // Use the unique network name for updates, not the _id
-        request.query.name = networkData.net_name;
-        response = await createCohortUtil.updateNetwork(request);
+        if (!networkData.net_name) {
+          logger.error(
+            `KAFKA-CONSUMER: Invalid message for network update - 'net_name' is missing.`
+          );
+          return;
+        }
+        request.query.name = networkData.net_name; // Use the unique network name
+        response = await createCohortUtil.updateNetwork(request, (err) => {
+          if (err) logger.error(`Error in updateNetwork callback: ${err}`);
+        });
         break;
       case "delete":
         logText("KAFKA-CONSUMER: Deleting network from device-registry...");
-        // Use the unique network name for deletes, not the _id
-        request.query.name = networkData.net_name;
-        response = await createCohortUtil.deleteNetwork(request);
+        if (!networkData.net_name) {
+          logger.error(
+            `KAFKA-CONSUMER: Invalid message for network delete - 'net_name' is missing.`
+          );
+          return;
+        }
+        request.query.name = networkData.net_name; // Use the unique network name
+        response = await createCohortUtil.deleteNetwork(request, (err) => {
+          if (err) logger.error(`Error in deleteNetwork callback: ${err}`);
+        });
         break;
       default:
         logger.warn(
