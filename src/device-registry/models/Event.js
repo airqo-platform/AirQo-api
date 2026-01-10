@@ -1602,12 +1602,11 @@ async function fetchData(model, filter) {
             as,
           },
         },
-        { $sort: sort },
       ];
 
       // Conditionally lookup grid details only if grid_id is part of the query
       if (search && search.grid_id) {
-        histPipeline.splice(5, 0, {
+        histPipeline.push({
           $lookup: {
             from: "grids",
             localField: "grid_id",
@@ -1616,6 +1615,8 @@ async function fetchData(model, filter) {
           },
         });
       }
+
+      histPipeline.push({ $sort: sort });
 
       if (!isHistorical) {
         histPipeline.push({
