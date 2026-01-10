@@ -766,6 +766,7 @@ function buildEarlyProjection(isHistorical) {
     device_number: 1,
     site: 1,
     site_id: 1,
+    grid_id: 1,
     frequency: 1,
     pm2_5: 1,
     pm10: 1,
@@ -1079,6 +1080,7 @@ async function fetchData(model, filter) {
   let projection = { _id: 0 };
   let siteProjection = {};
   let deviceProjection = {};
+  let gridProjection = {};
   let sort = { time: -1 };
 
   delete search["external"];
@@ -1192,6 +1194,22 @@ async function fetchData(model, filter) {
       siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
     }
     Object.assign(projection, siteProjection);
+  }
+
+  // Conditionally apply grid projection only if grid_id is in the query
+  if (search.grid_id) {
+    if (brief === "yes") {
+      gridProjection = constants.EVENTS_METADATA_PROJECTION(
+        "brief_grid",
+        "gridDetails"
+      );
+    } else {
+      gridProjection = constants.EVENTS_METADATA_PROJECTION(
+        "grid",
+        "gridDetails"
+      );
+    }
+    Object.assign(projection, gridProjection);
   }
 
   if (isHistorical) {
@@ -1339,6 +1357,20 @@ async function fetchData(model, filter) {
         ]);
       }
 
+      // Conditionally lookup grid details only if grid_id is part of the query
+      if (search.grid_id) {
+        pipeline = pipeline.append([
+          {
+            $lookup: {
+              from: "grids",
+              localField: "grid_id",
+              foreignField: "_id",
+              as: "gridDetails",
+            },
+          },
+        ]);
+      }
+
       pipeline = pipeline.lookup({
         from,
         localField,
@@ -1421,6 +1453,13 @@ async function fetchData(model, filter) {
           },
         };
         groupStage.health_tips = { $first: "$healthTips" };
+      }
+
+      // Conditionally add gridDetails to the group stage
+      if (search.grid_id) {
+        groupStage.gridDetails = {
+          $first: { $arrayElemAt: ["$gridDetails", 0] },
+        };
       }
 
       pipeline = pipeline.sort(sort).group(groupStage);
@@ -1564,8 +1603,21 @@ async function fetchData(model, filter) {
             as,
           },
         },
-        { $sort: sort },
       ];
+
+      // Conditionally lookup grid details only if grid_id is part of the query
+      if (search.grid_id) {
+        histPipeline.push({
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "gridDetails",
+          },
+        });
+      }
+
+      histPipeline.push({ $sort: sort });
 
       if (!isHistorical) {
         histPipeline.push({
@@ -1596,7 +1648,11 @@ async function fetchData(model, filter) {
           _device_number: "$device_number",
           [_as]: elementAtIndex0,
           ...(isHistorical
-            ? {}
+            ? search.grid_id
+              ? {
+                  _gridDetails: { $arrayElemAt: ["$gridDetails", 0] },
+                }
+              : {}
             : {
                 _battery: "$battery",
                 _location: "$location",
@@ -1646,7 +1702,9 @@ async function fetchData(model, filter) {
           frequency: "$_frequency",
           [as]: "$" + _as,
           ...(isHistorical
-            ? {}
+            ? search.grid_id
+              ? { gridDetails: "$_gridDetails" }
+              : {}
             : {
                 battery: "$_battery",
                 location: "$_location",

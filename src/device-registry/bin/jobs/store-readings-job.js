@@ -142,6 +142,17 @@ class ReadingsBatchProcessor {
         updateDoc.averages = averages;
       }
 
+      // Explicitly ensure the details from the 'events' view are preserved.
+      if (doc.siteDetails) {
+        updateDoc.siteDetails = doc.siteDetails;
+      }
+      if (doc.gridDetails) {
+        updateDoc.gridDetails = doc.gridDetails;
+      }
+      if (doc.deviceDetails) {
+        updateDoc.deviceDetails = doc.deviceDetails;
+      }
+
       // Save reading
       try {
         await ReadingModel("airqo").updateOne(
