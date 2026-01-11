@@ -4,7 +4,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job`
 );
 const DeviceModel = require("@models/Device");
-const LogThrottleModel = require("@models/LogThrottle");
 const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
 const { getSchedule, LogThrottleManager } = require("@utils/common");
@@ -19,7 +18,7 @@ const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 let isJobRunning = false;
 let currentJobPromise = null;
 
-const logThrottleManager = new LogThrottleManager(TIMEZONE);
+const logThrottleManager = new LogThrottleManager();
 
 const checkActiveStatuses = async () => {
   // Prevent overlapping executions
