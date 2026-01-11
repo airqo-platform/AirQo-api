@@ -19,9 +19,6 @@ const MAIN_JOB_NAME = "network-status-check-job";
 const SUMMARY_JOB_NAME = "network-status-summary-job";
 const MAIN_JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
 const SUMMARY_JOB_SCHEDULE = getSchedule("0 8 * * *", constants.ENVIRONMENT); // At 8:00 AM (or offset) every day
-
-let isMainJobRunning = false;
-let isSummaryJobRunning = false;
 let currentMainJobPromise = null;
 let currentSummaryJobPromise = null;
 const MAIN_JOB_LOG_TYPE = "network-status-check";
@@ -261,11 +258,6 @@ const mainJobWrapper = async () => {
     );
   }
 
-  if (isMainJobRunning) {
-    logger.warn(`${MAIN_JOB_NAME} is already running, skipping this execution`);
-    return;
-  }
-  isMainJobRunning = true;
   currentMainJobPromise = checkNetworkStatus();
   try {
     await currentMainJobPromise;
@@ -274,7 +266,6 @@ const mainJobWrapper = async () => {
       `🐛🐛 Error during ${MAIN_JOB_NAME} execution: ${error.message}`
     );
   } finally {
-    isMainJobRunning = false;
     currentMainJobPromise = null;
   }
 };
@@ -296,13 +287,6 @@ const summaryJobWrapper = async () => {
     );
   }
 
-  if (isSummaryJobRunning) {
-    logger.warn(
-      `${SUMMARY_JOB_NAME} is already running, skipping this execution`
-    );
-    return;
-  }
-  isSummaryJobRunning = true;
   currentSummaryJobPromise = dailyNetworkStatusSummary();
   try {
     await currentSummaryJobPromise;
@@ -311,7 +295,6 @@ const summaryJobWrapper = async () => {
       `🐛🐛 Error during ${SUMMARY_JOB_NAME} execution: ${error.message}`
     );
   } finally {
-    isSummaryJobRunning = false;
     currentSummaryJobPromise = null;
   }
 };
