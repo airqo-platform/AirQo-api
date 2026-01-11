@@ -7,48 +7,56 @@ const logger = log4js.getLogger(
 );
 
 class LogThrottleManager {
-  constructor(coolDownMinutes = 5) {
+  constructor(timezone, maxLogsPerDay = 1) {
     this.environment = constants.ENVIRONMENT;
     this.model = LogThrottleModel(constants.DEFAULT_TENANT);
-    this.coolDownMinutes = coolDownMinutes;
+    this.timezone = timezone || constants.TIMEZONE || "Africa/Kampala";
+    this.maxLogsPerDay = maxLogsPerDay;
   }
 
   async shouldAllowLog(logType) {
-    const now = moment();
-    const lockKey = `${this.environment}:${logType}`;
+    const today = moment()
+      .tz(this.timezone)
+      .format("YYYY-MM-DD");
 
     try {
-      const lastRun = await this.model.findOne({ lock_key: lockKey }).lean();
+      const result = await this.model.incrementCount({
+        date: today,
+        logType: logType,
+        environment: this.environment,
+      });
 
-      if (lastRun) {
-        const minutesSinceLastRun = now.diff(
-          moment(lastRun.last_run_at),
-          "minutes"
-        );
-        if (minutesSinceLastRun < this.coolDownMinutes) {
-          // It's too soon to run again.
-          return false;
+      if (result.success) {
+        const currentCount = result.data?.count || 1;
+        return currentCount <= this.maxLogsPerDay;
+      } else {
+        logger.debug(`Log throttle increment failed: ${result.message}`);
+        // Fallback to true to avoid blocking jobs on throttle error
+        return true;
+      }
+    } catch (error) {
+      // Handle race condition where two pods try to upsert at the same time
+      if (error.code === 11000) {
+        try {
+          // Retry the increment, which should now succeed on the existing document
+          const retryResult = await this.model.incrementCount({
+            date: today,
+            logType: logType,
+            environment: this.environment,
+          });
+
+          if (retryResult.success) {
+            const currentCount = retryResult.data?.count || 1;
+            return currentCount <= this.maxLogsPerDay;
+          }
+        } catch (retryError) {
+          logger.warn(`Log throttle retry failed: ${retryError.message}`);
         }
+      } else {
+        logger.warn(`Log throttle check failed: ${error.message}`);
       }
 
-      // It's been long enough, or this is the first run. Update the timestamp.
-      await this.model.findOneAndUpdate(
-        { lock_key: lockKey },
-        {
-          $set: {
-            last_run_at: now.toDate(),
-            environment: this.environment,
-            log_type: logType,
-          },
-        },
-        { upsert: true, new: true }
-      );
-
-      return true;
-    } catch (error) {
-      logger.error(`Error in shouldAllowLog for ${logType}: ${error.message}`);
-      // Fail-safe: if the throttle mechanism fails, allow the log to proceed
-      // to avoid blocking important jobs due to a throttle error.
+      // Fail-safe: allow log if throttle mechanism has an unrecoverable error
       return true;
     }
   }

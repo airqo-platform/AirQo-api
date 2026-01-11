@@ -50,7 +50,7 @@ const logThrottleSchema = new Schema(
   },
   {
     timestamps: true,
-    collection: "log_throttle_tracking",
+    collection: "log_throttles",
   }
 );
 
@@ -409,9 +409,14 @@ const LogThrottleModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
-    return mongoose.model("log_throttles");
+    const throttles = mongoose.model("log_throttles");
+    return throttles;
   } catch (error) {
-    return getModelByTenant(dbTenant, "log_throttle", logThrottleSchema);
+    return getModelByTenant(
+      dbTenant.toLowerCase(),
+      "log_throttle",
+      logThrottleSchema
+    );
   }
 };
 
