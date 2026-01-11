@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-device-registry-api
-  tag: stage-02d49b94-1768082030
+  tag: stage-c759cb8b-1768124894
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
