@@ -42,20 +42,26 @@ class LogThrottleManager {
       // If the error is a duplicate key error (E11000), it means another instance
       // created the lock just before this one. This is an expected race condition.
       if (error.code === 11000) {
-        // Step 2: The lock exists, so try to update it atomically.
-        // This update will only succeed if the `last_run_at` is older than the cooldown time.
-        const result = await this.model.findOneAndUpdate(
-          {
-            lock_key: lockKey,
-            last_run_at: { $lt: cooldownTime },
-          },
-          { $set: { last_run_at: now } },
-          { new: true }
-        );
+        try {
+          // Step 2: The lock exists, so try to update it atomically.
+          // This update will only succeed if the `last_run_at` is older than the cooldown time.
+          const result = await this.model.findOneAndUpdate(
+            {
+              lock_key: lockKey,
+              last_run_at: { $lt: cooldownTime },
+            },
+            { $set: { last_run_at: now } },
+            { new: true }
+          );
 
-        // If `result` is not null, the update was successful, and this instance acquired the lock.
-        // If `result` is null, it means another instance has already updated the lock within the cooldown period.
-        return !!result;
+          // If `result` is not null, the update was successful, and this instance acquired the lock.
+          // If `result` is null, it means another instance has already updated the lock within the cooldown period.
+          return !!result;
+        } catch (updateError) {
+          logger.error(
+            `Error during lock update for ${logType}: ${updateError.message}`
+          );
+        }
       }
 
       // For any other unexpected errors, log it and fail-safe by allowing the job to run.
