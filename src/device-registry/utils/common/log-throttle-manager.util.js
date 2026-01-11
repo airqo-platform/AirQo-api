@@ -7,56 +7,54 @@ const logger = log4js.getLogger(
 );
 
 class LogThrottleManager {
-  constructor(timezone, maxLogsPerDay = 1) {
+  constructor(cooldownMinutes = 5) {
     this.environment = constants.ENVIRONMENT;
     this.model = LogThrottleModel(constants.DEFAULT_TENANT);
-    this.timezone = timezone || constants.TIMEZONE || "Africa/Kampala";
-    this.maxLogsPerDay = maxLogsPerDay;
+    // Backward compatibility:
+    // Handle being called with the old `timezone` string parameter.
+    if (
+      typeof cooldownMinutes === "number" &&
+      Number.isFinite(cooldownMinutes)
+    ) {
+      this.cooldownMinutes = cooldownMinutes;
+    } else {
+      this.cooldownMinutes = 5; // Default to 5 minutes if input is invalid
+    }
   }
 
   async shouldAllowLog(logType) {
-    const today = moment()
-      .tz(this.timezone)
-      .format("YYYY-MM-DD");
+    const lockKey = `${this.environment}:${logType}`;
+    const now = new Date();
+    const cooldownPeriod = new Date(
+      now.getTime() - this.cooldownMinutes * 60000
+    );
 
     try {
-      const result = await this.model.incrementCount({
-        date: today,
-        logType: logType,
-        environment: this.environment,
-      });
-
-      if (result.success) {
-        const currentCount = result.data?.count || 1;
-        return currentCount <= this.maxLogsPerDay;
-      } else {
-        logger.debug(`Log throttle increment failed: ${result.message}`);
-        // Fallback to true to avoid blocking jobs on throttle error
-        return true;
-      }
-    } catch (error) {
-      // Handle race condition where two pods try to upsert at the same time
-      if (error.code === 11000) {
-        try {
-          // Retry the increment, which should now succeed on the existing document
-          const retryResult = await this.model.incrementCount({
-            date: today,
-            logType: logType,
+      // Atomically find and update the lock only if the cooldown has passed.
+      const result = await this.model.findOneAndUpdate(
+        {
+          lock_key: lockKey,
+          $or: [
+            { last_run_at: { $lt: cooldownPeriod } },
+            { last_run_at: { $exists: false } },
+          ],
+        },
+        {
+          $set: {
+            last_run_at: now,
             environment: this.environment,
-          });
+            logType: logType,
+          },
+        },
+        { upsert: true, new: true }
+      );
 
-          if (retryResult.success) {
-            const currentCount = retryResult.data?.count || 1;
-            return currentCount <= this.maxLogsPerDay;
-          }
-        } catch (retryError) {
-          logger.warn(`Log throttle retry failed: ${retryError.message}`);
-        }
-      } else {
-        logger.warn(`Log throttle check failed: ${error.message}`);
-      }
-
-      // Fail-safe: allow log if throttle mechanism has an unrecoverable error
+      // If the update was successful (result is not null), this instance acquired the lock.
+      return !!result;
+    } catch (error) {
+      logger.error(`Error in shouldAllowLog for ${logType}: ${error.message}`);
+      // Fail-safe: if the throttle mechanism fails, allow the log to proceed
+      // to avoid blocking important jobs due to a throttle error.
       return true;
     }
   }

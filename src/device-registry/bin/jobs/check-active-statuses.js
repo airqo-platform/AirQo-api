@@ -18,7 +18,7 @@ const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 let isJobRunning = false;
 let currentJobPromise = null;
 
-const logThrottleManager = new LogThrottleManager(TIMEZONE);
+const logThrottleManager = new LogThrottleManager();
 
 const checkActiveStatuses = async () => {
   // Prevent overlapping executions
