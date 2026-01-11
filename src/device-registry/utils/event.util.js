@@ -1607,10 +1607,12 @@ const createEvent = {
 
       const backgroundSitesReadings = latestReadings.filter(
         (reading) =>
-          reading.siteDetails && // Check if siteDetails exists
-          reading.siteDetails.site_category && // Safely check if site_category exists
-          (reading.siteDetails.site_category.category === "urban background" ||
-            reading.siteDetails.site_category.category === "background")
+          reading.siteDetails &&
+          reading.siteDetails.site_category &&
+          typeof reading.siteDetails.site_category.category === "string" &&
+          reading.siteDetails.site_category.category
+            .toLowerCase()
+            .includes("background")
       );
 
       // Helper to ensure we only process readings with a valid pm2_5 value
