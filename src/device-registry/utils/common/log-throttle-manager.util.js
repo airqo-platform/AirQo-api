@@ -7,59 +7,49 @@ const logger = log4js.getLogger(
 );
 
 class LogThrottleManager {
-  constructor(timezone) {
+  constructor(coolDownMinutes = 5) {
     this.environment = constants.ENVIRONMENT;
-    this.model = LogThrottleModel("airqo");
-    this.timezone = timezone;
+    this.model = LogThrottleModel(constants.DEFAULT_TENANT);
+    this.coolDownMinutes = coolDownMinutes;
   }
 
   async shouldAllowLog(logType) {
-    const today = moment()
-      .tz(this.timezone)
-      .format("YYYY-MM-DD");
-    const maxLogsPerDay = 1;
+    const now = moment();
+    const lockKey = `${this.environment}:${logType}`;
 
     try {
-      const result = await this.model.incrementCount({
-        date: today,
-        logType: logType,
-        environment: this.environment,
-      });
-      if (result.success) {
-        const currentCount = result.data?.count || 1;
-        return currentCount <= maxLogsPerDay;
-      } else {
-        logger.warn(
-          `incrementCount failed for ${logType}: ${result.message}. Re-checking state.`
+      const lastRun = await this.model.findOne({ lock_key: lockKey }).lean();
+
+      if (lastRun) {
+        const minutesSinceLastRun = now.diff(
+          moment(lastRun.last_run_at),
+          "minutes"
         );
+        if (minutesSinceLastRun < this.coolDownMinutes) {
+          // It's too soon to run again.
+          return false;
+        }
       }
-      // If incrementCount failed (e.g., due to a race condition),
-      // we must re-check the current state to make a definitive decision.
-    } catch (error) {
-      logger.warn(
-        `Initial lock acquisition for ${logType} failed with error: ${error.message}. Re-checking state.`
-      );
-    }
 
-    // Fallback check: If the atomic increment failed, another instance might have already run.
-    // Let's find out for sure.
-    try {
-      const current = await this.model.getCurrentCount({
-        date: today,
-        logType: logType,
-        environment: this.environment,
-      });
-      // If a document exists, allow logging only if count is less than maxLogsPerDay.
-      return (
-        current.success &&
-        current.data.exists &&
-        current.data.count < maxLogsPerDay
+      // It's been long enough, or this is the first run. Update the timestamp.
+      await this.model.findOneAndUpdate(
+        { lock_key: lockKey },
+        {
+          $set: {
+            last_run_at: now.toDate(),
+            environment: this.environment,
+            log_type: logType,
+          },
+        },
+        { upsert: true, new: true }
       );
-    } catch (checkError) {
-      logger.error(
-        `Failed to re-check lock state for ${logType}: ${checkError.message}`
-      );
-      return false;
+
+      return true;
+    } catch (error) {
+      logger.error(`Error in shouldAllowLog for ${logType}: ${error.message}`);
+      // Fail-safe: if the throttle mechanism fails, allow the log to proceed
+      // to avoid blocking important jobs due to a throttle error.
+      return true;
     }
   }
 }
