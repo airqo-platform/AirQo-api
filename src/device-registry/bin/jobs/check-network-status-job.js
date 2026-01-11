@@ -3,9 +3,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/check-network-status-job`
 );
-const DeviceModel = require("@models/Device");
-const NetworkStatusAlertModel = require("@models/NetworkStatusAlert");
-const LogThrottleModel = require("@models/LogThrottle");
+const deviceUtil = require("@utils/device.util");
 const networkStatusUtil = require("@utils/network-status.util");
 const { getSchedule, LogThrottleManager } = require("@utils/common");
 const cron = require("node-cron");
@@ -32,6 +30,14 @@ const SUMMARY_JOB_LOG_TYPE = "network-status-summary";
 const logThrottleManager = new LogThrottleManager(TIMEZONE);
 
 const checkNetworkStatus = async () => {
+  // Restrict job to run only in production
+  if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
+    logger.info(
+      `check-network-status-job is disabled for the ${constants.ENVIRONMENT} environment.`
+    );
+    return;
+  }
+
   try {
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
@@ -39,36 +45,43 @@ const checkNetworkStatus = async () => {
       return;
     }
 
-    const result = await DeviceModel("airqo").aggregate([
-      {
-        $match: {
-          status: "deployed",
-          isActive: true, // Consider only active and deployed devices
-        },
+    const request = {
+      query: {
+        tenant: "airqo",
+        status: "deployed",
+        isActive: true,
       },
-      {
-        $group: {
-          _id: null,
-          totalDevices: { $sum: 1 },
-          offlineDevicesCount: {
-            $sum: {
-              $cond: [{ $eq: ["$isOnline", false] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
+    };
 
-    if (result.length === 0 || result[0].totalDevices === 0) {
+    // Note: getDeviceCountSummary uses a filter for { status: "deployed", isActive: true },
+    // so total_monitors accurately represents the total number of deployed devices.
+    const responseFromGetDeviceCountSummary = await deviceUtil.getDeviceCountSummary(
+      request
+    );
+
+    if (!responseFromGetDeviceCountSummary.success) {
+      logger.error(
+        `Unable to get device count summary: ${responseFromGetDeviceCountSummary.message}`
+      );
+      return;
+    }
+
+    const deviceSummary = responseFromGetDeviceCountSummary.data;
+
+    const { total_monitors, operational, not_transmitting } = deviceSummary;
+
+    const totalDeployedDevices = total_monitors;
+    const notTransmittingDevicesCount = not_transmitting;
+
+    if (totalDeployedDevices === 0) {
       logText("No deployed devices found");
       logger.warn("🙀🙀 No deployed devices found.");
 
-      // Still create an alert even when no devices are found
       const alertData = {
         checked_at: new Date(),
         total_deployed_devices: 0,
-        offline_devices_count: 0,
-        offline_percentage: 0,
+        not_transmitting_devices_count: 0, // Updated field
+        not_transmitting_percentage: 0, // Updated field
         status: "OK",
         message: "No deployed devices found",
         threshold_exceeded: false,
@@ -76,12 +89,13 @@ const checkNetworkStatus = async () => {
       };
 
       await networkStatusUtil.createAlert({ alertData, tenant: "airqo" });
-
       return;
     }
 
-    const { totalDevices, offlineDevicesCount } = result[0];
-    const offlinePercentage = (offlineDevicesCount / totalDevices) * 100;
+    const notTransmittingPercentage = // Renamed for clarity
+      totalDeployedDevices > 0
+        ? (notTransmittingDevicesCount / totalDeployedDevices) * 100
+        : 0;
 
     // Check again if we should stop (long-running operations)
     if (global.isShuttingDown) {
@@ -94,23 +108,26 @@ const checkNetworkStatus = async () => {
     let message = "";
     let thresholdExceeded = false;
 
-    if (offlinePercentage >= CRITICAL_THRESHOLD) {
+    if (notTransmittingPercentage >= CRITICAL_THRESHOLD) {
+      // Logic based on notTransmittingPercentage
       status = "CRITICAL";
-      message = `🚨🆘 CRITICAL: ${offlinePercentage.toFixed(
+      message = `🚨🆘 CRITICAL: ${notTransmittingPercentage.toFixed(
         2
-      )}% of deployed devices are offline (${offlineDevicesCount}/${totalDevices})`;
+      )}% of deployed devices are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
       thresholdExceeded = true;
-    } else if (offlinePercentage > UPTIME_THRESHOLD) {
+    } else if (notTransmittingPercentage > UPTIME_THRESHOLD) {
+      // Logic based on notTransmittingPercentage
       status = "WARNING";
-      message = `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are offline: ${offlinePercentage.toFixed(
+      message = `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are not transmitting: ${notTransmittingPercentage.toFixed(
         2
-      )}% (${offlineDevicesCount}/${totalDevices})`;
+      )}% (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
       thresholdExceeded = true;
     } else {
       status = "OK";
-      message = `✅ Network status is acceptable for deployed devices: ${offlinePercentage.toFixed(
+      message = `✅ Network status is acceptable. ${operational} devices are operational, while ${notTransmittingPercentage.toFixed(
+        // Updated OK message
         2
-      )}% offline (${offlineDevicesCount}/${totalDevices})`;
+      )}% are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
     }
 
     logText(message);
@@ -125,12 +142,15 @@ const checkNetworkStatus = async () => {
     // Create alert record in database
     const alertData = {
       checked_at: new Date(),
-      total_deployed_devices: totalDevices,
-      offline_devices_count: offlineDevicesCount,
-      offline_percentage: parseFloat(offlinePercentage.toFixed(2)),
+      total_deployed_devices: totalDeployedDevices,
+      not_transmitting_devices_count: notTransmittingDevicesCount, // Updated field
+      not_transmitting_percentage: parseFloat(
+        // Updated field
+        notTransmittingPercentage.toFixed(2)
+      ),
       status,
       message,
-      threshold_exceeded: thresholdExceeded,
+      threshold_exceeded: notTransmittingPercentage >= UPTIME_THRESHOLD, // Logic based on notTransmittingPercentage
       threshold_value: UPTIME_THRESHOLD,
     };
 
@@ -157,8 +177,8 @@ const checkNetworkStatus = async () => {
       const errorAlertData = {
         checked_at: new Date(),
         total_deployed_devices: 0,
-        offline_devices_count: 0,
-        offline_percentage: 0,
+        not_transmitting_devices_count: 0, // Updated field
+        not_transmitting_percentage: 0, // Updated field
         status: "CRITICAL",
         message: `Error checking network status: ${error.message}`,
         threshold_exceeded: true,
@@ -207,9 +227,9 @@ const dailyNetworkStatusSummary = async () => {
       const summaryMessage = `
 📊 Daily Network Status Summary (${moment(yesterday).format("YYYY-MM-DD")})
 Total Alerts: ${stats.totalAlerts}
-Average Offline %: ${stats.avgOfflinePercentage.toFixed(2)}%
-Max Offline %: ${stats.maxOfflinePercentage.toFixed(2)}%
-Min Offline %: ${stats.minOfflinePercentage.toFixed(2)}%
+Average Not Transmitting %: ${stats.avg_not_transmitting_percentage.toFixed(2)}%
+Max Not Transmitting %: ${stats.max_not_transmitting_percentage.toFixed(2)}%
+Min Not Transmitting %: ${stats.min_not_transmitting_percentage.toFixed(2)}%
 Warning Alerts: ${stats.warningCount}
 Critical Alerts: ${stats.criticalCount}
       `;

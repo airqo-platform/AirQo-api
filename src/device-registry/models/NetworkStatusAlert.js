@@ -22,12 +22,12 @@ const networkStatusAlertSchema = new Schema(
       required: true,
       min: 0,
     },
-    offline_devices_count: {
+    not_transmitting_devices_count: {
       type: Number,
       required: true,
       min: 0,
     },
-    offline_percentage: {
+    not_transmitting_percentage: {
       type: Number,
       required: true,
       min: 0,
@@ -93,8 +93,8 @@ const networkStatusAlertSchema = new Schema(
 // Add indexes for efficient querying
 networkStatusAlertSchema.index({ checked_at: -1 });
 networkStatusAlertSchema.index({ status: 1 });
-networkStatusAlertSchema.index({ tenant: 1, checked_at: -1 });
-networkStatusAlertSchema.index({ offline_percentage: 1 });
+networkStatusAlertSchema.index({ tenant: 1, checked_at: -1 }); // Compound index for tenant-specific queries
+networkStatusAlertSchema.index({ not_transmitting_percentage: 1 });
 networkStatusAlertSchema.index({ threshold_exceeded: 1 });
 networkStatusAlertSchema.index({ day_of_week: 1, hour_of_day: 1 });
 
@@ -109,8 +109,8 @@ networkStatusAlertSchema.methods = {
       _id: this._id,
       checked_at: this.checked_at,
       total_deployed_devices: this.total_deployed_devices,
-      offline_devices_count: this.offline_devices_count,
-      offline_percentage: this.offline_percentage,
+      not_transmitting_devices_count: this.not_transmitting_devices_count,
+      not_transmitting_percentage: this.not_transmitting_percentage,
       status: this.status,
       severity: this.severity,
       message: this.message,
@@ -251,9 +251,15 @@ networkStatusAlertSchema.statics = {
           $group: {
             _id: null,
             totalAlerts: { $sum: 1 },
-            avgOfflinePercentage: { $avg: "$offline_percentage" },
-            maxOfflinePercentage: { $max: "$offline_percentage" },
-            minOfflinePercentage: { $min: "$offline_percentage" },
+            avg_not_transmitting_percentage: {
+              $avg: "$not_transmitting_percentage",
+            },
+            max_not_transmitting_percentage: {
+              $max: "$not_transmitting_percentage",
+            },
+            min_not_transmitting_percentage: {
+              $min: "$not_transmitting_percentage",
+            },
             warningCount: {
               $sum: { $cond: [{ $eq: ["$status", "WARNING"] }, 1, 0] },
             },
@@ -286,7 +292,9 @@ networkStatusAlertSchema.statics = {
               hour: "$hour_of_day",
               dayOfWeek: "$day_of_week",
             },
-            avgOfflinePercentage: { $avg: "$offline_percentage" },
+            avg_not_transmitting_percentage: {
+              $avg: "$not_transmitting_percentage",
+            },
             count: { $sum: 1 },
           },
         },
