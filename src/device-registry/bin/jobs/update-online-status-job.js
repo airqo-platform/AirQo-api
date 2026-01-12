@@ -141,7 +141,7 @@ class NonBlockingJobProcessor {
 }
 
 // Initialize log throttle manager
-const logThrottleManager = new LogThrottleManager(TIMEZONE, 1);
+const logThrottleManager = new LogThrottleManager();
 
 // Enhanced throttled logging function with async support
 async function throttledLog(logType, message, forceLog = false) {
