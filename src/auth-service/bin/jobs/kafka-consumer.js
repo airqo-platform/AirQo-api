@@ -226,7 +226,7 @@ const emailsForDeployedDevices = async (messageData) => {
     return;
   }
 
-  const { createdActivity, updatedDevice, user_id } = parsedData;
+  const { createdActivity, updatedDevice, user_id, activityType } = parsedData;
 
   if (!createdActivity || !updatedDevice) {
     logger.error(
@@ -267,7 +267,7 @@ const emailsForDeployedDevices = async (messageData) => {
       lastName: user.lastName,
       deviceDetails: extractDeviceDetails(updatedDevice),
       activityDetails: extractActivityDetails(createdActivity),
-      activityType: "deploy",
+      activityType: activityType,
     });
 
     // Handle email response
