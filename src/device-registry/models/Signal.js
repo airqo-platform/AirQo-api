@@ -383,7 +383,6 @@ SignalsSchema.index(
 );
 SignalsSchema.index({ device_id: 1, time: 1 }, { unique: true });
 SignalsSchema.index({ device: 1, time: 1 }, { unique: true });
-SignalsSchema.index({ deployment_type: 1, time: -1 });
 SignalsSchema.index({ deployment_type: 1, device_id: 1, time: -1 });
 SignalsSchema.index(
   {

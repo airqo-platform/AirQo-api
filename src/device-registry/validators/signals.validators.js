@@ -446,8 +446,8 @@ function decimalPlaces(num) {
 }
 
 // Convert validation arrays to proper middleware functions
-const readingsValidations = {
-  nearestReadings: (req, res, next) => {
+const signalsValidations = {
+  nearestSignals: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
       query("latitude")
@@ -596,7 +596,7 @@ const readingsValidations = {
     executeMiddlewareSequentially(middleware, req, res, next);
   },
 
-  worstReadingForDevices: (req, res, next) => {
+  worstSignalForDevices: (req, res, next) => {
     const validationRules = [
       ...commonValidations.atLeastOneRequired(
         ["cohort_id", "device_id"],
@@ -612,7 +612,7 @@ const readingsValidations = {
     executeMiddlewareSequentially(middleware, req, res, next);
   },
 
-  worstReadingForSites: (req, res, next) => {
+  worstSignalForSites: (req, res, next) => {
     const validationRules = [
       ...commonValidations.atLeastOneRequired(
         ["grid_id", "site_id"],
@@ -630,7 +630,7 @@ const readingsValidations = {
 };
 
 module.exports = {
-  ...readingsValidations,
+  ...signalsValidations,
   pagination: commonValidations.pagination,
   validateOptionalObjectId: commonValidations.optionalObjectId,
 };

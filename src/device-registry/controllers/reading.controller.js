@@ -18,6 +18,74 @@ const CohortModel = require("@models/Cohort");
 const GridModel = require("@models/Grid");
 const { distance, generateFilter } = require("@utils/common");
 
+const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
+  try {
+    const request = {
+      query: {
+        grid_id,
+      },
+    };
+
+    const filter = generateFilter.grids(request);
+    const reseponseFromListGrid = await GridModel(tenant).list({ filter });
+
+    const gridDetails = reseponseFromListGrid.data[0];
+
+    if (reseponseFromListGrid.data.length > 1 || isEmpty(gridDetails)) {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "No distinct Grid found in this search" },
+      };
+    }
+
+    const sites = gridDetails.sites || [];
+
+    if (sites.length === 0) {
+      return {
+        success: true,
+        message:
+          "Unable to find any sites associated with the provided Grid ID",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+
+    const siteIds = sites.map((site) => site._id.toString()); // Convert ObjectId to string
+
+    // Join the siteIds into a comma-separated string
+    const commaSeparatedIds = siteIds.join(",");
+
+    return {
+      success: true,
+      message: "Successfully retrieved the sites for this Grid",
+      data: commaSeparatedIds,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logObject("error", error);
+    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+    };
+  }
+};
+const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
+  try {
+    const responseFromGetDevicesOfCohort = await createEventUtil.getDevicesFromCohort(
+      { cohort_id, tenant }
+    );
+    return responseFromGetDevicesOfCohort;
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    return { success: false, message: "Internal Server Error" };
+  }
+};
+
 const processGridIds = async (grid_ids, request) => {
   const gridIdArray = Array.isArray(grid_ids)
     ? grid_ids
@@ -65,9 +133,10 @@ const processGridIds = async (grid_ids, request) => {
 
   // Wait for all promises to resolve
   const siteIdResults = await Promise.all(siteIdPromises);
-  logObject("siteIdResults", siteIdResults);
+  const resolvedSiteIds = siteIdResults.filter(Boolean);
+  logObject("siteIdResults", resolvedSiteIds);
 
-  const invalidSiteIdResults = siteIdResults.filter(
+  const invalidSiteIdResults = resolvedSiteIds.filter(
     (result) => result.success === false
   );
 
@@ -78,7 +147,7 @@ const processGridIds = async (grid_ids, request) => {
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
-  const validSiteIdResults = siteIdResults.filter(
+  const validSiteIdResults = resolvedSiteIds.filter(
     (result) => !(result.success === false)
   );
 
@@ -130,7 +199,8 @@ const processCohortIds = async (cohort_ids, request) => {
   // Wait for all promises to resolve
   const deviceIdsResults = await Promise.all(deviceIdsPromises);
 
-  const invalidDeviceIdResults = deviceIdsResults.filter(
+  const resolvedDeviceIds = deviceIdsResults.filter(Boolean);
+  const invalidDeviceIdResults = resolvedDeviceIds.filter(
     (result) => result.success === false
   );
 
@@ -141,7 +211,7 @@ const processCohortIds = async (cohort_ids, request) => {
   }
 
   // Filter out undefined or null values
-  const validDeviceIdResults = deviceIdsResults.filter(
+  const validDeviceIdResults = resolvedDeviceIds.filter(
     (result) => !(result.success === false)
   );
 

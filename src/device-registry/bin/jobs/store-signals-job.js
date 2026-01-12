@@ -170,20 +170,17 @@ class SignalsBatchProcessor {
         );
         this.processingMetrics.signalsProcessed++;
       } catch (error) {
-        if (isDuplicateKeyError(error)) {
-          // Silently count duplicates as successful
-          this.processingMetrics.signalsProcessed++;
-        } else {
-          logger.warn(`Failed to save signal: ${error.message}`);
-          this.processingMetrics.signalsFailed++;
+        // Rethrow non-duplicate errors to be handled by asyncRetry
+        if (!isDuplicateKeyError(error)) {
+          throw error;
         }
+        // If it's a duplicate key error, treat it as a success and continue.
+        this.processingMetrics.signalsProcessed++;
       }
     } catch (error) {
-      this.processingMetrics.signalsFailed++;
-      if (!isDuplicateKeyError(error)) {
-        logger.error(`🐛 Error processing document: ${error.message}`);
-      }
-      // Continue processing other documents
+      // Log and re-throw any other errors from the document processing logic
+      logger.error(`🐛 Error processing document: ${error.message}`);
+      throw error;
     }
   }
 
@@ -273,6 +270,7 @@ async function fetchAllRecentEvents(lastProcessedTime) {
   let allEvents = [];
   let hasMore = true;
   let iteration = 0;
+  let lastEvent = null;
 
   const endTime = new Date();
   let startTime = lastProcessedTime;
@@ -300,10 +298,17 @@ async function fetchAllRecentEvents(lastProcessedTime) {
           active: "yes",
           brief: "yes",
           limit: FETCH_BATCH_SIZE,
-          startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
         },
       };
+
+      // Use a stable cursor based on time and _id
+      if (lastEvent) {
+        request.query.startTime = lastEvent.time;
+        request.query.last_id = lastEvent._id;
+      } else if (startTime) {
+        request.query.startTime = startTime.toISOString();
+      }
 
       const filter = generateFilter.fetch(request); // Use fetch, not signalsJob
       logger.debug(
@@ -336,8 +341,7 @@ async function fetchAllRecentEvents(lastProcessedTime) {
           hasMore = false;
           logger.info("🏁 Reached end of recent events");
         } else {
-          const lastEventInBatch = batchEvents[batchEvents.length - 1];
-          startTime = new Date(new Date(lastEventInBatch.time).getTime() + 1);
+          lastEvent = batchEvents[batchEvents.length - 1];
           iteration++;
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
@@ -446,10 +450,9 @@ async function fetchAndStoreSignals() {
               try {
                 await batchProcessor.processDocument(doc, bulkAverages);
               } catch (error) {
-                if (isDuplicateKeyError(error)) {
-                  return; // Skip duplicates
-                }
-                throw error; // Retry other errors
+                // Let asyncRetry handle retries for non-duplicate errors
+                if (!isDuplicateKeyError(error)) throw error;
+                // For duplicate errors, we don't retry, just continue.
               }
             },
             {

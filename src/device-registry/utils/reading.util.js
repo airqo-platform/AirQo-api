@@ -215,6 +215,8 @@ const createReading = {
       if (
         language !== undefined &&
         viewReadingsResponse.success === true &&
+        Array.isArray(viewReadingsResponse.data) &&
+        viewReadingsResponse.data.length > 0 &&
         !isEmpty(viewReadingsResponse.data[0].data)
       ) {
         const data = viewReadingsResponse.data[0].data;
