@@ -14,6 +14,12 @@ const JOB_NAME = "check-unassigned-sites-job";
 const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
 
 const checkUnassignedSites = async () => {
+  // Check if job should stop (for graceful shutdown)
+  if (global.isShuttingDown) {
+    logText(`${JOB_NAME} stopping due to application shutdown`);
+    return;
+  }
+
   // Restrict job to run only in production
   if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
     logger.info(
@@ -154,8 +160,13 @@ const startJob = () => {
 // Start the job
 startJob();
 
-process.on("SIGINT", async () => {
+const handleShutdown = async (signal) => {
+  logText(`Received ${signal}. Shutting down ${JOB_NAME} gracefully...`);
   if (global.cronJobs && global.cronJobs[JOB_NAME]) {
     await global.cronJobs[JOB_NAME].stop();
   }
-});
+  logText(`${JOB_NAME} shutdown complete.`);
+};
+
+process.on("SIGINT", () => handleShutdown("SIGINT"));
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));
