@@ -13,7 +13,6 @@ import xarray as xr
 from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.data_sources import DataSourcesApis
 import logging
 
 logger = logging.getLogger("airflow.task")

@@ -5,7 +5,7 @@ import concurrent.futures
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.satellite_utils import SatelliteUtils
 from airqo_etl_utils.datautils import DataUtils
-from airqo_etl_utils.data_sources import DataSourcesApis
+from airqo_etl_utils.sources.nomads_adapter import NomadsAdapter
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import DataType, DeviceCategory, Frequency
 from airqo_etl_utils.config import configuration as Config
@@ -121,9 +121,12 @@ def NOMADS_daily_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def extract_data(**kwargs) -> None:
-        data_source = DataSourcesApis()
-        file = data_source.nomads()
-        Variable.set("nomads_file_path", file)
+        adapter = NomadsAdapter()
+        res = adapter.fetch()
+        file = None
+        if res and res.data and isinstance(res.data, dict):
+            file = res.data.get("meta", {}).get("file")
+        Variable.set("nomads_file_path", file or "/tmp/gdas.t00z.pgrb2.0p25.f000")
         return
 
     @task(

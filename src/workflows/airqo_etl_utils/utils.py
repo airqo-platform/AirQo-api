@@ -53,6 +53,19 @@ class Result(Generic[T]):
     data: Optional[T] = None
     error: Optional[str] = None
 
+    def __iter__(self):
+        """Allow unpacking Result into (records, meta) for backward compatibility.
+
+        If `data` is a dict with 'records' and 'meta', yield those two values.
+        Otherwise yield `data` and `None`.
+        """
+        if isinstance(self.data, dict) and "records" in self.data:
+            yield self.data.get("records")
+            yield self.data.get("meta")
+        else:
+            yield self.data
+            yield None
+
 
 class Utils:
     @staticmethod
