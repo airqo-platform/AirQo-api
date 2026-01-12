@@ -273,106 +273,73 @@ class TestMetaDataUtils:
                 assert "data_resolution" in result.columns
                 assert "baseline_type" in result.columns
 
-    @patch("airqo_etl_utils.meta_data_utils.AirQoDataDriftCompute.compute_baseline")
-    @patch("airqo_etl_utils.meta_data_utils.DataUtils.extract_data_from_bigquery")
-    @patch(
-        "airqo_etl_utils.meta_data_utils.DataUtils.extract_most_recent_metadata_record"
-    )
-    @patch("airqo_etl_utils.meta_data_utils.frequency_to_dates")
-    def test_compute_device_site_baseline(
-        self,
-        mock_frequency_to_dates,
-        mock_extract_metadata,
-        mock_extract_data,
-        mock_compute_baseline,
-    ):
-        """Test the compute_device_site_baseline method."""
-        start_date = "2023-01-01 00:00:00Z"
-        end_date = "2023-02-01 00:00:00Z"
-        mock_frequency_to_dates.return_value = (start_date, end_date)
-
-        # Mock extract_most_recent_metadata_record to return some test data
+    def test_compute_device_site_baseline(self):
+        # Setup metadata with next_offset_date
         mock_metadata = pd.DataFrame(
             {
-                "device_id": ["device1"],
-                "site_id": ["site1"],
-                "pollutant": ["pm2_5"],
-                "minimum": [10.0],
-                "maximum": [50.0],
-                "average": [30.0],
+                "device_id": ["device1", "device2"],
+                "site_id": ["site1", "site2"],
+                "pollutant": ["pm2_5", "pm10"],
+                "minimum": [0.0, 0.0],
+                "maximum": [100.0, 150.0],
+                "run_id": ["run1", "run2"],
+                "next_offset_date": [
+                    pd.Timestamp("2024-01-08"),
+                    pd.Timestamp("2024-01-08"),
+                ],
             }
         )
-        mock_extract_metadata.return_value = mock_metadata
 
-        mock_data = pd.DataFrame(
-            {
-                "device_id": ["device1"],
-                "timestamp": ["2023-01-01 00:00:00Z"],
-                "pm2_5": [25.0],
-                "site_id": ["site1"],
-            }
-        )
-        mock_extract_data.return_value = mock_data
-
-        mock_baseline_result = [
-            {
-                "device_id": "device1",
-                "pollutant": "pm2_5",
-                "data_type": DataType.AVERAGED.str,
-                "baseline_id": "baseline1",
-                "mean": 25.0,
-                "stddev": 5.0,
-                "window_start": start_date,
-                "window_end": end_date,
-                "data_resolution": Frequency.HOURLY.str,
-                "baseline_type": Frequency.WEEKLY.str,
-                "site_id": "site1",
-                "next_offset_date": "2023-02-08 00:00:00Z",
-            }
+        # Setup baseline results (what each entity returns)
+        baseline_results = [
+            [{"device_id": "device1", "pollutant": "pm2_5", "mean": 25.0}],
+            [{"device_id": "device2", "pollutant": "pm10", "mean": 30.0}],
         ]
-        mock_compute_baseline.return_value = mock_baseline_result
-
-        def submit_side_effect(*args, **kwargs):
-            # This simulates calling AirQoDataDriftCompute.compute_baseline with the args
-            result = mock_compute_baseline(*args[1:])
-            mock_future = MagicMock()
-            mock_future.result.return_value = result
-            return mock_future
 
         with patch(
+            "airqo_etl_utils.meta_data_utils.DataUtils.extract_most_recent_metadata_record"
+        ) as mock_extract, patch(
+            "airqo_etl_utils.meta_data_utils.MetaDataUtils.compute_baseline_per_entity"
+        ) as mock_compute, patch(
             "airqo_etl_utils.meta_data_utils.ThreadPoolExecutor"
-        ) as mock_executor:
-            mock_executor_instance = MagicMock()
-            mock_executor_instance.submit.side_effect = submit_side_effect
-            mock_executor.return_value.__enter__.return_value = mock_executor_instance
+        ) as mock_executor_class, patch(
+            "airqo_etl_utils.meta_data_utils.as_completed"
+        ) as mock_as_completed:
 
-            def as_completed_side_effect(futures):
-                return futures
+            # Mock metadata extraction
+            mock_extract.return_value = mock_metadata
 
-            with patch(
-                "airqo_etl_utils.meta_data_utils.as_completed",
-                side_effect=as_completed_side_effect,
-            ) as mock_as_completed:
-                result = MetaDataUtils.compute_device_site_baseline(
-                    data_type=DataType.AVERAGED,
-                    device_category=DeviceCategory.LOWCOST,
-                    device_network=DeviceNetwork.AIRQO,
-                    frequency=Frequency.WEEKLY,
-                )
+            # Mock compute_baseline_per_entity
+            mock_compute.side_effect = baseline_results
 
-                assert isinstance(result, pd.DataFrame)
-                assert not result.empty
-                assert "device_id" in result.columns
-                assert result["device_id"].iloc[0] == "device1"
+            # Mock ThreadPoolExecutor
+            mock_futures = [MagicMock(), MagicMock()]
+            for future, result in zip(mock_futures, baseline_results):
+                future.result.return_value = result
 
-                mock_frequency_to_dates.assert_called_once_with(Frequency.WEEKLY)
+            mock_executor = MagicMock()
+            mock_executor.submit.side_effect = lambda *args, **kwargs: mock_futures.pop(
+                0
+            )
+            mock_executor.__enter__.return_value = mock_executor
+            mock_executor_class.return_value = mock_executor
 
-                mock_extract_metadata.assert_called_once()
-                mock_extract_data.assert_called_once()
+            mock_as_completed.return_value = iter(
+                [f for f in [MagicMock(), MagicMock()]]
+            )
 
-                mock_compute_baseline.assert_called()
-
-                assert mock_executor_instance.submit.call_count >= 1
+            # Execute
+            result = MetaDataUtils.compute_device_site_baseline(
+                data_type=DataType.AVERAGED,
+                device_category=DeviceCategory.LOWCOST,
+                frequency=Frequency.WEEKLY,
+            )
+            print(result)
+            # Assertions
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 2
+            mock_extract.assert_called_once()
+            assert mock_compute.call_count == 2
 
     @patch("airqo_etl_utils.meta_data_utils.MetaDataUtils.extract_devices")
     def test_extract_transform_and_decrypt_metadata_devices(
