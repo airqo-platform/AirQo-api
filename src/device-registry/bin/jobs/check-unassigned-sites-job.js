@@ -6,8 +6,8 @@ const logger = log4js.getLogger(
 const SitesModel = require("@models/Site");
 const cron = require("node-cron");
 const UNASSIGNED_THRESHOLD = 0;
-const { logObject, logText, getSchedule } = require("@utils/shared");
-const { LogThrottleManager } = require("@utils/common");
+const { logObject, logText } = require("@utils/shared");
+const { LogThrottleManager, getSchedule } = require("@utils/common");
 const moment = require("moment-timezone");
 
 const JOB_NAME = "check-unassigned-sites-job";
@@ -114,10 +114,14 @@ const jobWrapper = async () => {
 
 // Create and register the job
 const startJob = () => {
-  const cronJobInstance = cron.schedule(getSchedule(JOB_SCHEDULE), jobWrapper, {
-    scheduled: true,
-    timezone: constants.TIMEZONE,
-  });
+  const cronJobInstance = cron.schedule(
+    getSchedule(JOB_SCHEDULE, constants.ENVIRONMENT),
+    jobWrapper,
+    {
+      scheduled: true,
+      timezone: constants.TIMEZONE,
+    }
+  );
 
   if (!global.cronJobs) {
     global.cronJobs = {};
@@ -154,5 +158,4 @@ process.on("SIGINT", async () => {
   if (global.cronJobs && global.cronJobs[JOB_NAME]) {
     await global.cronJobs[JOB_NAME].stop();
   }
-  process.exit(0);
 });
