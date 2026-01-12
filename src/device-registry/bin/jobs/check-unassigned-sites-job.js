@@ -7,62 +7,73 @@ const SitesModel = require("@models/Site");
 const cron = require("node-cron");
 const UNASSIGNED_THRESHOLD = 0;
 const { logObject, logText } = require("@utils/shared");
-const { LogThrottleManager } = require("@utils/common");
+const { LogThrottleManager, getSchedule } = require("@utils/common");
 const moment = require("moment-timezone");
 
 const JOB_NAME = "check-unassigned-sites-job";
 const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
 
 const checkUnassignedSites = async () => {
-  try {
-    // Count total number of active sites
-    const totalCount = await SitesModel("airqo").countDocuments({
-      isOnline: true,
-    });
+  // Check if job should stop (for graceful shutdown)
+  if (global.isShuttingDown) {
+    logText(`${JOB_NAME} stopping due to application shutdown`);
+    return;
+  }
 
-    // Find sites with empty or non-existent grids array
-    const result = await SitesModel("airqo").aggregate([
+  // Restrict job to run only in production
+  if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
+    logger.info(
+      `check-unassigned-sites-job is disabled for the ${constants.ENVIRONMENT} environment.`
+    );
+    return;
+  }
+
+  try {
+    // Use a single aggregation to get both total and unassigned counts
+    const summaryResult = await SitesModel("airqo").aggregate([
       {
         $match: {
           isOnline: true,
-          grids: { $size: 0 },
         },
       },
       {
-        $group: {
-          _id: "$generated_name",
+        $facet: {
+          totalActiveSites: [{ $count: "count" }],
+          unassignedSites: [
+            {
+              $match: {
+                $or: [{ grids: { $exists: false } }, { grids: { $size: 0 } }],
+              },
+            },
+            { $group: { _id: "$generated_name" } },
+          ],
         },
       },
     ]);
 
-    const unassignedSiteCount = result.length;
-    const uniqueSiteNames = result.map((site) => site._id);
-    logObject("unassignedSiteCount", unassignedSiteCount);
-    logObject("totalCount", totalCount);
+    const summary = summaryResult[0];
+    const totalCount = summary.totalActiveSites[0]
+      ? summary.totalActiveSites[0].count
+      : 0;
+    const unassignedSites = summary.unassignedSites || [];
+    const unassignedSiteCount = unassignedSites.length;
+    const uniqueSiteNames = unassignedSites.map((site) => site._id);
 
     if (unassignedSiteCount === 0) {
+      logText("No unassigned active sites found.");
       return;
     }
 
     const percentage = (unassignedSiteCount / totalCount) * 100;
 
-    logObject("percentage", percentage);
-
     if (percentage > UNASSIGNED_THRESHOLD) {
-      logText(
-        `⚠️🙉 ${percentage.toFixed(
-          2
-        )}% of active sites are not assigned to any grid (${uniqueSiteNames.join(
-          ", "
-        )})`
-      );
-      logger.info(
-        `⚠️🙉 ${percentage.toFixed(
-          2
-        )}% of active sites are not assigned to any grid (${uniqueSiteNames.join(
-          ", "
-        )})`
-      );
+      const message = `⚠️🙉 ${percentage.toFixed(
+        2
+      )}% of active sites are not assigned to any grid (${uniqueSiteNames.join(
+        ", "
+      )})`;
+      logText(message);
+      logger.info(message);
     }
   } catch (error) {
     logText(`🐛🐛 Error checking unassigned sites: ${error.message}`);
@@ -75,7 +86,7 @@ let isJobRunning = false;
 let currentJobPromise = null;
 
 const LOG_TYPE = "unassigned-sites-check";
-const logThrottleManager = new LogThrottleManager(constants.TIMEZONE);
+const logThrottleManager = new LogThrottleManager();
 
 const jobWrapper = async () => {
   try {
@@ -88,7 +99,6 @@ const jobWrapper = async () => {
     logger.warn(
       `Distributed lock check failed: ${error.message}. Proceeding with execution.`
     );
-    // Fall through to in-memory guard as fallback
   }
 
   if (isJobRunning) {
@@ -110,10 +120,14 @@ const jobWrapper = async () => {
 
 // Create and register the job
 const startJob = () => {
-  const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
-    scheduled: true,
-    timezone: constants.TIMEZONE,
-  });
+  const cronJobInstance = cron.schedule(
+    getSchedule(JOB_SCHEDULE, constants.ENVIRONMENT),
+    jobWrapper,
+    {
+      scheduled: true,
+      timezone: constants.TIMEZONE,
+    }
+  );
 
   if (!global.cronJobs) {
     global.cronJobs = {};
@@ -121,19 +135,39 @@ const startJob = () => {
 
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
+    name: JOB_NAME,
+    schedule: JOB_SCHEDULE,
     stop: async () => {
       logText(`🛑 Stopping ${JOB_NAME}...`);
-      cronJobInstance.stop();
-      logText(`📅 ${JOB_NAME} schedule stopped.`);
-      if (currentJobPromise) {
-        await currentJobPromise;
+      try {
+        cronJobInstance.stop();
+        logText(`📅 ${JOB_NAME} schedule stopped.`);
+        if (currentJobPromise) {
+          logText(`⏳ Waiting for current ${JOB_NAME} execution to finish...`);
+          await currentJobPromise;
+          logText(`✅ Current ${JOB_NAME} execution completed`);
+        }
+        delete global.cronJobs[JOB_NAME];
+      } catch (error) {
+        logger.error(`❌ Error stopping ${JOB_NAME}: ${error.message}`);
       }
-      delete global.cronJobs[JOB_NAME];
     },
   };
 
-  console.log(`✅ ${JOB_NAME} started`);
+  logText(`✅ ${JOB_NAME} registered and started (${JOB_SCHEDULE})`);
 };
 
 // Start the job
 startJob();
+
+const handleShutdown = async (signal) => {
+  logText(`Received ${signal}. Shutting down ${JOB_NAME} gracefully...`);
+  global.isShuttingDown = true;
+  if (global.cronJobs && global.cronJobs[JOB_NAME]) {
+    await global.cronJobs[JOB_NAME].stop();
+  }
+  logText(`${JOB_NAME} shutdown complete.`);
+};
+
+process.on("SIGINT", () => handleShutdown("SIGINT"));
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));
