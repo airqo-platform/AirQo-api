@@ -5,6 +5,7 @@ const logger = log4js.getLogger(
 );
 const deviceUtil = require("@utils/device.util");
 const networkStatusUtil = require("@utils/network-status.util");
+const NetworkStatusAlertModel = require("@models/NetworkStatusAlert");
 const { getSchedule, LogThrottleManager } = require("@utils/common");
 const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
@@ -24,7 +25,7 @@ let currentSummaryJobPromise = null;
 const MAIN_JOB_LOG_TYPE = "network-status-check";
 const SUMMARY_JOB_LOG_TYPE = "network-status-summary";
 
-const logThrottleManager = new LogThrottleManager(TIMEZONE);
+const logThrottleManager = new LogThrottleManager();
 
 const checkNetworkStatus = async () => {
   // Restrict job to run only in production
