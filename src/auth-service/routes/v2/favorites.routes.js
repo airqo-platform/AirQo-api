@@ -6,13 +6,13 @@ const favoriteValidations = require("@validators/favorites.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(favoriteValidations.pagination);
+router.use(headers); // Keep headers global
 
 router.get(
   "/",
   favoriteValidations.list,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createFavoriteController.list
 );
 
@@ -20,6 +20,7 @@ router.get(
   "/users/:firebase_user_id",
   favoriteValidations.listByUserId,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createFavoriteController.list
 );
 

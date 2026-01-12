@@ -333,9 +333,53 @@ const cohortValidations = {
     handleValidationErrors,
   ],
 
+  listUserCohorts: [
+    ...commonValidations.tenant,
+    // This endpoint is for listing all user cohorts and does not support filtering by id or name.
+    // The underlying utility overrides any name filter with a regex to find user-specific cohorts.
+    query("id")
+      .not()
+      .exists()
+      .withMessage(
+        "filtering by id is not supported on this endpoint; use the general /cohorts endpoint instead"
+      ),
+    query("name")
+      .not()
+      .exists()
+      .withMessage("filtering by name is not supported on this endpoint"),
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
+    handleValidationErrors,
+  ],
   listCohortsSummary: [
     ...commonValidations.tenant,
-    oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
+    oneOf([
+      query("cohort_id")
+        .optional()
+        .notEmpty()
+        .isString()
+        .withMessage("cohort_id must be a string")
+        .bail()
+        .custom((value) => {
+          const ids = value.split(",").map((id) => id.trim());
+          for (const id of ids) {
+            if (!isValidObjectId(id)) {
+              throw new Error(`Invalid cohort_id: ${id}`);
+            }
+          }
+          return true;
+        }),
+      commonValidations.name,
+    ]),
     handleValidationErrors,
   ],
 
@@ -425,8 +469,47 @@ const cohortValidations = {
 
   createNetwork: [
     ...commonValidations.tenant,
-    ...commonValidations.name,
-    ...commonValidations.description,
+    body("admin_secret")
+      .exists()
+      .withMessage("the admin secret is required")
+      .bail()
+      .isString()
+      .withMessage("the admin secret must be a string")
+      .bail()
+      .notEmpty()
+      .withMessage("the admin secret should not be empty"),
+    body("net_name")
+      .exists()
+      .withMessage("the net_name is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the net_name must not be empty")
+      .trim(),
+    body("net_email")
+      .exists()
+      .withMessage("the net_email is required")
+      .bail()
+      .isEmail()
+      .withMessage("the net_email is not a valid email address")
+      .trim(),
+    body("net_website")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_website must not be empty if provided")
+      .bail()
+      .isURL()
+      .withMessage("the net_website is not a valid URL")
+      .trim(),
+    body("net_category")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_category must not be empty if provided")
+      .trim(),
+    body("net_description")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_description must not be empty if provided")
+      .trim(),
     handleValidationErrors,
   ],
   updateNetwork: [

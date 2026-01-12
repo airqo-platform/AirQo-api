@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const httpStatus = require("http-status");
 const { logObject } = require("@utils/shared");
 const {
   createSuccessResponse,
@@ -52,6 +53,16 @@ const AccessRequestSchema = new Schema(
     timestamps: true,
   }
 );
+
+AccessRequestSchema.index({
+  user_id: 1,
+  targetId: 1,
+  requestType: 1,
+  status: 1,
+});
+AccessRequestSchema.index({ email: 1, targetId: 1, requestType: 1, status: 1 });
+AccessRequestSchema.index({ status: 1, expires_at: 1 });
+AccessRequestSchema.index({ targetId: 1, requestType: 1, status: 1 });
 
 AccessRequestSchema.statics = {
   async register(args, next) {
@@ -104,10 +115,21 @@ AccessRequestSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", data, "access request", {
-        message: "successfully listed the access requests", // Fixed grammar: "access_requests" → "access requests"
-        emptyMessage: "no access requests exist", // Fixed grammar
-      });
+      const totalCount = await this.countDocuments(filter);
+
+      return {
+        success: true,
+        data: data,
+        message: "successfully listed the access requests",
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "access request");
     }

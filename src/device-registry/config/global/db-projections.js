@@ -55,6 +55,8 @@ class ProjectionFactory {
                 search_name: "$$site.search_name",
                 location_name: "$$site.location_name",
                 isOnline: "$$site.isOnline",
+                rawOnlineStatus: "$$site.rawOnlineStatus",
+                lastRawData: "$$site.lastRawData",
               },
             },
           },
@@ -211,6 +213,8 @@ class ProjectionFactory {
           site_category: 1,
           lastActive: 1,
           isOnline: 1,
+          rawOnlineStatus: 1,
+          lastRawData: 1,
           activities: "$activities",
           latest_deployment_activity: {
             $cond: [
@@ -678,6 +682,8 @@ class ProjectionFactory {
                 device_number: "$$device.device_number",
                 isActive: "$$device.isActive",
                 isOnline: "$$device.isOnline",
+                rawOnlineStatus: "$$device.rawOnlineStatus",
+                lastRawData: "$$device.lastRawData",
                 lastActive: "$$device.lastActive",
                 status: "$$device.status",
                 network: "$$device.network",
@@ -1466,6 +1472,30 @@ class ProjectionFactory {
             isOnline: 0,
           },
         },
+        grid: {
+          gridExclusions: {
+            shape: 0,
+            grid_tags: 0,
+            grid_codes: 0,
+            centers: 0,
+            sites: 0,
+            createdAt: 0,
+            updatedAt: 0,
+            __v: 0,
+            network: 0,
+            visibility: 0,
+            shape_update_history: 0,
+            activeMobileDevices: 0,
+            mobileDeviceCount: 0,
+            isOnline: 0,
+            flag_url: 0,
+          },
+        },
+        brief_grid: {
+          briefGridExclusions: {
+            shape: 0,
+          },
+        },
       },
     };
 
@@ -1667,6 +1697,14 @@ class ProjectionFactory {
     } else if (entity === "brief_site" && entityStrategy.briefSiteExclusions) {
       Object.keys(entityStrategy.briefSiteExclusions).forEach((key) => {
         projection[as][key] = entityStrategy.briefSiteExclusions[key];
+      });
+    } else if (entity === "grid" && entityStrategy.gridExclusions) {
+      Object.keys(entityStrategy.gridExclusions).forEach((key) => {
+        projection[as][key] = entityStrategy.gridExclusions[key];
+      });
+    } else if (entity === "brief_grid" && entityStrategy.briefGridExclusions) {
+      Object.keys(entityStrategy.briefGridExclusions).forEach((key) => {
+        projection[as][key] = entityStrategy.briefGridExclusions[key];
       });
     }
 

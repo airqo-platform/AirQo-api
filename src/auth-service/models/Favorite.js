@@ -105,6 +105,8 @@ FavoriteSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       const inclusionProjection = constants.FAVORITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.FAVORITES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
@@ -125,10 +127,19 @@ FavoriteSchema.statics = {
 
       const favorites = pipeline;
 
-      return createSuccessResponse("list", favorites, "favorite", {
+      return {
+        success: true,
+        data: favorites,
         message: "successfully listed the favorites",
-        emptyMessage: "no favorites exist",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "favorite");
     }

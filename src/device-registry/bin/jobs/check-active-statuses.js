@@ -4,7 +4,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job`
 );
 const DeviceModel = require("@models/Device");
-const LogThrottleModel = require("@models/LogThrottle");
 const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
 const { getSchedule, LogThrottleManager } = require("@utils/common");
@@ -16,21 +15,18 @@ const JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At m
 const TIMEZONE = moment.tz.guess();
 const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 
-let isJobRunning = false;
 let currentJobPromise = null;
 
-const logThrottleManager = new LogThrottleManager(TIMEZONE);
+const logThrottleManager = new LogThrottleManager();
 
 const checkActiveStatuses = async () => {
-  // Prevent overlapping executions
-  if (isJobRunning) {
-    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
-    return;
-  }
-
-  isJobRunning = true;
-
   try {
+    const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+    if (!shouldRun) {
+      logger.info(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
+      return;
+    }
+
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
       return;
@@ -111,37 +107,17 @@ const checkActiveStatuses = async () => {
       percentageActiveIncorrectStatus > ACTIVE_STATUS_THRESHOLD ||
       percentageActiveMissingStatus > ACTIVE_STATUS_THRESHOLD
     ) {
-      logText(
-        `⁉️ Issues found with active device statuses. Checking log throttle...`
+      logger.info(
+        `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+          ", "
+        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
       );
 
-      const shouldLog = await logThrottleManager.shouldAllowLog(LOG_TYPE);
-
-      if (shouldLog) {
-        logText(
-          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
-        );
-        logger.info(
-          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
-        );
-
-        logText(
-          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-        );
-        logger.info(
-          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-        );
-      } else {
-        logger.debug(`Log throttled for ${LOG_TYPE}: Daily limit reached.`);
-      }
+      logger.info(
+        `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+          ", "
+        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+      );
     }
   } catch (error) {
     logText(`🐛🐛 Error checking active statuses: ${error.message}`);
@@ -150,8 +126,6 @@ const checkActiveStatuses = async () => {
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   } finally {
-    isJobRunning = false;
-    currentJobPromise = null;
   }
 };
 

@@ -1020,6 +1020,116 @@ const validateClaimDevice = [
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId")
     .customSanitizer((value) => ObjectId(value)),
+
+  body("cohort_id")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage("cohort_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+];
+
+const validateTransferDevice = [
+  body("device_name")
+    .exists()
+    .withMessage("device_name is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty")
+    .bail()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+
+  body("from_user_id")
+    .exists()
+    .withMessage("from_user_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("from_user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("from_user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)), // Only run if valid
+
+  body("to_user_id")
+    .exists()
+    .withMessage("to_user_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("to_user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("to_user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)), // Only run if valid
+
+  body("include_deployment_history")
+    .optional()
+    .isBoolean()
+    .withMessage("include_deployment_history must be a boolean value"),
+];
+
+const validateBulkClaim = [
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+
+  body("devices")
+    .exists()
+    .withMessage("devices array is required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("devices must be a non-empty array"),
+
+  body("devices.*.device_name")
+    .exists()
+    .withMessage("device_name is required for each device")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+
+  body("devices.*.claim_token")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("claim_token cannot be empty if provided"),
+
+  body("cohort_id")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage("cohort_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+];
+
+const validateListOrphanedDevices = [
+  query("user_id")
+    .exists()
+    .withMessage("user_id is a required query parameter")
+    .bail()
+    .notEmpty()
+    .withMessage("user_id must not be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .trim(),
 ];
 
 const validateGetMyDevices = [
@@ -1243,6 +1353,60 @@ const validateBulkPrepareDeviceShipping = [
     .trim()
     .isIn(["hex", "readable"])
     .withMessage("token_type must be either 'hex' or 'readable'"),
+
+  body("batch_name")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("batch_name cannot be empty if provided"),
+];
+
+const validateCreateShippingBatch = [
+  body("device_names")
+    .exists()
+    .withMessage("device_names is required")
+    .bail()
+    .isArray({ min: 1, max: 50 })
+    .withMessage("device_names must be an array with 1-50 device names")
+    .bail()
+    .custom((deviceNames) => {
+      // Check each device name format
+      const invalidNames = deviceNames.filter(
+        (name) =>
+          typeof name !== "string" ||
+          name.trim().length < 3 ||
+          name.trim().length > 50 ||
+          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+      );
+
+      if (invalidNames.length > 0) {
+        throw new Error(`Invalid device names: ${invalidNames.join(", ")}`);
+      }
+
+      // Check for duplicates
+      const duplicates = deviceNames.filter(
+        (name, index) => deviceNames.indexOf(name) !== index
+      );
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Duplicate device names found: ${[...new Set(duplicates)].join(", ")}`
+        );
+      }
+      return true;
+    }),
+
+  body("token_type")
+    .optional()
+    .trim()
+    .isIn(["hex", "readable"])
+    .withMessage("token_type must be either 'hex' or 'readable'"),
+
+  body("batch_name")
+    .exists()
+    .withMessage("batch_name is a required field")
+    .bail()
+    .notEmpty()
+    .withMessage("batch_name cannot be empty"),
 ];
 
 const validateGetShippingStatus = [
@@ -1306,6 +1470,16 @@ const validateGenerateShippingLabels = [
     }),
 ];
 
+const validateGetShippingBatchDetails = [
+  param("id")
+    .exists()
+    .withMessage("The batch ID is missing in the request path.")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("Invalid batch ID. Must be a valid MongoDB ObjectId."),
+];
+
 const validateGetDeviceCountSummary = [
   query("group_id")
     .optional()
@@ -1328,6 +1502,49 @@ const validateGetDeviceCountSummary = [
       return true;
     })
     .trim(),
+  query("network")
+    .optional()
+    .isString()
+    .withMessage("network must be a string")
+    .trim(),
+];
+
+const validateRemoveDevicesFromBatch = [
+  param("id")
+    .exists()
+    .withMessage("The batch ID is missing in the request path.")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("Invalid batch ID. Must be a valid MongoDB ObjectId."),
+  body("device_names")
+    .exists()
+    .withMessage("device_names is required")
+    .bail()
+    .isArray({ min: 1, max: 50 })
+    .withMessage(
+      "device_names must be a non-empty array of strings with at most 50 items"
+    )
+    .bail()
+    .custom((deviceNames) => {
+      const invalidNames = deviceNames.filter(
+        (name) => typeof name !== "string" || name.trim().length === 0
+      );
+      if (invalidNames.length > 0) {
+        throw new Error("All device names must be non-empty strings");
+      }
+      return true;
+    }),
+];
+
+const validateUserIdBody = [
+  body("user_id")
+    .exists()
+    .withMessage("user_id is a mandatory field")
+    .bail()
+    .notEmpty()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
 ];
 
 module.exports = {
@@ -1344,6 +1561,8 @@ module.exports = {
   validateDecryptManyKeys,
   validateBulkUpdateDevices,
   validateClaimDevice,
+  validateBulkClaim,
+  validateTransferDevice,
   validateGetMyDevices,
   validateDeviceAvailability,
   validateOrganizationAssignment,
@@ -1354,9 +1573,14 @@ module.exports = {
   validatePrepareDeviceShipping,
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
+  validateGetShippingBatchDetails,
   validateGenerateShippingLabels,
   getIdFromName,
   getNameFromId,
   suggestDeviceNames,
   validateGetDeviceCountSummary,
+  validateListOrphanedDevices,
+  validateUserIdBody,
+  validateCreateShippingBatch,
+  validateRemoveDevicesFromBatch,
 };

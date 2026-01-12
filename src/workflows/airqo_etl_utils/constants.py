@@ -72,17 +72,19 @@ class DeviceNetwork(IntEnum):
 
 
 @unique
-class DataType(IntEnum):
+class DataType(Enum):
     """
     RAW -> Raw/unprocessed data.(raw_data table).
     AVERAGED -> Processed(averaged), duplicates dropped.(averaged_data table)
     CONSOLIDATED -> Air quality data merged for both lowcost(hourly) and bam data(hourly), weather data as well as site data.(datawarehouse table)
     """
 
-    RAW = 1
-    AVERAGED = 2
-    CONSOLIDATED = 3
-    EXTRAS = 4
+    RAW = "raw"
+    AVERAGED = "averaged"
+    CONSOLIDATED = "consolidated"
+    EXTRAS = "extras"
+    METADATA = "metadata"
+    COMPUTEDDATA = "computed"
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -218,13 +220,15 @@ class JobAction(IntEnum):
 
 
 @unique
-class ColumnDataType(IntEnum):
-    TIMESTAMP = 1
-    FLOAT = 2
-    TIMESTAMP_STR = 3
-    STRING = 4
-    INTEGER = 5
-    NONE = 6
+class ColumnDataType(Enum):
+    TIMESTAMP = "timestamp"
+    FLOAT = "float"
+    TIMESTAMP_STR = "timestamp_str"
+    STRING = "string"
+    INTEGER = "integer"
+    RECORD = "record"
+    REPEATED = "repeated"
+    NONE = "none"
 
     def __str__(self) -> str:
         return self.name.lower()

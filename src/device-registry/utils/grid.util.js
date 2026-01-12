@@ -1,5 +1,6 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
+const CohortModel = require("@models/Cohort");
 const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
@@ -13,6 +14,7 @@ const constants = require("@config/constants");
 const { generateFilter, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
+const mongoose = require("mongoose");
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
 const kafka = new Kafka({
@@ -36,6 +38,42 @@ function filterOutPrivateIDs(privateIds, randomIds) {
 
   return filteredIds;
 }
+
+const getSiteIdsFromCohort = async (tenant, cohort_id) => {
+  try {
+    const cohortIdArray = Array.isArray(cohort_id)
+      ? cohort_id
+      : cohort_id.split(",").map((id) => id.trim());
+
+    const devicesInCohort = await DeviceModel(tenant)
+      .find({
+        cohorts: { $in: cohortIdArray },
+        site_id: { $ne: null },
+      })
+      .distinct("site_id");
+
+    if (devicesInCohort.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: "No sites found for the specified cohort(s).",
+      };
+    }
+
+    return {
+      success: true,
+      data: devicesInCohort,
+      message: "Successfully retrieved site IDs from cohort(s).",
+    };
+  } catch (error) {
+    logger.error(`Error in getSiteIdsFromCohort: ${error.message}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+    };
+  }
+};
 
 const createGrid = {
   batchCreate: async (request, next) => {
@@ -500,12 +538,61 @@ const createGrid = {
         sortBy,
         order,
       } = request.query;
+      const { cohort_id } = request.query;
       const filter = generateFilter.grids(request, next);
 
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
+
+      let cohortSiteIds = [];
+      if (cohort_id && cohort_id.trim() !== "") {
+        const siteIdsResponse = await getSiteIdsFromCohort(tenant, cohort_id);
+        if (!siteIdsResponse.success) {
+          return siteIdsResponse; // Propagate error
+        }
+        cohortSiteIds = siteIdsResponse.data;
+      }
+
+      // Handle case where cohort_id is provided but no sites are found
+      if (cohort_id && cohortSiteIds.length === 0) {
+        logger.info(`No sites found for cohort_id: ${cohort_id}`);
+        return {
+          success: true,
+          message: "No grids found for the specified cohort(s).",
+          data: [],
+          status: httpStatus.OK,
+          meta: {
+            total: 0,
+            limit: _limit,
+            skip: _skip,
+            page: 1,
+            totalPages: 0,
+          },
+        };
+      }
+
+      // Optimized query to get all private site IDs in one go
+      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
+        { $match: { visibility: false } },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $unwind: "$devices" },
+        { $match: { "devices.site_id": { $ne: null } } },
+        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+      ]);
+
+      const privateSiteIds =
+        privateSiteIdsResponse.length > 0
+          ? privateSiteIdsResponse[0].site_ids
+          : [];
 
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
@@ -518,6 +605,31 @@ const createGrid = {
             localField: "_id",
             foreignField: "grids",
             as: "sites",
+          },
+        },
+        {
+          $addFields: {
+            sites: {
+              $filter: {
+                input: "$sites",
+                as: "site",
+                cond: { $not: { $in: ["$$site._id", privateSiteIds] } },
+              },
+            },
+          },
+        },
+        // If cohort_id is provided, further filter the sites
+        {
+          $addFields: {
+            sites: cohort_id
+              ? {
+                  $filter: {
+                    input: "$sites",
+                    as: "site",
+                    cond: { $in: ["$$site._id", cohortSiteIds] },
+                  },
+                }
+              : "$sites",
           },
         },
       ];
@@ -1210,7 +1322,47 @@ const createGrid = {
   },
   listCountries: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, cohort_id } = request.query;
+      // Optimized query to get all private site IDs in one go
+      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
+        { $match: { visibility: false } },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        { $unwind: "$devices" },
+        { $match: { "devices.site_id": { $ne: null } } },
+        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+      ]);
+
+      const privateSiteIds =
+        privateSiteIdsResponse.length > 0
+          ? privateSiteIdsResponse[0].site_ids
+          : [];
+
+      let cohortSiteIds = [];
+      if (cohort_id) {
+        const siteIdsResponse = await getSiteIdsFromCohort(tenant, cohort_id);
+        if (!siteIdsResponse.success) {
+          return siteIdsResponse;
+        }
+        cohortSiteIds = siteIdsResponse.data;
+
+        // If a cohort_id is provided but no sites are found for it, return an empty array.
+        if (cohortSiteIds.length === 0) {
+          return {
+            success: true,
+            message: "No countries found for the specified cohort(s).",
+            data: [],
+            status: httpStatus.OK,
+          };
+        }
+      }
+
       const pipeline = [
         {
           $match: { admin_level: "country" },
@@ -1224,11 +1376,33 @@ const createGrid = {
           },
         },
         {
+          $addFields: {
+            sites: {
+              $filter: {
+                input: "$sites",
+                as: "site",
+                cond:
+                  cohort_id && cohortSiteIds.length > 0
+                    ? {
+                        $and: [
+                          { $not: { $in: ["$$site._id", privateSiteIds] } },
+                          { $in: ["$$site._id", cohortSiteIds] },
+                        ],
+                      }
+                    : { $not: { $in: ["$$site._id", privateSiteIds] } },
+              },
+            },
+          },
+        },
+        {
           $project: {
             _id: 0,
             country: { $toLower: "$name" },
             sites: { $size: "$sites" },
           },
+        },
+        {
+          $match: { sites: { $gt: 0 } },
         },
         {
           $sort: {

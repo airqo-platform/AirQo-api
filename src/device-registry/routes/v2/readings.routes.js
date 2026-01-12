@@ -115,7 +115,7 @@ const routes = [
   {
     method: "get",
     path: "/map",
-    middlewares: [],
+    middlewares: [checkValidation("map")],
     controller: "readingsForMap",
   },
   {
@@ -159,6 +159,18 @@ const routes = [
     path: "/nearest",
     middlewares: [checkValidation("nearestReadings"), pagination()],
     controller: "getNearestReadings",
+  },
+  {
+    method: "get",
+    path: "/grids/:grid_id/representative",
+    middlewares: [checkValidation("validateGetRepresentativeAQForGrid")],
+    controller: "getRepresentativeAirQualityForGrid",
+  },
+  {
+    method: "get",
+    path: "/cohorts/:cohort_id/representative",
+    middlewares: [checkValidation("validateGetRepresentativeAQForCohort")],
+    controller: "getRepresentativeAirQualityForCohort",
   },
 ];
 

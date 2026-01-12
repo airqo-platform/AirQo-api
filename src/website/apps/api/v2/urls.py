@@ -13,7 +13,7 @@ from .viewsets.career import CareerViewSet, DepartmentViewSet
 from .viewsets.cleanair import CleanAirResourceViewSet, ForumEventViewSet
 from .viewsets.event import EventViewSet, InquiryViewSet, ProgramViewSet, SessionViewSet, PartnerLogoViewSet, ResourceViewSet
 from .viewsets.externalteams import ExternalTeamMemberViewSet, ExternalTeamMemberBiographyViewSet
-from .viewsets.faqs import FAQViewSet
+from .viewsets.faqs import FAQViewSet, CategoryViewSet
 from .viewsets.highlights import HighlightViewSet, TagViewSet
 from .viewsets.impact import ImpactNumberViewSet
 from .viewsets.partners import PartnerViewSet, PartnerDescriptionViewSet
@@ -49,6 +49,7 @@ router.register(r'external-team-members', ExternalTeamMemberViewSet,
                 basename='v2-external-team-members')
 router.register(r'external-team-biographies', ExternalTeamMemberBiographyViewSet,
                 basename='v2-external-team-biographies')
+router.register(r'faq-categories', CategoryViewSet, basename='v2-faq-categories')
 router.register(r'faqs', FAQViewSet, basename='v2-faqs')
 router.register(r'highlights', HighlightViewSet, basename='v2-highlights')
 router.register(r'tags', TagViewSet, basename='v2-tags')

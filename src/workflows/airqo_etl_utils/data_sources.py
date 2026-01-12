@@ -183,7 +183,7 @@ class DataSourcesApis:
                 )
 
                 base_url = device.get("api_code", "").rstrip("/")
-                device_identifier = device.get("serial_number")
+                device_identifier = device.get("device_number")
                 end_point = (
                     integration.get("endpoints", {})
                     .get("raw", "")

@@ -8,7 +8,10 @@ const httpStatus = require("http-status");
 const path = require("path");
 const EmailQueueModel = require("@models/EmailQueue");
 const EmailLogModel = require("@models/EmailLog");
-const { emailDeduplicator } = require("./email-deduplication.util");
+const {
+  emailDeduplicator,
+  sendMailWithDeduplication,
+} = require("./email-deduplication.util");
 const {
   logObject,
   logText,
@@ -57,11 +60,15 @@ const processEmailQueue = async () => {
     const EmailQueueForFinding = EmailQueueModel(defaultTenant);
 
     // Reset stale "processing" jobs
-    const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
-    await EmailQueueForFinding.updateMany(
-      { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
-      { $set: { status: "pending" } }
-    );
+    try {
+      const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
+      await EmailQueueForFinding.updateMany(
+        { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
+        { $set: { status: "pending" } }
+      );
+    } catch (error) {
+      logger.warn(`Error resetting stale email jobs: ${error.message}`);
+    }
 
     const emailJob = await EmailQueueForFinding.findOneAndUpdate(
       { status: "pending" },
@@ -153,9 +160,11 @@ const createMailerFunction = (
   customMailOptionsModifier = null
 ) => {
   return async (params, next) => {
+    let email = "";
+    let otherParams = {};
+    let tenant = "";
     try {
-      // JavaScript destructuring with rest operator
-      const { email, tenant = "airqo", ...otherParams } = params;
+      ({ email, tenant = "airqo", ...otherParams } = params);
 
       // ✅ STEP 1: Input validation
       if (!email) {
@@ -637,6 +646,9 @@ const getEmailSubject = (functionName, params) => {
       "Your AirQo Account: Existing User Access Request",
     existingUserRegistrationRequest:
       "Your AirQo Account: Existing User Registration Request",
+    requestRejected: `Update on your AirQo Access Request for ${processString(
+      params.entity_title || ""
+    )}`,
 
     // ===== CLIENT MANAGEMENT FUNCTIONS =====
     clientActivationRequest: "AirQo API Client Activation Request",
@@ -716,6 +728,7 @@ const EMAIL_CATEGORIES = {
     "update",
     "existingUserAccessRequest",
     "existingUserRegistrationRequest",
+    "requestRejected",
   ],
 
   CLIENT_MANAGEMENT: ["clientActivationRequest", "afterClientActivation"],
@@ -745,8 +758,11 @@ const createSecurityEmailFunction = (
   const { cooldownDays = 30, enableCooldown = true } = cooldownConfig;
 
   return async (params, next) => {
+    let email = "";
+    let otherParams = {};
+    let tenant = "";
     try {
-      const { email, tenant = "airqo", ...otherParams } = params;
+      ({ email, tenant = "airqo", ...otherParams } = params);
 
       // ✅ STEP 1: Input validation
       if (!email) {
@@ -1909,6 +1925,18 @@ const mailer = {
         email: params.email,
       })
   ),
+  requestRejected: createMailerFunction(
+    "requestRejected",
+    "USER_MANAGEMENT",
+    (params) =>
+      msgs.requestRejected({
+        firstName: params.firstName,
+        email: params.email,
+        entity_title: params.entity_title,
+        requestType: params.requestType,
+      })
+  ),
+
   sendPollutionAlert: createMailerFunction(
     "sendPollutionAlert",
     "OPTIONAL",

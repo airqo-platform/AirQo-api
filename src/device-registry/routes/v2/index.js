@@ -145,6 +145,7 @@ const routes = [
     name: "network-status",
   },
   { path: "/grids", route: "@routes/v2/grids.routes", name: "grids" },
+  { path: "/logs", route: "@routes/v2/log.routes", name: "logs" },
   { path: "/metadata", route: "@routes/v2/metadata.routes", name: "metadata" },
   { path: "/transmit", route: "@routes/v2/transmit.routes", name: "transmit" },
 

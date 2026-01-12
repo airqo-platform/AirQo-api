@@ -29,7 +29,7 @@ class Member(SlugBaseModel):
 
     twitter = models.URLField(max_length=255, null=True, blank=True)
     linked_in = models.URLField(max_length=255, null=True, blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(SlugBaseModel.Meta):
         ordering = ['order', 'name']
@@ -58,7 +58,7 @@ class Member(SlugBaseModel):
 
 class MemberBiography(BaseModel):
     description = models.TextField(null=True, blank=True)
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
     member = models.ForeignKey(
         'Member',
         null=True,

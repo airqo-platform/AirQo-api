@@ -119,6 +119,18 @@ const commonValidations = {
       next();
     };
   },
+  errorHandler: (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.mapped(),
+      });
+    }
+    next();
+  },
+
   timeRange: [
     query("startTime")
       .optional()
@@ -447,6 +459,14 @@ function decimalPlaces(num) {
 
 // Convert validation arrays to proper middleware functions
 const readingsValidations = {
+  map: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      commonValidations.optionalObjectId("cohort_id"),
+    ];
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
   nearestReadings: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
@@ -629,8 +649,22 @@ const readingsValidations = {
   },
 };
 
+const validateGetRepresentativeAQForGrid = [
+  ...commonValidations.tenant,
+  commonValidations.requiredObjectId("grid_id", param),
+  commonValidations.errorHandler,
+];
+
+const validateGetRepresentativeAQForCohort = [
+  ...commonValidations.tenant,
+  commonValidations.requiredObjectId("cohort_id", param),
+  commonValidations.errorHandler,
+];
+
 module.exports = {
   ...readingsValidations,
   pagination: commonValidations.pagination,
   validateOptionalObjectId: commonValidations.optionalObjectId,
+  validateGetRepresentativeAQForGrid,
+  validateGetRepresentativeAQForCohort,
 };

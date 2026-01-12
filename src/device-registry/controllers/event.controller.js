@@ -541,6 +541,65 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 };
 
 const createEvent = {
+  getRepresentativeAirQualityForGrid: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = {
+        ...req,
+        query: { ...req.query, grid_id: req.params.grid_id },
+      };
+      const result = await createEventUtil.getRepresentativeAirQuality(
+        request,
+        next
+      );
+      handleResponse({ res, result, key: "data" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getRepresentativeAirQualityForCohort: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = {
+        ...req,
+        query: { ...req.query, cohort_id: req.params.cohort_id },
+      };
+      const result = await createEventUtil.getRepresentativeAirQuality(
+        request,
+        next
+      );
+      handleResponse({ res, result, key: "data" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   addValues: async (req, res, next) => {
     try {
       logText("Adding values with mobile device support...");
@@ -988,6 +1047,7 @@ const createEvent = {
         query: {
           ...req.query,
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+          recent: "yes",
         },
       };
 
@@ -1046,7 +1106,42 @@ const createEvent = {
         },
       };
 
-      const result = await createEventUtil.read(request, next);
+      const { cohort_id } = { ...req.query, ...req.params };
+
+      if (cohort_id) {
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        } else if (isEmpty(request.query.device_id)) {
+          // No devices found for this cohort, return error consistent with other endpoints
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            errors: {
+              message: `Unable to process measurements for the provided Cohort ID ${cohort_id}`,
+            },
+            message: "Bad Request Error",
+          });
+        }
+      }
+
+      // Directly create the filter for the 'read' utility
+      const filter = {};
+      if (request.query.device_id) {
+        const deviceIds = request.query.device_id
+          .split(",")
+          .map((id) => id.trim());
+        filter.device_id = { $in: deviceIds };
+      }
+
+      const result = await createEventUtil.read(request, filter, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -1388,7 +1483,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1453,6 +1560,7 @@ const createEvent = {
       return;
     }
   },
+
   listAverages: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1482,7 +1590,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1541,6 +1661,7 @@ const createEvent = {
       return;
     }
   },
+
   listAveragesV2: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1570,7 +1691,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1629,6 +1762,7 @@ const createEvent = {
       return;
     }
   },
+
   listAveragesV3: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1658,7 +1792,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1717,6 +1863,7 @@ const createEvent = {
       return;
     }
   },
+
   listHistorical: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1740,7 +1887,19 @@ const createEvent = {
       const { cohort_id, grid_id } = { ...req.query, ...req.params };
       let locationErrors = 0;
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -1800,6 +1959,7 @@ const createEvent = {
       return;
     }
   },
+
   listRunningDevices: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2802,6 +2962,7 @@ const createEvent = {
       return;
     }
   },
+
   listByGrid: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2884,6 +3045,7 @@ const createEvent = {
       return;
     }
   },
+
   listByCohort: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2910,7 +3072,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -2967,6 +3141,7 @@ const createEvent = {
       return;
     }
   },
+
   listByCohortHistorical: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2993,7 +3168,19 @@ const createEvent = {
       let locationErrors = 0;
 
       if (cohort_id) {
-        await processCohortIds(cohort_id, request);
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          // Stop execution and return the error from cohort processing
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
         if (isEmpty(request.query.device_id)) {
           locationErrors++;
         }
@@ -3050,6 +3237,7 @@ const createEvent = {
       return;
     }
   },
+
   listByLatLong: async (req, res, next) => {
     try {
       let { latitude, longitude } = req.params;

@@ -956,61 +956,80 @@ class RBACService {
     }
   }
 
-  // In rbac.service.js, modify the isSystemSuperAdmin method:
   async isSystemSuperAdmin(userId) {
     try {
       const user = await this.getUserModel().findById(userId).lean();
       if (!user) return false;
 
-      // Check 1: Direct system permissions
-      const systemPermissions = await this.getPermissionModel()
-        .find({
-          _id: { $in: user.permissions || [] },
-          permission: { $in: constants.SYSTEM_ADMIN_PERMISSIONS },
-        })
-        .lean();
+      // Manually populate user data to avoid schema issues
+      const populatedUser = await this._populateUserRoleData(user);
 
-      if (systemPermissions.length > 0) {
-        return true;
-      }
+      // Check 1: User has AIRQO_SUPER_ADMIN role or admin user type in AirQo group
+      const hasAirqoAdminRole = populatedUser.group_roles?.some((gr) => {
+        const groupId = gr.group?._id || gr.group;
 
-      // Check 2: AIRQO_SUPER_ADMIN role or admin user type in AirQo group
-      const hasAirqoAdminRole = user.group_roles?.some((gr) => {
+        // Skip if groupId is null/undefined
+        if (!groupId) return false;
+
         const isAirqoGroup = constants.HELPERS.isSystemAdminGroup(
-          gr.group?.toString()
+          groupId.toString()
         );
         const isAdminUserType = constants.HELPERS.isSystemAdminUserType(
           gr.userType
         );
-        return isAirqoGroup && isAdminUserType;
+
+        // Check if the role name indicates system admin
+        const hasSystemAdminRole =
+          gr.role &&
+          gr.role.role_name &&
+          constants.HELPERS.isSystemAdminRole(gr.role.role_name);
+
+        return isAirqoGroup && (isAdminUserType || hasSystemAdminRole);
       });
 
       if (hasAirqoAdminRole) {
         return true;
       }
 
-      // Check 3: Explicit system admin role names
-      const userRoleIds = [
-        ...(user.group_roles?.map((gr) => gr.role).filter(Boolean) || []),
-        ...(user.network_roles?.map((nr) => nr.role).filter(Boolean) || []),
-      ];
-      if (userRoleIds.length > 0) {
-        const systemAdminRoles = await this.getRoleModel()
-          .find({
-            _id: { $in: userRoleIds },
-            $or: [
-              { role_name: { $in: constants.SYSTEM_ADMIN_ROLE_NAMES } },
-              { role_code: { $in: constants.SYSTEM_ADMIN_ROLE_CODES } },
-            ],
-          })
-          .lean();
+      // Check 2: Direct system admin permissions on user
+      if (populatedUser.permissions && populatedUser.permissions.length > 0) {
+        const hasSystemPermission = populatedUser.permissions.some(
+          (permObj) => {
+            const permission = permObj.permission || permObj;
+            return constants.HELPERS.isSystemAdminPermission(permission);
+          }
+        );
 
-        return systemAdminRoles.length > 0;
+        if (hasSystemPermission) {
+          return true;
+        }
+      }
+
+      // Check 3: System admin role names in any group/network roles
+      const allRoles = [
+        ...(populatedUser.group_roles?.map((gr) => gr.role).filter(Boolean) ||
+          []),
+        ...(populatedUser.network_roles?.map((nr) => nr.role).filter(Boolean) ||
+          []),
+      ];
+
+      for (const role of allRoles) {
+        if (role && role.role_name) {
+          if (constants.HELPERS.isSystemAdminRole(role.role_name)) {
+            return true;
+          }
+        }
+        if (role && role.role_code) {
+          if (constants.SYSTEM_ADMIN_ROLE_CODES.includes(role.role_code)) {
+            return true;
+          }
+        }
       }
 
       return false;
     } catch (error) {
       console.error("Error in isSystemSuperAdmin:", error);
+      logger.error(`Error checking system super admin: ${error.message}`);
       return false;
     }
   }

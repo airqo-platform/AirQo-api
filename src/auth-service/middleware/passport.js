@@ -14,6 +14,7 @@ const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
+const analyticsService = require("@services/analytics.service");
 const {
   logObject,
   logText,
@@ -478,6 +479,16 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           req.auth.success = true;
           req.auth.message = "successful login";
 
+          try {
+            analyticsService.track(user._id.toString(), "user_logged_in", {
+              method: "google",
+            });
+          } catch (analyticsError) {
+            logger.error(
+              `PostHog Google login track error: ${analyticsError.message}`
+            );
+          }
+
           if (user && user.email !== user.email.toLowerCase()) {
             try {
               const conflictUser = await UserModel(
@@ -550,6 +561,25 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
+
+            try {
+              const userId = user._id.toString();
+              const userProperties = {
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                createdAt: user.createdAt,
+              };
+              analyticsService.identify(userId, userProperties);
+              analyticsService.track(userId, "user_registered", {
+                method: "google",
+              });
+            } catch (analyticsError) {
+              logger.error(
+                `PostHog Google registration track error: ${analyticsError.message}`
+              );
+            }
+
             try {
               // New user from Google should be auto-verified.
               const updatePayload = userUtil._constructLoginUpdate(user, null, {
@@ -713,7 +743,6 @@ const specificRoutes = [
   // ============================================
   {
     uri: [
-      "/api/v2/devices/grids",
       "/api/v2/metadata/sites",
       "/api/v2/metadata/devices",
       "/api/v2/metadata/grids",
@@ -1487,12 +1516,12 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i); //NOSONAR
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
     if (!match || !match[2]) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'", //NOSONAR
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
         })
       );
     }
@@ -1506,13 +1535,42 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
+    // ========================================
+    // ROUTE BLOCKING CHECK (BEFORE JWT VERIFICATION)
+    // Critical security check: Block JWT tokens from query-token-only endpoints
+    // ========================================
+    const endpoint =
+      req.headers["x-original-uri"] || req.originalUrl || req.url;
+
+    // Check if this endpoint should be blocked from JWT authentication
+    for (const route of specificRoutes) {
+      if (matchesRoute(endpoint, route.uri)) {
+        logger.warn(
+          `JWT blocked for endpoint: ${endpoint} - requires query token`
+        );
+
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message:
+              "This endpoint requires query token authentication, JWT is not allowed",
+            route:
+              route.description ||
+              "JWT authentication not permitted for this endpoint",
+          })
+        );
+      }
+    }
+    // ========================================
+    // END ROUTE BLOCKING CHECK
+    // ========================================
+
     jwt.verify(
       token,
       constants.JWT_SECRET,
       { ignoreExpiration: true },
       async (err, decoded) => {
+        // This handles malformed tokens, but not expiration
         if (err) {
-          // This handles malformed tokens, but not expiration
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
               message: `Invalid token: ${err.message}`,
@@ -1572,6 +1630,12 @@ const enhancedJWTAuth = (req, res, next) => {
         // 3. Attach user info to the request and proceed
         const userId = decoded.userId || decoded.id || decoded._id;
         const user = await UserModel(tenant).findById(userId).lean();
+
+        const analyticsId =
+          typeof userId === "string" ? userId : userId?.toString?.();
+        if (analyticsId) {
+          req.analyticsUserId = analyticsId;
+        }
 
         if (!user) {
           return next(

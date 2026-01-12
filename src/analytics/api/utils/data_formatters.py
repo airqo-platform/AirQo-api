@@ -365,9 +365,14 @@ def get_validated_filter(json_data):
     ]
 
     provided_filters = [key for key in valid_filters if json_data.get(key)]
-    filter_type = provided_filters[0]
-    filter_value = json_data.get(filter_type)
+    try:
+        filter_type = provided_filters[0]
+    except IndexError:
+        error_message = (
+            "Invalid filter: please provide a valid device, site or airqloud"
+        )
 
+    filter_value = json_data.get(filter_type, None)
     # TODO Uncomment when proper access control is implemented in device registry.
     # TODO Filter/validate device names/ids existence.
     # if filter_type in sites:

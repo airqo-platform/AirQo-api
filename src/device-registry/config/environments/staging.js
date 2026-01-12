@@ -23,6 +23,7 @@ const stageConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  GROUPS_TOPIC: process.env.GROUPS_TOPIC_STAGE || "groups-topic",
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:
@@ -50,6 +51,7 @@ const stageConfig = {
   ADMIN_MIGRATION_KEY: process.env.STAGE_ADMIN_MIGRATION_KEY,
   DEPLOYMENT_URL: process.env.STAGE_DEPLOYMENT_URL,
   SERVICE_JWT_TOKEN: process.env.STAGE_SERVICE_JWT_TOKEN,
+  ADMIN_SETUP_SECRET: process.env.STAGE_ADMIN_SETUP_SECRET,
 };
 
 module.exports = stageConfig;

@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.ml_utils import ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
@@ -27,7 +27,7 @@ def train_forecasting_models():
         start_date = current_date - relativedelta(
             months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
         )
-        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "train")
 
     @task()
@@ -60,13 +60,12 @@ def train_forecasting_models():
     @task()
     def fetch_training_data_for_daily_forecast_model():
         from dateutil.relativedelta import relativedelta
-        from datetime import datetime
 
         current_date = datetime.today()
         start_date = current_date - relativedelta(
             months=int(configuration.DAILY_FORECAST_TRAINING_JOB_SCOPE)
         )
-        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "train")
 
     @task()
@@ -91,7 +90,10 @@ def train_forecasting_models():
 
     @task()
     def train_and_save_daily_model(train_data):
-        return ForecastUtils.train_and_save_forecast_models(train_data, frequency="daily")
+        return ForecastUtils.train_and_save_forecast_models(
+            train_data, frequency="daily"
+        )
+
     hourly_data = fetch_training_data_for_hourly_forecast_model()
     hourly_preprocessed_data = preprocess_training_data_for_hourly_forecast_model(
         hourly_data

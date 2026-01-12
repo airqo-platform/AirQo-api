@@ -2,11 +2,12 @@ const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const qs = require("qs");
+const crypto = require("crypto");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { generateFilter } = require("@utils/common");
+const { generateFilter, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-cohort-util`
@@ -82,12 +83,12 @@ const createCohort = {
         };
       }
       const network = await NetworkModel(tenant)
-        .find(filter)
+        .findOne(filter)
         .lean();
 
       logObject("network", network);
 
-      if (network.length !== 1) {
+      if (!network) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -95,7 +96,7 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       } else {
-        const networkId = network[0]._id;
+        const networkId = network._id;
         const responseFromUpdateNetwork = await NetworkModel(
           tenant
         ).findByIdAndUpdate(ObjectId(networkId), body, { new: true });
@@ -140,12 +141,12 @@ const createCohort = {
       const filter = generateFilter.networks(request, next);
 
       const network = await NetworkModel(tenant)
-        .find(filter)
+        .findOne(filter)
         .lean();
 
       logObject("network", network);
 
-      if (network.length !== 1) {
+      if (!network) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -153,7 +154,7 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       } else {
-        const networkId = network[0]._id;
+        const networkId = network._id;
         const responseFromDeleteNetwork = await NetworkModel(
           tenant
         ).findByIdAndDelete(ObjectId(networkId));
@@ -187,18 +188,40 @@ const createCohort = {
   },
   createNetwork: async (request, next) => {
     try {
-      return {
-        success: false,
-        message: "Service Temporarily Disabled --coming soon",
-        status: httpStatus.SERVICE_UNAVAILABLE,
-        errors: { message: "Service Unavailable" },
-      };
-      /**
-       * in the near future, this wont be needed since Kafka
-       * will handle the entire creation process
-       */
       const { query, body } = request;
       const { tenant } = query;
+      const { admin_secret } = body;
+
+      // 1. Verify that the secret is configured on the server
+      if (!constants.ADMIN_SETUP_SECRET) {
+        logger.error(
+          "CRITICAL: ADMIN_SETUP_SECRET is not configured in environment variables."
+        );
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Admin secret not configured on server",
+            }
+          )
+        );
+      }
+
+      // 2. Perform a constant-time comparison to prevent timing attacks
+      const provided = Buffer.from(admin_secret || "");
+      const expected = Buffer.from(constants.ADMIN_SETUP_SECRET);
+
+      if (
+        provided.length !== expected.length ||
+        !crypto.timingSafeEqual(provided, expected)
+      ) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "Invalid admin secret provided",
+          })
+        );
+      }
 
       const responseFromCreateNetwork = await NetworkModel(tenant).register(
         body,
@@ -231,16 +254,14 @@ const createCohort = {
 
       if (responseFromRegisterCohort.success === true) {
         try {
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
+          const kafkaProducer = kafka.producer();
           await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.COHORT_TOPIC,
             messages: [
               {
                 action: "create",
-                value: JSON.stringify(responseFromRegisterCohort.data),
+                value: stringify(responseFromRegisterCohort.data),
               },
             ],
           });
@@ -418,6 +439,66 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
+      const originalFilter = { ...filter };
+
+      // Only exclude user cohorts if we are not fetching by a specific ID
+      if (!filter._id) {
+        const userCohortExclusion = { name: { $not: /^coh_user_/i } };
+        if (filter.name) {
+          // If a name filter already exists, combine it with the exclusion using $and
+          const existingNameFilter = { name: filter.name };
+          filter.$and = [
+            ...(filter.$and || []),
+            existingNameFilter,
+            userCohortExclusion,
+          ];
+          delete filter.name;
+        } else {
+          // If no name filter, just add the exclusion directly
+          filter.name = userCohortExclusion.name;
+        }
+      }
+
+      const result = await createCohort._list(request, filter, next);
+
+      // Handle case where a specific cohort ID was requested but not found
+      if (
+        isEmpty(result.data) &&
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
+      ) {
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
+        return {
+          success: false,
+          message: "Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `Cohort with ID ${idString} does not exist`,
+          },
+        };
+      }
+
+      return {
+        ...result,
+        message: "Successfully retrieved cohorts",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  _list: async (request, filter, next) => {
+    try {
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
@@ -494,10 +575,73 @@ const createCohort = {
 
       return {
         success: true,
-        message: "Successfully retrieved cohorts",
         data: paginatedResults,
         status: httpStatus.OK,
         meta,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error on _list: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      // Ensure we don't proceed with a partial result
+      return {
+        success: false,
+      };
+    }
+  },
+
+  listUserCohorts: async (request, next) => {
+    try {
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
+      const filter = generateFilter.cohorts(request, next);
+
+      const originalFilter = { ...filter };
+      // Filter for only individual user cohorts. Use $and to correctly combine with other name filters.
+      const userCohortInclusion = { name: { $regex: /^coh_user_/i } };
+      if (filter.name) {
+        // If filter.name is a string, it's treated as an implicit $eq.
+        // If it's an object, it contains operators like $in.
+        // In both cases, we create a separate object for the $and array.
+        const existingNameFilter = { name: filter.name };
+        filter.$and = [
+          ...(filter.$and || []),
+          existingNameFilter,
+          userCohortInclusion,
+        ];
+        delete filter.name;
+      } else {
+        // If no name filter exists, just add the regex filter
+        filter.name = userCohortInclusion.name;
+      }
+
+      const result = await createCohort._list(request, filter, next);
+
+      if (
+        isEmpty(result.data) &&
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
+      ) {
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
+        return {
+          success: false,
+          message: "User Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `User Cohort with ID ${idString} does not exist`,
+          },
+        };
+      }
+
+      return {
+        ...result,
+        message: "Successfully retrieved user cohorts",
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -510,7 +654,6 @@ const createCohort = {
       );
     }
   },
-
   verify: async (request, next) => {
     try {
       const { tenant } = request.query;

@@ -2,7 +2,8 @@ from itertools import chain
 import logging
 import numpy as np
 import pandas as pd
-from typing import Optional, List
+import ast
+from typing import Optional, Dict, List, Any
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
 from .config import configuration as Config
@@ -17,6 +18,8 @@ class DataValidationUtils:
         floats: Optional[List] = None,
         integers: Optional[List] = None,
         timestamps: Optional[List] = None,
+        records: Optional[List] = None,
+        repeated: Optional[List] = None,
     ) -> pd.DataFrame:
         """
         Formats specified columns in a DataFrame to desired data types: float, integer, and datetime.
@@ -26,6 +29,8 @@ class DataValidationUtils:
             floats(list, optional): List of column names to be converted to floats. Defaults to an empty list.
             integers(list, optional): List of column names to be converted to integers. Defaults to an empty list.
             timestamps(list, optional): List of column names to be converted to datetime. Defaults to an empty list.
+            records(list, optional): List of column names to be converted to records. Defaults to an empty list.
+            repeated(list, optional): List of column names to be converted to repeated fields. Defaults to an empty list.
 
         Returns:
             pd.DataFrame: A DataFrame with the specified columns formatted to their respective data types.
@@ -41,17 +46,50 @@ class DataValidationUtils:
         floats = floats or []
         integers = integers or []
         timestamps = timestamps or []
+        records = records or []
+        repeated = repeated or []
         if floats:
             data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
 
         if timestamps:
             for col in timestamps:
+                """
+                Normalize timestamp formats to standardized ISO 8601 format with milliseconds.
+
+                Transformation steps applied via single regex pattern:
+                1. Extract date part: YYYY-MM-DD
+                2. Handle both 'T' and space separators between date and time
+                3. Extract time part: HH:MM:SS
+                4. Remove fractional seconds (microseconds) if present: (?:\.\d+)?
+                5. Capture timezone indicator: +HH:MM or Z
+                6. Reconstruct as: YYYY-MM-DD HH:MM:SS.000Z
+                - Uses space separator (not T) for consistency
+                - Adds .000 milliseconds if missing
+                - Standardizes timezone to Z (UTC)
+
+                Examples:
+                    '2025-08-25 07:57:15.968000+00:00' → '2025-08-25 07:57:15.000Z'
+                    '2025-08-12 00:00:00+00:00'        → '2025-08-12 00:00:00.000Z'
+                    '2025-11-04T22:07:20Z'             → '2025-11-04 22:07:20.000Z'
+                    '2025-10-20 09:27:06.123+00:00'    → '2025-10-20 09:27:06.000Z'
+
+                Regex breakdown:
+                    (\d{4}-\d{2}-\d{2})     - Group 1: Date (YYYY-MM-DD)
+                    [T ]                     - Match 'T' or space separator
+                    (\d{2}:\d{2}:\d{2})     - Group 2: Time (HH:MM:SS)
+                    (?:\.\d+)?              - Non-capturing: optional fractional seconds (removed)
+                    (\+\d{2}:\d{2}|Z)       - Group 3: Timezone (+00:00 or Z) - discarded in output
+                """
                 data[col] = (
                     data[col]
                     .astype(str)
-                    .str.replace(r"[^\w\s\.\-+:]", "", regex=True)
-                    .str.replace(r"(?<!\.\d{3})Z$", ".000Z", regex=True)
-                )  # Negative lookbehind to add missing milliseconds if needed
+                    .str.strip("*,")  # Remove leading/trailing *, comma, period
+                    .str.replace(
+                        r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(\+\d{2}:\d{2}|Z)",
+                        lambda m: f"{m.group(1)} {m.group(2)}.000Z",
+                        regex=True,
+                    )
+                )
                 data[col] = pd.to_datetime(data[col], errors="coerce", utc=True)
 
         if integers:
@@ -68,7 +106,65 @@ class DataValidationUtils:
                     .fillna(-1)
                     .astype(np.int64)
                 )
+        if records:
+            for col in records:
+                data[col] = data[col].apply(DataValidationUtils._convert_record)
+
+        if repeated:
+            for col in repeated:
+                data[col] = data[col].apply(
+                    DataValidationUtils._convert_repeated_record
+                )
         return data
+
+    @staticmethod
+    def _convert_repeated_record(value: Any) -> List[Dict] | None:
+        """
+        Converts a value to a list of dictionaries suitable for BigQuery REPEATED RECORD.
+
+        Args:
+            value: The value to convert (can be list, string representation, None, etc.)
+
+        Returns:
+            List[Dict] | None: Properly formatted list of dictionaries or None.
+        """
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            try:
+                parsed = ast.literal_eval(value)
+                if isinstance(parsed, list):
+                    if all(isinstance(item, dict) for item in parsed):
+                        return parsed
+            except Exception as e:
+                logger.error(f"Error parsing repeated record: {e}")
+        return None
+
+    @staticmethod
+    def _convert_record(value: Any) -> Dict | None:
+        """
+        Converts a value to a dictionary suitable for BigQuery RECORD.
+
+        Args:
+            value: The value to convert (can be dict, string representation, None, etc.)
+
+        Returns:
+            Dict | None: Properly formatted dictionary or None.
+        """
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            try:
+                parsed = ast.literal_eval(value)
+                if isinstance(parsed, list):
+                    return parsed
+            except Exception as e:
+                logger.error(f"Error parsing record: {e}")
+        return None
 
     @staticmethod
     def get_valid_value(

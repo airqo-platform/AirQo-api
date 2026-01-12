@@ -125,6 +125,17 @@ const createCohort = {
       handleError(error, next);
     }
   },
+  listUserCohorts: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.listUserCohorts(request, next);
+      handleResponse({ res, result, key: "cohorts" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   list: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

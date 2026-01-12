@@ -6,13 +6,13 @@ const logger = log4js.getLogger(
 const EventModel = require("@models/Event");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
-const LogThrottleModel = require("@models/LogThrottle");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
 const {
   stringify,
   generateFilter,
   getUptimeAccuracyUpdateObject,
+  LogThrottleManager,
 } = require("@utils/common");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
@@ -140,177 +140,8 @@ class NonBlockingJobProcessor {
   }
 }
 
-// Log throttling configuration
-const LOG_THROTTLE_CONFIG = {
-  maxLogsPerDay: 1,
-  logTypesThrottled: ["METRICS", "ACCURACY_REPORT"],
-};
-
-// Database-based Log throttling manager
-class LogThrottleManager {
-  constructor() {
-    this.environment = constants.ENVIRONMENT;
-    this.model = LogThrottleModel("airqo");
-  }
-
-  async shouldAllowLog(logType) {
-    const today = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD");
-
-    try {
-      const result = await this.model.incrementCount({
-        date: today,
-        logType: logType,
-        environment: this.environment,
-      });
-
-      if (result.success) {
-        const currentCount = result.data?.count || 1;
-        return currentCount <= LOG_THROTTLE_CONFIG.maxLogsPerDay;
-      } else {
-        logger.debug(`Log throttle increment failed: ${result.message}`);
-        return true;
-      }
-    } catch (error) {
-      if (error.code === 11000) {
-        try {
-          const countResult = await this.model.getCurrentCount({
-            date: today,
-            logType: logType,
-            environment: this.environment,
-          });
-
-          if (countResult.success && countResult.data.exists) {
-            const retryResult = await this.model.incrementCount({
-              date: today,
-              logType: logType,
-              environment: this.environment,
-            });
-
-            if (retryResult.success) {
-              const currentCount = retryResult.data?.count || 1;
-              return currentCount <= LOG_THROTTLE_CONFIG.maxLogsPerDay;
-            }
-          }
-        } catch (retryError) {
-          logger.warn(`Log throttle retry failed: ${retryError.message}`);
-        }
-      } else {
-        logger.warn(`Log throttle check failed: ${error.message}`);
-      }
-
-      return true;
-    }
-  }
-
-  async getRemainingLogsForToday(logType) {
-    const today = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD");
-
-    try {
-      const result = await this.model.getCurrentCount({
-        date: today,
-        logType: logType,
-        environment: this.environment,
-      });
-
-      if (result.success) {
-        const used = result.data?.count || 0;
-        return Math.max(0, LOG_THROTTLE_CONFIG.maxLogsPerDay - used);
-      } else {
-        logger.debug(`Failed to get remaining log count: ${result.message}`);
-        return LOG_THROTTLE_CONFIG.maxLogsPerDay;
-      }
-    } catch (error) {
-      logger.debug(`Failed to get remaining log count: ${error.message}`);
-      return LOG_THROTTLE_CONFIG.maxLogsPerDay;
-    }
-  }
-
-  async cleanupOldEntries() {
-    try {
-      const result = await this.model.cleanupOldEntries({
-        daysToKeep: 7,
-        environment: this.environment,
-      });
-
-      if (result.success && result.data.deletedCount > 0) {
-        logger.debug(
-          `Cleaned up ${result.data.deletedCount} old log throttle entries`
-        );
-      }
-    } catch (error) {
-      logger.debug(
-        `Failed to cleanup old log throttle entries: ${error.message}`
-      );
-    }
-  }
-
-  async getCurrentStats() {
-    const today = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD");
-
-    try {
-      const result = await this.model.getDailyCounts({
-        date: today,
-        environment: this.environment,
-      });
-
-      if (result.success) {
-        const stats = {};
-        Object.keys(result.data).forEach((logType) => {
-          const data = result.data[logType];
-          stats[logType] = {
-            count: data.count,
-            remaining: Math.max(
-              0,
-              LOG_THROTTLE_CONFIG.maxLogsPerDay - data.count
-            ),
-            lastUpdated: data.lastUpdated,
-          };
-        });
-        return stats;
-      } else {
-        logger.debug(
-          `Failed to get current log throttle stats: ${result.message}`
-        );
-        return {};
-      }
-    } catch (error) {
-      logger.debug(
-        `Failed to get current log throttle stats: ${error.message}`
-      );
-      return {};
-    }
-  }
-
-  async resetDailyCounts() {
-    const today = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD");
-
-    try {
-      const result = await this.model.resetDailyCounts({
-        date: today,
-        environment: this.environment,
-      });
-
-      return result;
-    } catch (error) {
-      logger.warn(`Failed to reset daily counts: ${error.message}`);
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
-}
-
 // Initialize log throttle manager
-const logThrottleManager = new LogThrottleManager();
+const logThrottleManager = new LogThrottleManager(TIMEZONE, 1);
 
 // Enhanced throttled logging function with async support
 async function throttledLog(logType, message, forceLog = false) {
@@ -717,20 +548,10 @@ async function updateOfflineEntitiesWithAccuracy(
       const isCurrentlyOnline = entity.isOnline !== false;
 
       if (isCurrentlyOnline) {
-        // Device needs to be marked offline
+        // Device is currently online, mark as offline
         statusBulkOps.push({
           updateOne: {
-            filter: {
-              _id: entity._id,
-              $or: [
-                { lastActive: { $lt: thresholdTime } },
-                {
-                  lastActive: { $exists: false },
-                  createdAt: { $lt: thresholdTime },
-                },
-              ],
-              isOnline: { $ne: false },
-            },
+            filter: { _id: entity._id },
             update: {
               $set: {
                 isOnline: false,
@@ -785,6 +606,18 @@ async function updateOfflineEntitiesWithAccuracy(
         });
         statusModified = statusResult.modifiedCount || 0;
         statusMatched = statusResult.matchedCount || 0;
+
+        // ============================================================================
+        // Log warning if matched count differs from expected
+        // This helps identify if any updates failed unexpectedly
+        // ============================================================================
+        if (statusMatched !== statusBulkOps.length) {
+          logger.warn(
+            `${entityType} offline status update: expected ${statusBulkOps.length} matches, ` +
+              `got ${statusMatched} (${statusBulkOps.length -
+                statusMatched} documents not found)`
+          );
+        }
       } catch (error) {
         logger.error(
           `Offline status update error for ${entityType}: ${error.message}`
@@ -800,6 +633,17 @@ async function updateOfflineEntitiesWithAccuracy(
           ordered: false,
         });
         accuracyModified = accuracyResult.modifiedCount || 0;
+
+        // ============================================================================
+        // Log warning if matched count differs from expected
+        // ============================================================================
+        if (accuracyResult.matchedCount !== accuracyBulkOps.length) {
+          logger.warn(
+            `${entityType} accuracy update: expected ${accuracyBulkOps.length} matches, ` +
+              `got ${accuracyResult.matchedCount} (${accuracyBulkOps.length -
+                accuracyResult.matchedCount} documents not found)`
+          );
+        }
       } catch (error) {
         logger.error(
           `Offline accuracy update error for ${entityType}: ${error.message}`

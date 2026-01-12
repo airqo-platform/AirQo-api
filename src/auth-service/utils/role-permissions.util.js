@@ -62,6 +62,31 @@ const getDefaultAirqoRoles = (airqoGroupId) => {
     }));
 };
 
+/**
+ * Determine userType from role name based on naming conventions
+ * @param {string} roleName - The role name to analyze
+ * @returns {string} The determined userType
+ */
+const determineUserTypeFromRoleName = (roleName) => {
+  const normalizedRoleName = roleName.toUpperCase();
+
+  if (normalizedRoleName.includes("SUPER_ADMIN")) {
+    return "super_admin";
+  } else if (normalizedRoleName.includes("ADMIN")) {
+    return "admin";
+  } else if (normalizedRoleName.includes("CONTRIBUTOR")) {
+    return "contributor";
+  } else if (normalizedRoleName.includes("MODERATOR")) {
+    return "moderator";
+  } else if (normalizedRoleName.includes("MEMBER")) {
+    return "member";
+  } else if (normalizedRoleName.includes("VIEWER")) {
+    return "viewer";
+  } else if (normalizedRoleName.includes("USER")) {
+    return "user";
+  }
+  return "guest"; // Default
+};
 // ===== HELPER FUNCTIONS =====
 
 /**
@@ -1932,10 +1957,12 @@ const rolePermissionUtil = {
   listRole: async (request, next) => {
     try {
       const { query, params } = request;
-      const { tenant } = query;
+      const { tenant, limit, skip } = query;
       const filter = generateFilter.roles(request, next);
       const responseFromListRole = await RoleModel(tenant.toLowerCase()).list(
         {
+          limit,
+          skip,
           filter,
         },
         next
@@ -2369,6 +2396,12 @@ const rolePermissionUtil = {
         );
       }
 
+      // --- Automatically determine userType from role name ---
+      const determinedUserType = determineUserTypeFromRoleName(role.role_name);
+
+      logObject("Automatically determined userType:", determinedUserType);
+      // --- END NEW LOGIC ---
+
       const isNetworkRole = roleType === "network";
 
       // Get user without populate, then manually check roles
@@ -2437,7 +2470,7 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: user_type || "guest",
+            userType: determinedUserType, // Use the determined userType
             createdAt: new Date(),
           },
         },
@@ -2504,6 +2537,10 @@ const rolePermissionUtil = {
       const assignUserPromises = [];
       const isNetworkRole = roleType === "network";
 
+      // --- Automatically determine userType from role name ---
+      const determinedUserType = determineUserTypeFromRoleName(
+        roleObject.role_name
+      );
       // Get users without populate
       const users = await UserModel(tenant)
         .find({ _id: { $in: user_ids } })
@@ -2577,19 +2614,26 @@ const rolePermissionUtil = {
           continue;
         }
 
+        const roleArrayField = isNetworkRole ? "network_roles" : "group_roles";
+        const contextField = isNetworkRole ? "network" : "group";
+
+        // Step 1: Remove any existing role for this context before assigning the new role
         await UserModel(tenant).updateOne(
           { _id: user._id },
           {
-            $pull: {
-              [isNetworkRole ? "network_roles" : "group_roles"]: {
-                [isNetworkRole ? "network" : "group"]: associatedId,
-              },
-            },
+            $pull: { [roleArrayField]: { [contextField]: associatedId } },
+          }
+        );
+
+        // Step 2: Add the new role assignment
+        await UserModel(tenant).updateOne(
+          { _id: user._id },
+          {
             $addToSet: {
-              [isNetworkRole ? "network_roles" : "group_roles"]: {
-                [isNetworkRole ? "network" : "group"]: associatedId,
+              [roleArrayField]: {
+                [contextField]: associatedId,
                 role: role_id,
-                userType: (body && body.user_type) || "guest",
+                userType: determinedUserType,
                 createdAt: new Date(),
               },
             },
@@ -4312,14 +4356,14 @@ const rolePermissionUtil = {
         );
       }
 
-      const VALID_USER_TYPES = constants.VALID_USER_TYPES;
-      let assignedUserType = userType || "guest";
+      // --- Automatically determine userType from role name ---
+      const determinedUserType = determineUserTypeFromRoleName(role.role_name);
 
-      // Validate userType if provided
-      if (userType && !VALID_USER_TYPES.includes(userType)) {
+      const VALID_USER_TYPES = constants.VALID_USER_TYPES;
+      if (!VALID_USER_TYPES.includes(determinedUserType)) {
         return next(
           new HttpError("Invalid User Type", httpStatus.BAD_REQUEST, {
-            message: `Invalid userType: ${userType}. Valid values are: ${VALID_USER_TYPES.join(
+            message: `Invalid determined userType: ${determinedUserType}. Valid values are: ${VALID_USER_TYPES.join(
               ", "
             )}`,
           })
@@ -4353,7 +4397,7 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: assignedUserType,
+            userType: determinedUserType,
             createdAt: new Date(),
           },
         },
@@ -4406,7 +4450,7 @@ const rolePermissionUtil = {
           role_name: role.role_name,
           role_type: roleType,
           associated_id: associatedId,
-          user_type: assignedUserType,
+          user_type: determinedUserType,
         },
         before_assignment: initialSummary,
         after_assignment: updatedSummary,

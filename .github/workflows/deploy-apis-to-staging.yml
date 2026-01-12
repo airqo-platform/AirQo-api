@@ -70,13 +70,13 @@ jobs:
           git diff --name-only HEAD^ HEAD > files.txt
 
           echo "run_auth_service=false" >>$GITHUB_OUTPUT
-          echo "run_device_registry=false" >>$GITHUB_OUTPUT  
+          echo "run_device_registry=false" >>$GITHUB_OUTPUT
           echo "run_analytics=false" >>$GITHUB_OUTPUT
-          echo "run_beacon_api=false" >>$GITHUB_OUTPUT 
+          echo "run_beacon_api=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
           echo "run_view=false" >>$GITHUB_OUTPUT
-          echo "run_calibrate=false" >>$GITHUB_OUTPUT 
+          echo "run_calibrate=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
@@ -90,11 +90,11 @@ jobs:
           while IFS= read -r file
           do
             echo $file
-            
+
             if [[ $file == src/auth-service/* ]]; then
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == k8s/auth-service/* ]]; then
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
             fi
@@ -146,15 +146,15 @@ jobs:
             if [[ $file == k8s/view/* ]]; then
               echo "run_view=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == src/calibrate/* ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == k8s/calibrate/* ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == k8s/kafka/clusters/* ]]; then
               echo "run_kafka_cluster=true" >>$GITHUB_OUTPUT
             fi
@@ -182,18 +182,18 @@ jobs:
             if [[ $file == src/spatial/* ]]; then
               echo "run_spatial=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == k8s/spatial/* ]]; then
-              echo "run_spatial=true" >>$GITHUB_OUTPUT              
-            fi 
-            
+              echo "run_spatial=true" >>$GITHUB_OUTPUT
+            fi
+
             if [[ $file == src/website/* ]]; then
               echo "run_website=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == k8s/website/* ]]; then
-              echo "run_website=true" >>$GITHUB_OUTPUT              
-            fi            
+              echo "run_website=true" >>$GITHUB_OUTPUT
+            fi
 
             if [[ $file == k8s/nginx/staging/* ]]; then
               echo "run_nginx=true" >>$GITHUB_OUTPUT
@@ -495,11 +495,11 @@ jobs:
 
       - name: Update the corresponding k8s configmap(s)
         run: |
-          cd src/predict/    
-          echo "=============== Downloading the required secrets from Secret Manager ==============="     
+          cd src/predict/
+          echo "=============== Downloading the required secrets from Secret Manager ==============="
           gcloud secrets versions access latest --secret="sta-env-predict" > api.env
           gcloud secrets versions access latest --secret="sta-env-predict-predict-places-air-quality" > predict_places_air_quality.env
-          gcloud secrets versions access latest --secret="sta-key-predict-service-account" > google_application_credentials.json 
+          gcloud secrets versions access latest --secret="sta-key-predict-service-account" > google_application_credentials.json
           echo "=============== Updating the respective .env files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-staging | kubectl replace -f - -n staging
@@ -688,7 +688,6 @@ jobs:
           cd src/beacon-api/
           gcloud secrets versions access latest --secret="sta-env-beacon" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-beacon-staging | kubectl replace -f - -n staging
-  
 
   ### analytics ###
   analytics:
@@ -784,7 +783,7 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
-       
+
   ### meta-data ###
   meta-data:
     name: build-push-deploy-meta-data
@@ -1055,7 +1054,7 @@ jobs:
           cd src/spatial/
           gcloud secrets versions access latest --secret="sta-env-spatial" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-spatial-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
+          gcloud secrets versions access latest --secret="spatial-bucket-access-secret" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-spatial-api-config-files | kubectl replace -f - -n staging
 
   ### website ###

@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    TIMEZONE: str = "Africa/Kampala"
+    TIMEZONE: str = "UTC"
     UPTIME_THRESHOLD_GOOD: float = 90.0
     UPTIME_THRESHOLD_MODERATE: float = 70.0
     DATA_COMPLETENESS_THRESHOLD_GOOD: float = 85.0
@@ -53,6 +53,18 @@ class Settings(BaseSettings):
     AIRQO_API_URL: Optional[str] = None
     AIRQO_API_BASE_URL: Optional[str] = None
     AIRQO_RECENT_API_URL: Optional[str] = None
+    
+    # Organization token for firmware operations
+    ORG_TOKEN: str = os.getenv("ORG_TOKEN", "")
+    
+    # Platform API settings
+    PLATFORM_BASE_URL: str = os.getenv("PLATFORM_BASE_URL", "https://staging-platform.airqo.net/api/v2")
+    TOKEN: str = os.getenv("TOKEN", "")
+    
+    # Google Cloud Storage settings
+    GCS_BUCKET_NAME: str = os.getenv("GCS_BUCKET_NAME", "")
+    GOOGLE_APPLICATION_CREDENTIALS_JSON: Optional[str] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     
     class Config:
         case_sensitive = True

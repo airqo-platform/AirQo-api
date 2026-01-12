@@ -42,7 +42,7 @@ class Publication(SlugBaseModel):
         null=True,
         blank=True,
     )
-    order = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, db_index=True)
 
     class Meta(SlugBaseModel.Meta):
         ordering = ["order", "-id"]

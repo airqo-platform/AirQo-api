@@ -12,7 +12,6 @@ const {
 const constants = require("@config/constants");
 
 router.use(headers);
-router.use(networkValidations.pagination);
 
 router.put(
   "/:net_id/assign-user/:user_id",
@@ -25,14 +24,14 @@ router.put(
 router.get(
   "/",
   networkValidations.list,
-  enhancedJWTAuth,
-  // requirePermissions([constants.NETWORK_VIEW]),
+  pagination(),
   createNetworkController.list
 );
 
 router.get(
   "/summary",
   networkValidations.listSummary,
+  pagination(),
   createNetworkController.listSummary
 );
 
@@ -51,6 +50,7 @@ router.get(
   "/:net_id/assigned-users",
   networkValidations.listAssignedUsers,
   enhancedJWTAuth,
+  pagination(),
   requireNetworkPermissions([constants.MEMBER_VIEW], "net_id"),
   createNetworkController.listAssignedUsers
 );
@@ -59,6 +59,7 @@ router.get(
   "/:net_id/available-users",
   networkValidations.listAvailableUsers,
   enhancedJWTAuth,
+  pagination(),
   requireNetworkPermissions([constants.ORG_USER_ASSIGN], "net_id"),
   createNetworkController.listAvailableUsers
 );
@@ -106,6 +107,7 @@ router.get(
   "/:net_id/roles",
   networkValidations.listRolesForNetwork,
   enhancedJWTAuth,
+  pagination(),
   requireNetworkPermissions([constants.ROLE_VIEW], "net_id"),
   createNetworkController.listRolesForNetwork
 );
@@ -114,6 +116,7 @@ router.get(
   "/:net_id",
   networkValidations.getNetworkById,
   enhancedJWTAuth,
+  pagination(),
   // requireNetworkPermissions([constants.NETWORK_VIEW], "net_id"),
   createNetworkController.list
 );

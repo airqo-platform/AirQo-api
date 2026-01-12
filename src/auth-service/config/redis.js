@@ -144,6 +144,28 @@ const redisSetWithTTLAsync = async (key, value, ttlSeconds) => {
   }
 };
 
+const redisSetNXAsync = async (key, value, ttlSeconds) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for SETNX ${key}`);
+    throw new Error("Redis not available for distributed lock");
+  }
+  if (!ttlSeconds || ttlSeconds <= 0) {
+    throw new Error(`Invalid TTL for lock: ${ttlSeconds}`);
+  }
+  try {
+    // 'EX' sets the expiration in seconds, 'NX' sets the key only if it does not already exist.
+    const result = await redis.set(key, value, {
+      EX: ttlSeconds,
+      NX: true,
+    });
+    // result will be 'OK' if the key was set, or null if the key already existed.
+    return result === "OK";
+  } catch (error) {
+    console.error(`Redis SETNX failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
 const redisPingAsync = async (timeout = 3000) => {
   if (!redis.isOpen) {
     throw new Error("Redis not available");
@@ -202,24 +224,38 @@ process.on("SIGINT", async () => {
   }
 });
 
-// Export everything needed
-module.exports = redis;
-module.exports.redisGetAsync = redisGetAsync;
-module.exports.redisSetAsync = redisSetAsync;
-module.exports.redisExpireAsync = redisExpireAsync;
-module.exports.redisDelAsync = redisDelAsync;
-module.exports.redisPingAsync = redisPingAsync;
-module.exports.redisUtils = redisUtils;
-module.exports.redisSetWithTTLAsync = redisSetWithTTLAsync;
+const redisWrapper = {
+  redisGetAsync,
+  redisSetAsync,
+  redisExpireAsync,
+  redisDelAsync,
+  redisPingAsync,
+  redisUtils,
+  redisSetWithTTLAsync,
+  redisSetNXAsync,
+  get: redisGetAsync,
+  del: redisDelAsync,
+};
 
 // Compatibility exports for direct redis.method() usage
-module.exports.set = async (key, value, ttlType, ttlValue) => {
+redisWrapper.set = async (key, value, ttlType, ttlValue) => {
   // Compatible with ioredis.set(key, value, 'EX', seconds) pattern
-  if (ttlType === "EX" && typeof ttlValue === "number") {
-    return await redisSetWithTTLAsync(key, value, ttlValue);
-  } else {
-    return await redisSetAsync(key, value);
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for SET ${key}`);
+    return null;
+  }
+  try {
+    if (ttlType === "EX" && typeof ttlValue === "number") {
+      return await redis.setEx(key, ttlValue, value);
+    }
+    return await redis.set(key, value);
+  } catch (error) {
+    console.error(
+      `Redis SET compatibility failed for ${key}: ${error.message}`
+    );
+    throw error;
   }
 };
-module.exports.get = redisGetAsync;
-module.exports.del = redisDelAsync;
+
+module.exports = redisWrapper;
+module.exports.redis = redis; // Export the raw client if needed elsewhere

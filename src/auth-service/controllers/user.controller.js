@@ -8,6 +8,7 @@ const {
   stringify,
 } = require("@utils/shared");
 const isEmpty = require("is-empty");
+const analyticsService = require("@services/analytics.service");
 const tokenUtil = require("@utils/token.util");
 const constants = require("@config/constants");
 const { AbstractTokenFactory } = require("@services/atf.service");
@@ -118,11 +119,34 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
       const result = await userUtil.listUsersAndAccessRequests(request, next);
-      sendResponse(res, result, "users");
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          meta: result.meta,
+          combined_results: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
     } catch (error) {
       handleError(error, next);
     }
   },
+
   googleCallback: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -473,6 +497,14 @@ const userController = {
       logger.info("user logout......");
       const request = handleRequest(req, next);
       if (!request) return;
+
+      // PostHog Analytics: Track logout event
+      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track logout event
+      // try {
+      //   analyticsService.track(req.analyticsUserId, "user_logged_out");
+      // } catch (analyticsError) {
+      //   logger.error(`PostHog logout track error: ${analyticsError.message}`);
+      // }
 
       return res
         .status(httpStatus.NOT_IMPLEMENTED)
@@ -1460,6 +1492,41 @@ const userController = {
       if (!request) return;
       const result = await userUtil.confirmMobileAccountDeletion(request, next);
       sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateConsent: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      // The user object is attached by the authentication middleware
+      request.user = req.user;
+
+      const result = await userUtil.updateConsent(request, next);
+      sendResponse(res, result, "consent");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  assignCohorts: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.assignCohorts(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  listCohorts: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listCohorts(request, next);
+      sendResponse(res, result, "cohorts");
     } catch (error) {
       handleError(error, next);
     }

@@ -5,7 +5,7 @@ from .air_quality_utils import AirQualityUtils
 from .config import configuration as Config
 from .constants import DeviceNetwork
 
-from .date import str_to_date
+from .date import DateUtils
 
 
 class UrbanBetterUtils:
@@ -13,8 +13,8 @@ class UrbanBetterUtils:
     def extract_stream_ids_from_air_beam(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
-        start_date_time = str_to_date(start_date_time)
-        end_date_time = str_to_date(end_date_time)
+        start_date_time = DateUtils.str_to_date(start_date_time)
+        end_date_time = DateUtils.str_to_date(end_date_time)
 
         air_beam_api = AirBeamApi()
 
@@ -54,8 +54,8 @@ class UrbanBetterUtils:
     def extract_measurements_from_air_beam(
         start_date_time: str, end_date_time: str, stream_ids: pd.DataFrame
     ) -> pd.DataFrame:
-        start_date_time = str_to_date(start_date_time)
-        end_date_time = str_to_date(end_date_time)
+        start_date_time = DateUtils.str_to_date(start_date_time)
+        end_date_time = DateUtils.str_to_date(end_date_time)
         air_beam_api = AirBeamApi()
         measurements = pd.DataFrame()
         for _, row in stream_ids.iterrows():

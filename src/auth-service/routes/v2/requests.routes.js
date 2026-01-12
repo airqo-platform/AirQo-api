@@ -4,10 +4,11 @@ const router = express.Router();
 const createRequestController = require("@controllers/request.controller");
 const requestValidations = require("@validators/requests.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { requirePermissions } = require("@middleware/permissionAuth");
+const constants = require("@config/constants");
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(requestValidations.pagination);
 
 router.post(
   "/groups/:grp_id",
@@ -41,6 +42,7 @@ router.get(
   "/",
   requestValidations.list,
   enhancedJWTAuth,
+  pagination(),
   createRequestController.list
 );
 
@@ -48,6 +50,7 @@ router.get(
   "/pending",
   requestValidations.listPending,
   enhancedJWTAuth,
+  pagination(),
   createRequestController.listPendingAccessRequests
 );
 
@@ -69,6 +72,7 @@ router.get(
   "/groups",
   requestValidations.listForGroup,
   enhancedJWTAuth,
+  pagination(),
   createRequestController.listAccessRequestsForGroup
 );
 
@@ -76,7 +80,16 @@ router.get(
   "/networks",
   requestValidations.listForNetwork,
   enhancedJWTAuth,
+  pagination(),
   createRequestController.listAccessRequestsForNetwork
+);
+
+router.delete(
+  "/expired",
+  requestValidations.cleanupExpired,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  createRequestController.cleanupExpiredRequests
 );
 
 router.delete(
@@ -97,6 +110,7 @@ router.get(
   "/groups/:grp_id",
   requestValidations.listAccessRequestsForGroup,
   enhancedJWTAuth,
+  pagination(),
   createRequestController.listAccessRequestsForGroup
 );
 
@@ -104,6 +118,7 @@ router.get(
   "/networks/:net_id",
   requestValidations.listAccessRequestsForNetwork,
   enhancedJWTAuth,
+  pagination(),
   createRequestController.listAccessRequestsForNetwork
 );
 

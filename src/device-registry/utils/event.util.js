@@ -777,12 +777,21 @@ const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
     logObject("responseFromListCohort.data[0]", responseFromListCohort.data[0]);
     const cohortDetails = responseFromListCohort.data[0];
 
-    if (responseFromListCohort.data.length > 1 || isEmpty(cohortDetails)) {
+    if (isEmpty(cohortDetails)) {
       return {
         success: false,
-        message: "Bad Request Error",
-        errors: { message: "No distinct Cohort found in this search" },
-        status: httpStatus.BAD_REQUEST,
+        message: "Cohort not found",
+        errors: { message: `Cohort with ID ${cohort_id} does not exist` },
+        status: httpStatus.NOT_FOUND,
+      };
+    } else if (responseFromListCohort.data.length > 1) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: `Data integrity issue: Multiple cohorts found for ID ${cohort_id}`,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
     const assignedDevices = cohortDetails.devices || [];
@@ -898,6 +907,7 @@ const processCohortIds = async (cohort_ids, request) => {
             responseFromGetDevicesOfCohort
           )}`
         );
+        // Return the error response to the caller
         return responseFromGetDevicesOfCohort;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
@@ -906,6 +916,10 @@ const processCohortIds = async (cohort_ids, request) => {
         return {
           success: false,
           message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          errors: {
+            message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          },
+          status: httpStatus.BAD_REQUEST,
         };
       }
       const arrayOfDevices = responseFromGetDevicesOfCohort.data.split(",");
@@ -919,10 +933,12 @@ const processCohortIds = async (cohort_ids, request) => {
     (result) => result.success === false
   );
 
+  // Return the first error found to the controller
   if (!isEmpty(invalidDeviceIdResults)) {
     logger.error(
       `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
     );
+    return invalidDeviceIdResults[0];
   }
 
   const validDeviceIdResults = deviceIdsResults.filter(
@@ -932,7 +948,19 @@ const processCohortIds = async (cohort_ids, request) => {
   const flattened = [].concat(...validDeviceIdResults);
 
   if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
-    request.query.device_id = validDeviceIdResults.join(",");
+    // When cohort_id is provided, set device_id filter based on devices in those cohorts.
+    // The use of a Set handles potential duplicates if a device is in multiple cohorts.
+    const uniqueDeviceIds = [...new Set(flattened)];
+    request.query.device_id = uniqueDeviceIds.join(",");
+  } else if (isEmpty(flattened)) {
+    return {
+      success: false,
+      status: httpStatus.BAD_REQUEST,
+      message: "No device IDs could be resolved from the provided Cohort IDs",
+      errors: {
+        message: "No device IDs could be resolved from the provided Cohort IDs",
+      },
+    };
   }
 };
 const processAirQloudIds = async (airqloud_ids, request) => {
@@ -1469,6 +1497,166 @@ const createEvent = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getRepresentativeAirQuality: async (request, next) => {
+    try {
+      const { tenant, grid_id, cohort_id } = request.query;
+
+      if ((grid_id && cohort_id) || (!grid_id && !cohort_id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message: "Provide either grid_id or cohort_id, but not both.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      let site_ids = [];
+
+      if (grid_id) {
+        const sitesResponse = await createEvent.processGridIds(
+          grid_id,
+          request,
+          next
+        );
+        if (sitesResponse && sitesResponse.success === false) {
+          return sitesResponse;
+        }
+        if (request.query.site_id) {
+          site_ids = request.query.site_id.split(",");
+        }
+      } else if (cohort_id) {
+        const devicesResponse = await createEvent.processCohortIds(
+          cohort_id,
+          request,
+          next
+        );
+        if (devicesResponse && devicesResponse.success === false) {
+          return devicesResponse;
+        }
+        if (request.query.device_id) {
+          const deviceIds = request.query.device_id.split(",");
+          try {
+            const devices = await DeviceModel(tenant)
+              .find({ _id: { $in: deviceIds } })
+              .select("site_id")
+              .lean();
+            site_ids = devices
+              .map((d) => d.site_id)
+              .filter((id) => id)
+              .map((id) => id.toString());
+          } catch (error) {
+            logger.error(
+              `🐛🐛 DB error fetching devices for cohort: ${error.message}`
+            );
+            // Re-throw the error to be caught by the main handler
+            throw error;
+          }
+        }
+      }
+
+      if (site_ids.length === 0) {
+        return {
+          success: true,
+          message: "No sites found for the provided Grid or Cohort ID.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      // Optimization: Use aggregation to fetch only the latest reading per site
+      // from the last 3 days, instead of all historical data.
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const latestReadings = await ReadingModel(tenant).aggregate([
+        {
+          $match: {
+            site_id: { $in: site_ids },
+            time: { $gte: threeDaysAgo },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+      ]);
+
+      if (isEmpty(latestReadings)) {
+        return {
+          success: true,
+          message: "No recent readings available for the specified group.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      const backgroundSitesReadings = latestReadings.filter(
+        (reading) =>
+          reading.siteDetails &&
+          reading.siteDetails.site_category &&
+          typeof reading.siteDetails.site_category.category === "string" &&
+          reading.siteDetails.site_category.category
+            .toLowerCase()
+            .includes("background")
+      );
+
+      // Helper to ensure we only process readings with a valid pm2_5 value
+      const hasValidPm25 = (reading) =>
+        reading && reading.pm2_5 && typeof reading.pm2_5.value === "number";
+
+      let representativeReading;
+
+      const validBackgroundReadings = backgroundSitesReadings.filter(
+        hasValidPm25
+      );
+
+      if (validBackgroundReadings.length > 0) {
+        representativeReading = validBackgroundReadings.reduce((max, curr) =>
+          max.pm2_5.value > curr.pm2_5.value ? max : curr
+        );
+      } else {
+        const validLatestReadings = latestReadings.filter(hasValidPm25);
+        if (validLatestReadings.length > 0) {
+          representativeReading = validLatestReadings.reduce((max, curr) =>
+            max.pm2_5.value > curr.pm2_5.value ? max : curr
+          );
+        } else {
+          // No valid readings found at all
+          return {
+            success: true,
+            message:
+              "No valid PM2.5 readings available for the specified group.",
+            data: {},
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: representativeReading,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getRepresentativeAirQuality -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -2424,7 +2612,7 @@ const createEvent = {
       return;
     }
   },
-  read: async (request, next) => {
+  read: async (request, filter = {}, next) => {
     try {
       let missingDataMessage = "";
       const {
@@ -2448,7 +2636,7 @@ const createEvent = {
 
       const readingsResponse = await ReadingModel(tenant).recent(
         {
-          filter: {},
+          filter,
           skip: skip || 0,
           limit: limit || 1000,
         },

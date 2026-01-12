@@ -6,15 +6,29 @@ from django.db.models.query import QuerySet
 from typing import Any, ClassVar, Optional, List
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.response import Response
 
-from apps.faqs.models import FAQ
-from ..serializers.faqs import FAQListSerializer, FAQDetailSerializer
+from apps.faqs.models import FAQ, Category
+from ..serializers.faqs import FAQListSerializer, FAQDetailSerializer, CategorySerializer
 from ..filters.faqs import FAQFilterSet
 from ..pagination import StandardPageNumberPagination
-from ..utils import OptimizedQuerySetMixin
+from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
 
 
-class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class CategoryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for Category model
+    """
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    pagination_class = StandardPageNumberPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['id', 'name']
+    ordering = ['name']
+
+
+class FAQViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for FAQ model
 
@@ -42,6 +56,7 @@ class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         'id',
         'order',
         'question',
+        'category',
         'is_active',
         'created_at',
         'updated_at',
@@ -57,6 +72,7 @@ class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         'id',
         'question',
         'answer',
+        'category__name',
         'is_active',
         'created_at',
         'updated_at'
@@ -83,3 +99,24 @@ class FAQViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(is_active=True)
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Cached list view"""
+        cache_key = self.get_cache_key('faq_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        """Cached detail view"""
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('faq_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response

@@ -1010,7 +1010,99 @@ const generateFilter = {
 
     return filter;
   },
+  logs: (req, next) => {
+    try {
+      const {
+        device_id,
+        site_id,
+        user_id,
+        device_name,
+        activity_type,
+        activity_tags,
+        maintenance_type,
+        recall_type,
+        start_date,
+        end_date,
+      } = req.query;
 
+      let filter = {};
+
+      if (device_id) {
+        filter.entity_id = device_id;
+        filter.entity_type = "DEVICE";
+      } else if (site_id) {
+        filter.entity_id = site_id;
+        filter.entity_type = "SITE";
+      }
+
+      if (user_id) {
+        filter["metadata.user_id"] = user_id;
+      }
+
+      if (device_name) {
+        filter["metadata.device_name"] = device_name;
+      }
+
+      if (activity_type) {
+        filter.operation_type = activity_type.toUpperCase();
+      }
+
+      if (activity_tags) {
+        const tagsArray = activity_tags.split(",").map((tag) => tag.trim());
+        filter["metadata.tags"] = { $in: tagsArray };
+      }
+
+      if (maintenance_type) {
+        filter["metadata.maintenance_type"] = maintenance_type;
+      }
+
+      if (recall_type) {
+        filter["metadata.recall_type"] = recall_type;
+      }
+
+      if (start_date && end_date) {
+        const startDateObj = new Date(start_date);
+        const endDateObj = new Date(end_date);
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "start_date and end_date must be valid ISO date strings",
+          });
+        }
+        filter.timestamp = {
+          $gte: startDateObj,
+          $lte: endDateObj,
+        };
+      } else if (start_date) {
+        const startDateObj = new Date(start_date);
+        if (isNaN(startDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "start_date must be a valid ISO date string",
+          });
+        }
+        filter.timestamp = { $gte: startDateObj };
+      } else if (end_date) {
+        const endDateObj = new Date(end_date);
+        if (isNaN(endDateObj.getTime())) {
+          throw new HttpError("Invalid date format", httpStatus.BAD_REQUEST, {
+            message: "end_date must be a valid ISO date string",
+          });
+        }
+        filter.timestamp = { $lte: endDateObj };
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   fetch: (request, next) => {
     const { query, params } = request;
     const {
@@ -1457,6 +1549,9 @@ const generateFilter = {
       last_active_after,
       serial_number,
       mobility,
+      isOnline,
+      rawOnlineStatus,
+      cohort_id,
       authRequired,
       deployment_type_include_legacy,
     } = { ...req.query, ...req.params };
@@ -1596,6 +1691,20 @@ const generateFilter = {
       }
     }
 
+    if (isOnline !== undefined) {
+      const boolValue = toBooleanSafe(isOnline);
+      if (boolValue !== undefined) {
+        filter.isOnline = boolValue;
+      }
+    }
+
+    if (rawOnlineStatus !== undefined) {
+      const boolValue = toBooleanSafe(rawOnlineStatus);
+      if (boolValue !== undefined) {
+        filter.rawOnlineStatus = boolValue;
+      }
+    }
+
     if (category || device_category) {
       const categoryValue = category || device_category;
       filter["category"] = categoryValue;
@@ -1684,6 +1793,20 @@ const generateFilter = {
         filter.status = { $in: validStatusArray };
       }
     }
+
+    if (cohort_id) {
+      if (typeof cohort_id === "string" && cohort_id.includes(",")) {
+        const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
+        filter.cohorts = { $in: cohortIds };
+      } else {
+        // To support both single ID and array for consistency in the Device model,
+        // we can use $in for a single ID as well.
+        // This also helps prevent errors if a non-array value is somehow stored.
+        filter.cohorts = {
+          $in: [ObjectId(cohort_id.trim())],
+        };
+      }
+    }
     return filter;
   },
   sites: (req, next) => {
@@ -1711,6 +1834,8 @@ const generateFilter = {
       last_active,
       last_active_before,
       last_active_after,
+      isOnline,
+      rawOnlineStatus,
     } = { ...req.query, ...req.params };
     const filter = {};
 
@@ -1796,6 +1921,31 @@ const generateFilter = {
         filter["isOnline"] = true;
       } else if (online_status.toLowerCase() === "offline") {
         filter["isOnline"] = false;
+      }
+    }
+
+    const toBooleanSafe = (value) => {
+      if (value === undefined) return undefined;
+      if (typeof value === "boolean") return value;
+      const stringValue = String(value)
+        .toLowerCase()
+        .trim();
+      if (["true", "yes", "1"].includes(stringValue)) return true;
+      if (["false", "no", "0"].includes(stringValue)) return false;
+      return undefined;
+    };
+
+    if (isOnline !== undefined) {
+      const boolValue = toBooleanSafe(isOnline);
+      if (boolValue !== undefined) {
+        filter.isOnline = boolValue;
+      }
+    }
+
+    if (rawOnlineStatus !== undefined) {
+      const boolValue = toBooleanSafe(rawOnlineStatus);
+      if (boolValue !== undefined) {
+        filter.rawOnlineStatus = boolValue;
       }
     }
 
@@ -2017,15 +2167,22 @@ const generateFilter = {
       ];
     }
 
+    // Establish a clear priority for identifiers: id > cohort_id > name
     if (id) {
-      filter["_id"] = ObjectId(id);
-    }
-
-    if (cohort_id) {
-      filter["_id"] = ObjectId(cohort_id);
-    }
-
-    if (name) {
+      filter._id = ObjectId(id);
+    } else if (cohort_id) {
+      if (typeof cohort_id === "string" && cohort_id.includes(",")) {
+        const cohortIds = cohort_id
+          .split(",")
+          .map((id) => id.trim())
+          .map((id) => ObjectId(id));
+        if (cohortIds.length > 0) {
+          filter._id = { $in: cohortIds };
+        }
+      } else {
+        filter._id = ObjectId(cohort_id);
+      }
+    } else if (name) {
       filter["name"] = name;
     }
 

@@ -25,8 +25,7 @@ const { validate, headers, pagination } = require("@validators/common");
 const { strictRateLimiter } = require("@middleware/rate-limit.middleware");
 
 // Apply common middleware
-router.use(headers);
-router.use(validatePagination);
+router.use(headers); // Keep headers global
 
 /******************** tokens ***********************************/
 // List all tokens
@@ -37,6 +36,7 @@ router.get(
   "/expired",
   validateTenant,
   enhancedJWTAuth,
+  pagination(), // Apply pagination here
   createTokenController.listExpired
 );
 
@@ -44,6 +44,7 @@ router.get(
 router.get(
   "/expiring",
   validateTenant,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   createTokenController.listExpiring
 );
@@ -52,6 +53,7 @@ router.get(
 router.get(
   "/unknown-ip",
   validateTenant,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   createTokenController.listUnknownIPs
 );
@@ -132,6 +134,7 @@ router.delete(
 router.get(
   "/blacklist-ip",
   validateTenant,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   createTokenController.listBlacklistedIp
 );
@@ -161,6 +164,7 @@ router.delete(
 router.get(
   "/blacklist-ip-range",
   validateTenant,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   createTokenController.listBlacklistedIpRange
 );
@@ -192,6 +196,7 @@ router.delete(
 router.get(
   "/whitelist-ip",
   validateTenant,
+  pagination(),
   enhancedJWTAuth,
   createTokenController.listWhitelistedIp
 );
@@ -224,6 +229,7 @@ router.delete(
 router.get(
   "/ip-prefix",
   validateTenant,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   createTokenController.listIpPrefix
 );
@@ -253,6 +259,7 @@ router.delete(
 router.get(
   "/blacklist-ip-prefix",
   validateTenant,
+  pagination(), // Apply pagination here
   enhancedJWTAuth,
   createTokenController.listBlacklistedIpPrefix
 );
@@ -262,6 +269,7 @@ router.get(
   "/:token",
   validateTenant,
   validateTokenParam,
+  // No pagination for single item retrieval
   enhancedJWTAuth,
   createTokenController.list
 );

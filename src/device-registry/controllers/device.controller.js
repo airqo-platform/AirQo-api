@@ -49,6 +49,53 @@ function handleResponse({
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
 
+const listDevicesByStatus = async (
+  req,
+  res,
+  next,
+  statusFilters,
+  logMessage
+) => {
+  try {
+    logText(logMessage);
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+
+    const request = req;
+    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+    request.query.tenant = isEmpty(req.query.tenant)
+      ? defaultTenant
+      : req.query.tenant;
+
+    // Apply status-specific filters and default detail level
+    Object.assign(request.query, statusFilters, { detailLevel: "summary" });
+
+    const result = await createDeviceUtil.list(request, next);
+
+    if (result.success === true) {
+      const status = result.status ? result.status : httpStatus.OK;
+      return res.status(status).json({
+        success: true,
+        message: result.message,
+        meta: result.meta || {},
+        devices: result.data,
+      });
+    }
+
+    handleResponse({ result, res, key: "devices" });
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 const deviceController = {
   getDeviceCountSummary: async (req, res, next) => {
     try {
@@ -102,6 +149,75 @@ const deviceController = {
       );
     }
   },
+  listOrphanedDevices: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.listOrphanedDevices(request, next);
+      handleResponse({ result, res, key: "devices" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+  listOperationalDevices: async (req, res, next) => {
+    await listDevicesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: true, rawOnlineStatus: true },
+      "listing operational devices..."
+    );
+  },
+  listTransmittingDevices: async (req, res, next) => {
+    await listDevicesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: false, rawOnlineStatus: true },
+      "listing transmitting devices..."
+    );
+  },
+  listDataAvailableDevices: async (req, res, next) => {
+    await listDevicesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: true, rawOnlineStatus: false },
+      "listing data available devices..."
+    );
+  },
+  listNotTransmittingDevices: async (req, res, next) => {
+    await listDevicesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: false, rawOnlineStatus: false },
+      "listing not transmitting devices..."
+    );
+  },
+
   getDeviceDetailsById: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -1406,14 +1522,85 @@ const deviceController = {
       const result = await createDeviceUtil.claimDevice(request, next);
       handleResponse({ result, res });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (error instanceof HttpError) {
+        next(error);
+      } else {
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+    }
+  },
+
+  bulkClaimDevice: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.bulkClaim(request, next);
+      handleResponse({ res, result });
+    } catch (error) {
+      if (error instanceof HttpError) {
+        next(error);
+      } else {
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+    }
+  },
+  transferDevice: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.transferDevice(request, next);
+      handleResponse({ result, res });
+    } catch (error) {
+      if (error instanceof HttpError) {
+        next(error);
+      } else {
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
     }
   },
 
@@ -1501,25 +1688,15 @@ const deviceController = {
 
   assignDeviceToOrganization: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await createDeviceUtil.assignDeviceToOrganization(
-        request,
-        next
-      );
-      handleResponse({ result, res });
+      return res.status(httpStatus.GONE).json({
+        success: false,
+        message:
+          "This endpoint is deprecated and will be removed in a future version.",
+        errors: {
+          message:
+            "Device-to-organization assignment is now managed through Cohorts. Please assign the device's cohort to the desired organization (Group) via the appropriate Cohort management endpoints.",
+        },
+      });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1794,6 +1971,46 @@ const deviceController = {
       );
     }
   },
+
+  createShippingBatch: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.createShippingBatch(request, next);
+
+      if (result.success) {
+        return res.status(result.status || httpStatus.CREATED).json({
+          success: true,
+          message: result.message,
+          batch_creation_results: result.data,
+        });
+      } else {
+        return res
+          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+          .json({
+            success: false,
+            message: result.message,
+            errors: result.errors,
+          });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Create Shipping Batch Error ${error.message}`);
+      next(error);
+    }
+  },
+
   getShippingPreparationStatus: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1869,6 +2086,114 @@ const deviceController = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Generate Shipping Labels Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listShippingBatches: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.listShippingBatches(request, next);
+
+      return res.status(result.status || httpStatus.OK).json({
+        success: result.success,
+        message: result.message,
+        batches: result.data,
+        meta: result.meta,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 List Shipping Batches Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getShippingBatchDetails: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.getShippingBatchDetails(
+        request,
+        next
+      );
+      handleResponse({ result, res, key: "batch" });
+    } catch (error) {
+      // Let the utility's error handling pass through
+      next(error);
+    }
+  },
+  removeDevicesFromShippingBatch: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.removeDevicesFromShippingBatch(
+        request,
+        next
+      );
+
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else {
+        return res
+          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+          .json({
+            success: false,
+            message: result.message,
+            errors: result.errors,
+          });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Remove Devices From Batch Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

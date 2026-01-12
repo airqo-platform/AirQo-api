@@ -12,8 +12,9 @@ from .constants import (
     DeviceNetwork,
     QueryType,
     MetaDataType,
+    Frequency,
 )
-from .date import date_to_str
+from .date import DateUtils
 from .utils import Utils
 import logging
 
@@ -136,6 +137,8 @@ class BigQueryApi:
         date_time_columns=None,
         float_columns=None,
         integer_columns=None,
+        record_columns=None,
+        repeated_columns=None,
     ) -> pd.DataFrame:
         """
         Validates and formats the data in the given DataFrame based on the schema of a specified table.
@@ -190,6 +193,19 @@ class BigQueryApi:
             if integer_columns
             else self.get_columns(table=table, column_type=[ColumnDataType.INTEGER])
         )
+
+        record_columns = (
+            record_columns
+            if record_columns
+            else self.get_columns(table=table, column_type=[ColumnDataType.RECORD])
+        )
+
+        repeated_columns = (
+            repeated_columns
+            if repeated_columns
+            else self.get_columns(table=table, column_type=[ColumnDataType.REPEATED])
+        )
+
         # Importing here to avoid circular import issues
         # TODO: Refactor to avoid circular imports
         from .data_validator import DataValidationUtils
@@ -199,14 +215,15 @@ class BigQueryApi:
             floats=float_columns,
             integers=integer_columns,
             timestamps=date_time_columns,
+            records=record_columns,
+            repeated=repeated_columns,
         )
         # Ensure this does not raise an exception for complex data types i.e objects like lists and dicts
-        # TODO : Handle complex data types properly
+        # TODO : Handle complex data types properly or place else where
         try:
             dataframe.drop_duplicates(keep="first", inplace=True)
         except Exception as e:
             logger.exception(f"Error formatting complex data types: {e}")
-
         return dataframe
 
     def get_columns(
@@ -225,6 +242,7 @@ class BigQueryApi:
             List[str]: A list of column names that match the passed specifications.
         """
         schema_file = self.schema_mapping.get(table, None)
+        columns: List[str] = []
 
         if schema_file is None and table != "all":
             raise Exception("Invalid table")
@@ -247,6 +265,8 @@ class BigQueryApi:
                 "bam_measurements",
                 "bam_raw_measurements",
                 "daily_24_hourly_forecasts",
+                "device_computed_metadata",
+                "measurements_baseline",
             ]:
                 file_schema = Utils.load_schema(file_name=f"{file}.json")
                 schema.extend(file_schema)
@@ -254,18 +274,31 @@ class BigQueryApi:
         # Convert column_type list to strings for comparison
         column_type_strings = [ct.str.upper() for ct in column_type]
 
-        # Retrieve columns that match any of the specified types or match ColumnDataType.NONE
-        columns: List[str] = list(
-            set(
-                [
-                    column["name"]
-                    for column in schema
-                    if ColumnDataType.NONE in column_type
-                    or column["type"] in column_type_strings
-                ]
-            )
-        )
-        return columns
+        # Collect all matching columns
+        columns = set()
+
+        for column in schema:
+            col_type = column.get("type", "").upper()
+            col_mode = column.get("mode", "NULLABLE").upper()
+            col_name = column["name"]
+
+            # Match RECORD types with NULLABLE mode
+            if ColumnDataType.RECORD in column_type:
+                if col_type == "RECORD" and col_mode == "NULLABLE":
+                    columns.add(col_name)
+                continue
+
+            # Match RECORD types with REPEATED mode
+            if ColumnDataType.REPEATED in column_type:
+                if col_type == "RECORD" and col_mode == "REPEATED":
+                    columns.add(col_name)
+                continue
+
+            # Match standard data types or NONE (all columns)
+            if ColumnDataType.NONE in column_type or col_type in column_type_strings:
+                columns.add(col_name)
+
+        return list(columns)
 
     def load_data(
         self,
@@ -287,14 +320,17 @@ class BigQueryApi:
         """
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
-
         job_config = bigquery.LoadJobConfig(
             write_disposition=job_action.get_name(),
         )
-        job = self.client.load_table_from_dataframe(
-            dataframe, table, job_config=job_config
-        )
-        job.result()
+        try:
+            job = self.client.load_table_from_dataframe(
+                dataframe, table, job_config=job_config
+            )
+            job.result()
+        except google_api_exceptions.GoogleCloudError as e:
+            logger.exception(f"BigQuery load job failed: {e}")
+            raise
 
         destination_table = self.client.get_table(table)
         logger.info(f"Loaded {len(dataframe)} rows to {table}")
@@ -577,6 +613,7 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
+        primary_datetime_column: Optional[str] = "timestamp",
         network: Optional[DeviceNetwork] = None,
         where_fields: Optional[Dict[str, str | int | tuple]] = None,
         null_cols: Optional[List] = None,
@@ -609,7 +646,7 @@ class BigQueryApi:
         where_fields = {} if where_fields is None else where_fields
 
         columns = ", ".join(map(str, columns)) if columns else " * "
-        where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
+        where_clause = f" {primary_datetime_column} between '{start_date_time}' and '{end_date_time}' "
 
         if network:
             where_clause += f"AND network = '{network.str}' "
@@ -651,6 +688,7 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
+        primary_datetime_column: Optional[List[str]] = "timestamp",
         network: Optional[DeviceNetwork] = None,
         start_date_time: Optional[str] = None,
         end_date_time: Optional[str] = None,
@@ -666,6 +704,7 @@ class BigQueryApi:
         Args:
             dataframe (pd.DataFrame): The data to be reloaded into the table.
             table (str): The target table in BigQuery.
+            primary_datetime_column (str, optional): The name of the datetime column in the DataFrame to derive the date range. Defaults to "timestamp".
             network (DeviceNetwork, optional): The network filter to be applied. Defaults to "all".
             start_date_time (str, optional): The start of the date range for deletion. If None, inferred from the DataFrame's earliest timestamp.
             end_date_time (str, optional): The end of the date range for deletion. If None, inferred from the DataFrame's latest timestamp.
@@ -677,18 +716,28 @@ class BigQueryApi:
 
         Raises:
             ValueError: If `timestamp` column is missing in the DataFrame.
+
+        Notes:
+            This approach to reloading data depends on the presence of a datetime column to define the scope of data to be deleted.
+            Ensure that the DataFrame contains valid datetime values in the specified column.
         """
 
         if start_date_time is None or end_date_time is None:
-            if "timestamp" not in dataframe.columns:
+            if primary_datetime_column not in dataframe.columns:
                 raise ValueError(
                     "The DataFrame must contain a 'timestamp' column to derive the date range."
                 )
 
-            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+            dataframe[primary_datetime_column] = pd.to_datetime(
+                dataframe[primary_datetime_column], errors="coerce"
+            )
             try:
-                start_date_time = date_to_str(dataframe["timestamp"].min())
-                end_date_time = date_to_str(dataframe["timestamp"].max())
+                start_date_time = DateUtils.date_to_str(
+                    dataframe[primary_datetime_column].min()
+                )
+                end_date_time = DateUtils.date_to_str(
+                    dataframe[primary_datetime_column].max()
+                )
             except Exception as e:
                 logger.exception(f"Time conversion error {e}")
 
@@ -698,6 +747,7 @@ class BigQueryApi:
             network=network,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            primary_datetime_column=primary_datetime_column,
             where_fields=where_fields,
             null_cols=null_cols,
         )
@@ -919,7 +969,8 @@ class BigQueryApi:
                         f"COUNT({v}) AS sample_count_{v}, "
                         f"MAX({v}) AS maximum_{v}, "
                         f"MIN({v}) AS minimum_{v}, "
-                        f"AVG({v}) AS average_{v}"
+                        f"AVG({v}) AS average_{v}, "
+                        f"STDDEV_POP({v}) AS stddev_{v}"
                     )
                     pollutants_list.append(v)
 
@@ -955,11 +1006,21 @@ class BigQueryApi:
                         "sample_count": raw_df[f"sample_count_{key}"].iloc[0]
                         if f"sample_count_{key}" in raw_df
                         else None,
+                        "stddev": raw_df[f"stddev_{key}"].iloc[0]
+                        if f"stddev_{key}" in raw_df
+                        else None,
                     }
                 )
         result_df = pd.DataFrame(
             result_rows,
-            columns=["pollutant", "minimum", "maximum", "average", "sample_count"],
+            columns=[
+                "pollutant",
+                "minimum",
+                "maximum",
+                "average",
+                "sample_count",
+                "stdv",
+            ],
         )
         return result_df
 
@@ -1082,13 +1143,16 @@ class BigQueryApi:
             ],
         )
 
-    def fetch_most_recent_record(
+    def fetch_record_by_order(
         self,
         table: str,
         unique_id: str,
         offset_column: Optional[str] = "timestamp",
         columns: Optional[List[str]] = None,
+        frequency: Optional[Frequency] = Frequency.WEEKLY,
         filter: Optional[Dict[str, Any]] = None,
+        baseline_run: Optional[bool] = False,
+        order: Optional[str] = "DESC",
     ) -> pd.DataFrame:
         """
         Fetches the most recent record for each unique identifier from a specified BigQuery table.
@@ -1098,7 +1162,9 @@ class BigQueryApi:
             unique_id (str): The column name representing the unique identifier for partitioning.
             offset_column (str): The column name used to determine the most recent record (e.g., a timestamp column).
             columns (Optional[List[str]]): A list of column names to include in the query. If None, selects all columns.
+            frequency (Frequency): An Enum representing the frequency type to filter the baseline_type column.
             filter (Optional[Dict[str, Any]]): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value.
+            order (str): The order in which to sort the offset_column ('ASC' or 'DESC').
 
         Returns:
             pd.DataFrame: A DataFrame containing the most recent record for each unique identifier.
@@ -1106,12 +1172,12 @@ class BigQueryApi:
         Raises:
             google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
-        where_clause: str = ""
+        where_clause: str = "WHERE "
         query_params: list = []
         filter, filter_val = next(iter(filter.items()))
-        if filter:
+        if filter and filter_val:
             if isinstance(filter_val, str):
-                where_clause = f"WHERE {filter} = @filter_value"
+                where_clause = f" {filter} = @filter_value"
                 query_params.append(
                     bigquery.ScalarQueryParameter("filter_value", "STRING", filter_val)
                 )
@@ -1119,11 +1185,17 @@ class BigQueryApi:
                 for val in filter_val:
                     if not isinstance(val, str):
                         raise ValueError("Filter values must be strings.")
-                    where_clause += f"WHERE {filter} = @filter_value OR "
+                    where_clause += f" {filter} = @filter_value OR "
                     query_params.append(
                         bigquery.ScalarQueryParameter("filter_value", "STRING", val)
                     )
                 where_clause = where_clause.rstrip(" OR ")
+            where_clause += " AND "
+
+        where_clause += f"baseline_type = '{frequency.str}'"
+
+        if baseline_run:
+            where_clause += " AND auto_baseline_computed = False"
 
         selected_columns = ", ".join(columns) if columns else "*"
 
@@ -1131,7 +1203,7 @@ class BigQueryApi:
         SELECT {selected_columns}
         FROM `{table}`
         {where_clause}
-        QUALIFY ROW_NUMBER() OVER (PARTITION BY {unique_id} ORDER BY {offset_column} DESC) = 1;
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY {unique_id} ORDER BY {offset_column} {order}) = 1;
         """
 
         try:
@@ -1462,3 +1534,155 @@ class BigQueryApi:
             .to_dataframe()
         )
         return data
+
+    def batch_update_records(
+        self,
+        table: str,
+        update_fields: Dict[str, Any],
+        where_conditions: Dict[str, Any],
+    ) -> int:
+        """
+        Do not use this method for updates where each record may have different values for the update fields.
+        Updates specific columns in a BigQuery table based on provided conditions. This sets a single or multiple fields to a new value for all records that match the specified criteria.
+        This method constructs and executes a dynamic UPDATE query to modify records that match the specified WHERE conditions. Supports parameterized queries for security and performance.
+
+        Args:
+            table(str): The fully qualified BigQuery table name (e.g., "project.dataset.table").
+            update_fields(Dict[str, Any]): Dictionary of column names and their new values. Example: {"auto_baseline_computed": True, "last_updated": datetime.now()}
+            where_conditions (Dict[str, Any]): Dictionary of conditions for the WHERE clause.
+                                            Supports:
+                                            - str/int/float/bool: Exact match (column = value) i.e {"device_id": "aq_001", "baseline_type": "weekly"}
+                                              For exact matches, the conditions are combined using AND.
+                                            - list: IN clause (column IN (value1, value2, ...)) i.e {"device_id": ["aq_001", "aq_002"]}
+                                            - tuple: Range/comparison (column BETWEEN value1 AND value2)
+                                            Example: {"device_id": "aq_001", "baseline_type": "weekly"}
+
+        Returns:
+            int: The number of rows updated.
+
+        Raises:
+            ValueError: If update_fields or where_conditions are empty.
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+
+        Notes:
+            - This method uses parameterized queries to prevent SQL injection and improve performance.
+            - Ensure that the BigQuery client has the necessary permissions to perform UPDATE operations on the specified table.
+            - Do not use this method for updates where each record may have different values for the update field(s).
+        """
+        if not update_fields:
+            raise ValueError("update_fields cannot be empty")
+
+        if not where_conditions:
+            raise ValueError("where_conditions cannot be empty")
+
+        # Build SET clause
+        set_parts = []
+        query_params = []
+        param_counter = 0
+
+        for column, value in update_fields.items():
+            param_name = f"update_param_{param_counter}"
+            set_parts.append(f"{column} = @{param_name}")
+
+            # Determine parameter type
+            param_type = self._get_bigquery_type(value)
+            query_params.append(
+                bigquery.ScalarQueryParameter(param_name, param_type, value)
+            )
+            param_counter += 1
+
+        set_clause = ", ".join(set_parts)
+
+        # Build WHERE clause
+        where_parts = []
+
+        for column, value in where_conditions.items():
+            if isinstance(value, list):
+                # IN clause with array parameter
+                param_name = f"where_param_{param_counter}"
+                where_parts.append(f"{column} IN UNNEST(@{param_name})")
+
+                # Determine the type of the first element
+                element_type = self._get_bigquery_type(value[0]) if value else "STRING"
+                query_params.append(
+                    bigquery.ArrayQueryParameter(param_name, element_type, value)
+                )
+                param_counter += 1
+            elif isinstance(value, tuple) and len(value) == 2:
+                # BETWEEN clause with two parameters
+                param_name_start = f"where_param_{param_counter}"
+                param_name_end = f"where_param_{param_counter + 1}"
+                where_parts.append(
+                    f"{column} BETWEEN @{param_name_start} AND @{param_name_end}"
+                )
+
+                param_type = self._get_bigquery_type(value[0])
+                query_params.append(
+                    bigquery.ScalarQueryParameter(
+                        param_name_start, param_type, value[0]
+                    )
+                )
+                query_params.append(
+                    bigquery.ScalarQueryParameter(param_name_end, param_type, value[1])
+                )
+                param_counter += 2
+            else:
+                # Exact match
+                param_name = f"where_param_{param_counter}"
+                where_parts.append(f"{column} = @{param_name}")
+
+                param_type = self._get_bigquery_type(value)
+                query_params.append(
+                    bigquery.ScalarQueryParameter(param_name, param_type, value)
+                )
+                param_counter += 1
+
+        where_clause = " AND ".join(where_parts)
+
+        query = f"""
+        UPDATE `{table}`
+        SET {set_clause}
+        WHERE {where_clause}
+        """
+        try:
+
+            job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+            query_job = self.client.query(query, job_config=job_config)
+
+            query_job.result()
+
+            rows_updated = query_job.num_dml_affected_rows
+            logger.info(f"Updated {rows_updated} rows in {table}")
+
+            return rows_updated
+        except Exception as e:
+            logger.exception(f"Error updating records in BigQuery table {table}: {e}")
+            raise
+
+    def _get_bigquery_type(self, value: Any) -> str:
+        """
+        Determines the BigQuery parameter type based on the Python value type.
+
+        Args:
+            value (Any): The value to determine the type for.
+
+        Returns:
+            str: The BigQuery type string (e.g., "STRING", "INT64", "BOOL").
+        """
+        # TODO: use the  valid_cols = self.get_columns(table=table) to validate column names and types to avoid errors and raise an error before executing the query.
+        # Handle complex data types
+
+        if isinstance(value, bool):
+            return "BOOL"
+        elif isinstance(value, int):
+            return "INT64"
+        elif isinstance(value, float):
+            return "FLOAT64"
+        elif isinstance(value, str):
+            return "STRING"
+        elif isinstance(value, datetime):
+            return "TIMESTAMP"
+        elif isinstance(value, bytes):
+            return "BYTES"
+        else:
+            raise ValueError(f"Unsupported type for value {value}: {type(value)}")

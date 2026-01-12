@@ -77,6 +77,8 @@ BlacklistedIPRangeSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      const totalCount = await this.countDocuments(filter);
+
       logObject("filtering here", filter);
       const inclusionProjection = constants.IP_RANGES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.IP_RANGES_EXCLUSION_PROJECTION(
@@ -96,10 +98,19 @@ BlacklistedIPRangeSchema.statics = {
         .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "IP range", {
+      return {
+        success: true,
+        data: response,
         message: "successfully retrieved the range details",
-        emptyMessage: "No ips found, please crosscheck provided details",
-      });
+        status: httpStatus.OK,
+        meta: {
+          total: totalCount,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(totalCount / limit) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "IP range");
     }

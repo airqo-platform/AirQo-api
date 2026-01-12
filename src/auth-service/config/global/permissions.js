@@ -120,6 +120,12 @@ const PERMISSION_DEFINITIONS = [
   { name: "TOKEN_MANAGE", description: "Manage API tokens" },
   { name: "TOKEN_ANALYZE", description: "Analyze token usage" },
 
+  // Shipping Management
+  { name: "SHIPPING_VIEW", description: "View shipping information" },
+  { name: "SHIPPING_CREATE", description: "Create shipping batches" },
+  { name: "SHIPPING_EDIT", description: "Edit shipping information" },
+  { name: "SHIPPING_DELETE", description: "Delete shipping records" },
+
   // Legacy Permissions (to be phased out)
   {
     name: "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
@@ -255,7 +261,6 @@ const DEFAULT_ROLE_DEFINITIONS = {
       PERMISSIONS.DEVICE_VIEW,
       PERMISSIONS.DEVICE_CLAIM,
       PERMISSIONS.DEVICE_DEPLOY,
-      PERMISSIONS.NETWORK_VIEW,
       PERMISSIONS.API_ACCESS,
       PERMISSIONS.TOKEN_GENERATE,
     ],
@@ -265,11 +270,17 @@ const DEFAULT_ROLE_DEFINITIONS = {
     role_code: "DEFAULT_MEMBER",
     role_description: "Default Member role for an organization",
     permissions: [
+      PERMISSIONS.API_ACCESS,
+      PERMISSIONS.TOKEN_GENERATE,
+      PERMISSIONS.ANALYTICS_VIEW,
       PERMISSIONS.GROUP_VIEW,
       PERMISSIONS.MEMBER_VIEW,
       PERMISSIONS.DASHBOARD_VIEW,
       PERMISSIONS.DATA_VIEW,
+      PERMISSIONS.DATA_EXPORT,
       PERMISSIONS.DEVICE_VIEW,
+      PERMISSIONS.DEVICE_CLAIM,
+      PERMISSIONS.DEVICE_DEPLOY,
       PERMISSIONS.SITE_VIEW,
     ],
   },
@@ -342,6 +353,17 @@ const DEFAULTS = {
   DEFAULT_MEMBER: DEFAULT_ROLE_DEFINITIONS.DEFAULT_MEMBER.permissions,
 };
 
+const VALID_USER_TYPES = Object.freeze([
+  "guest",
+  "member",
+  "admin",
+  "super_admin",
+  "viewer",
+  "user",
+  "contributor",
+  "moderator",
+]);
+
 const DEFAULT_NETWORK_MEMBER_PERMISSIONS = [
   PERMISSIONS.DASHBOARD_VIEW,
   PERMISSIONS.DATA_VIEW,
@@ -359,9 +381,15 @@ const DEFAULT_NETWORK_MEMBER_PERMISSIONS = [
 const DEFAULT_MEMBER_PERMISSIONS = [
   PERMISSIONS.GROUP_VIEW,
   PERMISSIONS.MEMBER_VIEW,
+  PERMISSIONS.API_ACCESS,
+  PERMISSIONS.TOKEN_GENERATE,
+  PERMISSIONS.ANALYTICS_VIEW,
   PERMISSIONS.DASHBOARD_VIEW,
   PERMISSIONS.DATA_VIEW,
+  PERMISSIONS.DATA_EXPORT,
   PERMISSIONS.DEVICE_VIEW,
+  PERMISSIONS.DEVICE_CLAIM,
+  PERMISSIONS.DEVICE_DEPLOY,
   PERMISSIONS.SITE_VIEW,
 ];
 
@@ -384,6 +412,7 @@ const permissionsExport = {
   DEFAULTS,
   DEFAULT_NETWORK_MEMBER_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
+  VALID_USER_TYPES,
   DEPRECATED_ROLE_NAMES,
 };
 
@@ -423,6 +452,7 @@ module.exports = {
     DEFAULTS,
     DEFAULT_NETWORK_MEMBER_PERMISSIONS,
     DEFAULT_MEMBER_PERMISSIONS,
+    VALID_USER_TYPES,
     DEPRECATED_ROLE_NAMES,
   },
   ...permissionsExport,

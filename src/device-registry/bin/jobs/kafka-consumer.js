@@ -12,6 +12,9 @@ const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
+const CohortModel = require("@models/Cohort");
+const axios = require("axios");
+const createCohortUtil = require("@utils/cohort.util");
 
 const { stringify } = require("@utils/common");
 
@@ -392,6 +395,151 @@ const consumeForecasts = async (messageData) => {
   }
 };
 
+const handleGroupCreated = async (payload) => {
+  try {
+    const { groupId, groupName, tenant } = payload;
+
+    if (!groupId || !groupName || !tenant) {
+      logger.error(
+        `KAFKA-CONSUMER: Invalid group.created payload received: Missing required fields.`,
+        payload
+      );
+      return;
+    }
+
+    // 1. Validate that the group actually exists in the auth-service
+    let groupDetails;
+    try {
+      const response = await axios.get(
+        `${constants.AUTH_SERVICE_URL}/groups/${groupId}`,
+        {
+          headers: { "x-api-key": constants.INTER_SERVICE_TOKEN },
+          params: { tenant },
+        }
+      );
+      groupDetails = response.data.data;
+      if (isEmpty(groupDetails)) {
+        logger.warn(
+          `KAFKA-CONSUMER: Group with ID ${groupId} not found in auth-service for tenant ${tenant}. Skipping cohort creation.`
+        );
+        return;
+      }
+    } catch (error) {
+      logger.error(
+        `KAFKA-CONSUMER: Error fetching group details for ID ${groupId} from auth-service: ${error.message}`,
+        payload
+      );
+      // Stop processing if we can't verify the group
+      return;
+    }
+
+    const cohortName = `coh_group_${groupId}`;
+    const cohortDescription = `Default cohort for organization: ${groupName}`;
+
+    // 2. Check for idempotency: if a cohort with this name already exists, skip.
+    const existingCohort = await CohortModel(tenant).findOne({
+      name: cohortName,
+    });
+
+    if (existingCohort) {
+      logger.warn(
+        `KAFKA-CONSUMER: Cohort '${cohortName}' already exists for group ID ${groupId}. Skipping creation.`
+      );
+      return;
+    }
+
+    // 3. Create the default cohort
+    // Derive network from group data, fall back to tenant if not present
+    const network = groupDetails.network || tenant;
+
+    await CohortModel(tenant).create({
+      name: cohortName,
+      description: cohortDescription,
+      network: network,
+      grp_id: groupId, // Link the cohort to the group
+    });
+
+    logger.info(
+      `KAFKA-CONSUMER: Successfully created default cohort '${cohortName}' for group ID ${groupId} in network '${network}'.`
+    );
+  } catch (error) {
+    logger.error(
+      `KAFKA-CONSUMER: Error handling group.created event: ${error.message}`,
+      payload
+    );
+  }
+};
+
+const handleNetworkEvents = async (messageData) => {
+  try {
+    const { action, value } = JSON.parse(messageData);
+    const networkData = JSON.parse(value);
+
+    const request = {
+      query: { tenant: "airqo" }, // Assuming a default tenant
+      body: networkData,
+    };
+
+    let response;
+
+    switch (action) {
+      case "create":
+        logText("KAFKA-CONSUMER: Creating network in device-registry...");
+        response = await createCohortUtil.createNetwork(request, (err) => {
+          if (err) logger.error(`Error in createNetwork callback: ${err}`);
+        });
+        break;
+      case "update":
+        logText("KAFKA-CONSUMER: Updating network in device-registry...");
+        if (!networkData.net_name) {
+          logger.error(
+            `KAFKA-CONSUMER: Invalid message for network update - 'net_name' is missing.`
+          );
+          return;
+        }
+        request.query.name = networkData.net_name;
+        response = await createCohortUtil.updateNetwork(request, (err) => {
+          if (err) logger.error(`Error in updateNetwork callback: ${err}`);
+        });
+        break;
+      case "delete":
+        logText("KAFKA-CONSUMER: Deleting network from device-registry...");
+        if (!networkData.net_name) {
+          logger.error(
+            `KAFKA-CONSUMER: Invalid message for network delete - 'net_name' is missing.`
+          );
+          return;
+        }
+        request.query.name = networkData.net_name;
+        response = await createCohortUtil.deleteNetwork(request, (err) => {
+          if (err) logger.error(`Error in deleteNetwork callback: ${err}`);
+        });
+        break;
+      default:
+        logger.warn(
+          `KAFKA-CONSUMER: Unknown network action received: ${action}`
+        );
+        return;
+    }
+
+    if (response && response.success) {
+      logger.info(
+        `KAFKA-CONSUMER: Successfully processed network action '${action}' for network ID ${networkData._id}`
+      );
+    } else {
+      logger.error(
+        `KAFKA-CONSUMER: Failed to process network action '${action}' for network ID ${
+          networkData._id
+        }. Details: ${response ? response.message : "Unknown error"}`
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `🐛🐛 KAFKA-CONSUMER: Error processing network event: ${error.message}`
+    );
+  }
+};
+
 const kafkaConsumer = async () => {
   try {
     const kafka = new Kafka({
@@ -409,6 +557,8 @@ const kafkaConsumer = async () => {
     const topicOperations = {
       "hourly-measurements-topic": consumeHourlyMeasurements,
       "airqo.forecasts": consumeForecasts,
+      [constants.GROUPS_TOPIC]: handleGroupCreated,
+      [constants.NETWORK_EVENTS_TOPIC]: handleNetworkEvents,
     };
 
     await consumer.connect();
@@ -427,10 +577,14 @@ const kafkaConsumer = async () => {
           const operation = topicOperations[topic];
           if (operation) {
             const messageData = message.value.toString();
-            logger.debug(
-              `KAFKA: Processing message from topic: ${topic}, partition: ${partition}`
-            );
-            await operation(messageData);
+            if (topic === constants.GROUPS_TOPIC) {
+              const event = JSON.parse(messageData);
+              if (event.type === "group.created") {
+                await operation(event.payload);
+              }
+            } else {
+              await operation(messageData);
+            }
           } else {
             logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
           }

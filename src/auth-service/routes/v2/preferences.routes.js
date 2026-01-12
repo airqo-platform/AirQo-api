@@ -6,8 +6,7 @@ const preferenceValidations = require("@validators/preferences.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers);
-router.use(preferenceValidations.pagination(100, 1000));
+router.use(headers); // Keep headers global
 
 router.post(
   "/upsert",
@@ -35,8 +34,14 @@ router.put(
 
 router.post("/", preferenceValidations.create, preferenceController.create);
 
-router.get("/", preferenceValidations.list, preferenceController.list);
+router.get(
+  "/",
+  preferenceValidations.list,
+  pagination(),
+  preferenceController.list
+);
 
+// No pagination for DELETE
 router.delete(
   "/:user_id",
   preferenceValidations.deletePreference,
@@ -47,6 +52,7 @@ router.delete(
 router.get(
   "/selected-sites",
   preferenceValidations.getSelectedSites,
+  pagination(), // Apply pagination here
   preferenceController.listSelectedSites
 );
 
@@ -81,6 +87,7 @@ router.get(
 router.get(
   "/all/:user_id",
   preferenceValidations.getPreferenceByUserId,
+  pagination(),
   enhancedJWTAuth,
   preferenceController.listAll
 );
@@ -109,6 +116,7 @@ router.delete(
 router.get(
   "/:deviceId/charts",
   enhancedJWTAuth,
+  pagination(),
   preferenceValidations.getChartConfigurations,
   preferenceController.getChartConfigurations
 );
@@ -256,6 +264,7 @@ router.get(
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
+  pagination(),
   enhancedJWTAuth,
   preferenceController.list
 );
