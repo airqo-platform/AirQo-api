@@ -162,6 +162,7 @@ startJob();
 
 const handleShutdown = async (signal) => {
   logText(`Received ${signal}. Shutting down ${JOB_NAME} gracefully...`);
+  global.isShuttingDown = true;
   if (global.cronJobs && global.cronJobs[JOB_NAME]) {
     await global.cronJobs[JOB_NAME].stop();
   }
