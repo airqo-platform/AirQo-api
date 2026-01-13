@@ -3,6 +3,7 @@ const Schema = mongoose.Schema;
 const ObjectId = mongoose.ObjectId;
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
+const httpStatus = require("http-status");
 const {
   createSuccessResponse,
   createErrorResponse,
