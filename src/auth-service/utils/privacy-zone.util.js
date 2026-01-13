@@ -228,11 +228,19 @@ const privacyZone = {
         filter.isSharedWithResearchers = true;
       }
 
-      return await LocationDataModel(tenant).list({
+      const response = await LocationDataModel(tenant).list({
         filter,
         skip,
         limit,
       });
+
+      if (response.success) {
+        return {
+          ...response,
+          data: response.data,
+        };
+      }
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
