@@ -250,7 +250,7 @@ const mainJobWrapper = async () => {
       MAIN_JOB_LOG_TYPE
     );
     if (!shouldRun) {
-      logger.info(`Skipping ${MAIN_JOB_NAME} execution to prevent duplicates.`);
+      logText(`Skipping ${MAIN_JOB_NAME} execution to prevent duplicates.`);
       return;
     }
   } catch (error) {
@@ -277,9 +277,7 @@ const summaryJobWrapper = async () => {
       SUMMARY_JOB_LOG_TYPE
     );
     if (!shouldRun) {
-      logger.info(
-        `Skipping ${SUMMARY_JOB_NAME} execution to prevent duplicates.`
-      );
+      logText(`Skipping ${SUMMARY_JOB_NAME} execution to prevent duplicates.`);
       return;
     }
   } catch (error) {
