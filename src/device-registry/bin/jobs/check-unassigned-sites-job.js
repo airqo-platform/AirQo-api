@@ -92,17 +92,17 @@ const jobWrapper = async () => {
   try {
     const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
     if (!shouldRun) {
-      logger.info(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
+      logText(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
       return;
     }
   } catch (error) {
-    logger.warn(
+    logText(
       `Distributed lock check failed: ${error.message}. Proceeding with execution.`
     );
   }
 
   if (isJobRunning) {
-    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
+    logText(`${JOB_NAME} is already running, skipping this execution`);
     return;
   }
 

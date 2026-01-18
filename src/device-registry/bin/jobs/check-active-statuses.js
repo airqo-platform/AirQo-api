@@ -23,7 +23,7 @@ const checkActiveStatuses = async () => {
   try {
     const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
     if (!shouldRun) {
-      logger.info(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
+      logText(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
       return;
     }
 
