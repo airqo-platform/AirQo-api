@@ -31,7 +31,7 @@ def verify_map_view_sites():
         if results:
             sample = results[0]
             print("\nSample Device Data:")
-            print(f"Name: {sample['device_name']}")
+            print(f"Name: {sample.get('device_name', 'N/A')}")
             print(f"Coordinates: {sample.get('latitude')}, {sample.get('longitude')}")
             print(f"Site: {sample.get('site')}")
         

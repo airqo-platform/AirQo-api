@@ -62,6 +62,12 @@ def calculate_uptime_from_logs(status_history: List[Any], start_time: datetime, 
                 online_time += diff
             else:
                 offline_time += diff
+        else:
+            # Account for time from start_time to first status
+            initial_diff = (status.timestamp - start_time).total_seconds()
+            if initial_diff > 0:
+                # Assume unknown state (could be treated as offline or proportionally)
+                offline_time += initial_diff
         last_status = status
     
     # Add time to end_time
@@ -228,7 +234,7 @@ def get_map_view_data(db: Session, days: int = 14) -> List[Dict[str, Any]]:
             perf_subquery.c.avg_uptime,
             perf_subquery.c.avg_error_margin
         )
-        .join(AirQloudDevice, AirQloudDevice.id == Device.device_id)
+        .join(AirQloudDevice, AirQloudDevice.device_id == Device.device_id)
         .join(AirQloud, AirQloud.id == AirQloudDevice.cohort_id)
         .outerjoin(Location, and_(Location.device_key == Device.device_key, Location.is_active == True))
         .outerjoin(Site, Site.site_id == Device.site_id)
@@ -405,7 +411,7 @@ def calculate_maintenance_routes(
 def get_airqloud_performance_stats(
     db: Session,
     request: Any
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Get aggregated performance stats for airqlouds with filtering, sorting, and pagination.
     """
@@ -540,11 +546,10 @@ def get_airqloud_performance_stats(
         "items": items
     }
 
-
 def get_device_performance_stats(
     db: Session,
     request: Any
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Get aggregated performance stats for devices with filtering, sorting, and pagination.
     Only includes devices that are part of at least one active AirQloud.

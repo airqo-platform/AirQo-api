@@ -426,11 +426,7 @@ class EnhancedThingSpeakDataFetcher:
             # access original requested range: start_date.date() to end_date.date()
             # We should probably log the "skipped" future gap as complete/empty.
             
-            full_range_start = min(start_dt, start_date.date())
-            full_range_end = max(end_dt, end_date.date())
-            
-            # We just process the union of requested and shifted range? 
-            # Or just process the shifted range AND mark the original range as complete?
+
             
             missing_ranges = device_fetch_log.get_missing_date_ranges(
                 self.session,

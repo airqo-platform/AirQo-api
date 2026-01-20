@@ -365,6 +365,8 @@ def update_missing_sites_background():
         cronjobs_path = Path(__file__).parent.parent.parent / "cronjobs" / "update_sites.py"
         if not cronjobs_path.exists():
             logger.error(f"[Background] update_sites.py not found at {cronjobs_path}")
+            with _lock:
+                _sites_update_running = False
             return
 
         spec = importlib.util.spec_from_file_location("update_sites", cronjobs_path)
@@ -432,6 +434,8 @@ def sync_devices_background():
         cronjobs_path = Path(__file__).parent.parent.parent / "cronjobs" / "update_devices.py"
         if not cronjobs_path.exists():
             logger.error(f"[Background] update_devices.py not found at {cronjobs_path}")
+            with _lock:
+                _device_sync_running = False
             return
 
         spec = importlib.util.spec_from_file_location("update_devices", cronjobs_path)

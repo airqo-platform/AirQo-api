@@ -8,7 +8,7 @@ from app.crud.maintenance import get_map_view_data
 
 def inspect_missing_sites():
     with Session(engine) as db:
-        print("--- Inspecting Devices with Missing Sites ---")
+        #print("--- Inspecting Devices with Missing Sites ---")
         
         results = get_map_view_data(db, days=14)
         
@@ -20,9 +20,12 @@ def inspect_missing_sites():
              print(f"{'Device Name':<30} | {'Lat/Lon':<20}")
              print("-" * 55)
              for d in missing:
-                  print(f"{d['device_name']:<30} | {d['latitude']}, {d['longitude']}")
+                  name = d.get('device_name', 'N/A')
+                  lat = d.get('latitude', 'N/A')
+                  lon = d.get('longitude', 'N/A')
+                  print(f"{name:<30} | {lat}, {lon}")
                   
-        print("-------------------------------------------")
+        #print("-------------------------------------------")
 
 if __name__ == "__main__":
     inspect_missing_sites()

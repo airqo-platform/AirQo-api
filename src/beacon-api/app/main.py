@@ -10,7 +10,12 @@ from app.routes import api_router
 # Set log level based on environment
 # Only allow detailed INFO/DEBUG logs in test and development environments
 # In other environments (e.g., production, staging), reduce noise by using WARNING
-effective_log_level = getattr(logging, settings.LOG_LEVEL)
+level_name = settings.LOG_LEVEL.upper()
+numeric_level = logging.getLevelName(level_name)
+if not isinstance(numeric_level, int):
+    numeric_level = logging.INFO
+
+effective_log_level = numeric_level
 if settings.ENVIRONMENT not in ["test", "testing", "development"]:
     effective_log_level = logging.WARNING
 
@@ -24,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Ensure access logs are still visible if needed (uvicorn handles its own access logs, 
 # but if we want specific app logs to show up despite the warning level, we'd need to configure individual loggers)
 if settings.ENVIRONMENT not in ["test", "testing", "development"]:
-    logger.info(f"Log level set to WARNING for environment: {settings.ENVIRONMENT}")
+    logger.warning(f"Log level set to WARNING for environment: {settings.ENVIRONMENT}")
 
 
 
