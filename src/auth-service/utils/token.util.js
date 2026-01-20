@@ -3,6 +3,7 @@ const BlacklistedIPPrefixModel = require("@models/BlacklistedIPPrefix");
 const IPPrefixModel = require("@models/IPPrefix");
 const UnknownIPModel = require("@models/UnknownIP");
 const WhitelistedIPModel = require("@models/WhitelistedIP");
+const IPRequestLogModel = require("@models/IPRequestLog");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
@@ -1879,6 +1880,120 @@ const token = {
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
+      );
+    }
+  },
+  analyzeIPRequestPatterns: async ({ ip, tenant = "airqo" } = {}) => {
+    try {
+      const MIN_REQUESTS_FOR_ANALYSIS = 10;
+      const MIN_PATTERN_OCCURRENCES = 5;
+      const MIN_INTERVAL_MINUTES = 20; // Ignore intervals less than 20 minutes
+      const MAX_PREFIX_BOTS = 3;
+
+      const requests = await IPRequestLogModel(tenant).getRequests(ip);
+
+      if (requests.length < MIN_REQUESTS_FOR_ANALYSIS) {
+        return; // Not enough data to analyze
+      }
+
+      requests.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      const deltas = [];
+      for (let i = 1; i < requests.length; i++) {
+        const deltaMinutes =
+          (requests[i].timestamp.getTime() -
+            requests[i - 1].timestamp.getTime()) /
+          (1000 * 60);
+        deltas.push(Math.round(deltaMinutes));
+      }
+
+      const deltaCounts = deltas.reduce((acc, delta) => {
+        if (delta < MIN_INTERVAL_MINUTES) return acc; // Ignore short intervals
+        acc[delta] = (acc[delta] || 0) + 1;
+        return acc;
+      }, {});
+
+      // Find the most frequent interval
+      let mostFrequentInterval = 0;
+      let maxCount = 0;
+      for (const interval in deltaCounts) {
+        if (deltaCounts[interval] > maxCount) {
+          maxCount = deltaCounts[interval];
+          mostFrequentInterval = parseInt(interval, 10);
+        }
+      }
+
+      if (maxCount < MIN_PATTERN_OCCURRENCES) {
+        return; // No significant pattern found
+      }
+
+      // Pattern detected!
+      logger.warn(
+        `🤖 Bot-like pattern detected for IP: ${ip}. Interval: ~${mostFrequentInterval} minutes. Occurrences: ${maxCount}.`
+      );
+
+      // 1. Blacklist the IP
+      const blacklistResponse = await BlacklistedIPModel(tenant).register({
+        ip,
+      });
+      if (!blacklistResponse.success) {
+        logger.error(
+          `Failed to blacklist IP ${ip}: ${blacklistResponse.message}`
+        );
+      }
+      await IPRequestLogModel(tenant).markAsBot(ip, mostFrequentInterval);
+
+      // 2. Handle serverless/cloud provider IPs by blacklisting the prefix
+      const ipPrefix = ip.split(".").slice(0, 2).join(".");
+      const prefixBotLogs =
+        await IPRequestLogModel(tenant).getBotLogsByPrefix(ipPrefix);
+
+      if (prefixBotLogs.length >= MAX_PREFIX_BOTS) {
+        logger.warn(
+          `Multiple bots (${prefixBotLogs.length}) detected from prefix ${ipPrefix}. Blacklisting prefix.`
+        );
+        const prefixBlacklistResponse = await BlacklistedIPPrefixModel(
+          tenant
+        ).register({
+          prefix: ipPrefix,
+        });
+        if (!prefixBlacklistResponse.success) {
+          logger.error(
+            `Failed to blacklist prefix ${ipPrefix}: ${prefixBlacklistResponse.message}`
+          );
+        }
+      }
+
+      // 3. Notify admins
+      const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST
+        ? constants.SUPER_ADMIN_EMAIL_ALLOWLIST.split(",")
+        : [];
+      if (adminEmails.length > 0) {
+        mailer
+          .sendBotAlert(
+            {
+              recipients: adminEmails,
+              ip,
+              interval: mostFrequentInterval,
+              occurrences: maxCount,
+              prefix: ipPrefix,
+              prefixBotCount: prefixBotLogs.length,
+            },
+            { tenant }
+          )
+          .catch((err) =>
+            logger.error(
+              `Failed to send bot alert email for IP ${ip}: ${err.message}`
+            )
+          );
+      }
+    } catch (error) {
+      logObject(
+        `Error during IP pattern analysis for ${ip}: ${error.message}`,
+        error
+      );
+      logger.error(
+        `🐛🐛 Error during IP pattern analysis for ${ip}: ${error.message}`
       );
     }
   },
