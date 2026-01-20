@@ -234,7 +234,7 @@ def get_map_view_data(db: Session, days: int = 14) -> List[Dict[str, Any]]:
             perf_subquery.c.avg_uptime,
             perf_subquery.c.avg_error_margin
         )
-        .join(AirQloudDevice, AirQloudDevice.device_id == Device.device_id)
+        .join(AirQloudDevice, AirQloudDevice.id == Device.device_id)
         .join(AirQloud, AirQloud.id == AirQloudDevice.cohort_id)
         .outerjoin(Location, and_(Location.device_key == Device.device_key, Location.is_active == True))
         .outerjoin(Site, Site.site_id == Device.site_id)
