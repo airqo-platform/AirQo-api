@@ -516,4 +516,83 @@ class CRUDDevice(CRUDBase[Device, DeviceCreate, DeviceUpdate]):
         return result
 
 
+
+    def get_summary_stats(self, db: Session) -> Dict[str, Any]:
+        """
+        Get summary statistics for devices and airqlouds.
+        
+        Returns:
+            Dictionary containing:
+            - total_devices: Total number of devices
+            - active_airqlouds: Number of active airqlouds
+            - tracked_devices: Unique devices in active airqlouds
+            - deployed_devices: Total number of deployed devices
+            - tracked_online: Number of tracked devices that are online
+            - tracked_offline: Number of tracked devices that are offline
+        """
+        from app.models.airqloud import AirQloud, AirQloudDevice
+        
+        # Hardcoded network filter - only AirQo devices
+        network_name = "airqo"
+        
+        # 1. Total number of devices (AirQo network)
+        total_devices = db.exec(
+            select(func.count(Device.device_key))
+            .where(Device.network == network_name)
+        ).first() or 0
+        
+        # 2. Number of active airqlouds (AirQo network)
+        active_airqlouds = db.exec(
+            select(func.count(AirQloud.id))
+            .where(AirQloud.is_active == True)
+            .where(AirQloud.network == network_name)
+        ).first() or 0
+        
+        # 3. Tracked devices (unique devices in active airqlouds)
+        # We need to join AirQloudDevice with AirQloud to filter by active status
+        tracked_devices_query = (
+            select(AirQloudDevice.id)  # Select device_id (named 'id' in AirQloudDevice)
+            .join(AirQloud, AirQloudDevice.cohort_id == AirQloud.id)
+            .where(AirQloud.is_active == True)
+            .where(AirQloud.network == network_name)
+            .where(AirQloudDevice.is_active == True)
+            .distinct()
+        )
+        tracked_device_ids = db.exec(tracked_devices_query).all()
+        tracked_count = len(tracked_device_ids)
+        
+        # 4. Total deployed devices (AirQo network)
+        deployed_devices = db.exec(
+            select(func.count(Device.device_key))
+            .where(Device.status == "deployed")
+            .where(Device.network == network_name)
+        ).first() or 0
+        
+        # 5. Tracked online/offline
+        # We filter the devices table using the list of tracked device IDs
+        if tracked_device_ids:
+            tracked_online = db.exec(
+                select(func.count(Device.device_key))
+                .where(Device.device_id.in_(tracked_device_ids))
+                .where(Device.is_online == True)
+                # No need to filter by network again here if tracked_device_ids came from AirQo airqlouds,
+                # but for safety and consistency with the device table state:
+                .where(Device.network == network_name)
+            ).first() or 0
+            
+            tracked_offline = tracked_count - tracked_online
+        else:
+            tracked_online = 0
+            tracked_offline = 0
+            
+        return {
+            "total_devices": total_devices,
+            "active_airqlouds": active_airqlouds,
+            "tracked_devices": tracked_count,
+            "deployed_devices": deployed_devices,
+            "tracked_online": tracked_online,
+            "tracked_offline": tracked_offline
+        }
+
+
 device = CRUDDevice(Device)

@@ -1,5 +1,5 @@
 from sqlmodel import Field, SQLModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone
 
 
@@ -40,3 +40,65 @@ class MaintenanceRecordRead(MaintenanceRecordBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime]
+
+
+# --- Performance Stats Request Models ---
+
+class RangeFilter(SQLModel):
+    min: Optional[float] = None
+    max: Optional[float] = None
+
+
+class MaintenanceFilter(SQLModel):
+    uptime: Optional[RangeFilter] = None
+    error_margin: Optional[RangeFilter] = None
+    country: Optional[str] = None
+    search: Optional[str] = None
+
+
+
+class SortConfig(SQLModel):
+    field: str  # 'uptime', 'error_margin', 'frequency', 'name'
+    order: str = 'asc'  # 'asc', 'desc'
+
+
+class MaintenanceStatsRequest(SQLModel):
+    period_days: int = 14  # Default lookback
+    filters: Optional[MaintenanceFilter] = None
+    sort: Optional[SortConfig] = None
+    page: int = 1
+    page_size: int = 20
+
+
+# --- Performance Stats Response Models ---
+
+class AirQloudMaintenanceStats(SQLModel):
+    id: str
+    name: str
+    country: Optional[str] = None
+    device_count: int
+    avg_uptime: float
+    avg_error_margin: float
+
+
+class DeviceMaintenanceStats(SQLModel):
+    device_id: str
+    device_name: str
+    airqlouds: List[str] = [] # List of active airqloud names
+    avg_uptime: float
+    avg_error_margin: float
+    avg_battery: Optional[float]
+
+
+class PaginatedAirQloudResponse(SQLModel):
+    total: int
+    page: int
+    page_size: int
+    items: List[AirQloudMaintenanceStats]
+
+
+class PaginatedDeviceResponse(SQLModel):
+    total: int
+    page: int
+    page_size: int
+    items: List[DeviceMaintenanceStats]

@@ -6,11 +6,31 @@ from app.configs.settings import settings
 from app.configs.database import init_db
 from app.routes import api_router
 
+
+# Set log level based on environment
+# Only allow detailed INFO/DEBUG logs in test and development environments
+# In other environments (e.g., production, staging), reduce noise by using WARNING
+level_name = settings.LOG_LEVEL.upper()
+numeric_level = logging.getLevelName(level_name)
+if not isinstance(numeric_level, int):
+    numeric_level = logging.INFO
+
+effective_log_level = numeric_level
+if settings.ENVIRONMENT not in ["test", "testing", "development"]:
+    effective_log_level = logging.WARNING
+
 logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=effective_log_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True
 )
 logger = logging.getLogger(__name__)
+
+# Ensure access logs are still visible if needed (uvicorn handles its own access logs, 
+# but if we want specific app logs to show up despite the warning level, we'd need to configure individual loggers)
+if settings.ENVIRONMENT not in ["test", "testing", "development"]:
+    logger.warning(f"Log level set to WARNING for environment: {settings.ENVIRONMENT}")
+
 
 
 @asynccontextmanager
