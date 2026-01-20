@@ -49,17 +49,17 @@ def inspect_raw_data():
         channel = data.get('channel', {})
         feeds = data.get('feeds', [])
 
-        #print("\n--- Channel Metadata ---")
+        print("\n--- Channel Metadata ---")
         for k, v in channel.items():
-            #print(f"{k}: {v}")
+            print(f"{k}: {v}")
 
-        #print("\n--- Latest Feed ---")
+        print("\n--- Latest Feed ---")
         if feeds:
             feed = feeds[0]
             for k, v in feed.items():
-                #print(f"{k}: {v}")
+                print(f"{k}: {v}")
         else:
-            #print("No feeds found.")
+            print("No feeds found.")
 
     finally:
         session.close()

@@ -380,7 +380,7 @@ def update_missing_sites_background():
             
             # Access stats if available
             if hasattr(updater, 'stats'):
-                 logger.info(f"[Background] Sites update stats: {updater.stats}")
+                logger.info(f"[Background] Sites update stats: {updater.stats}")
                  
     except Exception as e:
         logger.error(f"[Background] Error in sites update: {str(e)}")
@@ -449,7 +449,7 @@ def sync_devices_background():
             
             # Access stats if available
             if hasattr(updater, 'stats'):
-                 logger.info(f"[Background] Device sync stats: {updater.stats}")
+                logger.info(f"[Background] Device sync stats: {updater.stats}")
                  
     except Exception as e:
         logger.error(f"[Background] Error in device sync: {str(e)}")

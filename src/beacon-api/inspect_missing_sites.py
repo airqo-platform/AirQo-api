@@ -14,16 +14,16 @@ def inspect_missing_sites():
         
         missing = [d for d in results if d.get("site") is None]
         
-        print(f"Devices without Site: {len(missing)}")
+        #print(f"Devices without Site: {len(missing)}")
         
         if missing:
-             print(f"{'Device Name':<30} | {'Lat/Lon':<20}")
-             print("-" * 55)
+             #print(f"{'Device Name':<30} | {'Lat/Lon':<20}")
+             #print("-" * 55)
              for d in missing:
                   name = d.get('device_name', 'N/A')
                   lat = d.get('latitude', 'N/A')
                   lon = d.get('longitude', 'N/A')
-                  print(f"{name:<30} | {lat}, {lon}")
+                  #print(f"{name:<30} | {lat}, {lon}")
                   
         #print("-------------------------------------------")
 
