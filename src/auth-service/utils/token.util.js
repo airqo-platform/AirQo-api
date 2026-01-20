@@ -1965,8 +1965,8 @@ const token = {
       }
 
       // 3. Notify admins
-      const adminEmails = constants.ADMIN_EMAILS
-        ? constants.ADMIN_EMAILS.split(",")
+      const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST
+        ? constants.SUPER_ADMIN_EMAIL_ALLOWLIST.split(",")
         : [];
       if (adminEmails.length > 0) {
         mailer
