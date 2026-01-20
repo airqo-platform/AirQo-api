@@ -1883,12 +1883,12 @@ const token = {
       );
     }
   },
-  analyzeIPRequestPatterns: async ({ ip, tenant } = {}) => {
+  analyzeIPRequestPatterns: async ({ ip, tenant = "airqo" } = {}) => {
     try {
       const MIN_REQUESTS_FOR_ANALYSIS = 10;
-      const INTERVAL_THRESHOLD_MINUTES = 55; // e.g., 55-65 minutes for hourly
-      const INTERVAL_TOLERANCE_MINUTES = 5;
       const MIN_PATTERN_OCCURRENCES = 5;
+      const MIN_INTERVAL_MINUTES = 20; // Ignore intervals less than 20 minutes
+      const MAX_PREFIX_BOTS = 3;
 
       const requests = await IPRequestLogModel(tenant).getRequests(ip);
 
@@ -1896,87 +1896,96 @@ const token = {
         return; // Not enough data to analyze
       }
 
-      // Sort requests by timestamp just in case
-      requests.sort((a, b) => a.timestamp - b.timestamp);
+      requests.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
       const deltas = [];
       for (let i = 1; i < requests.length; i++) {
-        const delta =
+        const deltaMinutes =
           (requests[i].timestamp.getTime() -
             requests[i - 1].timestamp.getTime()) /
-          (1000 * 60); // in minutes
-        deltas.push(Math.round(delta));
+          (1000 * 60);
+        deltas.push(Math.round(deltaMinutes));
       }
 
       const deltaCounts = deltas.reduce((acc, delta) => {
+        if (delta < MIN_INTERVAL_MINUTES) return acc; // Ignore short intervals
         acc[delta] = (acc[delta] || 0) + 1;
         return acc;
       }, {});
 
-      for (const delta in deltaCounts) {
-        const count = deltaCounts[delta];
-        const interval = parseInt(delta, 10);
-
-        if (
-          count >= MIN_PATTERN_OCCURRENCES &&
-          interval >= INTERVAL_THRESHOLD_MINUTES - INTERVAL_TOLERANCE_MINUTES &&
-          interval <= INTERVAL_THRESHOLD_MINUTES + INTERVAL_TOLERANCE_MINUTES
-        ) {
-          // Pattern detected!
-          logger.warn(
-            `🤖 Bot-like pattern detected for IP: ${ip}. Interval: ~${interval} minutes. Occurrences: ${count}.`
-          );
-
-          // 1. Blacklist the IP
-          await BlacklistedIPModel(tenant).register({ ip });
-          await IPRequestLogModel(tenant).markAsBot(ip, interval);
-
-          // 2. Handle serverless/cloud provider IPs by blacklisting the prefix
-          const ipPrefix = ip.split(".").slice(0, 2).join(".");
-          const prefixLogs = await IPRequestLogModel(tenant)
-            .find({
-              ip: { $regex: `^${ipPrefix}` },
-              isBot: true,
-            })
-            .limit(5)
-            .lean();
-
-          if (prefixLogs.length >= 3) {
-            // If 3 or more bots are from the same prefix, blacklist it
-            logger.warn(
-              `Multiple bots detected from prefix ${ipPrefix}. Blacklisting prefix.`
-            );
-            await BlacklistedIPPrefixModel(tenant).register({
-              prefix: ipPrefix,
-            });
-          }
-
-          // Notify admins
-          const adminEmails = constants.ADMIN_EMAILS
-            ? constants.ADMIN_EMAILS.split(",")
-            : [];
-          if (adminEmails.length > 0) {
-            mailer
-              .sendBotAlert(
-                {
-                  recipients: adminEmails,
-                  ip,
-                  interval,
-                  occurrences: count,
-                  prefix: ipPrefix,
-                  prefixBotCount: prefixLogs.length,
-                },
-                { tenant }
-              )
-              .catch((err) =>
-                logger.error(
-                  `Failed to send bot alert email for IP ${ip}: ${err.message}`
-                )
-              );
-          }
-
-          return; // Stop after finding the first pattern
+      // Find the most frequent interval
+      let mostFrequentInterval = 0;
+      let maxCount = 0;
+      for (const interval in deltaCounts) {
+        if (deltaCounts[interval] > maxCount) {
+          maxCount = deltaCounts[interval];
+          mostFrequentInterval = parseInt(interval, 10);
         }
+      }
+
+      if (maxCount < MIN_PATTERN_OCCURRENCES) {
+        return; // No significant pattern found
+      }
+
+      // Pattern detected!
+      logger.warn(
+        `🤖 Bot-like pattern detected for IP: ${ip}. Interval: ~${mostFrequentInterval} minutes. Occurrences: ${maxCount}.`
+      );
+
+      // 1. Blacklist the IP
+      const blacklistResponse = await BlacklistedIPModel(tenant).register({
+        ip,
+      });
+      if (!blacklistResponse.success) {
+        logger.error(
+          `Failed to blacklist IP ${ip}: ${blacklistResponse.message}`
+        );
+      }
+      await IPRequestLogModel(tenant).markAsBot(ip, mostFrequentInterval);
+
+      // 2. Handle serverless/cloud provider IPs by blacklisting the prefix
+      const ipPrefix = ip.split(".").slice(0, 2).join(".");
+      const prefixBotLogs =
+        await IPRequestLogModel(tenant).getBotLogsByPrefix(ipPrefix);
+
+      if (prefixBotLogs.length >= MAX_PREFIX_BOTS) {
+        logger.warn(
+          `Multiple bots (${prefixBotLogs.length}) detected from prefix ${ipPrefix}. Blacklisting prefix.`
+        );
+        const prefixBlacklistResponse = await BlacklistedIPPrefixModel(
+          tenant
+        ).register({
+          prefix: ipPrefix,
+        });
+        if (!prefixBlacklistResponse.success) {
+          logger.error(
+            `Failed to blacklist prefix ${ipPrefix}: ${prefixBlacklistResponse.message}`
+          );
+        }
+      }
+
+      // 3. Notify admins
+      const adminEmails = constants.ADMIN_EMAILS
+        ? constants.ADMIN_EMAILS.split(",")
+        : [];
+      if (adminEmails.length > 0) {
+        mailer
+          .sendBotAlert(
+            {
+              recipients: adminEmails,
+              ip,
+              interval: mostFrequentInterval,
+              occurrences: maxCount,
+              prefix: ipPrefix,
+              prefixBotCount: prefixBotLogs.length,
+            },
+            { tenant }
+          )
+          .catch((err) =>
+            logger.error(
+              `Failed to send bot alert email for IP ${ip}: ${err.message}`
+            )
+          );
       }
     } catch (error) {
       logObject(

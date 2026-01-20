@@ -11,7 +11,9 @@ const analyzeIP = async (req, res, next) => {
 
     if (ip) {
       // Log the request without waiting for it to complete
-      IPRequestLogModel(tenant).recordRequest({ ip, endpoint });
+      IPRequestLogModel(tenant)
+        .recordRequest({ ip, endpoint })
+        .catch((err) => logObject("Error in background IP recording", err));
 
       // Asynchronously analyze the IP patterns
       tokenUtil.analyzeIPRequestPatterns({ ip, tenant }).catch((err) => {

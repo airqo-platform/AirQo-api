@@ -382,9 +382,8 @@ const createMailerFunction = (
       // ✅ STEP 4d: Check for duplicates before queuing
       let emailResult;
       try {
-        const shouldSend = await emailDeduplicator.checkAndMarkEmail(
-          mailOptions
-        );
+        const shouldSend =
+          await emailDeduplicator.checkAndMarkEmail(mailOptions);
 
         if (shouldSend) {
           // Not a duplicate, add to the queue
@@ -2026,6 +2025,56 @@ const mailer = {
         token: params.token,
       })
   ),
+  sendBotAlert: async (params, { tenant } = {}) => {
+    try {
+      const { recipients, ip, interval, occurrences, prefix, prefixBotCount } =
+        params;
+
+      if (!recipients || recipients.length === 0) {
+        logger.warn("sendBotAlert called without recipients.");
+        return { success: true, message: "No recipients to send to." };
+      }
+
+      const subject = "🚨 Security Alert: Automated Bot Activity Detected";
+      const html = `
+        <p>An automated system has detected bot-like activity and taken action.</p>
+        <h3>Details:</h3>
+        <ul>
+          <li><strong>IP Address:</strong> ${ip}</li>
+          <li><strong>Detected Interval:</strong> Approximately ${interval} minutes</li>
+          <li><strong>Pattern Occurrences:</strong> ${occurrences} times</li>
+          <li><strong>Action Taken:</strong> The IP address has been automatically blacklisted.</li>
+        </ul>
+        <h3>Prefix Analysis:</h3>
+        <ul>
+          <li><strong>IP Prefix:</strong> ${prefix}.*.*</li>
+          <li><strong>Bots from this Prefix:</strong> ${prefixBotCount}</li>
+          <li><strong>Prefix Action:</strong> ${
+            prefixBotCount >= 3
+              ? `The entire prefix ${prefix}.*.* has been blacklisted.`
+              : "Prefix is being monitored."
+          }</li>
+        </ul>
+        <p>No immediate action is required, but this information is provided for your awareness.</p>
+      `;
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: recipients.join(","),
+        subject,
+        html,
+        attachments,
+      };
+
+      return await addToEmailQueue(mailOptions, tenant);
+    } catch (error) {
+      logger.error(`Error in sendBotAlert: ${error.message}`);
+      return { success: false, message: "Failed to send bot alert" };
+    }
+  },
 };
 
 module.exports = mailer;

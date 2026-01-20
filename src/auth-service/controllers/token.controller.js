@@ -264,9 +264,9 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await tokenUtil.verifyToken(request, next);
-      // Asynchronously analyze IP patterns after verification response
+      // Asynchronously analyze IP patterns before verification for consistent logging
       analyzeIP(request, res, () => {});
+      const result = await tokenUtil.verifyToken(request, next);
 
       const status = result.status;
       if (!res.headersSent) {

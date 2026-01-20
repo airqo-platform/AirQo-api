@@ -81,6 +81,25 @@ IPRequestLogSchema.statics = {
       return [];
     }
   },
+  async getBotLogsByPrefix(prefix) {
+    try {
+      if (!prefix) {
+        return [];
+      }
+      // Use a range query for better performance and security
+      const botLogs = await this.find({
+        ip: {
+          $gte: `${prefix}.0.0`,
+          $lte: `${prefix}.255.255`,
+        },
+        isBot: true,
+      }).lean();
+      return botLogs;
+    } catch (error) {
+      logObject("Error getting bot logs by prefix", error);
+      return [];
+    }
+  },
   async markAsBot(ip, interval) {
     try {
       await this.updateOne(
