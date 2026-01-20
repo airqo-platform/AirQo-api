@@ -10,6 +10,7 @@ const {
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const analyzeIP = require("@middleware/ip-pattern-analysis.middleware");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-controller`);
 
 function handleResponse({
@@ -38,8 +39,8 @@ function handleResponse({
   const errors = isSuccess
     ? undefined
     : result.errors !== undefined
-    ? result.errors
-    : { message: "Internal Server Error" };
+      ? result.errors
+      : { message: "Internal Server Error" };
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
@@ -264,6 +265,9 @@ const createAccessToken = {
         : req.query.tenant;
 
       const result = await tokenUtil.verifyToken(request, next);
+      // Asynchronously analyze IP patterns after verification response
+      analyzeIP(request, res, () => {});
+
       const status = result.status;
       if (!res.headersSent) {
         res.status(status).send(result.message);
