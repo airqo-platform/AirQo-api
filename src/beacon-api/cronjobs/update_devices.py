@@ -506,12 +506,15 @@ class DeviceUpdater:
                         # Track if we're updating a previously null value
                         if current_value is None and new_value is not None:
                             null_field_updated = True
-                            logger.info(f"Updating null field '{field}' for device {device_id}")
+                            if field in ['read_key', 'write_key', 'channel_id']:
+                                logger.info(f"Updating null sensitive field for device {device_id}")
+                            else:
+                                logger.info(f"Updating null field '{field}' for device {device_id}")
                         
                         # Track if we're updating a key field (force update scenario)
                         if field in ['read_key', 'write_key', 'channel_id'] and current_value is not None:
                             key_field_updated = True
-                            logger.info(f"Force updating key field '{field}' for device {device_id}")
+                            logger.info(f"Force updating sensitive field for device {device_id}")
                 
                 if update_data:
                     # Update the device
@@ -528,7 +531,8 @@ class DeviceUpdater:
                     if key_field_updated:
                         self.stats['key_updates'] += 1
                     
-                    logger.info(f"Updated device: {device_id} ({len(update_data)} fields)")
+                    update_count = len(update_data)
+                    logger.info(f"Updated device: {device_id} ({update_count} fields)")
                 else:
                     logger.debug(f"No updates needed for device: {device_id}")
             
@@ -539,10 +543,10 @@ class DeviceUpdater:
                 self.session.commit()
                 
                 self.stats['new_devices'] += 1
-                logger.info(f"Created new device: {device_id}")
+                logger.info(f"Created new device: {str(new_device.device_id)}")
         
         except Exception as e:
-            logger.error(f"Error updating/creating device {device_id}: {e}")
+            logger.error(f"Error updating/creating device {str(device_id)}: {e}")
             self.session.rollback()
             self.stats['errors'] += 1
     
@@ -780,11 +784,11 @@ class DeviceUpdater:
                         
                         if 'read_key' in decrypted_keys:
                             device_data['read_key'] = decrypted_keys['read_key']
-                            logger.debug(f"Using decrypted read_key for device {device_id}")
+                            logger.debug(f"Using decrypted read_key for device {str(device_id)}")
                         
                         if 'write_key' in decrypted_keys:
                             device_data['write_key'] = decrypted_keys['write_key']
-                            logger.debug(f"Using decrypted write_key for device {device_id}")
+                            logger.debug(f"Using decrypted write_key for device {str(device_id)}")
                     
                     self.update_or_create_device(device_data, site_data)
                     processed_device_ids.add(device_id)
