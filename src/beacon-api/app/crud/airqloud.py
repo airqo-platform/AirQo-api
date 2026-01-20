@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Tuple
 from sqlmodel import Session, select, func
 from datetime import datetime, timedelta, timezone
 import math
@@ -92,23 +92,40 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         skip: int = 0, 
         limit: int = 100,
         country: Optional[str] = None,
-        search: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """Get all AirQlouds with their device counts"""
-        # Build base query
-        airqloud_query = select(AirQloud)
+        search: Optional[str] = None,
+        is_active: Optional[bool] = None
+    ) -> Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], int]]:
+        """Get all AirQlouds with their device counts
         
+        Returns:
+            Tuple of (airqlouds_list, total_count)
+        """
+        # Build base conditions
+        conditions = []
         if country:
-            airqloud_query = airqloud_query.where(AirQloud.country == country)
+            conditions.append(AirQloud.country == country)
         
         if search:
-            # Search across airqloud fields
             search_pattern = f"%{search}%"
-            airqloud_query = airqloud_query.where(
+            conditions.append(
                 (AirQloud.name.ilike(search_pattern)) |
                 (AirQloud.id.ilike(search_pattern)) |
                 (AirQloud.country.ilike(search_pattern))
             )
+        
+        if is_active is not None:
+            conditions.append(AirQloud.is_active == is_active)
+
+        # Get total count
+        count_query = select(func.count(AirQloud.id))
+        for condition in conditions:
+            count_query = count_query.where(condition)
+        total_count = db.exec(count_query).one()
+
+        # Build main query
+        airqloud_query = select(AirQloud)
+        for condition in conditions:
+            airqloud_query = airqloud_query.where(condition)
         
         # Order by is_active (active first), then by name
         airqloud_query = airqloud_query.order_by(AirQloud.is_active.desc(), AirQloud.name).offset(skip).limit(limit)
@@ -132,7 +149,7 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
                 "device_count": device_count
             })
         
-        return results
+        return results, total_count
     
     def add_device(
         self, 
@@ -336,8 +353,9 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         country: Optional[str] = None,
         search: Optional[str] = None,
         days: int = 30,
-        fetch_missing: bool = True
-    ) -> List[Dict[str, Any]]:
+        fetch_missing: bool = True,
+        is_active: Optional[bool] = None
+    ) -> Tuple[List[Dict[str, Any]], int]:
         """Get all AirQlouds with device counts and performance data for the past N days
         
         Args:
@@ -348,16 +366,20 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
             search: Search term
             days: Number of days of performance history
             fetch_missing: If True, fetch missing data synchronously. If False, return current data only.
+            
+        Returns:
+            Tuple of (airqlouds_list, total_count)
         """
         from app.crud.performance import airqloud_performance
         
         # Get all airqlouds with device counts (now includes search)
-        airqlouds = self.get_all_with_device_counts(
+        airqlouds, total_count = self.get_all_with_device_counts(
             db,
             skip=skip,
             limit=limit,
             country=country,
-            search=search
+            search=search,
+            is_active=is_active
         )
         
         # Calculate date range (past N days from yesterday)
@@ -368,7 +390,7 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
         active_airqloud_ids = [aq["id"] for aq in airqlouds if aq.get("is_active") == True]
         
         if not airqlouds:
-            return []
+            return [], total_count
         
         # Optionally ensure performance data exists for active airqlouds only
         if fetch_missing and active_airqloud_ids:
@@ -413,7 +435,7 @@ class CRUDAirQloud(CRUDBase[AirQloud, AirQloudCreate, AirQloudUpdate]):
             results.append(airqloud)
         
         logger.info(f"Retrieved {len(results)} airqlouds with performance data")
-        return results
+        return results, total_count
 
     def create_single_airqloud_with_devices_csv(
         self,

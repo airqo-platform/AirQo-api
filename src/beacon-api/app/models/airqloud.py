@@ -139,3 +139,10 @@ class AirQloudSingleBulkCreateResponse(SQLModel):
     devices_added: List[dict] = []
     device_errors: List[dict] = []
     summary: dict
+
+
+class PaginatedAirQloudResponse(SQLModel):
+    """Schema for paginated airqlouds response"""
+    airqlouds: List[dict]
+    meta: dict
+

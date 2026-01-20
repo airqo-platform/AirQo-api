@@ -1,0 +1,3500 @@
+{
+    "success": true,
+    "message": "successfully retrieved the device details",
+    "meta": {
+        "total": 768,
+        "totalResults": 30,
+        "limit": 30,
+        "skip": 0,
+        "page": 1,
+        "totalPages": 26,
+        "detailLevel": "full",
+        "usedCache": true,
+        "nextPage": "http://staging-platform.airqo.net/api/v2/devices?limit=30&skip=30&tenant=airqo"
+    },
+    "devices": [
+        {
+            "_id": "694ff9ab7e12b300132dc954",
+            "onlineStatusAccuracy": {
+                "totalAttempts": 407,
+                "successfulUpdates": 407,
+                "failedUpdates": 0,
+                "successPercentage": 100,
+                "failurePercentage": 0,
+                "totalChecks": 407,
+                "correctChecks": 407,
+                "incorrectChecks": 0,
+                "accuracyPercentage": 100,
+                "lastCheck": "2025-12-30T15:45:00.574Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.574Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.574Z",
+                "lastUpdate": "2025-12-30T15:45:00.574Z"
+            },
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "694ff9ab7e12b300132dc951",
+                    "name": "coh_user_61fce140e911c000139c3b67",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "rawOnlineStatus": false,
+            "lastRawData": null,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "694ff9ab7e12b300132dc954",
+                "ag_d83bda1deb28",
+                "ag_d83bda1deb28",
+                "d83bda1deb28"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2026-03-21T22:07:45.009Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "ag_d83bda1deb28",
+            "network": "airgradient",
+            "serial_number": "d83bda1deb28",
+            "api_code": "http://airgradient_d83bda1deb28.local/measures/current",
+            "name": "ag_d83bda1deb28",
+            "createdAt": "2025-12-27T15:22:19.634Z",
+            "alias": "ag_d83bda1deb28",
+            "powerType": "mains",
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "691f123d58d0960013effb3c",
+            "onlineStatusAccuracy": {
+                "totalAttempts": 5732,
+                "successfulUpdates": 5726,
+                "failedUpdates": 6,
+                "successPercentage": 99.89530622927936,
+                "failurePercentage": 0.1046937707206439,
+                "totalChecks": 5732,
+                "correctChecks": 5726,
+                "incorrectChecks": 6,
+                "accuracyPercentage": 99.89530622927936,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "lastFailureReason": "device_offline_by_job",
+                "lastIncorrectCheck": "2025-12-30T10:45:01.279Z",
+                "lastIncorrectReason": "device_offline_by_job"
+            },
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [
+                "airqo"
+            ],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "rawOnlineStatus": false,
+            "lastRawData": null,
+            "mobility": false,
+            "height": 4,
+            "device_codes": [
+                "691f123d58d0960013effb3c",
+                "ag_588c81267534",
+                "ag_588c81267534",
+                "172205"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2026-03-15T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "ag_588c81267534",
+            "network": "airgradient",
+            "serial_number": "172205",
+            "description": "SalamaRoad-OM1PPSTONCE-588c81267534",
+            "name": "ag_588c81267534",
+            "createdAt": "2025-11-20T13:06:05.802Z",
+            "alias": "ag_588c81267534",
+            "device_number": 172205,
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 0.621,
+            "deployment_date": "2025-12-15T21:00:00.000Z",
+            "latitude": 0.3371930065370817,
+            "longitude": 32.57122347853577,
+            "mountType": "faceboard",
+            "powerType": "solar",
+            "api_code": "https://api.airgradient.com/public/api/v1/locations",
+            "lastActive": "2025-12-30T05:00:00.000Z",
+            "grids": [
+                {
+                    "_id": "64b7b810d7249f0029fecda9",
+                    "name": "kawempe",
+                    "admin_level": "division",
+                    "long_name": "Kawempe"
+                },
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                },
+                {
+                    "_id": "67c9681471c7b0001383d7af",
+                    "groups": [],
+                    "name": "greater_kampala",
+                    "admin_level": "city",
+                    "long_name": "Greater Kampala"
+                },
+                {
+                    "_id": "67c96c4771c7b0001383dde1",
+                    "groups": [],
+                    "name": "kampala_city",
+                    "admin_level": "city",
+                    "long_name": "Kampala City"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "694140834973ef0013d1a9b0",
+                "visibility": false,
+                "rawOnlineStatus": false,
+                "lastRawData": null,
+                "formatted_name": "8HM9+CC9, Kampala, Uganda",
+                "location_name": "Kampala, Uganda",
+                "search_name": "Kawempe Division 637",
+                "parish": "Kawempe Division",
+                "city": "Kampala",
+                "district": "Kampala",
+                "country": "Uganda",
+                "name": "Salama Road",
+                "approximate_latitude": 0.3309105582963568,
+                "approximate_longitude": 32.56496843783659,
+                "generated_name": "site_637",
+                "description": "Salama Road",
+                "network": "airqo"
+            },
+            "latest_deployment_activity": {
+                "_id": "694140834973ef0013d1a9bf",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-12-15T21:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2026-03-15T00:00:00.000Z",
+                "createdAt": "2025-12-16T11:20:35.847Z",
+                "device_id": "691f123d58d0960013effb3c",
+                "device": "ag_588c81267534",
+                "site_id": "694140834973ef0013d1a9b0"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68639460339f1b0013a7f3d6",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68639460339f1b0013a7f3d6",
+                "airqo_g5578",
+                "3001020",
+                "airqo_g5578",
+                "3001020"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5578",
+            "network": "airqo",
+            "device_number": 3001020,
+            "writeKey": "U2FsdGVkX1/4OC4pz7XTxNaaUlvvHKTrEdpngEyoY6azM5BBivqcWpSKbkrTEVCI",
+            "readKey": "U2FsdGVkX1/1HS85n2lNXf3j7X1H7vF9rkIHWsZKQnoJBYHY+EjnHjXklnOEV7fT",
+            "name": "airqo_g5578",
+            "createdAt": "2025-07-01T07:55:12.763Z",
+            "serial_number": "3001020",
+            "alias": "airqo_g5578",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 100,
+                "correctChecks": 10716,
+                "failurePercentage": 0,
+                "lastCheck": "2025-12-30T15:45:00.574Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.574Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.574Z",
+                "lastUpdate": "2025-12-30T15:45:00.574Z",
+                "successPercentage": 100,
+                "successfulUpdates": 10716,
+                "totalAttempts": 10716,
+                "totalChecks": 10716
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68639343fe855700134d753f",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68639343fe855700134d753f",
+                "airqo_g5577",
+                "3001015",
+                "airqo_g5577",
+                "3001015"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:19.902Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5577",
+            "network": "airqo",
+            "device_number": 3001015,
+            "writeKey": "U2FsdGVkX1/JLdukwjVtbQTvw1w/T1Qnqmaen0D+g9LA8RvnZoBIh4/JfccbBX1z",
+            "readKey": "U2FsdGVkX19FB3ngemduKe1uL6ZUY0x+JvzKlYkssMRoy3aq+WyYQ/JrYvfOIqMe",
+            "name": "airqo_g5577",
+            "createdAt": "2025-07-01T07:50:27.832Z",
+            "serial_number": "3001015",
+            "alias": "airqo_g5577",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 100,
+                "correctChecks": 10716,
+                "failurePercentage": 0,
+                "lastCheck": "2025-12-30T15:45:00.574Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.574Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.574Z",
+                "lastUpdate": "2025-12-30T15:45:00.574Z",
+                "successPercentage": 100,
+                "successfulUpdates": 10716,
+                "totalAttempts": 10716,
+                "totalChecks": 10716
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68639328339f1b0013a7f3bf",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68639328339f1b0013a7f3bf",
+                "airqo_g5576",
+                "3001014",
+                "airqo_g5576",
+                "3001014"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5576",
+            "network": "airqo",
+            "device_number": 3001014,
+            "writeKey": "U2FsdGVkX190Fgk3qE3crSRF6gE5huR33U+54ZVvhOMnALcWptZ3ZQfIBkkccpos",
+            "readKey": "U2FsdGVkX183QNxoLBO+/svvfQ3bu0OXOtIUcd1Kkfxr77kHeWeZJlzm5iBFjDoQ",
+            "name": "airqo_g5576",
+            "createdAt": "2025-07-01T07:50:00.164Z",
+            "serial_number": "3001014",
+            "alias": "airqo_g5576",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 100,
+                "correctChecks": 10716,
+                "failurePercentage": 0,
+                "lastCheck": "2025-12-30T15:45:00.574Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.574Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.574Z",
+                "lastUpdate": "2025-12-30T15:45:00.574Z",
+                "successPercentage": 100,
+                "successfulUpdates": 10716,
+                "totalAttempts": 10716,
+                "totalChecks": 10716
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "6863930ffe855700134d7533",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "6863930ffe855700134d7533",
+                "airqo_g5575",
+                "3001012",
+                "airqo_g5575",
+                "3001012"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:19.902Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5575",
+            "network": "airqo",
+            "device_number": 3001012,
+            "writeKey": "U2FsdGVkX1/qg3pgEBCtqV4ZtLdxlpzCk/lUOy5yO8GxIMw88pFKRT0EO7TbVbai",
+            "readKey": "U2FsdGVkX19tIymJokLBdAw676NAHnNfxJ5E35GTc2mfrewCluaMu57lZP/krONo",
+            "name": "airqo_g5575",
+            "createdAt": "2025-07-01T07:49:35.078Z",
+            "serial_number": "3001012",
+            "alias": "airqo_g5575",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 100,
+                "correctChecks": 10716,
+                "failurePercentage": 0,
+                "lastCheck": "2025-12-30T15:45:00.574Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.574Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.574Z",
+                "lastUpdate": "2025-12-30T15:45:00.574Z",
+                "successPercentage": 100,
+                "successfulUpdates": 10716,
+                "totalAttempts": 10716,
+                "totalChecks": 10716
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686392f40aef8b001385d4b3",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686392f40aef8b001385d4b3",
+                "airqo_g5574",
+                "3001011",
+                "airqo_g5574",
+                "3001011"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:26.700Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5574",
+            "network": "airqo",
+            "device_number": 3001011,
+            "writeKey": "U2FsdGVkX1+inYYIu2CAGKIKUWLVgEOrpYgL/9AZgnDBfArRFbQjyLhZbBlob+fF",
+            "readKey": "U2FsdGVkX18dkfufTTRDLBcc8HSYeBcD8yrglj095VLLNG853vNcYcy19tMSm8xn",
+            "name": "airqo_g5574",
+            "createdAt": "2025-07-01T07:49:08.945Z",
+            "serial_number": "3001011",
+            "alias": "airqo_g5574",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 100,
+                "correctChecks": 10717,
+                "failurePercentage": 0,
+                "lastCheck": "2025-12-30T15:45:00.574Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.574Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.574Z",
+                "lastUpdate": "2025-12-30T15:45:00.574Z",
+                "successPercentage": 100,
+                "successfulUpdates": 10717,
+                "totalAttempts": 10717,
+                "totalChecks": 10717
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686392e1339f1b0013a7f3b4",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 5.6,
+            "device_codes": [
+                "686392e1339f1b0013a7f3b4",
+                "airqo_g5573",
+                "3001010",
+                "airqo_g5573",
+                "3001010"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2026-01-23T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5573",
+            "network": "airqo",
+            "device_number": 3001010,
+            "writeKey": "U2FsdGVkX1/RwVdeNxTc/u9/9pG6qG4uyMX82G6uPlcJXYTMxMTN6YpyREDWTmTO",
+            "readKey": "U2FsdGVkX1/06Kx/CdOZbfI7vcT2EVmpyiI7qwpV/Oah2nMeOXi6mKi9XU/3QJ7B",
+            "name": "airqo_g5573",
+            "createdAt": "2025-07-01T07:48:49.887Z",
+            "serial_number": "3001010",
+            "alias": "airqo_g5573",
+            "lastActive": "2025-12-30T04:00:00.000Z",
+            "lastRawData": "2025-12-30T13:30:33.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 88.95525516085088,
+                "correctChecks": 8490,
+                "failurePercentage": 11.044744839149118,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successPercentage": 88.95525516085088,
+                "successfulUpdates": 8490,
+                "totalAttempts": 9544,
+                "totalChecks": 9544,
+                "failedUpdates": 1054,
+                "incorrectChecks": 1054,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T14:38:24.133Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 0.357,
+            "deployment_date": "2025-10-23T21:00:00.000Z",
+            "latitude": 0.3135644042783415,
+            "longitude": 32.405587681192976,
+            "mountType": "faceboard",
+            "powerType": "solar",
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "68fca1da53b8b4001372887f",
+                "visibility": false,
+                "formatted_name": "8C53+PJ Buloba, Uganda",
+                "location_name": "Wakiso, Uganda",
+                "search_name": "Buloba",
+                "city": "Buloba",
+                "district": "Wakiso",
+                "country": "Uganda",
+                "name": "Buyala 1 Mpigi",
+                "network": "airqo",
+                "approximate_latitude": 0.3134645255519126,
+                "approximate_longitude": 32.405833105485435,
+                "generated_name": "site_616",
+                "description": "Buyala 1 Mpigi",
+                "lastRawData": "2025-12-30T13:30:33.000Z",
+                "rawOnlineStatus": true
+            },
+            "latest_deployment_activity": {
+                "_id": "68fca2dc03ea9d0013849320",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-10-23T21:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2026-01-23T00:00:00.000Z",
+                "createdAt": "2025-10-25T10:13:48.712Z",
+                "device_id": "686392e1339f1b0013a7f3b4",
+                "device": "airqo_g5573",
+                "site_id": "68fca1da53b8b4001372887f"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686392d4fe855700134d7524",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686392d4fe855700134d7524",
+                "airqo_g5572",
+                "3001009",
+                "airqo_g5572",
+                "3001009"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:19.902Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5572",
+            "network": "airqo",
+            "device_number": 3001009,
+            "writeKey": "U2FsdGVkX189OZkyNGtyOfJ09OfpOjFftS9SZ0J9KYaeJi61/hKel+RDi/mrDby9",
+            "readKey": "U2FsdGVkX18+Y6YzHTulDoxXpsidVTPr7wN/waJ9M+orDdTpnCSiR1u5c9S0Xsz7",
+            "name": "airqo_g5572",
+            "createdAt": "2025-07-01T07:48:36.204Z",
+            "serial_number": "3001009",
+            "alias": "airqo_g5572",
+            "lastActive": "2025-12-30T14:18:35.000Z",
+            "lastRawData": "2025-12-30T14:18:35.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 86.19402985074626,
+                "correctChecks": 4851,
+                "failurePercentage": 13.805970149253739,
+                "lastCheck": "2025-12-30T15:38:22.621Z",
+                "lastCorrectCheck": "2025-12-30T15:38:22.621Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:38:22.621Z",
+                "lastUpdate": "2025-12-30T15:38:22.621Z",
+                "successPercentage": 86.19402985074626,
+                "successfulUpdates": 4851,
+                "totalAttempts": 5628,
+                "totalChecks": 5628,
+                "failedUpdates": 777,
+                "incorrectChecks": 777,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:18.387Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638fb50aef8b001385d490",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68638fb50aef8b001385d490",
+                "airqo_g5571",
+                "3000996",
+                "airqo_g5571",
+                "3000996"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:26.700Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5571",
+            "network": "airqo",
+            "device_number": 3000996,
+            "writeKey": "U2FsdGVkX1+rdEuq4VnkY313nwNTRNlh5XtJZCMrIr6nSx8jK7Kt9tzeff4XK7oN",
+            "readKey": "U2FsdGVkX19aHv5B2pgyLA5Q4F3mkKpmS7IzSC6AXQQuQstVyH86t4uKBEx8B/+3",
+            "name": "airqo_g5571",
+            "createdAt": "2025-07-01T07:35:17.393Z",
+            "serial_number": "3000996",
+            "alias": "airqo_g5571",
+            "lastActive": "2025-12-30T14:13:31.000Z",
+            "lastRawData": "2025-12-30T14:13:31.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 84.08733624454149,
+                "failedUpdates": 911,
+                "failurePercentage": 15.91266375545851,
+                "incorrectChecks": 911,
+                "lastCheck": "2025-12-30T15:38:22.350Z",
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:18.119Z",
+                "lastIncorrectReason": "stale_lastRawData",
+                "lastUpdate": "2025-12-30T15:38:22.350Z",
+                "successPercentage": 84.08733624454149,
+                "totalAttempts": 5725,
+                "totalChecks": 5725,
+                "correctChecks": 4814,
+                "lastCorrectCheck": "2025-12-30T15:38:22.350Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:38:22.350Z",
+                "successfulUpdates": 4814
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638eff339f1b0013a7f37e",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "68a2f47e0b8921001437ce87",
+                    "name": "epic_mbarara",
+                    "name_update_history": []
+                },
+                {
+                    "_id": "68a7151527f7bc0013ff4947",
+                    "name": "epic_general",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [
+                "epic_air_quality_program"
+            ],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 3.5,
+            "device_codes": [
+                "68638eff339f1b0013a7f37e",
+                "airqo_g5570",
+                "3000994",
+                "airqo_g5570",
+                "3000994"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2025-11-12T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5570",
+            "network": "airqo",
+            "device_number": 3000994,
+            "writeKey": "U2FsdGVkX1/E6cjCDCIJhH7RF3uiNdR2uSF0fZRIy9e/QeYF5uoBqOq6fPG12lA0",
+            "readKey": "U2FsdGVkX18Uc45JtHA5uaBdbwxfJelY+RJCHf1F32TdBYV/y28f85gL+w9XZBzB",
+            "name": "airqo_g5570",
+            "createdAt": "2025-07-01T07:32:15.495Z",
+            "serial_number": "3000994",
+            "alias": "airqo_g5570",
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 1.49,
+            "deployment_date": "2025-08-12T00:00:00.000Z",
+            "latitude": -0.5253824881283945,
+            "longitude": 30.738273137978943,
+            "mountType": "faceboard",
+            "powerType": "solar",
+            "description": "Biharwe Health Center III",
+            "lastActive": "2025-12-30T05:00:00.000Z",
+            "onlineStatusAccuracy": {
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successfulUpdates": 9635,
+                "totalAttempts": 12855,
+                "failurePercentage": 28.617134731603272,
+                "successPercentage": 71.38286526839673,
+                "accuracyPercentage": 71.38286526839673,
+                "correctChecks": 8033,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "totalChecks": 11253,
+                "failedUpdates": 3220,
+                "incorrectChecks": 3220,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:17.849Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "lastRawData": "2025-12-30T14:37:15.000Z",
+            "rawOnlineStatus": false,
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                },
+                {
+                    "_id": "688d201f472adf0013d08fa6",
+                    "lastActive": null,
+                    "groups": [],
+                    "name": "mbarara_city",
+                    "admin_level": "city",
+                    "long_name": "mbarara city"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "689b7a465026010014539e7a",
+                "visibility": false,
+                "formatted_name": "FPFM+PG Kibwera, Uganda",
+                "location_name": "Mbarara, Uganda",
+                "search_name": "Kibwera",
+                "city": "Kibwera",
+                "district": "Mbarara",
+                "country": "Uganda",
+                "name": "Biharwe",
+                "network": "airqo",
+                "approximate_latitude": -0.521384080521994,
+                "approximate_longitude": 30.73487162573499,
+                "generated_name": "site_603",
+                "description": "Biharwe",
+                "lastRawData": "2025-12-30T14:37:15.000Z",
+                "rawOnlineStatus": true
+            },
+            "latest_deployment_activity": {
+                "_id": "689b7fe38f2b00001319686b",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-08-12T00:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2025-11-12T00:00:00.000Z",
+                "createdAt": "2025-08-12T17:54:43.772Z",
+                "device_id": null,
+                "device": "airqo_g5570",
+                "site_id": "689b7a465026010014539e7a"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638eed0aef8b001385d47d",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 5.8,
+            "device_codes": [
+                "68638eed0aef8b001385d47d",
+                "airqo_g5569",
+                "3000993",
+                "airqo_g5569",
+                "3000993"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2026-01-23T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5569",
+            "network": "airqo",
+            "device_number": 3000993,
+            "writeKey": "U2FsdGVkX19ztX3DypHjGcqa9xmIRZbt0iTLIAhfLfX0/vWXM9LVFUyAZu5xUe3Z",
+            "readKey": "U2FsdGVkX18NvjHkuDujjc9hgSdCFbMdujSdWdsjvyWXM1TSOkkAlIax+1D1b2c/",
+            "name": "airqo_g5569",
+            "createdAt": "2025-07-01T07:31:57.790Z",
+            "serial_number": "3000993",
+            "alias": "airqo_g5569",
+            "lastActive": "2025-12-30T05:00:00.000Z",
+            "lastRawData": "2025-12-30T12:55:59.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 76.68184640861105,
+                "correctChecks": 7410,
+                "failurePercentage": 23.31815359138895,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successPercentage": 76.68184640861105,
+                "successfulUpdates": 7410,
+                "totalAttempts": 9663,
+                "totalChecks": 9663,
+                "failedUpdates": 2253,
+                "incorrectChecks": 2253,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T14:38:23.022Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 3.365,
+            "deployment_date": "2025-10-23T21:00:00.000Z",
+            "latitude": 0.3089860218747831,
+            "longitude": 32.398084854964374,
+            "mountType": "pole",
+            "powerType": "solar",
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "68fca43203ea9d0013849400",
+                "visibility": false,
+                "formatted_name": "897X+8J Buloba, Uganda",
+                "location_name": "Wakiso, Uganda",
+                "search_name": "Buloba 617",
+                "city": "Buloba",
+                "district": "Wakiso",
+                "country": "Uganda",
+                "name": "Buyala 2, Mpigi",
+                "approximate_latitude": 0.30896429435186895,
+                "approximate_longitude": 32.398185850249305,
+                "generated_name": "site_617",
+                "description": "Buyala 2, Mpigi",
+                "network": "airqo",
+                "lastRawData": "2025-12-30T12:55:59.000Z",
+                "rawOnlineStatus": true
+            },
+            "latest_deployment_activity": {
+                "_id": "68fca43203ea9d001384940f",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-10-23T21:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2026-01-23T00:00:00.000Z",
+                "createdAt": "2025-10-25T10:19:30.908Z",
+                "device_id": "68638eed0aef8b001385d47d",
+                "device": "airqo_g5569",
+                "site_id": "68fca43203ea9d0013849400"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638ec00aef8b001385d470",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "68a2f47e0b8921001437ce87",
+                    "name": "epic_mbarara",
+                    "name_update_history": []
+                },
+                {
+                    "_id": "68a7151527f7bc0013ff4947",
+                    "name": "epic_general",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [
+                "epic_air_quality_program"
+            ],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 4,
+            "device_codes": [
+                "68638ec00aef8b001385d470",
+                "airqo_g5568",
+                "3000991",
+                "airqo_g5568",
+                "3000991"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2025-11-11T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5568",
+            "network": "airqo",
+            "device_number": 3000991,
+            "writeKey": "U2FsdGVkX1+M0sUp93yT9bHHTxtlK312cWaKEUe+tTlwwBjpWvA7TkCoNGXG4inV",
+            "readKey": "U2FsdGVkX19VHvTrvdWrAtIo9/q2kShydplvC1QjVgM+3jPtPDgWC1lsiJEdGfBF",
+            "name": "airqo_g5568",
+            "createdAt": "2025-07-01T07:31:12.597Z",
+            "serial_number": "3000991",
+            "alias": "airqo_g5568",
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 4.403,
+            "deployment_date": "2025-08-11T00:00:00.000Z",
+            "latitude": -0.58759958659695,
+            "longitude": 30.646319434757686,
+            "mountType": "faceboard",
+            "powerType": "solar",
+            "description": "Mbarara North Division Office",
+            "lastActive": "2025-12-30T05:00:00.000Z",
+            "onlineStatusAccuracy": {
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successfulUpdates": 11289,
+                "totalAttempts": 12993,
+                "failurePercentage": 14.96049165935031,
+                "successPercentage": 85.03950834064969,
+                "accuracyPercentage": 85.03950834064969,
+                "correctChecks": 9687,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "totalChecks": 11391,
+                "failedUpdates": 1704,
+                "incorrectChecks": 1704,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:17.287Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "lastRawData": "2025-12-30T13:41:51.000Z",
+            "rawOnlineStatus": false,
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                },
+                {
+                    "_id": "688d201f472adf0013d08fa6",
+                    "lastActive": null,
+                    "groups": [],
+                    "name": "mbarara_city",
+                    "admin_level": "city",
+                    "long_name": "mbarara city"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "689b79108f2b000013196095",
+                "visibility": false,
+                "formatted_name": "CM72+G83, Kyamugoranyi Road, Mbarara, Uganda",
+                "location_name": "Mbarara, Uganda",
+                "search_name": "Kyamugoranyi Road",
+                "city": "Mbarara",
+                "district": "Mbarara",
+                "country": "Uganda",
+                "name": "Kakiika",
+                "network": "airqo",
+                "approximate_latitude": -0.5826217683200158,
+                "approximate_longitude": 30.64792564840916,
+                "generated_name": "site_601",
+                "description": "Kakiika",
+                "lastRawData": "2025-12-30T13:41:51.000Z",
+                "rawOnlineStatus": true
+            },
+            "latest_deployment_activity": {
+                "_id": "689b7ecf8f2b000013196840",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-08-11T00:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2025-11-11T00:00:00.000Z",
+                "createdAt": "2025-08-12T17:50:07.893Z",
+                "device_id": null,
+                "device": "airqo_g5568",
+                "site_id": "689b79108f2b000013196095"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638eae0aef8b001385d467",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "689e6b8b5e551f0013d63942",
+                    "name": "epic_kampala"
+                },
+                {
+                    "_id": "68a7151527f7bc0013ff4947",
+                    "name": "epic_general",
+                    "name_update_history": []
+                },
+                {
+                    "_id": "68d4e669670d2e0013c85375",
+                    "name": "nyu_cohort",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 2,
+            "device_codes": [
+                "68638eae0aef8b001385d467",
+                "airqo_g5567",
+                "3000988",
+                "airqo_g5567",
+                "3000988"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-12-24T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5567",
+            "network": "airqo",
+            "device_number": 3000988,
+            "writeKey": "U2FsdGVkX1/K0xHvTfg7kzW1+ouqLH1gQlaq9ACax7S5jJt3Zlj+3z851tC2prs6",
+            "readKey": "U2FsdGVkX18lrKObbsSsYVvM58AeHvHzx7FIcgqBUSmKwFLaxYd1Y0XHX4u5RS80",
+            "name": "airqo_g5567",
+            "createdAt": "2025-07-01T07:30:54.584Z",
+            "serial_number": "3000988",
+            "alias": "airqo_g5567",
+            "lastActive": "2025-12-30T05:00:00.000Z",
+            "lastRawData": "2025-12-30T13:37:36.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 85.07858360159061,
+                "correctChecks": 8987,
+                "failurePercentage": 14.921416398409391,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successPercentage": 85.07858360159061,
+                "successfulUpdates": 8987,
+                "totalAttempts": 10563,
+                "totalChecks": 10563,
+                "failedUpdates": 1576,
+                "incorrectChecks": 1576,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T14:38:19.736Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 5.257,
+            "deployment_date": "2025-09-24T21:00:00.000Z",
+            "latitude": 0.3468257915673872,
+            "longitude": 32.58904740585272,
+            "mountType": "pole",
+            "powerType": "solar",
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                },
+                {
+                    "_id": "66e4bc6598c2a9001332991d",
+                    "name": "kampala_central",
+                    "admin_level": "division",
+                    "long_name": "Kampala Central"
+                },
+                {
+                    "_id": "67c9681471c7b0001383d7af",
+                    "groups": [],
+                    "name": "greater_kampala",
+                    "admin_level": "city",
+                    "long_name": "Greater Kampala"
+                },
+                {
+                    "_id": "67c96c4771c7b0001383dde1",
+                    "groups": [],
+                    "name": "kampala_city",
+                    "admin_level": "city",
+                    "long_name": "Kampala City"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "68d69d0f4b74ad0012a58685",
+                "visibility": false,
+                "formatted_name": "8a Old Kira Rd, Kampala, Uganda",
+                "location_name": "Kampala, Uganda",
+                "search_name": "Kamwokya,Kiira",
+                "parish": "Kampala Central Division",
+                "city": "Kampala",
+                "district": "Kampala",
+                "country": "Uganda",
+                "name": "Kamwokya_OldKiira",
+                "approximate_latitude": 0.34774766338837937,
+                "approximate_longitude": 32.58978774790762,
+                "generated_name": "site_615",
+                "description": "Kamwokya_OldKiira",
+                "network": "airqo"
+            },
+            "latest_deployment_activity": {
+                "_id": "68d69d0f4b74ad0012a58693",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-09-24T21:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2025-12-24T00:00:00.000Z",
+                "createdAt": "2025-09-26T14:02:55.507Z",
+                "device_id": null,
+                "device": "airqo_g5567",
+                "site_id": "68d69d0f4b74ad0012a58685"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638ea2339f1b0013a7f36e",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68638ea2339f1b0013a7f36e",
+                "airqo_g5566",
+                "3000987",
+                "airqo_g5566",
+                "3000987"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5566",
+            "network": "airqo",
+            "device_number": 3000987,
+            "writeKey": "U2FsdGVkX191rLsySgp43VdpDukWAVtta8+n/4+PcUQ+LDS9sZYpFQD3FHoMWmob",
+            "readKey": "U2FsdGVkX1/ZnLtdZD24GHZvem2NzGFABbt8zOBb/vB9Lul091nVA7xQZ9hr06Fx",
+            "name": "airqo_g5566",
+            "createdAt": "2025-07-01T07:30:42.289Z",
+            "serial_number": "3000987",
+            "alias": "airqo_g5566",
+            "lastActive": "2025-12-30T14:04:37.000Z",
+            "lastRawData": "2025-12-30T14:04:37.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 86.44158628081458,
+                "correctChecks": 4839,
+                "failurePercentage": 13.558413719185424,
+                "lastCheck": "2025-12-30T15:38:20.978Z",
+                "lastCorrectCheck": "2025-12-30T15:38:20.978Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:38:20.978Z",
+                "lastUpdate": "2025-12-30T15:38:20.978Z",
+                "successPercentage": 86.44158628081458,
+                "successfulUpdates": 4839,
+                "totalAttempts": 5598,
+                "totalChecks": 5598,
+                "failedUpdates": 759,
+                "incorrectChecks": 759,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:16.735Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686387420aef8b001385cec2",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686387420aef8b001385cec2",
+                "airqo_g5565",
+                "3000951",
+                "airqo_g5565",
+                "3000951"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:26.700Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5565",
+            "network": "airqo",
+            "device_number": 3000951,
+            "writeKey": "U2FsdGVkX1+LCnch33KbSY6d7ESkIP7LGaNbirIGRIPNwUcFdeniwyDR5rAslr4Y",
+            "readKey": "U2FsdGVkX19bi6Db4w48haB89TQiOfr8iSxly3iYUP/3VZRDIREZKjO4VVcowfiW",
+            "name": "airqo_g5565",
+            "createdAt": "2025-07-01T06:59:14.574Z",
+            "serial_number": "3000951",
+            "alias": "airqo_g5565",
+            "lastActive": "2025-12-30T14:13:06.000Z",
+            "lastRawData": "2025-12-30T14:13:06.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 87.25420092956739,
+                "correctChecks": 4881,
+                "failurePercentage": 12.74579907043261,
+                "lastCheck": "2025-12-30T15:38:20.705Z",
+                "lastCorrectCheck": "2025-12-30T15:38:20.705Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:38:20.705Z",
+                "lastUpdate": "2025-12-30T15:38:20.705Z",
+                "successPercentage": 87.25420092956739,
+                "successfulUpdates": 4881,
+                "totalAttempts": 5594,
+                "totalChecks": 5594,
+                "failedUpdates": 713,
+                "incorrectChecks": 713,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:16.457Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686387370aef8b001385ceba",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "68d4e669670d2e0013c85375",
+                    "name": "nyu_cohort",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 6,
+            "device_codes": [
+                "686387370aef8b001385ceba",
+                "airqo_g5564",
+                "3000950",
+                "airqo_g5564",
+                "3000950"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2025-11-25T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5564",
+            "network": "airqo",
+            "device_number": 3000950,
+            "writeKey": "U2FsdGVkX185Idsiq3bwxD67vo29A8avPA49caohZdhupyIh3gtxUT3DtW6CjDK0",
+            "readKey": "U2FsdGVkX19zKMI8cS6ttTgWFmqJTNWD7YNmNy5PK/dbr8z57Hnm0kcCP8+1WpFU",
+            "name": "airqo_g5564",
+            "createdAt": "2025-07-01T06:59:03.434Z",
+            "serial_number": "3000950",
+            "alias": "airqo_g5564",
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 0.622,
+            "deployment_date": "2025-08-25T00:00:00.000Z",
+            "latitude": 0.22185039139708557,
+            "longitude": 32.62021710459539,
+            "mountType": "pole",
+            "powerType": "solar",
+            "lastActive": "2025-12-29T11:00:00.000Z",
+            "onlineStatusAccuracy": {
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.578Z",
+                "lastUpdate": "2025-12-30T15:45:00.578Z",
+                "successfulUpdates": 11816,
+                "totalAttempts": 12584,
+                "failurePercentage": 6.994535519125691,
+                "successPercentage": 93.00546448087431,
+                "accuracyPercentage": 93.00546448087431,
+                "correctChecks": 10213,
+                "lastCheck": "2025-12-30T15:45:00.578Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.578Z",
+                "totalChecks": 10981,
+                "failedUpdates": 768,
+                "incorrectChecks": 768,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T12:38:14.915Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "lastRawData": "2025-12-30T10:58:01.000Z",
+            "rawOnlineStatus": false,
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                },
+                {
+                    "_id": "67c9681471c7b0001383d7af",
+                    "groups": [],
+                    "name": "greater_kampala",
+                    "admin_level": "city",
+                    "long_name": "Greater Kampala"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "60d058c8048305120d2d615a",
+                "description": "Busabala, Wakiso",
+                "country": "Uganda",
+                "district": "Wakiso",
+                "parish": "Busabala",
+                "generated_name": "site_52",
+                "name": "Busabala, Wakiso",
+                "city": "Kampala",
+                "formatted_name": "6J98+8V8 Uganda Scouts National Campsite, Kampala, Uganda",
+                "search_name": "Busabala",
+                "location_name": "Wakiso, Uganda",
+                "approximate_latitude": 0.21854907713977004,
+                "approximate_longitude": 32.62207804971557,
+                "network": "airqo",
+                "lastRawData": "2025-12-30T10:58:01.000Z",
+                "rawOnlineStatus": true
+            },
+            "latest_deployment_activity": {
+                "_id": "68ac08b91c26640013cdee78",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-08-25T00:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2025-11-25T00:00:00.000Z",
+                "createdAt": "2025-08-25T06:54:49.323Z",
+                "device_id": null,
+                "device": "airqo_g5564",
+                "site_id": "60d058c8048305120d2d615a"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "6863872c339f1b0013a7edbc",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "689e6b8b5e551f0013d63942",
+                    "name": "epic_kampala"
+                },
+                {
+                    "_id": "68a7151527f7bc0013ff4947",
+                    "name": "epic_general",
+                    "name_update_history": []
+                },
+                {
+                    "_id": "68d4e669670d2e0013c85375",
+                    "name": "nyu_cohort",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 5,
+            "device_codes": [
+                "6863872c339f1b0013a7edbc",
+                "airqo_g5563",
+                "3000949",
+                "airqo_g5563",
+                "3000949"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-12-24T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5563",
+            "network": "airqo",
+            "device_number": 3000949,
+            "writeKey": "U2FsdGVkX19xm0il9mYCKvZ2Ocm9Ze/JRdMobJS+271OK1FDSgQLI63j16tlSYbV",
+            "readKey": "U2FsdGVkX18JvHUHi8SwOlKwH7PXkM7XoBWvq4uP2Aak212J5CXSGxHtuIma/IIa",
+            "name": "airqo_g5563",
+            "createdAt": "2025-07-01T06:58:52.098Z",
+            "serial_number": "3000949",
+            "alias": "airqo_g5563",
+            "lastActive": "2025-12-30T03:00:00.000Z",
+            "lastRawData": "2025-12-30T14:48:50.000Z",
+            "rawOnlineStatus": true,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 83.65521834268861,
+                "correctChecks": 8794,
+                "failurePercentage": 16.344781657311387,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successPercentage": 83.65521834268861,
+                "successfulUpdates": 8794,
+                "totalAttempts": 10512,
+                "totalChecks": 10512,
+                "failedUpdates": 1718,
+                "incorrectChecks": 1718,
+                "lastFailureReason": "online_raw",
+                "lastIncorrectCheck": "2025-12-30T14:38:18.661Z",
+                "lastIncorrectReason": "online_raw"
+            },
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 7.28,
+            "deployment_date": "2025-09-24T21:00:00.000Z",
+            "latitude": 0.3118744185161481,
+            "longitude": 32.56235063213467,
+            "mountType": "pole",
+            "powerType": "solar",
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                },
+                {
+                    "_id": "66e4bd7e83aea40014f71807",
+                    "name": "rubaga",
+                    "admin_level": "division",
+                    "long_name": "Rubaga"
+                },
+                {
+                    "_id": "67c9681471c7b0001383d7af",
+                    "groups": [],
+                    "name": "greater_kampala",
+                    "admin_level": "city",
+                    "long_name": "Greater Kampala"
+                },
+                {
+                    "_id": "67c96c4771c7b0001383dde1",
+                    "groups": [],
+                    "name": "kampala_city",
+                    "admin_level": "city",
+                    "long_name": "Kampala City"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "68d658118162eb0013efffdc",
+                "visibility": false,
+                "formatted_name": "8H55+RC2, Kampala, Uganda",
+                "location_name": "Kampala, Uganda",
+                "search_name": "Mengo,Rubaga",
+                "parish": "Rubaga Division",
+                "city": "Kampala",
+                "district": "Kampala",
+                "country": "Uganda",
+                "name": "Bulange_Mengo",
+                "approximate_latitude": 0.3138005599119477,
+                "approximate_longitude": 32.55963772616591,
+                "generated_name": "site_612",
+                "description": "Bulange_Mengo",
+                "network": "airqo"
+            },
+            "latest_deployment_activity": {
+                "_id": "68d658118162eb0013efffea",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-09-24T21:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2025-12-24T00:00:00.000Z",
+                "createdAt": "2025-09-26T09:08:33.668Z",
+                "device_id": null,
+                "device": "airqo_g5563",
+                "site_id": "68d658118162eb0013efffdc"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638714339f1b0013a7edb6",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "68e2c7c95904d500132ce5ef",
+                    "name": "epic_manhica",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": true,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68638714339f1b0013a7edb6",
+                "airqo_g5562",
+                "3000948",
+                "airqo_g5562",
+                "3000948"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5562",
+            "network": "airqo",
+            "device_number": 3000948,
+            "writeKey": "U2FsdGVkX1+FDApltAvxXbSi/X2K9CY4y6bs+j1vVwfZikIgjEI7Vfcmh79yVX0C",
+            "readKey": "U2FsdGVkX1+FBsF9f7hp6KCeVsXLD+4YxWOlHPs9ck8pmhxSAqmbhuLnUbxMeTnK",
+            "name": "airqo_g5562",
+            "createdAt": "2025-07-01T06:58:28.269Z",
+            "serial_number": "3000948",
+            "alias": "airqo_g5562",
+            "lastActive": "2025-12-30T15:15:17.000Z",
+            "lastRawData": "2025-12-30T15:15:17.000Z",
+            "rawOnlineStatus": true,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 88.18970047293747,
+                "correctChecks": 6713,
+                "failurePercentage": 11.810299527062526,
+                "lastCheck": "2025-12-30T15:38:19.743Z",
+                "lastCorrectCheck": "2025-12-30T14:38:20.969Z",
+                "lastSuccessfulUpdate": "2025-12-30T14:38:20.969Z",
+                "lastUpdate": "2025-12-30T15:38:19.743Z",
+                "successPercentage": 88.18970047293747,
+                "successfulUpdates": 6713,
+                "totalAttempts": 7613,
+                "totalChecks": 7613,
+                "failedUpdates": 900,
+                "incorrectChecks": 900,
+                "lastFailureReason": "online_raw",
+                "lastIncorrectCheck": "2025-12-30T15:38:19.743Z",
+                "lastIncorrectReason": "online_raw"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686387070aef8b001385ceac",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686387070aef8b001385ceac",
+                "airqo_g5561",
+                "3000947",
+                "airqo_g5561",
+                "3000947"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:26.700Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5561",
+            "network": "airqo",
+            "device_number": 3000947,
+            "writeKey": "U2FsdGVkX19vISsoDdV5WGlZzaIAahTapr8z3OljZ1tVztdNJ1wNWMpdMqMCB7Rd",
+            "readKey": "U2FsdGVkX18JWYXRvoJZ1WWzZ1GwZ3SkkCaO7CXqaC9BZSkKW4m9HRELqo3K+YbM",
+            "name": "airqo_g5561",
+            "createdAt": "2025-07-01T06:58:15.051Z",
+            "serial_number": "3000947",
+            "alias": "airqo_g5561",
+            "lastActive": "2025-10-13T15:37:40.000Z",
+            "lastRawData": "2025-10-13T15:37:40.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 99.12884491288449,
+                "correctChecks": 9218,
+                "failurePercentage": 0.8711550871155112,
+                "lastCheck": "2025-12-30T15:45:00.575Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.575Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.575Z",
+                "lastUpdate": "2025-12-30T15:45:00.575Z",
+                "successPercentage": 99.12884491288449,
+                "successfulUpdates": 9218,
+                "totalAttempts": 9299,
+                "totalChecks": 9299,
+                "failedUpdates": 81,
+                "incorrectChecks": 81,
+                "lastFailureReason": "offline_raw",
+                "lastIncorrectCheck": "2025-10-13T15:38:04.152Z",
+                "lastIncorrectReason": "offline_raw"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686383f2339f1b0013a7eda0",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686383f2339f1b0013a7eda0",
+                "airqo_g5560",
+                "3000941",
+                "airqo_g5560",
+                "3000941"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5560",
+            "network": "airqo",
+            "device_number": 3000941,
+            "writeKey": "U2FsdGVkX1+J1ab2E5SKe05ph8EEQipoSoiChjWukHkyitw4bcD77KKNCgGocMgE",
+            "readKey": "U2FsdGVkX18+tf92EWSJVJVpf4OFIlGwofPJqN4UNk+RUCiQ4tS9S4f6bgte7Fwc",
+            "name": "airqo_g5560",
+            "createdAt": "2025-07-01T06:45:06.956Z",
+            "serial_number": "3000941",
+            "alias": "airqo_g5560",
+            "lastActive": "2025-12-30T14:25:54.000Z",
+            "lastRawData": "2025-12-30T14:25:54.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 87.36371760500447,
+                "correctChecks": 4888,
+                "failurePercentage": 12.636282394995533,
+                "lastCheck": "2025-12-30T15:38:18.973Z",
+                "lastCorrectCheck": "2025-12-30T14:38:20.416Z",
+                "lastSuccessfulUpdate": "2025-12-30T14:38:20.416Z",
+                "lastUpdate": "2025-12-30T15:38:18.973Z",
+                "successPercentage": 87.36371760500447,
+                "successfulUpdates": 4888,
+                "totalAttempts": 5596,
+                "totalChecks": 5596,
+                "failedUpdates": 708,
+                "incorrectChecks": 708,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:18.973Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686383e10aef8b001385ce87",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "68a2f47e0b8921001437ce87",
+                    "name": "epic_mbarara",
+                    "name_update_history": []
+                },
+                {
+                    "_id": "68a7151527f7bc0013ff4947",
+                    "name": "epic_general",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [
+                "epic_air_quality_program"
+            ],
+            "authRequired": true,
+            "visibility": true,
+            "isOnline": false,
+            "mobility": false,
+            "height": 4,
+            "device_codes": [
+                "686383e10aef8b001385ce87",
+                "airqo_g5559",
+                "3000940",
+                "airqo_g5559",
+                "3000940"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2025-11-12T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5559",
+            "network": "airqo",
+            "device_number": 3000940,
+            "writeKey": "U2FsdGVkX1/Qto+a6QieklXKY3TCQEuCeRtDnYq+ewcZfnbpgL6cKOGDTgTQuc2h",
+            "readKey": "U2FsdGVkX1/mTyUtIpj8R9fR4kLE4LsBdbqWnQiC2GirjpXCK9E94wYELx2Btrpc",
+            "name": "airqo_g5559",
+            "createdAt": "2025-07-01T06:44:49.667Z",
+            "serial_number": "3000940",
+            "alias": "airqo_g5559",
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 0.07,
+            "deployment_date": "2025-08-12T00:00:00.000Z",
+            "latitude": -0.5351023974485547,
+            "longitude": 30.646872169167214,
+            "mountType": "pole",
+            "powerType": "solar",
+            "description": "Kyarwabuganda Health Center IV",
+            "lastActive": "2025-12-28T21:00:00.000Z",
+            "onlineStatusAccuracy": {
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.576Z",
+                "lastUpdate": "2025-12-30T15:45:00.576Z",
+                "successfulUpdates": 10771,
+                "totalAttempts": 13152,
+                "failurePercentage": 20.616503593384707,
+                "successPercentage": 79.3834964066153,
+                "accuracyPercentage": 79.3834964066153,
+                "correctChecks": 9169,
+                "lastCheck": "2025-12-30T15:45:00.576Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.576Z",
+                "totalChecks": 11550,
+                "failedUpdates": 2381,
+                "incorrectChecks": 2381,
+                "lastFailureReason": "online_raw",
+                "lastIncorrectCheck": "2025-12-30T15:38:18.177Z",
+                "lastIncorrectReason": "online_raw"
+            },
+            "lastRawData": "2025-12-30T14:53:09.000Z",
+            "rawOnlineStatus": true,
+            "grids": [
+                {
+                    "_id": "64b7ef42d7249f0029fed6e6",
+                    "name": "uganda",
+                    "admin_level": "country",
+                    "long_name": "Uganda"
+                },
+                {
+                    "_id": "688d201f472adf0013d08fa6",
+                    "lastActive": null,
+                    "groups": [],
+                    "name": "mbarara_city",
+                    "admin_level": "city",
+                    "long_name": "mbarara city"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "689b7ad85026010014539e93",
+                "visibility": false,
+                "formatted_name": "FJ6W+4QR, Uganda",
+                "location_name": "Mbarara, Uganda",
+                "search_name": "Mbarara 605",
+                "district": "Mbarara",
+                "country": "Uganda",
+                "name": "Kyarwabuganda",
+                "network": "airqo",
+                "approximate_latitude": -0.5365956902950346,
+                "approximate_longitude": 30.643203679520937,
+                "generated_name": "site_605",
+                "description": "Kyarwabuganda",
+                "lastRawData": "2025-12-30T14:53:09.000Z",
+                "rawOnlineStatus": true
+            },
+            "latest_deployment_activity": {
+                "_id": "689b81245026010014539fb3",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-08-12T00:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2025-11-12T00:00:00.000Z",
+                "createdAt": "2025-08-12T18:00:04.129Z",
+                "device_id": null,
+                "device": "airqo_g5559",
+                "site_id": "689b7ad85026010014539e93"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686383ce339f1b0013a7ed95",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": true,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686383ce339f1b0013a7ed95",
+                "airqo_g5558",
+                "3000938",
+                "airqo_g5558",
+                "3000938"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5558",
+            "network": "airqo",
+            "device_number": 3000938,
+            "writeKey": "U2FsdGVkX1/9DgEhkSBpRpxFZj6sFW7M7oMhVZbDodaApwZ5VGhaFAW1bIneMIFE",
+            "readKey": "U2FsdGVkX19tRVPoE+1690SUboU3P9yl7LVPZf3Mj6f/b5WW+WBAnZ7eE1uJwlHf",
+            "name": "airqo_g5558",
+            "createdAt": "2025-07-01T06:44:30.344Z",
+            "serial_number": "3000938",
+            "alias": "airqo_g5558",
+            "lastActive": "2025-12-30T15:34:19.000Z",
+            "lastRawData": "2025-12-30T15:34:19.000Z",
+            "rawOnlineStatus": true,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 89.10485021398003,
+                "correctChecks": 4998,
+                "failurePercentage": 10.89514978601997,
+                "lastCheck": "2025-12-30T15:38:17.769Z",
+                "lastCorrectCheck": "2025-12-30T15:38:17.769Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:38:17.769Z",
+                "lastUpdate": "2025-12-30T15:38:17.769Z",
+                "successPercentage": 89.10485021398003,
+                "successfulUpdates": 4998,
+                "totalAttempts": 5609,
+                "totalChecks": 5609,
+                "failedUpdates": 611,
+                "incorrectChecks": 611,
+                "lastFailureReason": "online_raw",
+                "lastIncorrectCheck": "2025-12-30T14:38:19.870Z",
+                "lastIncorrectReason": "online_raw"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686383be0aef8b001385ce77",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686383be0aef8b001385ce77",
+                "airqo_g5557",
+                "3000936",
+                "airqo_g5557",
+                "3000936"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:26.700Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5557",
+            "network": "airqo",
+            "device_number": 3000936,
+            "writeKey": "U2FsdGVkX18DdYMzKi2+SNBOu61BtG2cJjBCzU1Y8tNsfPLe+F31wH5ryQNE19p4",
+            "readKey": "U2FsdGVkX1+rlv3PvQgHDi+DkKPtln1qfMVsTJN7wNx0UeGxvDnk5gWL/N8g+pSI",
+            "name": "airqo_g5557",
+            "createdAt": "2025-07-01T06:44:14.275Z",
+            "serial_number": "3000936",
+            "alias": "airqo_g5557",
+            "lastActive": "2025-12-30T14:14:15.000Z",
+            "lastRawData": "2025-12-30T14:14:15.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 83.22959274408679,
+                "correctChecks": 4680,
+                "failurePercentage": 16.770407255913213,
+                "lastCheck": "2025-12-30T15:38:17.481Z",
+                "lastCorrectCheck": "2025-12-30T14:38:19.592Z",
+                "lastSuccessfulUpdate": "2025-12-30T14:38:19.592Z",
+                "lastUpdate": "2025-12-30T15:38:17.481Z",
+                "successPercentage": 83.22959274408679,
+                "successfulUpdates": 4680,
+                "totalAttempts": 5624,
+                "totalChecks": 5624,
+                "failedUpdates": 944,
+                "incorrectChecks": 944,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:17.481Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686383b1339f1b0013a7ed8c",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "6941b377fe657a0013b41c49",
+                    "name": "wri_safiri_kajiado",
+                    "name_update_history": []
+                },
+                {
+                    "_id": "69427a6ffe657a0013b453e4",
+                    "name": "wri_safiri",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 4,
+            "device_codes": [
+                "686383b1339f1b0013a7ed8c",
+                "airqo_g5556",
+                "3000935",
+                "airqo_g5556",
+                "3000935"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2026-03-13T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5556",
+            "network": "airqo",
+            "device_number": 3000935,
+            "writeKey": "U2FsdGVkX19Zz9/hWPPEtGBzjBahn1XUBmmmW0Ft9ryqpv4RTjVPzHN5gKt6wJd7",
+            "readKey": "U2FsdGVkX18HX4CSw9nkK+3CAXA2an7AUg+3PvEVB1i6R/oFQXgCMujA3Vhiy1Za",
+            "name": "airqo_g5556",
+            "createdAt": "2025-07-01T06:44:01.625Z",
+            "serial_number": "3000935",
+            "alias": "airqo_g5556",
+            "lastActive": "2025-12-30T05:00:00.000Z",
+            "lastRawData": "2025-12-30T15:19:57.000Z",
+            "rawOnlineStatus": true,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 87.08748035620744,
+                "correctChecks": 6651,
+                "failurePercentage": 12.912519643792564,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successPercentage": 87.08748035620744,
+                "successfulUpdates": 6651,
+                "totalAttempts": 7637,
+                "totalChecks": 7637,
+                "failedUpdates": 986,
+                "incorrectChecks": 986,
+                "lastFailureReason": "online_raw",
+                "lastIncorrectCheck": "2025-12-30T14:38:19.317Z",
+                "lastIncorrectReason": "online_raw"
+            },
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 5.453,
+            "deployment_date": "2025-12-13T00:00:00.000Z",
+            "latitude": -1.8390373375336146,
+            "longitude": 36.78138523559272,
+            "mountType": "pole",
+            "powerType": "solar",
+            "grids": [
+                {
+                    "_id": "64b7ef96d7249f0029fed6ed",
+                    "name": "kenya",
+                    "admin_level": "country",
+                    "long_name": "Kenya"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "6941e3d2fe657a0013b429cc",
+                "visibility": false,
+                "rawOnlineStatus": true,
+                "lastRawData": "2025-12-30T15:19:57.000Z",
+                "formatted_name": "5Q5M+5RV, Kajiado, Kenya",
+                "location_name": "Kajiado County, Kenya",
+                "search_name": "Jua Kali Road, Kajiado",
+                "city": "Kajiado",
+                "country": "Kenya",
+                "name": "Jua Kali Road",
+                "approximate_latitude": -1.8395915507115574,
+                "approximate_longitude": 36.788451159392785,
+                "generated_name": "site_649",
+                "description": "Jua Kali Road, Kajiado",
+                "network": "airqo"
+            },
+            "latest_deployment_activity": {
+                "_id": "6941e3d3fe657a0013b429db",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-12-13T00:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2026-03-13T00:00:00.000Z",
+                "createdAt": "2025-12-16T22:57:23.006Z",
+                "device_id": "686383b1339f1b0013a7ed8c",
+                "device": "airqo_g5556",
+                "site_id": "6941e3d2fe657a0013b429cc"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "686383a20aef8b001385ce6b",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "686383a20aef8b001385ce6b",
+                "airqo_g5555",
+                "3000934",
+                "airqo_g5555",
+                "3000934"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:26.700Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5555",
+            "network": "airqo",
+            "device_number": 3000934,
+            "writeKey": "U2FsdGVkX1+uIGESL0RdF/ShXyGripke2h4aVhz1WCSYZzw7eiuKSGnbEiKK/nZx",
+            "readKey": "U2FsdGVkX18SVDTE7iRLn8unK25J2noY9g+mZpcdw4/bzpdTTz3OqMvOYX+qKUSa",
+            "name": "airqo_g5555",
+            "createdAt": "2025-07-01T06:43:46.808Z",
+            "serial_number": "3000934",
+            "alias": "airqo_g5555",
+            "lastActive": "2025-12-30T14:14:58.000Z",
+            "lastRawData": "2025-12-30T14:14:58.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 85.98532307141579,
+                "correctChecks": 4804,
+                "failurePercentage": 14.014676928584208,
+                "lastCheck": "2025-12-30T15:38:16.937Z",
+                "lastCorrectCheck": "2025-12-30T14:38:19.039Z",
+                "lastSuccessfulUpdate": "2025-12-30T14:38:19.039Z",
+                "lastUpdate": "2025-12-30T15:38:16.937Z",
+                "successPercentage": 85.98532307141579,
+                "successfulUpdates": 4804,
+                "totalAttempts": 5588,
+                "totalChecks": 5588,
+                "failedUpdates": 784,
+                "incorrectChecks": 784,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:16.937Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "6863838a0aef8b001385ce63",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                },
+                {
+                    "_id": "6941b377fe657a0013b41c49",
+                    "name": "wri_safiri_kajiado",
+                    "name_update_history": []
+                },
+                {
+                    "_id": "69427a6ffe657a0013b453e4",
+                    "name": "wri_safiri",
+                    "name_update_history": []
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 4,
+            "device_codes": [
+                "6863838a0aef8b001385ce63",
+                "airqo_g5554",
+                "3000933",
+                "airqo_g5554",
+                "3000933"
+            ],
+            "previous_sites": [],
+            "status": "deployed",
+            "isPrimaryInLocation": true,
+            "nextMaintenance": "2026-03-13T00:00:00.000Z",
+            "category": "lowcost",
+            "isActive": true,
+            "long_name": "airqo_g5554",
+            "network": "airqo",
+            "device_number": 3000933,
+            "writeKey": "U2FsdGVkX1+R0M8MfVFbA5emLR08XliD5WIrWP952leuwr6qsbGoxBWO1KDiT0Jl",
+            "readKey": "U2FsdGVkX1+qAvOORPK+wpUmMmpjmFILc3Zw8JgFdEjv0PhN8xhzxtplMkPpGkI5",
+            "name": "airqo_g5554",
+            "createdAt": "2025-07-01T06:43:22.221Z",
+            "serial_number": "3000933",
+            "alias": "airqo_g5554",
+            "lastActive": "2025-12-30T05:00:00.000Z",
+            "lastRawData": "2025-12-30T13:57:56.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 89.02185223725286,
+                "correctChecks": 6845,
+                "failurePercentage": 10.978147762747142,
+                "lastCheck": "2025-12-30T15:45:00.579Z",
+                "lastCorrectCheck": "2025-12-30T15:45:00.579Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:45:00.579Z",
+                "lastUpdate": "2025-12-30T15:45:00.579Z",
+                "successPercentage": 89.02185223725286,
+                "successfulUpdates": 6845,
+                "totalAttempts": 7689,
+                "totalChecks": 7689,
+                "failedUpdates": 844,
+                "incorrectChecks": 844,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:16.658Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "approximate_distance_in_km": 0.5,
+            "bearing_in_radians": 1.897,
+            "deployment_date": "2025-12-13T00:00:00.000Z",
+            "latitude": -1.491987326380475,
+            "longitude": 36.95889718389699,
+            "mountType": "pole",
+            "powerType": "solar",
+            "grids": [
+                {
+                    "_id": "64b7ef96d7249f0029fed6ed",
+                    "name": "kenya",
+                    "admin_level": "country",
+                    "long_name": "Kenya"
+                }
+            ],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "site": {
+                "_id": "6941de38fe657a0013b426bf",
+                "visibility": false,
+                "rawOnlineStatus": true,
+                "lastRawData": "2025-12-30T13:57:56.000Z",
+                "formatted_name": "GX53+QQ7, Kitengela, Kenya",
+                "location_name": "Kajiado County, Kenya",
+                "search_name": "Namanga Road, Kitengela II",
+                "city": "Kitengela",
+                "country": "Kenya",
+                "name": "Namanga Road Kitengela II",
+                "approximate_latitude": -1.4875206546887407,
+                "approximate_longitude": 36.95132179640376,
+                "generated_name": "site_644",
+                "description": "Nairobi - Namanga Road, Kitengela II",
+                "network": "airqo"
+            },
+            "latest_deployment_activity": {
+                "_id": "6941de38fe657a0013b426ce",
+                "activityType": "deployment",
+                "maintenanceType": null,
+                "recallType": null,
+                "date": "2025-12-13T00:00:00.000Z",
+                "description": "device deployed",
+                "nextMaintenance": "2026-03-13T00:00:00.000Z",
+                "createdAt": "2025-12-16T22:33:28.286Z",
+                "device_id": "6863838a0aef8b001385ce63",
+                "device": "airqo_g5554",
+                "site_id": "6941de38fe657a0013b426bf"
+            },
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 1,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638378339f1b0013a7ed7b",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": false,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68638378339f1b0013a7ed7b",
+                "airqo_g5553",
+                "3000931",
+                "airqo_g5553",
+                "3000931"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5553",
+            "network": "airqo",
+            "device_number": 3000931,
+            "writeKey": "U2FsdGVkX18KP7mLtx9bEIRZp9t6QpgSAXzJJ/P0dFZWLzIemXhmzVwZddl53yYK",
+            "readKey": "U2FsdGVkX18LCgwRR6lQBVPQu1wjI4PVDGEEhRpxwflTDDhhbt1L/2PckYNPMFAI",
+            "name": "airqo_g5553",
+            "createdAt": "2025-07-01T06:43:04.756Z",
+            "serial_number": "3000931",
+            "alias": "airqo_g5553",
+            "lastActive": "2025-12-30T14:13:06.000Z",
+            "lastRawData": "2025-12-30T14:13:06.000Z",
+            "rawOnlineStatus": false,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 83.08731993597723,
+                "correctChecks": 4672,
+                "failurePercentage": 16.912680064022766,
+                "lastCheck": "2025-12-30T15:38:16.384Z",
+                "lastCorrectCheck": "2025-12-30T14:38:18.493Z",
+                "lastSuccessfulUpdate": "2025-12-30T14:38:18.493Z",
+                "lastUpdate": "2025-12-30T15:38:16.384Z",
+                "successPercentage": 83.08731993597723,
+                "successfulUpdates": 4672,
+                "totalAttempts": 5624,
+                "totalChecks": 5624,
+                "failedUpdates": 952,
+                "incorrectChecks": 952,
+                "lastFailureReason": "stale_lastRawData",
+                "lastIncorrectCheck": "2025-12-30T15:38:16.384Z",
+                "lastIncorrectReason": "stale_lastRawData"
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638366fe855700134d6f34",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": true,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68638366fe855700134d6f34",
+                "airqo_g5552",
+                "3000930",
+                "airqo_g5552",
+                "3000930"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:19.902Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5552",
+            "network": "airqo",
+            "device_number": 3000930,
+            "writeKey": "U2FsdGVkX187HpaquL1f8gAIsND2g3qd3GPzmd3ZNMVAOWyttrECQflx9ZWFlJK1",
+            "readKey": "U2FsdGVkX18Q4jvj0Y8rHWhWt1D2GrIy0odTU2lN8m1jLJrvzwa8xx/NWHLFfTVh",
+            "name": "airqo_g5552",
+            "createdAt": "2025-07-01T06:42:46.873Z",
+            "serial_number": "3000930",
+            "alias": "airqo_g5552",
+            "lastActive": "2025-12-30T15:23:45.000Z",
+            "lastRawData": "2025-12-30T15:23:45.000Z",
+            "rawOnlineStatus": true,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 83.00700556852884,
+                "failedUpdates": 946,
+                "failurePercentage": 16.99299443147116,
+                "incorrectChecks": 946,
+                "lastCheck": "2025-12-30T15:38:16.096Z",
+                "lastFailureReason": "online_raw",
+                "lastIncorrectCheck": "2025-12-30T14:38:18.203Z",
+                "lastIncorrectReason": "online_raw",
+                "lastUpdate": "2025-12-30T15:38:16.096Z",
+                "successPercentage": 83.00700556852884,
+                "totalAttempts": 5568,
+                "totalChecks": 5568,
+                "correctChecks": 4622,
+                "lastCorrectCheck": "2025-12-30T15:38:16.096Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:38:16.096Z",
+                "successfulUpdates": 4622
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        },
+        {
+            "_id": "68638358339f1b0013a7ed6f",
+            "cohorts": [
+                {
+                    "_id": "64ca6a59e2e198001ed21c96",
+                    "name": "airqo"
+                }
+            ],
+            "groups": [],
+            "authRequired": true,
+            "visibility": false,
+            "isOnline": true,
+            "mobility": false,
+            "height": 0,
+            "device_codes": [
+                "68638358339f1b0013a7ed6f",
+                "airqo_g5551",
+                "3000929",
+                "airqo_g5551",
+                "3000929"
+            ],
+            "previous_sites": [],
+            "status": "not deployed",
+            "isPrimaryInLocation": false,
+            "nextMaintenance": "2025-09-30T09:47:20.007Z",
+            "category": "lowcost",
+            "isActive": false,
+            "long_name": "airqo_g5551",
+            "network": "airqo",
+            "device_number": 3000929,
+            "writeKey": "U2FsdGVkX1/SFreVetPOHSF+r+VJJkoBRTr2rgicezCBM7Z/sux2xLWKoa6m7/yN",
+            "readKey": "U2FsdGVkX1+uzgDcFtZzAW7VNkwZuTZqePhmGD615i/J4fPlHFhMDJ99gszODV2A",
+            "name": "airqo_g5551",
+            "createdAt": "2025-07-01T06:42:32.498Z",
+            "serial_number": "3000929",
+            "alias": "airqo_g5551",
+            "lastActive": "2025-12-30T15:30:17.000Z",
+            "lastRawData": "2025-12-30T15:30:17.000Z",
+            "rawOnlineStatus": true,
+            "onlineStatusAccuracy": {
+                "accuracyPercentage": 80.8586127372716,
+                "failedUpdates": 1079,
+                "failurePercentage": 19.1413872627284,
+                "incorrectChecks": 1079,
+                "lastCheck": "2025-12-30T15:38:15.825Z",
+                "lastFailureReason": "online_raw",
+                "lastIncorrectCheck": "2025-12-29T15:38:04.643Z",
+                "lastIncorrectReason": "online_raw",
+                "lastUpdate": "2025-12-30T15:38:15.825Z",
+                "successPercentage": 80.8586127372716,
+                "totalAttempts": 5638,
+                "totalChecks": 5638,
+                "correctChecks": 4559,
+                "lastCorrectCheck": "2025-12-30T15:38:15.825Z",
+                "lastSuccessfulUpdate": "2025-12-30T15:38:15.825Z",
+                "successfulUpdates": 4559
+            },
+            "grids": [],
+            "device_categories": {
+                "primary_category": "lowcost",
+                "deployment_category": "static",
+                "is_mobile": false,
+                "is_static": true,
+                "is_lowcost": true,
+                "is_bam": false,
+                "is_gas": false,
+                "all_categories": [
+                    "lowcost",
+                    "static"
+                ],
+                "category_hierarchy": [
+                    {
+                        "level": "equipment",
+                        "category": "lowcost",
+                        "description": "Low-cost sensor device"
+                    },
+                    {
+                        "level": "deployment",
+                        "category": "static",
+                        "description": "Static deployment (fixed location, site-based)"
+                    }
+                ],
+                "category_relationships": {
+                    "type": "static",
+                    "note": "This is a static lowcost device deployed at a fixed location using site-based deployment.",
+                    "belongs_to_equipment_category": "lowcost",
+                    "deployment_method": "site-based"
+                }
+            },
+            "latest_deployment_activity": null,
+            "latest_maintenance_activity": null,
+            "latest_recall_activity": null,
+            "total_activities": 0,
+            "assigned_grid": null
+        }
+    ]
+}

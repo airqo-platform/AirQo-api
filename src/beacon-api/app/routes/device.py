@@ -6,12 +6,31 @@ from app.deps import get_db
 from app.models import Device, DeviceRead, DeviceCreate, DeviceUpdate, DeviceFirmwareUpdate, DeviceReading, Site
 from app.models.location import Location
 from app.crud import device as device_crud
-from app.utils.background_tasks import update_all_null_device_keys_background
+from app.utils.background_tasks import update_all_null_device_keys_background, update_missing_sites_background, sync_devices_background
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/summary")
+async def get_device_summary(
+    *,
+    db: Session = Depends(get_db)
+):
+    """
+    Get summary statistics for devices and airqlouds.
+    
+    Returns:
+    - **total_devices**: Total number of devices in the system
+    - **active_airqlouds**: Number of active airqlouds
+    - **tracked_devices**: Number of unique devices associated with active airqlouds
+    - **deployed_devices**: Total number of devices with status 'deployed'
+    - **tracked_online**: Number of tracked devices that are currently online
+    - **tracked_offline**: Number of tracked devices that are currently offline
+    """
+    return device_crud.get_summary_stats(db)
 
 
 @router.get("/stats")
@@ -37,6 +56,7 @@ async def get_comprehensive_device_stats(
 async def get_devices(
     *,
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks,
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: Optional[int] = Query(None, ge=1, le=10000, description="Number of items to return (omit for all devices)"),
     network: Optional[str] = Query(None, description="Filter by network name"),
@@ -97,7 +117,7 @@ async def get_devices(
     **Note:** When fetching all devices (limit=None), the system processes data in batches
     to avoid overwhelming the database while still returning all results efficiently.
     """
-    return device_crud.get_devices_with_details(
+    result = device_crud.get_devices_with_details(
         db,
         skip=skip,
         limit=limit,
@@ -105,6 +125,42 @@ async def get_devices(
         status=status,
         search=search
     )
+
+    # Check for missing sites and trigger background update if needed
+    # If a device has a site_id but no corresponding site_location data, it means the site is missing in dim_site
+    devices_list = result.get("devices", [])
+    has_missing_sites = False
+    
+    for device_data in devices_list:
+        if device_data.get("site_id") and not device_data.get("site_location"):
+            has_missing_sites = True
+            break
+            
+    if has_missing_sites:
+        # trigger background task
+        background_tasks.add_task(update_missing_sites_background)
+        
+    return result
+
+
+@router.post("/sync")
+async def sync_devices(
+    *,
+    background_tasks: BackgroundTasks
+):
+    """
+    Trigger a background sync of devices from the Platform API.
+    
+    This process:
+    - Fetches all devices from the Platform API
+    - Updates local database with new/changed device data
+    - Updates/creates associated sites
+    - Decrypts keys if needed
+    
+    This is an async background task and returns immediately.
+    """
+    background_tasks.add_task(sync_devices_background)
+    return {"message": "Device sync triggered in background"}
 
 
 @router.get("/map-data")
@@ -116,43 +172,99 @@ async def get_map_data(
     devices = db.exec(
         select(Device)
         .where(and_(Device.status == 'deployed', Device.network == 'airqo'))
-        .order_by(Device.device_name)
     ).all()
+    
+    if not devices:
+        return []
+
+    device_keys = [d.device_key for d in devices]
+    site_ids = [d.site_id for d in devices if d.site_id]
+    
+    # Bulk fetch active locations
+    locations = db.exec(
+        select(Location)
+        .where(Location.device_key.in_(device_keys))
+        .where(Location.is_active.is_(True))
+    ).all()
+    location_map = {loc.device_key: loc for loc in locations}
+    
+    # Bulk fetch sites for fallback
+    sites = []
+    if site_ids:
+        sites = db.exec(
+            select(Site)
+            .where(Site.site_id.in_(site_ids))
+        ).all()
+    site_map = {site.site_id: site for site in sites}
+
+    # Bulk fetch latest readings
+    # Optimizing to use a subquery for max date per device is good, reuse similar logic
+    reading_subquery = (
+        select(
+            DeviceReading.device_key,
+            func.max(DeviceReading.created_at).label("max_created_at")
+        )
+        .where(DeviceReading.device_key.in_(device_keys))
+        .group_by(DeviceReading.device_key)
+        .subquery()
+    )
+    
+    readings = db.exec(
+        select(DeviceReading)
+        .join(
+            reading_subquery,
+            and_(
+                DeviceReading.device_key == reading_subquery.c.device_key,
+                DeviceReading.created_at == reading_subquery.c.max_created_at
+            )
+        )
+    ).all()
+    reading_map = {r.device_key: r for r in readings}
     
     result = []
     for device in devices:
-        # Get active location
-        location = db.exec(
-            select(Location)
-            .where(Location.device_key == device.device_key)
-            .where(Location.is_active.is_(True))
-            .order_by(Location.recorded_at.desc())
-            .limit(1)
-        ).first()
+        lat = None
+        lon = None
+        site_name = None
         
-        if not location:
+        # 1. Try Active Location
+        loc = location_map.get(device.device_key)
+        if loc:
+            lat = loc.latitude
+            lon = loc.longitude
+            site_name = loc.site_name
+            
+        # 2. Fallback to Site if coordinates missing
+        if lat is None or lon is None:
+            if device.site_id:
+                site = site_map.get(device.site_id)
+                if site:
+                    lat = site.latitude
+                    lon = site.longitude
+                    if not site_name:
+                        site_name = site.site_name
+        
+        # If still no coordinates, skip this device from map
+        if lat is None or lon is None:
             continue
-        
-        # Get latest reading
-        latest_reading = db.exec(
-            select(DeviceReading)
-            .where(DeviceReading.device_key == device.device_key)
-            .order_by(DeviceReading.created_at.desc())
-            .limit(1)
-        ).first()
+            
+        latest_reading = reading_map.get(device.device_key)
         
         result.append({
             "device_name": device.device_name,
             "is_online": device.is_online,
-            "latitude": location.latitude,
-            "longitude": location.longitude,
-            "site_name": location.site_name if location else None,
+            "latitude": lat,
+            "longitude": lon,
+            "site_name": site_name,
             "recent_reading": {
                 "timestamp": latest_reading.created_at.isoformat() if latest_reading and latest_reading.created_at else None,
                 "pm2_5": latest_reading.pm2_5 if latest_reading else None,
                 "pm10": latest_reading.pm10 if latest_reading else None
             } if latest_reading else None
         })
+    
+    # Sort by device name
+    result.sort(key=lambda x: x["device_name"])
     
     return result
 

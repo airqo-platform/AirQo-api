@@ -60,6 +60,22 @@ class EnhancedThingSpeakDataFetcher:
             'fetch_logs_created': 0
         }
     
+    def get_last_entry_timestamp(self, channel_id: int, api_key: str) -> Optional[datetime]:
+        """Fetch the timestamp of the last entry in the channel"""
+        url = f"{THINGSPEAK_BASE_URL}/channels/{channel_id}/feeds/last.json?api_key={api_key}"
+        try:
+            self.stats['api_requests'] += 1
+            response = requests.get(url, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+            created_at = data.get('created_at')
+            if created_at:
+                return datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to get last entry for channel {channel_id}: {str(e)}")
+            return None
+
     def fetch_device_data_from_thingspeak(
         self,
         channel_id: int,
@@ -316,22 +332,112 @@ class EnhancedThingSpeakDataFetcher:
             return False
         
         try:
-            # Convert to dates for fetch log
-            start_dt = start_date.date()
-            end_dt = end_date.date()
+            # Check if we need to shift the window due to missing data
+            # Logic: If requested period might be empty, check last entry and shift back
+            current_start_dt = start_date
+            current_end_dt = end_date
+
+            # Validate dates are timezone aware
+            if current_start_dt.tzinfo is None:
+                current_start_dt = current_start_dt.replace(tzinfo=timezone.utc)
+            if current_end_dt.tzinfo is None:
+                current_end_dt = current_end_dt.replace(tzinfo=timezone.utc)
+            
+            # Check fetch log first to see if we already marked this range as complete (even if empty)
+            start_date_d = current_start_dt.date()
+            end_date_d = current_end_dt.date()
+            
+            initial_missing = device_fetch_log.get_missing_date_ranges(
+                self.session,
+                device_id=device.device_id,
+                start_date=start_date_d,
+                end_date=end_date_d,
+                include_incomplete=True
+            )
+            
+            # If fetch log implies we need to fetch, BUT we suspect the device is dead/offline,
+            # we should verify the last entry timestamp.
+            # We suspect if:
+            # 1. We are about to fetch "today" or "recent past" but device.last_updated is old (if available)
+            # 2. Or simply as a robust check if we find NO data after a simple fetch attempt (but that's expensive to try first).
+            # Strategy: Query last.json IF we have a missing range.
+            
+            # If we have missing ranges and we want to ensure we get data:
+            if initial_missing:
+                # Check actual last entry
+                last_entry_ts = self.get_last_entry_timestamp(device.channel_id, device.read_key)
+                
+                if last_entry_ts:
+                    # If last entry is significantly older than end_date (e.g. more than 1 day gap)
+                    # And last entry is BEFORE the requested end_date
+                    if last_entry_ts < current_end_dt:
+                        # Calculate gap
+                        # We want to maintain the same duration (end_date - start_date)
+                        duration = current_end_dt - current_start_dt
+                        
+                        # New end is the last entry timestamp (rounded up to end of day or just use timestamp)
+                        # Let's align to the date of last entry?
+                        # User said: "push the start date so we have a same total number of days"
+                        
+                        # Logic: Shift the window so that new_end matches last_entry_ts (or slightly after to capture it)
+                        # But we must be careful not to shift into the future? No, we are shifting back.
+                        
+                        # Let's say we requested [Dec 25, Dec 30]. Last entry Dec 20.
+                        # Gap = Dec 30 - Dec 20 = 10 days.
+                        # New End = Dec 20. New Start = Dec 15.
+                        # Wait, user said "missing some day(s) from the end... push the start date so we have a same total number of days"
+                        
+                        # Only shift if the gap is "significant" to avoid jitter?
+                        # Let's compare dates.
+                        
+                        last_entry_date = last_entry_ts.date()
+                        # If last data is before the requested end date range
+                        if last_entry_date < end_date_d:
+                            logger.info(f"Device {device.device_id}: Last entry {last_entry_date} is older than requested end {end_date_d}. Shifting window.")
+                            
+                            shift_delta = current_end_dt - last_entry_ts
+                            # We might want to keep the end at last_entry_ts
+                            # BUT we should verify if the gap is just missing days vs device dead.
+                            # If device is dead, we shift.
+                            
+                            # Shifted dates
+                            current_end_dt = last_entry_ts
+                            current_start_dt = current_start_dt - shift_delta
+                            
+                            # Re-align to timezone
+                            if current_start_dt.tzinfo is None:
+                                current_start_dt = current_start_dt.replace(tzinfo=timezone.utc)
+                            if current_end_dt.tzinfo is None:
+                                current_end_dt = current_end_dt.replace(tzinfo=timezone.utc)
+                                
+                            logger.info(f"Device {device.device_id}: Shifted window to {current_start_dt} - {current_end_dt}")
+            
+            # Convert to dates for fetch log (using potentially shifted dates)
+            start_dt = current_start_dt.date()
+            end_dt = current_end_dt.date()
             today = date.today()
             
             # Determine if this fetch will be complete
-            # Complete = end_date is not today (we have all the data for that day)
             is_complete = end_dt < today
             
-            # Check fetch log for missing ranges
+            # Re-calculate missing ranges for the NEW window
+            # Note: We also need to "fill in" the gap we leaped over in the fetch log?
+            # User said: "log the dates even those that had no data as well as the ones added"
+            # access original requested range: start_date.date() to end_date.date()
+            # We should probably log the "skipped" future gap as complete/empty.
+            
+            full_range_start = min(start_dt, start_date.date())
+            full_range_end = max(end_dt, end_date.date())
+            
+            # We just process the union of requested and shifted range? 
+            # Or just process the shifted range AND mark the original range as complete?
+            
             missing_ranges = device_fetch_log.get_missing_date_ranges(
                 self.session,
                 device_id=device.device_id,
                 start_date=start_dt,
                 end_date=end_dt,
-                include_incomplete=True  # Refetch incomplete ranges
+                include_incomplete=True
             )
             
             if not missing_ranges:
@@ -343,6 +449,9 @@ class EnhancedThingSpeakDataFetcher:
             
             # Track if we successfully processed at least one range
             any_success = False
+            
+            # Prepare to track the latest timestamp we see across all batches for this device
+            max_timestamp_seen = None
             
             # Fetch data for each missing range
             for range_start, range_end in missing_ranges:
@@ -360,13 +469,11 @@ class EnhancedThingSpeakDataFetcher:
                     end_date=range_end_dt
                 )
                 
-                # Always create fetch log, even if no data or error
-                # This prevents infinite retries for genuinely empty ranges or problematic channels
                 range_is_complete = is_complete if range_end == end_dt else True
                 
                 if not feeds:
                     logger.warning(f"No data fetched for device {device.device_id} in range {range_start} to {range_end}")
-                    # Still create fetch log to avoid retrying this range repeatedly
+                    # Log as complete
                     device_fetch_log.create_or_extend_log(
                         self.session,
                         device_id=device.device_id,
@@ -374,18 +481,24 @@ class EnhancedThingSpeakDataFetcher:
                         end_date=range_end,
                         complete=range_is_complete
                     )
-                    self.session.commit()  # Commit immediately so log is saved
+                    self.session.commit()
                     self.stats['fetch_logs_created'] += 1
-                    logger.info(f"Device {device.device_id}: Created fetch log for empty range {range_start} to {range_end} (complete={range_is_complete})")
-                    any_success = True  # Logged the empty range
+                    any_success = True
                     continue
                 
+                # Check timestamps in feeds for max
+                for feed in feeds:
+                    ts_str = feed.get('created_at')
+                    if ts_str:
+                        ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                        if max_timestamp_seen is None or ts > max_timestamp_seen:
+                            max_timestamp_seen = ts
+
                 # Calculate hourly performance metrics
                 performance_data_list = self.calculate_device_performance_hourly(feeds, device.device_id)
                 
                 if not performance_data_list:
                     logger.warning(f"No performance metrics calculated for device {device.device_id} in range {range_start} to {range_end}")
-                    # Still create fetch log even if calculation failed
                     device_fetch_log.create_or_extend_log(
                         self.session,
                         device_id=device.device_id,
@@ -393,12 +506,12 @@ class EnhancedThingSpeakDataFetcher:
                         end_date=range_end,
                         complete=range_is_complete
                     )
-                    self.session.commit()  # Commit immediately
+                    self.session.commit()
                     self.stats['fetch_logs_created'] += 1
-                    any_success = True  # Logged the failed calculation
+                    any_success = True
                     continue
                 
-                # Create performance records (with ON CONFLICT DO NOTHING for uniqueness)
+                # Create performance records
                 records_created = 0
                 for performance_data in performance_data_list:
                     try:
@@ -406,7 +519,6 @@ class EnhancedThingSpeakDataFetcher:
                         records_created += 1
                         self.stats['device_performance_created'] += 1
                     except Exception as e:
-                        # Silently skip duplicates (unique constraint violation)
                         if 'unique constraint' in str(e).lower() or 'duplicate' in str(e).lower():
                             logger.debug(f"Skipping duplicate performance record for device {device.device_id}")
                             continue
@@ -414,7 +526,7 @@ class EnhancedThingSpeakDataFetcher:
                             logger.error(f"Error creating performance record for device {device.device_id}: {str(e)}")
                             raise
                 
-                # Update fetch log for this range
+                # Update fetch log
                 device_fetch_log.create_or_extend_log(
                     self.session,
                     device_id=device.device_id,
@@ -423,7 +535,6 @@ class EnhancedThingSpeakDataFetcher:
                     complete=range_is_complete
                 )
                 
-                # Commit after each range to ensure data is saved
                 self.session.commit()
                 self.stats['fetch_logs_created'] += 1
                 any_success = True
@@ -431,8 +542,44 @@ class EnhancedThingSpeakDataFetcher:
                 logger.info(f"Device {device.device_id}: Completed fetch for {range_start} to {range_end} "
                            f"({records_created} records, complete={range_is_complete})")
             
+            # If we shifted the window, we should also mark the "gap" (the original requested end) as complete/logged
+            # so we don't keep trying to fetch it.
+            if end_date_d > end_dt:
+                # Gap is from (end_dt + 1 day) to end_date_d
+                gap_start = end_dt + timedelta(days=1)
+                if gap_start <= end_date_d:
+                    logger.info(f"Logging empty gap for device {device.device_id}: {gap_start} to {end_date_d}")
+                    device_fetch_log.create_or_extend_log(
+                        self.session,
+                        device_id=device.device_id,
+                        start_date=gap_start,
+                        end_date=end_date_d,
+                        complete=True
+                    )
+                    self.session.commit()
+
+            # Update device.last_updated if we found newer data
+            if max_timestamp_seen:
+                # Validate not in future
+                now_utc = datetime.now(timezone.utc)
+                if max_timestamp_seen <= now_utc:
+                    # Check if newer than current last_updated
+                    current_last = device.last_updated
+                    if current_last is None or list(current_last.timetuple()) < list(max_timestamp_seen.timetuple()): # Simplified comparison
+                        # Ensure timezone awareness match
+                        if current_last and current_last.tzinfo is None:
+                             current_last = current_last.replace(tzinfo=timezone.utc)
+                        
+                        if current_last is None or max_timestamp_seen > current_last:
+                            logger.info(f"Updating last_updated for device {device.device_id} to {max_timestamp_seen}")
+                            device.last_updated = max_timestamp_seen
+                            self.session.add(device)
+                            self.session.commit()
+                else:
+                    logger.warning(f"Device {device.device_id} reported future timestamp {max_timestamp_seen}, ignoring update")
+
             self.stats['devices_processed'] += 1
-            return any_success  # Return True if we processed at least one range
+            return any_success
             
         except Exception as e:
             logger.error(f"Error processing device {device.device_id}: {str(e)}")

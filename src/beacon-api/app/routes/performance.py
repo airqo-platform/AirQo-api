@@ -103,6 +103,7 @@ def fill_missing_timestamps(
                         id=entity_id,
                         freq=0,
                         error_margin=None,
+                        battery_voltage=None,
                         timestamp=timestamp,
                         performance_key=0,  # Placeholder
                         created_at=None
@@ -137,11 +138,13 @@ def group_performance_by_id(
             grouped_data[record.id] = {
                 'freq': [],
                 'error_margin': [],
+                'battery_voltage': [],
                 'timestamp': []
             }
         
         grouped_data[record.id]['freq'].append(record.freq)
         grouped_data[record.id]['error_margin'].append(record.error_margin)
+        grouped_data[record.id]['battery_voltage'].append(record.battery_voltage)
         grouped_data[record.id]['timestamp'].append(record.timestamp)
     
     # Convert to response models
@@ -151,6 +154,7 @@ def group_performance_by_id(
             name=names_map.get(entity_id) if names_map else None,
             freq=data['freq'],
             error_margin=data['error_margin'],
+            battery_voltage=data['battery_voltage'],
             timestamp=data['timestamp']
         )
         for entity_id, data in grouped_data.items()
@@ -217,6 +221,7 @@ def fetch_device_performance_records(
             id=record.device_id,
             freq=record.freq,
             error_margin=record.error_margin,
+            battery_voltage=record.avg_battery,
             timestamp=record.timestamp,
             performance_key=record.performance_key,
             created_at=record.created_at
@@ -271,7 +276,7 @@ def get_grouped_performance_data(
     """
     Get grouped performance data for devices or airqlouds.
     
-    Returns data grouped by ID with arrays for freq, error_margin, and timestamp.
+    Returns data grouped by ID with arrays for freq, error_margin, battery_voltage, and timestamp.
     
     **Path Parameters:**
     - **type**: Either 'device' or 'airqloud' to specify the type of performance data
@@ -292,12 +297,14 @@ def get_grouped_performance_data(
             "id": "device_id_1",
             "freq": [45, 52, 48, ...],
             "error_margin": [2.34, 1.89, 3.12, ...],
+            "battery_voltage": [3.7, 3.6, 3.7, ...],
             "timestamp": ["2024-06-01T00:00:00Z", "2024-06-01T01:00:00Z", ...]
         },
         {
             "id": "device_id_2",
             "freq": [50, 49, 51, ...],
             "error_margin": [1.23, 2.45, 1.67, ...],
+            "battery_voltage": [4.1, 4.0, 4.1, ...],
             "timestamp": ["2024-06-01T00:00:00Z", "2024-06-01T01:00:00Z", ...]
         }
     ]
