@@ -16,9 +16,11 @@ const analyzeIP = async (req, res, next) => {
         .catch((err) => logObject("Error in background IP recording", err));
 
       // Asynchronously analyze the IP patterns
-      tokenUtil.analyzeIPRequestPatterns({ ip, tenant }).catch((err) => {
-        logObject("Error in background IP analysis", err);
-      });
+      tokenUtil
+        .analyzeIPRequestPatterns({ ip, tenant, endpoint })
+        .catch((err) => {
+          logObject("Error in background IP analysis", err);
+        });
     }
   } catch (error) {
     logObject("Error in IP analysis middleware", error);

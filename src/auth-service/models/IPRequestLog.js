@@ -29,7 +29,7 @@ const IPRequestLogSchema = new mongoose.Schema(
       type: Number, // in minutes
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 IPRequestLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2592000 }); // 30 days TTL
@@ -56,7 +56,7 @@ IPRequestLogSchema.statics = {
           },
           $set: { isUnderWatch: true },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true },
       );
 
       return {
@@ -100,6 +100,22 @@ IPRequestLogSchema.statics = {
       return [];
     }
   },
+  async getRequestsForEndpoint(ip, targetEndpoint) {
+    try {
+      if (!ip || !targetEndpoint) {
+        return [];
+      }
+      const ipLog = await this.findOne({ ip }).lean();
+      if (!ipLog || !ipLog.requests) {
+        return [];
+      }
+      // Filter requests in memory for the specific endpoint
+      return ipLog.requests.filter((req) => req.endpoint === targetEndpoint);
+    } catch (error) {
+      logObject("Error getting IP requests for endpoint", error);
+      return [];
+    }
+  },
   async markAsBot(ip, interval) {
     try {
       await this.updateOne(
@@ -110,7 +126,7 @@ IPRequestLogSchema.statics = {
             isUnderWatch: false,
             detectedInterval: interval,
           },
-        }
+        },
       );
       return { success: true };
     } catch (error) {
