@@ -27,6 +27,7 @@ const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-util`);
+
 const async = require("async");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -218,7 +219,7 @@ const postProcessing = async ({
 const isIPBlacklistedHelper = async (
   { request, next } = {},
   retries = 1,
-  delay = 1000
+  delay = 1000,
 ) => {
   try {
     const day = getDay();
@@ -257,7 +258,7 @@ const isIPBlacklistedHelper = async (
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
     const ipPrefix = ip.split(".")[0];
     const blacklistedIpPrefixes = blacklistedIpPrefixesData.map(
-      (item) => item.prefix
+      (item) => item.prefix,
     );
 
     if (!accessToken) {
@@ -265,14 +266,14 @@ const isIPBlacklistedHelper = async (
         const filter = filteredAccessToken;
         const listTokenReponse = await AccessTokenModel("airqo").list(
           { filter },
-          next
+          next,
         );
 
         if (listTokenReponse.success === false) {
           logger.error(
             `🐛🐛 Internal Server Error -- unable to retrieve the expired token's details -- ${stringify(
-              listTokenReponse
-            )}`
+              listTokenReponse,
+            )}`,
           );
         } else {
           const tokenDetails = listTokenReponse.data[0];
@@ -280,8 +281,8 @@ const isIPBlacklistedHelper = async (
           if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
             logger.error(
               `🐛🐛 Internal Server Error -- unable to find the expired token's user details -- TOKEN_DETAILS: ${stringify(
-                tokenDetails
-              )} -- CLIENT_IP: ${ip}`
+                tokenDetails,
+              )} -- CLIENT_IP: ${ip}`,
             );
           } else {
             const {
@@ -293,7 +294,7 @@ const isIPBlacklistedHelper = async (
 
             if (!expiredEmailSent) {
               logger.info(
-                `🚨🚨 An AirQo API Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
+                `🚨🚨 An AirQo API Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`,
               );
               const emailResponse = await mailer.expiredToken(
                 {
@@ -302,18 +303,18 @@ const isIPBlacklistedHelper = async (
                   lastName,
                   token,
                 },
-                next
+                next,
               );
 
               if (emailResponse && emailResponse.success === false) {
                 logger.error(
-                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`,
                 );
               } else {
                 // Update the expiredEmailSent field to true after sending the email
                 await AccessTokenModel("airqo").updateOne(
                   { token },
-                  { $set: { expiredEmailSent: true } }
+                  { $set: { expiredEmailSent: true } },
                 );
               }
             }
@@ -331,14 +332,14 @@ const isIPBlacklistedHelper = async (
       return true;
     } else if (blacklistedIP) {
       logger.info(
-        `🚨🚨 An AirQo API Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
+        `🚨🚨 An AirQo API Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `,
       );
 
       try {
         const filter = { token };
         const listTokenResponse = await AccessTokenModel("airqo").list(
           { filter },
-          next
+          next,
         );
 
         if (listTokenResponse.success && listTokenResponse.data.length === 1) {
@@ -354,11 +355,11 @@ const isIPBlacklistedHelper = async (
 
           if (canSend.canSend) {
             logger.info(
-              `Sending compromised token alert to ${email} for IP ${ip}.`
+              `Sending compromised token alert to ${email} for IP ${ip}.`,
             );
             await mailer.compromisedToken(
               { email, firstName, lastName, ip },
-              next
+              next,
             );
             await EmailLogModel("airqo").logEmailSent({
               email,
@@ -367,20 +368,20 @@ const isIPBlacklistedHelper = async (
             });
           } else {
             logger.info(
-              `Skipping compromised token alert for ${email} from IP ${ip} due to daily limit.`
+              `Skipping compromised token alert for ${email} from IP ${ip} due to daily limit.`,
             );
           }
         }
       } catch (error) {
         logger.error(
-          `🐛🐛 Internal Server Error while processing compromised token alert for token ${token} and IP ${ip}: ${error.message}`
+          `🐛🐛 Internal Server Error while processing compromised token alert for token ${token} and IP ${ip}: ${error.message}`,
         );
       }
 
       return true;
     } else {
       Promise.resolve().then(() =>
-        postProcessing({ ip, token, name, client_id, endpoint, day })
+        postProcessing({ ip, token, name, client_id, endpoint, day }),
       );
       logText("I am now exiting the isIPBlacklistedHelper() function");
       return false;
@@ -399,7 +400,7 @@ const isIPBlacklistedHelper = async (
       ].includes(error.name)
     ) {
       logger.error(
-        `🐛🐛 Transient errors or network issues when handling the DB operations during verification of this IP address: ${ip}.`
+        `🐛🐛 Transient errors or network issues when handling the DB operations during verification of this IP address: ${ip}.`,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
       return isIPBlacklisted({ request, next }, retries - 1, delay);
@@ -408,7 +409,7 @@ const isIPBlacklistedHelper = async (
       switch (error.code) {
         case 11000:
           logger.error(
-            `🐛🐛 Duplicate key error: IP address ${ip} already exists in the database.`
+            `🐛🐛 Duplicate key error: IP address ${ip} already exists in the database.`,
           );
           break;
         default:
@@ -450,7 +451,7 @@ const token = {
         next(
           new HttpError("Bad Reqest Error", httpStatus.BAD_REQUEST, {
             message: "User does not exist",
-          })
+          }),
         );
       }
 
@@ -460,7 +461,7 @@ const token = {
           limit,
           filter,
         },
-        next
+        next,
       );
 
       if (responseFromListAccessToken.success === true) {
@@ -468,7 +469,7 @@ const token = {
           next(
             new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
               message: "incorrect user or token details provided",
-            })
+            }),
           );
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           let update = {
@@ -481,7 +482,7 @@ const token = {
               filter,
               update,
             },
-            next
+            next,
           );
 
           if (responseFromUpdateUser.success === true) {
@@ -497,7 +498,7 @@ const token = {
             filter = { token };
             logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await VerifyTokenModel(
-              tenant
+              tenant,
             ).remove({ filter }, next);
 
             logObject("responseFromDeleteToken", responseFromDeleteToken);
@@ -509,7 +510,7 @@ const token = {
                   username: userDetails[0].userName,
                   email: userDetails[0].email,
                 },
-                next
+                next,
               );
 
               if (responseFromSendEmail.success === true) {
@@ -530,8 +531,8 @@ const token = {
                     : httpStatus.INTERNAL_SERVER_ERROR,
                   responseFromDeleteToken.errors
                     ? responseFromDeleteToken.errors
-                    : { message: "internal server errors" }
-                )
+                    : { message: "internal server errors" },
+                ),
               );
             }
           } else if (responseFromUpdateUser.success === false) {
@@ -543,8 +544,8 @@ const token = {
                   : httpStatus.INTERNAL_SERVER_ERROR,
                 responseFromUpdateUser.errors
                   ? responseFromUpdateUser.errors
-                  : { message: "internal server errors" }
-              )
+                  : { message: "internal server errors" },
+              ),
             );
           }
         }
@@ -557,8 +558,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -574,7 +575,7 @@ const token = {
         next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: `Bad request -- Token ${token} does not exist`,
-          })
+          }),
         );
       } else {
         const tokenId = tokenDetails[0]._id;
@@ -603,7 +604,7 @@ const token = {
           next(
             new HttpError("Internal Server Error", httpStatus.CONFLICT, {
               message: "Unable to update the token's metadata",
-            })
+            }),
           );
         }
       }
@@ -613,8 +614,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -634,7 +635,7 @@ const token = {
       const filter = generateFilter.tokens(request, next);
       const token = accessCodeGenerator
         .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
         )
         .toUpperCase();
 
@@ -642,7 +643,7 @@ const token = {
       update.token = token;
 
       const responseFromUpdateToken = await AccessTokenModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify({ filter, update }, next);
       return responseFromUpdateToken;
     } catch (error) {
@@ -651,8 +652,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -662,7 +663,7 @@ const token = {
       const { tenant } = query;
       const filter = generateFilter.tokens(request, next);
       const responseFromDeleteToken = await AccessTokenModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).remove({ filter }, next);
       logObject("responseFromDeleteToken", responseFromDeleteToken);
       return responseFromDeleteToken;
@@ -673,8 +674,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -706,7 +707,7 @@ const token = {
 
         if (isEmpty(client) || (client && !client.isActive)) {
           logger.error(
-            `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
+            `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`,
           );
           return createUnauthorizedResponse();
         }
@@ -734,8 +735,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -752,13 +753,13 @@ const token = {
           new HttpError(
             "service is temporarily disabled",
             httpStatus.NOT_IMPLEMENTED,
-            { message: "service is temporarily disabled" }
-          )
+            { message: "service is temporarily disabled" },
+          ),
         );
       }
 
       const responseFromListToken = await AccessTokenModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list({ skip, limit, filter }, next);
       return responseFromListToken;
     } catch (error) {
@@ -767,8 +768,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -778,7 +779,7 @@ const token = {
       const { tenant, limit, skip } = { ...query, ...params };
       const filter = generateFilter.tokens(request, next);
       const responseFromListExpiringTokens = await AccessTokenModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).getExpiringTokens({ skip, limit, filter }, next);
       return responseFromListExpiringTokens;
     } catch (error) {
@@ -787,8 +788,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -798,7 +799,7 @@ const token = {
       const { tenant, limit, skip } = { ...query, ...params };
       const filter = generateFilter.tokens(request, next);
       const responseFromListExpiredTokens = await AccessTokenModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).getExpiredTokens({ skip, limit, filter }, next);
       return responseFromListExpiredTokens;
     } catch (error) {
@@ -807,8 +808,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -832,7 +833,7 @@ const token = {
         next(
           new HttpError("Client not found", httpStatus.BAD_REQUEST, {
             message: `Invalid request, Client ${client_id} not found`,
-          })
+          }),
         );
         return;
       }
@@ -844,24 +845,24 @@ const token = {
             httpStatus.BAD_REQUEST,
             {
               message: `Invalid request, Client ${client_id} not yet activated, reach out to Support`,
-            }
-          )
+            },
+          ),
         );
         return;
       }
       const token = accessCodeGenerator
         .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
         )
         .toUpperCase();
 
       let tokenCreationBody = Object.assign(
         { token, client_id: ObjectId(client_id) },
-        request.body
+        request.body,
       );
       tokenCreationBody.category = "api";
       const responseFromCreateToken = await AccessTokenModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).register(tokenCreationBody, next);
 
       return responseFromCreateToken;
@@ -871,8 +872,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -890,17 +891,17 @@ const token = {
       const { email } = body;
       const { tenant } = query;
 
-      const password = password
-        ? password
+      const password = body.password
+        ? body.password
         : accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+            constants.RANDOM_PASSWORD_CONFIGURATION(10),
           );
 
       const newRequest = Object.assign({ userName: email, password }, request);
 
       const responseFromCreateUser = await UserModel(tenant).register(
         newRequest,
-        next
+        next,
       );
       if (responseFromCreateUser.success === true) {
         if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
@@ -908,7 +909,7 @@ const token = {
         }
         const token = accessCodeGenerator
           .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
           )
           .toUpperCase();
 
@@ -916,13 +917,13 @@ const token = {
           (hrs * 60 * 60 + min * 60 + sec) * 1000;
 
         const emailVerificationHours = parseInt(
-          constants.EMAIL_VERIFICATION_HOURS
+          constants.EMAIL_VERIFICATION_HOURS,
         );
         const emailVerificationMins = parseInt(
-          constants.EMAIL_VERIFICATION_MIN
+          constants.EMAIL_VERIFICATION_MIN,
         );
         const emailVerificationSeconds = parseInt(
-          constants.EMAIL_VERIFICATION_SEC
+          constants.EMAIL_VERIFICATION_SEC,
         );
 
         /***
@@ -939,10 +940,10 @@ const token = {
               toMilliseconds(
                 emailVerificationHours,
                 emailVerificationMins,
-                emailVerificationSeconds
+                emailVerificationSeconds,
               ),
           },
-          next
+          next,
         );
 
         if (responseFromSaveToken.success === true) {
@@ -957,7 +958,7 @@ const token = {
               email,
               firstName,
             },
-            next
+            next,
           );
 
           logObject("responseFromSendEmail", responseFromSendEmail);
@@ -985,8 +986,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1009,7 +1010,7 @@ const token = {
           limit,
           filter,
         },
-        next
+        next,
       );
 
       if (responseFromListAccessToken.success === true) {
@@ -1017,11 +1018,11 @@ const token = {
           next(
             new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
               message: "incorrect user or token details provided",
-            })
+            }),
           );
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           const password = accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+            constants.RANDOM_PASSWORD_CONFIGURATION(10),
           );
           let update = {
             verified: true,
@@ -1035,7 +1036,7 @@ const token = {
               filter,
               update,
             },
-            next
+            next,
           );
 
           if (responseFromUpdateUser.success === true) {
@@ -1046,7 +1047,7 @@ const token = {
             filter = { token };
             logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await AccessTokenModel(
-              tenant
+              tenant,
             ).remove({ filter }, next);
 
             if (responseFromDeleteToken.success === true) {
@@ -1057,7 +1058,7 @@ const token = {
                   password,
                   email: user.email,
                 },
-                next
+                next,
               );
 
               if (responseFromSendEmail.success === true) {
@@ -1078,8 +1079,8 @@ const token = {
                     : httpStatus.INTERNAL_SERVER_ERROR,
                   responseFromDeleteToken.errors
                     ? responseFromDeleteToken.errors
-                    : { message: "internal server errors" }
-                )
+                    : { message: "internal server errors" },
+                ),
               );
             }
           } else if (responseFromUpdateUser.success === false) {
@@ -1091,8 +1092,8 @@ const token = {
                   : httpStatus.INTERNAL_SERVER_ERROR,
                 responseFromUpdateUser.errors
                   ? responseFromUpdateUser.errors
-                  : { message: "internal server errors" }
-              )
+                  : { message: "internal server errors" },
+              ),
             );
           }
         }
@@ -1105,8 +1106,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1122,7 +1123,7 @@ const token = {
         {
           ip,
         },
-        next
+        next,
       );
       return responseFromBlacklistIp;
     } catch (error) {
@@ -1131,8 +1132,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1147,7 +1148,7 @@ const token = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid input. Please provide an array of IP addresses.",
-          })
+          }),
         );
       }
 
@@ -1156,14 +1157,14 @@ const token = {
           try {
             const result = await BlacklistedIPModel(tenant).register(
               { ip },
-              () => {}
+              () => {},
             );
             return { ip, success: result.success };
           } catch (error) {
             logger.error(`Error blacklisting IP ${ip}: ${error.message}`);
             return { ip, success: false };
           }
-        })
+        }),
       );
 
       const successful_responses = responses
@@ -1207,8 +1208,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1221,7 +1222,7 @@ const token = {
       };
       const filter = generateFilter.ips(request, next);
       const responseFromRemoveBlacklistedIp = await BlacklistedIPModel(
-        tenant
+        tenant,
       ).remove({ filter }, next);
       return responseFromRemoveBlacklistedIp;
     } catch (error) {
@@ -1230,8 +1231,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1247,7 +1248,7 @@ const token = {
         {
           filter,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1256,8 +1257,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1273,7 +1274,7 @@ const token = {
         {
           range,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1282,8 +1283,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1299,7 +1300,7 @@ const token = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Invalid input. Please provide an array of IP address ranges.",
-          })
+          }),
         );
         return;
       }
@@ -1308,10 +1309,10 @@ const token = {
         ranges.map(async (range) => {
           const result = await BlacklistedIPRangeModel(tenant).register(
             { range },
-            next
+            next,
           );
           return { range, success: result.success };
-        })
+        }),
       );
 
       const successful_responses = responses
@@ -1355,8 +1356,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1371,7 +1372,7 @@ const token = {
       const filter = generateFilter.ips(request, next);
       const response = await BlacklistedIPRangeModel(tenant).remove(
         { filter },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1380,8 +1381,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1397,7 +1398,7 @@ const token = {
         {
           filter,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1406,8 +1407,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1423,7 +1424,7 @@ const token = {
         {
           prefix,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1432,8 +1433,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1449,7 +1450,7 @@ const token = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Invalid input. Please provide an array of IP address prefixes.",
-          })
+          }),
         );
         return;
       }
@@ -1458,10 +1459,10 @@ const token = {
         prefixes.map(async (prefix) => {
           const result = await BlacklistedIPPrefixModel(tenant).register(
             { prefix },
-            next
+            next,
           );
           return { prefix, success: result.success };
-        })
+        }),
       );
 
       const successful_responses = responses
@@ -1505,8 +1506,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1521,7 +1522,7 @@ const token = {
       const filter = generateFilter.ips(request, next);
       const response = await BlacklistedIPPrefixModel(tenant).remove(
         { filter },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1530,8 +1531,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1547,7 +1548,7 @@ const token = {
         {
           filter,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1556,8 +1557,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1573,7 +1574,7 @@ const token = {
         {
           prefix,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1582,8 +1583,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1599,7 +1600,7 @@ const token = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Invalid input. Please provide an array of IP address prefixes.",
-          })
+          }),
         );
         return;
       }
@@ -1608,7 +1609,7 @@ const token = {
         prefixes.map(async (prefix) => {
           const result = await IPPrefixModel(tenant).register({ prefix }, next);
           return { prefix, success: result.success };
-        })
+        }),
       );
 
       const successful_responses = responses
@@ -1652,8 +1653,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1674,8 +1675,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1691,7 +1692,7 @@ const token = {
         {
           filter,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1700,8 +1701,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1717,7 +1718,7 @@ const token = {
         {
           ip,
         },
-        next
+        next,
       );
       return responseFromWhitelistIp;
     } catch (error) {
@@ -1726,8 +1727,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1742,7 +1743,7 @@ const token = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid input. Please provide an array of IP addresses.",
-          })
+          }),
         );
       }
 
@@ -1751,14 +1752,14 @@ const token = {
           try {
             const result = await WhitelistedIPModel(tenant).register(
               { ip },
-              () => {}
+              () => {},
             );
             return { ip, success: result.success };
           } catch (error) {
             logger.error(`Error whitelisting IP ${ip}: ${error.message}`);
             return { ip, success: false };
           }
-        })
+        }),
       );
 
       const successful_responses = responses
@@ -1802,8 +1803,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1816,7 +1817,7 @@ const token = {
       };
       const filter = generateFilter.ips(request, next);
       const responseFromRemoveWhitelistedIp = await WhitelistedIPModel(
-        tenant
+        tenant,
       ).remove({ filter }, next);
       return responseFromRemoveWhitelistedIp;
     } catch (error) {
@@ -1825,8 +1826,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1842,7 +1843,7 @@ const token = {
         {
           filter,
         },
-        next
+        next,
       );
       return response;
     } catch (error) {
@@ -1851,8 +1852,8 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1869,7 +1870,7 @@ const token = {
         {
           filter,
         },
-        next
+        next,
       );
       return responseFromListUnkownIP;
     } catch (error) {
@@ -1878,19 +1879,32 @@ const token = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
-  analyzeIPRequestPatterns: async ({ ip, tenant = "airqo" } = {}) => {
+  analyzeIPRequestPatterns: async ({ ip, tenant = "airqo", endpoint } = {}) => {
     try {
+      // Check if the request endpoint starts with any of the monitored base paths.
+      // This is more robust than an exact match and aligns with patterns elsewhere in the codebase.
+      const isMonitored = constants.BOT_MONITORED_ENDPOINTS.some(
+        (monitoredPath) => endpoint && endpoint.startsWith(monitoredPath),
+      );
+      if (!isMonitored) {
+        return;
+      }
+
       const MIN_REQUESTS_FOR_ANALYSIS = 10;
       const MIN_PATTERN_OCCURRENCES = 5;
       const MIN_INTERVAL_MINUTES = 20; // Ignore intervals less than 20 minutes
       const MAX_PREFIX_BOTS = 3;
 
-      const requests = await IPRequestLogModel(tenant).getRequests(ip);
+      // Fetch requests specifically for this IP and endpoint
+      const requests = await IPRequestLogModel(tenant).getRequestsForEndpoint(
+        ip,
+        endpoint,
+      );
 
       if (requests.length < MIN_REQUESTS_FOR_ANALYSIS) {
         return; // Not enough data to analyze
@@ -1929,7 +1943,7 @@ const token = {
 
       // Pattern detected!
       logger.warn(
-        `🤖 Bot-like pattern detected for IP: ${ip}. Interval: ~${mostFrequentInterval} minutes. Occurrences: ${maxCount}.`
+        `🤖 Bot-like pattern detected for IP: ${ip}. Interval: ~${mostFrequentInterval} minutes. Occurrences: ${maxCount}.`,
       );
 
       // 1. Blacklist the IP
@@ -1938,7 +1952,7 @@ const token = {
       });
       if (!blacklistResponse.success) {
         logger.error(
-          `Failed to blacklist IP ${ip}: ${blacklistResponse.message}`
+          `Failed to blacklist IP ${ip}: ${blacklistResponse.message}`,
         );
       }
       await IPRequestLogModel(tenant).markAsBot(ip, mostFrequentInterval);
@@ -1950,16 +1964,16 @@ const token = {
 
       if (prefixBotLogs.length >= MAX_PREFIX_BOTS) {
         logger.warn(
-          `Multiple bots (${prefixBotLogs.length}) detected from prefix ${ipPrefix}. Blacklisting prefix.`
+          `Multiple bots (${prefixBotLogs.length}) detected from prefix ${ipPrefix}. Blacklisting prefix.`,
         );
         const prefixBlacklistResponse = await BlacklistedIPPrefixModel(
-          tenant
+          tenant,
         ).register({
           prefix: ipPrefix,
         });
         if (!prefixBlacklistResponse.success) {
           logger.error(
-            `Failed to blacklist prefix ${ipPrefix}: ${prefixBlacklistResponse.message}`
+            `Failed to blacklist prefix ${ipPrefix}: ${prefixBlacklistResponse.message}`,
           );
         }
       }
@@ -1979,21 +1993,21 @@ const token = {
               prefix: ipPrefix,
               prefixBotCount: prefixBotLogs.length,
             },
-            { tenant }
+            { tenant },
           )
           .catch((err) =>
             logger.error(
-              `Failed to send bot alert email for IP ${ip}: ${err.message}`
-            )
+              `Failed to send bot alert email for IP ${ip}: ${err.message}`,
+            ),
           );
       }
     } catch (error) {
       logObject(
         `Error during IP pattern analysis for ${ip}: ${error.message}`,
-        error
+        error,
       );
       logger.error(
-        `🐛🐛 Error during IP pattern analysis for ${ip}: ${error.message}`
+        `🐛🐛 Error during IP pattern analysis for ${ip}: ${error.message}`,
       );
     }
   },

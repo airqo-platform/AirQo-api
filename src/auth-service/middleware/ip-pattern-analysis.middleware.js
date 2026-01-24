@@ -6,7 +6,10 @@ const analyzeIP = async (req, res, next) => {
   try {
     const ip =
       req.headers["x-client-ip"] || req.headers["x-client-original-ip"];
-    const endpoint = req.originalUrl || req.url;
+    // Get the original client URI from the NGINX header and normalize it by removing the query string.
+    const originalUri =
+      req.headers["x-original-uri"] || req.originalUrl || req.path;
+    const endpoint = originalUri.split("?")[0];
     const tenant = req.query.tenant || "airqo";
 
     if (ip) {
@@ -16,9 +19,11 @@ const analyzeIP = async (req, res, next) => {
         .catch((err) => logObject("Error in background IP recording", err));
 
       // Asynchronously analyze the IP patterns
-      tokenUtil.analyzeIPRequestPatterns({ ip, tenant }).catch((err) => {
-        logObject("Error in background IP analysis", err);
-      });
+      tokenUtil
+        .analyzeIPRequestPatterns({ ip, tenant, endpoint })
+        .catch((err) => {
+          logObject("Error in background IP analysis", err);
+        });
     }
   } catch (error) {
     logObject("Error in IP analysis middleware", error);
