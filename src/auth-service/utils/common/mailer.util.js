@@ -64,7 +64,7 @@ const processEmailQueue = async () => {
       const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
       await EmailQueueForFinding.updateMany(
         { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
-        { $set: { status: "pending" } }
+        { $set: { status: "pending" } },
       );
     } catch (error) {
       logger.warn(`Error resetting stale email jobs: ${error.message}`);
@@ -73,7 +73,7 @@ const processEmailQueue = async () => {
     const emailJob = await EmailQueueForFinding.findOneAndUpdate(
       { status: "pending" },
       { $set: { status: "processing", lastAttemptAt: new Date() } },
-      { sort: { createdAt: 1 } }
+      { sort: { createdAt: 1 } },
     );
 
     if (emailJob) {
@@ -157,7 +157,7 @@ const createMailerFunction = (
   functionName,
   category,
   emailMessageFunction,
-  customMailOptionsModifier = null
+  customMailOptionsModifier = null,
 ) => {
   return async (params, next) => {
     let email = "";
@@ -200,7 +200,7 @@ const createMailerFunction = (
 
       if (!isCoreFunction) {
         const checkResult = await SubscriptionModel(
-          tenant
+          tenant,
         ).checkNotificationStatus({
           email,
           type: "email",
@@ -214,11 +214,11 @@ const createMailerFunction = (
               try {
                 await SubscriptionModel(tenant).createDefaultSubscription(
                   email,
-                  false
+                  false,
                 );
               } catch (createError) {
                 logger.warn(
-                  `Failed to create default subscription for ${email}: ${createError.message}`
+                  `Failed to create default subscription for ${email}: ${createError.message}`,
                 );
               }
               break;
@@ -241,21 +241,21 @@ const createMailerFunction = (
             case httpStatus.INTERNAL_SERVER_ERROR:
               // Database error - log but proceed (fail open)
               logger.error(
-                `Subscription check failed for ${email}, proceeding anyway: ${checkResult.message}`
+                `Subscription check failed for ${email}, proceeding anyway: ${checkResult.message}`,
               );
               break;
 
             default:
               // Other errors - log and proceed
               logger.warn(
-                `Subscription check issue for ${email}, proceeding: ${checkResult.message}`
+                `Subscription check issue for ${email}, proceeding: ${checkResult.message}`,
               );
               break;
           }
         }
       } else {
         logText(
-          `Skipping subscription check for core function ${functionName}: ${email}`
+          `Skipping subscription check for core function ${functionName}: ${email}`,
         );
       }
 
@@ -291,7 +291,7 @@ const createMailerFunction = (
           const bccCheckPromises = bccEmails.map(async (bccEmail) => {
             try {
               const bccCheckResult = await SubscriptionModel(
-                tenant
+                tenant,
               ).checkNotificationStatus({
                 email: bccEmail,
                 type: "email",
@@ -304,17 +304,17 @@ const createMailerFunction = (
               } else if (bccCheckResult.status === httpStatus.NOT_FOUND) {
                 // No subscription record - CREATE DEFAULT and INCLUDE
                 logger.info(
-                  `Creating default subscription for BCC recipient: ${bccEmail}`
+                  `Creating default subscription for BCC recipient: ${bccEmail}`,
                 );
                 try {
                   await SubscriptionModel(tenant).createDefaultSubscription(
                     bccEmail,
-                    true
+                    true,
                   ); // isSystemUser = true
                   return bccEmail; // Include after creating subscription
                 } catch (createError) {
                   logger.warn(
-                    `Failed to create subscription for BCC ${bccEmail}: ${createError.message}`
+                    `Failed to create subscription for BCC ${bccEmail}: ${createError.message}`,
                   );
                   // ✅ STILL INCLUDE - BCC emails are typically system notifications
                   return bccEmail;
@@ -322,13 +322,13 @@ const createMailerFunction = (
               } else if (bccCheckResult.status === httpStatus.FORBIDDEN) {
                 // User explicitly unsubscribed - RESPECT THEIR CHOICE
                 logger.info(
-                  `BCC recipient ${bccEmail} has unsubscribed - excluding from BCC`
+                  `BCC recipient ${bccEmail} has unsubscribed - excluding from BCC`,
                 );
                 return null;
               } else {
                 // Other errors - INCLUDE BY DEFAULT (fail open for BCC)
                 logger.warn(
-                  `BCC subscription check uncertain for ${bccEmail}, including anyway`
+                  `BCC subscription check uncertain for ${bccEmail}, including anyway`,
                 );
                 return bccEmail;
               }
@@ -339,7 +339,7 @@ const createMailerFunction = (
                   primary_email: email,
                   operation: functionName,
                   bccEmail: bccEmail,
-                }
+                },
               );
               // ✅ FAIL OPEN: Include in BCC on errors (system notifications are important)
               return bccEmail;
@@ -348,7 +348,7 @@ const createMailerFunction = (
 
           const bccResults = await Promise.all(bccCheckPromises);
           subscribedEmails.push(
-            ...bccResults.filter((email) => email !== null)
+            ...bccResults.filter((email) => email !== null),
           );
           subscribedBccEmails = subscribedEmails.join(",");
 
@@ -392,7 +392,7 @@ const createMailerFunction = (
             throw new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
-              { message: queueResult.error || "Failed to queue email." }
+              { message: queueResult.error || "Failed to queue email." },
             );
           }
           emailResult = {
@@ -424,14 +424,14 @@ const createMailerFunction = (
             email: mailOptions.to,
             subject: mailOptions.subject,
             redisError: redisError.message,
-          }
+          },
         );
         const queueResult = await addToEmailQueue(mailOptions, tenant);
         if (!queueResult.success) {
           throw new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: queueResult.error || "Failed to queue email." }
+            { message: queueResult.error || "Failed to queue email." },
           );
         }
         emailResult = {
@@ -453,7 +453,7 @@ const createMailerFunction = (
         throw new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: "Failed to queue email for sending." }
+          { message: "Failed to queue email for sending." },
         );
       }
 
@@ -483,7 +483,7 @@ const createMailerFunction = (
               functionName,
               error: errorMessage,
               params: otherParams,
-            }
+            },
           );
 
           const error = new HttpError(
@@ -493,7 +493,7 @@ const createMailerFunction = (
               message: `Unable to queue ${functionName} email at this time`,
               operation: functionName,
               emailResults: emailResult,
-            }
+            },
           );
 
           if (next) {
@@ -544,7 +544,7 @@ const createMailerFunction = (
             emailResults: emailData,
             accepted: emailData?.accepted || [],
             rejected: emailData?.rejected || [],
-          }
+          },
         );
 
         if (next) {
@@ -562,7 +562,7 @@ const createMailerFunction = (
           tenant,
           functionName,
           params: otherParams,
-        }
+        },
       );
 
       const httpError = new HttpError(
@@ -572,7 +572,7 @@ const createMailerFunction = (
           message: `An unexpected error occurred while processing ${functionName}`,
           operation: functionName,
           email,
-        }
+        },
       );
 
       if (next) {
@@ -601,39 +601,40 @@ const getEmailSubject = (functionName, params) => {
     authenticateEmail: "Changes to your AirQo email",
     compromisedToken:
       "Urgent Security Alert - Potential Compromise of Your AIRQO API Token",
+    sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
     expiredToken: "Action Required: Your AirQo API Token is expired",
     expiringToken: "AirQo API Token Expiry: Create New Token Urgently",
 
     // ===== ORG MANAGEMENT FUNCTIONS =====
     notifyAdminsOfNewOrgRequest: `New Organization Request: ${sanitizeEmailString(
-      params.organization_name || ""
+      params.organization_name || "",
     )}`,
     confirmOrgRequestReceived: `Your Organization Request: ${sanitizeEmailString(
-      params.organization_name || ""
+      params.organization_name || "",
     )}`,
     notifyOrgRequestApproved: `Organization Request Approved: ${sanitizeEmailString(
-      params.organization_name || ""
+      params.organization_name || "",
     )}`,
     notifyOrgRequestRejected: `Organization Request Status: ${sanitizeEmailString(
-      params.organization_name || ""
+      params.organization_name || "",
     )}`,
     notifyOrgRequestApprovedWithOnboarding: `Welcome to AirQo: Complete Your Setup - ${sanitizeEmailString(
-      params.organization_name || ""
+      params.organization_name || "",
     )}`,
     onboardingAccountSetup: `Complete Your AirQo Account Setup - ${sanitizeEmailString(
-      params.organization_name || ""
+      params.organization_name || "",
     )}`,
     onboardingCompleted: `Welcome to AirQo: Your Account is Ready! - ${sanitizeEmailString(
-      params.organization_name || ""
+      params.organization_name || "",
     )}`,
 
     // ===== USER MANAGEMENT FUNCTIONS =====
     candidate: "Your AirQo Account JOIN request",
     request: `Your AirQo Account Request to Access ${processString(
-      params.entity_title || ""
+      params.entity_title || "",
     )} Team`,
     requestToJoinGroupByEmail: `Your AirQo Account Request to Access ${processString(
-      params.entity_title || ""
+      params.entity_title || "",
     )} Team`,
     afterAcceptingInvitation: `Welcome to ${
       params.entity_title ? processString(params.entity_title) : "the team"
@@ -646,7 +647,7 @@ const getEmailSubject = (functionName, params) => {
     existingUserRegistrationRequest:
       "Your AirQo Account: Existing User Registration Request",
     requestRejected: `Update on your AirQo Access Request for ${processString(
-      params.entity_title || ""
+      params.entity_title || "",
     )}`,
 
     // ===== CLIENT MANAGEMENT FUNCTIONS =====
@@ -703,6 +704,7 @@ const EMAIL_CATEGORIES = {
     "sendMobileAccountDeletionCode",
     "authenticateEmail",
     "compromisedToken",
+    "sendBotAlert",
     "expiredToken",
     "expiringToken",
     "onboardingAccountSetup",
@@ -752,7 +754,7 @@ const EMAIL_CATEGORIES = {
 const createSecurityEmailFunction = (
   functionName,
   emailMessageFunction,
-  cooldownConfig = {}
+  cooldownConfig = {},
 ) => {
   const { cooldownDays = 30, enableCooldown = true } = cooldownConfig;
 
@@ -809,7 +811,7 @@ const createSecurityEmailFunction = (
                 lastSentAt: cooldownCheck.lastSentAt,
                 daysRemaining: cooldownCheck.daysRemaining,
                 nextAvailableDate: cooldownCheck.nextAvailableDate,
-              }
+              },
             );
 
             // In case of a race condition where another instance just sent it,
@@ -849,7 +851,7 @@ const createSecurityEmailFunction = (
               email,
               tenant,
               functionName,
-            }
+            },
           );
         }
       }
@@ -877,7 +879,7 @@ const createSecurityEmailFunction = (
           skipDeduplication: false,
           logDuplicates: true,
           throwOnDuplicate: false,
-        }
+        },
       );
 
       // ✅ STEP 7: Handle email sending results
@@ -906,7 +908,7 @@ const createSecurityEmailFunction = (
               functionName,
               error: errorMessage,
               params: otherParams,
-            }
+            },
           );
 
           const error = new HttpError(
@@ -916,7 +918,7 @@ const createSecurityEmailFunction = (
               message: `Unable to send ${functionName} email at this time`,
               operation: functionName,
               emailResults: emailResult,
-            }
+            },
           );
 
           if (next) {
@@ -946,7 +948,7 @@ const createSecurityEmailFunction = (
           } catch (logError) {
             // Log error but don't fail the request
             logger.warn(
-              `Failed to log ${functionName} email send to database: ${logError.message}`
+              `Failed to log ${functionName} email send to database: ${logError.message}`,
             );
           }
         }
@@ -984,7 +986,7 @@ const createSecurityEmailFunction = (
             emailResults: emailData,
             accepted: emailData?.accepted || [],
             rejected: emailData?.rejected || [],
-          }
+          },
         );
 
         if (next) {
@@ -1002,7 +1004,7 @@ const createSecurityEmailFunction = (
           tenant,
           functionName,
           params: otherParams,
-        }
+        },
       );
 
       const httpError = new HttpError(
@@ -1012,7 +1014,7 @@ const createSecurityEmailFunction = (
           message: `An unexpected error occurred while processing ${functionName}`,
           operation: functionName,
           email,
-        }
+        },
       );
 
       if (next) {
@@ -1033,7 +1035,7 @@ const mailer = {
         organization_name: params.organization_name,
         contact_name: params.contact_name,
         contact_email: params.contact_email,
-      })
+      }),
   ),
   confirmOrgRequestReceived: createMailerFunction(
     "confirmOrgRequestReceived",
@@ -1043,7 +1045,7 @@ const mailer = {
         organization_name: params.organization_name,
         contact_name: params.contact_name,
         contact_email: params.contact_email,
-      })
+      }),
   ),
   notifyOrgRequestApproved: createMailerFunction(
     "notifyOrgRequestApproved",
@@ -1054,7 +1056,7 @@ const mailer = {
         contact_name: params.contact_name,
         contact_email: params.contact_email,
         login_url: params.login_url,
-      })
+      }),
   ),
   notifyOrgRequestRejected: createMailerFunction(
     "notifyOrgRequestRejected",
@@ -1065,17 +1067,17 @@ const mailer = {
         contact_name: params.contact_name,
         contact_email: params.contact_email,
         rejection_reason: params.rejection_reason,
-      })
+      }),
   ),
   candidate: createMailerFunction("candidate", "USER_MANAGEMENT", (params) =>
-    msgs.joinRequest(params.firstName, params.lastName, params.email)
+    msgs.joinRequest(params.firstName, params.lastName, params.email),
   ),
   request: createMailerFunction("request", "USER_MANAGEMENT", (params) =>
-    msgs.joinEntityRequest(params.email, params.entity_title)
+    msgs.joinEntityRequest(params.email, params.entity_title),
   ),
 
   yearEndEmail: createMailerFunction("yearEndEmail", "OPTIONAL", (params) =>
-    msgs.yearEndSummary(params.userStat)
+    msgs.yearEndSummary(params.userStat),
   ),
   requestToJoinGroupByEmail: createMailerFunction(
     "requestToJoinGroupByEmail",
@@ -1087,10 +1089,15 @@ const mailer = {
         targetId: params.targetId,
         inviterEmail: params.inviterEmail,
         userExists: params.userExists,
-      })
+      }),
   ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
-    msgs.inquiry(params.fullName, params.email, params.category, params.message)
+    msgs.inquiry(
+      params.fullName,
+      params.email,
+      params.category,
+      params.message,
+    ),
   ),
   clientActivationRequest: createMailerFunction(
     "clientActivationRequest",
@@ -1100,7 +1107,7 @@ const mailer = {
         name: params.name,
         email: params.email,
         client_id: params.client_id,
-      })
+      }),
   ),
   user: createMailerFunction("user", "USER_MANAGEMENT", (params) => {
     if (params.tenant?.toLowerCase() === "kcca") {
@@ -1108,14 +1115,14 @@ const mailer = {
         params.firstName,
         params.lastName,
         params.password,
-        params.email
+        params.email,
       );
     } else {
       return msgs.welcome_general(
         params.firstName,
         params.lastName,
         params.password,
-        params.email
+        params.email,
       );
     }
   }),
@@ -1126,7 +1133,7 @@ const mailer = {
       user_id: params.user_id,
       token: params.token,
       category: params.category,
-    })
+    }),
   ),
   clearEmailDeduplication: async (email, subject, content = "") => {
     try {
@@ -1167,7 +1174,10 @@ const mailer = {
     "sendVerificationEmail",
     "CORE_CRITICAL",
     (params) =>
-      msgs.mobileEmailVerification({ token: params.token, email: params.email })
+      msgs.mobileEmailVerification({
+        token: params.token,
+        email: params.email,
+      }),
   ),
   verifyMobileEmail: createMailerFunction(
     "verifyMobileEmail",
@@ -1177,7 +1187,7 @@ const mailer = {
         email: params.email,
         firebase_uid: params.firebase_uid,
         token: params.token,
-      })
+      }),
   ),
   afterEmailVerification: createMailerFunction(
     "afterEmailVerification",
@@ -1189,7 +1199,7 @@ const mailer = {
         username: params.username,
         email: params.email,
         analyticsVersion: params.analyticsVersion,
-      })
+      }),
   ),
   afterClientActivation: createMailerFunction(
     "afterClientActivation",
@@ -1207,7 +1217,7 @@ const mailer = {
             email: params.email,
             client_id: params.client_id,
           });
-    }
+    },
   ),
   afterAcceptingInvitation: createMailerFunction(
     "afterAcceptingInvitation",
@@ -1218,7 +1228,7 @@ const mailer = {
         username: params.username,
         email: params.email,
         entity_title: params.entity_title,
-      })
+      }),
   ),
   forgot: createMailerFunction("forgot", "CORE_CRITICAL", (params) => {
     return msgs.recovery_email({
@@ -1236,23 +1246,23 @@ const mailer = {
       msgs.mobilePasswordReset({
         token: params.token,
         email: params.email,
-      })
+      }),
   ),
   signInWithEmailLink: createMailerFunction(
     "signInWithEmailLink",
     "CORE_CRITICAL",
-    (params) => msgs.join_by_email(params.email, params.token)
+    (params) => msgs.join_by_email(params.email, params.token),
   ),
   deleteMobileAccountEmail: createMailerFunction(
     "deleteMobileAccountEmail",
     "CORE_CRITICAL",
     (params) =>
-      msgTemplates.deleteMobileAccountEmail(params.email, params.token)
+      msgTemplates.deleteMobileAccountEmail(params.email, params.token),
   ),
   authenticateEmail: createMailerFunction(
     "authenticateEmail",
     "CORE_CRITICAL",
-    (params) => msgs.authenticate_email(params.token, params.email)
+    (params) => msgs.authenticate_email(params.token, params.email),
   ),
 
   update: createMailerFunction("update", "USER_MANAGEMENT", (params) =>
@@ -1261,15 +1271,15 @@ const mailer = {
       lastName: params.lastName,
       updatedUserDetails: params.updatedUserDetails,
       email: params.email,
-    })
+    }),
   ),
   assign: createMailerFunction("assign", "USER_MANAGEMENT", (params) =>
     msgs.user_assigned(
       params.firstName,
       params.lastName,
       params.assignedTo,
-      params.email
-    )
+      params.email,
+    ),
   ),
   updateForgottenPassword: createMailerFunction(
     "updateForgottenPassword",
@@ -1278,8 +1288,8 @@ const mailer = {
       msgs.forgotten_password_updated(
         params.firstName,
         params.lastName,
-        params.email
-      )
+        params.email,
+      ),
   ),
   updateKnownPassword: createMailerFunction(
     "updateKnownPassword",
@@ -1288,13 +1298,13 @@ const mailer = {
       msgs.known_password_updated(
         params.firstName,
         params.lastName,
-        params.email
-      )
+        params.email,
+      ),
   ),
   newMobileAppUser: createMailerFunction(
     "newMobileAppUser",
     "OPTIONAL",
-    (params) => params.message // Direct HTML content
+    (params) => params.message, // Direct HTML content
   ),
   feedback: createMailerFunction(
     "feedback",
@@ -1310,7 +1320,7 @@ const mailer = {
           {
             message: "Support email configuration is missing",
             missing: ["SUPPORT_EMAIL"],
-          }
+          },
         );
       }
 
@@ -1324,7 +1334,7 @@ const mailer = {
         bcc: undefined, // No BCC for feedback
         attachments: undefined, // No attachments for feedback
       };
-    }
+    },
   ),
   sendReport: async (
     {
@@ -1334,13 +1344,13 @@ const mailer = {
       csvFile,
       tenant = "airqo",
     } = {},
-    next
+    next,
   ) => {
     try {
       // Add function categorization check
       if (!EMAIL_CATEGORIES.OPTIONAL.includes("sendReport")) {
         logger.warn(
-          "sendReport function not properly categorized - treating as OPTIONAL"
+          "sendReport function not properly categorized - treating as OPTIONAL",
         );
       }
 
@@ -1417,7 +1427,7 @@ const mailer = {
       // We only need to check recipient subscription status (done later)
 
       logText(
-        `Processing report send from ${senderEmail} to ${normalizedRecepientEmails.length} recipients`
+        `Processing report send from ${senderEmail} to ${normalizedRecepientEmails.length} recipients`,
       );
 
       // ✅ STEP 3: Prepare report attachments
@@ -1466,7 +1476,7 @@ const mailer = {
             }
 
             const checkResult = await SubscriptionModel(
-              tenant
+              tenant,
             ).checkNotificationStatus({
               email: recipientEmail,
               type: "email",
@@ -1484,7 +1494,7 @@ const mailer = {
                 senderEmail,
                 operation: "sendReport",
                 format,
-              }
+              },
             );
             return {
               email: recipientEmail,
@@ -1492,7 +1502,7 @@ const mailer = {
               error: error.message,
             };
           }
-        }
+        },
       );
 
       const recipientResults = await Promise.all(recipientCheckPromises);
@@ -1506,20 +1516,20 @@ const mailer = {
         } else if (result.checkResult?.status === httpStatus.NOT_FOUND) {
           // New user - create default subscription and include them
           logText(
-            `Creating default subscription for new report recipient: ${result.email}`
+            `Creating default subscription for new report recipient: ${result.email}`,
           );
           try {
             await SubscriptionModel(tenant).createDefaultSubscription(
               result.email,
-              false
+              false,
             );
             subscribedRecipients.push(result.email);
             logText(
-              `Default subscription created for ${result.email}, including in report send`
+              `Default subscription created for ${result.email}, including in report send`,
             );
           } catch (createError) {
             logger.warn(
-              `Failed to create default subscription for ${result.email}: ${createError.message}`
+              `Failed to create default subscription for ${result.email}: ${createError.message}`,
             );
             // Still add them to results as non-subscribed
             emailResults.push({
@@ -1583,7 +1593,7 @@ const mailer = {
 
           // ✅ STEP 7: Send email with deduplication protection
           const emailResult = await sendMailWithDeduplication(
-            mailOptions // The wrapper will handle the rest
+            mailOptions, // The wrapper will handle the rest
           );
 
           // ✅ STEP 8: Handle email sending results
@@ -1616,7 +1626,7 @@ const mailer = {
                   tenant,
                   format,
                   error: errorMessage,
-                }
+                },
               );
 
               return {
@@ -1664,7 +1674,7 @@ const mailer = {
                 rejected: emailData?.rejected,
                 tenant,
                 format,
-              }
+              },
             );
 
             return {
@@ -1691,7 +1701,7 @@ const mailer = {
               tenant,
               format,
               operation: "sendReport",
-            }
+            },
           );
 
           return {
@@ -1716,7 +1726,7 @@ const mailer = {
       const successfulSends = emailResults.filter((result) => result.success);
       const failedSends = emailResults.filter((result) => !result.success);
       const duplicatePrevented = emailResults.filter(
-        (result) => result.data?.duplicate
+        (result) => result.data?.duplicate,
       );
 
       const summaryData = {
@@ -1742,7 +1752,7 @@ const mailer = {
           {
             message: "All report emails failed to send",
             ...summaryData,
-          }
+          },
         );
 
         if (next) {
@@ -1760,7 +1770,7 @@ const mailer = {
         // Partial success
         logger.warn(
           `Some report emails failed to send for sender ${senderEmail}:`,
-          summaryData
+          summaryData,
         );
 
         const error = new HttpError(
@@ -1769,7 +1779,7 @@ const mailer = {
           {
             message: "Some report emails failed to send",
             ...summaryData,
-          }
+          },
         );
 
         if (next) {
@@ -1801,7 +1811,7 @@ const mailer = {
           recipientCount: normalizedRecepientEmails?.length || 0,
           tenant,
           operation: "sendReport",
-        }
+        },
       );
 
       const httpError = new HttpError(
@@ -1812,7 +1822,7 @@ const mailer = {
             "An unexpected error occurred while processing report emails",
           operation: "sendReport",
           senderEmail,
-        }
+        },
       );
 
       if (next) {
@@ -1841,7 +1851,7 @@ const mailer = {
       email: params.email,
       activityDetails: params.activityDetails,
       deviceDetails: params.deviceDetails,
-    })
+    }),
   ),
   fieldActivity: createMailerFunction("fieldActivity", "OPTIONAL", (params) =>
     msgs.field_activity({
@@ -1851,7 +1861,7 @@ const mailer = {
       deviceDetails: params.deviceDetails,
       activityType: params.activityType,
       email: params.email,
-    })
+    }),
   ),
   compromisedToken: createSecurityEmailFunction(
     "compromisedToken",
@@ -1865,7 +1875,7 @@ const mailer = {
     {
       cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
-    }
+    },
   ),
   expiredToken: createSecurityEmailFunction(
     "expiredToken",
@@ -1879,7 +1889,7 @@ const mailer = {
     {
       cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
-    }
+    },
   ),
   expiringToken: createSecurityEmailFunction(
     "expiringToken",
@@ -1892,7 +1902,7 @@ const mailer = {
     {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,
-    }
+    },
   ),
   updateProfileReminder: createMailerFunction(
     "updateProfileReminder",
@@ -1902,7 +1912,7 @@ const mailer = {
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-      })
+      }),
   ),
   existingUserAccessRequest: createMailerFunction(
     "existingUserAccessRequest",
@@ -1912,7 +1922,7 @@ const mailer = {
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-      })
+      }),
   ),
   existingUserRegistrationRequest: createMailerFunction(
     "existingUserRegistrationRequest",
@@ -1922,7 +1932,7 @@ const mailer = {
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-      })
+      }),
   ),
   requestRejected: createMailerFunction(
     "requestRejected",
@@ -1933,7 +1943,7 @@ const mailer = {
         email: params.email,
         entity_title: params.entity_title,
         requestType: params.requestType,
-      })
+      }),
   ),
 
   sendPollutionAlert: createMailerFunction(
@@ -1947,7 +1957,7 @@ const mailer = {
         content: params.content,
         name: fullName,
       });
-    }
+    },
   ),
   notifyOrgRequestApprovedWithOnboarding: createMailerFunction(
     "notifyOrgRequestApprovedWithOnboarding",
@@ -1959,7 +1969,7 @@ const mailer = {
         contact_email: params.contact_email,
         onboarding_url: params.onboarding_url,
         organization_slug: params.organization_slug,
-      })
+      }),
   ),
 
   onboardingAccountSetup: createMailerFunction(
@@ -1971,7 +1981,7 @@ const mailer = {
         contact_name: params.contact_name,
         contact_email: params.contact_email,
         setup_url: params.setup_url,
-      })
+      }),
   ),
 
   onboardingCompleted: createMailerFunction(
@@ -1983,7 +1993,7 @@ const mailer = {
         contact_name: params.contact_name,
         contact_email: params.contact_email,
         login_url: params.login_url,
-      })
+      }),
   ),
   inactiveAccount: createMailerFunction(
     "inactiveAccount",
@@ -1992,7 +2002,7 @@ const mailer = {
       msgs.inactiveAccount({
         firstName: params.firstName,
         email: params.email,
-      })
+      }),
   ),
   sendAccountDeletionConfirmation: createMailerFunction(
     "sendAccountDeletionConfirmation",
@@ -2004,7 +2014,7 @@ const mailer = {
         token: params.token,
         tenant: params.tenant,
       });
-    }
+    },
   ),
   sendAccountDeletionSuccess: createMailerFunction(
     "sendAccountDeletionSuccess",
@@ -2013,7 +2023,7 @@ const mailer = {
       msgs.accountDeletionSuccess({
         firstName: params.firstName,
         email: params.email,
-      })
+      }),
   ),
   sendMobileAccountDeletionCode: createMailerFunction(
     "sendMobileAccountDeletionCode",
@@ -2023,58 +2033,21 @@ const mailer = {
         firstName: params.firstName,
         email: params.email,
         token: params.token,
-      })
+      }),
   ),
-  sendBotAlert: async (params, { tenant } = {}) => {
-    try {
-      const { recipients, ip, interval, occurrences, prefix, prefixBotCount } =
-        params;
-
-      if (!recipients || recipients.length === 0) {
-        logger.warn("sendBotAlert called without recipients.");
-        return { success: true, message: "No recipients to send to." };
-      }
-
-      const subject = "🚨 Security Alert: Automated Bot Activity Detected";
-      const html = `
-        <p>An automated system has detected bot-like activity and taken action.</p>
-        <h3>Details:</h3>
-        <ul>
-          <li><strong>IP Address:</strong> ${ip}</li>
-          <li><strong>Detected Interval:</strong> Approximately ${interval} minutes</li>
-          <li><strong>Pattern Occurrences:</strong> ${occurrences} times</li>
-          <li><strong>Action Taken:</strong> The IP address has been automatically blacklisted.</li>
-        </ul>
-        <h3>Prefix Analysis:</h3>
-        <ul>
-          <li><strong>IP Prefix:</strong> ${prefix}.*.*</li>
-          <li><strong>Bots from this Prefix:</strong> ${prefixBotCount}</li>
-          <li><strong>Prefix Action:</strong> ${
-            prefixBotCount >= 3
-              ? `The entire prefix ${prefix}.*.* has been blacklisted.`
-              : "Prefix is being monitored."
-          }</li>
-        </ul>
-        <p>No immediate action is required, but this information is provided for your awareness.</p>
-      `;
-
-      const mailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        to: recipients.join(","),
-        subject,
-        html,
-        attachments,
-      };
-
-      return await addToEmailQueue(mailOptions, tenant);
-    } catch (error) {
-      logger.error(`Error in sendBotAlert: ${error.message}`);
-      return { success: false, message: "Failed to send bot alert" };
-    }
-  },
+  sendBotAlert: createMailerFunction(
+    "sendBotAlert",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.botAlert({
+        email: params.recipients,
+        ip: params.ip,
+        interval: params.interval,
+        occurrences: params.occurrences,
+        prefix: params.prefix,
+        prefixBotCount: params.prefixBotCount,
+      }),
+  ),
 };
 
 module.exports = mailer;

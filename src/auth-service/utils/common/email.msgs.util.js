@@ -116,7 +116,7 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Your request to access ${processString(
-                                      entity_title
+                                      entity_title,
                                     )} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
@@ -292,10 +292,10 @@ module.exports = {
                 (service, index) => `
                   <p style="margin: 8px 0;">
                     ${index + 1}. <strong>${service.service}</strong> (Used ${
-                  service.count
-                } times)
+                      service.count
+                    } times)
                   </p>
-                `
+                `,
               )
               .join("")}
           </div>`
@@ -898,7 +898,7 @@ module.exports = {
   <tr>
     <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
       <p>We have reviewed your organization request for "${escapeHtml(
-        organization_name
+        organization_name,
       )}" and regret to inform you that we are unable to approve it at this time.</p>
       ${
         rejection_reason
@@ -1156,5 +1156,36 @@ module.exports = {
                                 </td>
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
+  },
+  botAlert: ({ ip, interval, occurrences, prefix, prefixBotCount, email }) => {
+    const content = `
+        <tr>
+            <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                <p>An automated system has detected bot-like activity and taken action.</p>
+                <h3>Details:</h3>
+                <ul>
+                  <li><strong>IP Address:</strong> ${ip}</li>
+                  <li><strong>Detected Interval:</strong> Approximately ${interval} minutes</li>
+                  <li><strong>Pattern Occurrences:</strong> ${occurrences} times</li>
+                  <li><strong>Action Taken:</strong> The IP address has been automatically blacklisted.</li>
+                </ul>
+                <h3>Prefix Analysis:</h3>
+                <ul>
+                  <li><strong>IP Prefix:</strong> ${prefix}.*.*</li>
+                  <li><strong>Bots from this Prefix:</strong> ${prefixBotCount}</li>
+                  <li><strong>Prefix Action:</strong> ${
+                    prefixBotCount >= 3
+                      ? `The entire prefix ${prefix}.*.* has been blacklisted.`
+                      : "Prefix is being monitored."
+                  }</li>
+                </ul>
+                <p>No immediate action is required, but this information is provided for your awareness.</p>
+            </td>
+        </tr>`;
+    return constants.EMAIL_BODY({
+      email: email.join(","),
+      content,
+      name: "Admin",
+    });
   },
 };
