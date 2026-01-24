@@ -894,8 +894,8 @@ const token = {
       const { email } = body;
       const { tenant } = query;
 
-      const password = password
-        ? password
+      const password = body.password
+        ? body.password
         : accessCodeGenerator.generate(
             constants.RANDOM_PASSWORD_CONFIGURATION(10),
           );
