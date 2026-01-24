@@ -109,8 +109,13 @@ IPRequestLogSchema.statics = {
       if (!ipLog || !ipLog.requests) {
         return [];
       }
-      // Filter requests in memory for the specific endpoint
-      return ipLog.requests.filter((req) => req.endpoint === targetEndpoint);
+      // Filter requests based on prefix matching to align with the monitoring check.
+      // This ensures that requests to sub-paths or with query strings are correctly grouped.
+      const monitoredPath =
+        constants.BOT_MONITORED_ENDPOINTS.find((path) =>
+          targetEndpoint.startsWith(path),
+        ) || targetEndpoint;
+      return ipLog.requests.filter((req) => req.endpoint === monitoredPath);
     } catch (error) {
       logObject("Error getting IP requests for endpoint", error);
       return [];
