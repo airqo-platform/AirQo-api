@@ -1039,11 +1039,38 @@ const createAdminAlertFunction = (
     let otherParams = {};
 
     try {
-      ({ recipients, tenant = "airqo", ...otherParams } = params);
+      const {
+        recipients: rawRecipients,
+        tenant = "airqo",
+        ...otherParams
+      } = params;
 
-      if (!recipients || recipients.length === 0) {
-        logger.warn(`${functionName} called without recipients.`);
-        return { success: true, message: "No recipients to send to." };
+      // Normalize and validate recipients
+      let recipients = [];
+      if (Array.isArray(rawRecipients)) {
+        recipients = rawRecipients;
+      } else if (typeof rawRecipients === "string") {
+        recipients = rawRecipients.split(",").map((e) => e.trim());
+      }
+
+      // Filter out empty strings and remove duplicates
+      recipients = [...new Set(recipients.filter(Boolean))];
+
+      if (recipients.length === 0) {
+        logger.warn(`${functionName} called without valid recipients.`);
+        return { success: true, message: "No valid recipients to send to." };
+      }
+
+      // Validate SUPPORT_EMAIL before queuing
+      if (!constants.SUPPORT_EMAIL || !constants.SUPPORT_EMAIL.includes("@")) {
+        logger.error(
+          `CRITICAL: ${functionName} cannot be sent because SUPPORT_EMAIL is not configured.`,
+        );
+        return {
+          success: false,
+          message: "Admin alert system is not configured.",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
 
       // ✅ STEP 1: Rate-limiting check
@@ -1079,7 +1106,7 @@ const createAdminAlertFunction = (
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: constants.SUPPORT_EMAIL,
+        to: constants.SUPPORT_EMAIL, // Validated above
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
         bcc: recipients.join(","),
