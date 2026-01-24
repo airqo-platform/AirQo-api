@@ -27,6 +27,10 @@ const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-util`);
+
+// Define endpoints to monitor for bot-like patterns at the module level
+const BOT_MONITORED_ENDPOINTS = ["/api/v2/devices/readings"];
+
 const async = require("async");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -1885,12 +1889,12 @@ const token = {
   },
   analyzeIPRequestPatterns: async ({ ip, tenant = "airqo", endpoint } = {}) => {
     try {
-      // Define endpoints to monitor for bot-like patterns
-      // This can be moved to a central constants file if used elsewhere.
-      const BOT_MONITORED_ENDPOINTS = ["/api/v2/devices/readings"];
-
-      if (!BOT_MONITORED_ENDPOINTS.includes(endpoint)) {
-        // Only analyze patterns for specific, sensitive endpoints
+      // Check if the request endpoint starts with any of the monitored base paths.
+      // This is more robust than an exact match and aligns with patterns elsewhere in the codebase.
+      const isMonitored = BOT_MONITORED_ENDPOINTS.some((monitoredPath) =>
+        endpoint.startsWith(monitoredPath),
+      );
+      if (!isMonitored) {
         return;
       }
 

@@ -6,7 +6,9 @@ const analyzeIP = async (req, res, next) => {
   try {
     const ip =
       req.headers["x-client-ip"] || req.headers["x-client-original-ip"];
-    const endpoint = req.originalUrl || req.url;
+    // Use the same pattern as passport.js to get the original client URI from the NGINX header
+    const endpoint =
+      req.headers["x-original-uri"] || req.originalUrl || req.path;
     const tenant = req.query.tenant || "airqo";
 
     if (ip) {
