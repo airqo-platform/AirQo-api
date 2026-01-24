@@ -8,6 +8,7 @@ const httpStatus = require("http-status");
 const path = require("path");
 const EmailQueueModel = require("@models/EmailQueue");
 const EmailLogModel = require("@models/EmailLog");
+const AdminAlertCounterModel = require("@models/AdminAlertCounter");
 const {
   emailDeduplicator,
   sendMailWithDeduplication,
@@ -1075,17 +1076,22 @@ const createAdminAlertFunction = (
 
       // ✅ STEP 1: Rate-limiting check
       try {
-        const EmailLog = EmailLogModel(tenant);
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+        const counter = await AdminAlertCounterModel(tenant).findOneAndUpdate(
+          { date: today, emailType: functionName },
+          { $inc: { count: 1 } },
+          { upsert: true, new: true },
+        );
 
-        const recentAlertsCount = await EmailLog.countDocuments({
-          emailType: functionName,
-          createdAt: { $gte: twentyFourHoursAgo },
-        });
-
-        if (recentAlertsCount >= maxAlertsPerDay) {
+        if (counter.count > maxAlertsPerDay) {
           logger.info(
             `Skipping ${functionName} email. Daily limit of ${maxAlertsPerDay} reached.`,
+          );
+          // Optional: Decrement the counter if we're not sending the email
+          // This makes the limit "at most" rather than "first N"
+          await AdminAlertCounterModel(tenant).updateOne(
+            { date: today, emailType: functionName },
+            { $inc: { count: -1 } },
           );
           return {
             success: true,
