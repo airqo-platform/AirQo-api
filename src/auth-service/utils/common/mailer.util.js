@@ -2177,6 +2177,7 @@ const mailer = {
     "sendBotAlert",
     (params) =>
       msgs.botAlert({
+        recipients: params.recipients,
         ip: params.ip,
         interval: params.interval,
         occurrences: params.occurrences,
