@@ -1195,6 +1195,10 @@ module.exports = {
                 <p>No immediate action is required, but this information is provided for your awareness.</p>
             </td>
         </tr>`;
-    return constants.EMAIL_BODY({ email: recipients, content, name: "Admin" });
+    return constants.EMAIL_BODY({
+      email: constants.SUPPORT_EMAIL,
+      content,
+      name: "Admin",
+    });
   },
 };
