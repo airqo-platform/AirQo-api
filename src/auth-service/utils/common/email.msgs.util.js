@@ -1164,18 +1164,24 @@ module.exports = {
                 <p>An automated system has detected bot-like activity and taken action.</p>
                 <h3>Details:</h3>
                 <ul>
-                  <li><strong>IP Address:</strong> ${ip}</li>
-                  <li><strong>Detected Interval:</strong> Approximately ${interval} minutes</li>
-                  <li><strong>Pattern Occurrences:</strong> ${occurrences} times</li>
+                  <li><strong>IP Address:</strong> ${escapeHtml(String(ip))}</li>
+                  <li><strong>Detected Interval:</strong> Approximately ${escapeHtml(
+                    String(interval),
+                  )} minutes</li>
+                  <li><strong>Pattern Occurrences:</strong> ${escapeHtml(
+                    String(occurrences),
+                  )} times</li>
                   <li><strong>Action Taken:</strong> The IP address has been automatically blacklisted.</li>
                 </ul>
                 <h3>Prefix Analysis:</h3>
                 <ul>
-                  <li><strong>IP Prefix:</strong> ${prefix}.*.*</li>
-                  <li><strong>Bots from this Prefix:</strong> ${prefixBotCount}</li>
+                  <li><strong>IP Prefix:</strong> ${escapeHtml(String(prefix))}.*.*</li>
+                  <li><strong>Bots from this Prefix:</strong> ${escapeHtml(
+                    String(prefixBotCount),
+                  )}</li>
                   <li><strong>Prefix Action:</strong> ${
                     prefixBotCount >= 3
-                      ? `The entire prefix ${prefix}.*.* has been blacklisted.`
+                      ? `The entire prefix ${escapeHtml(String(prefix))}.*.* has been blacklisted.`
                       : "Prefix is being monitored."
                   }</li>
                 </ul>
