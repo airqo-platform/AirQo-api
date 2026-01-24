@@ -1694,7 +1694,11 @@ const mailer = {
 
           // ✅ STEP 7: Send email with deduplication protection
           const emailResult = await sendMailWithDeduplication(
-            mailOptions, // The wrapper will handle the rest
+            transporter,
+            mailOptions,
+            {
+              // Using default options for deduplication
+            },
           );
 
           // ✅ STEP 8: Handle email sending results
