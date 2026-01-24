@@ -1157,7 +1157,7 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
-  botAlert: ({ ip, interval, occurrences, prefix, prefixBotCount, email }) => {
+  botAlert: ({ ip, interval, occurrences, prefix, prefixBotCount }) => {
     const content = `
         <tr>
             <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -1182,10 +1182,6 @@ module.exports = {
                 <p>No immediate action is required, but this information is provided for your awareness.</p>
             </td>
         </tr>`;
-    return constants.EMAIL_BODY({
-      email: email.join(","),
-      content,
-      name: "Admin",
-    });
+    return constants.EMAIL_BODY({ content, name: "Admin" });
   },
 };

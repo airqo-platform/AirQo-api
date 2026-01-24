@@ -1026,6 +1026,107 @@ const createSecurityEmailFunction = (
   };
 };
 
+const createAdminAlertFunction = (
+  functionName,
+  emailMessageFunction,
+  options = {},
+) => {
+  const { maxAlertsPerDay = 2 } = options;
+
+  return async (params, next) => {
+    let tenant = "";
+    let recipients = [];
+    let otherParams = {};
+
+    try {
+      ({ recipients, tenant = "airqo", ...otherParams } = params);
+
+      if (!recipients || recipients.length === 0) {
+        logger.warn(`${functionName} called without recipients.`);
+        return { success: true, message: "No recipients to send to." };
+      }
+
+      // ✅ STEP 1: Rate-limiting check
+      try {
+        const EmailLog = EmailLogModel(tenant);
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        const recentAlertsCount = await EmailLog.countDocuments({
+          emailType: functionName,
+          createdAt: { $gte: twentyFourHoursAgo },
+        });
+
+        if (recentAlertsCount >= maxAlertsPerDay) {
+          logger.info(
+            `Skipping ${functionName} email. Daily limit of ${maxAlertsPerDay} reached.`,
+          );
+          return {
+            success: true,
+            message: `Daily alert limit reached. Email not sent.`,
+            status: httpStatus.OK,
+          };
+        }
+      } catch (rateLimitError) {
+        logger.error(
+          `Error checking rate limit for ${functionName}: ${rateLimitError.message}`,
+        );
+        // Fail open: proceed with sending the email if the check fails.
+      }
+
+      // ✅ STEP 2: Prepare and queue the email
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: constants.SUPPORT_EMAIL,
+        subject: getEmailSubject(functionName, otherParams),
+        html: emailMessageFunction({ recipients, ...otherParams }),
+        bcc: recipients.join(","),
+        attachments: attachments,
+      };
+
+      const queueResult = await addToEmailQueue(mailOptions, tenant);
+
+      if (!queueResult.success) {
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: "Failed to queue admin alert email." },
+        );
+      }
+
+      // ✅ STEP 3: Log the successful queuing for rate-limiting
+      try {
+        const EmailLog = EmailLogModel(tenant);
+        await EmailLog.logEmailSent({
+          email: recipients.join(","),
+          emailType: functionName,
+          metadata: { ...otherParams },
+        });
+      } catch (logError) {
+        logger.warn(
+          `Failed to log admin alert send for ${functionName}: ${logError.message}`,
+        );
+      }
+
+      return {
+        success: true,
+        message: "Admin alert email successfully queued.",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Error in ${functionName}: ${error.message}`);
+      if (next) {
+        next(error);
+      } else {
+        // For fire-and-forget calls, just log the error.
+        return { success: false, message: error.message };
+      }
+    }
+  };
+};
+
 const mailer = {
   notifyAdminsOfNewOrgRequest: createMailerFunction(
     "notifyAdminsOfNewOrgRequest",
@@ -2035,18 +2136,19 @@ const mailer = {
         token: params.token,
       }),
   ),
-  sendBotAlert: createMailerFunction(
+  sendBotAlert: createAdminAlertFunction(
     "sendBotAlert",
-    "CORE_CRITICAL",
     (params) =>
       msgs.botAlert({
-        email: params.recipients,
         ip: params.ip,
         interval: params.interval,
         occurrences: params.occurrences,
         prefix: params.prefix,
         prefixBotCount: params.prefixBotCount,
       }),
+    {
+      maxAlertsPerDay: constants.MAX_BOT_ALERTS_PER_DAY || 2,
+    },
   ),
 };
 
