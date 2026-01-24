@@ -1891,8 +1891,8 @@ const token = {
     try {
       // Check if the request endpoint starts with any of the monitored base paths.
       // This is more robust than an exact match and aligns with patterns elsewhere in the codebase.
-      const isMonitored = BOT_MONITORED_ENDPOINTS.some((monitoredPath) =>
-        endpoint.startsWith(monitoredPath),
+      const isMonitored = BOT_MONITORED_ENDPOINTS.some(
+        (monitoredPath) => endpoint && endpoint.startsWith(monitoredPath),
       );
       if (!isMonitored) {
         return;
