@@ -6,15 +6,16 @@ const analyzeIP = async (req, res, next) => {
   try {
     const ip =
       req.headers["x-client-ip"] || req.headers["x-client-original-ip"];
-    // Use the same pattern as passport.js to get the original client URI from the NGINX header
-    const endpoint =
+    // Get the original client URI from the NGINX header and normalize it by removing the query string.
+    const originalUri =
       req.headers["x-original-uri"] || req.originalUrl || req.path;
+    const endpoint = originalUri.split("?")[0];
     const tenant = req.query.tenant || "airqo";
 
     if (ip) {
       // Log the request without waiting for it to complete
       IPRequestLogModel(tenant)
-        .recordRequest({ ip, endpoint: endpoint.split("?")[0] })
+        .recordRequest({ ip, endpoint })
         .catch((err) => logObject("Error in background IP recording", err));
 
       // Asynchronously analyze the IP patterns
