@@ -14,7 +14,7 @@ const analyzeIP = async (req, res, next) => {
     if (ip) {
       // Log the request without waiting for it to complete
       IPRequestLogModel(tenant)
-        .recordRequest({ ip, endpoint })
+        .recordRequest({ ip, endpoint: endpoint.split("?")[0] })
         .catch((err) => logObject("Error in background IP recording", err));
 
       // Asynchronously analyze the IP patterns
