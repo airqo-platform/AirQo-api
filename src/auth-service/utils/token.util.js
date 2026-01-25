@@ -2098,13 +2098,26 @@ const token = {
             endpoints: Array.from(tokenUsage[maskedToken].endpoints),
           }));
 
+          const { first_request, last_request } = log.requests.reduce(
+            (acc, req) => {
+              if (!acc.first_request || req.timestamp < acc.first_request) {
+                acc.first_request = req.timestamp;
+              }
+              if (!acc.last_request || req.timestamp > acc.last_request) {
+                acc.last_request = req.timestamp;
+              }
+              return acc;
+            },
+            { first_request: null, last_request: null },
+          );
+
           return {
             ip: log.ip,
             total_requests: log.requests.length,
             endpoint_frequency: endpointStats,
             tokens_used: tokens,
-            first_request: log.requests[0]?.timestamp,
-            last_request: log.requests[log.requests.length - 1]?.timestamp,
+            first_request,
+            last_request,
           };
         }
       });
