@@ -139,47 +139,26 @@ module.exports = {
     let content;
     switch (category) {
       case "policy":
-        content = ` <tr>
+        content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in our work.
-                                    <br />
-                                    Kindly let us know how you would like to partner with us and we will get back to you.
-                                    <br />
-                                    Alternatively, you can get in touch with our Policy Engagement Officer Angela Nshimye at angela@airqo.net who will be of
-                                    further support.
-                                    <br />
-                                </td>
-                            </tr>`;
-        break;
-      case "champions":
-        content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for choosing to become an AirQo air quality champion. 
-                                We appreciate your interest and effort in improving your community's health and quality of life. 
-                               
-                                    <br /><br />
-                                 As a first step, we would like to learn more about you so that we can jointly understand how to work together to build a healthier and better community.
-                                    <br /><br />
-                                    Kindly complete this <a href = "${constants.CHAMPIONS_FORM}">Form</a> to provide your information. 
-                                    <br />
+                                    <p>Thank you for reaching out and for your interest in AirQo’s work.</p>
+                                    <p>We collaborate with policymakers and public institutions to support evidence-based air quality policies and interventions.</p>
+                                    <p>Kindly let us know how you would like to engage or partner with us, and our team will follow up.</p>
+                                    <p>Alternatively, you may contact our Policy Engagement Officer, Angela Nshimye at angela@airqo.net for direct support.</p>
                                 </td>
                             </tr>`;
         break;
       case "researchers":
-        content = ` <tr>
+        content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for your interest in accessing our air quality data to further research in air quality monitoring and
-                                management,
-                                    <br />
-                            You can visit our website at airqo.net and navigate to <a href="https://airqo.net/explore-data">Explore Data</a> or
-                            click <a href="https://airqo.net/explore-data">here</a> to access data.
-                                    <br />
-                                    If you still need further support, please contact our Data Scientists Richard Sserujogi at richard.sserunjogi@airqo.net or Wabinyai
-                                    Fidel Raja at raja@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in using AirQo data for research.</p>
+                                    <p>We provide open air quality data to support research, innovation, and evidence-based decision-making across African Cities.</p>
+                                    <p>Access data via <a href="https://airqo.net/explore-data">airqo.net - Explore Data</a>, or click <a href="https://airqo.net/explore-data">here</a> to access datasets directly.</p>
+                                    <p>For advanced support, collaborations, or custom data needs, contact:</p>
+                                    <p>Wabinyai Fidel Raja - Data Scientist: <a href="mailto:raja@airqo.net">raja@airqo.net</a></p>
+                                    <p>We are happy to support academic, policy, and applied research initiatives.</p>
                                 </td>
                             </tr>`;
         break;
@@ -187,11 +166,10 @@ module.exports = {
         content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <p>Thank you for your interest in our work.</p>
-                                    <p>If you are interested in Data Science (ML/AI), please reach out to our Data Science Lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: ds@airqo.net.</p>
-                                    <p>For inquiries related to Hardware (Embedded Systems) Engineering, accessing the AirQo API, obtaining AirQo devices, or setting up an Air Quality Monitoring Network, please contact our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
-                                    <p>To contribute to our open-source community as a software engineer, please fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a>.</p>
-                                    <p>You can access our data through the AirQo website or the mobile app.</p>
+                                    <p>Thank you for your interest in building with AirQo.</p>
+                                    <p><b>Build open-source tools for cleaner air across Africa.</b></p>
+                                    <p>Join our open-source community and help build, improve, and maintain tools that power air quality monitoring and decision-making across African cities. Contributions may include frontend or backend development, data platforms, documentation, or developer tooling.</p>
+                                    <p>Fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a> to get started.</p>
                                 </td>
                   </tr>`;
         break;
@@ -206,17 +184,16 @@ module.exports = {
                     </tr>`;
         break;
       default:
+        // Partner category
         content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in supporting our work in closing the air quality data gaps
-                                in African Cities. We are happy to foster partnerships to advance air quality monitoring and management in African
-                                Cities.
-                                    <br />
-                                    <br />
-                                    Please get in touch with our project lead Professor Engineer at baino@airqo.net or Programme Manager Deo Okure at
-                                    dokure@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in supporting AirQo’s mission.</p>
+                                    <p>We work with funders to close air quality data gaps and enable sustainable air quality monitoring and management across African cities.</p>
+                                    <p>If you are interested in funding, strategic support, or long-term collaboration, please contact:</p>
+                                    <p>Professor Engineer - Project Lead: <a href="mailto:baino@airqo.net">baino@airqo.net</a></p>
+                                    <p>Deo Okure - Head of Research & Global Partnerships: <a href="mailto:dokure@airqo.net">dokure@airqo.net</a></p>
+                                    <p>We look forward to exploring how your support can accelerate clean air solutions.</p>
                                 </td>
                             </tr>`;
         break;
