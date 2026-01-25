@@ -10,12 +10,13 @@ const analyzeIP = async (req, res, next) => {
     const originalUri =
       req.headers["x-original-uri"] || req.originalUrl || req.path;
     const endpoint = originalUri.split("?")[0];
+    const token = req.params.token || req.query.token || req.body.token;
     const tenant = req.query.tenant || "airqo";
 
     if (ip) {
       // Log the request without waiting for it to complete
       IPRequestLogModel(tenant)
-        .recordRequest({ ip, endpoint })
+        .recordRequest({ ip, endpoint, token })
         .catch((err) => logObject("Error in background IP recording", err));
 
       // Asynchronously analyze the IP patterns

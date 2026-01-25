@@ -15,6 +15,7 @@ const IPRequestLogSchema = new mongoose.Schema(
       {
         timestamp: { type: Date, required: true },
         endpoint: { type: String, required: true },
+        token: { type: String },
       },
     ],
     isUnderWatch: {
@@ -36,7 +37,7 @@ IPRequestLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2592000 }); // 
 IPRequestLogSchema.index({ ip: 1, "requests.timestamp": -1 });
 
 IPRequestLogSchema.statics = {
-  async recordRequest({ ip, endpoint } = {}) {
+  async recordRequest({ ip, endpoint, token } = {}) {
     try {
       if (!ip || !endpoint) {
         return {
@@ -50,7 +51,7 @@ IPRequestLogSchema.statics = {
         {
           $push: {
             requests: {
-              $each: [{ timestamp: new Date(), endpoint }],
+              $each: [{ timestamp: new Date(), endpoint, token }],
               $slice: -100, // Keep only the last 100 requests
             },
           },

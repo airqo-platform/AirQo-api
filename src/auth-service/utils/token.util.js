@@ -2016,6 +2016,143 @@ const token = {
       );
     }
   },
+  getWhitelistedIPStats: async (request, next) => {
+    try {
+      const { tenant, active_only } = { ...request.query, ...request.params };
+      const skip = parseInt(request.query.skip, 10) || 0;
+      const limit = parseInt(request.query.limit, 10) || 100;
+
+      let queryFilter = {};
+      // Use a strict check for the boolean query parameter
+      if (String(active_only).toLowerCase() === "true") {
+        const activeIPs = await IPRequestLogModel(tenant).distinct("ip");
+        queryFilter.ip = { $in: activeIPs };
+      }
+
+      const totalIPs =
+        await WhitelistedIPModel(tenant).countDocuments(queryFilter);
+
+      const whitelistedIPs = await WhitelistedIPModel(tenant)
+        .find(queryFilter)
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      if (isEmpty(whitelistedIPs)) {
+        // Return early if no IPs match the filter, but still provide meta
+        const meta = { total: 0, pages: 0, page: 1, limit, hasNextPage: false };
+        return {
+          success: true,
+          message: "No whitelisted IPs found.",
+          data: [],
+          meta: meta,
+          status: httpStatus.OK,
+        };
+      }
+
+      const ipList = whitelistedIPs.map((item) => item.ip);
+
+      const ipLogs = await IPRequestLogModel(tenant)
+        .find({ ip: { $in: ipList } })
+        .lean();
+
+      const ipLogMap = new Map(ipLogs.map((log) => [log.ip, log]));
+
+      const maskToken = (token) => {
+        if (!token || token.length < 8) {
+          return "invalid-token";
+        }
+        return `${token.slice(0, 4)}...${token.slice(-4)}`;
+      };
+
+      const stats = whitelistedIPs.map((whitelistedIp) => {
+        const log = ipLogMap.get(whitelistedIp.ip);
+
+        if (!log) {
+          return {
+            ip: whitelistedIp.ip,
+            total_requests: 0,
+            endpoint_frequency: {},
+            tokens_used: [],
+            first_request: null,
+            last_request: null,
+          };
+        } else {
+          const endpointStats = {};
+          const tokenUsage = {};
+
+          log.requests.forEach((req) => {
+            endpointStats[req.endpoint] =
+              (endpointStats[req.endpoint] || 0) + 1;
+
+            if (req.token) {
+              const masked = maskToken(req.token);
+              if (!tokenUsage[masked]) {
+                tokenUsage[masked] = { count: 0, endpoints: new Set() };
+              }
+              tokenUsage[masked].count += 1;
+              tokenUsage[masked].endpoints.add(req.endpoint);
+            }
+          });
+
+          const tokens = Object.keys(tokenUsage).map((maskedToken) => ({
+            masked_token: maskedToken,
+            access_count: tokenUsage[maskedToken].count,
+            endpoints: Array.from(tokenUsage[maskedToken].endpoints),
+          }));
+
+          const { first_request, last_request } = log.requests.reduce(
+            (acc, req) => {
+              if (!acc.first_request || req.timestamp < acc.first_request) {
+                acc.first_request = req.timestamp;
+              }
+              if (!acc.last_request || req.timestamp > acc.last_request) {
+                acc.last_request = req.timestamp;
+              }
+              return acc;
+            },
+            { first_request: null, last_request: null },
+          );
+
+          return {
+            ip: log.ip,
+            total_requests: log.requests.length,
+            endpoint_frequency: endpointStats,
+            tokens_used: tokens,
+            first_request,
+            last_request,
+          };
+        }
+      });
+
+      const totalPages = limit > 0 ? Math.ceil(totalIPs / limit) : 0;
+      const currentPage = Math.floor(skip / limit) + 1;
+      const meta = {
+        total: totalIPs,
+        pages: totalPages,
+        page: currentPage,
+        limit,
+        hasNextPage: currentPage < totalPages,
+      };
+
+      return {
+        success: true,
+        message: "Successfully retrieved statistics for whitelisted IPs.",
+        data: stats,
+        meta: meta,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
 };
 
 module.exports = token;
