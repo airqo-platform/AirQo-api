@@ -2018,10 +2018,13 @@ const token = {
   },
   getWhitelistedIPStats: async (request, next) => {
     try {
-      const { tenant, skip, limit, active_only } = request;
+      const { tenant, active_only } = { ...request.query, ...request.params };
+      const skip = parseInt(request.query.skip, 10) || 0;
+      const limit = parseInt(request.query.limit, 10) || 100;
 
       let queryFilter = {};
-      if (active_only === "true") {
+      // Use a strict check for the boolean query parameter
+      if (String(active_only).toLowerCase() === "true") {
         const activeIPs = await IPRequestLogModel(tenant).distinct("ip");
         queryFilter.ip = { $in: activeIPs };
       }
@@ -2122,7 +2125,7 @@ const token = {
         }
       });
 
-      const totalPages = Math.ceil(totalIPs / limit);
+      const totalPages = limit > 0 ? Math.ceil(totalIPs / limit) : 0;
       const currentPage = Math.floor(skip / limit) + 1;
       const meta = {
         total: totalIPs,
