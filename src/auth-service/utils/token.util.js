@@ -1886,6 +1886,13 @@ const token = {
   },
   analyzeIPRequestPatterns: async ({ ip, tenant = "airqo", endpoint } = {}) => {
     try {
+      // Immediately exit if the IP is whitelisted
+      const isWhitelisted = await WhitelistedIPModel(tenant).exists({ ip });
+      if (isWhitelisted) {
+        logger.info(`IP ${ip} is whitelisted. Skipping bot pattern analysis.`);
+        return;
+      }
+
       // Check if the request endpoint starts with any of the monitored base paths.
       // This is more robust than an exact match and aligns with patterns elsewhere in the codebase.
       const isMonitored = constants.BOT_MONITORED_ENDPOINTS.some(
@@ -1979,9 +1986,7 @@ const token = {
       }
 
       // 3. Notify admins
-      const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST
-        ? constants.SUPER_ADMIN_EMAIL_ALLOWLIST.split(",")
-        : [];
+      const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST;
       if (adminEmails.length > 0) {
         mailer
           .sendBotAlert(
