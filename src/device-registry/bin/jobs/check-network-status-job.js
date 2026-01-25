@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-network-status-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-network-status-job`,
 );
 const deviceUtil = require("@utils/device.util");
 const networkStatusUtil = require("@utils/network-status.util");
@@ -30,9 +30,6 @@ const logThrottleManager = new LogThrottleManager();
 const checkNetworkStatus = async () => {
   // Restrict job to run only in production
   if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
-    logger.info(
-      `check-network-status-job is disabled for the ${constants.ENVIRONMENT} environment.`
-    );
     return;
   }
 
@@ -54,12 +51,12 @@ const checkNetworkStatus = async () => {
     // Note: getDeviceCountSummary uses a filter for { status: "deployed", isActive: true },
     // so total_monitors accurately represents the total number of deployed devices.
     const responseFromGetDeviceCountSummary = await deviceUtil.getDeviceCountSummary(
-      request
+      request,
     );
 
     if (!responseFromGetDeviceCountSummary.success) {
       logger.error(
-        `Unable to get device count summary: ${responseFromGetDeviceCountSummary.message}`
+        `Unable to get device count summary: ${responseFromGetDeviceCountSummary.message}`,
       );
       return;
     }
@@ -110,21 +107,21 @@ const checkNetworkStatus = async () => {
       // Logic based on notTransmittingPercentage
       status = "CRITICAL";
       message = `🚨🆘 CRITICAL: ${notTransmittingPercentage.toFixed(
-        2
+        2,
       )}% of deployed devices are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
       thresholdExceeded = true;
     } else if (notTransmittingPercentage > UPTIME_THRESHOLD) {
       // Logic based on notTransmittingPercentage
       status = "WARNING";
       message = `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are not transmitting: ${notTransmittingPercentage.toFixed(
-        2
+        2,
       )}% (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
       thresholdExceeded = true;
     } else {
       status = "OK";
       message = `✅ Network status is acceptable. ${operational} devices are operational, while ${notTransmittingPercentage.toFixed(
         // Updated OK message
-        2
+        2,
       )}% are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
     }
 
@@ -144,7 +141,7 @@ const checkNetworkStatus = async () => {
       not_transmitting_devices_count: notTransmittingDevicesCount, // Updated field
       not_transmitting_percentage: parseFloat(
         // Updated field
-        notTransmittingPercentage.toFixed(2)
+        notTransmittingPercentage.toFixed(2),
       ),
       status,
       message,
@@ -166,7 +163,7 @@ const checkNetworkStatus = async () => {
   } catch (error) {
     logText(`🐛🐛 Error checking network status: ${error.message}`);
     logger.error(
-      `🐛🐛 ${MAIN_JOB_NAME} Error checking network status: ${error.message}`
+      `🐛🐛 ${MAIN_JOB_NAME} Error checking network status: ${error.message}`,
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
 
@@ -237,7 +234,7 @@ Critical Alerts: ${stats.criticalCount}
     }
   } catch (error) {
     logger.error(
-      `🐛🐛 ${SUMMARY_JOB_NAME} Error generating daily summary: ${error.message}`
+      `🐛🐛 ${SUMMARY_JOB_NAME} Error generating daily summary: ${error.message}`,
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   }
@@ -247,7 +244,7 @@ Critical Alerts: ${stats.criticalCount}
 const mainJobWrapper = async () => {
   try {
     const shouldRun = await logThrottleManager.shouldAllowLog(
-      MAIN_JOB_LOG_TYPE
+      MAIN_JOB_LOG_TYPE,
     );
     if (!shouldRun) {
       logText(`Skipping ${MAIN_JOB_NAME} execution to prevent duplicates.`);
@@ -255,7 +252,7 @@ const mainJobWrapper = async () => {
     }
   } catch (error) {
     logger.warn(
-      `Distributed lock check failed for ${MAIN_JOB_NAME}: ${error.message}. Proceeding with execution.`
+      `Distributed lock check failed for ${MAIN_JOB_NAME}: ${error.message}. Proceeding with execution.`,
     );
   }
 
@@ -264,7 +261,7 @@ const mainJobWrapper = async () => {
     await currentMainJobPromise;
   } catch (error) {
     logger.error(
-      `🐛🐛 Error during ${MAIN_JOB_NAME} execution: ${error.message}`
+      `🐛🐛 Error during ${MAIN_JOB_NAME} execution: ${error.message}`,
     );
   } finally {
     currentMainJobPromise = null;
@@ -274,7 +271,7 @@ const mainJobWrapper = async () => {
 const summaryJobWrapper = async () => {
   try {
     const shouldRun = await logThrottleManager.shouldAllowLog(
-      SUMMARY_JOB_LOG_TYPE
+      SUMMARY_JOB_LOG_TYPE,
     );
     if (!shouldRun) {
       logText(`Skipping ${SUMMARY_JOB_NAME} execution to prevent duplicates.`);
@@ -282,7 +279,7 @@ const summaryJobWrapper = async () => {
     }
   } catch (error) {
     logger.warn(
-      `Distributed lock check failed for ${SUMMARY_JOB_NAME}: ${error.message}. Proceeding with execution.`
+      `Distributed lock check failed for ${SUMMARY_JOB_NAME}: ${error.message}. Proceeding with execution.`,
     );
   }
 
@@ -291,7 +288,7 @@ const summaryJobWrapper = async () => {
     await currentSummaryJobPromise;
   } catch (error) {
     logger.error(
-      `🐛🐛 Error during ${SUMMARY_JOB_NAME} execution: ${error.message}`
+      `🐛🐛 Error during ${SUMMARY_JOB_NAME} execution: ${error.message}`,
     );
   } finally {
     currentSummaryJobPromise = null;
@@ -314,7 +311,7 @@ const startNetworkStatusJobs = () => {
       {
         scheduled: true,
         timezone: TIMEZONE,
-      }
+      },
     );
 
     // Initialize global cronJobs if it doesn't exist
@@ -338,7 +335,7 @@ const startNetworkStatusJobs = () => {
           // Wait for current execution to finish if running
           if (currentMainJobPromise) {
             logText(
-              `⏳ Waiting for current ${MAIN_JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${MAIN_JOB_NAME} execution to finish...`,
             );
             await currentMainJobPromise;
             logText(`✅ Current ${MAIN_JOB_NAME} execution completed`);
@@ -368,7 +365,7 @@ const startNetworkStatusJobs = () => {
           // Wait for current execution to finish if running
           if (currentSummaryJobPromise) {
             logText(
-              `⏳ Waiting for current ${SUMMARY_JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${SUMMARY_JOB_NAME} execution to finish...`,
             );
             await currentSummaryJobPromise;
             logText(`✅ Current ${SUMMARY_JOB_NAME} execution completed`);
@@ -378,17 +375,17 @@ const startNetworkStatusJobs = () => {
           delete global.cronJobs[SUMMARY_JOB_NAME];
         } catch (error) {
           logger.error(
-            `❌ Error stopping ${SUMMARY_JOB_NAME}: ${error.message}`
+            `❌ Error stopping ${SUMMARY_JOB_NAME}: ${error.message}`,
           );
         }
       },
     };
 
     logText(
-      `✅ ${MAIN_JOB_NAME} registered and started (${MAIN_JOB_SCHEDULE})`
+      `✅ ${MAIN_JOB_NAME} registered and started (${MAIN_JOB_SCHEDULE})`,
     );
     logText(
-      `✅ ${SUMMARY_JOB_NAME} registered and started (${SUMMARY_JOB_SCHEDULE})`
+      `✅ ${SUMMARY_JOB_NAME} registered and started (${SUMMARY_JOB_SCHEDULE})`,
     );
     logText("Network status job is now running.....");
 
@@ -428,7 +425,7 @@ if (!global.jobShutdownHandlersRegistered) {
 // Handle uncaught exceptions in this job
 process.on("uncaughtException", (error) => {
   logger.error(
-    `💥 Uncaught Exception in network status jobs: ${error.message}`
+    `💥 Uncaught Exception in network status jobs: ${error.message}`,
   );
   logger.error(`Stack: ${error.stack}`);
 });
@@ -438,7 +435,7 @@ process.on("unhandledRejection", (reason, promise) => {
     `🚫 Unhandled Rejection in network status jobs at:`,
     promise,
     "reason:",
-    reason
+    reason,
   );
 });
 

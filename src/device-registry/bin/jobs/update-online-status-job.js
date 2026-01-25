@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/update-online-status-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/update-online-status-job`,
 );
 const EventModel = require("@models/Event");
 const DeviceModel = require("@models/Device");
@@ -69,7 +69,7 @@ class NonBlockingJobProcessor {
 
     if (this.startTime && Date.now() - this.startTime > MAX_EXECUTION_TIME) {
       logger.warn(
-        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`
+        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`,
       );
       return true;
     }
@@ -105,7 +105,7 @@ class NonBlockingJobProcessor {
       try {
         if (this.shouldStopExecution()) {
           logText(
-            `${this.jobName} batch processing stopped at item ${i}/${items.length}`
+            `${this.jobName} batch processing stopped at item ${i}/${items.length}`,
           );
           break;
         }
@@ -120,7 +120,7 @@ class NonBlockingJobProcessor {
           break;
         }
         logger.error(
-          `${this.jobName} error processing item ${i}: ${error.message}`
+          `${this.jobName} error processing item ${i}: ${error.message}`,
         );
         errors.push({ index: i, error: error.message });
       }
@@ -165,7 +165,7 @@ async function throttledLog(logType, message, forceLog = false) {
 
     if (currentHour !== 12) {
       logger.debug(
-        `Skipping log for ${logType} outside of the 12:00-12:59 EAT window.`
+        `Skipping log for ${logType} outside of the 12:00-12:59 EAT window.`,
       );
       return;
     }
@@ -176,7 +176,7 @@ async function throttledLog(logType, message, forceLog = false) {
       logText(message);
     } else {
       logger.debug(
-        `Log throttled for ${logType}: Daily limit reached for 12 PM window.`
+        `Log throttled for ${logType}: Daily limit reached for 12 PM window.`,
       );
     }
   } catch (error) {
@@ -269,11 +269,11 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         "onlineStatusAccuracy.totalChecks": 1,
         "onlineStatusAccuracy.correctChecks": 1,
         "onlineStatusAccuracy.incorrectChecks": 1,
-      }
+      },
     ).lean();
 
     const entityMap = new Map(
-      currentEntities.map((e) => [e._id.toString(), e])
+      currentEntities.map((e) => [e._id.toString(), e]),
     );
 
     const bulkOps = [];
@@ -331,7 +331,7 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
       } else if (update.pm2_5) {
         skippedNullPm25++;
         logger.debug(
-          `Skipping null/invalid PM2.5 value for ${entityType} ${entityId}: ${update.pm2_5.value}`
+          `Skipping null/invalid PM2.5 value for ${entityType} ${entityId}: ${update.pm2_5.value}`,
         );
       }
 
@@ -343,7 +343,7 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         skippedStaleEvents++;
         logger.debug(
           `Out-of-order event for ${entityType} ${entityId}: ` +
-            `event ${lastActiveTime.toISOString()} <= existing ${entity.lastActive.toISOString()}`
+            `event ${lastActiveTime.toISOString()} <= existing ${entity.lastActive.toISOString()}`,
         );
 
         // This ensures devices get status updates every run
@@ -446,7 +446,7 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         modifiedCount = result.matchedCount || 0;
       } catch (error) {
         logger.error(
-          `Batch status update error for ${entityType}: ${error.message}`
+          `Batch status update error for ${entityType}: ${error.message}`,
         );
         // Continue with accuracy updates even if status updates fail
       }
@@ -458,18 +458,9 @@ async function updateEntityStatusBatch(Model, updates, entityType) {
         await Model.bulkWrite(accuracyBulkOps, { ordered: false });
       } catch (error) {
         logger.error(
-          `Batch accuracy update error for ${entityType}: ${error.message}`
+          `Batch accuracy update error for ${entityType}: ${error.message}`,
         );
       }
-    }
-
-    // Log detailed statistics
-    if (skippedStaleEvents > 0 || skippedNullPm25 > 0 || reEvaluations > 0) {
-      logger.info(
-        `${entityType} batch stats: ${newDataUpdates} new data, ` +
-          `${reEvaluations} re-evaluations, ${skippedStaleEvents} out-of-order, ` +
-          `${skippedNullPm25} invalid PM2.5`
-      );
     }
 
     return {
@@ -492,7 +483,7 @@ async function updateOfflineEntitiesWithAccuracy(
   Model,
   activeEntityIds,
   entityType,
-  statusResults
+  statusResults,
 ) {
   try {
     const thresholdTime = moment()
@@ -519,7 +510,7 @@ async function updateOfflineEntitiesWithAccuracy(
         "onlineStatusAccuracy.totalChecks": 1,
         "onlineStatusAccuracy.correctChecks": 1,
         "onlineStatusAccuracy.incorrectChecks": 1,
-      }
+      },
     ).lean();
 
     if (entitiesToCheck.length === 0) {
@@ -615,12 +606,12 @@ async function updateOfflineEntitiesWithAccuracy(
           logger.warn(
             `${entityType} offline status update: expected ${statusBulkOps.length} matches, ` +
               `got ${statusMatched} (${statusBulkOps.length -
-                statusMatched} documents not found)`
+                statusMatched} documents not found)`,
           );
         }
       } catch (error) {
         logger.error(
-          `Offline status update error for ${entityType}: ${error.message}`
+          `Offline status update error for ${entityType}: ${error.message}`,
         );
       }
     }
@@ -641,12 +632,12 @@ async function updateOfflineEntitiesWithAccuracy(
           logger.warn(
             `${entityType} accuracy update: expected ${accuracyBulkOps.length} matches, ` +
               `got ${accuracyResult.matchedCount} (${accuracyBulkOps.length -
-                accuracyResult.matchedCount} documents not found)`
+                accuracyResult.matchedCount} documents not found)`,
           );
         }
       } catch (error) {
         logger.error(
-          `Offline accuracy update error for ${entityType}: ${error.message}`
+          `Offline accuracy update error for ${entityType}: ${error.message}`,
         );
       }
     }
@@ -711,7 +702,7 @@ async function processStaleEntities(Model, entityType, processor) {
         "onlineStatusAccuracy.totalChecks": 1,
         "onlineStatusAccuracy.correctChecks": 1,
         "onlineStatusAccuracy.incorrectChecks": 1,
-      }
+      },
     )
       .limit(STALE_BATCH_SIZE)
       .lean();
@@ -783,7 +774,7 @@ async function processStaleEntities(Model, entityType, processor) {
     logger.info(
       `Processed ${staleEntities.length} stale ${entityType}s ` +
         `(threshold: ${STALE_ENTITY_THRESHOLD}ms = ${STALE_ENTITY_THRESHOLD /
-          (60 * 60 * 1000)}h)`
+          (60 * 60 * 1000)}h)`,
     );
 
     return {
@@ -880,7 +871,7 @@ class OnlineStatusProcessor {
         const result = await updateEntityStatusBatch(
           DeviceModel("airqo"),
           batch,
-          "Device"
+          "Device",
         );
 
         if (result.success) {
@@ -917,7 +908,7 @@ class OnlineStatusProcessor {
         const result = await updateEntityStatusBatch(
           SiteModel("airqo"),
           batch,
-          "Site"
+          "Site",
         );
 
         if (result.success) {
@@ -1026,7 +1017,7 @@ class OnlineStatusProcessor {
             ? Math.round(
                 (this.processingMetrics.statusUpdatesSuccessful /
                   this.processingMetrics.statusUpdatesAttempted) *
-                  10000
+                  10000,
               ) / 100
             : 0,
       },
@@ -1086,7 +1077,7 @@ async function fetchAllRecentEvents(processor) {
       const response = await Promise.race([
         EventModel("airqo").fetch(fetchOptions),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Fetch timeout")), FETCH_TIMEOUT)
+          setTimeout(() => reject(new Error("Fetch timeout")), FETCH_TIMEOUT),
         ),
       ]);
 
@@ -1104,7 +1095,7 @@ async function fetchAllRecentEvents(processor) {
           if (!event.device_id || !event.time) return;
 
           const eventKey = `${event.device_id.toString()}_${new Date(
-            event.time
+            event.time,
           ).getTime()}`;
 
           if (!seenEvents.has(eventKey)) {
@@ -1119,7 +1110,7 @@ async function fetchAllRecentEvents(processor) {
         logText(
           `Batch ${iteration +
             1}: ${added} unique events, ${duplicates} duplicates ` +
-            `(total unique: ${allEvents.length})`
+            `(total unique: ${allEvents.length})`,
         );
 
         if (batchEvents.length < FETCH_BATCH_SIZE) {
@@ -1148,7 +1139,7 @@ async function fetchAllRecentEvents(processor) {
 
   logText(
     `Total unique events fetched: ${allEvents.length} ` +
-      `(${seenEvents.size} unique device-timestamp combinations)`
+      `(${seenEvents.size} unique device-timestamp combinations)`,
   );
 
   return allEvents;
@@ -1179,7 +1170,7 @@ async function updateOnlineStatusAndAccuracy() {
       });
 
       logText(
-        `Unique devices: ${deviceIds.size}, Unique sites: ${siteIds.size}`
+        `Unique devices: ${deviceIds.size}, Unique sites: ${siteIds.size}`,
       );
     } else {
       logText("No events to process");
@@ -1196,8 +1187,8 @@ async function updateOnlineStatusAndAccuracy() {
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error("Stale device timeout")),
-                STALE_TIMEOUT
-              )
+                STALE_TIMEOUT,
+              ),
             ),
           ]),
           Promise.race([
@@ -1205,8 +1196,8 @@ async function updateOnlineStatusAndAccuracy() {
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error("Stale site timeout")),
-                STALE_TIMEOUT
-              )
+                STALE_TIMEOUT,
+              ),
             ),
           ]),
         ]);
@@ -1223,7 +1214,7 @@ async function updateOnlineStatusAndAccuracy() {
         };
 
         logText(
-          `Stale processing: ${staleProcessingStats.devices.processedCount}D, ${staleProcessingStats.sites.processedCount}S`
+          `Stale processing: ${staleProcessingStats.devices.processedCount}D, ${staleProcessingStats.sites.processedCount}S`,
         );
       } catch (error) {
         logger.error(`Error in stale processing: ${error.message}`);
@@ -1239,13 +1230,13 @@ async function updateOnlineStatusAndAccuracy() {
               DeviceModel("airqo"),
               deviceIds,
               "Device",
-              statusProcessor.statusResults.devices
+              statusProcessor.statusResults.devices,
             ),
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error("Device offline timeout")),
-                OFFLINE_TIMEOUT
-              )
+                OFFLINE_TIMEOUT,
+              ),
             ),
           ]),
           Promise.race([
@@ -1253,13 +1244,13 @@ async function updateOnlineStatusAndAccuracy() {
               SiteModel("airqo"),
               siteIds,
               "Site",
-              statusProcessor.statusResults.sites
+              statusProcessor.statusResults.sites,
             ),
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error("Site offline timeout")),
-                OFFLINE_TIMEOUT
-              )
+                OFFLINE_TIMEOUT,
+              ),
             ),
           ]),
         ]);
@@ -1343,7 +1334,7 @@ function startCronJob() {
     {
       scheduled: true,
       timezone: TIMEZONE,
-    }
+    },
   );
 
   logText(`${JOB_NAME} scheduled successfully`);
