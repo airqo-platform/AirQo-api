@@ -145,7 +145,7 @@ module.exports = {
                                     <p>Thank you for reaching out and for your interest in AirQo’s work.</p>
                                     <p>We collaborate with policymakers and public institutions to support evidence-based air quality policies and interventions.</p>
                                     <p>Kindly let us know how you would like to engage or partner with us, and our team will follow up.</p>
-                                    <p>Alternatively, you may contact our Policy Engagement Officer, Angela Nshimye at angela@airqo.net for direct support.</p>
+                                    <p>Alternatively, you may contact our Policy Engagement Officer, Angela Nshimye at <a href="mailto:angela@airqo.net">angela@airqo.net</a> for direct support.</p>
                                 </td>
                             </tr>`;
         break;
@@ -154,7 +154,7 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     <p>Thank you for your interest in using AirQo data for research.</p>
-                                    <p>We provide open air quality data to support research, innovation, and evidence-based decision-making across African Cities.</p>
+                                    <p>We provide open air quality data to support research, innovation, and evidence-based decision-making across African cities.</p>
                                     <p>Access data via <a href="https://airqo.net/explore-data">airqo.net - Explore Data</a>, or click <a href="https://airqo.net/explore-data">here</a> to access datasets directly.</p>
                                     <p>For advanced support, collaborations, or custom data needs, contact:</p>
                                     <p>Wabinyai Fidel Raja - Data Scientist: <a href="mailto:raja@airqo.net">raja@airqo.net</a></p>
@@ -171,7 +171,7 @@ module.exports = {
                                     <p>Join our open-source community and help build, improve, and maintain tools that power air quality monitoring and decision-making across African cities. Contributions may include frontend or backend development, data platforms, documentation, or developer tooling.</p>
                                     <p>Fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a> to get started.</p>
                                 </td>
-                  </tr>`;
+                            </tr>`;
         break;
       case "assistance":
         content = `<tr>
