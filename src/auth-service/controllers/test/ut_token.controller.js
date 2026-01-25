@@ -7,6 +7,7 @@ const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const { logObject, logText, logElement } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
+const sharedUtils = require("@utils/shared");
 const httpStatus = require("http-status");
 
 const createAccessToken = require("@controllers/token.controller");
@@ -481,8 +482,9 @@ describe("tokenUtil", () => {
         json: sinon.stub(),
       };
       next = sinon.stub();
-      extractErrorsFromRequestStub = sinon.stub().returns(null);
-      sinon.stub(tokenUtil, "extractErrorsFromRequest").returns(null);
+      extractErrorsFromRequestStub = sinon
+        .stub(sharedUtils, "extractErrorsFromRequest")
+        .returns(null);
       getWhitelistedIPStatsStub = sinon.stub(
         tokenUtil,
         "getWhitelistedIPStats",
@@ -534,11 +536,9 @@ describe("tokenUtil", () => {
     });
 
     it("should handle validation errors", async () => {
-      // Restore the original stub to simulate an error
-      tokenUtil.extractErrorsFromRequest.restore();
-      sinon.stub(tokenUtil, "extractErrorsFromRequest").returns({
-        errors: { msg: "validation error" },
-      });
+      extractErrorsFromRequestStub.returns({
+        msg: "validation error",
+      }); // Simulate validation errors
 
       await createAccessToken.getWhitelistedIPStats(req, res, next);
 
