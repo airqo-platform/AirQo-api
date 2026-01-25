@@ -2018,10 +2018,26 @@ const token = {
   },
   getWhitelistedIPStats: async (request, next) => {
     try {
-      const { tenant } = request.query;
-      const whitelistedIPs = await WhitelistedIPModel(tenant).find({}).lean();
+      const { tenant, skip, limit, active_only } = request;
+
+      let queryFilter = {};
+      if (active_only === "true") {
+        const activeIPs = await IPRequestLogModel(tenant).distinct("ip");
+        queryFilter.ip = { $in: activeIPs };
+      }
+
+      const totalIPs =
+        await WhitelistedIPModel(tenant).countDocuments(queryFilter);
+
+      const whitelistedIPs = await WhitelistedIPModel(tenant)
+        .find(queryFilter)
+        .skip(skip)
+        .limit(limit)
+        .lean();
 
       if (isEmpty(whitelistedIPs)) {
+        // Return early if no IPs match the filter, but still provide meta
+        const meta = { total: 0, pages: 0, page: 1, limit, hasNextPage: false };
         return {
           success: true,
           message: "No whitelisted IPs found.",
@@ -2036,48 +2052,77 @@ const token = {
         .find({ ip: { $in: ipList } })
         .lean();
 
-      const stats = ipLogs.map((log) => {
-        const endpointStats = {};
-        const tokenUsage = {};
+      const ipLogMap = new Map(ipLogs.map((log) => [log.ip, log]));
 
-        log.requests.forEach((req) => {
-          // Endpoint frequency
-          endpointStats[req.endpoint] = (endpointStats[req.endpoint] || 0) + 1;
+      const maskToken = (token) => {
+        if (!token || token.length < 8) {
+          return "invalid-token";
+        }
+        return `${token.slice(0, 4)}...${token.slice(-4)}`;
+      };
 
-          // Token usage
-          if (req.token) {
-            if (!tokenUsage[req.token]) {
-              tokenUsage[req.token] = {
-                count: 0,
-                endpoints: new Set(),
-              };
+      const stats = whitelistedIPs.map((whitelistedIp) => {
+        const log = ipLogMap.get(whitelistedIp.ip);
+
+        if (!log) {
+          return {
+            ip: whitelistedIp.ip,
+            total_requests: 0,
+            endpoint_frequency: {},
+            tokens_used: [],
+            first_request: null,
+            last_request: null,
+          };
+        } else {
+          const endpointStats = {};
+          const tokenUsage = {};
+
+          log.requests.forEach((req) => {
+            endpointStats[req.endpoint] =
+              (endpointStats[req.endpoint] || 0) + 1;
+
+            if (req.token) {
+              const masked = maskToken(req.token);
+              if (!tokenUsage[masked]) {
+                tokenUsage[masked] = { count: 0, endpoints: new Set() };
+              }
+              tokenUsage[masked].count += 1;
+              tokenUsage[masked].endpoints.add(req.endpoint);
             }
-            tokenUsage[req.token].count += 1;
-            tokenUsage[req.token].endpoints.add(req.endpoint);
-          }
-        });
+          });
 
-        // Convert sets to arrays for JSON response
-        const tokens = Object.keys(tokenUsage).map((token) => ({
-          token,
-          access_count: tokenUsage[token].count,
-          endpoints: Array.from(tokenUsage[token].endpoints),
-        }));
+          const tokens = Object.keys(tokenUsage).map((maskedToken) => ({
+            masked_token: maskedToken,
+            access_count: tokenUsage[maskedToken].count,
+            endpoints: Array.from(tokenUsage[maskedToken].endpoints),
+          }));
 
-        return {
-          ip: log.ip,
-          total_requests: log.requests.length,
-          endpoint_frequency: endpointStats,
-          tokens_used: tokens,
-          first_request: log.requests[0]?.timestamp,
-          last_request: log.requests[log.requests.length - 1]?.timestamp,
-        };
+          return {
+            ip: log.ip,
+            total_requests: log.requests.length,
+            endpoint_frequency: endpointStats,
+            tokens_used: tokens,
+            first_request: log.requests[0]?.timestamp,
+            last_request: log.requests[log.requests.length - 1]?.timestamp,
+          };
+        }
       });
+
+      const totalPages = Math.ceil(totalIPs / limit);
+      const currentPage = Math.floor(skip / limit) + 1;
+      const meta = {
+        total: totalIPs,
+        pages: totalPages,
+        page: currentPage,
+        limit,
+        hasNextPage: currentPage < totalPages,
+      };
 
       return {
         success: true,
         message: "Successfully retrieved statistics for whitelisted IPs.",
         data: stats,
+        meta: meta,
         status: httpStatus.OK,
       };
     } catch (error) {

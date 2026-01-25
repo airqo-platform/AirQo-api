@@ -841,7 +841,10 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await tokenUtil.getWhitelistedIPStats(request, next);
+      const result = await tokenUtil.getWhitelistedIPStats(
+        { ...request, ...request.query, ...request.params },
+        next,
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -851,7 +854,8 @@ const createAccessToken = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           message: result.message ? result.message : "",
-          data: result.data ? result.data : [],
+          meta: result.meta ? result.meta : {},
+          whitelisted_ip_stats: result.data ? result.data : [],
         });
       } else if (result.success === false) {
         const status = result.status
