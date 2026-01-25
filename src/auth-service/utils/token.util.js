@@ -2016,6 +2016,81 @@ const token = {
       );
     }
   },
+  getWhitelistedIPStats: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const whitelistedIPs = await WhitelistedIPModel(tenant).find({}).lean();
+
+      if (isEmpty(whitelistedIPs)) {
+        return {
+          success: true,
+          message: "No whitelisted IPs found.",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      const ipList = whitelistedIPs.map((item) => item.ip);
+
+      const ipLogs = await IPRequestLogModel(tenant)
+        .find({ ip: { $in: ipList } })
+        .lean();
+
+      const stats = ipLogs.map((log) => {
+        const endpointStats = {};
+        const tokenUsage = {};
+
+        log.requests.forEach((req) => {
+          // Endpoint frequency
+          endpointStats[req.endpoint] = (endpointStats[req.endpoint] || 0) + 1;
+
+          // Token usage
+          if (req.token) {
+            if (!tokenUsage[req.token]) {
+              tokenUsage[req.token] = {
+                count: 0,
+                endpoints: new Set(),
+              };
+            }
+            tokenUsage[req.token].count += 1;
+            tokenUsage[req.token].endpoints.add(req.endpoint);
+          }
+        });
+
+        // Convert sets to arrays for JSON response
+        const tokens = Object.keys(tokenUsage).map((token) => ({
+          token,
+          access_count: tokenUsage[token].count,
+          endpoints: Array.from(tokenUsage[token].endpoints),
+        }));
+
+        return {
+          ip: log.ip,
+          total_requests: log.requests.length,
+          endpoint_frequency: endpointStats,
+          tokens_used: tokens,
+          first_request: log.requests[0]?.timestamp,
+          last_request: log.requests[log.requests.length - 1]?.timestamp,
+        };
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved statistics for whitelisted IPs.",
+        data: stats,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
 };
 
 module.exports = token;
