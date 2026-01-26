@@ -1178,4 +1178,42 @@ module.exports = {
       name: "Admin",
     });
   },
+  compromiseSummary: ({ email, compromiseDetails, count }) => {
+    const name = "AirQo User";
+    const today = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const detailsHtml = compromiseDetails
+      .map(
+        (c) => `
+      <li style="margin-bottom: 8px;">
+        Token ending in ...${escapeHtml(c.tokenSuffix || "XXXX")} used by IP: <strong>${escapeHtml(
+          c.ip,
+        )}</strong> at ${new Date(c.timestamp).toLocaleString()}
+      </li>
+    `,
+      )
+      .join("");
+
+    const content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <h3 style="color: #D92D20;">Daily Security Summary for ${today}</h3>
+          <p>We detected <strong>${count}</strong> potential security event(s) involving your AirQo API token(s) in the last 24 hours. For your security, the IP addresses involved have been automatically blacklisted.</p>
+          <h4>Affected IPs:</h4>
+          <ul style="padding-left: 20px;">
+            ${detailsHtml}
+          </ul>
+          <p><strong>Action Required:</strong> We strongly recommend that you log in to your AirQo account, delete the compromised token(s), and generate new ones. Also, consider updating your account password as a precaution.</p>
+          <p>If you have any questions, please contact our support team.</p>
+        </td>
+      </tr>
+    `;
+
+    return constants.EMAIL_BODY({ email, content, name });
+  },
 };
