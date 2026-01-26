@@ -99,9 +99,20 @@ cohortSchema.pre("save", function(next) {
 });
 
 cohortSchema.pre("update", function(next) {
-  // This hook is for Model.update() and Model.updateOne(), not findOneAndUpdate()
-  if (this.isModified("_id")) {
-    delete this._id;
+  const update = this.getUpdate() || {};
+
+  // Ensure _id is never modified in update operations
+  if (Object.prototype.hasOwnProperty.call(update, "_id")) {
+    delete update._id;
+  }
+  if (update.$set && Object.prototype.hasOwnProperty.call(update.$set, "_id")) {
+    delete update.$set._id;
+  }
+  if (
+    update.$unset &&
+    Object.prototype.hasOwnProperty.call(update.$unset, "_id")
+  ) {
+    delete update.$unset._id;
   }
   return next();
 });
