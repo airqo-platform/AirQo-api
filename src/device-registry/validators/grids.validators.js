@@ -492,7 +492,7 @@ const gridsValidations = {
       .withMessage("tags must not be empty if provided")
       .bail()
       .isString()
-      .withMessage("the order value is not among the expected ones"),
+      .withMessage("tags must be a string"),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
