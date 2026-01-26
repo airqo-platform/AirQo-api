@@ -143,15 +143,16 @@ const commonValidations = {
   ],
   cohort_tags: [
     body("cohort_tags")
-      .optional()
-      .isArray()
-      .withMessage("cohort_tags must be an array of strings")
-      .bail()
-      .notEmpty()
-      .withMessage("cohort_tags should not be an empty array if provided"),
+      .optional({ nullable: true })
+      .if(body("cohort_tags").exists({ checkNull: false }))
+      .isArray({ min: 1 })
+      .withMessage(
+        "cohort_tags must be a non-empty array of strings if provided",
+      ),
     body("cohort_tags.*")
       .isString()
-      .withMessage("Each tag must be a string"),
+      .withMessage("Each tag must be a string")
+      .trim(),
   ],
 
   groups: [
@@ -354,7 +355,22 @@ const cohortValidations = {
       .withMessage("tags must not be empty if provided")
       .bail()
       .isString()
-      .withMessage("tags must be a comma-separated string of tags"),
+      .withMessage("tags must be a comma-separated string of tags")
+      .bail()
+      .custom((value) => {
+        const tags = String(value)
+          .split(",")
+          .map((part) => part.trim());
+        if (tags.some((part) => part.length === 0)) {
+          throw new Error(
+            "tags cannot contain empty values. Check for extra commas.",
+          );
+        }
+        if (tags.every((part) => part.length === 0)) {
+          throw new Error("tags must contain at least one non-empty tag.");
+        }
+        return true;
+      }),
     handleValidationErrors,
   ],
 
@@ -380,7 +396,9 @@ const cohortValidations = {
       .optional()
       .notEmpty()
       .trim()
-      .withMessage("tags must not be empty if provided"),
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
     handleValidationErrors,
   ],
   listCohortsSummary: [
