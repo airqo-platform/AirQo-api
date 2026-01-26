@@ -685,6 +685,11 @@ async function updateOfflineEntitiesWithAccuracy(
 
 // Optimized stale entity processing with correct constant usage
 async function processStaleEntities(Model, entityType, processor) {
+  // Restrict this intensive operation to production
+  if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
+    return { success: true, processedCount: 0, totalFound: 0 };
+  }
+
   try {
     const staleThreshold = new Date(Date.now() - STALE_ENTITY_THRESHOLD);
 
@@ -771,7 +776,7 @@ async function processStaleEntities(Model, entityType, processor) {
       await Model.bulkWrite(accuracyBulkOps, { ordered: false });
     }
 
-    logger.info(
+    logger.debug(
       `Processed ${staleEntities.length} stale ${entityType}s ` +
         `(threshold: ${STALE_ENTITY_THRESHOLD}ms = ${STALE_ENTITY_THRESHOLD /
           (60 * 60 * 1000)}h)`,

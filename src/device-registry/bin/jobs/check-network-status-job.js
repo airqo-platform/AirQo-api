@@ -192,6 +192,11 @@ const checkNetworkStatus = async () => {
 
 // Function to get network status summary for the day
 const dailyNetworkStatusSummary = async () => {
+  // Restrict job to run only in production
+  if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
+    return;
+  }
+
   try {
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
