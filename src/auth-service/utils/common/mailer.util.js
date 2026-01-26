@@ -2188,6 +2188,20 @@ const mailer = {
       maxAlertsPerDay: constants.MAX_BOT_ALERTS_PER_DAY || 2,
     },
   ),
+  sendCompromiseSummary: createMailerFunction(
+    "sendCompromiseSummary",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.compromiseSummary({
+        email: params.email,
+        compromiseDetails: params.compromiseDetails,
+        count: params.count,
+      }),
+    {
+      cooldownDays: 1, // Ensure only one summary per day
+      enableCooldown: true,
+    },
+  ),
 };
 
 module.exports = mailer;

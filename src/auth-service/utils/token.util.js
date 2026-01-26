@@ -7,6 +7,7 @@ const IPRequestLogModel = require("@models/IPRequestLog");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
+const CompromisedTokenLogModel = require("@models/CompromisedTokenLog");
 const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
 const EmailLogModel = require("@models/EmailLog");
@@ -347,30 +348,16 @@ const isIPBlacklistedHelper = async (
             user: { email, firstName, lastName },
           } = listTokenResponse.data[0];
 
-          const canSend = await EmailLogModel("airqo").canSendEmail({
+          // Log the compromise event for daily summary
+          await CompromisedTokenLogModel("airqo").logCompromise({
             email,
-            emailType: "compromisedToken",
-            ip: ip,
+            token,
+            ip,
           });
 
-          if (canSend.canSend) {
-            logger.info(
-              `Sending compromised token alert to ${email} for IP ${ip}.`,
-            );
-            await mailer.compromisedToken(
-              { email, firstName, lastName, ip },
-              next,
-            );
-            await EmailLogModel("airqo").logEmailSent({
-              email,
-              emailType: "compromisedToken",
-              ip: ip,
-            });
-          } else {
-            logger.info(
-              `Skipping compromised token alert for ${email} from IP ${ip} due to daily limit.`,
-            );
-          }
+          logger.info(
+            `Logged compromised token for daily summary. User: ${email}, IP: ${ip}`,
+          );
         }
       } catch (error) {
         logger.error(
