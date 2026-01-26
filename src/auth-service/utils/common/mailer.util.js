@@ -681,6 +681,8 @@ const getEmailSubject = (functionName, params) => {
     sendAccountDeletionConfirmation: "Confirm Your AirQo Account Deletion",
     sendAccountDeletionSuccess: "Your AirQo Account Has Been Deleted",
     sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
+    sendCompromiseSummary:
+      "Daily Security Alert Summary - Compromised Token Activity",
   };
 
   return subjects[functionName] || `AirQo Account Notification`;
@@ -706,6 +708,7 @@ const EMAIL_CATEGORIES = {
     "authenticateEmail",
     "compromisedToken",
     "sendBotAlert",
+    "sendCompromiseSummary",
     "expiredToken",
     "expiringToken",
     "onboardingAccountSetup",
@@ -2186,6 +2189,19 @@ const mailer = {
       }),
     {
       maxAlertsPerDay: constants.MAX_BOT_ALERTS_PER_DAY || 2,
+    },
+  ),
+  sendCompromiseSummary: createSecurityEmailFunction(
+    "sendCompromiseSummary",
+    (params) =>
+      msgs.compromiseSummary({
+        email: params.email,
+        compromiseDetails: params.compromiseDetails,
+        count: params.count,
+      }),
+    {
+      cooldownDays: 1, // Ensure only one summary per day
+      enableCooldown: true,
     },
   ),
 };
