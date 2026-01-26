@@ -658,10 +658,10 @@ const createCohort = {
     try {
       const { tenant } = request.query;
       const filter = generateFilter.cohorts(request, next);
-      const response = await CohortModel(tenant)
-        .find(filter) // Changed to find to get the full document
+      const response = await CohortModel(tenant) // Use findOne for single document lookup
+        .findOne(filter)
         .lean()
-        .select("_id name"); // Select both _id and name
+        .select("_id name");
 
       if (isEmpty(response)) {
         return {
@@ -675,7 +675,7 @@ const createCohort = {
           success: true,
           status: httpStatus.OK,
           message: "Cohort ID is Valid!!",
-          data: response[0], // Return the first matching cohort object
+          data: response, // Directly return the cohort object
         };
       }
     } catch (error) {
