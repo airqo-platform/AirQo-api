@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-unassigned-sites-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-unassigned-sites-job`,
 );
 const SitesModel = require("@models/Site");
 const cron = require("node-cron");
@@ -22,9 +22,6 @@ const checkUnassignedSites = async () => {
 
   // Restrict job to run only in production
   if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
-    logger.info(
-      `check-unassigned-sites-job is disabled for the ${constants.ENVIRONMENT} environment.`
-    );
     return;
   }
 
@@ -68,9 +65,9 @@ const checkUnassignedSites = async () => {
 
     if (percentage > UNASSIGNED_THRESHOLD) {
       const message = `⚠️🙉 ${percentage.toFixed(
-        2
+        2,
       )}% of active sites are not assigned to any grid (${uniqueSiteNames.join(
-        ", "
+        ", ",
       )})`;
       logText(message);
       logger.info(message);
@@ -97,7 +94,7 @@ const jobWrapper = async () => {
     }
   } catch (error) {
     logText(
-      `Distributed lock check failed: ${error.message}. Proceeding with execution.`
+      `Distributed lock check failed: ${error.message}. Proceeding with execution.`,
     );
   }
 
@@ -126,7 +123,7 @@ const startJob = () => {
     {
       scheduled: true,
       timezone: constants.TIMEZONE,
-    }
+    },
   );
 
   if (!global.cronJobs) {
