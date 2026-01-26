@@ -13,6 +13,7 @@ const UserModel = require("@models/User");
 const EmailLogModel = require("@models/EmailLog");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const accessCodeGenerator = require("generate-password");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const {
@@ -349,9 +350,14 @@ const isIPBlacklistedHelper = async (
           } = listTokenResponse.data[0];
 
           // Log the compromise event for daily summary
+          const tokenHash = crypto
+            .createHash("sha256")
+            .update(token)
+            .digest("hex");
           await CompromisedTokenLogModel("airqo").logCompromise({
             email,
-            token,
+            tokenHash,
+            tokenSuffix: token.slice(-4),
             ip,
           });
 

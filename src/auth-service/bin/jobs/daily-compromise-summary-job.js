@@ -6,6 +6,7 @@ const logger = log4js.getLogger(
 );
 const cron = require("node-cron");
 const CompromisedTokenLogModel = require("@models/CompromisedTokenLog");
+const UserModel = require("@models/User"); // Import UserModel
 const { mailer } = require("@utils/common");
 const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
@@ -32,8 +33,9 @@ const generateAndSendSummaries = async (tenant = "airqo") => {
           _id: "$email",
           compromises: {
             $push: {
+              _id: "$_id", // Include the _id of the individual log entry
               ip: "$ip",
-              token: "$token",
+              tokenSuffix: "$tokenSuffix",
               timestamp: "$timestamp",
             },
           },
@@ -47,36 +49,71 @@ const generateAndSendSummaries = async (tenant = "airqo") => {
       return;
     }
 
+    const compromisedEmails = compromises.map((summary) => summary._id);
+    const users = await UserModel(tenant)
+      .find({ email: { $in: compromisedEmails } })
+      .select("email firstName lastName")
+      .lean();
+    const userMap = new Map(users.map((user) => [user.email, user]));
+
     logText(
       `Found ${compromises.length} users with token compromises to notify.`,
     );
 
+    const successfullyProcessedLogIds = [];
+
     for (const summary of compromises) {
       const email = summary._id;
       const { compromises: compromiseDetails, count } = summary;
+      const user = userMap.get(email) || {}; // Get user details, default to empty object if not found
 
       try {
-        await mailer.sendCompromiseSummary(
-          {
-            email,
-            compromiseDetails,
-            count,
-          },
-          tenant,
-        );
-        logText(`Compromise summary email sent to ${email}.`);
+        const mailerResult = await mailer.sendCompromiseSummary({
+          email,
+          compromiseDetails,
+          count,
+          firstName: user.firstName, // Pass firstName
+          lastName: user.lastName, // Pass lastName
+          tenant: tenant, // Pass tenant inside params
+        });
+
+        if (mailerResult.success) {
+          logText(`Compromise summary email sent to ${email}.`);
+          // Collect the _id of each individual log entry that was part of this successful summary
+          compromiseDetails.forEach((log) =>
+            successfullyProcessedLogIds.push(log._id),
+          );
+        } else {
+          logger.error(
+            `Failed to send compromise summary to ${email}: ${
+              mailerResult.message || "Unknown mailer error"
+            }`,
+          );
+          if (mailerResult.errors) {
+            logger.error(
+              `Mailer errors: ${JSON.stringify(mailerResult.errors)}`,
+            );
+          }
+        }
       } catch (error) {
         logger.error(
-          `Failed to send compromise summary to ${email}: ${error.message}`,
+          `Failed to send compromise summary to ${email} (exception caught): ${error.message}`,
         );
       }
     }
 
     // Mark processed logs
-    await CompromisedTokenLogModel(tenant).updateMany(
-      { timestamp: { $gte: yesterday }, processed: false },
-      { $set: { processed: true } },
-    );
+    if (successfullyProcessedLogIds.length > 0) {
+      await CompromisedTokenLogModel(tenant).updateMany(
+        { _id: { $in: successfullyProcessedLogIds } },
+        { $set: { processed: true } },
+      );
+      logText(
+        `Marked ${successfullyProcessedLogIds.length} compromise logs as processed.`,
+      );
+    } else {
+      logText("No compromise logs were successfully processed and marked.");
+    }
 
     logText("Finished processing daily compromise summaries.");
   } catch (error) {

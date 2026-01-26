@@ -1191,9 +1191,9 @@ module.exports = {
       .map(
         (c) => `
       <li style="margin-bottom: 8px;">
-        IP: <strong>${escapeHtml(
+        Token ending in ...${escapeHtml(c.tokenSuffix || "XXXX")} used by IP: <strong>${escapeHtml(
           c.ip,
-        )}</strong>, Time: ${new Date(c.timestamp).toLocaleTimeString()}
+        )}</strong> at ${new Date(c.timestamp).toLocaleString()}
       </li>
     `,
       )
@@ -1203,7 +1203,7 @@ module.exports = {
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
           <h3 style="color: #D92D20;">Daily Security Summary for ${today}</h3>
-          <p>We detected <strong>${count}</strong> potential security event(s) involving your AirQo API token(s) in the last 24 hours. For your security, the associated IP addresses have been automatically blacklisted.</p>
+          <p>We detected <strong>${count}</strong> potential security event(s) involving your AirQo API token(s) in the last 24 hours. For your security, the IP addresses involved have been automatically blacklisted.</p>
           <h4>Affected IPs:</h4>
           <ul style="padding-left: 20px;">
             ${detailsHtml}

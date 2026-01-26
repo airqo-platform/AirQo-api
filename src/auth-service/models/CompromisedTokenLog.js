@@ -6,7 +6,8 @@ const isEmpty = require("is-empty");
 const CompromisedTokenLogSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, index: true },
-    token: { type: String, required: true },
+    tokenHash: { type: String, required: true, index: true },
+    tokenSuffix: { type: String, required: true },
     ip: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
     processed: { type: Boolean, default: false, index: true },
@@ -28,15 +29,18 @@ CompromisedTokenLogSchema.statics = {
 const CompromisedTokenLogModel = (tenant) => {
   try {
     const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-    const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
+    const dbTenant = isEmpty(tenant) ? defaultTenant : tenant.toLowerCase();
+    // Attempt to retrieve the existing model to avoid OverwriteModelError
+    return mongoose.model("compromised_token_logs");
+  } catch (error) {
+    // If the model doesn't exist, create it
+    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+    const dbTenant = isEmpty(tenant) ? defaultTenant : tenant.toLowerCase();
     return getModelByTenant(
       dbTenant,
       "compromised_token_log",
       CompromisedTokenLogSchema,
     );
-  } catch (error) {
-    throw error;
   }
 };
 
