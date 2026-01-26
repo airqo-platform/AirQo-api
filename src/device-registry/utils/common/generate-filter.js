@@ -16,7 +16,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- generate-filter-util`
+  `${constants.ENVIRONMENT} -- generate-filter-util`,
 );
 
 if (
@@ -34,7 +34,7 @@ const isLowerCase = (str) => {
 const handlePredefinedValueMatch = (
   value,
   allowedValues,
-  options = { matchCombinations: false }
+  options = { matchCombinations: false },
 ) => {
   if (!value || !allowedValues || !Array.isArray(allowedValues))
     return undefined;
@@ -72,20 +72,20 @@ const handlePredefinedValueMatch = (
 
   // Handle single value matching
   const matchedValues = inputValues.filter((inputValue) =>
-    flattenedValues.some((allowed) => allowed.toLowerCase() === inputValue)
+    flattenedValues.some((allowed) => allowed.toLowerCase() === inputValue),
   );
 
   if (matchedValues.length > 0) {
     const allForms = new Set();
     matchedValues.forEach((matchedValue) => {
       const originalValue = flattenedValues.find(
-        (allowed) => allowed.toLowerCase() === matchedValue
+        (allowed) => allowed.toLowerCase() === matchedValue,
       );
       allForms.add(originalValue);
       allForms.add(
         isLowerCase(originalValue)
           ? originalValue.toUpperCase()
-          : originalValue.toLowerCase()
+          : originalValue.toLowerCase(),
       );
     });
     return { $in: [...allForms] };
@@ -201,7 +201,7 @@ const generateFilter = {
     if (!startTime && endTime) {
       const start = addDaysToProvideDateTime(
         endTime,
-        -DEFAULT_QUERY_RANGE_DAYS
+        -DEFAULT_QUERY_RANGE_DAYS,
       );
       if (!isTimeEmpty(endTime)) {
         filter["values.time"]["$gte"] = start;
@@ -222,7 +222,7 @@ const generateFilter = {
       if (diffDays > DEFAULT_QUERY_RANGE_DAYS) {
         const start = addDaysToProvideDateTime(
           endTime,
-          -DEFAULT_QUERY_RANGE_DAYS
+          -DEFAULT_QUERY_RANGE_DAYS,
         );
         if (!isTimeEmpty(endTime)) {
           filter["values.time"]["$gte"] = start;
@@ -239,7 +239,7 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((value) =>
-          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase(),
         );
       const mergedArray = [...deviceArray, ...device.toString().split(",")];
       filter["values.device"]["$in"] = mergedArray;
@@ -339,7 +339,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -465,10 +465,10 @@ const generateFilter = {
       }
       const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
         startTime,
-        1
+        1,
       );
       filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-        addedTwoWeeksToProvidedDateTime
+        addedTwoWeeksToProvidedDateTime,
       );
     }
 
@@ -480,10 +480,10 @@ const generateFilter = {
       }
       const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
         endTime,
-        -1
+        -1,
       );
       filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-        removedTwoWeeksFromProvidedDateTime
+        removedTwoWeeksFromProvidedDateTime,
       );
     }
 
@@ -494,17 +494,17 @@ const generateFilter = {
         if (!isTimeEmpty(endTime)) {
           filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
             endTime,
-            -1
+            -1,
           );
         } else {
           delete filter["values.time"];
         }
         const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
           endTime,
-          -1
+          -1,
         );
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-          removedTwoWeeksFromProvidedDateTime
+          removedTwoWeeksFromProvidedDateTime,
         );
       }
     }
@@ -515,7 +515,7 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((value) =>
-          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase(),
         );
       const mergedArray = [...deviceArray, ...device.toString().split(",")];
       filter["values.device"]["$in"] = mergedArray;
@@ -623,7 +623,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -759,10 +759,10 @@ const generateFilter = {
       }
       const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
         startTime,
-        1
+        1,
       );
       filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-        addedTwoWeeksToProvidedDateTime
+        addedTwoWeeksToProvidedDateTime,
       );
     }
 
@@ -774,10 +774,10 @@ const generateFilter = {
       }
       const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
         endTime,
-        -1
+        -1,
       );
       filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-        removedTwoWeeksFromProvidedDateTime
+        removedTwoWeeksFromProvidedDateTime,
       );
     }
 
@@ -788,17 +788,17 @@ const generateFilter = {
         if (!isTimeEmpty(endTime)) {
           filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
             endTime,
-            -1
+            -1,
           );
         } else {
           delete filter["values.time"];
         }
         const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
           endTime,
-          -1
+          -1,
         );
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-          removedTwoWeeksFromProvidedDateTime
+          removedTwoWeeksFromProvidedDateTime,
         );
       }
     }
@@ -809,7 +809,7 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((value) =>
-          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase(),
         );
       const mergedArray = [...deviceArray, ...device.toString().split(",")];
       filter["values.device"]["$in"] = mergedArray;
@@ -917,7 +917,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -964,7 +964,7 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((value) =>
-          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase(),
         );
       const mergedArray = [...deviceArray, ...device.toString().split(",")];
       filter["device"] = {};
@@ -986,7 +986,7 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((value) =>
-          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase(),
         );
       const mergedArray = [...siteArray, ...site.toString().split(",")];
       filter["site"] = {};
@@ -1097,8 +1097,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1211,10 +1211,10 @@ const generateFilter = {
       }
       const addedTwoWeeksToProvidedDateTime = addDaysToProvideDateTime(
         startTime,
-        1
+        1,
       );
       filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-        addedTwoWeeksToProvidedDateTime
+        addedTwoWeeksToProvidedDateTime,
       );
     }
 
@@ -1226,10 +1226,10 @@ const generateFilter = {
       }
       const removedTwoWeeksFromProvidedDateTime = addDaysToProvideDateTime(
         endTime,
-        -1
+        -1,
       );
       filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-        removedTwoWeeksFromProvidedDateTime
+        removedTwoWeeksFromProvidedDateTime,
       );
     }
 
@@ -1244,10 +1244,10 @@ const generateFilter = {
         }
         const removedTwoWeeksFromProvidedDateTime = addDaysToProvideDateTime(
           endTime,
-          -1
+          -1,
         );
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-          removedTwoWeeksFromProvidedDateTime
+          removedTwoWeeksFromProvidedDateTime,
         );
       }
     }
@@ -1258,7 +1258,7 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((value) =>
-          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase(),
         );
       const mergedArray = [...deviceArray, ...device.toString().split(",")];
       filter["values.device"]["$in"] = mergedArray;
@@ -1366,7 +1366,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -1397,7 +1397,7 @@ const generateFilter = {
       // Only apply the default lookback if no specific startTime is provided
       if (!startTime) {
         const thresholdHoursBack = new Date(
-          Date.now() - (JOB_LOOKBACK_WINDOW_MS || 5 * 60 * 60 * 1000)
+          Date.now() - (JOB_LOOKBACK_WINDOW_MS || 5 * 60 * 60 * 1000),
         );
 
         filter["values.time"] = { $gte: thresholdHoursBack, $lte: today };
@@ -1650,7 +1650,7 @@ const generateFilter = {
     const modifyAndConcatArray = (value) => {
       const deviceArray = value.toString().split(",");
       const modifiedDeviceArray = deviceArray.map((value) =>
-        isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+        isLowerCase(value) ? value.toUpperCase() : value.toLowerCase(),
       );
       return [...modifiedDeviceArray, ...deviceArray];
     };
@@ -1718,7 +1718,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -1730,7 +1730,7 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -1862,7 +1862,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -1870,7 +1870,7 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2026,7 +2026,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2034,7 +2034,7 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
     if (admin_level) {
@@ -2078,6 +2078,7 @@ const generateFilter = {
       path,
       network,
       group,
+      tags,
     } = {
       ...req.query,
       ...req.params,
@@ -2104,7 +2105,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2112,7 +2113,7 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2140,6 +2141,13 @@ const generateFilter = {
       filter["visibility"] = true;
     }
 
+    if (tags) {
+      const tagsArray = tags
+        .toString()
+        .split(",")
+        .map((tag) => tag.trim().toLowerCase());
+      filter["grid_tags"] = { $in: tagsArray };
+    }
     return filter;
   },
 
@@ -2154,6 +2162,7 @@ const generateFilter = {
       path,
       network,
       group,
+      tags,
     } = {
       ...req.query,
       ...req.params,
@@ -2190,7 +2199,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2198,13 +2207,18 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
     if (cohort_codes) {
       const cohortCodesArray = cohort_codes.toString().split(",");
       filter["cohort_codes"] = { $in: cohortCodesArray };
+    }
+
+    if (tags) {
+      const tagsArray = tags.toString().split(",");
+      filter["cohort_tags"] = { $in: tagsArray };
     }
 
     if (category) {
@@ -2215,6 +2229,13 @@ const generateFilter = {
       filter["visibility"] = true;
     }
 
+    if (tags) {
+      const tagsArray = tags
+        .toString()
+        .split(",")
+        .map((tag) => tag.trim().toLowerCase());
+      filter["grid_tags"] = { $in: tagsArray }; // Assuming 'grid_tags' is the field name in the Grid model
+    }
     return filter;
   },
 
@@ -2249,8 +2270,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2287,8 +2308,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2315,7 +2336,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2323,7 +2344,7 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2378,7 +2399,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2386,7 +2407,7 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2467,7 +2488,7 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2475,7 +2496,7 @@ const generateFilter = {
       filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true }
+        { matchCombinations: true },
       );
     }
 
@@ -2529,8 +2550,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2558,8 +2579,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2596,8 +2617,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2622,8 +2643,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2654,8 +2675,8 @@ const generateFilter = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

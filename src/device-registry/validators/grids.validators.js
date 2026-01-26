@@ -44,7 +44,7 @@ const validateCoordinate = (coordinate) => {
 
 const validateAndAutoFixPolygonCoordinatesLenient = (
   value,
-  tolerance = TOLERANCE_LEVELS.NORMAL
+  tolerance = TOLERANCE_LEVELS.NORMAL,
 ) => {
   if (!Array.isArray(value)) {
     throw new Error("Coordinates must be provided as an array");
@@ -57,7 +57,7 @@ const validateAndAutoFixPolygonCoordinatesLenient = (
     const polygon = value[i];
     if (!Array.isArray(polygon)) {
       throw new Error(
-        "Each polygon must be provided as an array of coordinates"
+        "Each polygon must be provided as an array of coordinates",
       );
     }
     if (polygon.length < 4) {
@@ -82,17 +82,17 @@ const validateAndAutoFixPolygonCoordinatesLenient = (
       logText(
         `Auto-fixed polygon ring with tolerance ${tolerance}. ` +
           `Differences: lng=${longitudeDiff.toFixed(
-            6
+            6,
           )}, lat=${latitudeDiff.toFixed(6)}. ` +
-          `Added closing coordinate: [${firstCoord[0]}, ${firstCoord[1]}]`
+          `Added closing coordinate: [${firstCoord[0]}, ${firstCoord[1]}]`,
       );
     } else if (longitudeDiff > 0 || latitudeDiff > 0) {
       // Coordinates are close enough - log but don't fix
       logText(
         `Polygon ring within tolerance ${tolerance}. ` +
           `Differences: lng=${longitudeDiff.toFixed(
-            6
-          )}, lat=${latitudeDiff.toFixed(6)}`
+            6,
+          )}, lat=${latitudeDiff.toFixed(6)}`,
       );
     }
   }
@@ -101,7 +101,7 @@ const validateAndAutoFixPolygonCoordinatesLenient = (
 
 const validateAndAutoFixMultiPolygonCoordinatesLenient = (
   value,
-  tolerance = 0.001
+  tolerance = 0.001,
 ) => {
   if (!Array.isArray(value)) {
     throw new Error("Coordinates must be provided as an array");
@@ -128,7 +128,7 @@ const validateAndAutoFixPolygonCoordinatesStrict = (value) => {
     const polygon = value[i];
     if (!Array.isArray(polygon)) {
       throw new Error(
-        "Each polygon must be provided as an array of coordinates"
+        "Each polygon must be provided as an array of coordinates",
       );
     }
     if (polygon.length < 4) {
@@ -151,8 +151,8 @@ const validateAndAutoFixPolygonCoordinatesStrict = (value) => {
       value[i] = ensureClosedRing(polygon);
       logText(
         `Auto-closed polygon ring. Differences: lng=${longitudeDiff.toFixed(
-          6
-        )}, lat=${latitudeDiff.toFixed(6)}.`
+          6,
+        )}, lat=${latitudeDiff.toFixed(6)}.`,
       );
     }
   }
@@ -199,7 +199,7 @@ const commonValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ],
 
@@ -213,7 +213,7 @@ const commonValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ],
 
@@ -229,7 +229,7 @@ const commonValidations = {
       .toLowerCase()
       .custom(validateAdminLevels)
       .withMessage(
-        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs",
       ),
   ],
 
@@ -259,7 +259,7 @@ const commonValidations = {
         return true;
       })
       .withMessage(
-        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs",
       ),
   ],
 
@@ -365,6 +365,18 @@ const commonValidations = {
       .isBoolean()
       .withMessage("visibility must be Boolean"),
   ],
+  grid_tags: [
+    body("grid_tags")
+      .optional()
+      .isArray()
+      .withMessage("grid_tags must be an array of strings")
+      .bail()
+      .notEmpty()
+      .withMessage("grid_tags should not be an empty array if provided"),
+    body("grid_tags.*")
+      .isString()
+      .withMessage("Each tag must be a string"),
+  ],
 
   latitude: [
     body("latitude")
@@ -408,7 +420,7 @@ const gridsValidations = {
       .bail()
       .equals("true")
       .withMessage(
-        "confirm_update must be set to true to proceed with shape update"
+        "confirm_update must be set to true to proceed with shape update",
       ),
     body("update_reason")
       .exists()
@@ -426,8 +438,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -441,6 +453,7 @@ const gridsValidations = {
     ...commonValidations.description,
     ...commonValidations.groups,
     ...commonValidations.network,
+    ...commonValidations.grid_tags,
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -448,8 +461,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -473,6 +486,13 @@ const gridsValidations = {
       .toLowerCase()
       .isIn(["asc", "desc"])
       .withMessage("the order value is not among the expected ones"),
+    query("tags")
+      .optional()
+      .notEmpty()
+      .withMessage("tags must not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("tags must be a string"),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -480,8 +500,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -518,8 +538,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -533,6 +553,7 @@ const gridsValidations = {
     ...commonValidations.groups,
     ...commonValidations.network,
     ...commonValidations.visibility,
+    ...commonValidations.grid_tags,
     ...commonValidations.adminLevel,
     (req, res, next) => {
       const errors = validationResult(req);
@@ -541,8 +562,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -559,8 +580,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -577,8 +598,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -595,8 +616,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -612,8 +633,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -631,8 +652,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -648,7 +669,7 @@ const gridsValidations = {
       const presentFields = fields.filter((field) => value[field]);
       if (presentFields.length > 1 || presentFields.length === 0) {
         throw new Error(
-          "Only one of sites, site_ids, or site_names should be provided"
+          "Only one of sites, site_ids, or site_names should be provided",
         );
       }
       return true;
@@ -659,7 +680,7 @@ const gridsValidations = {
         body("sites")
           .exists()
           .withMessage(
-            "site identifiers are missing in the request, consider using sites"
+            "site identifiers are missing in the request, consider using sites",
           )
           .bail()
           .custom((value) => Array.isArray(value))
@@ -675,7 +696,7 @@ const gridsValidations = {
         body("site_ids")
           .exists()
           .withMessage(
-            "site identifiers are missing in the request, consider using site_ids"
+            "site identifiers are missing in the request, consider using site_ids",
           )
           .bail()
           .custom((value) => Array.isArray(value))
@@ -691,7 +712,7 @@ const gridsValidations = {
         body("site_names")
           .exists()
           .withMessage(
-            "site identifiers are missing in the request, consider using site_names"
+            "site identifiers are missing in the request, consider using site_names",
           )
           .bail()
           .custom((value) => Array.isArray(value))
@@ -711,8 +732,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -731,8 +752,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -748,8 +769,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -768,7 +789,7 @@ const gridsValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
     (req, res, next) => {
       const errors = validationResult(req);
@@ -777,8 +798,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -794,8 +815,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -811,8 +832,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -828,8 +849,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -851,8 +872,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -882,8 +903,8 @@ const gridsValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
