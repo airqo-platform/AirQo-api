@@ -5,7 +5,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- blaclist-ip-model`,
+  `${constants.ENVIRONMENT} -- blacklist-ip-model`,
 );
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
@@ -45,11 +45,21 @@ BlacklistedIPSchema.statics = {
     try {
       const { ip, reason } = args;
       const filter = { ip };
+
       const update = {
-        ip,
-        reason: reason || "Automated blacklisting",
-        blacklistedAt: new Date(), // Always update timestamp
+        $set: {
+          ip,
+          blacklistedAt: new Date(),
+        },
+        $setOnInsert: {
+          reason: "Automated blacklisting",
+        },
       };
+
+      if (reason !== undefined && reason !== null) {
+        update.$set.reason = reason;
+      }
+
       const options = {
         upsert: true,
         new: true,
@@ -72,9 +82,7 @@ BlacklistedIPSchema.statics = {
     } catch (err) {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      // The upsert operation should prevent duplicate key errors (code 11000),
-      // so we can rely on the generic error handler for other issues.
-      return createErrorResponse(err, "register", logger, "IP");
+      return createErrorResponse(err, "create", logger, "IP");
     }
   },
 
@@ -185,7 +193,7 @@ const BlacklistedIPModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
-    let ips = mongoose.model("BlacklistedIP");
+    let ips = mongoose.model("BlacklistedIPs");
     return ips;
   } catch (error) {
     let ips = getModelByTenant(dbTenant, "BlacklistedIP", BlacklistedIPSchema);
