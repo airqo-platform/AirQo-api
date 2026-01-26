@@ -18,7 +18,11 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return next(
-      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+      new HttpError(
+        "Validation error",
+        httpStatus.BAD_REQUEST,
+        errors.mapped(),
+      ),
     );
   }
   next();
@@ -45,7 +49,7 @@ const createFromCohorts = [
     .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      "the name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
   body("description")
     .optional()
@@ -106,7 +110,7 @@ const commonValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ],
   nameOptional: [
@@ -118,7 +122,7 @@ const commonValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ],
   description: [
@@ -136,6 +140,18 @@ const commonValidations = {
       .trim()
       .isBoolean()
       .withMessage("visibility must be Boolean"),
+  ],
+  cohort_tags: [
+    body("cohort_tags")
+      .optional()
+      .isArray()
+      .withMessage("cohort_tags must be an array of strings")
+      .bail()
+      .notEmpty()
+      .withMessage("cohort_tags should not be an empty array if provided"),
+    body("cohort_tags.*")
+      .isString()
+      .withMessage("Each tag must be a string"),
   ],
 
   groups: [
@@ -205,7 +221,7 @@ const commonValidations = {
       body("devices")
         .exists()
         .withMessage(
-          "device identifiers are missing in the request, consider using devices"
+          "device identifiers are missing in the request, consider using devices",
         )
         .bail()
         .custom((value) => Array.isArray(value))
@@ -221,7 +237,7 @@ const commonValidations = {
       body("device_ids")
         .exists()
         .withMessage(
-          "device identifiers are missing in the request, consider using device_ids"
+          "device identifiers are missing in the request, consider using device_ids",
         )
         .bail()
         .custom((value) => Array.isArray(value))
@@ -237,7 +253,7 @@ const commonValidations = {
       body("device_names")
         .exists()
         .withMessage(
-          "device identifiers are missing in the request, consider using device_names"
+          "device identifiers are missing in the request, consider using device_names",
         )
         .bail()
         .custom((value) => Array.isArray(value))
@@ -267,7 +283,7 @@ const cohortValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
     body("confirm_update")
       .exists()
@@ -278,7 +294,7 @@ const cohortValidations = {
       .bail()
       .equals("true")
       .withMessage(
-        "confirm_update must be set to true to proceed with name update"
+        "confirm_update must be set to true to proceed with name update",
       ),
     body("update_reason")
       .exists()
@@ -303,6 +319,7 @@ const cohortValidations = {
     ...commonValidations.nameOptional,
     ...commonValidations.description,
     ...commonValidations.visibility,
+    ...commonValidations.cohort_tags,
     ...commonValidations.groups,
     ...commonValidations.networkOptional,
     handleValidationErrors,
@@ -330,6 +347,13 @@ const cohortValidations = {
       .toLowerCase()
       .isIn(["asc", "desc"])
       .withMessage("the order value is not among the expected ones"),
+    query("tags")
+      .optional()
+      .notEmpty()
+      .withMessage("tags must not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("tags must be a comma-separated string of tags"),
     handleValidationErrors,
   ],
 
@@ -341,7 +365,7 @@ const cohortValidations = {
       .not()
       .exists()
       .withMessage(
-        "filtering by id is not supported on this endpoint; use the general /cohorts endpoint instead"
+        "filtering by id is not supported on this endpoint; use the general /cohorts endpoint instead",
       ),
     query("name")
       .not()
@@ -355,9 +379,7 @@ const cohortValidations = {
       .optional()
       .notEmpty()
       .trim()
-      .toLowerCase()
-      .isIn(["asc", "desc"])
-      .withMessage("the order value is not among the expected ones"),
+      .withMessage("tags must not be empty if provided"),
     handleValidationErrors,
   ],
   listCohortsSummary: [
@@ -458,7 +480,7 @@ const cohortValidations = {
       const presentFields = fields.filter((field) => value[field]);
       if (presentFields.length > 1 || presentFields.length === 0) {
         throw new Error(
-          "Only one of devices, device_ids, or device_names should be provided"
+          "Only one of devices, device_ids, or device_names should be provided",
         );
       }
       return true;
@@ -570,7 +592,7 @@ const cohortValidations = {
       .toLowerCase()
       .isIn(constants.DEVICE_FILTER_TYPES)
       .withMessage(
-        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`,
       ),
     check("device_category")
       .optional()
@@ -653,7 +675,7 @@ const cohortValidations = {
       .toLowerCase()
       .isIn(constants.DEVICE_FILTER_TYPES)
       .withMessage(
-        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`,
       ),
     check("lat_long")
       .optional()

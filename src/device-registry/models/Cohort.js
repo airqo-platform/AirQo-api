@@ -71,12 +71,26 @@ const cohortSchema = new Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 cohortSchema.post("save", async function(doc) {});
 
 cohortSchema.pre("save", function(next) {
+  // Normalize and deduplicate cohort_tags before saving
+  if (this.cohort_tags && Array.isArray(this.cohort_tags)) {
+    this.cohort_tags = [
+      ...new Set(
+        this.cohort_tags.map((tag) =>
+          String(tag)
+            .trim()
+            .toLowerCase(),
+        ),
+      ),
+    ].filter(Boolean);
+  } else if (!this.cohort_tags) {
+    this.cohort_tags = [];
+  }
   if (this.isModified("_id")) {
     delete this._id;
   }
@@ -85,6 +99,7 @@ cohortSchema.pre("save", function(next) {
 });
 
 cohortSchema.pre("update", function(next) {
+  // This hook is for Model.update() and Model.updateOne(), not findOneAndUpdate()
   if (this.isModified("_id")) {
     delete this._id;
   }
@@ -150,6 +165,7 @@ cohortSchema.statics.register = async function(args, next) {
         .trim()
         .toLowerCase();
     }
+    // The pre('save') hook will handle cohort_tags normalization for create
 
     const createdCohort = await this.create(modifiedArgs);
 
@@ -165,8 +181,8 @@ cohortSchema.statics.register = async function(args, next) {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: "cohort not created despite successful operation" }
-        )
+          { message: "cohort not created despite successful operation" },
+        ),
       );
     }
   } catch (error) {
@@ -194,12 +210,12 @@ cohortSchema.statics.register = async function(args, next) {
 
 cohortSchema.statics.list = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     const inclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.COHORTS_EXCLUSION_PROJECTION(
-      filter.path ? filter.path : "none"
+      filter.path ? filter.path : "none",
     );
 
     if (!isEmpty(filter.path)) {
@@ -312,14 +328,14 @@ cohortSchema.statics.list = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
 
 cohortSchema.statics.modify = async function(
   { filter = {}, update = {} } = {},
-  next
+  next,
 ) {
   try {
     const options = {
@@ -332,11 +348,29 @@ cohortSchema.statics.modify = async function(
     delete modifiedUpdateBody._id;
     delete modifiedUpdateBody.name;
     delete modifiedUpdateBody.cohort_codes;
+    // Normalize and deduplicate cohort_tags if they are being updated
+    if (
+      modifiedUpdateBody.cohort_tags &&
+      Array.isArray(modifiedUpdateBody.cohort_tags)
+    ) {
+      modifiedUpdateBody.cohort_tags = [
+        ...new Set(
+          modifiedUpdateBody.cohort_tags.map((tag) =>
+            String(tag)
+              .trim()
+              .toLowerCase(),
+          ),
+        ),
+      ].filter(Boolean);
+    } else if (modifiedUpdateBody.cohort_tags === null) {
+      // Allow clearing tags
+      modifiedUpdateBody.cohort_tags = [];
+    }
 
     const updatedCohort = await this.findOneAndUpdate(
       filter,
       modifiedUpdateBody,
-      options
+      options,
     ).exec();
 
     if (!isEmpty(updatedCohort)) {
@@ -358,7 +392,7 @@ cohortSchema.statics.modify = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -393,14 +427,14 @@ cohortSchema.statics.remove = async function({ filter = {} } = {}, next) {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
 
 cohortSchema.statics.modifyName = async function(
   { filter = {}, update = {} } = {},
-  next
+  next,
 ) {
   try {
     const options = {
@@ -422,7 +456,7 @@ cohortSchema.statics.modifyName = async function(
     const updatedCohort = await this.findOneAndUpdate(
       filter,
       modifiedUpdateBody,
-      options
+      options,
     ).exec();
 
     if (!isEmpty(updatedCohort)) {
@@ -438,7 +472,7 @@ cohortSchema.statics.modifyName = async function(
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           ...filter,
           message: "Cohort does not exist, please crosscheck",
-        })
+        }),
       );
     }
   } catch (error) {
@@ -446,7 +480,7 @@ cohortSchema.statics.modifyName = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
