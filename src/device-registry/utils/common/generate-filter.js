@@ -2141,6 +2141,13 @@ const generateFilter = {
       filter["visibility"] = true;
     }
 
+    if (tags) {
+      const tagsArray = tags
+        .toString()
+        .split(",")
+        .map((tag) => tag.trim().toLowerCase());
+      filter["grid_tags"] = { $in: tagsArray };
+    }
     return filter;
   },
 
@@ -2214,14 +2221,6 @@ const generateFilter = {
       filter["cohort_tags"] = { $in: tagsArray };
     }
 
-    if (tags) {
-      const tagsArray = tags
-        .toString()
-        .split(",")
-        .map((tag) => tag.trim().toLowerCase());
-      filter["cohort_tags"] = { $in: tagsArray };
-    }
-
     if (category) {
       filter["category"] = category;
     }
@@ -2230,6 +2229,13 @@ const generateFilter = {
       filter["visibility"] = true;
     }
 
+    if (tags) {
+      const tagsArray = tags
+        .toString()
+        .split(",")
+        .map((tag) => tag.trim().toLowerCase());
+      filter["grid_tags"] = { $in: tagsArray }; // Assuming 'grid_tags' is the field name in the Grid model
+    }
     return filter;
   },
 
