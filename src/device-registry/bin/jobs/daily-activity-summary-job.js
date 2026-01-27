@@ -1,28 +1,25 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- daily-activity-summary-job`
+  `${constants.ENVIRONMENT} -- daily-activity-summary-job`,
 );
 const ActivityLogModel = require("@models/ActivityLog");
 const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
+const { LogThrottleManager } = require("@utils/common"); // Add LogThrottleManager
 const moment = require("moment-timezone");
 
 const TIMEZONE = moment.tz.guess();
 const JOB_NAME = "daily-activity-summary-job";
 const JOB_SCHEDULE = "0 8 * * *"; // At 8:00 AM every day
 
+const LOG_TYPE = "daily-activity-summary"; // Define a log type for throttling
+const logThrottleManager = new LogThrottleManager(); // Initialize LogThrottleManager
+
 let isJobRunning = false;
 let currentJobPromise = null;
 
 const generateDailyActivitySummary = async () => {
-  if (isJobRunning) {
-    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
-    return;
-  }
-
-  isJobRunning = true;
-
   try {
     if (global.isShuttingDown) {
       logText(`${JOB_NAME} stopping due to application shutdown`);
@@ -152,7 +149,7 @@ const generateDailyActivitySummary = async () => {
 ${Object.entries(entityBreakdown)
   .map(
     ([entity, stats]) =>
-      `   • ${entity}: ${stats.operations} ops, ${stats.records_successful}/${stats.records_attempted} records`
+      `   • ${entity}: ${stats.operations} ops, ${stats.records_successful}/${stats.records_attempted} records`,
   )
   .join("\n")}
 
@@ -160,7 +157,7 @@ ${Object.entries(entityBreakdown)
 ${Object.entries(operationBreakdown)
   .map(
     ([operation, stats]) =>
-      `   • ${operation}: ${stats.operations} ops, ${stats.records_successful}/${stats.records_attempted} records`
+      `   • ${operation}: ${stats.operations} ops, ${stats.records_successful}/${stats.records_attempted} records`,
   )
   .join("\n")}
     `;
@@ -178,22 +175,55 @@ ${Object.entries(operationBreakdown)
     }
   } catch (error) {
     logger.error(
-      `🐛🐛 ${JOB_NAME} Error generating daily summary: ${error.message}`
+      `🐛🐛 ${JOB_NAME} Error generating daily summary: ${error.message}`,
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
+  }
+};
+
+const jobWrapper = async () => {
+  // 1. Environment check: Only run in production
+  if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
+    return;
+  }
+
+  // 2. Distributed lock check: Prevent multiple instances from running concurrently
+  try {
+    const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+    if (!shouldRun) {
+      return;
+    }
+  } catch (error) {
+    logText(
+      `Distributed lock check failed for ${JOB_NAME}: ${error.message}. Proceeding with local lock.`,
+    );
+  }
+
+  // 3. Local lock check: Prevent overlapping executions within this process
+  if (isJobRunning) {
+    return;
+  }
+
+  isJobRunning = true;
+  currentJobPromise = generateDailyActivitySummary(); // Call the core logic
+  try {
+    await currentJobPromise;
+  } catch (error) {
+    logger.error(`🐛🐛 Error during ${JOB_NAME} execution: ${error.message}`);
   } finally {
     isJobRunning = false;
     currentJobPromise = null;
   }
 };
 
-const jobWrapper = async () => {
-  currentJobPromise = generateDailyActivitySummary();
-  await currentJobPromise;
-};
-
 const startDailyActivitySummaryJob = () => {
   try {
+    // Prevent multiple schedules if the module is loaded multiple times
+    if (global.cronJobs && global.cronJobs[JOB_NAME]) {
+      logText(`${JOB_NAME} already scheduled, skipping re-initialization.`);
+      return global.cronJobs[JOB_NAME];
+    }
+
     const jobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
       scheduled: true,
       timezone: TIMEZONE,
@@ -216,7 +246,7 @@ const startDailyActivitySummaryJob = () => {
 
           if (currentJobPromise) {
             logText(
-              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`,
             );
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed`);
