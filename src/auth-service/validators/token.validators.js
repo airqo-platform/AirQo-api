@@ -301,7 +301,6 @@ module.exports = {
   validateTokenUpdate,
   validateSingleIp,
   validateMultipleIps,
-  validateIpRange,
   validateMultipleIpRanges,
   validateIpRangeIdParam,
   validateIpParam,

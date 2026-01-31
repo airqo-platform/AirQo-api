@@ -10,7 +10,6 @@ const {
   validateTokenUpdate,
   validateSingleIp,
   validateMultipleIps,
-  validatePagination,
   validateIpRange,
   validateMultipleIpRanges,
   validateIpRangeIdParam,
