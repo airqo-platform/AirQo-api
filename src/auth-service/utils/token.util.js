@@ -2264,7 +2264,9 @@ const token = {
 
       const normalizedDomain = token.extractAndNormalizeDomain(domain);
       if (!normalizedDomain) {
-        throw new HttpError("Invalid domain format", httpStatus.BAD_REQUEST);
+        throw new HttpError("Invalid domain format", httpStatus.BAD_REQUEST, {
+          message: "The provided domain is not a valid format.",
+        });
       }
       const filter = { domain: normalizedDomain };
       const result = await BlockedDomainModel(tenant).remove({
@@ -2276,14 +2278,19 @@ const token = {
       }
       return result;
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      if (error instanceof HttpError) {
+        next(error);
+        return;
+      } else {
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message },
+          ),
+        );
+      }
     }
   },
   /**
