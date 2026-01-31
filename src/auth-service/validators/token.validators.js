@@ -261,7 +261,7 @@ const createBlockedDomain = [
     .notEmpty()
     .withMessage("domain cannot be empty")
     .bail()
-    .isURL({ require_protocol: false, require_host: true })
+    .isFQDN()
     .withMessage("domain must be a valid domain name (e.g., example.com)")
     .trim()
     .toLowerCase(),
@@ -285,6 +285,9 @@ const removeBlockedDomain = [
     .bail()
     .notEmpty()
     .withMessage("domain cannot be empty")
+    .bail()
+    .isFQDN()
+    .withMessage("domain must be a valid domain name (e.g., example.com)")
     .trim()
     .toLowerCase(),
   validate,
