@@ -17,9 +17,11 @@ const domainBlockingMiddleware = async (req, res, next) => {
 
     let clientDomain = null;
 
+    // Prioritize Referer, but fall back to Origin if Referer is invalid or doesn't yield a domain
     if (referer) {
       clientDomain = extractAndNormalizeDomain(referer);
-    } else if (origin) {
+    }
+    if (!clientDomain && origin) {
       clientDomain = extractAndNormalizeDomain(origin);
     }
 

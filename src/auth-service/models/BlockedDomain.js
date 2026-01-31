@@ -30,6 +30,18 @@ BlockedDomainSchema.statics.register = async function (args) {
   try {
     const { domain, reason } = args;
 
+    // Validate domain input before processing
+    if (typeof domain !== "string" || domain.trim() === "") {
+      logger.error("Validation Error: domain must be a non-empty string.");
+      return {
+        success: false,
+        message: "Validation Error",
+        status: httpStatus.BAD_REQUEST,
+        errors: {
+          message: "The provided domain is invalid or empty.",
+        },
+      };
+    }
     // Normalize the domain to a consistent hostname format
     let normalizedDomain = domain.trim().toLowerCase();
     try {

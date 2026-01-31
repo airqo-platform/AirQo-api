@@ -2155,7 +2155,9 @@ const token = {
 
   getBotLikeIPStats: async (request, next) => {
     try {
-      const { tenant, limit, skip, endpoint_filter } = request.query;
+      const { tenant, endpoint_filter } = request.query;
+      const limit = parseInt(request.query.limit, 10) || 100;
+      const skip = parseInt(request.query.skip, 10) || 0;
 
       const filter = {};
       if (endpoint_filter) {
@@ -2165,20 +2167,15 @@ const token = {
 
       const response = await IPRequestLogModel(tenant).getBotLikeIPs(
         filter,
-        parseInt(skip, 10) || 0,
-        parseInt(limit, 10) || 100,
+        skip,
+        limit,
       );
 
       if (!response.success) {
         logger.error(
           `🐛🐛 Internal Server Error -- Failed to retrieve bot-like IPs: ${response.message}`,
         );
-        return {
-          success: false,
-          message: "Failed to retrieve bot-like IP statistics",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: response.errors,
-        };
+        return response;
       }
 
       const botIPs = response.data.map((ipLog) => ({
@@ -2211,6 +2208,7 @@ const token = {
       );
     }
   },
+
   /******************** blocked domains ***********************************/
   createBlockedDomain: async (request, next) => {
     try {
