@@ -2156,8 +2156,8 @@ const token = {
   getBotLikeIPStats: async (request, next) => {
     try {
       const { tenant, endpoint_filter } = request.query;
-      const limit = parseInt(request.query.limit, 10) || 100;
-      const skip = parseInt(request.query.skip, 10) || 0;
+      const parsedLimit = parseInt(request.query.limit, 10) || 100;
+      const parsedSkip = parseInt(request.query.skip, 10) || 0;
 
       const filter = {};
       if (endpoint_filter) {
@@ -2167,8 +2167,8 @@ const token = {
 
       const response = await IPRequestLogModel(tenant).getBotLikeIPs(
         filter,
-        skip,
-        limit,
+        parsedSkip,
+        parsedLimit,
       );
 
       if (!response.success) {
@@ -2195,7 +2195,7 @@ const token = {
         message: "Successfully retrieved bot-like IP statistics",
         status: httpStatus.OK,
         data: botIPs,
-        meta: { total: response.total, skip, limit },
+        meta: { total: response.total, skip: parsedSkip, limit: parsedLimit },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -2261,7 +2261,12 @@ const token = {
     try {
       const { domain } = request.params;
       const { tenant } = request.query;
-      const filter = { domain: domain.trim().toLowerCase() };
+
+      const normalizedDomain = token.extractAndNormalizeDomain(domain);
+      if (!normalizedDomain) {
+        throw new HttpError("Invalid domain format", httpStatus.BAD_REQUEST);
+      }
+      const filter = { domain: normalizedDomain };
       const result = await BlockedDomainModel(tenant).remove({
         filter,
       });
@@ -2289,7 +2294,11 @@ const token = {
       return null;
     }
     try {
-      const url = new URL(urlString);
+      // Add a protocol if missing to handle simple domains like 'example.com'
+      const fullUrlString = urlString.startsWith("http")
+        ? urlString
+        : `http://${urlString}`;
+      const url = new URL(fullUrlString);
       let domain = url.hostname;
       // Remove 'www.' prefix if present
       if (domain.startsWith("www.")) {
