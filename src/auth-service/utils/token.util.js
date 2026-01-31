@@ -11,6 +11,12 @@ const CompromisedTokenLogModel = require("@models/CompromisedTokenLog");
 const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
 const EmailLogModel = require("@models/EmailLog");
+const BlockedDomainModel = require("@models/BlockedDomain");
+const {
+  redisGetAsync,
+  redisSetAsync,
+  redisDelAsync,
+} = require("@config/redis");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
@@ -2143,6 +2149,198 @@ const token = {
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message },
         ),
+      );
+    }
+  },
+
+  getBotLikeIPStats: async (request, next) => {
+    try {
+      const { tenant, limit, skip, endpoint_filter } = request.query;
+
+      const filter = {};
+      if (endpoint_filter) {
+        // Filter requests array for specific endpoints
+        filter["requests.endpoint"] = endpoint_filter;
+      }
+
+      const response = await IPRequestLogModel(tenant).getBotLikeIPs(
+        filter,
+        parseInt(skip, 10) || 0,
+        parseInt(limit, 10) || 100,
+      );
+
+      if (!response.success) {
+        logger.error(
+          `🐛🐛 Internal Server Error -- Failed to retrieve bot-like IPs: ${response.message}`,
+        );
+        return {
+          success: false,
+          message: "Failed to retrieve bot-like IP statistics",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: response.errors,
+        };
+      }
+
+      const botIPs = response.data.map((ipLog) => ({
+        ip: ipLog.ip,
+        detectedInterval: ipLog.detectedInterval,
+        isBot: ipLog.isBot,
+        totalRequests: ipLog.requests.length,
+        accessedEndpoints: [
+          ...new Set(ipLog.requests.map((req) => req.endpoint)),
+        ],
+        createdAt: ipLog.createdAt,
+        updatedAt: ipLog.updatedAt,
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved bot-like IP statistics",
+        status: httpStatus.OK,
+        data: botIPs,
+        meta: { total: response.total, skip, limit },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return {
+        success: false,
+        message: error.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  /******************** blocked domains ***********************************/
+  createBlockedDomain: async (request, next) => {
+    try {
+      const { domain, reason } = request.body;
+      const { tenant } = request.query;
+      const result = await BlockedDomainModel(tenant).register({
+        domain,
+        reason,
+      });
+
+      if (result.success) {
+        await token.clearBlockedDomainsCache(); // Clear cache on change
+      }
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  listBlockedDomains: async (request, next) => {
+    try {
+      const { limit, skip, tenant } = request.query;
+      const filter = {}; // Implement filtering logic if needed
+      const result = await BlockedDomainModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  removeBlockedDomain: async (request, next) => {
+    try {
+      const { domain } = request.params;
+      const { tenant } = request.query;
+      const filter = { domain: domain.trim().toLowerCase() };
+      const result = await BlockedDomainModel(tenant).remove({
+        filter,
+      });
+
+      if (result.success) {
+        await token.clearBlockedDomainsCache(); // Clear cache on change
+      }
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  /**
+   * Domain utility functions
+   */
+  extractAndNormalizeDomain: (urlString) => {
+    if (!urlString || typeof urlString !== "string") {
+      return null;
+    }
+    try {
+      const url = new URL(urlString);
+      let domain = url.hostname;
+      // Remove 'www.' prefix if present
+      if (domain.startsWith("www.")) {
+        domain = domain.substring(4);
+      }
+      return domain.toLowerCase();
+    } catch (error) {
+      logger.debug(
+        `Failed to parse URL string "${urlString}": ${error.message}`,
+      );
+      return null;
+    }
+  },
+  getBlockedDomains: async (tenant = "airqo") => {
+    const BLOCKED_DOMAINS_CACHE_KEY = "blocked_domains_cache";
+    const BLOCKED_DOMAINS_CACHE_TTL = 5 * 60; // 5 minutes
+    try {
+      let cached = await redisGetAsync(BLOCKED_DOMAINS_CACHE_KEY);
+      if (cached) {
+        return new Set(JSON.parse(cached));
+      }
+
+      const blockedList = await BlockedDomainModel(tenant)
+        .find({ isActive: true })
+        .select("domain")
+        .lean();
+      const domains = blockedList.map((item) => item.domain);
+      await redisSetAsync(
+        BLOCKED_DOMAINS_CACHE_KEY,
+        JSON.stringify(domains),
+        BLOCKED_DOMAINS_CACHE_TTL,
+      );
+      return new Set(domains);
+    } catch (error) {
+      logger.error(`🐛🐛 Error fetching blocked domains: ${error.message}`);
+      // Fail open: if DB/Redis fails, don't block requests
+      return new Set();
+    }
+  },
+  clearBlockedDomainsCache: async () => {
+    const BLOCKED_DOMAINS_CACHE_KEY = "blocked_domains_cache";
+    try {
+      await redisDelAsync(BLOCKED_DOMAINS_CACHE_KEY);
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Error clearing blocked domains cache: ${error.message}`,
       );
     }
   },

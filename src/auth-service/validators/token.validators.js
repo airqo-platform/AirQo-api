@@ -3,6 +3,8 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+const { handleValidationErrors, commonValidations } = require("./common");
+
 const validateTenant = oneOf([
   query("tenant")
     .optional()
@@ -47,7 +49,7 @@ const validateTokenCreate = [
       body("client_id")
         .exists()
         .withMessage(
-          "a token requirement is missing in request, consider using the client_id"
+          "a token requirement is missing in request, consider using the client_id",
         )
         .bail()
         .notEmpty()
@@ -249,6 +251,56 @@ const validateIdParam = oneOf([
     }),
 ]);
 
+const validateBotLikeIPStats = [
+  query("endpoint_filter")
+    .optional()
+    .isString()
+    .withMessage("endpoint_filter must be a string")
+    .trim(),
+];
+const createBlockedDomain = [
+  body("domain")
+    .exists()
+    .withMessage("domain is required")
+    .bail()
+    .isString()
+    .withMessage("domain must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("domain cannot be empty")
+    .bail()
+    .isURL({ require_protocol: false, require_host: true })
+    .withMessage("domain must be a valid domain name (e.g., example.com)")
+    .trim()
+    .toLowerCase(),
+  body("reason")
+    .optional()
+    .isString()
+    .withMessage("reason must be a string")
+    .trim(),
+  handleValidationErrors,
+];
+
+const listBlockedDomains = [
+  ...commonValidations.pagination(),
+  handleValidationErrors,
+];
+
+const removeBlockedDomain = [
+  param("domain")
+    .exists()
+    .withMessage("domain is required in params")
+    .bail()
+    .isString()
+    .withMessage("domain must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("domain cannot be empty")
+    .trim()
+    .toLowerCase(),
+  handleValidationErrors,
+];
+
 module.exports = {
   validateTenant,
   validateAirqoTenantOnly,
@@ -265,4 +317,8 @@ module.exports = {
   validateIpPrefix,
   validateMultipleIpPrefixes,
   validateIdParam,
+  validateBotLikeIPStats,
+  createBlockedDomain,
+  listBlockedDomains,
+  removeBlockedDomain,
 };

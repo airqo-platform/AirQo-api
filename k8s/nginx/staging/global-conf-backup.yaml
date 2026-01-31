@@ -8,8 +8,8 @@ data:
   client-max-body-size: "350m"
   proxy-protocol: "True"
   real-ip-header: "proxy_protocol"
-  set-real-ip-from: "10.240.0.3"
-  location-snippets: "
+  set-real-ip-from: "10.240.0.103"
+  location-snippets: "  
     auth_request /auth;
     error_page 500 = @custom_internal_server_error;
     error_page 404 = @custom_page_not_found;
@@ -110,7 +110,7 @@ data:
       </body>
       </html>';
     }
-
+    
     location @custom_page_not_found {
       return 404 '
       <!DOCTYPE html>
@@ -137,7 +137,7 @@ data:
               <div class=\"error-code\">404</div>
               <h1 class=\"title\">Page Not Found</h1>
               <p class=\"message\">
-                  Oops! The page you are looking for seems to have vanished into thin air.
+                  Oops! The page you are looking for seems to have vanished into thin air. 
                   Do not worry, you can navigate back to our home page or try searching for what you need.
               </p>
               <a href=\"/\" class=\"home-button\">Back to Home</a>
@@ -152,17 +152,17 @@ data:
     location /airqo-rest-api-documentation { return 302 /#/api/; }
     location /airqo-application-documentations { return 302 /#/mobile_app/privacy_policy; }
     location /airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3 { return 302 /#/platform/terms_and_conditions; }
-
-    location = /auth {
-      if ($request_method = 'OPTIONS') { return 204; }
+    
+    location = /auth {      
+      if ($request_method = 'OPTIONS') { return 204; } 
       if ($request_uri ~ '/website/api/(v1|v2)/') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/users') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/devices/grids/summary') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/devices/grids/countries') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/devices/events/running') { return 200; }
-      if ($request_uri ~ '/airflow/api/v') { return 200; }
-      if ($request_uri ~ '/argocd') { return 200; }
-      if ($request_uri !~ '/api/v') { return 200; } # None API requests
+      if ($request_uri ~ '/airflow/api/v') { return 200; }    
+      if ($request_uri ~ '/grafana/api') { return 200; }    
+      if ($request_uri !~ '/api/v') { return 200; } # None API requests 
 
       set $client_ip $remote_addr;
       set $host_name $host;
@@ -178,7 +178,7 @@ data:
       internal;
       resolver                kube-dns.kube-system.svc.cluster.local valid=5s;
       proxy_method            $method;
-      proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v2/users/$verification_path;
+      proxy_pass              http://airqo-stage-auth-api-svc.staging.svc.cluster.local:3000/api/v2/users/$verification_path;
       proxy_pass_request_body on;
       proxy_set_header        Content-Length '';
       proxy_set_header        X-Original-URI $request_uri;
@@ -186,6 +186,4 @@ data:
       proxy_set_header        X-Client-IP $client_ip;
       proxy_set_header        X-Host-Name $host_name;
       proxy_set_header        X-Client-Original-IP $proxy_add_x_forwarded_for;
-      proxy_set_header        Referer $http_referer;
-      proxy_set_header        Origin $http_origin;
     }"

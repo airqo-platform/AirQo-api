@@ -15,8 +15,12 @@ const {
   validateMultipleIpRanges,
   validateIpRangeIdParam,
   validateIpParam,
+  validateBotLikeIPStats,
   validateIpPrefix,
   validateMultipleIpPrefixes,
+  createBlockedDomain,
+  listBlockedDomains,
+  removeBlockedDomain,
   validateIdParam,
 } = require("@validators/token.validators");
 
@@ -24,6 +28,7 @@ const { validate, headers, pagination } = require("@validators/common");
 
 const { strictRateLimiter } = require("@middleware/rate-limit.middleware");
 
+const domainBlockingMiddleware = require("@middleware/domain-blocking.middleware");
 // Apply common middleware
 router.use(headers); // Keep headers global
 
@@ -99,6 +104,7 @@ router.delete(
 router.get(
   "/:token/verify",
   validateTenant,
+  domainBlockingMiddleware, // <-- NEW: Apply domain blocking here
   validateTokenParam,
   // strictRateLimiter,
   createTokenController.verify,
@@ -202,6 +208,14 @@ router.get(
 );
 
 router.get(
+  "/bot-like-ip-stats",
+  validateTenant,
+  validateBotLikeIPStats,
+  enhancedJWTAuth,
+  createTokenController.getBotLikeIPStats,
+);
+
+router.get(
   "/whitelist/stats",
   validateTenant,
   pagination(),
@@ -270,6 +284,29 @@ router.get(
   pagination(), // Apply pagination here
   enhancedJWTAuth,
   createTokenController.listBlacklistedIpPrefix,
+);
+
+/******************** blocked domains ***********************************/
+router.post(
+  "/blocked-domains",
+  validateTenant,
+  createBlockedDomain,
+  enhancedJWTAuth,
+  createTokenController.createBlockedDomain,
+);
+router.get(
+  "/blocked-domains",
+  validateTenant,
+  listBlockedDomains,
+  enhancedJWTAuth,
+  createTokenController.listBlockedDomains,
+);
+router.delete(
+  "/blocked-domains/:domain",
+  validateTenant,
+  removeBlockedDomain,
+  enhancedJWTAuth,
+  createTokenController.removeBlockedDomain,
 );
 
 /*************************** Get TOKEN's information ********************* */
