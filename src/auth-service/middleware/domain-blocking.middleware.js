@@ -2,7 +2,6 @@ const {
   extractAndNormalizeDomain,
   getBlockedDomains,
 } = require("@utils/token.util");
-const { logObject, logText } = require("@utils/shared");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");

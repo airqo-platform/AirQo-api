@@ -257,6 +257,7 @@ const validateBotLikeIPStats = [
     .isString()
     .withMessage("endpoint_filter must be a string")
     .trim(),
+  handleValidationErrors,
 ];
 const createBlockedDomain = [
   body("domain")

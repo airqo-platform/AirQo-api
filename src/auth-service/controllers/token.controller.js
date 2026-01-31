@@ -1700,6 +1700,11 @@ const createAccessToken = {
         : req.query.tenant;
 
       const result = await tokenUtil.removeBlockedDomain(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
       handleResponse({ res, result, key: "removed_domain" });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

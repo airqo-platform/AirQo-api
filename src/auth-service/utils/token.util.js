@@ -2209,11 +2209,6 @@ const token = {
           { message: error.message },
         ),
       );
-      return {
-        success: false,
-        message: error.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
     }
   },
   /******************** blocked domains ***********************************/
@@ -2227,7 +2222,7 @@ const token = {
       });
 
       if (result.success) {
-        await token.clearBlockedDomainsCache(); // Clear cache on change
+        await token.clearBlockedDomainsCache(tenant); // Clear cache on change
       }
       return result;
     } catch (error) {
@@ -2243,7 +2238,9 @@ const token = {
   },
   listBlockedDomains: async (request, next) => {
     try {
-      const { limit, skip, tenant } = request.query;
+      const { tenant } = request.query;
+      const limit = parseInt(request.query.limit, 10) || 100;
+      const skip = parseInt(request.query.skip, 10) || 0;
       const filter = {}; // Implement filtering logic if needed
       const result = await BlockedDomainModel(tenant).list({
         filter,
@@ -2272,7 +2269,7 @@ const token = {
       });
 
       if (result.success) {
-        await token.clearBlockedDomainsCache(); // Clear cache on change
+        await token.clearBlockedDomainsCache(tenant); // Clear cache on change
       }
       return result;
     } catch (error) {
@@ -2334,10 +2331,10 @@ const token = {
       return new Set();
     }
   },
-  clearBlockedDomainsCache: async () => {
-    const BLOCKED_DOMAINS_CACHE_KEY = "blocked_domains_cache";
+  clearBlockedDomainsCache: async (tenant = "airqo") => {
+    const tenantCacheKey = `blocked_domains_cache:${tenant}`;
     try {
-      await redisDelAsync(BLOCKED_DOMAINS_CACHE_KEY);
+      await redisDelAsync(tenantCacheKey);
     } catch (error) {
       logger.error(
         `🐛🐛 Error clearing blocked domains cache: ${error.message}`,

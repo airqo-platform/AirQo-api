@@ -29,7 +29,25 @@ const BlockedDomainSchema = new mongoose.Schema(
 BlockedDomainSchema.statics.register = async function (args) {
   try {
     const { domain, reason } = args;
-    const normalizedDomain = domain.trim().toLowerCase();
+
+    // Normalize the domain to a consistent hostname format
+    let normalizedDomain = domain.trim().toLowerCase();
+    try {
+      // Add a protocol if missing to handle simple domains like 'example.com'
+      const urlString = normalizedDomain.startsWith("http")
+        ? normalizedDomain
+        : `http://${normalizedDomain}`;
+      const url = new URL(urlString);
+      normalizedDomain = url.hostname;
+      if (normalizedDomain.startsWith("www.")) {
+        normalizedDomain = normalizedDomain.substring(4);
+      }
+    } catch (e) {
+      // Fallback for simple strings that might not parse as a URL but are valid domains
+      logger.warn(
+        `Could not parse '${domain}' as a URL, using as-is after trim/lowercase.`,
+      );
+    }
     const filter = { domain: normalizedDomain };
     const update = {
       $set: {
@@ -62,16 +80,87 @@ BlockedDomainSchema.statics.register = async function (args) {
   }
 };
 
-// Add other static methods like list, modify, remove as needed
+BlockedDomainSchema.statics.list = async function (
+  { filter = {}, limit = 100, skip = 0 } = {},
+  next,
+) {
+  try {
+    const total = await this.countDocuments(filter);
+    const data = await this.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (data) {
+      return {
+        success: true,
+        data,
+        message: "Successfully retrieved blocked domains",
+        status: httpStatus.OK,
+        meta: {
+          total,
+          limit,
+          skip,
+          page: Math.floor(skip / limit) + 1,
+          pages: Math.ceil(total / limit) || 1,
+        },
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error on list: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      }),
+    );
+  }
+};
+
+BlockedDomainSchema.statics.remove = async function (
+  { filter = {} } = {},
+  next,
+) {
+  try {
+    const options = {
+      projection: {
+        _id: 0,
+        domain: 1,
+        reason: 1,
+      },
+    };
+
+    const removedDomain = await this.findOneAndRemove(filter, options).exec();
+
+    if (!isEmpty(removedDomain)) {
+      return {
+        success: true,
+        message: "Successfully removed the blocked domain",
+        data: removedDomain._doc,
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: false,
+        message: "Blocked domain does not exist, please crosscheck",
+        status: httpStatus.BAD_REQUEST,
+        errors: filter,
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error on remove: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      }),
+    );
+  }
+};
 
 const BlockedDomainModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    return mongoose.model("blocked_domains");
-  } catch (error) {
-    return getModelByTenant(dbTenant, "blocked_domain", BlockedDomainSchema);
-  }
+  return getModelByTenant(dbTenant, "blocked_domain", BlockedDomainSchema);
 };
 
 module.exports = BlockedDomainModel;
