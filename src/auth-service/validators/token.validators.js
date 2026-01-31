@@ -2,8 +2,7 @@ const { query, body, param, oneOf } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-
-const { handleValidationErrors, commonValidations } = require("./common");
+const { validate } = require("@validators/common");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -138,14 +137,6 @@ const validateMultipleIps = oneOf([
   ],
 ]);
 
-const validatePagination = (req, res, next) => {
-  const limit = parseInt(req.query.limit, 10);
-  const skip = parseInt(req.query.skip, 10);
-  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
-  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
-  next();
-};
-
 const validateIpParam = oneOf([
   param("ip")
     .exists()
@@ -257,7 +248,7 @@ const validateBotLikeIPStats = [
     .isString()
     .withMessage("endpoint_filter must be a string")
     .trim(),
-  handleValidationErrors,
+  validate,
 ];
 const createBlockedDomain = [
   body("domain")
@@ -279,13 +270,10 @@ const createBlockedDomain = [
     .isString()
     .withMessage("reason must be a string")
     .trim(),
-  handleValidationErrors,
+  validate,
 ];
 
-const listBlockedDomains = [
-  ...commonValidations.pagination(),
-  handleValidationErrors,
-];
+const listBlockedDomains = [validate];
 
 const removeBlockedDomain = [
   param("domain")
@@ -299,7 +287,7 @@ const removeBlockedDomain = [
     .withMessage("domain cannot be empty")
     .trim()
     .toLowerCase(),
-  handleValidationErrors,
+  validate,
 ];
 
 module.exports = {
@@ -310,7 +298,6 @@ module.exports = {
   validateTokenUpdate,
   validateSingleIp,
   validateMultipleIps,
-  validatePagination,
   validateIpRange,
   validateMultipleIpRanges,
   validateIpRangeIdParam,

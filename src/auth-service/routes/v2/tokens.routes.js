@@ -210,6 +210,7 @@ router.get(
 router.get(
   "/bot-like-ip-stats",
   validateTenant,
+  pagination(),
   validateBotLikeIPStats,
   enhancedJWTAuth,
   createTokenController.getBotLikeIPStats,
@@ -297,6 +298,7 @@ router.post(
 router.get(
   "/blocked-domains",
   validateTenant,
+  pagination(),
   listBlockedDomains,
   enhancedJWTAuth,
   createTokenController.listBlockedDomains,
