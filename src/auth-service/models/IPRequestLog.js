@@ -135,6 +135,38 @@ IPRequestLogSchema.statics = {
       return { success: false, error: error.message };
     }
   },
+
+  async getBotLikeIPs(filter = {}, skip = 0, limit = 100) {
+    try {
+      const matchFilter = { isBot: true, ...filter };
+
+      const pipeline = [
+        { $match: matchFilter },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $project: {
+            ip: 1,
+            detectedInterval: 1,
+            isBot: 1,
+            requests: 1, // Include requests to show accessed endpoints
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        },
+      ];
+      const botIPs = await this.aggregate(pipeline);
+      const totalCount = await this.countDocuments(matchFilter);
+      return { success: true, data: botIPs, total: totalCount };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+        errors: { message: error.message },
+      };
+    }
+  },
 };
 
 const IPRequestLogModel = (tenant) => {

@@ -2,6 +2,7 @@ const { query, body, param, oneOf } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { validate } = require("@validators/common");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -47,7 +48,7 @@ const validateTokenCreate = [
       body("client_id")
         .exists()
         .withMessage(
-          "a token requirement is missing in request, consider using the client_id"
+          "a token requirement is missing in request, consider using the client_id",
         )
         .bail()
         .notEmpty()
@@ -135,14 +136,6 @@ const validateMultipleIps = oneOf([
       .withMessage("IP address provided must be a valid IP address"),
   ],
 ]);
-
-const validatePagination = (req, res, next) => {
-  const limit = parseInt(req.query.limit, 10);
-  const skip = parseInt(req.query.skip, 10);
-  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
-  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
-  next();
-};
 
 const validateIpParam = oneOf([
   param("ip")
@@ -249,6 +242,57 @@ const validateIdParam = oneOf([
     }),
 ]);
 
+const validateBotLikeIPStats = [
+  query("endpoint_filter")
+    .optional()
+    .isString()
+    .withMessage("endpoint_filter must be a string")
+    .trim(),
+  validate,
+];
+const createBlockedDomain = [
+  body("domain")
+    .exists()
+    .withMessage("domain is required")
+    .bail()
+    .isString()
+    .withMessage("domain must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("domain cannot be empty")
+    .bail()
+    .isFQDN()
+    .withMessage("domain must be a valid domain name (e.g., example.com)")
+    .trim()
+    .toLowerCase(),
+  body("reason")
+    .optional()
+    .isString()
+    .withMessage("reason must be a string")
+    .trim(),
+  validate,
+];
+
+const listBlockedDomains = [validate];
+
+const removeBlockedDomain = [
+  param("domain")
+    .exists()
+    .withMessage("domain is required in params")
+    .bail()
+    .isString()
+    .withMessage("domain must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("domain cannot be empty")
+    .bail()
+    .isFQDN()
+    .withMessage("domain must be a valid domain name (e.g., example.com)")
+    .trim()
+    .toLowerCase(),
+  validate,
+];
+
 module.exports = {
   validateTenant,
   validateAirqoTenantOnly,
@@ -257,7 +301,6 @@ module.exports = {
   validateTokenUpdate,
   validateSingleIp,
   validateMultipleIps,
-  validatePagination,
   validateIpRange,
   validateMultipleIpRanges,
   validateIpRangeIdParam,
@@ -265,4 +308,8 @@ module.exports = {
   validateIpPrefix,
   validateMultipleIpPrefixes,
   validateIdParam,
+  validateBotLikeIPStats,
+  createBlockedDomain,
+  listBlockedDomains,
+  removeBlockedDomain,
 };
