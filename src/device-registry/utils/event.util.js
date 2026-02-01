@@ -1197,9 +1197,9 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
 
 // 🚨 EMERGENCY RATE LIMITER - Added Oct 21, 2025 for DDoS mitigation
 const historicalQueryTracker = new Map();
-const MAX_HISTORICAL_PER_MINUTE = 5;
-const BLOCK_DURATION = 5 * 60 * 1000; // 5 minutes
-const MAX_AGE_DAYS = 60; // 2 months
+const MAX_HISTORICAL_PER_MINUTE = 3;
+const BLOCK_DURATION = 15 * 60 * 1000; // 15 minutes
+const MAX_AGE_DAYS = 31; // Approximately 1 month
 
 const generateClientFingerprint = (request) => {
   const rawId =
