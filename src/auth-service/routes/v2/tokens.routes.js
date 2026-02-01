@@ -103,7 +103,7 @@ router.delete(
 router.get(
   "/:token/verify",
   validateTenant,
-  domainBlockingMiddleware, // <-- NEW: Apply domain blocking here
+  // domainBlockingMiddleware, // Temporarily disabled for performance monitoring
   validateTokenParam,
   // strictRateLimiter,
   createTokenController.verify,
