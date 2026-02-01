@@ -26,7 +26,7 @@ const domainBlockingMiddleware = async (req, res, next) => {
     }
 
     // Log the extracted domain for debugging purposes
-    logger.info(
+    logger.warn(
       `[Domain Check] Referer: "${referer || "N/A"}" | Origin: "${
         origin || "N/A"
       }" | Parsed Domain: "${clientDomain || "Not Found"}"`,
