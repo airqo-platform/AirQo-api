@@ -26,11 +26,6 @@ const domainBlockingMiddleware = async (req, res, next) => {
     }
 
     // Log the extracted domain for debugging purposes
-    logger.warn(
-      `[Domain Check] Referer: "${referer || "N/A"}" | Origin: "${
-        origin || "N/A"
-      }" | Parsed Domain: "${clientDomain || "Not Found"}"`,
-    );
     if (!clientDomain) {
       // If no identifiable domain, proceed. We don't want to block legitimate direct API calls.
       return next();
