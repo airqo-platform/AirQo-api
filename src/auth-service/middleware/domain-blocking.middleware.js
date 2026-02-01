@@ -25,6 +25,7 @@ const domainBlockingMiddleware = async (req, res, next) => {
       clientDomain = extractAndNormalizeDomain(origin);
     }
 
+    // Log the extracted domain for debugging purposes
     if (!clientDomain) {
       // If no identifiable domain, proceed. We don't want to block legitimate direct API calls.
       return next();
