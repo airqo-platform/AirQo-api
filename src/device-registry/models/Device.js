@@ -361,6 +361,21 @@ const deviceSchema = new mongoose.Schema(
       default: false,
     },
     pictures: [{ type: String }],
+    collocation: {
+      status: {
+        type: String,
+        enum: ["active", "inactive"],
+        default: "inactive",
+      },
+      batch_id: {
+        type: ObjectId,
+        ref: "collocation_batch",
+        default: null,
+      },
+      start_date: { type: Date, default: null },
+      end_date: { type: Date, default: null },
+      updated_at: { type: Date, default: Date.now },
+    },
     owner_id: {
       type: ObjectId,
       ref: "user",
@@ -476,7 +491,7 @@ const deviceSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 deviceSchema.plugin(uniqueValidator, {
@@ -493,13 +508,13 @@ deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
-    (value, index, self) => self.indexOf(value) !== index
+    (value, index, self) => self.indexOf(value) !== index,
   );
 
   if (duplicateValues.length > 0) {
     return new HttpError(
       `Duplicate values found in ${fieldName} array.`,
-      httpStatus.BAD_REQUEST
+      httpStatus.BAD_REQUEST,
     );
   }
   return null;
@@ -515,6 +530,19 @@ deviceSchema.pre(
       const doc = isQuery ? update.$set || update : this;
       if (isQuery) {
         this.setOptions({ runValidators: true, context: "query" });
+      }
+
+      // Automatically update collocation.updated_at on modification
+      if (isQuery && update) {
+        const isCollocationModified = Object.keys(update.$set || {}).some(
+          (key) => key.startsWith("collocation."),
+        );
+        if (isCollocationModified) {
+          update.$set["collocation.updated_at"] = new Date();
+        }
+      } else if (!isQuery && this.isModified("collocation")) {
+        // Handle direct save operations
+        this.collocation.updated_at = new Date();
       }
 
       if (!doc) return next();
@@ -585,22 +613,22 @@ deviceSchema.pre(
           if (isNew) doc.mountType = "vehicle";
           else
             return next(
-              new Error("Mobile devices must include mountType 'vehicle'")
+              new Error("Mobile devices must include mountType 'vehicle'"),
             );
         } else if (doc.mountType !== "vehicle") {
           return next(
-            new Error("Mobile devices must have mountType 'vehicle'")
+            new Error("Mobile devices must have mountType 'vehicle'"),
           );
         }
         if (!doc.powerType) {
           if (isNew) doc.powerType = "alternator";
           else
             return next(
-              new Error("Mobile devices must include powerType 'alternator'")
+              new Error("Mobile devices must include powerType 'alternator'"),
             );
         } else if (doc.powerType !== "alternator") {
           return next(
-            new Error("Mobile devices must have powerType 'alternator'")
+            new Error("Mobile devices must have powerType 'alternator'"),
           );
         }
       }
@@ -615,10 +643,10 @@ deviceSchema.pre(
           return next(
             new HttpError(
               `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
-                ", "
+                ", ",
               )}`,
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
         }
       }
@@ -634,8 +662,8 @@ deviceSchema.pre(
           return next(
             new HttpError(
               "Devices not part of the AirQo network must include a serial_number as a string.",
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
         }
 
@@ -647,8 +675,8 @@ deviceSchema.pre(
           return next(
             new HttpError(
               "Either name or long_name is required.",
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
         }
 
@@ -714,8 +742,8 @@ deviceSchema.pre(
             return next(
               new HttpError(
                 "Devices not part of the AirQo network must include a serial_number as a string.",
-                httpStatus.BAD_REQUEST
-              )
+                httpStatus.BAD_REQUEST,
+              ),
             );
           }
         }
@@ -747,14 +775,14 @@ deviceSchema.pre(
     } catch (error) {
       return next(error);
     }
-  }
+  },
 );
 
 deviceSchema.methods = {
   _encryptKey(key) {
     let encryptedKey = cryptoJS.AES.encrypt(
       key,
-      constants.KEY_ENCRYPTION_KEY
+      constants.KEY_ENCRYPTION_KEY,
     ).toString();
     return encryptedKey;
   },
@@ -783,6 +811,7 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
+      collocation: this.collocation,
       maintenance_date: this.maintenance_date,
       recall_date: this.recall_date,
       device_number: this.device_number,
@@ -849,8 +878,8 @@ deviceSchema.statics = {
         return next(
           new HttpError(
             "Either name or long_name is required.",
-            httpStatus.BAD_REQUEST
-          )
+            httpStatus.BAD_REQUEST,
+          ),
         );
       }
 
@@ -873,8 +902,8 @@ deviceSchema.statics = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "operation successful but device not created" }
-          )
+            { message: "operation successful but device not created" },
+          ),
         );
       }
 
@@ -895,7 +924,7 @@ deviceSchema.statics = {
       if (error instanceof HttpError) {
         // Log the HTTP error details
         logger.error(
-          `HTTP Error: ${error.message}, Status: ${error.statusCode}`
+          `HTTP Error: ${error.message}, Status: ${error.statusCode}`,
         );
         response.message = error.message; // Use the message from HttpError
         response.details = error.details || {}; // Capture additional details if available
@@ -916,7 +945,7 @@ deviceSchema.statics = {
     try {
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
-        filter.path ? filter.path : "none"
+        filter.path ? filter.path : "none",
       );
 
       if (!isEmpty(filter.path)) {
@@ -1266,8 +1295,8 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1290,7 +1319,7 @@ deviceSchema.statics = {
       const updatedDevice = await this.findOneAndUpdate(
         filter,
         sanitizedUpdate,
-        options
+        options,
       );
 
       if (updatedDevice) {
@@ -1306,7 +1335,7 @@ deviceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Device does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1318,8 +1347,8 @@ deviceSchema.statics = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -1383,8 +1412,8 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1395,7 +1424,7 @@ deviceSchema.statics = {
       let modifiedUpdate = update;
       validKeys = ["writeKey", "readKey"];
       Object.keys(modifiedUpdate).forEach(
-        (key) => validKeys.includes(key) || delete modifiedUpdate[key]
+        (key) => validKeys.includes(key) || delete modifiedUpdate[key],
       );
 
       logObject("modifiedUpdate", modifiedUpdate);
@@ -1403,20 +1432,20 @@ deviceSchema.statics = {
         let key = update.writeKey;
         modifiedUpdate.writeKey = cryptoJS.AES.encrypt(
           key,
-          constants.KEY_ENCRYPTION_KEY
+          constants.KEY_ENCRYPTION_KEY,
         ).toString();
       }
       if (update.readKey) {
         let key = update.readKey;
         modifiedUpdate.readKey = cryptoJS.AES.encrypt(
           key,
-          constants.KEY_ENCRYPTION_KEY
+          constants.KEY_ENCRYPTION_KEY,
         ).toString();
       }
       const updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedDevice)) {
@@ -1430,7 +1459,7 @@ deviceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "device does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1440,8 +1469,8 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1471,7 +1500,7 @@ deviceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "device does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1482,8 +1511,8 @@ deviceSchema.statics = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
