@@ -666,20 +666,27 @@ const validateUpdateDevice = [
     .optional()
     .isIn(["active", "inactive"])
     .withMessage("collocation status must be 'active' or 'inactive'"),
-  body("collocation.batch_id")
-    .isMongoId()
-    .withMessage("collocation batch_id must be a valid ObjectId")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    })
-    .if(body("collocation.status").equals("active"))
-    .exists()
-    .withMessage(
-      "collocation.batch_id is required when collocation.status is 'active'",
-    )
-    .bail()
-    .optional(),
+  body("collocation.batch_id").custom((value, { req }) => {
+    const status = req.body.collocation && req.body.collocation.status;
+
+    // If status is 'active', batch_id is required and must be a valid MongoID.
+    if (status === "active") {
+      if (!value) {
+        throw new Error(
+          "batch_id is required when collocation status is 'active'",
+        );
+      }
+      if (!mongoose.Types.ObjectId.isValid(value)) {
+        throw new Error(
+          "batch_id must be a valid ObjectId when status is 'active'",
+        );
+      }
+    } else if (value && !mongoose.Types.ObjectId.isValid(value)) {
+      // If status is not 'active' but batch_id is provided, it must still be a valid MongoID.
+      throw new Error("If provided, batch_id must be a valid ObjectId");
+    }
+    return true;
+  }),
   body("collocation.start_date")
     .optional()
     .isISO8601()
