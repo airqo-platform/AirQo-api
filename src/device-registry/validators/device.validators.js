@@ -667,13 +667,42 @@ const validateUpdateDevice = [
     .isIn(["active", "inactive"])
     .withMessage("collocation status must be 'active' or 'inactive'"),
   body("collocation.batch_id")
-    .optional()
     .isMongoId()
-    .withMessage("collocation batch_id must be a valid ObjectId"),
+    .withMessage("collocation batch_id must be a valid ObjectId")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    })
+    .if(body("collocation.status").equals("active"))
+    .exists()
+    .withMessage(
+      "collocation.batch_id is required when collocation.status is 'active'",
+    )
+    .bail()
+    .optional(),
   body("collocation.start_date")
     .optional()
-    .notEmpty()
-    .trim(),
+    .isISO8601()
+    .withMessage("collocation.start_date must be a valid ISO 8601 date")
+    .toDate(),
+  body("collocation.end_date")
+    .optional()
+    .isISO8601()
+    .withMessage("collocation.end_date must be a valid ISO 8601 date")
+    .toDate()
+    .custom((endDate, { req }) => {
+      if (req.body.collocation && req.body.collocation.start_date) {
+        const startDate = new Date(req.body.collocation.start_date);
+        if (endDate <= startDate) {
+          throw new Error("end_date must be after start_date");
+        }
+      }
+      return true;
+    }),
+  body("collocation.updated_at")
+    .not()
+    .exists()
+    .withMessage("collocation.updated_at is a server-managed field"),
   body("latitude")
     .optional()
     .notEmpty()
@@ -993,6 +1022,7 @@ const validateBulkUpdateDevices = [
         "product_name",
         "device_manufacturer",
         "category",
+        "collocation",
       ];
 
       const invalidFields = Object.keys(value).filter(

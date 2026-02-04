@@ -532,6 +532,19 @@ deviceSchema.pre(
         this.setOptions({ runValidators: true, context: "query" });
       }
 
+      // Automatically update collocation.updated_at on modification
+      if (isQuery && update) {
+        const isCollocationModified = Object.keys(update.$set || {}).some(
+          (key) => key.startsWith("collocation."),
+        );
+        if (isCollocationModified) {
+          update.$set["collocation.updated_at"] = new Date();
+        }
+      } else if (!isQuery && this.isModified("collocation")) {
+        // Handle direct save operations
+        this.collocation.updated_at = new Date();
+      }
+
       if (!doc) return next();
 
       // --- Mobility and Deployment Type Logic ---
