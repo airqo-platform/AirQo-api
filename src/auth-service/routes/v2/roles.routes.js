@@ -244,8 +244,8 @@ router.get(
 router.get(
   "/users/:user_id/groups/:group_id/permissions/simplified",
   roleValidations.getUserPermissionsForGroup,
-  pagination(),
   enhancedJWTAuth,
+  pagination(),
   roleController.getSimplifiedPermissionsForGroup,
 );
 
