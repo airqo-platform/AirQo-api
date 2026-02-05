@@ -183,14 +183,15 @@ def satellite_data_location_approximations():
 
     @task(provide_context=True, retries=1, retry_delay=timedelta(minutes=5))
     def load_to_bigquery(data):
-        from airqo_etl_utils.storage import get_configured_storage
 
         storage_adapter = get_configured_storage()
         if storage_adapter is None:
             raise RuntimeError(
                 "No configured storage adapter available; set STORAGE_BACKEND or check configuration"
             )
-        storage_adapter.load_dataframe(dataframe=data, table=Config)
+        storage_adapter.load_dataframe(
+            dataframe=data, table=Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE
+        )
 
     data = approximate_locations()
     load_to_bigquery(data)
