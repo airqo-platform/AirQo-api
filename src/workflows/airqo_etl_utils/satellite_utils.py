@@ -474,7 +474,7 @@ class SatelliteUtils:
             sat_table=configuration.BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE,
             start_date=start_date,
             end_date=end_date,
-            distance_meters=1000,
+            distance_meters=100,
         )
         from airqo_etl_utils.storage import get_configured_storage
 
