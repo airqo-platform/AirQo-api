@@ -1223,7 +1223,6 @@ const mailer = {
       msgs.requestToJoinGroupByEmail({
         email: params.email,
         entity_title: params.entity_title,
-        targetId: params.targetId,
         inviterEmail: params.inviterEmail,
         userExists: params.userExists,
         inviter_name: params.inviter_name,

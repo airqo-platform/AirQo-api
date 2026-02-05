@@ -1,6 +1,6 @@
 const constants = require("@config/constants");
 const { log } = require("async");
-const { logObject, escapeHtml } = require("@utils/shared");
+const { escapeHtml } = require("@utils/shared");
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
   const uppercasedString = stringWithSpaces.toUpperCase();
@@ -103,10 +103,12 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content });
   },
-  afterEmailVerification: (
-    { firstName, username, email, analyticsVersion = 3 } = {},
-    next,
-  ) => {
+  afterEmailVerification: ({
+    firstName,
+    username,
+    email,
+    analyticsVersion = 3,
+  } = {}) => {
     const name = firstName;
     let content = "";
 

@@ -803,7 +803,9 @@ module.exports = {
     group_description,
     request_id,
   }) => {
-    const registrationLink = `${constants.ANALYTICS_BASE_URL}/register?email=${email}&target_id=${request_id}`;
+    const registrationLink = `${
+      constants.ANALYTICS_BASE_URL
+    }/register?email=${encodeURIComponent(email)}&target_id=${request_id}`;
     const loginLink = `${constants.ANALYTICS_BASE_URL}/org-invite?target_id=${request_id}`;
 
     const content = `
