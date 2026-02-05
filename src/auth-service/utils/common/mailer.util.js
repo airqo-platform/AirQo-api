@@ -1220,12 +1220,14 @@ const mailer = {
     "requestToJoinGroupByEmail",
     "USER_MANAGEMENT",
     (params) =>
-      msgTemplates.acceptInvitation({
+      msgs.requestToJoinGroupByEmail({
         email: params.email,
         entity_title: params.entity_title,
-        targetId: params.targetId,
         inviterEmail: params.inviterEmail,
         userExists: params.userExists,
+        inviter_name: params.inviter_name,
+        group_description: params.group_description,
+        request_id: params.request_id,
       }),
   ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>

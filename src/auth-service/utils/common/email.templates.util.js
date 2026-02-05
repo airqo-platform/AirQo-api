@@ -1,6 +1,6 @@
 const constants = require("@config/constants");
 const { log } = require("async");
-const { logObject } = require("@utils/shared");
+const { escapeHtml } = require("@utils/shared");
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
   const uppercasedString = stringWithSpaces.toUpperCase();
@@ -103,62 +103,12 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content });
   },
-  acceptInvitation: ({
+  afterEmailVerification: ({
+    firstName,
+    username,
     email,
-    entity_title = "",
-    targetId,
-    inviterEmail,
-    userExists = false,
+    analyticsVersion = 3,
   } = {}) => {
-    const url = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register?userEmail=${email}&target_id=${targetId}&userExists=${userExists}`;
-    const content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Join your team on ${processString(
-                                      entity_title
-                                    )} 🎉
-                                    <br /><br />
-                                    ${processString(
-                                      entity_title
-                                    )}, ${inviterEmail} has invited you to collaborate in ${processString(
-      entity_title
-    )} on AirQo
-                                    <br /><br />
-                                    Use AirQo to access real-time air pollution location data for research and gain access to device management tools. Drive meaningful change, city location at a time.
-                                    <br /><br />
-                                    If you are using the AirQo web platform, click the button to join:
-                                    <br /><br />
-                                    <a href=${url} target="_blank">
-                                        <div
-                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
-                                            <div
-                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                                Join ${processString(
-                                                  entity_title
-                                                )}</div>
-                                        </div>
-                                    </a>
-                                    <br /><br />
-                                    If you are using the AirQo mobile app, you can accept the invitation directly within the app.
-                                    <br /><br />
-                                    Trouble logging in? Paste this URL into your browser:
-                                    </br>
-                                    <a href=${url} target="_blank">${url}</a>
-                                    <br /><br />
-                                    <div
-                                        style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                        You can set a permanent password anytime within your AirQo personal settings<br />Didn't make this
-                                        request? You can safely ignore and delete this email</div>
-                                    <br />
-                                    <br />
-                                </td>
-                            </tr>`;
-    return constants.EMAIL_BODY({ email, content });
-  },
-  afterEmailVerification: (
-    { firstName, username, email, analyticsVersion = 3 } = {},
-    next
-  ) => {
     const name = firstName;
     let content = "";
 

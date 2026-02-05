@@ -794,6 +794,53 @@ module.exports = {
     return constants.EMAIL_BODY({ email: recipientEmail, content });
   },
 
+  requestToJoinGroupByEmail: ({
+    email,
+    inviterEmail,
+    entity_title,
+    userExists,
+    inviter_name,
+    group_description,
+    request_id,
+  }) => {
+    const registrationLink = `${
+      constants.ANALYTICS_BASE_URL
+    }/register?email=${encodeURIComponent(email)}&target_id=${request_id}`;
+    const loginLink = `${constants.ANALYTICS_BASE_URL}/org-invite?target_id=${request_id}`;
+
+    const content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <p>Hello,</p>
+          <p>You have been invited by <strong>${escapeHtml(
+            inviter_name,
+          )}</strong> (${escapeHtml(
+            inviterEmail,
+          )}) to join the organization "<strong>${escapeHtml(
+            entity_title,
+          )}</strong>" on AirQo Analytics.</p>
+          ${
+            group_description
+              ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(
+                  group_description,
+                )}</em></div>`
+              : ""
+          }
+          ${
+            userExists
+              ? `<p>Since you already have an AirQo account, please click the button below to automatically join the organization.</p>
+                 <a href="${loginLink}" style="display: inline-block; padding: 10px 20px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 5px;">Join Organization</a>`
+              : `<p>To accept this invitation, please click the button below to create your AirQo account and join the organization.</p>
+                 <a href="${registrationLink}" style="display: inline-block; padding: 10px 20px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 5px;">Create Account & Join</a>`
+          }
+          <p>If you have any questions, please contact the person who invited you.</p>
+          <p>Best,<br/>The AirQo Team</p>
+        </td>
+      </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content });
+  },
+
   // Add to email.msgs.js
   notifyAdminsOfNewOrgRequest: ({
     organization_name,
