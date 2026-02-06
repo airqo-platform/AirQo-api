@@ -553,7 +553,7 @@ class Config:
         BIGQUERY_GX_MEASUREMENTS_BASELINE: "measurements_baseline.json",
         BIGQUERY_GX_DEVICE_COMPUTED_METADATA: "device_computed_metadata.json",
         BIGQUERY_GX_SITE_COMPUTED_METADATA: "site_computed_metadata.json",
-        BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE: "satelite_airquality_cleaned_merged.json",
+        BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE: "satellite_airquality_cleaned_merged.json",
         "all": None,
     }
     DataSource = {

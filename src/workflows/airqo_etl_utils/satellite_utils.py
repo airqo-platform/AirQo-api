@@ -13,7 +13,7 @@ import xarray as xr
 from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.data_sources import DataSourcesApis
+from airqo_etl_utils.constants import DeviceNetwork
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -512,4 +512,5 @@ class SatelliteUtils:
                 ]
             )
         data["data_type"] = "FORECAST"
+        data["network"] = DeviceNetwork.COPERNICUS.str
         return data

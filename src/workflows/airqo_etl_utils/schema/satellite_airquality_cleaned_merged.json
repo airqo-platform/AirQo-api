@@ -51,5 +51,11 @@
     "type": "STRING",
     "mode": "REQUIRED",
     "description": "Indicates the source and or type of data i.e forecasted or historical"
+  },
+  {
+    "name": "network",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Indicates the source network of the data e.g satellite or ground based"
   }
 ]
