@@ -19,6 +19,14 @@ class DownloadService:
         pass
 
     @staticmethod
+    def _parse_enum(enum_cls, value: str, param_name: str):
+        """Helper to safely parse string values to Enumerations"""
+        try:
+            return enum_cls[value.upper()]
+        except KeyError:
+            raise ValueError(f"Invalid {param_name}: {value!r}")
+
+    @staticmethod
     def fetch_data(
         json_data: Dict[str, Any], filter_type: str, filter_value: Union[str, int]
     ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
@@ -46,9 +54,10 @@ class DownloadService:
         """
         start = json_data["startDateTime"]
         end = json_data["endDateTime"]
-        data_type_str = json_data.get("datatype", "calibrated")
-        freq_str = json_data.get("frequency", "daily")
-        device_category_str = json_data.get("device_category", "lowcost")
+        extra_columns = json_data.get("metaDataFields", []) + json_data.get(
+            "weatherFields", []
+        )
+        pollutants = json_data.get("pollutants", [])
         query_type = json_data.get("dynamic", False)
         cursor_token = json_data.get("cursor", None)
 
@@ -61,25 +70,17 @@ class DownloadService:
         except Exception as e:
             raise ValueError(f"Error validating cursor token: {e}")
 
-        try:
-            data_type = DataType[data_type_str.upper()]
-        except KeyError:
-            raise ValueError(f"Invalid data type: {data_type_str!r}")
-
-        try:
-            frequency = Frequency[freq_str.upper()]
-        except KeyError:
-            raise ValueError(f"Invalid frequency: {freq_str!r}")
-
-        try:
-            device_category = DeviceCategory[device_category_str.upper()]
-        except KeyError:
-            raise ValueError(f"Invalid device category: {device_category_str!r}")
-
-        pollutants = json_data.get("pollutants", [])
-        metadata_fields = json_data.get("metaDataFields", [])
-        weather_fields = json_data.get("weatherFields", [])
-        extra_columns = metadata_fields + weather_fields
+        data_type = DownloadService._parse_enum(
+            DataType, json_data.get("datatype", "calibrated"), "data type"
+        )
+        frequency = DownloadService._parse_enum(
+            Frequency, json_data.get("frequency", "daily"), "frequency"
+        )
+        device_category = DownloadService._parse_enum(
+            DeviceCategory,
+            json_data.get("device_category", "lowcost"),
+            "device category",
+        )
         results, metadata = DataUtils.extract_data_from_bigquery(
             datatype=data_type,
             start_date_time=start,
