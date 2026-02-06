@@ -1,7 +1,6 @@
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const { validate } = require("@validators/common");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -1047,7 +1046,7 @@ const unassignCohortsFromGroup = [
 
 const listGroupCohorts = [validateTenant, validateGroupIdParam];
 
-const leaveGroup = [validateTenant, validateGroupIdParam, validate];
+const leaveGroup = [validateTenant, validateGroupIdParam];
 
 module.exports = {
   tenant: validateTenant,
