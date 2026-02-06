@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 import concurrent.futures
+import pandas as pd
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.satellite_utils import SatelliteUtils
+from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.data_sources import DataSourcesApis
 from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -49,8 +51,6 @@ def retrieve_satellite_data():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def copernicus_hourly_measurements():
-    import pandas as pd
-
     @task(
         provide_context=True,
         retries=2,
@@ -157,6 +157,47 @@ def NOMADS_daily_measurements():
     store_data(cleaned)
 
 
+@dag(
+    dag_id="Satellite-Data-Location-Approximations",
+    schedule="20 * * * *",
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    tags=["satellite", "data", "main"],
+)
+def satellite_data_location_approximations():
+    from airqo_etl_utils.storage import get_configured_storage
+
+    @task(provide_context=True, retries=1, retry_delay=timedelta(minutes=5))
+    def approximate_locations(**kwargs) -> pd.DataFrame:
+        execution_date = kwargs["dag_run"].execution_date
+        hour_of_day: datetime = execution_date - timedelta(hours=1)
+        start_date_time = DateUtils.date_to_str(
+            hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
+        )
+        end_date_time = DateUtils.date_to_str(
+            hour_of_day, str_format="%Y-%m-%dT%H:59:59Z"
+        )
+        return SatelliteUtils.approximate_satellite_data_locations_for_airquality_measurements(
+            start_date=start_date_time, end_date=end_date_time
+        )
+
+    @task(provide_context=True, retries=1, retry_delay=timedelta(minutes=5))
+    def load_to_bigquery(data):
+
+        storage_adapter = get_configured_storage()
+        if storage_adapter is None:
+            raise RuntimeError(
+                "No configured storage adapter available; set STORAGE_BACKEND or check configuration"
+            )
+        storage_adapter.load_dataframe(
+            dataframe=data, table=Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE
+        )
+
+    data = approximate_locations()
+    load_to_bigquery(data)
+
+
+satellite_data_location_approximations()
 copernicus_hourly_measurements()
 NOMADS_daily_measurements()
 retrieve_satellite_data()

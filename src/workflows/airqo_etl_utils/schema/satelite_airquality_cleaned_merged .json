@@ -1,0 +1,55 @@
+[
+  {
+    "name": "country",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "city",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3.\npm 2.5"
+  },
+  {
+    "name": "pm10",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3.\npm 10"
+  },
+  {
+    "name": "wind_speed",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "wind_direction",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "data_type",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Indicates the source and or type of data i.e forecasted or historical"
+  }
+]
