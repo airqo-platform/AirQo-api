@@ -42,7 +42,7 @@ router.post(
   enhancedJWTAuth,
   requirePermissions(["SYSTEM_ADMIN"]),
   groupValidations.populateSlugs,
-  groupController.populateSlugs
+  groupController.populateSlugs,
 );
 
 // Update/add slug for a specific group (manual)
@@ -51,7 +51,7 @@ router.put(
   enhancedJWTAuth,
   requirePermissions(["SYSTEM_ADMIN"]),
   groupValidations.updateSlug,
-  groupController.updateSlug
+  groupController.updateSlug,
 );
 
 // Public/minimal access endpoints
@@ -61,7 +61,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requirePermissions([constants.GROUP_VIEW]),
-  groupController.list
+  groupController.list,
 );
 
 router.get(
@@ -70,7 +70,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requirePermissions([constants.GROUP_VIEW]),
-  groupController.listSummary
+  groupController.listSummary,
 );
 
 // Group creation - requires system-level permissions
@@ -79,7 +79,7 @@ router.post(
   groupValidations.create,
   enhancedJWTAuth,
   requirePermissions([constants.GROUP_CREATE, constants.SYSTEM_ADMIN]),
-  groupController.create
+  groupController.create,
 );
 
 // Group-specific endpoints requiring membership or admin access
@@ -89,7 +89,7 @@ router.get(
   enhancedJWTAuth,
   pagination(), // Applying pagination as list is called
   requireGroupAccess([constants.GROUP_VIEW]),
-  groupController.list
+  groupController.list,
 );
 
 router.get(
@@ -98,7 +98,7 @@ router.get(
   enhancedJWTAuth,
   pagination(), // Applying pagination as list is called
   requireGroupAccess([constants.GROUP_VIEW]),
-  groupController.list
+  groupController.list,
 );
 
 // Group update - requires admin access to the specific group
@@ -107,7 +107,7 @@ router.put(
   groupValidations.update,
   enhancedJWTAuth,
   requireGroupAdmin(),
-  groupController.update
+  groupController.update,
 );
 
 // Group deletion - requires super admin
@@ -116,7 +116,7 @@ router.delete(
   groupValidations.deleteGroup,
   enhancedJWTAuth,
   requireGroupAdmin({ requireSuperAdmin: true }),
-  groupController.delete
+  groupController.delete,
 );
 
 // Dashboard access - group members with dashboard permissions
@@ -124,7 +124,7 @@ router.get(
   "/:groupSlug/dashboard",
   enhancedJWTAuth,
   requireGroupAccess([constants.DASHBOARD_VIEW, constants.GROUP_VIEW]),
-  groupController.getDashboard
+  groupController.getDashboard,
 );
 
 // Members management - requires member view permissions
@@ -133,7 +133,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupAccess([constants.MEMBER_VIEW, constants.GROUP_VIEW]),
-  groupController.getMembers
+  groupController.getMembers,
 );
 
 // Settings access - group members can view, admins can modify
@@ -141,7 +141,7 @@ router.get(
   "/:groupSlug/settings",
   enhancedJWTAuth,
   requireGroupAccess([constants.SETTINGS_VIEW, constants.GROUP_VIEW]),
-  groupController.getSettings
+  groupController.getSettings,
 );
 
 // Update group settings - requires admin access
@@ -149,7 +149,7 @@ router.put(
   "/:groupSlug/settings",
   enhancedJWTAuth,
   requireGroupSettings("groupSlug"),
-  groupController.updateSettings
+  groupController.updateSettings,
 );
 
 // User assignment - requires user management permissions
@@ -158,7 +158,7 @@ router.put(
   groupValidations.assignOneUser,
   enhancedJWTAuth,
   requireGroupUserManagement(),
-  groupController.assignOneUser
+  groupController.assignOneUser,
 );
 
 router.post(
@@ -166,7 +166,7 @@ router.post(
   groupValidations.assignUsers,
   enhancedJWTAuth,
   requireGroupUserManagement(),
-  groupController.assignUsers
+  groupController.assignUsers,
 );
 
 router.delete(
@@ -174,7 +174,7 @@ router.delete(
   groupValidations.unAssignUser,
   enhancedJWTAuth,
   requireGroupUserManagement(),
-  groupController.unAssignUser
+  groupController.unAssignUser,
 );
 
 router.delete(
@@ -182,7 +182,16 @@ router.delete(
   groupValidations.unAssignManyUsers,
   enhancedJWTAuth,
   requireGroupUserManagement(),
-  groupController.unAssignManyUsers
+  groupController.unAssignManyUsers,
+);
+
+// User leaves a group (self-service)
+router.delete(
+  "/:grp_id/leave",
+  groupValidations.leaveGroup,
+  enhancedJWTAuth,
+  requireGroupMembership("grp_id"), // Ensures the user is a member before leaving
+  groupController.leaveGroup,
 );
 
 // Manager assignment - requires admin access
@@ -191,7 +200,7 @@ router.put(
   groupValidations.setManager,
   enhancedJWTAuth,
   requireGroupAdmin(),
-  groupController.setManager
+  groupController.enhancedSetManager,
 );
 
 // Enhanced manager assignment with automatic role handling
@@ -200,7 +209,7 @@ router.put(
   groupValidations.enhancedSetManager,
   enhancedJWTAuth,
   requireGroupAdmin(),
-  groupController.enhancedSetManager
+  groupController.enhancedSetManager,
 );
 
 // User listing endpoints - different permission levels
@@ -210,7 +219,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupPermissions([constants.MEMBER_VIEW], "grp_id"),
-  groupController.listAssignedUsers
+  groupController.listAssignedUsers,
 );
 
 router.get(
@@ -220,9 +229,9 @@ router.get(
   pagination(),
   requireGroupPermissions(
     [constants.MEMBER_VIEW, constants.USER_VIEW],
-    "grp_id"
+    "grp_id",
   ),
-  groupController.listAllGroupUsers
+  groupController.listAllGroupUsers,
 );
 
 router.get(
@@ -231,7 +240,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupUserManagement(),
-  groupController.listAvailableUsers
+  groupController.listAvailableUsers,
 );
 
 // Role management for groups
@@ -241,7 +250,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupPermissions([constants.ROLE_VIEW], "grp_id"),
-  groupController.listRolesForGroup
+  groupController.listRolesForGroup,
 );
 
 // Manager-specific features - requires manager access
@@ -250,7 +259,7 @@ router.get(
   enhancedJWTAuth,
   requireGroupManagerAccess(),
   pagination(),
-  groupController.getManagerDashboard
+  groupController.getManagerDashboard,
 );
 
 router.get(
@@ -259,7 +268,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupManagerAccess(),
-  groupController.getGroupAnalytics
+  groupController.getGroupAnalytics,
 );
 
 // Bulk operations - requires admin access
@@ -268,7 +277,7 @@ router.post(
   groupValidations.bulkMemberManagement,
   enhancedJWTAuth,
   requireGroupAdminAccess(),
-  groupController.bulkMemberManagement
+  groupController.bulkMemberManagement,
 );
 
 // Access request management - manager level access
@@ -278,7 +287,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupManagerAccess(),
-  groupController.manageAccessRequests
+  groupController.manageAccessRequests,
 );
 
 router.post(
@@ -286,7 +295,7 @@ router.post(
   groupValidations.manageAccessRequests,
   enhancedJWTAuth,
   requireGroupManagerAccess(),
-  groupController.manageAccessRequests
+  groupController.manageAccessRequests,
 );
 
 // Role assignment to specific members - admin access
@@ -295,7 +304,7 @@ router.put(
   groupValidations.assignMemberRole,
   enhancedJWTAuth,
   requireGroupAdminAccess(),
-  groupController.assignMemberRole
+  groupController.assignMemberRole,
 );
 
 // Invitation management - manager access
@@ -304,7 +313,7 @@ router.post(
   groupValidations.sendGroupInvitations,
   enhancedJWTAuth,
   requireGroupManagerAccess(),
-  groupController.sendGroupInvitations
+  groupController.sendGroupInvitations,
 );
 
 router.get(
@@ -312,7 +321,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupManagerAccess(),
-  groupController.listGroupInvitations
+  groupController.listGroupInvitations,
 );
 
 // Status management - admin access
@@ -321,7 +330,7 @@ router.patch(
   groupValidations.updateGroupStatus,
   enhancedJWTAuth,
   requireGroupAdminAccess(),
-  groupController.updateGroupStatus
+  groupController.updateGroupStatus,
 );
 
 // Activity and audit logs - manager access
@@ -331,7 +340,7 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   requireGroupManagerAccess(),
-  groupController.getGroupActivityLog
+  groupController.getGroupActivityLog,
 );
 
 // Advanced search - member access with view permissions
@@ -342,9 +351,9 @@ router.get(
   pagination(),
   requireGroupPermissions(
     [constants.MEMBER_VIEW, constants.MEMBER_SEARCH],
-    "grp_id"
+    "grp_id",
   ),
-  groupController.searchGroupMembers
+  groupController.searchGroupMembers,
 );
 
 // Data export - manager access
@@ -353,7 +362,7 @@ router.get(
   groupValidations.exportGroupData,
   enhancedJWTAuth,
   requireGroupManagerAccess(),
-  groupController.exportGroupData
+  groupController.exportGroupData,
 );
 
 // Health diagnostics - admin access
@@ -361,7 +370,7 @@ router.get(
   "/:grp_id/health",
   enhancedJWTAuth,
   requireGroupAdminAccess(),
-  groupController.getGroupHealth
+  groupController.getGroupHealth,
 );
 
 // Cohort assignment routes
@@ -370,7 +379,7 @@ router.post(
   enhancedJWTAuth,
   requireGroupAdminAccess(),
   groupValidations.assignCohortsToGroup,
-  groupController.assignCohortsToGroup
+  groupController.assignCohortsToGroup,
 );
 
 router.delete(
@@ -378,7 +387,7 @@ router.delete(
   enhancedJWTAuth,
   requireGroupAdminAccess(),
   groupValidations.unassignCohortsFromGroup,
-  groupController.unassignCohortsFromGroup
+  groupController.unassignCohortsFromGroup,
 );
 
 router.get(
@@ -387,7 +396,7 @@ router.get(
   pagination(),
   requireGroupMembership("grp_id"),
   groupValidations.listGroupCohorts,
-  groupController.listGroupCohorts
+  groupController.listGroupCohorts,
 );
 
 // System-level operations - requires super admin
@@ -396,7 +405,7 @@ router.post(
   groupValidations.removeUniqueConstraint,
   enhancedJWTAuth,
   requirePermissions([constants.SYSTEM_ADMIN, constants.DATABASE_ADMIN]),
-  groupController.removeUniqueConstraint
+  groupController.removeUniqueConstraint,
 );
 
 module.exports = router;
