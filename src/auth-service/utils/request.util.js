@@ -547,7 +547,10 @@ const createAccessRequest = {
         _id: target_id,
       });
 
-      logObject("acceptInvitation - accessRequest", accessRequest);
+      logObject("acceptInvitation - accessRequest", {
+        _id: accessRequest?._id,
+        status: accessRequest?.status,
+      });
 
       if (isEmpty(accessRequest)) {
         return {
@@ -562,19 +565,6 @@ const createAccessRequest = {
         };
       }
 
-      if (accessRequest.status !== "pending") {
-        return {
-          success: false,
-          message: `This invitation cannot be accepted as it is already in the '${accessRequest.status}' state.`,
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: `This invitation has already been ${accessRequest.status}.`,
-            current_status: accessRequest.status,
-            request_id: accessRequest._id,
-          },
-        };
-      }
-
       // Security check: ensure the logged-in user's email matches the invitation email
       if (accessRequest.email.toLowerCase() !== email.toLowerCase()) {
         return {
@@ -584,6 +574,19 @@ const createAccessRequest = {
           errors: {
             message:
               "This invitation is for a different email address. Please log in with the correct account.",
+          },
+        };
+      }
+
+      if (accessRequest.status !== "pending") {
+        return {
+          success: false,
+          message: `This invitation cannot be accepted as it is already in the '${accessRequest.status}' state.`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `This invitation has already been ${accessRequest.status}.`,
+            current_status: accessRequest.status,
+            request_id: accessRequest._id,
           },
         };
       }
@@ -724,8 +727,10 @@ const createAccessRequest = {
         };
 
         try {
-          assignmentResult =
-            await createGroupUtil.assignOneUser(assignUserRequest);
+          assignmentResult = await createGroupUtil.assignOneUser(
+            assignUserRequest,
+            next,
+          );
 
           if (!assignmentResult || !assignmentResult.success) {
             // Rollback user creation if this was a new user

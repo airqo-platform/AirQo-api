@@ -1429,6 +1429,11 @@ UserSchema.statics.assignUserToGroup = async function (
   userType = "user",
 ) {
   try {
+    // Atomically remove any existing role for this group to ensure idempotency
+    await this.findByIdAndUpdate(userId, {
+      $pull: { group_roles: { group: groupId } },
+    });
+
     // Add the new role assignment
     const updatedUser = await this.findByIdAndUpdate(
       userId,
