@@ -28,7 +28,7 @@ function validateProfilePicture(grp_profile_picture) {
   if (grp_profile_picture.length > 200) {
     logText("longer than 200 chars");
     logger.error(
-      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`,
     );
     return false;
   }
@@ -112,7 +112,7 @@ const GroupSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 GroupSchema.plugin(uniqueValidator, {
@@ -127,7 +127,7 @@ GroupSchema.pre(
     // Pre-save hook to normalize grp_sites and remove duplicates
     if (this.grp_sites && Array.isArray(this.grp_sites)) {
       this.grp_sites = [...new Set(this.grp_sites.map(String))].map((id) =>
-        mongoose.Types.ObjectId(id)
+        mongoose.Types.ObjectId(id),
       );
     }
 
@@ -151,7 +151,7 @@ GroupSchema.pre(
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Duplicate grp_sites are not allowed.",
-            })
+            }),
           );
         }
       }
@@ -170,7 +170,7 @@ GroupSchema.pre(
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid profile picture URL",
-            })
+            }),
           );
         }
       } else if (actualUpdates.grp_profile_picture) {
@@ -179,7 +179,7 @@ GroupSchema.pre(
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid profile picture URL",
-            })
+            }),
           );
         }
       }
@@ -188,7 +188,7 @@ GroupSchema.pre(
     } catch (error) {
       return next(error);
     }
-  }
+  },
 );
 
 // Pre-remove hook
@@ -216,7 +216,7 @@ GroupSchema.pre(
       return next(
         new HttpError("Forbidden", httpStatus.FORBIDDEN, {
           message: "Cannot delete default/system groups",
-        })
+        }),
       );
     }
 
@@ -229,12 +229,12 @@ GroupSchema.pre(
       return next(
         new HttpError("Forbidden", httpStatus.FORBIDDEN, {
           message: "Cannot delete configured default groups",
-        })
+        }),
       );
     }
 
     next();
-  }
+  },
 );
 
 GroupSchema.methods = {
@@ -281,7 +281,7 @@ GroupSchema.statics = {
       // Preserve grp_title transformation logic
       if (modifiedArgs.grp_title) {
         modifiedArgs.grp_title = convertToLowerCaseWithUnderscore(
-          modifiedArgs.grp_title
+          modifiedArgs.grp_title,
         );
       }
 
@@ -296,7 +296,7 @@ GroupSchema.statics = {
       } else {
         return createEmptySuccessResponse(
           "group",
-          "group NOT successfully created but operation successful"
+          "group NOT successfully created but operation successful",
         );
       }
     } catch (err) {
@@ -311,7 +311,7 @@ GroupSchema.statics = {
       logObject("filter", filter);
       const inclusionProjection = constants.GROUPS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.GROUPS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.category ? filter.category : "none",
       );
 
       if (!isEmpty(filter.category)) {
@@ -327,6 +327,9 @@ GroupSchema.statics = {
           localField: "_id",
           foreignField: "group_roles.group",
           as: "grp_users",
+        })
+        .addFields({
+          numberOfGroupUsers: { $size: "$grp_users" },
         })
         .lookup({
           from: "users",
@@ -378,7 +381,7 @@ GroupSchema.statics = {
       const updatedGroup = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedGroup)) {
@@ -387,7 +390,7 @@ GroupSchema.statics = {
         return createNotFoundResponse(
           "group",
           "update",
-          "group does not exist, please crosscheck -- Not Found"
+          "group does not exist, please crosscheck -- Not Found",
         );
       }
     } catch (err) {
@@ -417,7 +420,7 @@ GroupSchema.statics = {
         return createNotFoundResponse(
           "group",
           "delete",
-          "Bad Request, Group Not Found -- please crosscheck"
+          "Bad Request, Group Not Found -- please crosscheck",
         );
       }
     } catch (err) {

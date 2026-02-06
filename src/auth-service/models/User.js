@@ -12,7 +12,7 @@ const PermissionModel = require("@models/Permission");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- user-model`
+  `${constants.ENVIRONMENT} -- user-model`,
 );
 const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
@@ -46,7 +46,7 @@ function validateProfilePicture(profilePicture) {
   if (profilePicture.length > maxLengthOfProfilePictures) {
     logText(`longer than ${maxLengthOfProfilePictures} chars`);
     logger.error(
-      `🙅🙅 Bad Request Error -- profile picture URL exceeds ${maxLengthOfProfilePictures} characters`
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds ${maxLengthOfProfilePictures} characters`,
     );
     return false;
   }
@@ -409,7 +409,7 @@ const UserSchema = new Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 UserSchema.pre("save", async function (next) {
@@ -441,14 +441,14 @@ UserSchema.pre("save", async function (next) {
         if (this.profilePicture.length > maxLengthOfProfilePictures) {
           this.profilePicture = this.profilePicture.substring(
             0,
-            maxLengthOfProfilePictures
+            maxLengthOfProfilePictures,
           );
         }
         if (!validateProfilePicture(this.profilePicture)) {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid profile picture URL",
-            })
+            }),
           );
         }
       }
@@ -463,7 +463,7 @@ UserSchema.pre("save", async function (next) {
         return next(
           new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
             message: "Tenant Settings not found, please contact support",
-          })
+          }),
         );
       }
 
@@ -514,7 +514,7 @@ UserSchema.pre("save", async function (next) {
       if (defaultPermissions.length > 0) {
         const permissionIds = defaultPermissions.map((p) => p._id);
         const existingPermissionIds = new Set(
-          (this.permissions || []).map((p) => p.toString())
+          (this.permissions || []).map((p) => p.toString()),
         );
 
         permissionIds.forEach((id) => {
@@ -647,11 +647,11 @@ UserSchema.statics = {
             const lastName = args.lastName;
             const emailResponse = await mailer.existingUserRegistrationRequest(
               { email, firstName, lastName },
-              next
+              next,
             );
             if (emailResponse && emailResponse.success === false) {
               logger.error(
-                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`,
               );
             }
           } catch (error) {
@@ -780,8 +780,8 @@ UserSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -790,7 +790,7 @@ UserSchema.statics = {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.category ? filter.category : "none",
       );
 
       if (!isEmpty(filter.category)) {
@@ -1029,8 +1029,8 @@ UserSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1054,7 +1054,7 @@ UserSchema.statics = {
       const updatedUser = await this.findOneAndUpdate(
         filter,
         updateDoc,
-        options
+        options,
       );
 
       if (!isEmpty(updatedUser)) {
@@ -1131,7 +1131,7 @@ UserSchema.statics = {
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        { message: error.message },
       );
     }
   },
@@ -1140,7 +1140,7 @@ UserSchema.statics = {
 // Enhanced user details with role clarity
 UserSchema.statics.getEnhancedUserDetails = async function (
   { filter = {}, includeDeprecated = false } = {},
-  next
+  next,
 ) {
   try {
     const users = await this.aggregate()
@@ -1329,7 +1329,7 @@ UserSchema.statics.getEnhancedUserDetails = async function (
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -1398,7 +1398,7 @@ UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
                   ((usersWithDeprecatedFields[0]
                     ?.total_users_with_deprecated_fields || 0) /
                     totalUsers) *
-                    100
+                    100,
                 )
               : 0,
           safe_to_migrate:
@@ -1416,7 +1416,7 @@ UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -1426,14 +1426,9 @@ UserSchema.statics.assignUserToGroup = async function (
   userId,
   groupId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   try {
-    // Atomically remove any existing role for this group to ensure idempotency
-    await this.findByIdAndUpdate(userId, {
-      $pull: { group_roles: { group: groupId } },
-    });
-
     // Add the new role assignment
     const updatedUser = await this.findByIdAndUpdate(
       userId,
@@ -1447,7 +1442,7 @@ UserSchema.statics.assignUserToGroup = async function (
           },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedUser) {
@@ -1473,7 +1468,7 @@ UserSchema.statics.assignUserToNetwork = async function (
   userId,
   networkId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   try {
     // Atomically remove any existing role for this network to ensure idempotency
@@ -1494,7 +1489,7 @@ UserSchema.statics.assignUserToNetwork = async function (
           },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedUser) {
@@ -1522,7 +1517,7 @@ UserSchema.methods = {
   },
   newToken() {
     const token = accessCodeGenerator.generate(
-      constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      constants.RANDOM_PASSWORD_CONFIGURATION(10),
     );
     const hashedToken = bcrypt.hashSync(token, saltRounds);
     return {
@@ -1579,7 +1574,7 @@ UserSchema.methods = {
 UserSchema.methods.createToken = async function (
   // Use the new default strategy. Can be overridden by passing a different strategy.
   strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
-  options = {}
+  options = {},
 ) {
   try {
     // Lazy require to prevent circular dependency issues at startup
@@ -1595,7 +1590,7 @@ UserSchema.methods.createToken = async function (
 UserSchema.methods.addGroupRole = function (
   groupId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   // Use the model to perform an atomic update on the current document instance
   return this.constructor
@@ -1617,7 +1612,7 @@ UserSchema.methods.addGroupRole = function (
             },
           },
         },
-        { new: true }
+        { new: true },
       );
     });
 };
@@ -1625,7 +1620,7 @@ UserSchema.methods.addGroupRole = function (
 UserSchema.methods.addNetworkRole = function (
   networkId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   // Use the model to perform an atomic update on the current document instance
   return this.constructor
@@ -1645,7 +1640,7 @@ UserSchema.methods.addNetworkRole = function (
             },
           },
         },
-        { new: true }
+        { new: true },
       );
     });
 };
