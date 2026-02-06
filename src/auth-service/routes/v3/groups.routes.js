@@ -51,6 +51,7 @@ router.post(
 router.put(
   "/:grp_id/slug",
   enhancedJWTAuth,
+  requirePermissions(["SYSTEM_ADMIN"]),
   groupValidations.updateSlug,
   validate,
   groupController.updateSlug,
@@ -191,6 +192,16 @@ router.delete(
   enhancedJWTAuth,
   requireGroupUserManagement(),
   groupController.unAssignManyUsers,
+);
+
+// User leaves a group (self-service)
+router.delete(
+  "/:grp_id/leave",
+  groupValidations.leaveGroup,
+  validate,
+  enhancedJWTAuth,
+  requireGroupMembership("grp_id"), // Ensures the user is a member before leaving
+  groupController.leaveGroup,
 );
 
 // Manager assignment - requires admin access
@@ -382,6 +393,7 @@ router.get(
 router.post(
   "/:grp_id/cohorts/assign",
   enhancedJWTAuth,
+  requireGroupAdminAccess(),
   groupValidations.assignCohortsToGroup,
   validate,
   groupController.assignCohortsToGroup,
@@ -390,6 +402,7 @@ router.post(
 router.delete(
   "/:grp_id/cohorts/unassign",
   enhancedJWTAuth,
+  requireGroupAdminAccess(),
   groupValidations.unassignCohortsFromGroup,
   validate,
   groupController.unassignCohortsFromGroup,
@@ -398,6 +411,7 @@ router.delete(
 router.get(
   "/:grp_id/cohorts",
   enhancedJWTAuth,
+  requireGroupMembership("grp_id"),
   groupValidations.listGroupCohorts,
   validate,
   groupController.listGroupCohorts,
