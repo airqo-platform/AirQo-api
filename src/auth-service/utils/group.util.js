@@ -1486,7 +1486,15 @@ const groupUtil = {
 
         if (otherMembersCount === 0) {
           // Manager is the last member, delete the group instead of orphaning it
-          await GroupModel(tenant).findByIdAndDelete(grp_id);
+          try {
+            await RoleModel(tenant).deleteMany({ group_id: grp_id });
+            await GroupModel(tenant).findByIdAndDelete(grp_id);
+          } catch (error) {
+            logger.error(
+              `Error during group/role cleanup for grp_id ${grp_id}: ${error.message}`,
+            );
+            // Decide if you want to re-throw or just log
+          }
         } else {
           // There are other members, prevent the manager from leaving
           next(
@@ -1566,18 +1574,42 @@ const groupUtil = {
         return;
       }
 
-      // Prevent manager from being unassigned in bulk
+      // Check if the manager is part of the unassignment list
       if (
         group.grp_manager &&
         user_ids.includes(group.grp_manager.toString())
       ) {
-        next(
-          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: `The group manager (${group.grp_manager.toString()}) cannot be removed as part of a bulk operation. Please transfer ownership first or remove the manager individually. If the manager is the last member and leaves individually, the group will be deleted.`,
-          }),
-        );
-        return;
+        // Count how many members would be left in the group after this operation
+        const remainingMembersCount = await UserModel(tenant).countDocuments({
+          "group_roles.group": grp_id,
+          _id: { $nin: user_ids }, // Exclude users being removed
+        });
+
+        if (remainingMembersCount > 0) {
+          // If members would be left, block the manager's removal
+          next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: `The group manager (${group.grp_manager.toString()}) cannot be removed as part of a bulk operation while other members remain. Please transfer ownership first.`,
+            }),
+          );
+          return;
+        } else {
+          // If this operation removes everyone, including the manager, proceed to delete the group and its roles
+          try {
+            await RoleModel(tenant).deleteMany({ group_id: grp_id });
+            await GroupModel(tenant).findByIdAndDelete(grp_id);
+            logger.info(
+              `Group ${grp_id} and its roles were deleted as the last members, including the manager, were unassigned.`,
+            );
+          } catch (error) {
+            logger.error(
+              `Error during group/role cleanup for grp_id ${grp_id} in bulk operation: ${error.message}`,
+            );
+            // Continue with user un-assignment but log the cleanup failure
+          }
+        }
       }
+
       // Check if all the provided users actually exist
       const existingUsers = await UserModel(tenant).find(
         { _id: { $in: user_ids } },
