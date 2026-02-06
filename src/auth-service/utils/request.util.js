@@ -544,9 +544,12 @@ const createAccessRequest = {
       });
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
-        targetId: target_id,
-        email: email.toLowerCase(),
-        status: "pending",
+        _id: target_id,
+      });
+
+      logObject("acceptInvitation - accessRequest", {
+        _id: accessRequest?._id,
+        status: accessRequest?.status,
       });
 
       if (isEmpty(accessRequest)) {
@@ -558,6 +561,32 @@ const createAccessRequest = {
           errors: {
             message:
               "Access Request not found, please crosscheck provided details",
+          },
+        };
+      }
+
+      // Security check: ensure the logged-in user's email matches the invitation email
+      if (accessRequest.email.toLowerCase() !== email.toLowerCase()) {
+        return {
+          success: false,
+          message: "Authorization Error",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message:
+              "This invitation is for a different email address. Please log in with the correct account.",
+          },
+        };
+      }
+
+      if (accessRequest.status !== "pending") {
+        return {
+          success: false,
+          message: `This invitation cannot be accepted as it is already in the '${accessRequest.status}' state.`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `This invitation has already been ${accessRequest.status}.`,
+            current_status: accessRequest.status,
+            request_id: accessRequest._id,
           },
         };
       }
@@ -658,7 +687,7 @@ const createAccessRequest = {
 
       // Update access request status
       const update = { status: "approved", user_id: user._id };
-      const filter = { email: email.toLowerCase(), targetId: target_id };
+      const filter = { _id: target_id };
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(
         tenant,
@@ -673,7 +702,9 @@ const createAccessRequest = {
       let assignmentResult;
 
       if (requestType === "group") {
-        const group = await GroupModel(tenant).findById(target_id).lean();
+        const group = await GroupModel(tenant)
+          .findById(accessRequest.targetId)
+          .lean();
         if (!group) {
           return {
             success: false,
@@ -689,7 +720,7 @@ const createAccessRequest = {
 
         const assignUserRequest = {
           params: {
-            grp_id: target_id,
+            grp_id: accessRequest.targetId,
             user_id: user._id,
           },
           query: { tenant: tenant },
@@ -763,7 +794,9 @@ const createAccessRequest = {
           };
         }
       } else if (requestType === "network") {
-        const network = await NetworkModel(tenant).findById(target_id).lean();
+        const network = await NetworkModel(tenant)
+          .findById(accessRequest.targetId)
+          .lean();
         if (!network) {
           return {
             success: false,
@@ -779,7 +812,7 @@ const createAccessRequest = {
 
         const assignUserRequest = {
           params: {
-            net_id: target_id,
+            net_id: accessRequest.targetId,
             user_id: user._id,
           },
           query: { tenant: tenant },
@@ -870,7 +903,7 @@ const createAccessRequest = {
                 lastName: user.lastName,
               },
               organization: {
-                id: target_id,
+                id: accessRequest.targetId,
                 name: entity_title,
                 type: requestType,
               },
@@ -896,7 +929,7 @@ const createAccessRequest = {
                 lastName: user.lastName,
               },
               organization: {
-                id: target_id,
+                id: accessRequest.targetId,
                 name: entity_title,
                 type: requestType,
               },

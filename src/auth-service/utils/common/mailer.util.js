@@ -267,7 +267,6 @@ const createMailerFunction = (
 
       const shouldProcessBcc = [
         "candidate",
-        "request",
         "requestToJoinGroupByEmail",
         "siteActivity",
         "fieldActivity",
