@@ -1470,10 +1470,14 @@ const groupUtil = {
             message: `Group ${grp_id.toString()} or User ${user_id.toString()} not found`,
           }),
         );
+        return;
       }
 
       // Check if the user is the manager of the group
-      if (group.grp_manager && group.grp_manager.toString() === user_id) {
+      if (
+        group.grp_manager &&
+        group.grp_manager.toString() === user_id.toString()
+      ) {
         // Count other members in the group
         const otherMembersCount = await UserModel(tenant).countDocuments({
           _id: { $ne: user_id },
@@ -1481,10 +1485,8 @@ const groupUtil = {
         });
 
         if (otherMembersCount === 0) {
-          // Manager is the last member, allow leaving and orphan the group
-          await GroupModel(tenant).findByIdAndUpdate(grp_id, {
-            $set: { grp_manager: null },
-          });
+          // Manager is the last member, delete the group instead of orphaning it
+          await GroupModel(tenant).findByIdAndDelete(grp_id);
         } else {
           // There are other members, prevent the manager from leaving
           next(
@@ -1507,6 +1509,7 @@ const groupUtil = {
             message: `Group ${grp_id.toString()} is not assigned to the user`,
           }),
         );
+        return;
       }
 
       user.group_roles.splice(groupAssignmentIndex, 1);
@@ -1530,6 +1533,7 @@ const groupUtil = {
             message: "Unable to unassign the User",
           }),
         );
+        return;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1540,6 +1544,7 @@ const groupUtil = {
           { message: error.message },
         ),
       );
+      return;
     }
   },
   unAssignManyUsers: async (request, next) => {
@@ -1558,6 +1563,7 @@ const groupUtil = {
             message: `Group ${grp_id} not found`,
           }),
         );
+        return;
       }
 
       // Prevent manager from being unassigned in bulk
@@ -1567,7 +1573,7 @@ const groupUtil = {
       ) {
         next(
           new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: `The group manager (${group.grp_manager.toString()}) cannot be removed as part of a bulk operation. Please transfer ownership first.`,
+            message: `The group manager (${group.grp_manager.toString()}) cannot be removed as part of a bulk operation. Please transfer ownership first or remove the manager individually. If the manager is the last member and leaves individually, the group will be deleted.`,
           }),
         );
         return;
@@ -1595,6 +1601,7 @@ const groupUtil = {
             errorMessages,
           ),
         );
+        return;
       }
 
       // Check if all the provided user_ids are assigned to the group
@@ -1621,6 +1628,7 @@ const groupUtil = {
             errorMessages,
           ),
         );
+        return;
       }
 
       // Remove the group assignment from each user's groups array
@@ -1645,6 +1653,7 @@ const groupUtil = {
               message: "No matching User found in the system",
             }),
           );
+          return;
         }
 
         if (notFoundCount > 0) {
@@ -1663,6 +1672,7 @@ const groupUtil = {
             { message: error.message },
           ),
         );
+        return;
       }
 
       const unassignedUserIds = user_ids.map((user_id) => user_id);
@@ -1682,6 +1692,7 @@ const groupUtil = {
           { message: error.message },
         ),
       );
+      return;
     }
   },
   listAvailableUsers: async (request, next) => {
