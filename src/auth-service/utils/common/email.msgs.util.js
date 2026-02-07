@@ -856,7 +856,7 @@ module.exports = {
           <li><strong>Contact Email:</strong> ${escapeHtml(contact_email)}</li>
         </ul>
         <p>Please review and process this request in the admin dashboard.</p>
-        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/organisations/requests</p>
+        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/org-requests</p>
       </td>
     </tr>
   `;

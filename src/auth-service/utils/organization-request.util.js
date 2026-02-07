@@ -198,7 +198,8 @@ const organizationRequest = {
             mailer.notifyAdminsOfNewOrgRequest({
               organization_name: body.organization_name,
               contact_name: body.contact_name,
-              contact_email: body.contact_email, // Pass contact_email correctly
+              contact_email: body.contact_email,
+              email: constants.SUPPORT_EMAIL,
               tenant,
             }),
 
@@ -687,7 +688,7 @@ const organizationRequest = {
               await mailer.notifyOrgRequestApproved({
                 organization_name: orgRequest.organization_name,
                 contact_name: orgRequest.contact_name,
-                email: orgRequest.contact_email,
+                contact_email: orgRequest.contact_email,
                 login_url: `${constants.ANALYTICS_BASE_URL}/org/${organizationSlug}/login`,
                 isExistingUser,
               });

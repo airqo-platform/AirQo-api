@@ -161,6 +161,9 @@ module.exports = {
     entity_title,
     login_url,
   }) => {
+    const safeLoginUrl =
+      login_url || `${constants.ANALYTICS_BASE_URL}/user/login`;
+
     const name = firstName;
     const content = ` <tr>
                                 <td
@@ -178,7 +181,7 @@ module.exports = {
                                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
-                                    <li>ACCESS LINK: <a href="${login_url}">${login_url}</a></li>
+                                    <li>ACCESS LINK: <a href="${safeLoginUrl}">${safeLoginUrl}</a></li>
                                 </ul>
                                     <br />
                                 If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
