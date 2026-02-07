@@ -12,7 +12,7 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import DataType, DeviceCategory, Frequency
 from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.commons import delete_old_files
-from .dag_docs import satellite_data_location_approximations_doc
+from dag_docs import satellite_data_location_approximations_doc
 
 
 @dag(
