@@ -699,6 +699,7 @@ const createAccessRequest = {
 
       const requestType = accessRequest.requestType;
       let entity_title;
+      let organization_slug;
       let assignmentResult;
 
       if (requestType === "group") {
@@ -717,6 +718,7 @@ const createAccessRequest = {
         }
 
         entity_title = group.grp_title;
+        organization_slug = group.organization_slug;
 
         const assignUserRequest = {
           params: {
@@ -878,12 +880,20 @@ const createAccessRequest = {
       }
 
       if (assignmentResult && assignmentResult.success === true) {
+        let login_url;
+        if (requestType === "group" && organization_slug) {
+          login_url = `${constants.ANALYTICS_BASE_URL}/org/${organization_slug}/login`;
+        } else {
+          login_url = `${constants.ANALYTICS_BASE_URL}/user/login`;
+        }
+
         const responseFromSendEmail = await mailer.afterAcceptingInvitation(
           {
             firstName: user.firstName,
             username: user.email,
             email: user.email,
             entity_title,
+            login_url: login_url,
             isNewUser,
           },
           next,
