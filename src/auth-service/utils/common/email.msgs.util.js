@@ -841,7 +841,6 @@ module.exports = {
     return constants.EMAIL_BODY({ email, content });
   },
 
-  // Add to email.msgs.js
   notifyAdminsOfNewOrgRequest: ({
     organization_name,
     contact_name,
@@ -852,12 +851,12 @@ module.exports = {
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>A new organization request has been submitted:</p>
         <ul>
-          <li><strong>Organization Name:</strong> ${organization_name}</li>
-          <li><strong>Contact Name:</strong> ${contact_name}</li>
-          <li><strong>Contact Email:</strong> ${contact_email}</li>
+          <li><strong>Organization Name:</strong> ${escapeHtml(organization_name)}</li>
+          <li><strong>Contact Name:</strong> ${escapeHtml(contact_name)}</li>
+          <li><strong>Contact Email:</strong> ${escapeHtml(contact_email)}</li>
         </ul>
         <p>Please review and process this request in the admin dashboard.</p>
-        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/organisations/requests</p>
+        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/org-requests</p>
       </td>
     </tr>
   `;
@@ -878,7 +877,7 @@ module.exports = {
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Thank you for submitting an organization request for "${organization_name}".</p>
+        <p>Thank you for submitting an organization request for "${escapeHtml(organization_name)}".</p>
         <p>We have received your request and will review it shortly. You will receive another email once your request has been processed.</p>
         <p>If you have any questions, please contact our support team at support@airqo.net.</p>
       </td>
@@ -899,7 +898,7 @@ module.exports = {
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Congratulations! Your organization request for "${organization_name}" has been approved.</p>
+        <p>Congratulations! Your organization request for "${escapeHtml(organization_name)}" has been approved.</p>
         <p>You can now access your organization dashboard using the following link:</p>
         <p><a href="${login_url}">${login_url}</a></p>
         <p>If you have any questions or need assistance, please contact our support team at support@airqo.net.</p>
@@ -948,7 +947,7 @@ module.exports = {
     const content = `
   <tr>
     <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-      <p>🎉 <strong>Congratulations!</strong> Your organization request for "${organization_name}" has been approved.</p>
+      <p>🎉 <strong>Congratulations!</strong> Your organization request for "${escapeHtml(organization_name)}" has been approved.</p>
       
       <div style="padding: 16px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745; margin: 20px 0;">
         <h3 style="color: #28a745; margin-top: 0;">Next Steps - Complete Your Account Setup</h3>

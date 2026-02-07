@@ -154,16 +154,23 @@ module.exports = {
     return constants.EMAIL_BODY({ email, content, name });
   },
 
-  afterAcceptingInvitation: ({ firstName, username, email, entity_title }) => {
+  afterAcceptingInvitation: ({
+    firstName,
+    username,
+    email,
+    entity_title,
+    login_url,
+  }) => {
+    const safeLoginUrl =
+      login_url || `${constants.ANALYTICS_BASE_URL}/user/login`;
+
     const name = firstName;
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                              Congratulations! You have successfully joined ${
-                                entity_title
-                                  ? processString(entity_title)
-                                  : "the team"
-                              } organisation on AirQo.
+                              Congratulations! You have successfully joined the "${processString(
+                                entity_title || "team",
+                              )}" organization on AirQo.
                                 <br />
                                 We are pleased to inform you that you can now access ${
                                   entity_title
@@ -174,9 +181,7 @@ module.exports = {
                                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
-                                    <li>ACCESS LINK: ${
-                                      constants.PLATFORM_BASE_URL
-                                    }/login</li>
+                                    <li>ACCESS LINK: <a href="${safeLoginUrl}">${safeLoginUrl}</a></li>
                                 </ul>
                                     <br />
                                 If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
