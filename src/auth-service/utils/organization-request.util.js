@@ -7,7 +7,7 @@ const { logObject, logText, HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- organization-request-util`
+  `${constants.ENVIRONMENT} -- organization-request-util`,
 );
 const createGroupUtil = require("@utils/group.util");
 const { mailer, slugUtils } = require("@utils/common");
@@ -44,7 +44,7 @@ const validateAndSanitizeProfilePicture = (url) => {
     logger.warn(
       `Profile picture URL too long (${
         trimmedUrl.length
-      } chars): ${trimmedUrl.substring(0, 50)}...`
+      } chars): ${trimmedUrl.substring(0, 50)}...`,
     );
     return null;
   }
@@ -134,7 +134,7 @@ const organizationRequest = {
           // Slug already exists, try again with a different one
           currentTry++;
           logger.warn(
-            `Slug '${generatedSlug}' already exists, retrying (${currentTry}/${MAX_RETRIES})`
+            `Slug '${generatedSlug}' already exists, retrying (${currentTry}/${MAX_RETRIES})`,
           );
           continue;
         }
@@ -145,7 +145,7 @@ const organizationRequest = {
         // Now try to register with the available slug
         try {
           responseFromCreateRequest = await OrganizationRequestModel(
-            tenant
+            tenant,
           ).register(body, next);
           success = true;
         } catch (registrationError) {
@@ -158,7 +158,7 @@ const organizationRequest = {
           ) {
             currentTry++;
             logger.warn(
-              `Race condition detected with slug '${generatedSlug}', retrying (${currentTry}/${MAX_RETRIES})`
+              `Race condition detected with slug '${generatedSlug}', retrying (${currentTry}/${MAX_RETRIES})`,
             );
           } else {
             // For other errors, just throw them to be caught by the outer catch
@@ -198,7 +198,7 @@ const organizationRequest = {
             mailer.notifyAdminsOfNewOrgRequest({
               organization_name: body.organization_name,
               contact_name: body.contact_name,
-              email: body.contact_email,
+              contact_email: body.contact_email, // Pass contact_email correctly
               tenant,
             }),
 
@@ -223,8 +223,8 @@ const organizationRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -247,7 +247,7 @@ const organizationRequest = {
             organization_slug,
             "users.user_id": user._id,
           },
-          { _id: 1, grp_title: 1 }
+          { _id: 1, grp_title: 1 },
         )
         .lean();
 
@@ -275,8 +275,8 @@ const organizationRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -292,7 +292,7 @@ const organizationRequest = {
       }
 
       const responseFromListRequests = await OrganizationRequestModel(
-        tenant
+        tenant,
       ).list({ filter, limit, skip }, next);
 
       return responseFromListRequests;
@@ -302,8 +302,8 @@ const organizationRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -320,9 +320,8 @@ const organizationRequest = {
         constants.DEFAULT_USE_ONBOARDING_FLOW ||
         false;
 
-      const orgRequest = await OrganizationRequestModel(tenant).findById(
-        request_id
-      );
+      const orgRequest =
+        await OrganizationRequestModel(tenant).findById(request_id);
 
       if (!orgRequest) {
         return {
@@ -359,11 +358,11 @@ const organizationRequest = {
           // Import group util for slug generation
           const groupUtil = require("@utils/group.util");
           const baseSlug = groupUtil.generateSlugFromTitle(
-            orgRequest.organization_name
+            orgRequest.organization_name,
           );
           organizationSlug = await groupUtil.generateUniqueSlug(
             tenant,
-            baseSlug
+            baseSlug,
           );
           slugWasGenerated = true;
 
@@ -373,11 +372,11 @@ const organizationRequest = {
           });
 
           logger.info(
-            `Generated organization slug: ${organizationSlug} for request ${request_id}`
+            `Generated organization slug: ${organizationSlug} for request ${request_id}`,
           );
         } catch (slugError) {
           logger.error(
-            `Error generating organization slug: ${slugError.message}`
+            `Error generating organization slug: ${slugError.message}`,
           );
           return {
             success: false,
@@ -420,7 +419,7 @@ const organizationRequest = {
               purpose: "organization_onboarding",
               exp: constants.ONBOARDING_TOKEN_EXPIRY_DAYS,
             },
-            constants.JWT_SECRET
+            constants.JWT_SECRET,
           );
         }
 
@@ -447,7 +446,7 @@ const organizationRequest = {
               purpose: "organization_onboarding",
               exp: constants.ONBOARDING_TOKEN_EXPIRY_DAYS,
             },
-            constants.JWT_SECRET
+            constants.JWT_SECRET,
           );
 
           // Parse and sanitize contact name
@@ -462,7 +461,7 @@ const organizationRequest = {
             organization: orgRequest.organization_name,
             // Generate a temporary password that will be replaced during onboarding
             password: accessCodeGenerator.generate(
-              constants.RANDOM_PASSWORD_CONFIGURATION(32)
+              constants.RANDOM_PASSWORD_CONFIGURATION(32),
             ),
             verified: false, // User needs to complete onboarding
             isActive: false, // Activate after onboarding completion
@@ -476,8 +475,8 @@ const organizationRequest = {
           // Generate a random password for the new user
           const generatedPassword = accessCodeGenerator.generate(
             constants.RANDOM_PASSWORD_CONFIGURATION(
-              constants.TOKEN_LENGTH || 12
-            )
+              constants.TOKEN_LENGTH || 12,
+            ),
           );
 
           // Parse and sanitize contact name
@@ -500,9 +499,8 @@ const organizationRequest = {
       }
 
       if (userResponse.success === true) {
-        // ✅ VALIDATE AND SANITIZE PROFILE PICTURE URL
         const validatedProfilePicture = validateAndSanitizeProfilePicture(
-          orgRequest.branding_settings?.logo_url
+          orgRequest.branding_settings?.logo_url,
         );
 
         // Create the group with validated profile picture and ensured slug
@@ -530,7 +528,7 @@ const organizationRequest = {
           const isUserInGroup =
             existingGroupBySlug.users &&
             existingGroupBySlug.users.some(
-              (u) => u.user_id.toString() === userResponse.data._id.toString()
+              (u) => u.user_id.toString() === userResponse.data._id.toString(),
             );
 
           if (!isUserInGroup) {
@@ -544,7 +542,7 @@ const organizationRequest = {
                   },
                 },
               },
-              { new: true }
+              { new: true },
             );
 
             groupResponse = {
@@ -585,7 +583,7 @@ const organizationRequest = {
 
             try {
               logger.info(
-                `🔧 Attempt ${createAttempts}: Creating group with title: "${currentGroupTitle}" and slug: "${organizationSlug}"`
+                `🔧 Attempt ${createAttempts}: Creating group with title: "${currentGroupTitle}" and slug: "${organizationSlug}"`,
               );
 
               const createGroupRequest = {
@@ -596,13 +594,13 @@ const organizationRequest = {
 
               groupResponse = await createGroupUtil.create(
                 createGroupRequest,
-                next
+                next,
               );
 
               if (groupResponse && groupResponse.success) {
                 groupCreated = true;
                 logger.info(
-                  `✅ Successfully created group with title: "${currentGroupTitle}" and slug: "${organizationSlug}"`
+                  `✅ Successfully created group with title: "${currentGroupTitle}" and slug: "${organizationSlug}"`,
                 );
 
                 // Add metadata if title was modified
@@ -613,17 +611,17 @@ const organizationRequest = {
                 }
               } else {
                 logger.warn(
-                  `❌ Group creation failed (attempt ${createAttempts}): ${groupResponse?.message}`
+                  `❌ Group creation failed (attempt ${createAttempts}): ${groupResponse?.message}`,
                 );
                 if (createAttempts >= maxAttempts) {
                   throw new Error(
-                    groupResponse?.message || "Group creation failed"
+                    groupResponse?.message || "Group creation failed",
                   );
                 }
               }
             } catch (error) {
               logger.warn(
-                `❌ Group creation error (attempt ${createAttempts}): ${error.message}`
+                `❌ Group creation error (attempt ${createAttempts}): ${error.message}`,
               );
 
               // If it's a validation error for duplicate title, try again
@@ -632,11 +630,11 @@ const organizationRequest = {
                 error.errors?.grp_title?.kind === "unique"
               ) {
                 logger.info(
-                  `🔄 Duplicate title detected, retrying with different name...`
+                  `🔄 Duplicate title detected, retrying with different name...`,
                 );
                 if (createAttempts >= maxAttempts) {
                   throw new Error(
-                    `Failed to create unique group title after ${maxAttempts} attempts`
+                    `Failed to create unique group title after ${maxAttempts} attempts`,
                   );
                 }
               } else {
@@ -669,7 +667,7 @@ const organizationRequest = {
           };
 
           const responseFromUpdate = await OrganizationRequestModel(
-            tenant
+            tenant,
           ).modify({ filter: { _id: request_id }, update }, next);
 
           if (responseFromUpdate.success === true) {
@@ -690,7 +688,7 @@ const organizationRequest = {
                 organization_name: orgRequest.organization_name,
                 contact_name: orgRequest.contact_name,
                 email: orgRequest.contact_email,
-                login_url: `${constants.ANALYTICS_BASE_URL}/login/${organizationSlug}`, // Use ensured slug
+                login_url: `${constants.ANALYTICS_BASE_URL}/org/${organizationSlug}/login`,
                 isExistingUser,
               });
             }
@@ -764,8 +762,8 @@ const organizationRequest = {
 
         logger.warn(
           `Validation error during approval: ${JSON.stringify(
-            validationErrors
-          )}`
+            validationErrors,
+          )}`,
         );
         return {
           success: false,
@@ -778,7 +776,7 @@ const organizationRequest = {
       if (error.code === 11000) {
         if (error.keyPattern && error.keyPattern.userName) {
           logger.warn(
-            `Duplicate user error for email: ${error.keyValue.userName}`
+            `Duplicate user error for email: ${error.keyValue.userName}`,
           );
           return {
             success: false,
@@ -793,7 +791,7 @@ const organizationRequest = {
           };
         } else if (error.keyPattern && error.keyPattern.grp_title) {
           logger.warn(
-            `Duplicate group title error: ${error.keyValue.grp_title}`
+            `Duplicate group title error: ${error.keyValue.grp_title}`,
           );
           return {
             success: false,
@@ -806,7 +804,7 @@ const organizationRequest = {
           };
         } else if (error.keyPattern && error.keyPattern.organization_slug) {
           logger.warn(
-            `Duplicate organization slug error: ${error.keyValue.organization_slug}`
+            `Duplicate organization slug error: ${error.keyValue.organization_slug}`,
           );
           return {
             success: false,
@@ -836,15 +834,14 @@ const organizationRequest = {
       const { tenant } = query;
       const { rejection_reason } = body;
 
-      const orgRequest = await OrganizationRequestModel(tenant).findById(
-        request_id
-      );
+      const orgRequest =
+        await OrganizationRequestModel(tenant).findById(request_id);
 
       if (!orgRequest) {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "Organization request not found",
-          })
+          }),
         );
       }
 
@@ -852,7 +849,7 @@ const organizationRequest = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Request has already been processed",
-          })
+          }),
         );
       }
 
@@ -865,7 +862,7 @@ const organizationRequest = {
 
       const responseFromUpdate = await OrganizationRequestModel(tenant).modify(
         { filter: { _id: request_id }, update },
-        next
+        next,
       );
 
       if (responseFromUpdate.success === true) {
@@ -890,8 +887,8 @@ const organizationRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -904,7 +901,7 @@ const organizationRequest = {
 
       const filter = { _id: request_id };
       const responseFromListRequests = await OrganizationRequestModel(
-        tenant
+        tenant,
       ).list({ filter, limit: 1, skip: 0 }, next);
 
       if (
@@ -921,7 +918,7 @@ const organizationRequest = {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "Organization request not found",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -930,8 +927,8 @@ const organizationRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1000,8 +997,8 @@ const organizationRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1029,7 +1026,7 @@ const organizationRequest = {
             isActive: true,
           },
         },
-        next
+        next,
       );
 
       if (userUpdateResult.success) {
@@ -1042,7 +1039,7 @@ const organizationRequest = {
               onboarding_completed_at: new Date(),
             },
           },
-          next
+          next,
         );
 
         // Send completion email
@@ -1050,7 +1047,7 @@ const organizationRequest = {
           organization_name: decoded.organization_name,
           contact_name: decoded.contact_name,
           email: decoded.contact_email,
-          login_url: `${constants.ANALYTICS_BASE_URL}/login/${decoded.organization_slug}`,
+          login_url: `${constants.ANALYTICS_BASE_URL}/org/${decoded.organization_slug}/login`,
         });
 
         return {
@@ -1066,8 +1063,8 @@ const organizationRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

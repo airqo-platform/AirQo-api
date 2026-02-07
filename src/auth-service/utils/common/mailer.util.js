@@ -1168,10 +1168,12 @@ const mailer = {
     "ORG_MANAGEMENT",
     (params) =>
       msgs.notifyAdminsOfNewOrgRequest({
-        organization_name: params.organization_name,
-        contact_name: params.contact_name,
-        contact_email: params.contact_email,
+        ...params,
       }),
+    (baseMailOptions, params) => ({
+      ...baseMailOptions,
+      to: constants.SUPPORT_EMAIL,
+    }),
   ),
   confirmOrgRequestReceived: createMailerFunction(
     "confirmOrgRequestReceived",
