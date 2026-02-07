@@ -350,3 +350,23 @@ Destinations:
 - Maintains data consistency across platforms
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+satellite_data_location_approximations_doc = """
+### Satellite Data Location Approximations ETL
+#### Purpose
+Approximates satellite data locations for air quality measurements.
+#### Workflow Steps
+1. **Approximate Locations** (`approximate_locations`)
+   - Calculates the previous hour's time range.
+   - Calls `approximate_satellite_data_locations_for_airquality_measurements` to get approximation data.
+2. **Load to BigQuery** (`load_to_bigquery`)
+   - Uses a configured storage adapter to load the approximated data into BigQuery.
+#### Schedule
+Runs every hour at the 20th minute (20 * * * *)
+#### Notes
+Data sources:
+- Satellite Data (internal processing)
+Data Destinations:
+- BigQuery: `Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE`
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
