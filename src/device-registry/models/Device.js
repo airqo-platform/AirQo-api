@@ -260,7 +260,8 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     tags: {
-      type: Array,
+      type: [String],
+      default: [],
     },
     description: {
       type: String,
@@ -723,6 +724,20 @@ deviceSchema.pre(
         if (groupsDuplicateError) {
           return next(groupsDuplicateError);
         }
+      }
+
+      // Normalize and deduplicate tags for both new and updated documents
+      if (doc.tags && Array.isArray(doc.tags)) {
+        const processedTags = [
+          ...new Set(
+            doc.tags.map((tag) =>
+              String(tag)
+                .trim()
+                .toLowerCase(),
+            ),
+          ),
+        ].filter(Boolean); // filter(Boolean) removes any empty strings
+        doc.tags = processedTags;
       }
 
       if (isQuery && update) {

@@ -217,6 +217,16 @@ const validateCreateDevice = [
         .bail()
         .notEmpty()
         .withMessage("the groups should not be empty"),
+      body("tags")
+        .optional()
+        .isArray()
+        .withMessage("tags must be an array of strings")
+        .bail()
+        .notEmpty()
+        .withMessage("tags should not be an empty array if provided"),
+      body("tags.*")
+        .isString()
+        .withMessage("Each tag must be a string"),
       body("mountType")
         .optional()
         .notEmpty()
@@ -577,6 +587,16 @@ const validateUpdateDevice = [
     .bail()
     .notEmpty()
     .withMessage("the groups should not be empty"),
+  body("tags")
+    .optional()
+    .isArray()
+    .withMessage("tags must be an array of strings")
+    .bail()
+    .notEmpty()
+    .withMessage("tags should not be an empty array if provided"),
+  body("tags.*")
+    .isString()
+    .withMessage("Each tag must be a string"),
   body("isRetired")
     .optional()
     .notEmpty()
@@ -913,6 +933,25 @@ const validateListDevices = oneOf([
       .toLowerCase()
       .isIn(["asc", "desc"])
       .withMessage("the order value is not among the expected ones"),
+    query("tags")
+      .optional()
+      .notEmpty()
+      .withMessage("tags must not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("tags must be a comma-separated string of tags")
+      .bail()
+      .custom((value) => {
+        const tags = String(value)
+          .split(",")
+          .map((part) => part.trim());
+        if (tags.some((part) => part.length === 0)) {
+          throw new Error(
+            "tags cannot contain empty values. Check for extra commas.",
+          );
+        }
+        return true;
+      }),
   ],
 ]);
 
