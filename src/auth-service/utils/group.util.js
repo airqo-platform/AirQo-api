@@ -936,8 +936,10 @@ const groupUtil = {
 
         // Fire-and-forget Kafka event publishing with non-blocking rollback
         (async () => {
+          let kafkaProducer;
+          let sendSucceeded = false;
           try {
-            const kafkaProducer = kafka.producer();
+            kafkaProducer = kafka.producer();
             await kafkaProducer.connect();
             await kafkaProducer.send({
               topic: constants.GROUPS_TOPIC,
@@ -959,21 +961,35 @@ const groupUtil = {
                 },
               ],
             });
-            await kafkaProducer.disconnect();
+            sendSucceeded = true;
             logger.info(
               `Successfully published group.created event for group ID: ${grp_id}`,
             );
           } catch (kafkaError) {
             logger.error(
-              `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}.`,
+              `KAFKA-SEND-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}.`,
               { grp_id, tenant, error: kafkaError },
             );
-            // Only perform rollback in production to avoid issues in dev/staging
-            if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
-              logger.info(
-                "Initiating non-blocking rollback for production environment.",
+          } finally {
+            if (kafkaProducer) {
+              try {
+                await kafkaProducer.disconnect();
+              } catch (disconnectError) {
+                logger.error(
+                  `KAFKA-DISCONNECT-ERROR: Failed to disconnect Kafka producer for group ID ${grp_id}: ${disconnectError.message}`,
+                );
+              }
+            }
+
+            // Only perform rollback if the send operation failed
+            if (
+              !sendSucceeded &&
+              constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
+            ) {
+              logger.warn(
+                `Initiating non-blocking rollback for production environment due to Kafka send failure for group ID: ${grp_id}`,
               );
-              // Non-blocking rollback
+              // Non-blocking rollback logic
               try {
                 await Promise.all([
                   GroupModel(tenant).findByIdAndDelete(grp_id),
@@ -987,7 +1003,7 @@ const groupUtil = {
                 );
               } catch (rollbackError) {
                 logger.error(
-                  `NON-BLOCKING-ROLLBACK-ERROR: Failed to rollback group creation for group ID ${grp_id}: ${rollbackError.message}`,
+                  `CRITICAL-ROLLBACK-ERROR: Non-blocking rollback failed for group ID ${grp_id}: ${rollbackError.message}`,
                 );
               }
             }

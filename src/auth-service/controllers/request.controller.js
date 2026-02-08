@@ -783,6 +783,11 @@ const createAccessRequest = {
       // Set the target_id from params for acceptInvitation to use
       request.body.target_id = req.params.invitation_id;
 
+      // If user is authenticated, use their email for the acceptance process
+      if (request.user && request.user.email) {
+        request.body.email = request.user.email;
+      }
+
       const result = await requestUtil.acceptInvitation(request, next);
 
       if (isEmpty(result) || res.headersSent) {

@@ -584,8 +584,10 @@ const createAccessRequest = {
       // Security check: if logged in via JWT, ensure the user's email matches the invitation email
       if (
         authUser &&
-        accessRequest.email &&
-        accessRequest.email.toLowerCase() !== authUser.email.toLowerCase()
+        typeof accessRequest.email === "string" &&
+        typeof authUser.email === "string" &&
+        accessRequest.email.trim().toLowerCase() !==
+          authUser.email.trim().toLowerCase()
       ) {
         return {
           success: false,

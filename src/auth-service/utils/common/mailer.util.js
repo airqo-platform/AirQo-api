@@ -369,7 +369,7 @@ const createMailerFunction = (
         },
         to: email,
         subject: getEmailSubject(functionName, otherParams),
-        html: emailMessageFunction({ email, tenant, ...params }),
+        html: emailMessageFunction({ email, tenant, ...otherParams }),
         bcc: subscribedBccEmails || undefined,
         attachments: attachments,
       };

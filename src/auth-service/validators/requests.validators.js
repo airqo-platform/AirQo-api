@@ -149,6 +149,14 @@ const approveAccessRequest = [
       .isMongoId()
       .withMessage("the request_id should be an object ID")
       .trim(),
+    param("invitation_id")
+      .optional()
+      .notEmpty()
+      .withMessage("invitation_id should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("the invitation_id should be an object ID")
+      .trim(),
   ],
   [
     body("status")
@@ -175,6 +183,14 @@ const rejectAccessRequest = [
       .bail()
       .isMongoId()
       .withMessage("the request_id should be an object ID")
+      .trim(),
+    param("invitation_id")
+      .optional()
+      .notEmpty()
+      .withMessage("invitation_id should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("the invitation_id should be an object ID")
       .trim(),
   ],
   [

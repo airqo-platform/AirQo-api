@@ -84,18 +84,21 @@ router.get(
 
 router.post(
   "/pending/:invitation_id/accept",
+  requestValidations.approveAccessRequest,
   enhancedJWTAuth,
   createRequestController.acceptPendingInvitation,
 );
 
 router.post(
   "/pending/:invitation_id/reject",
+  requestValidations.rejectAccessRequest,
   enhancedJWTAuth,
   createRequestController.rejectPendingInvitation,
 );
 
 router.get(
   "/networks",
+  requestValidations.list,
   requestValidations.listForNetwork,
   enhancedJWTAuth,
   pagination(),
