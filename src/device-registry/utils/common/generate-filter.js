@@ -1554,6 +1554,7 @@ const generateFilter = {
       cohort_id,
       authRequired,
       deployment_type_include_legacy,
+      tags,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -1806,6 +1807,14 @@ const generateFilter = {
           $in: [ObjectId(cohort_id.trim())],
         };
       }
+    }
+
+    if (tags) {
+      const tagsArray = tags
+        .toString()
+        .split(",")
+        .map((tag) => tag.trim().toLowerCase());
+      filter["tags"] = { $in: tagsArray };
     }
     return filter;
   },
