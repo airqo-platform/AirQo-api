@@ -164,8 +164,6 @@ const createAccessRequest = {
         ...request.params,
       };
 
-      logObject("requestAccessToGroupByEmail", { tenant, emails, grp_id });
-
       const inviter = user;
 
       if (isEmpty(inviter) || !inviter._id) {
@@ -260,7 +258,6 @@ const createAccessRequest = {
         });
       }
 
-      // CRITICAL: Check all emails at once for existing users and requests
       const existingUsers = await UserModel(tenant)
         .find({ email: { $in: uniqueEmails } })
         .lean();
@@ -305,7 +302,6 @@ const createAccessRequest = {
             }
           }
 
-          // Check for existing pending requests
           const existingRequest = existingRequestsMap.get(normalizedEmail);
           if (existingRequest) {
             existingRequests.push({
@@ -316,7 +312,6 @@ const createAccessRequest = {
             continue;
           }
 
-          // Generate a secure, unique token for the invitation link
           const invitationToken = crypto.randomBytes(32).toString("hex");
           const expiryDate = new Date(Date.now() + INVITATION_EXPIRY_MS);
 
@@ -340,12 +335,6 @@ const createAccessRequest = {
             tenant,
           ).register(accessRequestData, next);
 
-          logObject("Access request created", {
-            email,
-            request_id: responseFromCreateAccessRequest.data?._id,
-            has_user_id: !!existingUser,
-          });
-
           if (responseFromCreateAccessRequest.success === true) {
             const createdAccessRequest = responseFromCreateAccessRequest.data;
 
@@ -357,23 +346,17 @@ const createAccessRequest = {
                   email,
                   tenant,
                   entity_title: group.grp_title,
-                  targetId: grp_id,
+                  targetId: group._id,
                   inviterEmail,
                   userExists,
                   inviter_name: `${inviterDetails.firstName} ${inviterDetails.lastName}`,
                   request_id: createdAccessRequest._id,
                   group_description: group.grp_description,
                   expires_at: accessRequestData.expires_at,
-                  token: invitationToken, // Pass token to email template
+                  token: invitationToken,
                 },
                 next,
               );
-
-            logObject("Email sending result", {
-              email,
-              success: responseFromSendEmail.success,
-              status: responseFromSendEmail.status,
-            });
 
             if (responseFromSendEmail.success === true) {
               successResponses.push({
@@ -390,7 +373,6 @@ const createAccessRequest = {
                 `Failed to send email to ${email}:`,
                 responseFromSendEmail,
               );
-              // Email failure shouldn't fail the invitation creation
               successResponses.push({
                 email,
                 success: true,
@@ -543,8 +525,6 @@ const createAccessRequest = {
   acceptInvitation: async (request, next) => {
     try {
       const {
-        // 'email' is destructured for backward compatibility but is often undefined
-        // for token-based flows. The actual email is resolved later.
         tenant,
         email,
         firstName,
@@ -583,20 +563,10 @@ const createAccessRequest = {
 
       // If using token auth, the user's email comes from the access request itself.
       // This must happen before the existingUser lookup.
+      let invitationEmail = email;
       if (token && accessRequest) {
-        request.body.email = accessRequest.email;
+        invitationEmail = accessRequest.email;
       }
-
-      const normalizedEmail = (request.body.email || email || "").toLowerCase();
-
-      const existingUser = await UserModel(tenant).findOne({
-        email: normalizedEmail,
-      });
-
-      logObject("acceptInvitation - accessRequest", {
-        _id: accessRequest?._id,
-        status: accessRequest?.status,
-      });
 
       if (isEmpty(accessRequest)) {
         return {
@@ -657,8 +627,12 @@ const createAccessRequest = {
         };
       }
 
+      const existingUser = await UserModel(tenant).findOne({
+        email: invitationEmail.toLowerCase(),
+      });
+
       let user = null;
-      let isNewUser = !existingUser; // Flag to check if we are creating a new user
+      let isNewUser = !existingUser;
 
       if (existingUser) {
         const requestType = accessRequest.requestType;
@@ -712,9 +686,9 @@ const createAccessRequest = {
         }
 
         const bodyForCreatingNewUser = {
-          email,
+          email: invitationEmail,
           password,
-          userName: email,
+          userName: invitationEmail,
           firstName,
           lastName,
         };
@@ -741,7 +715,7 @@ const createAccessRequest = {
       const update = {
         status: "approved",
         user_id: user._id,
-        invitationToken: null, // Nullify the token after successful use
+        invitationToken: null,
       };
       const filter = { _id: target_id };
 
@@ -791,12 +765,10 @@ const createAccessRequest = {
           );
 
           if (!assignmentResult || !assignmentResult.success) {
-            // Rollback user creation if this was a new user
             try {
               if (isNewUser) {
                 await UserModel(tenant).findByIdAndDelete(user._id);
               }
-              // Rollback access request status
               await AccessRequestModel(tenant).modify(
                 {
                   filter: { _id: accessRequest._id },
@@ -829,12 +801,10 @@ const createAccessRequest = {
           }
         } catch (assignmentError) {
           logger.error(`Group assignment error: ${assignmentError.message}`);
-          // Rollback user creation if this was a new user
           try {
             if (isNewUser) {
               await UserModel(tenant).findByIdAndDelete(user._id);
             }
-            // Rollback access request status
             await AccessRequestModel(tenant).modify(
               {
                 filter: { _id: accessRequest._id },
@@ -891,11 +861,9 @@ const createAccessRequest = {
           );
 
           if (!assignmentResult || !assignmentResult.success) {
-            // Rollback user creation if this was a new user
             if (isNewUser) {
               await UserModel(tenant).findByIdAndDelete(user._id);
             }
-            // Rollback access request status
             await AccessRequestModel(tenant).modify(
               {
                 filter: { _id: accessRequest._id },
@@ -923,11 +891,9 @@ const createAccessRequest = {
           }
         } catch (assignmentError) {
           logger.error(`Network assignment error: ${assignmentError.message}`);
-          // Rollback user creation if this was a new user
           if (isNewUser) {
             await UserModel(tenant).findByIdAndDelete(user._id);
           }
-          // Rollback access request status
           await AccessRequestModel(tenant).modify(
             {
               filter: { _id: accessRequest._id },
@@ -989,12 +955,12 @@ const createAccessRequest = {
                 name: entity_title,
                 type: requestType,
               },
+              login_url: login_url,
               isNewUser,
             },
             status: httpStatus.OK,
           };
         } else {
-          // Don't fail the entire operation if email fails
           logger.error(
             `Failed to send acceptance email: ${responseFromSendEmail.message}`,
           );
@@ -1015,6 +981,7 @@ const createAccessRequest = {
                 name: entity_title,
                 type: requestType,
               },
+              login_url: login_url,
               isNewUser,
             },
             status: httpStatus.OK,
@@ -1733,6 +1700,226 @@ const createAccessRequest = {
           { message: error.message },
         ),
       );
+    }
+  },
+  listPendingInvitationsForUser: async (request, next) => {
+    try {
+      const {
+        user: { _doc: user },
+        query,
+      } = request;
+      const { tenant } = query;
+
+      if (isEmpty(user) || isEmpty(user.email)) {
+        return {
+          success: false,
+          message: "User authentication required",
+          status: httpStatus.UNAUTHORIZED,
+          errors: {
+            message: "User email not found in authentication token",
+          },
+        };
+      }
+
+      const userEmail = user.email.toLowerCase();
+
+      // Find all pending invitations for this user's email
+      const pendingInvitations = await AccessRequestModel(tenant)
+        .find({
+          email: userEmail,
+          status: "pending",
+          expires_at: { $gt: new Date() }, // Only non-expired invitations
+        })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      if (isEmpty(pendingInvitations)) {
+        return {
+          success: true,
+          message: "No pending invitations found",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      // Enrich invitations with organization/network details
+      const enrichedInvitations = await Promise.all(
+        pendingInvitations.map(async (invitation) => {
+          let entityDetails = null;
+
+          if (invitation.requestType === "group") {
+            const group = await GroupModel(tenant)
+              .findById(invitation.targetId)
+              .select("grp_title grp_description organization_slug")
+              .lean();
+
+            if (group) {
+              entityDetails = {
+                name: group.grp_title,
+                description: group.grp_description,
+                slug: group.organization_slug,
+                type: "organization",
+              };
+            }
+          } else if (invitation.requestType === "network") {
+            const network = await NetworkModel(tenant)
+              .findById(invitation.targetId)
+              .select("net_name net_description")
+              .lean();
+
+            if (network) {
+              entityDetails = {
+                name: network.net_name,
+                description: network.net_description,
+                type: "network",
+              };
+            }
+          }
+
+          // Get inviter details
+          let inviterDetails = null;
+          if (invitation.inviter_id) {
+            const inviter = await UserModel(tenant)
+              .findById(invitation.inviter_id)
+              .select("firstName lastName email")
+              .lean();
+
+            if (inviter) {
+              inviterDetails = {
+                name: `${inviter.firstName} ${inviter.lastName}`,
+                email: inviter.email,
+              };
+            }
+          }
+
+          return {
+            invitation_id: invitation._id,
+            entity: entityDetails,
+            inviter: inviterDetails,
+            invited_at: invitation.createdAt,
+            expires_at: invitation.expires_at,
+            request_type: invitation.requestType,
+            target_id: invitation.targetId,
+          };
+        }),
+      );
+
+      // Filter out invitations where entity no longer exists
+      const validInvitations = enrichedInvitations.filter(
+        (inv) => inv.entity !== null,
+      );
+
+      return {
+        success: true,
+        message: "Pending invitations retrieved successfully",
+        data: validInvitations,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+  rejectPendingInvitation: async (request, next) => {
+    try {
+      const {
+        user: { _doc: user },
+        query,
+        params,
+      } = request;
+      const { tenant } = query;
+      const { invitation_id } = params;
+
+      if (isEmpty(user) || isEmpty(user.email)) {
+        return {
+          success: false,
+          message: "User authentication required",
+          status: httpStatus.UNAUTHORIZED,
+          errors: {
+            message: "User email not found in authentication token",
+          },
+        };
+      }
+
+      const userEmail = user.email.toLowerCase();
+
+      // Find the invitation
+      const invitation =
+        await AccessRequestModel(tenant).findById(invitation_id);
+
+      if (isEmpty(invitation)) {
+        return {
+          success: false,
+          message: "Invitation not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: "Invitation not found",
+          },
+        };
+      }
+
+      // Verify this invitation belongs to the authenticated user
+      if (invitation.email.toLowerCase() !== userEmail) {
+        return {
+          success: false,
+          message: "Unauthorized to reject this invitation",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: "This invitation does not belong to you",
+          },
+        };
+      }
+
+      // Check if already processed
+      if (invitation.status !== "pending") {
+        return {
+          success: false,
+          message: `Invitation has already been ${invitation.status}`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `This invitation has already been ${invitation.status}`,
+          },
+        };
+      }
+
+      // Update invitation status to rejected
+      const filter = { _id: ObjectId(invitation_id) };
+      const update = { status: "rejected" };
+
+      const responseFromModifyAccessRequest = await AccessRequestModel(
+        tenant,
+      ).modify({ filter, update }, next);
+
+      if (responseFromModifyAccessRequest.success === true) {
+        return {
+          success: true,
+          message: "Invitation rejected successfully",
+          data: {
+            invitation_id: invitation_id,
+            status: "rejected",
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        return responseFromModifyAccessRequest;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
     }
   },
 };

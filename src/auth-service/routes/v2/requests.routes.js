@@ -77,6 +77,24 @@ router.get(
 );
 
 router.get(
+  "/pending/user",
+  enhancedJWTAuth,
+  createRequestController.listPendingInvitationsForUser,
+);
+
+router.post(
+  "/pending/:invitation_id/accept",
+  enhancedJWTAuth,
+  createRequestController.acceptPendingInvitation,
+);
+
+router.post(
+  "/pending/:invitation_id/reject",
+  enhancedJWTAuth,
+  createRequestController.rejectPendingInvitation,
+);
+
+router.get(
   "/networks",
   requestValidations.listForNetwork,
   enhancedJWTAuth,

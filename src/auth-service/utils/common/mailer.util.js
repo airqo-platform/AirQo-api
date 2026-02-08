@@ -369,7 +369,7 @@ const createMailerFunction = (
         },
         to: email,
         subject: getEmailSubject(functionName, otherParams),
-        html: emailMessageFunction({ email, tenant, ...otherParams }),
+        html: emailMessageFunction({ email, tenant, ...params }),
         bcc: subscribedBccEmails || undefined,
         attachments: attachments,
       };
@@ -1227,10 +1227,12 @@ const mailer = {
         inviter_name: params.inviter_name,
         group_description: params.group_description,
         request_id: params.request_id,
+        token: params.token,
+        targetId: params.targetId,
       }),
     (baseMailOptions, params) => ({
       ...baseMailOptions,
-      bcc: params.inviterEmail, // BCC only the inviter
+      bcc: params.inviterEmail,
     }),
   ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>

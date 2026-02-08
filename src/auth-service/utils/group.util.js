@@ -934,64 +934,79 @@ const groupUtil = {
           }
         }
 
-        // Publish group.created event to Kafka
-        try {
-          const kafkaProducer = kafka.producer();
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
-            topic: constants.GROUPS_TOPIC,
-            messages: [
-              {
-                key: grp_id.toString(),
-                value: JSON.stringify({
-                  type: "group.created",
-                  timestamp: new Date().toISOString(),
-                  payload: {
-                    groupId: grp_id,
-                    groupName: responseFromRegisterGroup.data.grp_title,
-                    groupDescription:
-                      responseFromRegisterGroup.data.grp_description,
-                    tenant: tenant,
-                    createdBy: user._id,
-                  },
-                }),
-              },
-            ],
-          });
-          await kafkaProducer.disconnect();
-          logger.info(
-            `Successfully published group.created event for group ID: ${grp_id}`,
-          );
-        } catch (kafkaError) {
-          logger.error(
-            `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}`,
-            { grp_id, tenant, error: kafkaError },
-          );
-          // Rollback group, role, and user assignment if Kafka publishing fails
-          await Promise.all([
-            GroupModel(tenant).findByIdAndDelete(grp_id),
-            RoleModel(tenant).findByIdAndDelete(role_id),
-            UserModel(tenant).findByIdAndUpdate(user._id, {
-              $pull: { group_roles: { group: grp_id } },
-            }),
-          ]);
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `A system communication error occurred while creating the organization. The operation has been safely rolled back. Please try again.`,
-              },
-            ),
-          );
-          return;
-        }
+        // Fire-and-forget Kafka event publishing with non-blocking rollback
+        (async () => {
+          try {
+            const kafkaProducer = kafka.producer();
+            await kafkaProducer.connect();
+            await kafkaProducer.send({
+              topic: constants.GROUPS_TOPIC,
+              messages: [
+                {
+                  key: grp_id.toString(),
+                  value: JSON.stringify({
+                    type: "group.created",
+                    timestamp: new Date().toISOString(),
+                    payload: {
+                      groupId: grp_id,
+                      groupName: responseFromRegisterGroup.data.grp_title,
+                      groupDescription:
+                        responseFromRegisterGroup.data.grp_description,
+                      tenant: tenant,
+                      createdBy: user._id,
+                    },
+                  }),
+                },
+              ],
+            });
+            await kafkaProducer.disconnect();
+            logger.info(
+              `Successfully published group.created event for group ID: ${grp_id}`,
+            );
+          } catch (kafkaError) {
+            logger.error(
+              `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}.`,
+              { grp_id, tenant, error: kafkaError },
+            );
+            // Only perform rollback in production to avoid issues in dev/staging
+            if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
+              logger.info(
+                "Initiating non-blocking rollback for production environment.",
+              );
+              // Non-blocking rollback
+              try {
+                await Promise.all([
+                  GroupModel(tenant).findByIdAndDelete(grp_id),
+                  RoleModel(tenant).findByIdAndDelete(role_id),
+                  UserModel(tenant).findByIdAndUpdate(user._id, {
+                    $pull: { group_roles: { group: grp_id } },
+                  }),
+                ]);
+                logger.info(
+                  `Non-blocking rollback completed for group ID: ${grp_id}`,
+                );
+              } catch (rollbackError) {
+                logger.error(
+                  `NON-BLOCKING-ROLLBACK-ERROR: Failed to rollback group creation for group ID ${grp_id}: ${rollbackError.message}`,
+                );
+              }
+            }
+          }
+        })();
 
         return responseFromRegisterGroup;
       } catch (error) {
         //Rollback group and role creation if permission assignment fails
-        await GroupModel(tenant).findByIdAndDelete(grp_id);
-        await RoleModel(tenant).findByIdAndDelete(role_id);
+        try {
+          await Promise.all([
+            GroupModel(tenant).findByIdAndDelete(grp_id),
+            RoleModel(tenant).findByIdAndDelete(role_id),
+          ]);
+        } catch (rollbackError) {
+          logger.error(
+            `CRITICAL-ROLLBACK-ERROR: Failed to rollback group creation after permission error for group ID ${grp_id}: ${rollbackError.message}`,
+          );
+        }
         next(error);
         return;
       }
