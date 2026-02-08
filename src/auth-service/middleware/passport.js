@@ -24,7 +24,7 @@ const {
 } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- passport-middleware`
+  `${constants.ENVIRONMENT} -- passport-middleware`,
 );
 
 // --- Token Lifecycle Configuration ---
@@ -51,7 +51,7 @@ const setLocalOptions = (req, res, next) => {
     ) {
       throw new HttpError(
         "the userName field is missing or empty",
-        httpStatus.BAD_REQUEST
+        httpStatus.BAD_REQUEST,
       );
     }
 
@@ -79,7 +79,7 @@ const setLocalOptions = (req, res, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -137,7 +137,7 @@ const useLocalStrategy = (tenant, req, res, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -159,8 +159,8 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           next(
             new HttpError(
               `username or password does not exist in this organisation (${tenant})`,
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
           return;
         } else if (!user.authenticateUser(password)) {
@@ -170,8 +170,8 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           next(
             new HttpError(
               "incorrect username or password",
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
           return;
         }
@@ -183,12 +183,12 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             if (verificationResult.requiresV3Reminder) {
               await userUtil.verificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
-                next
+                next,
               );
             } else if (verificationResult.requiresV4Reminder) {
               await userUtil.mobileVerificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
-                next
+                next,
               );
             }
           } catch (error) {
@@ -213,12 +213,12 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
               await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
                 user._id,
                 { email: user.email.toLowerCase() },
-                { new: true }
+                { new: true },
               );
             }
           } catch (error) {
             logger.warn(
-              `Could not migrate email case for user ${user._id}: ${error.message}`
+              `Could not migrate email case for user ${user._id}: ${error.message}`,
             );
           }
         }
@@ -228,7 +228,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           try {
             const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
             const existingPermissions = await PermissionModel(
-              tenant.toLowerCase()
+              tenant.toLowerCase(),
             )
               .find({ permission: { $in: DEFAULT_PERMISSIONS } })
               .select("_id")
@@ -240,12 +240,12 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
                 user._id,
                 {
                   $addToSet: { permissions: { $each: permissionIds } },
-                }
+                },
               );
             }
           } catch (permError) {
             logger.error(
-              `Error updating default permissions for user ${user.email}: ${permError.message}`
+              `Error updating default permissions for user ${user.email}: ${permError.message}`,
             );
           }
         })();
@@ -282,7 +282,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             username: user.userName,
             email: user.email,
             service: service ? service : "none",
-          }
+          },
         );
 
         return done(null, user);
@@ -295,7 +295,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
         return;
       }
-    }
+    },
   );
 
 const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
@@ -317,8 +317,8 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           next(
             new HttpError(
               `username or password does not exist in this organisation (${tenant})`,
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
           return;
         } else if (!user.authenticateUser(password)) {
@@ -328,8 +328,8 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           next(
             new HttpError(
               "incorrect username or password",
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
           return;
         }
@@ -341,12 +341,12 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             if (verificationResult.requiresV3Reminder) {
               await userUtil.verificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
-                next
+                next,
               );
             } else if (verificationResult.requiresV4Reminder) {
               await userUtil.mobileVerificationReminder(
                 { tenant: tenant.toLowerCase(), email: user.email },
-                next
+                next,
               );
             }
           } catch (error) {
@@ -370,12 +370,12 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
               await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
                 user._id,
                 { email: user.email.toLowerCase() },
-                { new: true }
+                { new: true },
               );
             }
           } catch (error) {
             logger.warn(
-              `Could not migrate email case for user ${user._id}: ${error.message}`
+              `Could not migrate email case for user ${user._id}: ${error.message}`,
             );
           }
         }
@@ -385,7 +385,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           try {
             const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
             const existingPermissions = await PermissionModel(
-              tenant.toLowerCase()
+              tenant.toLowerCase(),
             )
               .find({ permission: { $in: DEFAULT_PERMISSIONS } })
               .select("_id")
@@ -397,12 +397,12 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
                 user._id,
                 {
                   $addToSet: { permissions: { $each: permissionIds } },
-                }
+                },
               );
             }
           } catch (permError) {
             logger.error(
-              `Error updating default permissions for user ${user.email}: ${permError.message}`
+              `Error updating default permissions for user ${user.email}: ${permError.message}`,
             );
           }
         })();
@@ -441,7 +441,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             username: user.userName,
             email: user.email,
             service: service ? service : "unknown",
-          }
+          },
         );
         return done(null, user);
       } catch (e) {
@@ -453,7 +453,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
         return;
       }
-    }
+    },
   );
 
 const useGoogleStrategy = (tenant, req, res, next) =>
@@ -485,14 +485,14 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             });
           } catch (analyticsError) {
             logger.error(
-              `PostHog Google login track error: ${analyticsError.message}`
+              `PostHog Google login track error: ${analyticsError.message}`,
             );
           }
 
           if (user && user.email !== user.email.toLowerCase()) {
             try {
               const conflictUser = await UserModel(
-                tenant.toLowerCase()
+                tenant.toLowerCase(),
               ).findOne({
                 email: user.email.toLowerCase(),
                 _id: { $ne: user._id },
@@ -503,12 +503,12 @@ const useGoogleStrategy = (tenant, req, res, next) =>
                 await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
                   user._id,
                   { email: user.email.toLowerCase() },
-                  { new: true }
+                  { new: true },
                 );
               }
             } catch (error) {
               logger.warn(
-                `Could not migrate email case for user ${user._id}: ${error.message}`
+                `Could not migrate email case for user ${user._id}: ${error.message}`,
               );
             }
           }
@@ -522,7 +522,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               username: user.userName,
               email: user.email,
               service: service ? service : "none",
-            }
+            },
           );
           cb(null, user);
           return next();
@@ -537,10 +537,10 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               userName: profile._json.email,
               website: profile._json.hd,
               password: accessCodeGenerator.generate(
-                constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+                constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
               ),
             },
-            next
+            next,
           );
           if (responseFromRegisterUser.success === false) {
             req.auth.success = false;
@@ -554,8 +554,8 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               new HttpError(
                 "unable to create user",
                 responseFromRegisterUser.status ||
-                  httpStatus.INTERNAL_SERVER_ERROR
-              )
+                  httpStatus.INTERNAL_SERVER_ERROR,
+              ),
             );
             return;
           } else {
@@ -576,7 +576,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               });
             } catch (analyticsError) {
               logger.error(
-                `PostHog Google registration track error: ${analyticsError.message}`
+                `PostHog Google registration track error: ${analyticsError.message}`,
               );
             }
 
@@ -594,7 +594,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
                 .then(() => {})
                 .catch((error) => {
                   logger.error(
-                    `🐛🐛 Internal Server Error -- ${stringify(error)}`
+                    `🐛🐛 Internal Server Error -- ${stringify(error)}`,
                   );
                 });
             } catch (error) {
@@ -616,7 +616,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
         next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
         return;
       }
-    }
+    },
   );
 
 const specificRoutes = [
@@ -1183,14 +1183,14 @@ const useJWTStrategy = (tenant, req, res, next) =>
       logObject("req.headers[x-original-uri]", req.headers["x-original-uri"]);
       logObject(
         "req.headers[x-original-method]",
-        req.headers["x-original-method"]
+        req.headers["x-original-method"],
       );
 
       logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
       logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
       logObject(
         "req.headers['x-client-original-ip']",
-        req.headers["x-client-original-ip"]
+        req.headers["x-client-original-ip"],
       );
 
       const clientIp = req.headers["x-client-ip"];
@@ -1256,12 +1256,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
                     actor: user.email,
                   },
                 },
-                next
+                next,
               );
 
               if (emailResponse && emailResponse.success === false) {
                 logger.error(
-                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`,
                 );
               }
             } catch (error) {
@@ -1348,15 +1348,15 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
                   username: user.userName,
                   email: user.email,
                   service: service ? service : "unknown",
-                }
+                },
               );
               return done(null, user);
-            }
+            },
           );
         } else {
           return done(null);
         }
-      }
+      },
     );
   });
 
@@ -1512,7 +1512,7 @@ const enhancedJWTAuth = (req, res, next) => {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message: "Authorization header is missing",
-        })
+        }),
       );
     }
 
@@ -1522,7 +1522,7 @@ const enhancedJWTAuth = (req, res, next) => {
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
             "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
-        })
+        }),
       );
     }
 
@@ -1531,7 +1531,7 @@ const enhancedJWTAuth = (req, res, next) => {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message: "Token is missing from Authorization header",
-        })
+        }),
       );
     }
 
@@ -1546,7 +1546,7 @@ const enhancedJWTAuth = (req, res, next) => {
     for (const route of specificRoutes) {
       if (matchesRoute(endpoint, route.uri)) {
         logger.warn(
-          `JWT blocked for endpoint: ${endpoint} - requires query token`
+          `JWT blocked for endpoint: ${endpoint} - requires query token`,
         );
 
         return next(
@@ -1556,7 +1556,7 @@ const enhancedJWTAuth = (req, res, next) => {
             route:
               route.description ||
               "JWT authentication not permitted for this endpoint",
-          })
+          }),
         );
       }
     }
@@ -1574,7 +1574,7 @@ const enhancedJWTAuth = (req, res, next) => {
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
               message: `Invalid token: ${err.message}`,
-            })
+            }),
           );
         }
 
@@ -1585,7 +1585,7 @@ const enhancedJWTAuth = (req, res, next) => {
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
               message: "Your session has expired. Please log in again.",
-            })
+            }),
           );
         }
 
@@ -1611,7 +1611,7 @@ const enhancedJWTAuth = (req, res, next) => {
               const newToken = await tokenFactory.createToken(
                 userForRefresh,
                 strategy,
-                { expiresIn: `${TOKEN_LIFE_SECONDS}s` }
+                { expiresIn: `${TOKEN_LIFE_SECONDS}s` },
               );
 
               res.set("X-Access-Token", `JWT ${newToken}`);
@@ -1621,7 +1621,7 @@ const enhancedJWTAuth = (req, res, next) => {
             logger.error(
               `Failed to refresh token for user ${decoded.id || decoded._id}: ${
                 refreshError.message
-              }`
+              }`,
             );
             // Do not fail the request, just log the error. The current token is still valid (or within grace).
           }
@@ -1641,22 +1641,75 @@ const enhancedJWTAuth = (req, res, next) => {
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
               message: "User from token no longer exists",
-            })
+            }),
           );
         }
 
         // For compatibility, merge DB user data with token claims
         req.user = { ...user, ...decoded };
         next();
-      }
+      },
     );
   } catch (error) {
     logger.error(`🐛🐛 Enhanced JWT Auth Error: ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
+  }
+};
+
+const optionalJWTAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    // If no auth header, just proceed without a user object
+    if (!authHeader) {
+      return next();
+    }
+
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match || !match[2]) {
+      // Invalid format, but we proceed without user
+      return next();
+    }
+
+    const token = match[2].trim();
+    if (!token) {
+      return next();
+    }
+
+    jwt.verify(
+      token,
+      constants.JWT_SECRET,
+      { ignoreExpiration: true }, // We can handle expiration logic if needed, but for now, just decode
+      async (err, decoded) => {
+        if (err || !decoded) {
+          // Invalid token, proceed without user
+          return next();
+        }
+
+        const tenantRaw =
+          req.query.tenant ||
+          req.body.tenant ||
+          constants.DEFAULT_TENANT ||
+          "airqo";
+        const tenant = String(tenantRaw).toLowerCase();
+        const userId = decoded.userId || decoded.id || decoded._id;
+
+        const user = await UserModel(tenant).findById(userId).lean();
+
+        if (user) {
+          req.user = { ...user, ...decoded }; // Attach user if found
+        }
+
+        return next();
+      },
+    );
+  } catch (error) {
+    // On any unexpected error, just proceed without a user object
+    return next();
   }
 };
 
@@ -1747,4 +1800,5 @@ module.exports = {
   authGuest,
   enhancedJWTAuth,
   authenticateJWT,
+  optionalJWTAuth,
 };

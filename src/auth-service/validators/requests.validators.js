@@ -78,6 +78,11 @@ const requestAccessToGroupByEmail = [
 const acceptInvitation = [
   validateTenant,
   [
+    body("token")
+      .optional()
+      .isHexadecimal()
+      .withMessage("Invalid token format")
+      .isLength({ min: 64, max: 64 }),
     body("target_id")
       .exists()
       .withMessage("the target_id is missing in request")

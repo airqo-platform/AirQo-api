@@ -1,5 +1,6 @@
 //src/auth-service/utils/request.util.js
 const UserModel = require("@models/User");
+const crypto = require("crypto");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
 const NetworkModel = require("@models/Network");
@@ -313,6 +314,11 @@ const createAccessRequest = {
             continue;
           }
 
+          // Generate a secure, unique token for the invitation link
+          const invitationToken = crypto.randomBytes(32).toString("hex");
+          const invitationTokenExpires = new Date();
+          invitationTokenExpires.setDate(invitationTokenExpires.getDate() + 7); // Token valid for 7 days
+
           const accessRequestData = {
             email: normalizedEmail,
             targetId: grp_id,
@@ -321,6 +327,8 @@ const createAccessRequest = {
             inviter_id: inviterId,
             inviter_email: inviterEmail,
             expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            invitationToken,
+            invitationTokenExpires,
           };
 
           if (existingUser) {
@@ -355,6 +363,7 @@ const createAccessRequest = {
                   request_id: createdAccessRequest._id,
                   group_description: group.grp_description,
                   expires_at: accessRequestData.expires_at,
+                  token: invitationToken, // Pass token to email template
                 },
                 next,
               );
@@ -532,12 +541,21 @@ const createAccessRequest = {
 
   acceptInvitation: async (request, next) => {
     try {
-      const { tenant, email, firstName, lastName, password, grids, target_id } =
-        {
-          ...request.body,
-          ...request.query,
-          ...request.params,
-        };
+      const {
+        tenant,
+        email,
+        firstName,
+        lastName,
+        password,
+        grids,
+        target_id,
+        token,
+      } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const authUser = request.user;
 
       const existingUser = await UserModel(tenant).findOne({
         email: email.toLowerCase(),
@@ -545,7 +563,16 @@ const createAccessRequest = {
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
         _id: target_id,
+        ...(token && {
+          invitationToken: token,
+          invitationTokenExpires: { $gt: new Date() },
+        }),
       });
+
+      // If using token auth, the user's email comes from the access request itself
+      if (token && accessRequest) {
+        request.body.email = accessRequest.email;
+      }
 
       logObject("acceptInvitation - accessRequest", {
         _id: accessRequest?._id,
@@ -565,8 +592,11 @@ const createAccessRequest = {
         };
       }
 
-      // Security check: ensure the logged-in user's email matches the invitation email
-      if (accessRequest.email.toLowerCase() !== email.toLowerCase()) {
+      // Security check: if logged in via JWT, ensure the user's email matches the invitation email
+      if (
+        authUser &&
+        accessRequest.email.toLowerCase() !== authUser.email.toLowerCase()
+      ) {
         return {
           success: false,
           message: "Authorization Error",
@@ -608,7 +638,7 @@ const createAccessRequest = {
       }
 
       let user = null;
-      let isNewUser = false;
+      let isNewUser = !existingUser;
 
       if (existingUser) {
         const requestType = accessRequest.requestType;
@@ -686,7 +716,11 @@ const createAccessRequest = {
       }
 
       // Update access request status
-      const update = { status: "approved", user_id: user._id };
+      const update = {
+        status: "approved",
+        user_id: user._id,
+        invitationToken: null, // Nullify the token after use
+      };
       const filter = { _id: target_id };
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(

@@ -802,11 +802,12 @@ module.exports = {
     inviter_name,
     group_description,
     request_id,
+    token,
   }) => {
     const registrationLink = `${
       constants.ANALYTICS_BASE_URL
-    }/register?email=${encodeURIComponent(email)}&target_id=${request_id}`;
-    const loginLink = `${constants.ANALYTICS_BASE_URL}/org-invite?target_id=${request_id}`;
+    }/register?token=${token}`;
+    const loginLink = `${constants.ANALYTICS_BASE_URL}/org-invite?token=${token}`;
 
     const content = `
       <tr>

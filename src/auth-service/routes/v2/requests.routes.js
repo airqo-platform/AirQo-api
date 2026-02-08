@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createRequestController = require("@controllers/request.controller");
 const requestValidations = require("@validators/requests.validators");
-const { enhancedJWTAuth } = require("@middleware/passport");
+const { enhancedJWTAuth, optionalJWTAuth } = require("@middleware/passport");
 const { requirePermissions } = require("@middleware/permissionAuth");
 const constants = require("@config/constants");
 const { validate, headers, pagination } = require("@validators/common");
@@ -14,28 +14,28 @@ router.post(
   "/groups/:grp_id",
   requestValidations.requestAccessToGroup,
   enhancedJWTAuth,
-  createRequestController.requestAccessToGroup
+  createRequestController.requestAccessToGroup,
 );
 
 router.post(
   "/emails/groups/:grp_id",
   requestValidations.requestAccessToGroupByEmail,
   enhancedJWTAuth,
-  createRequestController.requestAccessToGroupByEmail
+  createRequestController.requestAccessToGroupByEmail,
 );
 
 router.post(
   "/emails/accept",
   requestValidations.acceptInvitation,
-  enhancedJWTAuth,
-  createRequestController.acceptInvitation
+  optionalJWTAuth,
+  createRequestController.acceptInvitation,
 );
 
 router.post(
   "/networks/:net_id",
   requestValidations.requestAccessToNetwork,
   enhancedJWTAuth,
-  createRequestController.requestAccessToNetwork
+  createRequestController.requestAccessToNetwork,
 );
 
 router.get(
@@ -43,7 +43,7 @@ router.get(
   requestValidations.list,
   enhancedJWTAuth,
   pagination(),
-  createRequestController.list
+  createRequestController.list,
 );
 
 router.get(
@@ -51,21 +51,21 @@ router.get(
   requestValidations.listPending,
   enhancedJWTAuth,
   pagination(),
-  createRequestController.listPendingAccessRequests
+  createRequestController.listPendingAccessRequests,
 );
 
 router.post(
   "/:request_id/approve",
   requestValidations.approveAccessRequest,
   enhancedJWTAuth,
-  createRequestController.approveAccessRequest
+  createRequestController.approveAccessRequest,
 );
 
 router.post(
   "/:request_id/reject",
   requestValidations.rejectAccessRequest,
   enhancedJWTAuth,
-  createRequestController.rejectAccessRequest
+  createRequestController.rejectAccessRequest,
 );
 
 router.get(
@@ -73,7 +73,7 @@ router.get(
   requestValidations.listForGroup,
   enhancedJWTAuth,
   pagination(),
-  createRequestController.listAccessRequestsForGroup
+  createRequestController.listAccessRequestsForGroup,
 );
 
 router.get(
@@ -81,7 +81,7 @@ router.get(
   requestValidations.listForNetwork,
   enhancedJWTAuth,
   pagination(),
-  createRequestController.listAccessRequestsForNetwork
+  createRequestController.listAccessRequestsForNetwork,
 );
 
 router.delete(
@@ -89,21 +89,21 @@ router.delete(
   requestValidations.cleanupExpired,
   enhancedJWTAuth,
   requirePermissions([constants.SYSTEM_ADMIN]),
-  createRequestController.cleanupExpiredRequests
+  createRequestController.cleanupExpiredRequests,
 );
 
 router.delete(
   "/:request_id",
   requestValidations.deleteRequest,
   enhancedJWTAuth,
-  createRequestController.delete
+  createRequestController.delete,
 );
 
 router.put(
   "/:request_id",
   requestValidations.updateRequest,
   enhancedJWTAuth,
-  createRequestController.update
+  createRequestController.update,
 );
 
 router.get(
@@ -111,7 +111,7 @@ router.get(
   requestValidations.listAccessRequestsForGroup,
   enhancedJWTAuth,
   pagination(),
-  createRequestController.listAccessRequestsForGroup
+  createRequestController.listAccessRequestsForGroup,
 );
 
 router.get(
@@ -119,14 +119,14 @@ router.get(
   requestValidations.listAccessRequestsForNetwork,
   enhancedJWTAuth,
   pagination(),
-  createRequestController.listAccessRequestsForNetwork
+  createRequestController.listAccessRequestsForNetwork,
 );
 
 router.get(
   "/request_id",
   requestValidations.getRequestId,
   enhancedJWTAuth,
-  createRequestController.list
+  createRequestController.list,
 );
 
 module.exports = router;
