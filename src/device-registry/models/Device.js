@@ -260,7 +260,9 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     tags: {
-      type: Array,
+      type: [String],
+      default: [],
+      index: true,
     },
     description: {
       type: String,
@@ -722,6 +724,28 @@ deviceSchema.pre(
         const groupsDuplicateError = checkDuplicates(this.groups, "groups");
         if (groupsDuplicateError) {
           return next(groupsDuplicateError);
+        }
+      }
+
+      // Normalize and deduplicate tags only when necessary to avoid unnecessary writes.
+      // For document middleware (.save()), check if it's a new document or if 'tags' was modified.
+      // For query middleware (.findOneAndUpdate(), etc.), check if 'tags' is in the update payload.
+      const shouldProcessTags = !isQuery
+        ? isNew || this.isModified("tags")
+        : doc.tags && Array.isArray(doc.tags);
+
+      if (shouldProcessTags) {
+        if (doc.tags && Array.isArray(doc.tags)) {
+          const processedTags = [
+            ...new Set(
+              doc.tags.map((tag) =>
+                String(tag)
+                  .trim()
+                  .toLowerCase(),
+              ),
+            ),
+          ].filter(Boolean); // filter(Boolean) removes any empty strings
+          doc.tags = processedTags;
         }
       }
 
