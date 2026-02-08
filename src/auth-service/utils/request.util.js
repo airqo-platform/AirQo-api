@@ -314,6 +314,8 @@ const createAccessRequest = {
             continue;
           }
 
+          const INVITATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
           // Generate a secure, unique token for the invitation link
           const invitationToken = crypto.randomBytes(32).toString("hex");
           const invitationTokenExpires = new Date();
@@ -326,7 +328,7 @@ const createAccessRequest = {
             requestType: "group",
             inviter_id: inviterId,
             inviter_email: inviterEmail,
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expires_at: new Date(Date.now() + INVITATION_EXPIRY_MS),
             invitationToken,
             invitationTokenExpires,
           };
@@ -542,6 +544,8 @@ const createAccessRequest = {
   acceptInvitation: async (request, next) => {
     try {
       const {
+        // 'email' is destructured for backward compatibility but is often undefined
+        // for token-based flows. The actual email is resolved later.
         tenant,
         email,
         firstName,

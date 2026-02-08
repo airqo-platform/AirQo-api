@@ -1646,7 +1646,7 @@ const enhancedJWTAuth = (req, res, next) => {
         }
 
         // For compatibility, merge DB user data with token claims
-        req.user = { ...user, ...decoded };
+        req.user = { ...decoded, ...user };
         next();
       },
     );
@@ -1710,7 +1710,7 @@ const optionalJWTAuth = (req, res, next) => {
           const user = await UserModel(tenant).findById(userId).lean();
 
           if (user) {
-            req.user = { ...user, ...decoded }; // Attach user if found
+            req.user = { ...decoded, ...user }; // Attach user if found
           }
 
           return next();
