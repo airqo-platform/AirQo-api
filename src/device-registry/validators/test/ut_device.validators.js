@@ -171,7 +171,6 @@ describe("Device Validator", () => {
           name: "Device Name",
           network: "validNetwork",
           latitude: "0.12345",
-          latitude: "0.12345",
           longitude: "32.12345",
         },
       );
@@ -277,7 +276,6 @@ describe("Device Validator", () => {
           visibility: true,
           long_name: "Updated Device Name",
           latitude: "0.12345",
-          latitude: "0.12345",
           longitude: "32.12345",
         },
       );
@@ -296,7 +294,6 @@ describe("Device Validator", () => {
         {
           visibility: 123, // Invalid boolean
           long_name: "", // Empty string
-          latitude: "invalidLatitude", //Invalid lat
           latitude: "invalidLatitude", //Invalid lat
           longitude: "invalidLongitude", // Invalid lon
         },
