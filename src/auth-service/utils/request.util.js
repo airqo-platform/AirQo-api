@@ -565,6 +565,19 @@ const createAccessRequest = {
         }),
       });
 
+      // Security guard: Reject if neither a JWT session nor an invitation token is provided.
+      if (!authUser && !token) {
+        return {
+          success: false,
+          message: "Authentication required.",
+          status: httpStatus.UNAUTHORIZED,
+          errors: {
+            message:
+              "A valid session or invitation token is required to perform this action.",
+          },
+        };
+      }
+
       // If using token auth, the user's email comes from the access request itself.
       // This must happen before the existingUser lookup.
       if (token && accessRequest) {

@@ -1685,34 +1685,39 @@ const optionalJWTAuth = (req, res, next) => {
       constants.JWT_SECRET,
       { ignoreExpiration: true }, // We can handle expiration logic if needed, but for now, just decode
       async (err, decoded) => {
-        if (err || !decoded) {
-          // Invalid token format, proceed without user
+        try {
+          if (err || !decoded) {
+            // Invalid token format, proceed without user
+            return next();
+          }
+
+          const now = Math.floor(Date.now() / 1000);
+
+          // Check if token is fully expired (past grace period)
+          if (decoded.exp && decoded.exp + GRACE_PERIOD_SECONDS < now) {
+            // Expired token, proceed without user
+            return next();
+          }
+
+          const tenantRaw =
+            req.query.tenant ||
+            req.body.tenant ||
+            constants.DEFAULT_TENANT ||
+            "airqo";
+          const tenant = String(tenantRaw).toLowerCase();
+          const userId = decoded.userId || decoded.id || decoded._id;
+
+          const user = await UserModel(tenant).findById(userId).lean();
+
+          if (user) {
+            req.user = { ...user, ...decoded }; // Attach user if found
+          }
+
+          return next();
+        } catch (err) {
+          logger.warn(`optionalJWTAuth verify callback error: ${err.message}`);
           return next();
         }
-
-        const now = Math.floor(Date.now() / 1000);
-
-        // Check if token is fully expired (past grace period)
-        if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
-          // Expired token, proceed without user
-          return next();
-        }
-
-        const tenantRaw =
-          req.query.tenant ||
-          req.body.tenant ||
-          constants.DEFAULT_TENANT ||
-          "airqo";
-        const tenant = String(tenantRaw).toLowerCase();
-        const userId = decoded.userId || decoded.id || decoded._id;
-
-        const user = await UserModel(tenant).findById(userId).lean();
-
-        if (user) {
-          req.user = { ...user, ...decoded }; // Attach user if found
-        }
-
-        return next();
       },
     );
   } catch (error) {
