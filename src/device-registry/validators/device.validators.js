@@ -591,9 +591,7 @@ const validateUpdateDevice = [
     .optional()
     .isArray()
     .withMessage("tags must be an array of strings")
-    .bail()
-    .notEmpty()
-    .withMessage("tags should not be an empty array if provided"),
+    .bail(),
   body("tags.*")
     .isString()
     .withMessage("Each tag must be a string"),
