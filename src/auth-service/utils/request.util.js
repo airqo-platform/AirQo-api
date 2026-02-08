@@ -282,6 +282,8 @@ const createAccessRequest = {
         existingPendingRequests.map((req) => [req.email.toLowerCase(), req]),
       );
 
+      const INVITATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
       const existingRequests = [];
       const successResponses = [];
       const failureResponses = [];
@@ -314,12 +316,9 @@ const createAccessRequest = {
             continue;
           }
 
-          const INVITATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
-
           // Generate a secure, unique token for the invitation link
           const invitationToken = crypto.randomBytes(32).toString("hex");
-          const invitationTokenExpires = new Date();
-          invitationTokenExpires.setDate(invitationTokenExpires.getDate() + 7); // Token valid for 7 days
+          const expiryDate = new Date(Date.now() + INVITATION_EXPIRY_MS);
 
           const accessRequestData = {
             email: normalizedEmail,
@@ -328,9 +327,9 @@ const createAccessRequest = {
             requestType: "group",
             inviter_id: inviterId,
             inviter_email: inviterEmail,
-            expires_at: new Date(Date.now() + INVITATION_EXPIRY_MS),
+            expires_at: expiryDate,
             invitationToken,
-            invitationTokenExpires,
+            invitationTokenExpires: expiryDate,
           };
 
           if (existingUser) {
