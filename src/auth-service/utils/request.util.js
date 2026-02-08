@@ -557,10 +557,6 @@ const createAccessRequest = {
       };
       const authUser = request.user;
 
-      const existingUser = await UserModel(tenant).findOne({
-        email: email.toLowerCase(),
-      });
-
       const accessRequest = await AccessRequestModel(tenant).findOne({
         _id: target_id,
         ...(token && {
@@ -569,10 +565,17 @@ const createAccessRequest = {
         }),
       });
 
-      // If using token auth, the user's email comes from the access request itself
+      // If using token auth, the user's email comes from the access request itself.
+      // This must happen before the existingUser lookup.
       if (token && accessRequest) {
         request.body.email = accessRequest.email;
       }
+
+      const normalizedEmail = (request.body.email || email || "").toLowerCase();
+
+      const existingUser = await UserModel(tenant).findOne({
+        email: normalizedEmail,
+      });
 
       logObject("acceptInvitation - accessRequest", {
         _id: accessRequest?._id,
@@ -595,6 +598,7 @@ const createAccessRequest = {
       // Security check: if logged in via JWT, ensure the user's email matches the invitation email
       if (
         authUser &&
+        accessRequest.email &&
         accessRequest.email.toLowerCase() !== authUser.email.toLowerCase()
       ) {
         return {
@@ -638,7 +642,7 @@ const createAccessRequest = {
       }
 
       let user = null;
-      let isNewUser = !existingUser;
+      let isNewUser = !existingUser; // Flag to check if we are creating a new user
 
       if (existingUser) {
         const requestType = accessRequest.requestType;
@@ -715,11 +719,13 @@ const createAccessRequest = {
         isNewUser = true;
       }
 
+      const originalInvitationToken = accessRequest.invitationToken;
+
       // Update access request status
       const update = {
         status: "approved",
         user_id: user._id,
-        invitationToken: null, // Nullify the token after use
+        invitationToken: null, // Nullify the token after successful use
       };
       const filter = { _id: target_id };
 
@@ -778,7 +784,11 @@ const createAccessRequest = {
               await AccessRequestModel(tenant).modify(
                 {
                   filter: { _id: accessRequest._id },
-                  update: { status: "pending", user_id: null },
+                  update: {
+                    status: "pending",
+                    user_id: null,
+                    invitationToken: originalInvitationToken,
+                  },
                 },
                 next,
               );
@@ -812,7 +822,11 @@ const createAccessRequest = {
             await AccessRequestModel(tenant).modify(
               {
                 filter: { _id: accessRequest._id },
-                update: { status: "pending", user_id: null },
+                update: {
+                  status: "pending",
+                  user_id: null,
+                  invitationToken: originalInvitationToken,
+                },
               },
               next,
             );
@@ -869,7 +883,11 @@ const createAccessRequest = {
             await AccessRequestModel(tenant).modify(
               {
                 filter: { _id: accessRequest._id },
-                update: { status: "pending", user_id: null },
+                update: {
+                  status: "pending",
+                  user_id: null,
+                  invitationToken: originalInvitationToken,
+                },
               },
               next,
             );
@@ -897,7 +915,11 @@ const createAccessRequest = {
           await AccessRequestModel(tenant).modify(
             {
               filter: { _id: accessRequest._id },
-              update: { status: "pending", user_id: null },
+              update: {
+                status: "pending",
+                user_id: null,
+                invitationToken: originalInvitationToken,
+              },
             },
             next,
           );

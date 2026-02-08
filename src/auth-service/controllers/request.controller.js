@@ -136,7 +136,9 @@ const createAccessRequest = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      request.body.email = request.user.email;
+      if (request.user && request.user.email) {
+        request.body.email = request.user.email;
+      }
 
       const result = await requestUtil.acceptInvitation(request, next);
 

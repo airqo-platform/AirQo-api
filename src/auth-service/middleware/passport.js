@@ -1686,7 +1686,15 @@ const optionalJWTAuth = (req, res, next) => {
       { ignoreExpiration: true }, // We can handle expiration logic if needed, but for now, just decode
       async (err, decoded) => {
         if (err || !decoded) {
-          // Invalid token, proceed without user
+          // Invalid token format, proceed without user
+          return next();
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+
+        // Check if token is fully expired (past grace period)
+        if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
+          // Expired token, proceed without user
           return next();
         }
 
@@ -1708,8 +1716,8 @@ const optionalJWTAuth = (req, res, next) => {
       },
     );
   } catch (error) {
-    // On any unexpected error, just proceed without a user object
-    return next();
+    logger.warn(`optionalJWTAuth unexpected error: ${error.message}`);
+    return next(); // On any unexpected error, just proceed without a user object
   }
 };
 
