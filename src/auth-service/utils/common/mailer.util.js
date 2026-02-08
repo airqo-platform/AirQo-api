@@ -1228,6 +1228,10 @@ const mailer = {
         group_description: params.group_description,
         request_id: params.request_id,
       }),
+    (baseMailOptions, params) => ({
+      ...baseMailOptions,
+      bcc: params.inviterEmail, // BCC only the inviter
+    }),
   ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
     msgs.inquiry(
