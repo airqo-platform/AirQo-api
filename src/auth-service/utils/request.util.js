@@ -541,7 +541,7 @@ const createAccessRequest = {
       const authUser = request.user;
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
-        _id: target_id,
+        targetId: target_id,
         ...(token && {
           invitationToken: token,
           invitationTokenExpires: { $gt: new Date() },
@@ -715,11 +715,10 @@ const createAccessRequest = {
 
       // Update access request status
       const update = {
-        status: "approved",
-        user_id: user._id,
-        invitationToken: null,
+        $set: { status: "approved", user_id: user._id },
+        $unset: { invitationToken: 1, invitationTokenExpires: 1 },
       };
-      const filter = { _id: target_id };
+      const filter = { _id: accessRequest._id, status: "pending" };
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(
         tenant,
