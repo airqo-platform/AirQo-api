@@ -540,13 +540,21 @@ const createAccessRequest = {
       };
       const authUser = request.user;
 
-      const accessRequest = await AccessRequestModel(tenant).findOne({
-        _id: target_id,
-        ...(token && {
+      // Dynamically build the query based on whether a token is provided
+      const query = {};
+      if (token) {
+        // Token-based flow: Use targetId (group/network ID) and token
+        query.targetId = target_id;
+        Object.assign(query, {
           invitationToken: token,
           invitationTokenExpires: { $gt: new Date() },
-        }),
-      });
+        });
+      } else {
+        // Session-based flow: Use the access request's own _id
+        query._id = target_id;
+      }
+
+      const accessRequest = await AccessRequestModel(tenant).findOne(query);
 
       // Security guard: Reject if neither a JWT session nor an invitation token is provided.
       if (!authUser && !token) {
@@ -559,13 +567,6 @@ const createAccessRequest = {
               "A valid session or invitation token is required to perform this action.",
           },
         };
-      }
-
-      // If using token auth, the user's email comes from the access request itself.
-      // This must happen before the existingUser lookup.
-      let invitationEmail = email;
-      if (token && accessRequest) {
-        invitationEmail = accessRequest.email;
       }
 
       if (isEmpty(accessRequest)) {
@@ -629,6 +630,28 @@ const createAccessRequest = {
         };
       }
 
+      // If using token auth, the user's email comes from the access request itself.
+      let invitationEmail = email;
+      if (token && accessRequest) {
+        invitationEmail = accessRequest.email;
+      }
+
+      // Guard against undefined or empty email before querying
+      if (
+        typeof invitationEmail !== "string" ||
+        invitationEmail.trim() === ""
+      ) {
+        return {
+          success: false,
+          message: "Bad Request",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "An email address is required to process the invitation, but none was provided.",
+          },
+        };
+      }
+
       const existingUser = await UserModel(tenant).findOne({
         email: invitationEmail.toLowerCase(),
       });
@@ -641,7 +664,7 @@ const createAccessRequest = {
 
         if (requestType === "group") {
           const isAlreadyAssigned = existingUser.group_roles?.some(
-            (gr) => gr.group.toString() === target_id.toString(),
+            (gr) => gr.group.toString() === accessRequest.targetId.toString(),
           );
 
           if (isAlreadyAssigned) {
@@ -656,7 +679,7 @@ const createAccessRequest = {
           }
         } else if (requestType === "network") {
           const isAlreadyAssigned = existingUser.network_roles?.some(
-            (nr) => nr.network.toString() === target_id.toString(),
+            (nr) => nr.network.toString() === accessRequest.targetId.toString(),
           );
 
           if (isAlreadyAssigned) {
@@ -712,22 +735,6 @@ const createAccessRequest = {
       }
 
       const originalInvitationToken = accessRequest.invitationToken;
-
-      // Update access request status
-      const update = {
-        status: "approved",
-        user_id: user._id,
-        invitationToken: null,
-      };
-      const filter = { _id: target_id };
-
-      const responseFromUpdateAccessRequest = await AccessRequestModel(
-        tenant,
-      ).modify({ filter, update }, next);
-
-      if (responseFromUpdateAccessRequest.success !== true) {
-        return responseFromUpdateAccessRequest;
-      }
 
       const requestType = accessRequest.requestType;
       let entity_title;
@@ -920,6 +927,87 @@ const createAccessRequest = {
       }
 
       if (assignmentResult && assignmentResult.success === true) {
+        try {
+          // Invalidate the token only after successful assignment
+          const invalidationResult = await AccessRequestModel(
+            tenant,
+          ).findByIdAndUpdate(
+            accessRequest._id,
+            {
+              $set: {
+                status: "approved",
+                user_id: user._id,
+              },
+              $unset: { invitationToken: 1, invitationTokenExpires: 1 },
+            },
+            { new: true },
+          );
+
+          if (!invalidationResult) {
+            throw new Error("Token invalidation failed: document not found.");
+          }
+        } catch (invalidationError) {
+          logger.error(
+            `CRITICAL: Token invalidation failed for access request ${accessRequest._id}. Initiating rollback.`,
+            { error: invalidationError.message },
+          );
+
+          let rollbackErrorOccurred = null;
+          // Rollback: Remove user from the group/network
+          try {
+            if (requestType === "group") {
+              await createGroupUtil.unAssignUser(
+                {
+                  params: { grp_id: accessRequest.targetId, user_id: user._id },
+                  query: { tenant },
+                },
+                next,
+              );
+            } else if (requestType === "network") {
+              await createNetworkUtil.unAssignUser(
+                {
+                  params: { net_id: accessRequest.targetId, user_id: user._id },
+                  query: { tenant },
+                },
+                next,
+              );
+            }
+            logger.info(
+              `Rollback successful for user ${user._id} from ${requestType} ${accessRequest.targetId}`,
+            );
+          } catch (rollbackError) {
+            logger.error(
+              `CRITICAL-ROLLBACK-FAILURE: Failed to remove user during rollback: ${rollbackError.message}`,
+            );
+            rollbackErrorOccurred = rollbackError;
+          }
+
+          // Return an error to the user
+          if (rollbackErrorOccurred) {
+            return {
+              success: false,
+              message:
+                "A critical system error occurred. Please contact support.",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message:
+                  "The operation could not be safely rolled back. Manual intervention may be required.",
+              },
+            };
+          }
+
+          return {
+            success: false,
+            message:
+              "Invitation acceptance failed due to a system error. Please try again.",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message:
+                "A system error occurred during finalization. The operation has been safely rolled back.",
+            },
+          };
+        }
+        // Proceed with sending email notification
         let login_url;
         if (requestType === "group" && organization_slug) {
           login_url = `${constants.ANALYTICS_BASE_URL}/org/${organization_slug}/login`;
@@ -1706,10 +1794,7 @@ const createAccessRequest = {
   },
   listPendingInvitationsForUser: async (request, next) => {
     try {
-      const {
-        user: { _doc: user },
-        query,
-      } = request;
+      const { user, query } = request;
       const { tenant } = query;
 
       if (isEmpty(user) || isEmpty(user.email)) {
@@ -1730,7 +1815,7 @@ const createAccessRequest = {
         .find({
           email: userEmail,
           status: "pending",
-          expires_at: { $gt: new Date() }, // Only non-expired invitations
+          invitationTokenExpires: { $gt: new Date() }, // Only non-expired invitations
         })
         .sort({ createdAt: -1 })
         .lean();
@@ -1831,11 +1916,7 @@ const createAccessRequest = {
   },
   rejectPendingInvitation: async (request, next) => {
     try {
-      const {
-        user: { _doc: user },
-        query,
-        params,
-      } = request;
+      const { user, query, params } = request;
       const { tenant } = query;
       const { invitation_id } = params;
 

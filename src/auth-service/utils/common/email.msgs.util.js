@@ -812,7 +812,7 @@ module.exports = {
     const newUserRegistrationLink = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register`;
 
     // For logged-in users - link to view pending invitations
-    const pendingInvitationsLink = `${constants.ANALYTICS_BASE_URL}/account/invitations`;
+    const pendingInvitationsLink = `${constants.ANALYTICS_BASE_URL}/user/profile`;
 
     const content = `
     <tr>
