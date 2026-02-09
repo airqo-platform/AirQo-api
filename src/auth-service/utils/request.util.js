@@ -636,6 +636,22 @@ const createAccessRequest = {
         invitationEmail = accessRequest.email;
       }
 
+      // Guard against undefined or empty email before querying
+      if (
+        typeof invitationEmail !== "string" ||
+        invitationEmail.trim() === ""
+      ) {
+        return {
+          success: false,
+          message: "Bad Request",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "An email address is required to process the invitation, but none was provided.",
+          },
+        };
+      }
+
       const existingUser = await UserModel(tenant).findOne({
         email: invitationEmail.toLowerCase(),
       });
