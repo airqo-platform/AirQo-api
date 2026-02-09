@@ -802,42 +802,54 @@ module.exports = {
     inviter_name,
     group_description,
     request_id,
+    token,
+    targetId,
   }) => {
-    const registrationLink = `${
-      constants.ANALYTICS_BASE_URL
-    }/register?email=${encodeURIComponent(email)}&target_id=${request_id}`;
-    const loginLink = `${constants.ANALYTICS_BASE_URL}/org-invite?target_id=${request_id}`;
+    // For existing users - direct accept link
+    const existingUserAcceptLink = `${constants.ANALYTICS_BASE_URL}/org-invite?token=${token}&target_id=${targetId}`;
+
+    // For new users - simple registration link, they'll see invitations after login
+    const newUserRegistrationLink = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register`;
+
+    // For logged-in users - link to view pending invitations
+    const pendingInvitationsLink = `${constants.ANALYTICS_BASE_URL}/account/invitations`;
 
     const content = `
-      <tr>
-        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-          <p>Hello,</p>
-          <p>You have been invited by <strong>${escapeHtml(
-            inviter_name,
-          )}</strong> (${escapeHtml(
-            inviterEmail,
-          )}) to join the organization "<strong>${escapeHtml(
-            entity_title,
-          )}</strong>" on AirQo Analytics.</p>
-          ${
-            group_description
-              ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(
-                  group_description,
-                )}</em></div>`
-              : ""
-          }
-          ${
-            userExists
-              ? `<p>Since you already have an AirQo account, please click the button below to automatically join the organization.</p>
-                 <a href="${loginLink}" style="display: inline-block; padding: 10px 20px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 5px;">Join Organization</a>`
-              : `<p>To accept this invitation, please click the button below to create your AirQo account and join the organization.</p>
-                 <a href="${registrationLink}" style="display: inline-block; padding: 10px 20px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 5px;">Create Account & Join</a>`
-          }
-          <p>If you have any questions, please contact the person who invited you.</p>
-          <p>Best,<br/>The AirQo Team</p>
-        </td>
-      </tr>
-    `;
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Hello,</p>
+        <p>You have been invited by <strong>${escapeHtml(inviter_name)}</strong> (${escapeHtml(inviterEmail)}) to join the organization "<strong>${escapeHtml(entity_title)}</strong>" on AirQo Analytics.</p>
+        ${
+          group_description
+            ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(group_description)}</em></div>`
+            : ""
+        }
+        ${
+          userExists
+            ? `
+              <p>Since you already have an AirQo account, you can accept this invitation in one of two ways:</p>
+              <div style="margin: 20px 0;">
+                <p><strong>Option 1:</strong> Accept directly using this link:</p>
+                <div style="text-align: center; margin: 12px 0;">
+                  <a href="${existingUserAcceptLink}" style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Accept Invitation</a>
+                </div>
+                <p style="margin-top: 16px;"><strong>Option 2:</strong> View and manage all your pending invitations in your <a href="${pendingInvitationsLink}" style="color: #135DFF;">account dashboard</a>.</p>
+              </div>
+            `
+            : `
+              <p>To join this organization, you'll need to create an AirQo account first. Once you've registered and logged in, you'll be able to view and accept this invitation from your account dashboard.</p>
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="${newUserRegistrationLink}" style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Create Account</a>
+              </div>
+              <p style="margin-top: 16px; font-size: 14px; color: #6B7280;">After registering, log in to view your pending invitations in your account dashboard.</p>
+            `
+        }
+        <p>If you have any questions, please contact the person who invited you.</p>
+        <p>Best,<br/>The AirQo Team</p>
+      </td>
+    </tr>
+  `;
+
     return constants.EMAIL_BODY({ email, content });
   },
 

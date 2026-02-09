@@ -15,7 +15,7 @@ const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- access-request-model`
+  `${constants.ENVIRONMENT} -- access-request-model`,
 );
 
 const AccessRequestSchema = new Schema(
@@ -48,10 +48,18 @@ const AccessRequestSchema = new Schema(
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
+    invitationToken: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows null values to not be unique
+    },
+    invitationTokenExpires: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 AccessRequestSchema.index({
@@ -79,7 +87,7 @@ AccessRequestSchema.statics = {
       } else {
         return createEmptySuccessResponse(
           "access request",
-          "operation successful but Access Request NOT successfully created"
+          "operation successful but Access Request NOT successfully created",
         );
       }
     } catch (error) {
@@ -93,7 +101,7 @@ AccessRequestSchema.statics = {
         constants.ACCESS_REQUESTS_INCLUSION_PROJECTION;
       const exclusionProjection =
         constants.ACCESS_REQUESTS_EXCLUSION_PROJECTION(
-          filter.category ? filter.category : "none"
+          filter.category ? filter.category : "none",
         );
 
       if (!isEmpty(filter.category)) {
@@ -141,20 +149,20 @@ AccessRequestSchema.statics = {
       const updatedAccessRequest = await this.findOneAndUpdate(
         filter,
         update,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedAccessRequest)) {
         return createSuccessResponse(
           "update",
           updatedAccessRequest._doc,
-          "access request"
+          "access request",
         );
       } else {
         return createNotFoundResponse(
           "access request",
           "update",
-          "access request does not exist, please crosscheck"
+          "access request does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -177,20 +185,20 @@ AccessRequestSchema.statics = {
 
       const removedAccessRequest = await this.findOneAndRemove(
         filter,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(removedAccessRequest)) {
         return createSuccessResponse(
           "delete",
           removedAccessRequest._doc,
-          "access request"
+          "access request",
         );
       } else {
         return createNotFoundResponse(
           "access request",
           "delete",
-          "access request does not exist, please crosscheck"
+          "access request does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -223,7 +231,7 @@ const AccessRequestModel = (tenant) => {
     const access_requests = getModelByTenant(
       dbTenant,
       "access_request",
-      AccessRequestSchema
+      AccessRequestSchema,
     );
     return access_requests;
   }

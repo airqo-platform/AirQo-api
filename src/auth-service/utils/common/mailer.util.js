@@ -267,7 +267,6 @@ const createMailerFunction = (
 
       const shouldProcessBcc = [
         "candidate",
-        "requestToJoinGroupByEmail",
         "siteActivity",
         "fieldActivity",
         "existingUserAccessRequest",
@@ -275,7 +274,8 @@ const createMailerFunction = (
         "existingUserRegistrationRequest",
       ].includes(functionName);
 
-      if (shouldProcessBcc) {
+      // Skip default BCC processing if a custom modifier will provide it.
+      if (shouldProcessBcc && !customMailOptionsModifier) {
         const bccEmailSource =
           functionName === "siteActivity" || functionName === "fieldActivity"
             ? constants.HARDWARE_AND_DS_EMAILS
@@ -1227,7 +1227,13 @@ const mailer = {
         inviter_name: params.inviter_name,
         group_description: params.group_description,
         request_id: params.request_id,
+        token: params.token,
+        targetId: params.targetId,
       }),
+    (baseMailOptions, params) => ({
+      ...baseMailOptions,
+      bcc: params.inviterEmail,
+    }),
   ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
     msgs.inquiry(
