@@ -541,7 +541,7 @@ const createAccessRequest = {
       const authUser = request.user;
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
-        targetId: target_id,
+        _id: target_id,
         ...(token && {
           invitationToken: token,
           invitationTokenExpires: { $gt: new Date() },
@@ -712,21 +712,6 @@ const createAccessRequest = {
       }
 
       const originalInvitationToken = accessRequest.invitationToken;
-
-      // Update access request status
-      const update = {
-        $set: { status: "approved", user_id: user._id },
-        $unset: { invitationToken: 1, invitationTokenExpires: 1 },
-      };
-      const filter = { _id: accessRequest._id, status: "pending" };
-
-      const responseFromUpdateAccessRequest = await AccessRequestModel(
-        tenant,
-      ).modify({ filter, update }, next);
-
-      if (responseFromUpdateAccessRequest.success !== true) {
-        return responseFromUpdateAccessRequest;
-      }
 
       const requestType = accessRequest.requestType;
       let entity_title;
@@ -919,6 +904,16 @@ const createAccessRequest = {
       }
 
       if (assignmentResult && assignmentResult.success === true) {
+        // Invalidate the token only after successful assignment
+        await AccessRequestModel(tenant).findByIdAndUpdate(accessRequest._id, {
+          $set: {
+            status: "approved",
+            user_id: user._id,
+          },
+          $unset: { invitationToken: 1, invitationTokenExpires: 1 },
+        });
+
+        // Proceed with sending email notification
         let login_url;
         if (requestType === "group" && organization_slug) {
           login_url = `${constants.ANALYTICS_BASE_URL}/org/${organization_slug}/login`;
@@ -1705,10 +1700,7 @@ const createAccessRequest = {
   },
   listPendingInvitationsForUser: async (request, next) => {
     try {
-      const {
-        user: { _doc: user },
-        query,
-      } = request;
+      const { user, query } = request;
       const { tenant } = query;
 
       if (isEmpty(user) || isEmpty(user.email)) {
@@ -1729,7 +1721,7 @@ const createAccessRequest = {
         .find({
           email: userEmail,
           status: "pending",
-          expires_at: { $gt: new Date() }, // Only non-expired invitations
+          invitationTokenExpires: { $gt: new Date() }, // Only non-expired invitations
         })
         .sort({ createdAt: -1 })
         .lean();
@@ -1830,11 +1822,7 @@ const createAccessRequest = {
   },
   rejectPendingInvitation: async (request, next) => {
     try {
-      const {
-        user: { _doc: user },
-        query,
-        params,
-      } = request;
+      const { user, query, params } = request;
       const { tenant } = query;
       const { invitation_id } = params;
 
