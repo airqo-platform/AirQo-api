@@ -540,13 +540,21 @@ const createAccessRequest = {
       };
       const authUser = request.user;
 
-      const accessRequest = await AccessRequestModel(tenant).findOne({
-        _id: target_id,
-        ...(token && {
+      // Dynamically build the query based on whether a token is provided
+      const query = {};
+      if (token) {
+        // Token-based flow: Use targetId (group/network ID) and token
+        query.targetId = target_id;
+        Object.assign(query, {
           invitationToken: token,
           invitationTokenExpires: { $gt: new Date() },
-        }),
-      });
+        });
+      } else {
+        // Session-based flow: Use the access request's own _id
+        query._id = target_id;
+      }
+
+      const accessRequest = await AccessRequestModel(tenant).findOne(query);
 
       // Security guard: Reject if neither a JWT session nor an invitation token is provided.
       if (!authUser && !token) {
@@ -559,13 +567,6 @@ const createAccessRequest = {
               "A valid session or invitation token is required to perform this action.",
           },
         };
-      }
-
-      // If using token auth, the user's email comes from the access request itself.
-      // This must happen before the existingUser lookup.
-      let invitationEmail = email;
-      if (token && accessRequest) {
-        invitationEmail = accessRequest.email;
       }
 
       if (isEmpty(accessRequest)) {
@@ -629,6 +630,12 @@ const createAccessRequest = {
         };
       }
 
+      // If using token auth, the user's email comes from the access request itself.
+      let invitationEmail = email;
+      if (token && accessRequest) {
+        invitationEmail = accessRequest.email;
+      }
+
       const existingUser = await UserModel(tenant).findOne({
         email: invitationEmail.toLowerCase(),
       });
@@ -641,7 +648,7 @@ const createAccessRequest = {
 
         if (requestType === "group") {
           const isAlreadyAssigned = existingUser.group_roles?.some(
-            (gr) => gr.group.toString() === target_id.toString(),
+            (gr) => gr.group.toString() === accessRequest.targetId.toString(),
           );
 
           if (isAlreadyAssigned) {
@@ -656,7 +663,7 @@ const createAccessRequest = {
           }
         } else if (requestType === "network") {
           const isAlreadyAssigned = existingUser.network_roles?.some(
-            (nr) => nr.network.toString() === target_id.toString(),
+            (nr) => nr.network.toString() === accessRequest.targetId.toString(),
           );
 
           if (isAlreadyAssigned) {
@@ -904,15 +911,71 @@ const createAccessRequest = {
       }
 
       if (assignmentResult && assignmentResult.success === true) {
-        // Invalidate the token only after successful assignment
-        await AccessRequestModel(tenant).findByIdAndUpdate(accessRequest._id, {
-          $set: {
-            status: "approved",
-            user_id: user._id,
-          },
-          $unset: { invitationToken: 1, invitationTokenExpires: 1 },
-        });
+        try {
+          // Invalidate the token only after successful assignment
+          const invalidationResult = await AccessRequestModel(
+            tenant,
+          ).findByIdAndUpdate(
+            accessRequest._id,
+            {
+              $set: {
+                status: "approved",
+                user_id: user._id,
+              },
+              $unset: { invitationToken: 1, invitationTokenExpires: 1 },
+            },
+            { new: true },
+          );
 
+          if (!invalidationResult) {
+            throw new Error("Token invalidation failed: document not found.");
+          }
+        } catch (invalidationError) {
+          logger.error(
+            `CRITICAL: Token invalidation failed for access request ${accessRequest._id}. Initiating rollback.`,
+            { error: invalidationError.message },
+          );
+
+          // Rollback: Remove user from the group/network
+          try {
+            if (requestType === "group") {
+              await createGroupUtil.unAssignUser(
+                {
+                  params: { grp_id: accessRequest.targetId, user_id: user._id },
+                  query: { tenant },
+                },
+                next,
+              );
+            } else if (requestType === "network") {
+              await createNetworkUtil.unAssignUser(
+                {
+                  params: { net_id: accessRequest.targetId, user_id: user._id },
+                  query: { tenant },
+                },
+                next,
+              );
+            }
+            logger.info(
+              `Rollback successful for user ${user._id} from ${requestType} ${accessRequest.targetId}`,
+            );
+          } catch (rollbackError) {
+            logger.error(
+              `CRITICAL-ROLLBACK-FAILURE: Failed to remove user during rollback: ${rollbackError.message}`,
+            );
+          }
+
+          // Return an error to the user
+          return {
+            success: false,
+            message:
+              "Invitation acceptance failed due to a system error. Please try again.",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message:
+                "A system error occurred during finalization. The operation has been safely rolled back.",
+            },
+          };
+        }
         // Proceed with sending email notification
         let login_url;
         if (requestType === "group" && organization_slug) {
