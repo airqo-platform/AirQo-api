@@ -952,6 +952,7 @@ const createAccessRequest = {
             { error: invalidationError.message },
           );
 
+          let rollbackErrorOccurred = null;
           // Rollback: Remove user from the group/network
           try {
             if (requestType === "group") {
@@ -978,9 +979,23 @@ const createAccessRequest = {
             logger.error(
               `CRITICAL-ROLLBACK-FAILURE: Failed to remove user during rollback: ${rollbackError.message}`,
             );
+            rollbackErrorOccurred = rollbackError;
           }
 
           // Return an error to the user
+          if (rollbackErrorOccurred) {
+            return {
+              success: false,
+              message:
+                "A critical system error occurred. Please contact support.",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message:
+                  "The operation could not be safely rolled back. Manual intervention may be required.",
+              },
+            };
+          }
+
           return {
             success: false,
             message:
