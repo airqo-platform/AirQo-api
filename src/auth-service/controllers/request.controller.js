@@ -781,7 +781,7 @@ const createAccessRequest = {
         : req.query.tenant;
 
       // Set the target_id from params for acceptInvitation to use
-      request.body.target_id = req.params.invitation_id;
+      request.body.target_id = req.params.request_id;
 
       // If user is authenticated, use their email for the acceptance process
       if (request.user && request.user.email) {
@@ -840,6 +840,9 @@ const createAccessRequest = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
+
+      // Pass the request_id from the URL to the utility function
+      request.params.invitation_id = req.params.request_id;
 
       const result = await requestUtil.rejectPendingInvitation(request, next);
 

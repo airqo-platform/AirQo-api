@@ -967,7 +967,7 @@ const groupUtil = {
             );
           } catch (kafkaError) {
             logger.error(
-              `KAFKA-SEND-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}.`,
+              `KAFKA-SEND-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}. This is a non-blocking error.`,
               { grp_id, tenant, error: kafkaError },
             );
           } finally {
@@ -977,33 +977,6 @@ const groupUtil = {
               } catch (disconnectError) {
                 logger.error(
                   `KAFKA-DISCONNECT-ERROR: Failed to disconnect Kafka producer for group ID ${grp_id}: ${disconnectError.message}`,
-                );
-              }
-            }
-
-            // Only perform rollback if the send operation failed
-            if (
-              !sendSucceeded &&
-              constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
-            ) {
-              logger.warn(
-                `Initiating non-blocking rollback for production environment due to Kafka send failure for group ID: ${grp_id}`,
-              );
-              // Non-blocking rollback logic
-              try {
-                await Promise.all([
-                  GroupModel(tenant).findByIdAndDelete(grp_id),
-                  RoleModel(tenant).findByIdAndDelete(role_id),
-                  UserModel(tenant).findByIdAndUpdate(user._id, {
-                    $pull: { group_roles: { group: grp_id } },
-                  }),
-                ]);
-                logger.info(
-                  `Non-blocking rollback completed for group ID: ${grp_id}`,
-                );
-              } catch (rollbackError) {
-                logger.error(
-                  `CRITICAL-ROLLBACK-ERROR: Non-blocking rollback failed for group ID ${grp_id}: ${rollbackError.message}`,
                 );
               }
             }
