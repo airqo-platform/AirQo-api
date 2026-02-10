@@ -1,2 +1,3 @@
 recursive-include airqo_etl_utils/schema *
 recursive-include airqo_etl_utils/tests/data *
+recursive-include airqo_etl_utils/sql *
