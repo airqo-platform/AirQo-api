@@ -376,11 +376,21 @@ const createActivity = {
               $cond: {
                 if: { $or: ["$firstName", "$lastName", "$email", "$userName"] },
                 then: {
-                  name: { $concat: ["$firstName", " ", "$lastName"] },
+                  name: {
+                    $trim: {
+                      input: {
+                        $concat: [
+                          { $ifNull: ["$firstName", ""] },
+                          " ",
+                          { $ifNull: ["$lastName", ""] },
+                        ],
+                      },
+                    },
+                  },
                   email: "$email",
                   userName: "$userName",
                 },
-                else: {},
+                else: "$$REMOVE",
               },
             },
           },
