@@ -16,7 +16,7 @@ const {
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-activity-util`
+  `${constants.ENVIRONMENT} -- create-activity-util`,
 );
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
@@ -46,7 +46,7 @@ const updateActivityCache = async (
   site_id,
   device_id,
   deviceName,
-  next
+  next,
 ) => {
   try {
     const updatePromises = [];
@@ -134,20 +134,20 @@ const updateActivityCache = async (
                   activities_cache_updated_at: cacheStamp,
                 },
               },
-              { new: true }
+              { new: true },
             );
 
             if (result) {
               logText(
-                `Updated cache for site ${site_id}: ${siteActivities.length} activities`
+                `Updated cache for site ${site_id}: ${siteActivities.length} activities`,
               );
             }
           } catch (error) {
             logger.error(
-              `Failed to update site cache for ${site_id}: ${error.message}`
+              `Failed to update site cache for ${site_id}: ${error.message}`,
             );
           }
-        })()
+        })(),
       );
     }
 
@@ -269,24 +269,24 @@ const updateActivityCache = async (
                   activities_cache_updated_at: cacheStamp,
                 },
               },
-              { new: true }
+              { new: true },
             );
 
             if (result) {
               logText(
                 `Updated cache for device ${device_id || deviceName}: ${
                   deviceActivities.length
-                } activities`
+                } activities`,
               );
             }
           } catch (error) {
             logger.error(
               `Failed to update device cache for ${device_id || deviceName}: ${
                 error.message
-              }`
+              }`,
             );
           }
-        })()
+        })(),
       );
     }
 
@@ -322,7 +322,7 @@ const getNextMaintenanceDate = (dateInput, months = 3) => {
     // Ensure we get back a valid Date object
     if (!nextMaintenance || isNaN(new Date(nextMaintenance).getTime())) {
       console.warn(
-        "addMonthsToProvideDateTime returned invalid date, using fallback"
+        "addMonthsToProvideDateTime returned invalid date, using fallback",
       );
       const fallback = new Date(baseDate);
       fallback.setMonth(fallback.getMonth() + months);
@@ -372,6 +372,27 @@ const createActivity = {
             host_id: 1,
             network: 1,
             tags: 1,
+            activity_by: {
+              $cond: {
+                if: { $or: ["$firstName", "$lastName", "$email", "$userName"] },
+                then: {
+                  name: {
+                    $trim: {
+                      input: {
+                        $concat: [
+                          { $ifNull: ["$firstName", ""] },
+                          " ",
+                          { $ifNull: ["$lastName", ""] },
+                        ],
+                      },
+                    },
+                  },
+                  email: "$email",
+                  userName: "$userName",
+                },
+                else: "$$REMOVE",
+              },
+            },
           },
         },
         {
@@ -439,8 +460,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -458,7 +479,7 @@ const createActivity = {
           filter,
           update,
         },
-        next
+        next,
       );
 
       return responseFromModifyActivity;
@@ -468,8 +489,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -484,7 +505,7 @@ const createActivity = {
         {
           filter,
         },
-        next
+        next,
       );
 
       return responseFromRemoveActivity;
@@ -494,8 +515,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -517,6 +538,10 @@ const createActivity = {
         host_id,
         network,
         user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
         mobility_metadata,
       } = body;
 
@@ -597,7 +622,7 @@ const createActivity = {
 
       const responseFromDeviceSearchCheck = await createDeviceUtil.doesDeviceSearchExist(
         requestForExistenceSearch,
-        next
+        next,
       );
 
       if (responseFromDeviceSearchCheck.success === true) {
@@ -621,13 +646,12 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
 
-  // ENHANCED: Helper function for static deployments (backward compatible)
   _deployStatic: async (request, next) => {
     try {
       const { body, query } = request;
@@ -642,6 +666,10 @@ const createActivity = {
         host_id,
         network,
         user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
       } = body;
 
       // Get site details for coordinates
@@ -654,7 +682,7 @@ const createActivity = {
 
       const responseFromListSite = await createSiteUtil.list(
         siteListRequest,
-        next
+        next,
       );
 
       if (responseFromListSite.success === true) {
@@ -672,13 +700,17 @@ const createActivity = {
             host_id: host_id ? host_id : null,
             user_id: user_id ? user_id : null,
             network,
+            firstName,
+            lastName,
+            userName,
+            email,
             nextMaintenance: getNextMaintenanceDate(date, 3),
           };
 
           // Calculate approximate coordinates
           const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
             { latitude, longitude },
-            next
+            next,
           );
 
           const {
@@ -719,7 +751,7 @@ const createActivity = {
             deviceBody,
             user_id,
             tenant,
-            next
+            next,
           );
         } else {
           return {
@@ -740,7 +772,6 @@ const createActivity = {
     }
   },
 
-  // ENHANCED: Helper function for mobile deployments
   _deployMobile: async (request, next) => {
     try {
       const { body, query } = request;
@@ -755,6 +786,10 @@ const createActivity = {
         host_id,
         network,
         user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
         mobility_metadata,
       } = body;
 
@@ -762,7 +797,7 @@ const createActivity = {
       const gridFilter = { _id: ObjectId(grid_id) };
       const responseFromListGrid = await GridModel(tenant).list(
         { filter: gridFilter },
-        next
+        next,
       );
 
       if (
@@ -786,11 +821,11 @@ const createActivity = {
           if (coordinates && coordinates.length > 0) {
             const latSum = coordinates.reduce(
               (sum, coord) => sum + coord[1],
-              0
+              0,
             );
             const lngSum = coordinates.reduce(
               (sum, coord) => sum + coord[0],
-              0
+              0,
             );
             initialLatitude = latSum / coordinates.length;
             initialLongitude = lngSum / coordinates.length;
@@ -808,6 +843,10 @@ const createActivity = {
           host_id: host_id ? host_id : null,
           user_id: user_id ? user_id : null,
           network,
+          firstName,
+          lastName,
+          userName,
+          email,
           mobility_metadata,
           nextMaintenance: getNextMaintenanceDate(date, 3),
         };
@@ -846,7 +885,7 @@ const createActivity = {
           deviceBody,
           user_id,
           tenant,
-          next
+          next,
         );
       } else {
         return {
@@ -864,19 +903,18 @@ const createActivity = {
     }
   },
 
-  // ENHANCED: Common deployment processing function
   _processDeployment: async (
     activityBody,
     deviceBody,
     user_id,
     tenant,
-    next
+    next,
   ) => {
     try {
       // **STEP 1**: Get device first to capture device_id BEFORE creating activity
       const filter = generateFilter.devices(
         { query: { tenant, name: deviceBody.query.name } },
-        next
+        next,
       );
       const existingDevice = await DeviceModel(tenant)
         .findOne(filter)
@@ -897,7 +935,7 @@ const createActivity = {
       // **STEP 2**: Register activity WITH device_id
       const responseFromRegisterActivity = await ActivityModel(tenant).register(
         activityBody,
-        next
+        next,
       );
 
       if (responseFromRegisterActivity.success === true) {
@@ -906,7 +944,7 @@ const createActivity = {
         // **STEP 3**: Update device
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
-          next
+          next,
         );
 
         if (responseFromUpdateDevice.success === true) {
@@ -918,7 +956,7 @@ const createActivity = {
             activityBody.site_id,
             existingDevice._id, // Use the device_id we retrieved
             activityBody.device,
-            next
+            next,
           );
 
           const data = {
@@ -980,7 +1018,7 @@ const createActivity = {
             await kafkaProducer.disconnect();
           } catch (error) {
             logger.error(
-              `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`
+              `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`,
             );
           }
 
@@ -1127,8 +1165,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1145,7 +1183,7 @@ const createActivity = {
 
       await DeviceModel(tenant).findOneAndUpdate(
         { name: deviceName },
-        { claim_status: "deployed" }
+        { claim_status: "deployed" },
       );
 
       result.data.updatedDevice.claim_status = "deployed";
@@ -1165,7 +1203,7 @@ const createActivity = {
 
       await DeviceModel(tenant).findOneAndUpdate(
         { name: deviceName },
-        { claim_status: "deployed" }
+        { claim_status: "deployed" },
       );
 
       result.data.updatedDevice.claim_status = "deployed";
@@ -1251,7 +1289,7 @@ const createActivity = {
 
               const responseFromCreateSite = await createSiteUtil.create(
                 siteRequest,
-                next
+                next,
               );
 
               if (responseFromCreateSite.success === false) {
@@ -1290,7 +1328,7 @@ const createActivity = {
 
             const responseFromDeploy = await createActivity.deploy(
               deviceRequest,
-              next
+              next,
             );
 
             if (responseFromDeploy.success) {
@@ -1349,7 +1387,7 @@ const createActivity = {
 
             const responseFromDeploy = await createActivity.deploy(
               deviceRequest,
-              next
+              next,
             );
 
             if (responseFromDeploy.success) {
@@ -1392,10 +1430,10 @@ const createActivity = {
         static_deployments: static_count,
         mobile_deployments: mobile_count,
         successful_static: successful_deployments.filter(
-          (d) => d.deployment_type === "static"
+          (d) => d.deployment_type === "static",
         ).length,
         successful_mobile: successful_deployments.filter(
-          (d) => d.deployment_type === "mobile"
+          (d) => d.deployment_type === "mobile",
         ).length,
         sites_created: siteMap.size,
         sites_reused: existing_sites.length,
@@ -1415,8 +1453,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1424,7 +1462,14 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
-      const { recallType, user_id } = body;
+      const {
+        recallType,
+        user_id,
+        firstName,
+        lastName,
+        email,
+        userName,
+      } = body;
       const { tenant, deviceName } = query;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -1450,7 +1495,7 @@ const createActivity = {
       requestForExistenceSearch["tenant"] = tenant;
       const isDeviceRecalled = await createDeviceUtil.doesDeviceSearchExist(
         requestForExistenceSearch,
-        next
+        next,
       );
 
       if (isDeviceRecalled.success === true) {
@@ -1468,7 +1513,7 @@ const createActivity = {
           {
             filter,
           },
-          next
+          next,
         );
 
         if (
@@ -1501,6 +1546,10 @@ const createActivity = {
           description: "device recalled",
           activityType: "recallment",
           recallType,
+          firstName,
+          lastName,
+          email,
+          userName,
           site_id: previousSiteId, // Keep for cache update
         };
 
@@ -1534,7 +1583,7 @@ const createActivity = {
         }
 
         const responseFromRegisterActivity = await ActivityModel(
-          tenant
+          tenant,
         ).register(siteActivityBody, next);
 
         if (responseFromRegisterActivity.success === true) {
@@ -1542,7 +1591,7 @@ const createActivity = {
 
           const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
             deviceBody,
-            next
+            next,
           );
 
           if (responseFromUpdateDevice.success === true) {
@@ -1555,7 +1604,7 @@ const createActivity = {
               previousSiteId,
               updatedDevice._id,
               deviceName,
-              next
+              next,
             );
 
             const data = {
@@ -1635,8 +1684,8 @@ const createActivity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -1654,6 +1703,10 @@ const createActivity = {
         maintenanceType,
         network,
         user_id,
+        firstName,
+        lastName,
+        email,
+        userName,
       } = body;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -1662,7 +1715,7 @@ const createActivity = {
 
       if (!deviceExists) {
         logger.error(
-          `Maintain Device: Invalid request-- Device ${deviceName} not found`
+          `Maintain Device: Invalid request-- Device ${deviceName} not found`,
         );
         return {
           success: false,
@@ -1704,6 +1757,10 @@ const createActivity = {
         grid_id: grid_id || null,
         network,
         tags,
+        firstName,
+        lastName,
+        email,
+        userName,
         maintenanceType,
         nextMaintenance: getNextMaintenanceDate(date, 3),
       };
@@ -1719,7 +1776,7 @@ const createActivity = {
 
       const responseFromRegisterActivity = await ActivityModel(tenant).register(
         siteActivityBody,
-        next
+        next,
       );
 
       if (responseFromRegisterActivity.success === true) {
@@ -1727,7 +1784,7 @@ const createActivity = {
 
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
-          next
+          next,
         );
 
         if (responseFromUpdateDevice.success === true) {
@@ -1739,7 +1796,7 @@ const createActivity = {
             siteActivityBody.site_id,
             deviceDetails._id,
             deviceName,
-            next
+            next,
           );
 
           const data = {
@@ -1811,11 +1868,12 @@ const createActivity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
+
   getDeploymentStatistics: async (request, next) => {
     try {
       const { query } = request;
@@ -1900,8 +1958,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1999,14 +2057,14 @@ const createActivity = {
       };
     } catch (error) {
       logger.error(
-        `🐛🐛 Get Devices By Deployment Type Error ${error.message}`
+        `🐛🐛 Get Devices By Deployment Type Error ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2092,7 +2150,7 @@ const createActivity = {
       if (!dry_run && activityBulkOps.length > 0) {
         const activityResult = await ActivityModel(tenant).bulkWrite(
           activityBulkOps,
-          { ordered: false }
+          { ordered: false },
         );
         updatedActivitiesCount = activityResult.modifiedCount;
 
@@ -2108,12 +2166,12 @@ const createActivity = {
 
           for (const device of devices) {
             const latestMaintenanceDate = latestMaintenanceDateByDevice.get(
-              device.name
+              device.name,
             );
             if (!latestMaintenanceDate) continue;
             const latestCorrectNextMaintenance = getNextMaintenanceDate(
               latestMaintenanceDate,
-              3
+              3,
             );
             // Only update when it actually changes
             if (
@@ -2135,7 +2193,7 @@ const createActivity = {
           if (deviceBulkOps.length > 0) {
             const deviceResult = await DeviceModel(tenant).bulkWrite(
               deviceBulkOps,
-              { ordered: false }
+              { ordered: false },
             );
             updatedDevicesCount = deviceResult.modifiedCount || 0;
           }
@@ -2173,8 +2231,8 @@ const createActivity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -2308,7 +2366,7 @@ const createActivity = {
           });
           totalBackfilled += batchResult.modifiedCount;
           logText(
-            `Batch #${batchNumber} updated: ${batchResult.modifiedCount} activities`
+            `Batch #${batchNumber} updated: ${batchResult.modifiedCount} activities`,
           );
         }
 
@@ -2317,13 +2375,13 @@ const createActivity = {
         // Log progress
         const progressPercent = Math.round((processedCount / totalCount) * 100);
         logText(
-          `Progress: ${processedCount}/${totalCount} activities processed (${progressPercent}%)`
+          `Progress: ${processedCount}/${totalCount} activities processed (${progressPercent}%)`,
         );
 
         // Safety check: prevent infinite loops
         if (batchNumber > BACK_FILL_BATCH_SIZE) {
           logger.warn(
-            `Safety limit reached (${BACK_FILL_BATCH_SIZE} batches), stopping backfill`
+            `Safety limit reached (${BACK_FILL_BATCH_SIZE} batches), stopping backfill`,
           );
           break;
         }
@@ -2335,13 +2393,13 @@ const createActivity = {
 
         // Get unique device names that were updated
         const updatedDeviceNames = [...deviceCache.keys()].filter(
-          (name) => deviceCache.get(name) !== null
+          (name) => deviceCache.get(name) !== null,
         );
 
         // Update cache for devices (limit to first 50 to avoid timeout)
         const devicesToUpdate = updatedDeviceNames.slice(
           0,
-          UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
+          UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE,
         );
 
         Promise.all(
@@ -2354,19 +2412,19 @@ const createActivity = {
                   null,
                   device._id,
                   deviceName,
-                  next
+                  next,
                 );
               }
             } catch (error) {
               logger.error(
-                `Failed to update cache for ${deviceName}: ${error.message}`
+                `Failed to update cache for ${deviceName}: ${error.message}`,
               );
             }
-          })
+          }),
         )
           .then(() => {
             logText(
-              `Cache updates completed for ${devicesToUpdate.length} devices`
+              `Cache updates completed for ${devicesToUpdate.length} devices`,
             );
           })
           .catch((error) => {
@@ -2391,9 +2449,9 @@ const createActivity = {
           cache_update_triggered: totalBackfilled > 0,
           cache_updates_queued: Math.min(
             [...deviceCache.keys()].filter(
-              (name) => deviceCache.get(name) !== null
+              (name) => deviceCache.get(name) !== null,
             ).length,
-            UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
+            UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE,
           ),
         },
         status: httpStatus.OK,
@@ -2403,7 +2461,7 @@ const createActivity = {
       next(
         new HttpError("Backfill Failed", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
-        })
+        }),
       );
     }
   },
@@ -2432,7 +2490,7 @@ const createActivity = {
                 device.site_id,
                 device._id,
                 deviceName,
-                next
+                next,
               );
               refreshedDevices.push(deviceName);
             } else {
@@ -2456,7 +2514,7 @@ const createActivity = {
               ObjectId(site_id),
               null,
               null,
-              next
+              next,
             );
             refreshedSites.push(site_id);
           } catch (error) {
@@ -2480,7 +2538,7 @@ const createActivity = {
               device.site_id,
               device._id,
               device.name,
-              next
+              next,
             );
             refreshedDevices.push(device.name);
           } catch (error) {
@@ -2510,8 +2568,8 @@ const createActivity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
