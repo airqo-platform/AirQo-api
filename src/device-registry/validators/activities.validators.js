@@ -360,6 +360,30 @@ const commonDeployValidations = {
     .customSanitizer((value) => {
       return value && isValidObjectId(value) ? ObjectId(value) : value;
     }),
+
+  // Optional user details for activity logging
+  firstName: body("firstName")
+    .optional()
+    .notEmpty()
+    .withMessage("firstName should not be empty if provided")
+    .trim(),
+  lastName: body("lastName")
+    .optional()
+    .notEmpty()
+    .withMessage("lastName should not be empty if provided")
+    .trim(),
+  userName: body("userName")
+    .optional()
+    .notEmpty()
+    .withMessage("userName should not be empty if provided")
+    .trim(),
+  email: body("email")
+    .optional()
+    .notEmpty()
+    .withMessage("email should not be empty if provided")
+    .bail()
+    .isEmail()
+    .withMessage("this is not a valid email address"),
 };
 
 const commonValidations = {
@@ -740,28 +764,6 @@ const activitiesValidations = {
     ...commonValidations.lastName,
     ...commonValidations.userName,
     ...commonValidations.email,
-    body("firstName")
-      .optional()
-      .notEmpty()
-      .withMessage("firstName should not be empty if provided")
-      .trim(),
-    body("lastName")
-      .optional()
-      .notEmpty()
-      .withMessage("lastName should not be empty if provided")
-      .trim(),
-    body("userName")
-      .optional()
-      .notEmpty()
-      .withMessage("userName should not be empty if provided")
-      .trim(),
-    body("email")
-      .optional()
-      .notEmpty()
-      .withMessage("email should not be empty if provided")
-      .bail()
-      .isEmail()
-      .withMessage("this is not a valid email address"),
   ],
 
   deployActivity: [
@@ -831,28 +833,6 @@ const activitiesValidations = {
     ...commonValidations.lastName,
     ...commonValidations.userName,
     ...commonValidations.email,
-    body("firstName")
-      .optional()
-      .notEmpty()
-      .withMessage("firstName should not be empty if provided")
-      .trim(),
-    body("lastName")
-      .optional()
-      .notEmpty()
-      .withMessage("lastName should not be empty if provided")
-      .trim(),
-    body("userName")
-      .optional()
-      .notEmpty()
-      .withMessage("userName should not be empty if provided")
-      .trim(),
-    body("email")
-      .optional()
-      .notEmpty()
-      .withMessage("email should not be empty if provided")
-      .bail()
-      .isEmail()
-      .withMessage("this is not a valid email address"),
   ],
 
   maintainActivity: [
@@ -867,28 +847,6 @@ const activitiesValidations = {
     ...commonValidations.lastName,
     ...commonValidations.userName,
     ...commonValidations.email,
-    body("firstName")
-      .optional()
-      .notEmpty()
-      .withMessage("firstName should not be empty if provided")
-      .trim(),
-    body("lastName")
-      .optional()
-      .notEmpty()
-      .withMessage("lastName should not be empty if provided")
-      .trim(),
-    body("userName")
-      .optional()
-      .notEmpty()
-      .withMessage("userName should not be empty if provided")
-      .trim(),
-    body("email")
-      .optional()
-      .notEmpty()
-      .withMessage("email should not be empty if provided")
-      .bail()
-      .isEmail()
-      .withMessage("this is not a valid email address"),
     body("description")
       .exists()
       .withMessage("description is required")
@@ -1098,6 +1056,10 @@ const activitiesValidations = {
     commonDeployValidations.network,
     commonDeployValidations.user_id_optional,
     commonDeployValidations.host_id,
+    commonDeployValidations.firstName,
+    commonDeployValidations.lastName,
+    commonDeployValidations.userName,
+    commonDeployValidations.email,
   ],
 
   validateDeployOwnedDevice: [
@@ -1115,13 +1077,18 @@ const activitiesValidations = {
     commonDeployValidations.date,
     commonDeployValidations.network,
     commonDeployValidations.host_id,
+    commonDeployValidations.firstName,
+    commonDeployValidations.lastName,
+    commonDeployValidations.userName,
+    commonDeployValidations.email,
   ],
   recalculate: [
     ...commonValidations.tenant,
     body("dry_run")
       .optional()
       .isBoolean()
-      .withMessage("dry_run must be a boolean value (true or false)"),
+      .withMessage("dry_run must be a boolean value (true or false)")
+      .toBoolean(),
   ],
 };
 

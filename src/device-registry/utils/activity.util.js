@@ -631,7 +631,6 @@ const createActivity = {
     }
   },
 
-  // ENHANCED: Helper function for static deployments (backward compatible)
   _deployStatic: async (request, next) => {
     try {
       const { body, query } = request;
@@ -752,7 +751,6 @@ const createActivity = {
     }
   },
 
-  // ENHANCED: Helper function for mobile deployments
   _deployMobile: async (request, next) => {
     try {
       const { body, query } = request;
@@ -884,7 +882,6 @@ const createActivity = {
     }
   },
 
-  // ENHANCED: Common deployment processing function
   _processDeployment: async (
     activityBody,
     deviceBody,
@@ -1855,6 +1852,7 @@ const createActivity = {
       );
     }
   },
+
   getDeploymentStatistics: async (request, next) => {
     try {
       const { query } = request;
