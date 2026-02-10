@@ -372,6 +372,17 @@ const createActivity = {
             host_id: 1,
             network: 1,
             tags: 1,
+            activity_by: {
+              $cond: {
+                if: { $or: ["$firstName", "$lastName", "$email", "$userName"] },
+                then: {
+                  name: { $concat: ["$firstName", " ", "$lastName"] },
+                  email: "$email",
+                  userName: "$userName",
+                },
+                else: {},
+              },
+            },
           },
         },
         {
