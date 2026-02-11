@@ -23,3 +23,21 @@ Example:
         print("Missing columns:", missing)
     # adapter.load_dataframe(df, table)
 """
+
+"""
+File Storage Usage Example:
+    from airqo_etl_utils.storage import GCSFileStorage, FileStorage
+
+    file_storage: FileStorage = GCSFileStorage()
+
+    # Upload file
+    file_storage.upload_file("my-bucket", "local_file.csv", "remote_file.csv")
+
+    # Upload dataframe
+    import pandas as pd
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    file_storage.upload_dataframe("my-bucket", df, "data.csv", format="csv")
+
+    #download file
+    file_storage.download_file("my-bucket", "remote_file.csv", "downloaded_file.csv")
+"""

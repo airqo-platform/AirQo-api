@@ -19,7 +19,13 @@ from typing import Optional
 
 from .registry import register_storage, get_storage, get_default_storage  # re-export
 from .bigquery_adapter import BigQueryAdapter
-from .base import StorageAdapter
+from .base import StorageAdapter, FileStorage
+from .cloud_storage import (
+    GCSFileStorage,
+    AWSFileStorage,
+    AzureBlobFileStorage,
+    GoogleDriveFileStorage,
+)
 
 __all__ = [
     "register_storage",
@@ -27,6 +33,11 @@ __all__ = [
     "get_default_storage",
     "BigQueryAdapter",
     "StorageAdapter",
+    "FileStorage",
+    "GCSFileStorage",
+    "AWSFileStorage",
+    "AzureBlobFileStorage",
+    "GoogleDriveFileStorage",
     "get_configured_storage",
 ]
 

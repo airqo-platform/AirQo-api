@@ -33,3 +33,30 @@ class StorageAdapter(ABC):
         Backends that support staged loads can override this for large datasets.
         """
         raise NotImplementedError()
+
+
+class FileStorage(ABC):
+    """Abstract interface for file object storage (GCS, S3, Azure Blob, Drive)."""
+
+    @abstractmethod
+    def download_file(
+        self, bucket: str, source_file: str, destination_file: str
+    ) -> str:
+        """Download a file from storage to local path."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def upload_file(self, bucket: str, source_file: str, destination_file: str) -> str:
+        """Upload a local file to storage."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def upload_dataframe(
+        self,
+        bucket: str,
+        dataframe: pd.DataFrame,
+        destination_file: str,
+        format: str = "csv",
+    ) -> str:
+        """Upload a dataframe to storage."""
+        raise NotImplementedError()
