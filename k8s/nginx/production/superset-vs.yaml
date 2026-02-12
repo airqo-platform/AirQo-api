@@ -11,7 +11,8 @@ spec:
       port: 8088
   routes:
     - path: /
-      location-snippets: "auth_request off;"
+      location-snippets: |
+        auth_request off;
       action:
         proxy:
           upstream: superset-upstream
