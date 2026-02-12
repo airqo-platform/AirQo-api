@@ -318,23 +318,24 @@ class BigQueryApi:
         Raises:
             google.cloud.exceptions.GoogleCloudError: If the job fails.
         """
+        # Delegate to the configured storage adapter
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
-        job_config = bigquery.LoadJobConfig(
-            write_disposition=job_action.get_name(),
-        )
-        try:
-            job = self.client.load_table_from_dataframe(
-                dataframe, table, job_config=job_config
-            )
-            job.result()
-        except google_api_exceptions.GoogleCloudError as e:
-            logger.exception(f"BigQuery load job failed: {e}")
-            raise
 
-        destination_table = self.client.get_table(table)
-        logger.info(f"Loaded {len(dataframe)} rows to {table}")
-        logger.info(f"Total rows after load :  {destination_table.num_rows}")
+        try:
+            from airqo_etl_utils.storage import get_configured_storage, StorageAdapter
+
+            adapter = get_configured_storage()
+        except Exception:
+            adapter = None
+
+        if adapter is None or not isinstance(adapter, StorageAdapter):
+            raise RuntimeError(
+                "No configured storage backend available. Set STORAGE_BACKEND or register a backend via register_storage()."
+            )
+
+        info = adapter.load_dataframe(dataframe, table, job_action=job_action)
+        logger.info(f"BigQueryAdapter load info: {info}")
 
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
         """
