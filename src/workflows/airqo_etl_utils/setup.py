@@ -12,7 +12,7 @@ setup(
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     packages=find_packages(),
-    package_data={"": ["*.json", "*.csv"]},
+    package_data={"": ["*.json", "*.csv", "*.sql"]},
     install_requires=[
         "pandas",
         "requests",
