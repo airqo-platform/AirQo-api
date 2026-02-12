@@ -2,6 +2,10 @@ import pandas as pd
 import logging
 import os
 from tempfile import NamedTemporaryFile
+
+from pkg_resources import safe_name
+
+from pkg_resources import safe_name
 from .base import FileStorage
 
 logger = logging.getLogger("airflow.task")
@@ -454,7 +458,9 @@ class GoogleDriveFileStorage(FileStorage):
 
     def _get_file_id(self, filename: str, folder_id: str) -> str:
         """Helper to find file ID by name within a folder."""
-        query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+        # query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+        safe_name = filename.replace("\\", "\\\\").replace("'", "\\'")
+        query = f"name = '{safe_name}' and '{folder_id}' in parents and trashed = false"
         results = (
             self.service.files()
             .list(q=query, pageSize=1, fields="files(id, name)")
