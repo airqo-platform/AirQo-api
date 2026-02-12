@@ -46,6 +46,7 @@ setup(
         "azure-storage-blob",
         "azure-identity",
         "boto3",
+        "google-api-python-client",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

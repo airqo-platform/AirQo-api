@@ -2,6 +2,10 @@ import pandas as pd
 import logging
 import os
 from tempfile import NamedTemporaryFile
+
+from pkg_resources import safe_name
+
+from pkg_resources import safe_name
 from .base import FileStorage
 
 logger = logging.getLogger("airflow.task")
@@ -69,6 +73,24 @@ class GCSFileStorage(FileStorage):
         destination_file: str,
         format: str = "csv",
     ) -> str:
+        """
+        Upload a dataframe to Google Cloud Storage.
+
+        :param self: The instance of the class.
+        :param bucket: The name of the GCS bucket.
+        :type bucket: str
+        :param dataframe: The dataframe to upload.
+        :type dataframe: pd.DataFrame
+        :param destination_file: The destination file path in the bucket.
+        :type destination_file: str
+        :param format: The format to upload the dataframe in (csv, json, parquet).
+        :type format: str
+        :return: Description
+        :rtype: str
+
+        Notes:
+        - Always pass a copy of the dataframe to avoid side effects.
+        """
         try:
             bucket_obj = self.client.bucket(bucket)
             blob = bucket_obj.blob(destination_file)
@@ -175,13 +197,14 @@ class AWSFileStorage(FileStorage):
                     raise ValueError(f"Unsupported format: {format}")
 
                 self.s3.upload_file(temp.name, bucket, destination_file)
-                os.unlink(temp.name)
 
             logger.info(f"Dataframe uploaded to s3://{bucket}/{destination_file}")
             return f"s3://{bucket}/{destination_file}"
         except Exception as e:
             logger.error(f"Failed to upload dataframe to S3: {e}")
             raise
+        finally:
+            os.unlink(temp.name)
 
 
 class AzureBlobFileStorage(FileStorage):
@@ -411,7 +434,6 @@ class GoogleDriveFileStorage(FileStorage):
                 # Close temp file ensuring data is flushed
                 temp_path = temp.name
 
-            # Use existing upload_file logic but we need custom mimetype handling potentially
             # For simplicity, reusing upload_file which handles generic upload
             from googleapiclient.http import MediaFileUpload
 
@@ -424,8 +446,6 @@ class GoogleDriveFileStorage(FileStorage):
                 .execute()
             )
 
-            os.unlink(temp_path)
-
             logger.info(
                 f"Dataframe uploaded to Drive folder {bucket} as {destination_file}"
             )
@@ -433,10 +453,14 @@ class GoogleDriveFileStorage(FileStorage):
         except Exception as e:
             logger.error(f"Failed to upload dataframe to Drive: {e}")
             raise
+        finally:
+            os.unlink(temp_path)
 
     def _get_file_id(self, filename: str, folder_id: str) -> str:
         """Helper to find file ID by name within a folder."""
-        query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+        # query = f"name = '{filename}' and '{folder_id}' in parents and trashed = false"
+        safe_name = filename.replace("\\", "\\\\").replace("'", "\\'")
+        query = f"name = '{safe_name}' and '{folder_id}' in parents and trashed = false"
         results = (
             self.service.files()
             .list(q=query, pageSize=1, fields="files(id, name)")
