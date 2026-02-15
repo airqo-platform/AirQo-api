@@ -815,6 +815,15 @@ const createNetwork = {
         { new: true },
       );
 
+      if (!updatedUser) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message:
+              "User not found after update, possibly deleted during operation.",
+          }),
+        );
+      }
+
       return {
         success: true,
         message: "Successfully unassigned User from the Network",
