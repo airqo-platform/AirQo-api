@@ -889,11 +889,31 @@ const groupUtil = {
 
       try {
         // Attempt to assign permissions; error handling within this function
-        const defaultPermissions = body.default_permissions || [];
+        const adminPermissions = [
+          ...constants.DEFAULTS.DEFAULT_ADMIN,
+          constants.MEMBER_VIEW,
+          constants.MEMBER_INVITE,
+          constants.MEMBER_SEARCH,
+          constants.MEMBER_EXPORT,
+          constants.MEMBER_REMOVE,
+        ];
+
+        // Validate and filter any user-provided default_permissions
+        const allowedDefaultPermissions = [
+          constants.MEMBER_VIEW,
+          constants.MEMBER_INVITE,
+          constants.MEMBER_SEARCH,
+          constants.MEMBER_EXPORT,
+          constants.MEMBER_REMOVE,
+        ];
+        const userProvidedPermissions = (body.default_permissions || []).filter(
+          (p) => allowedDefaultPermissions.includes(p),
+        );
+
         await assignPermissionsToRole(
           tenant,
           role_id,
-          [...constants.DEFAULTS.DEFAULT_ADMIN, ...defaultPermissions],
+          [...adminPermissions, ...userProvidedPermissions],
           next,
         );
 
