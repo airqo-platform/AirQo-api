@@ -854,11 +854,7 @@ const groupController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // Inject the authenticated user's ID into the request params
-      // so we can reuse the unAssignUser utility.
-      request.params.user_id = String(request.user._id);
-
-      const result = await groupUtil.unAssignUser(request, next);
+      const result = await groupUtil.leaveGroup(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;

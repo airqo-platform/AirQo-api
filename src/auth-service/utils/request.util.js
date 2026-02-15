@@ -547,7 +547,7 @@ const createAccessRequest = {
         query.targetId = target_id;
         Object.assign(query, {
           invitationToken: token,
-          invitationTokenExpires: { $gt: new Date() },
+          expires_at: { $gt: new Date() },
         });
       } else {
         // Session-based flow: Use the access request's own _id
@@ -1815,7 +1815,7 @@ const createAccessRequest = {
         .find({
           email: userEmail,
           status: "pending",
-          invitationTokenExpires: { $gt: new Date() }, // Only non-expired invitations
+          expires_at: { $gt: new Date() }, // Only non-expired invitations
         })
         .sort({ createdAt: -1 })
         .lean();
@@ -1914,6 +1914,7 @@ const createAccessRequest = {
       return;
     }
   },
+
   rejectPendingInvitation: async (request, next) => {
     try {
       const { user, query, params } = request;

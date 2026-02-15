@@ -39,7 +39,7 @@ const findNetworkAssignmentIndex = (user, net_id) => {
   }
 
   return user.network_roles.findIndex((assignment) =>
-    assignment.network.equals(net_id)
+    assignment.network.equals(net_id),
   );
 };
 
@@ -68,7 +68,7 @@ const createNetwork = {
             limit,
             skip,
           },
-          next
+          next,
         );
 
         if (responseFromListNetworks.success === true) {
@@ -96,8 +96,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -117,7 +117,7 @@ const createNetwork = {
           next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "You need a company email for this operation",
-            })
+            }),
           );
         }
       }
@@ -134,8 +134,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -159,7 +159,7 @@ const createNetwork = {
       // 1. Verify that the secret is configured on the server
       if (!constants.ADMIN_SETUP_SECRET) {
         logger.error(
-          "CRITICAL: ADMIN_SETUP_SECRET is not configured in environment variables."
+          "CRITICAL: ADMIN_SETUP_SECRET is not configured in environment variables.",
         );
         return next(
           new HttpError(
@@ -167,8 +167,8 @@ const createNetwork = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: "Admin secret not configured on server",
-            }
-          )
+            },
+          ),
         );
       }
 
@@ -183,7 +183,7 @@ const createNetwork = {
         return next(
           new HttpError("Forbidden", httpStatus.FORBIDDEN, {
             message: "Invalid admin secret provided",
-          })
+          }),
         );
       }
 
@@ -196,7 +196,7 @@ const createNetwork = {
 
       logObject(
         "responseFromExtractNetworkName",
-        responseFromExtractNetworkName
+        responseFromExtractNetworkName,
       );
 
       if (responseFromExtractNetworkName.success === true) {
@@ -213,7 +213,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network for ${modifiedBody.net_website} already exists`,
-          })
+          }),
         );
       }
 
@@ -228,14 +228,14 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "creator's details are not provided",
-          })
+          }),
         );
       }
 
       logObject("modifiedBody", modifiedBody);
       const responseFromRegisterNetwork = await NetworkModel(tenant).register(
         modifiedBody,
-        next
+        next,
       );
 
       logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
@@ -258,8 +258,8 @@ const createNetwork = {
               httpStatus.INTERNAL_SERVER_ERROR,
               {
                 message: "Unable to retrieve the network Id of created network",
-              }
-            )
+              },
+            ),
           );
         }
 
@@ -280,9 +280,8 @@ const createNetwork = {
           network_id: net_id,
         };
 
-        const responseFromCreateRole = await rolePermissionsUtil.createRole(
-          requestForRole
-        );
+        const responseFromCreateRole =
+          await rolePermissionsUtil.createRole(requestForRole);
 
         if (responseFromCreateRole.success === false) {
           return responseFromCreateRole;
@@ -300,14 +299,14 @@ const createNetwork = {
                 {
                   message:
                     "Unable to retrieve the role id of the newly create super admin of this network",
-                }
-              )
+                },
+              ),
             );
           }
 
           logObject(
             "constants.DEFAULTS.DEFAULT_ADMIN",
-            constants.DEFAULTS.DEFAULT_ADMIN
+            constants.DEFAULTS.DEFAULT_ADMIN,
           );
 
           const adminPermissions = constants.DEFAULTS.DEFAULT_ADMIN;
@@ -328,7 +327,7 @@ const createNetwork = {
 
           const newPermissionDocuments = adminPermissions
             .filter(
-              (permission) => !existingPermissionNames.includes(permission)
+              (permission) => !existingPermissionNames.includes(permission),
             )
             .map((permission) => ({
               permission: permission
@@ -345,7 +344,7 @@ const createNetwork = {
 
           // Step 3: Insert the filtered permissions
           const insertedPermissions = await PermissionModel(tenant).insertMany(
-            newPermissionDocuments
+            newPermissionDocuments,
           );
           logObject("insertedPermissions", insertedPermissions);
           const allPermissionIds = [
@@ -365,7 +364,7 @@ const createNetwork = {
 
           const responseFromAssignPermissionsToRole =
             await rolePermissionsUtil.assignPermissionsToRole(
-              requestToAssignPermissions
+              requestToAssignPermissions,
             );
           if (responseFromAssignPermissionsToRole.success === false) {
             return responseFromAssignPermissionsToRole;
@@ -384,7 +383,7 @@ const createNetwork = {
                   },
                 },
               },
-              { new: true }
+              { new: true },
             );
 
             if (isEmpty(updatedUser)) {
@@ -394,8 +393,8 @@ const createNetwork = {
                   httpStatus.INTERNAL_SERVER_ERROR,
                   {
                     message: `Unable to assign the network to the User ${user._id}`,
-                  }
-                )
+                  },
+                ),
               );
             }
 
@@ -411,8 +410,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -428,7 +427,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid network ID ${net_id}`,
-          })
+          }),
         );
       }
 
@@ -440,7 +439,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Default Role not found for network ID ${net_id}`,
-          })
+          }),
         );
       }
       const defaultRoleId = defaultNetworkRole._id;
@@ -461,7 +460,7 @@ const createNetwork = {
         }
 
         const existingAssignment = user.network_roles.find(
-          (assignment) => assignment.network.toString() === net_id.toString()
+          (assignment) => assignment.network.toString() === net_id.toString(),
         );
 
         if (existingAssignment) {
@@ -529,8 +528,8 @@ const createNetwork = {
             notAssignedUsers.reduce((errors, user) => {
               errors[user.user_id] = user.reason;
               return errors;
-            }, {})
-          )
+            }, {}),
+          ),
         );
       }
 
@@ -546,8 +545,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -561,7 +560,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Missing required parameters: net_id, user_id, or tenant",
-          })
+          }),
         );
         return;
       }
@@ -574,7 +573,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User or Network not found",
-          })
+          }),
         );
         return;
       }
@@ -603,7 +602,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Default Role not found for network ID ${net_id}`,
-          })
+          }),
         );
         return;
       }
@@ -614,7 +613,7 @@ const createNetwork = {
         user_id,
         net_id,
         defaultNetworkRole._id,
-        "user"
+        "user",
       );
 
       if (assignmentResult.success) {
@@ -627,7 +626,7 @@ const createNetwork = {
       } else {
         console.error(
           "❌ [NETWORK UTIL] Assignment failed:",
-          assignmentResult.message
+          assignmentResult.message,
         );
         next(
           new HttpError(
@@ -635,8 +634,8 @@ const createNetwork = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: `Failed to assign user to network: ${assignmentResult.message}`,
-            }
-          )
+            },
+          ),
         );
         return;
       }
@@ -647,8 +646,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -672,7 +671,7 @@ const createNetwork = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Missing required parameters: net_id, user_ids array, or tenant",
-          })
+          }),
         );
         return;
       }
@@ -683,7 +682,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Network not found",
-          })
+          }),
         );
         return;
       }
@@ -696,7 +695,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Default Role not found for network ID ${net_id}`,
-          })
+          }),
         );
         return;
       }
@@ -711,7 +710,7 @@ const createNetwork = {
             user_id,
             net_id,
             defaultNetworkRole._id,
-            "user"
+            "user",
           );
 
           if (assignmentResult.success) {
@@ -728,7 +727,7 @@ const createNetwork = {
             });
             console.error(
               `❌ [NETWORK UTIL] Failed to assign user ${user_id}:`,
-              assignmentResult.message
+              assignmentResult.message,
             );
           }
         } catch (userError) {
@@ -739,7 +738,7 @@ const createNetwork = {
           });
           console.error(
             `🐛 [NETWORK UTIL] Error processing user ${user_id}:`,
-            userError
+            userError,
           );
         }
       }
@@ -768,8 +767,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -788,7 +787,7 @@ const createNetwork = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Network not found",
-          })
+          }),
         );
       }
 
@@ -796,7 +795,7 @@ const createNetwork = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User not found",
-          })
+          }),
         );
       }
 
@@ -806,20 +805,35 @@ const createNetwork = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User is not assigned to this network`,
-          })
+          }),
         );
       }
 
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
         { $pull: { network_roles: { network: net_id } } },
-        { new: true }
+        { new: true },
       );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message:
+              "User not found after update, possibly deleted during operation.",
+          }),
+        );
+      }
 
       return {
         success: true,
         message: "Successfully unassigned User from the Network",
-        data: updatedUser,
+        data: {
+          _id: updatedUser._id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          userName: updatedUser.userName,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -828,8 +842,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -842,7 +856,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Missing required parameters: net_id, user_id, or tenant",
-          })
+          }),
         );
         return;
       }
@@ -853,7 +867,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User not found",
-          })
+          }),
         );
         return;
       }
@@ -866,27 +880,42 @@ const createNetwork = {
             network_roles: { network: net_id },
           },
         },
-        { new: true }
+        { new: true },
       );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message:
+              "User not found after update, possibly deleted during operation.",
+          }),
+        );
+      }
 
       return {
         success: true,
         message: "User removed from network successfully",
-        data: updatedUser,
+        data: {
+          _id: updatedUser._id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          userName: updatedUser.userName,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
       console.error(
         "🐛 [NETWORK UTIL] Error removing user from network:",
-        error
+        error,
       );
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -903,25 +932,25 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Network not found",
-          })
+          }),
         );
       }
 
       //check of all these provided users actually do exist?
       const existingUsers = await UserModel(tenant).find(
         { _id: { $in: user_ids } },
-        "_id"
+        "_id",
       );
 
       if (existingUsers.length !== user_ids.length) {
         const nonExistentUsers = user_ids.filter(
-          (user_id) => !existingUsers.find((user) => user._id.equals(user_id))
+          (user_id) => !existingUsers.find((user) => user._id.equals(user_id)),
         );
 
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The following users do not exist: ${nonExistentUsers}`,
-          })
+          }),
         );
       }
 
@@ -935,7 +964,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Some of the provided User IDs are not assigned to this network ${net_id}`,
-          })
+          }),
         );
       }
 
@@ -951,7 +980,7 @@ const createNetwork = {
             $pull: {
               network_roles: { network: net_id },
             },
-          }
+          },
         );
 
         const notFoundCount = totalUsers - nModified;
@@ -959,7 +988,7 @@ const createNetwork = {
           next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "No matching User found in the system",
-            })
+            }),
           );
         }
 
@@ -976,8 +1005,8 @@ const createNetwork = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: error.message }
-          )
+            { message: error.message },
+          ),
         );
       }
 
@@ -993,8 +1022,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1009,7 +1038,7 @@ const createNetwork = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User not found",
-          })
+          }),
         );
       }
 
@@ -1017,7 +1046,7 @@ const createNetwork = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Network not found",
-          })
+          }),
         );
       }
 
@@ -1028,27 +1057,27 @@ const createNetwork = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${user_id.toString()} is already the network manager`,
-          })
+          }),
         );
       }
 
       // Updated check to use network_roles array
       const userNetworkIds = user.network_roles.map((networkRole) =>
-        networkRole.network.toString()
+        networkRole.network.toString(),
       );
 
       if (!userNetworkIds.includes(net_id.toString())) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network ${net_id.toString()} is not part of User's networks, not authorized to manage this network`,
-          })
+          }),
         );
       }
 
       const updatedNetwork = await NetworkModel(tenant).findByIdAndUpdate(
         net_id,
         { net_manager: user_id },
-        { new: true }
+        { new: true },
       );
 
       if (!isEmpty(updatedNetwork)) {
@@ -1062,7 +1091,7 @@ const createNetwork = {
         return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: "No network record was updated",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1071,8 +1100,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1092,7 +1121,7 @@ const createNetwork = {
           update,
           filter,
         },
-        next
+        next,
       );
 
       if (responseFromModifyNetwork.success === true) {
@@ -1113,8 +1142,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1139,19 +1168,19 @@ const createNetwork = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the network ID is missing -- required when updating corresponding users",
-          })
+          }),
         );
       }
 
       // First, remove network roles from users
       const userUpdateResult = await UserModel(tenant).updateMany(
         { "network_roles.network": filter._id },
-        { $pull: { network_roles: { network: filter._id } } }
+        { $pull: { network_roles: { network: filter._id } } },
       );
 
       if (userUpdateResult.nModified > 0) {
         logger.info(
-          `Removed network ${filter._id} from ${userUpdateResult.nModified} users.`
+          `Removed network ${filter._id} from ${userUpdateResult.nModified} users.`,
         );
       }
 
@@ -1161,7 +1190,7 @@ const createNetwork = {
       });
 
       logger.info(
-        `Deleted ${permissionDeleteResult.deletedCount} permissions associated with network ${filter._id}`
+        `Deleted ${permissionDeleteResult.deletedCount} permissions associated with network ${filter._id}`,
       );
 
       // Find and delete roles associated with this network
@@ -1171,7 +1200,7 @@ const createNetwork = {
       });
 
       logger.info(
-        `Deleted ${roleDeleteResult.deletedCount} roles associated with network ${filter._id}`
+        `Deleted ${roleDeleteResult.deletedCount} roles associated with network ${filter._id}`,
       );
 
       // Delete the network itself
@@ -1179,7 +1208,7 @@ const createNetwork = {
         {
           filter,
         },
-        next
+        next,
       );
 
       if (networkDeleteResult.success === true) {
@@ -1216,8 +1245,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1231,7 +1260,7 @@ const createNetwork = {
           limit,
           skip,
         },
-        next
+        next,
       );
       return responseFromListNetworks;
     } catch (error) {
@@ -1240,8 +1269,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1259,7 +1288,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid network ID ${net_id}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -1292,14 +1321,14 @@ const createNetwork = {
       const updatedNetwork = await NetworkModel(tenant).findByIdAndUpdate(
         net_id,
         { $addToSet: { net_users } },
-        { new: true }
+        { new: true },
       );
 
       if (isEmpty(updatedNetwork)) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Network not found",
-          })
+          }),
         );
       }
 
@@ -1315,8 +1344,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1329,7 +1358,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid network ID ${net_id}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -1347,7 +1376,7 @@ const createNetwork = {
           skip,
           limit,
         },
-        next
+        next,
       );
 
       if (responseFromListAvailableUsers.success === true) {
@@ -1360,8 +1389,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1376,7 +1405,7 @@ const createNetwork = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid network ID ${net_id}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -1394,7 +1423,7 @@ const createNetwork = {
           skip,
           limit,
         },
-        next
+        next,
       );
 
       logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
@@ -1409,8 +1438,8 @@ const createNetwork = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

@@ -53,7 +53,15 @@ const AccessRequestSchema = new Schema(
       unique: true,
       sparse: true, // Allows null values to not be unique
     },
-    invitationTokenExpires: {
+    inviter_id: {
+      type: ObjectId,
+      ref: "user",
+    },
+    inviter_email: {
+      type: String,
+      trim: true,
+    },
+    expires_at: {
       type: Date,
     },
   },
