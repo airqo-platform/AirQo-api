@@ -804,6 +804,7 @@ module.exports = {
     request_id,
     token,
     targetId,
+    expires_at,
   }) => {
     // For existing users - direct accept link
     const existingUserAcceptLink = `${constants.ANALYTICS_BASE_URL}/org-invite?token=${token}&target_id=${targetId}`;
@@ -818,23 +819,28 @@ module.exports = {
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Hello,</p>
-        <p>You have been invited by <strong>${escapeHtml(inviter_name)}</strong> (${escapeHtml(inviterEmail)}) to join the organization "<strong>${escapeHtml(entity_title)}</strong>" on AirQo Analytics.</p>
+        <p>You have been invited by <strong>${escapeHtml(
+          inviter_name,
+        )}</strong> (${escapeHtml(
+          inviterEmail,
+        )}) to join the organization "<strong>${escapeHtml(
+          entity_title,
+        )}</strong>" on AirQo Analytics.</p>
         ${
           group_description
-            ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(group_description)}</em></div>`
+            ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(
+                group_description,
+              )}</em></div>`
             : ""
         }
         ${
           userExists
             ? `
-              <p>Since you already have an AirQo account, you can accept this invitation in one of two ways:</p>
-              <div style="margin: 20px 0;">
-                <p><strong>Option 1:</strong> Accept directly using this link:</p>
-                <div style="text-align: center; margin: 12px 0;">
+              <p>Since you already have an AirQo account, you can accept this invitation directly using the link below:</p>
+              <div style="text-align: center; margin: 24px 0;">
                   <a href="${existingUserAcceptLink}" style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Accept Invitation</a>
-                </div>
-                <p style="margin-top: 16px;"><strong>Option 2:</strong> View and manage all your pending invitations in your <a href="${pendingInvitationsLink}" style="color: #135DFF;">account dashboard</a>.</p>
               </div>
+              <p style="margin-top: 16px;">Alternatively, you can view and manage all your pending invitations in your <a href="${pendingInvitationsLink}" style="color: #135DFF;">account dashboard</a>.</p>
             `
             : `
               <p>To join this organization, you'll need to create an AirQo account first. Once you've registered and logged in, you'll be able to view and accept this invitation from your account dashboard.</p>
@@ -843,6 +849,11 @@ module.exports = {
               </div>
               <p style="margin-top: 16px; font-size: 14px; color: #6B7280;">After registering, log in to view your pending invitations in your account dashboard.</p>
             `
+        }
+        ${
+          expires_at
+            ? `<p style="font-size: 14px; color: #6B7280; margin-top: 24px;">Please note: This invitation will expire on ${new Date(expires_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}.</p>`
+            : ""
         }
         <p>If you have any questions, please contact the person who invited you.</p>
         <p>Best,<br/>The AirQo Team</p>
