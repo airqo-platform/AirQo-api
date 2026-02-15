@@ -1407,28 +1407,37 @@ const groupUtil = {
       const results = {
         successful: [],
         already_members: [],
+        failed_assignments: [],
         not_found: [],
       };
 
       for (const user_id of user_ids) {
         const user = userMap.get(user_id);
         if (!user) {
-          results.not_found.push(user_id);
+          results.not_found.push({ user_id, reason: "User not found" });
           continue;
         }
 
         if (isUserAssignedToGroup(user, grp_id)) {
-          results.already_members.push(user_id);
+          results.already_members.push({
+            user_id,
+            reason: "User is already a member",
+          });
           continue;
         }
 
-        await UserModel(tenant).assignUserToGroup(
-          user_id,
-          grp_id,
-          defaultGroupRole._id,
-          "user",
-        );
-        results.successful.push(user_id);
+        try {
+          await UserModel(tenant).assignUserToGroup(
+            user_id,
+            grp_id,
+            defaultGroupRole._id,
+            "user",
+          );
+          results.successful.push(user_id);
+        } catch (error) {
+          results.failed_assignments.push({ user_id, reason: error.message });
+          logger.error(`Failed to assign user ${user_id}: ${error.message}`);
+        }
       }
 
       const summary = {
@@ -1436,6 +1445,7 @@ const groupUtil = {
         successfully_assigned: results.successful.length,
         already_members: results.already_members.length,
         users_not_found: results.not_found.length,
+        failed_assignments: results.failed_assignments.length,
       };
 
       let message = `Bulk assignment completed.`;
@@ -1443,7 +1453,10 @@ const groupUtil = {
 
       if (summary.successfully_assigned === 0 && summary.already_members > 0) {
         message = "No new users assigned; all were already members.";
-      } else if (summary.failed > 0 || summary.users_not_found > 0) {
+      } else if (
+        summary.failed_assignments > 0 ||
+        summary.users_not_found > 0
+      ) {
         status = httpStatus.MULTI_STATUS;
       }
 
@@ -1724,7 +1737,18 @@ const groupUtil = {
         }
 
         // Delete preferences for the users that were successfully unassigned
-        const userObjectIds = user_ids.map((id) => ObjectId(id));
+        const validUserIds = user_ids.filter((id) =>
+          mongoose.Types.ObjectId.isValid(id),
+        );
+        const invalidUserIds = user_ids.filter(
+          (id) => !mongoose.Types.ObjectId.isValid(id),
+        );
+        if (invalidUserIds.length > 0) {
+          logger.warn(
+            `Invalid user_ids found and skipped during preference deletion: ${invalidUserIds.join(", ")}`,
+          );
+        }
+        const userObjectIds = validUserIds.map((id) => ObjectId(id));
         await PreferenceModel(tenant).deleteMany({
           user_id: { $in: userObjectIds },
           group_id: grp_id,
@@ -4401,6 +4425,14 @@ const groupUtil = {
       const { grp_id } = request.params;
       const { tenant } = request.query;
       const { _id: user_id } = request.user;
+
+      if (!request.user || !request.user._id) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Authentication is required to perform this action.",
+          }),
+        );
+      }
 
       // Find the user and group
       const user = await UserModel(tenant).findById(user_id);
