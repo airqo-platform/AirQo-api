@@ -1269,7 +1269,13 @@ const groupUtil = {
         return {
           success: true,
           message: "User is already a member of this group",
-          data: user,
+          data: {
+            _id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            userName: user.userName,
+          },
           status: httpStatus.OK,
         };
       }
@@ -1317,7 +1323,13 @@ const groupUtil = {
           return {
             success: true,
             message: "User assigned to the Group successfully",
-            data: assignmentResult.data,
+            data: {
+              _id: assignmentResult.data._id,
+              email: assignmentResult.data.email,
+              firstName: assignmentResult.data.firstName,
+              lastName: assignmentResult.data.lastName,
+              userName: assignmentResult.data.userName,
+            },
             status: httpStatus.OK,
           };
         } else {
@@ -1533,11 +1545,7 @@ const groupUtil = {
         }
       }
 
-      const groupAssignmentIndex = findGroupAssignmentIndex(user, grp_id);
-
-      logObject("groupAssignmentIndex", groupAssignmentIndex);
-
-      if (groupAssignmentIndex === -1) {
+      if (!isUserAssignedToGroup(user, grp_id)) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id.toString()} is not assigned to the user`,
@@ -1545,8 +1553,6 @@ const groupUtil = {
         );
         return;
       }
-
-      user.group_roles.splice(groupAssignmentIndex, 1);
 
       // Delete the user's preference for this group
       try {
@@ -1564,7 +1570,7 @@ const groupUtil = {
 
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { $set: { group_roles: user.group_roles } },
+        { $pull: { group_roles: { group: grp_id } } },
         { new: true },
       );
 
@@ -1572,7 +1578,13 @@ const groupUtil = {
         return {
           success: true,
           message: "Successfully unassigned User from the Group",
-          data: updatedUser,
+          data: {
+            _id: updatedUser._id,
+            email: updatedUser.email,
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            userName: updatedUser.userName,
+          },
           status: httpStatus.OK,
         };
       } else {
@@ -1595,6 +1607,7 @@ const groupUtil = {
       return;
     }
   },
+
   unAssignManyUsers: async (request, next) => {
     try {
       const { user_ids, grp_id, tenant } = {
@@ -1749,12 +1762,12 @@ const groupUtil = {
           );
         }
         const userObjectIds = validUserIds.map((id) => ObjectId(id));
-        await PreferenceModel(tenant).deleteMany({
+        const deleteResult = await PreferenceModel(tenant).deleteMany({
           user_id: { $in: userObjectIds },
           group_id: grp_id,
         });
         logger.info(
-          `Deleted preferences for ${nModified} users from group ${grp_id}`,
+          `Deleted ${deleteResult.deletedCount} preferences for users from group ${grp_id}`,
         );
 
         if (notFoundCount > 0) {
@@ -4500,7 +4513,13 @@ const groupUtil = {
       return {
         success: true,
         message: "Successfully left the group",
-        data: updatedUser,
+        data: {
+          _id: updatedUser._id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          userName: updatedUser.userName,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
