@@ -10,7 +10,7 @@ const {
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- activity-controller`
+  `${constants.ENVIRONMENT} -- activity-controller`,
 );
 const createActivityUtil = require("@utils/activity.util");
 
@@ -52,7 +52,7 @@ const handleDeployment = async (
   res,
   next,
   deployFunction,
-  deploymentType = null
+  deploymentType = null,
 ) => {
   try {
     logText(`deploying${deploymentType ? ` ${deploymentType}` : ""}....`);
@@ -113,7 +113,7 @@ const handleDeployment = async (
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -130,7 +130,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -143,7 +143,7 @@ const activity = {
 
       const result = await createActivityUtil.recalculateNextMaintenance(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -169,8 +169,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -181,18 +181,17 @@ const activity = {
       res,
       next,
       createActivityUtil.deployWithOwnership,
-      "owned_device"
+      "owned_device",
     );
   },
 
-  // Enhanced batch deployment with support for mixed deployment types
   batchDeployWithCoordinates: async (req, res, next) => {
     try {
       logText("we are deploying....");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -205,14 +204,14 @@ const activity = {
 
       const result = await createActivityUtil.batchDeployWithCoordinates(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
 
-      if (result.success === true) {
+      if (result.success) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
@@ -221,22 +220,25 @@ const activity = {
           failed_deployments: result.failed_deployments,
           deployment_summary: result.deployment_summary || {
             static_deployments: result.successful_deployments.filter(
-              (d) => d.deployment_type === "static" || !d.deployment_type
+              (d) => d.deployment_type === "static" || !d.deployment_type,
             ).length,
             mobile_deployments: result.successful_deployments.filter(
-              (d) => d.deployment_type === "mobile"
+              (d) => d.deployment_type === "mobile",
             ).length,
             total_successful: result.successful_deployments.length,
             total_failed: result.failed_deployments.length,
           },
         });
-      } else if (result.success === false) {
+      } else {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: result.message,
+          successful_deployments: result.successful_deployments,
+          failed_deployments: result.failed_deployments,
+          deployment_summary: result.deployment_summary,
           errors: result.errors ? result.errors : { message: "" },
         });
       }
@@ -246,8 +248,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -259,7 +261,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -300,8 +302,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -312,7 +314,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -354,8 +356,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -372,7 +374,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -388,8 +390,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -406,7 +408,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -422,8 +424,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -435,7 +437,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -477,8 +479,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -491,7 +493,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -531,8 +533,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -545,7 +547,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -586,8 +588,8 @@ const activity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -598,7 +600,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -611,7 +613,7 @@ const activity = {
 
       const result = await createActivityUtil.getDeploymentStatistics(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -643,8 +645,8 @@ const activity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -655,7 +657,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -668,7 +670,7 @@ const activity = {
 
       const result = await createActivityUtil.getDevicesByDeploymentType(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -702,8 +704,8 @@ const activity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -733,7 +735,7 @@ const activity = {
         res,
         next,
         createActivityUtil.deploy,
-        "static"
+        "static",
       );
     } catch (error) {
       logger.error(`🐛🐛 Deploy Static Error ${error.message}`);
@@ -743,8 +745,8 @@ const activity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -783,7 +785,7 @@ const activity = {
         res,
         next,
         createActivityUtil.deploy,
-        "mobile"
+        "mobile",
       );
     } catch (error) {
       logger.error(`🐛🐛 Deploy Mobile Error ${error.message}`);
@@ -793,8 +795,8 @@ const activity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -805,7 +807,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -847,8 +849,8 @@ const activity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -860,7 +862,7 @@ const activity = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -873,7 +875,7 @@ const activity = {
 
       const result = await createActivityUtil.refreshActivityCaches(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -905,8 +907,8 @@ const activity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
