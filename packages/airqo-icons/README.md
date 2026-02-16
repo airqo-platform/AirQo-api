@@ -2,10 +2,10 @@
 
 > A comprehensive, production-ready icon library with **1,383 high-quality SVG icons** across 22 categories, designed for React and Flutter applications with enhanced search capabilities.
 
-[![NPM Version](https://img.shields.io/npm/v/@airqo/icons-react?style=flat-square&logo=npm)](https://www.npmjs.com/package/@airqo/icons-react).
+[![NPM Version](https://img.shields.io/npm/v/@airqo/icons-react?style=flat-square&logo=npm)](https://www.npmjs.com/package/@airqo/icons-react)
 [![Flutter Package](https://img.shields.io/pub/v/airqo_icons_flutter?style=flat-square&logo=flutter)](https://pub.dev/packages/airqo_icons_flutter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![GitHub Stars](https://img.shields.io/github/stars/airqo-platform/airqo-libraries?style=flat-square&logo=github)](https://github.com/airqo-platform/airqo-libraries)
+[![GitHub Stars](https://img.shields.io/github/stars/airqo-platform/AirQo-api?style=flat-square&logo=github)](https://github.com/airqo-platform/AirQo-api)
 
 ## ✨ Features
 
