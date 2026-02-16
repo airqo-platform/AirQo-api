@@ -153,7 +153,7 @@ const fetchAuthServiceNetworks = async () => {
   }
 
   logger.error(`All ${MAX_RETRIES} attempts to fetch networks failed.`);
-  return allNetworks;
+  return [];
 };
 
 /**
