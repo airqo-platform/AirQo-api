@@ -15,7 +15,7 @@ const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- site-activities-model`
+  `${constants.ENVIRONMENT} -- site-activities-model`,
 );
 
 const activitySchema = new Schema(
@@ -25,7 +25,6 @@ const activitySchema = new Schema(
     userName: { type: String, trim: true },
     email: {
       type: String,
-      unique: true,
       trim: true,
       validate: {
         validator(email) {
@@ -91,7 +90,7 @@ const activitySchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 activitySchema.pre("save", function(next) {
@@ -110,13 +109,13 @@ activitySchema.pre("save", function(next) {
     // Validation: Prevent conflicting location references
     if (this.deployment_type === "static" && this.grid_id) {
       return next(
-        new Error("grid_id should not be provided for static deployments")
+        new Error("grid_id should not be provided for static deployments"),
       );
     }
 
     if (this.deployment_type === "mobile" && this.site_id) {
       return next(
-        new Error("site_id should not be provided for mobile deployments")
+        new Error("site_id should not be provided for mobile deployments"),
       );
     }
   }
@@ -199,8 +198,8 @@ activitySchema.statics = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Activity not created despite successful operation" }
-          )
+            { message: "Activity not created despite successful operation" },
+          ),
         );
       }
     } catch (error) {
@@ -228,7 +227,7 @@ activitySchema.statics = {
       const inclusionProjection =
         constants.SITE_ACTIVITIES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITE_ACTIVITIES_EXCLUSION_PROJECTION(
-        filter.path ? filter.path : "none"
+        filter.path ? filter.path : "none",
       );
       if (!isEmpty(filter.path)) {
         delete filter.path;
@@ -287,19 +286,19 @@ activitySchema.statics = {
       logger.error(
         `🐛🐛 Internal Server Error -- ${
           error ? error.message : "No error message"
-        }`
+        }`,
       );
       logger.error(`Error stack: ${error ? error.stack : "No stack trace"}`);
       logger.error(
-        `Error in list method with filter: ${JSON.stringify(filter)}`
+        `Error in list method with filter: ${JSON.stringify(filter)}`,
       );
 
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -323,7 +322,7 @@ activitySchema.statics = {
       const updatedActivity = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
-        options
+        options,
       );
       if (!isEmpty(updatedActivity)) {
         return {
@@ -337,7 +336,7 @@ activitySchema.statics = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             ...filter,
             message: "activity does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -349,8 +348,8 @@ activitySchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -387,7 +386,7 @@ activitySchema.statics = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             ...filter,
             message: "activity does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -399,8 +398,8 @@ activitySchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

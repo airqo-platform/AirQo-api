@@ -56,7 +56,7 @@ const validateDeviceIdentifier = oneOf([
   query("device_number")
     .exists()
     .withMessage(
-      "the device identifier is missing in request, consider using the device_number"
+      "the device identifier is missing in request, consider using the device_number",
     )
     .bail()
     .trim()
@@ -65,7 +65,7 @@ const validateDeviceIdentifier = oneOf([
   query("id")
     .exists()
     .withMessage(
-      "the device identifier is missing in request, consider using the device_id"
+      "the device identifier is missing in request, consider using the device_id",
     )
     .bail()
     .trim()
@@ -78,7 +78,7 @@ const validateDeviceIdentifier = oneOf([
   query("name")
     .exists()
     .withMessage(
-      "the device identifier is missing in request, consider using the name"
+      "the device identifier is missing in request, consider using the name",
     )
     .bail()
     .trim()
@@ -91,7 +91,7 @@ const validateDeviceIdentifier = oneOf([
     .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+      "the device name can only contain letters, numbers, spaces, hyphens and underscores",
     )
     .bail(),
 ]);
@@ -142,7 +142,7 @@ const validateCreateDevice = [
     body("name")
       .exists()
       .withMessage(
-        "device identification details are missing in the request, consider using the name"
+        "device identification details are missing in the request, consider using the name",
       )
       .bail()
       .trim()
@@ -152,13 +152,13 @@ const validateCreateDevice = [
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the device name can only contain letters, numbers, spaces, hyphens and underscores",
       )
       .bail(),
     body("long_name")
       .exists()
       .withMessage(
-        "device identification details are missing in the request, consider using the long_name"
+        "device identification details are missing in the request, consider using the long_name",
       )
       .bail()
       .trim()
@@ -168,7 +168,7 @@ const validateCreateDevice = [
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the device long_name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the device long_name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ]),
   oneOf([
@@ -217,6 +217,16 @@ const validateCreateDevice = [
         .bail()
         .notEmpty()
         .withMessage("the groups should not be empty"),
+      body("tags")
+        .optional()
+        .isArray()
+        .withMessage("tags must be an array of strings")
+        .bail()
+        .notEmpty()
+        .withMessage("tags should not be an empty array if provided"),
+      body("tags.*")
+        .isString()
+        .withMessage("Each tag must be a string"),
       body("mountType")
         .optional()
         .notEmpty()
@@ -226,7 +236,7 @@ const validateCreateDevice = [
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
         .withMessage(
-          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle"
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle",
         )
         .bail()
         .custom((mountType, { req }) => {
@@ -238,7 +248,7 @@ const validateCreateDevice = [
 
           if (mobility === true && mountType && mountType !== "vehicle") {
             throw new Error(
-              "Mobile devices (mobility=true) require vehicle mountType"
+              "Mobile devices (mobility=true) require vehicle mountType",
             );
           }
 
@@ -253,7 +263,7 @@ const validateCreateDevice = [
         .toLowerCase()
         .isIn(["bam", "lowcost", "gas"])
         .withMessage(
-          "the category value is not among the expected ones which include: lowcost, gas and bam"
+          "the category value is not among the expected ones which include: lowcost, gas and bam",
         ),
       body("powerType")
         .optional()
@@ -264,7 +274,7 @@ const validateCreateDevice = [
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
-          "the powerType value is not among the expected ones which include: solar, mains and alternator"
+          "the powerType value is not among the expected ones which include: solar, mains and alternator",
         )
         .bail()
         .custom((powerType, { req }) => {
@@ -272,13 +282,13 @@ const validateCreateDevice = [
 
           if (powerType === "alternator" && !mobility) {
             throw new Error(
-              "Alternator powerType requires mobility to be true"
+              "Alternator powerType requires mobility to be true",
             );
           }
 
           if (mobility === true && powerType && powerType !== "alternator") {
             throw new Error(
-              "Mobile devices (mobility=true) require alternator powerType"
+              "Mobile devices (mobility=true) require alternator powerType",
             );
           }
 
@@ -297,7 +307,7 @@ const validateCreateDevice = [
           let dp = countDecimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
-              "the latitude must have 5 or more characters"
+              "the latitude must have 5 or more characters",
             );
           }
           return Promise.resolve("latitude validation test has passed");
@@ -321,7 +331,7 @@ const validateCreateDevice = [
           let dp = countDecimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
-              "the longitude must have 5 or more characters"
+              "the longitude must have 5 or more characters",
             );
           }
           return Promise.resolve("longitude validation test has passed");
@@ -481,19 +491,19 @@ const validateUpdateDevice = [
     .not()
     .exists()
     .withMessage(
-      "Cannot directly update isActive. Use deployment/recall activities."
+      "Cannot directly update isActive. Use deployment/recall activities.",
     ),
   body("status")
     .not()
     .exists()
     .withMessage(
-      "Cannot directly update status. Use deployment/recall activities."
+      "Cannot directly update status. Use deployment/recall activities.",
     ),
   body("deployment_type")
     .not()
     .exists()
     .withMessage(
-      "Cannot directly update deployment_type. Use deployment activities."
+      "Cannot directly update deployment_type. Use deployment activities.",
     ),
   body("visibility")
     .optional()
@@ -511,7 +521,7 @@ const validateUpdateDevice = [
     .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "the device long_name can only contain letters, numbers, spaces, hyphens and underscores"
+      "the device long_name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
   body("mountType")
     .optional()
@@ -522,7 +532,7 @@ const validateUpdateDevice = [
     .toLowerCase()
     .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"]) // ADD "vehicle"
     .withMessage(
-      "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle"
+      "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle",
     )
     .bail()
     .custom((mountType, { req }) => {
@@ -535,7 +545,7 @@ const validateUpdateDevice = [
 
       if (mobility === true && mountType && mountType !== "vehicle") {
         throw new Error(
-          "Mobile devices (mobility=true) require vehicle mountType"
+          "Mobile devices (mobility=true) require vehicle mountType",
         );
       }
 
@@ -550,7 +560,7 @@ const validateUpdateDevice = [
     .toLowerCase()
     .isIn(["solar", "mains", "alternator"])
     .withMessage(
-      "the powerType value is not among the expected ones which include: solar, mains and alternator"
+      "the powerType value is not among the expected ones which include: solar, mains and alternator",
     )
     .bail()
     .custom((powerType, { req }) => {
@@ -562,7 +572,7 @@ const validateUpdateDevice = [
 
       if (mobility === true && powerType && powerType !== "alternator") {
         throw new Error(
-          "Mobile devices (mobility=true) require alternator powerType"
+          "Mobile devices (mobility=true) require alternator powerType",
         );
       }
 
@@ -577,6 +587,14 @@ const validateUpdateDevice = [
     .bail()
     .notEmpty()
     .withMessage("the groups should not be empty"),
+  body("tags")
+    .optional()
+    .isArray()
+    .withMessage("tags must be an array of strings")
+    .bail(),
+  body("tags.*")
+    .isString()
+    .withMessage("Each tag must be a string"),
   body("isRetired")
     .optional()
     .notEmpty()
@@ -658,6 +676,58 @@ const validateUpdateDevice = [
     .optional()
     .notEmpty()
     .trim(),
+  body("collocation")
+    .optional()
+    .isObject()
+    .withMessage("collocation must be an object"),
+  body("collocation.status")
+    .optional()
+    .isIn(["active", "inactive"])
+    .withMessage("collocation status must be 'active' or 'inactive'"),
+  body("collocation.batch_id").custom((value, { req }) => {
+    const status = req.body.collocation && req.body.collocation.status;
+
+    // If status is 'active', batch_id is required and must be a valid MongoID.
+    if (status === "active") {
+      if (!value) {
+        throw new Error(
+          "batch_id is required when collocation status is 'active'",
+        );
+      }
+      if (!mongoose.Types.ObjectId.isValid(value)) {
+        throw new Error(
+          "batch_id must be a valid ObjectId when status is 'active'",
+        );
+      }
+    } else if (value && !mongoose.Types.ObjectId.isValid(value)) {
+      // If status is not 'active' but batch_id is provided, it must still be a valid MongoID.
+      throw new Error("If provided, batch_id must be a valid ObjectId");
+    }
+    return true;
+  }),
+  body("collocation.start_date")
+    .optional()
+    .isISO8601()
+    .withMessage("collocation.start_date must be a valid ISO 8601 date")
+    .toDate(),
+  body("collocation.end_date")
+    .optional()
+    .isISO8601()
+    .withMessage("collocation.end_date must be a valid ISO 8601 date")
+    .toDate()
+    .custom((endDate, { req }) => {
+      if (req.body.collocation && req.body.collocation.start_date) {
+        const startDate = new Date(req.body.collocation.start_date);
+        if (endDate <= startDate) {
+          throw new Error("end_date must be after start_date");
+        }
+      }
+      return true;
+    }),
+  body("collocation.updated_at")
+    .not()
+    .exists()
+    .withMessage("collocation.updated_at is a server-managed field"),
   body("latitude")
     .optional()
     .notEmpty()
@@ -728,7 +798,7 @@ const validateUpdateDevice = [
     .toLowerCase()
     .isIn(["bam", "lowcost", "gas"])
     .withMessage(
-      "the category value is not among the expected ones which include: lowcost, bam and gas"
+      "the category value is not among the expected ones which include: lowcost, bam and gas",
     ),
 ];
 
@@ -770,7 +840,7 @@ const validateListDevices = oneOf([
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the device name can only contain letters, numbers, spaces, hyphens and underscores",
       )
       .bail(),
     query("mobility")
@@ -790,7 +860,7 @@ const validateListDevices = oneOf([
       .toLowerCase()
       .isIn(["online", "offline"])
       .withMessage(
-        "the online_status value is not among the expected ones which include: online, offline"
+        "the online_status value is not among the expected ones which include: online, offline",
       ),
     query("category")
       .optional()
@@ -801,7 +871,7 @@ const validateListDevices = oneOf([
       .toLowerCase()
       .isIn(["bam", "lowcost", "gas"])
       .withMessage(
-        "the category value is not among the expected ones which include: lowcost, gas and bam"
+        "the category value is not among the expected ones which include: lowcost, gas and bam",
       ),
     query("device_category")
       .optional()
@@ -812,7 +882,7 @@ const validateListDevices = oneOf([
       .toLowerCase()
       .isIn(["bam", "lowcost", "gas"])
       .withMessage(
-        "the device_category value is not among the expected ones which include: lowcost, gas and bam"
+        "the device_category value is not among the expected ones which include: lowcost, gas and bam",
       ),
     query("last_active_before")
       .optional()
@@ -822,7 +892,7 @@ const validateListDevices = oneOf([
       .trim()
       .isISO8601({ strict: true, strictSeparator: true })
       .withMessage(
-        "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ).."
+        "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)..",
       )
       .bail()
       .toDate(),
@@ -834,7 +904,7 @@ const validateListDevices = oneOf([
       .trim()
       .isISO8601({ strict: true, strictSeparator: true })
       .withMessage(
-        "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ).",
       )
       .bail()
       .toDate(),
@@ -846,7 +916,7 @@ const validateListDevices = oneOf([
       .trim()
       .isISO8601({ strict: true, strictSeparator: true })
       .withMessage(
-        "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ).",
       )
       .bail()
       .toDate(),
@@ -861,6 +931,25 @@ const validateListDevices = oneOf([
       .toLowerCase()
       .isIn(["asc", "desc"])
       .withMessage("the order value is not among the expected ones"),
+    query("tags")
+      .optional()
+      .notEmpty()
+      .withMessage("tags must not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("tags must be a comma-separated string of tags")
+      .bail()
+      .custom((value) => {
+        const tags = String(value)
+          .split(",")
+          .map((part) => part.trim());
+        if (tags.some((part) => part.length === 0)) {
+          throw new Error(
+            "tags cannot contain empty values. Check for extra commas.",
+          );
+        }
+        return true;
+      }),
   ],
 ]);
 
@@ -895,7 +984,7 @@ const validateDecryptManyKeys = oneOf([
       .bail()
       .notEmpty()
       .withMessage(
-        "the encrypted_key should not be empty for all provided entries"
+        "the encrypted_key should not be empty for all provided entries",
       ),
     body("*.device_number")
       .exists()
@@ -904,7 +993,7 @@ const validateDecryptManyKeys = oneOf([
       .bail()
       .isInt()
       .withMessage(
-        "the device_number in some of the inputs should be an integer value"
+        "the device_number in some of the inputs should be an integer value",
       ),
   ],
 ]);
@@ -934,7 +1023,7 @@ const validateBulkUpdateDevices = [
       const MAX_BULK_UPDATE_DEVICES = 30;
       if (value.length > MAX_BULK_UPDATE_DEVICES) {
         throw new Error(
-          `Cannot update more than ${MAX_BULK_UPDATE_DEVICES} devices in a single request`
+          `Cannot update more than ${MAX_BULK_UPDATE_DEVICES} devices in a single request`,
         );
       }
       return true;
@@ -942,7 +1031,7 @@ const validateBulkUpdateDevices = [
     .bail()
     .custom((value) => {
       const invalidIds = value.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id)
+        (id) => !mongoose.Types.ObjectId.isValid(id),
       );
       if (invalidIds.length > 0) {
         throw new Error("All deviceIds must be valid MongoDB ObjectIds");
@@ -977,14 +1066,15 @@ const validateBulkUpdateDevices = [
         "product_name",
         "device_manufacturer",
         "category",
+        "collocation",
       ];
 
       const invalidFields = Object.keys(value).filter(
-        (field) => !allowedFields.includes(field)
+        (field) => !allowedFields.includes(field),
       );
       if (invalidFields.length > 0) {
         throw new Error(
-          `Invalid fields in updateData: ${invalidFields.join(", ")}`
+          `Invalid fields in updateData: ${invalidFields.join(", ")}`,
         );
       }
 
@@ -1003,7 +1093,7 @@ const validateClaimDevice = [
     .withMessage("device_name cannot be empty")
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 
   body("claim_token")
@@ -1040,7 +1130,7 @@ const validateTransferDevice = [
     .bail()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 
   body("from_user_id")
@@ -1102,7 +1192,7 @@ const validateBulkClaim = [
     .withMessage("device_name cannot be empty")
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 
   body("devices.*.claim_token")
@@ -1162,7 +1252,7 @@ const validateDeviceAvailability = [
     .withMessage("deviceName cannot be empty")
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "deviceName can only contain letters, numbers, spaces, hyphens and underscores"
+      "deviceName can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 ];
 
@@ -1245,7 +1335,7 @@ const validateQRCodeGeneration = [
     .withMessage("deviceName cannot be empty")
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "deviceName can only contain letters, numbers, spaces, hyphens and underscores"
+      "deviceName can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 
   query("include_token")
@@ -1303,7 +1393,7 @@ const validatePrepareDeviceShipping = [
     .withMessage("device_name must be between 3 and 50 characters")
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 
   body("token_type")
@@ -1328,7 +1418,7 @@ const validateBulkPrepareDeviceShipping = [
           typeof name !== "string" ||
           name.trim().length < 3 ||
           name.trim().length > 50 ||
-          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim()),
       );
 
       if (invalidNames.length > 0) {
@@ -1337,11 +1427,13 @@ const validateBulkPrepareDeviceShipping = [
 
       // Check for duplicates
       const duplicates = deviceNames.filter(
-        (name, index) => deviceNames.indexOf(name) !== index
+        (name, index) => deviceNames.indexOf(name) !== index,
       );
       if (duplicates.length > 0) {
         throw new Error(
-          `Duplicate device names found: ${[...new Set(duplicates)].join(", ")}`
+          `Duplicate device names found: ${[...new Set(duplicates)].join(
+            ", ",
+          )}`,
         );
       }
 
@@ -1376,7 +1468,7 @@ const validateCreateShippingBatch = [
           typeof name !== "string" ||
           name.trim().length < 3 ||
           name.trim().length > 50 ||
-          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim()),
       );
 
       if (invalidNames.length > 0) {
@@ -1385,11 +1477,13 @@ const validateCreateShippingBatch = [
 
       // Check for duplicates
       const duplicates = deviceNames.filter(
-        (name, index) => deviceNames.indexOf(name) !== index
+        (name, index) => deviceNames.indexOf(name) !== index,
       );
       if (duplicates.length > 0) {
         throw new Error(
-          `Duplicate device names found: ${[...new Set(duplicates)].join(", ")}`
+          `Duplicate device names found: ${[...new Set(duplicates)].join(
+            ", ",
+          )}`,
         );
       }
       return true;
@@ -1420,7 +1514,7 @@ const validateGetShippingStatus = [
           (name) =>
             name.length < 3 ||
             name.length > 50 ||
-            !/^[a-zA-Z0-9\s\-_]+$/.test(name)
+            !/^[a-zA-Z0-9\s\-_]+$/.test(name),
         );
 
         if (invalidNames.length > 0) {
@@ -1433,7 +1527,7 @@ const validateGetShippingStatus = [
             typeof name !== "string" ||
             name.trim().length < 3 ||
             name.trim().length > 50 ||
-            !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+            !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim()),
         );
 
         if (invalidNames.length > 0) {
@@ -1459,7 +1553,7 @@ const validateGenerateShippingLabels = [
           typeof name !== "string" ||
           name.trim().length < 3 ||
           name.trim().length > 50 ||
-          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim()),
       );
 
       if (invalidNames.length > 0) {
@@ -1523,12 +1617,12 @@ const validateRemoveDevicesFromBatch = [
     .bail()
     .isArray({ min: 1, max: 50 })
     .withMessage(
-      "device_names must be a non-empty array of strings with at most 50 items"
+      "device_names must be a non-empty array of strings with at most 50 items",
     )
     .bail()
     .custom((deviceNames) => {
       const invalidNames = deviceNames.filter(
-        (name) => typeof name !== "string" || name.trim().length === 0
+        (name) => typeof name !== "string" || name.trim().length === 0,
       );
       if (invalidNames.length > 0) {
         throw new Error("All device names must be non-empty strings");

@@ -122,7 +122,7 @@ class AirQloudUpdater:
         logger.info(f"Successfully fetched {len(all_cohorts)} cohorts from platform")
         return all_cohorts
     
-    def get_api_total_count(self, tenant: str = DEFAULT_TENANT) -> int:
+    def get_api_total_count(self, tenant: str = DEFAULT_TENANT) -> Optional[int]:
         """
         Get total count of cohorts from API without fetching all data
         
@@ -130,7 +130,7 @@ class AirQloudUpdater:
             tenant: The tenant name (default: airqo)
             
         Returns:
-            Total count from API meta
+            Total count from API meta, or None if error
         """
         try:
             params = {
@@ -146,14 +146,14 @@ class AirQloudUpdater:
             
             if not data.get('success'):
                 logger.error(f"API returned unsuccessful response: {data.get('message')}")
-                return 0
+                return None
             
             meta = data.get('meta', {})
             return meta.get('total', 0)
             
         except requests.RequestException as e:
             logger.error(f"Error getting cohort count from platform: {e}")
-            return 0
+            return None
     
     def get_database_airqloud_count(self) -> int:
         """Get current count of airqlouds in database"""
@@ -302,10 +302,8 @@ class AirQloudUpdater:
         
         except Exception as e:
             logger.error(f"Error updating/creating airqloud {airqloud_id}: {e}")
-            self.session.rollback()
             self.stats['errors'] += 1
             return None
-    
     def update_or_create_device(self, device_data: Dict[str, Any]) -> Optional[AirQloudDevice]:
         """
         Update existing device or create new one.
@@ -354,7 +352,6 @@ class AirQloudUpdater:
         
         except Exception as e:
             logger.error(f"Error updating/creating device {device_id} in cohort {cohort_id}: {e}")
-            self.session.rollback()
             self.stats['errors'] += 1
             return None
     
@@ -447,6 +444,10 @@ class AirQloudUpdater:
             db_count = self.get_database_airqloud_count()
             api_count = self.get_api_total_count()
             
+            if api_count is None:
+                logger.error("Could not determine API count - aborting sync")
+                raise RuntimeError("API unreachable")
+
             logger.info(f"Database airqlouds: {db_count}, API cohorts: {api_count}")
             
             # Check if sync is needed

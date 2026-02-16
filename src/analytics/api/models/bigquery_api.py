@@ -1,8 +1,5 @@
-import hashlib
-import base64
 from typing import List, Dict, Any, Optional, Union, Tuple, Set
 from constants import (
-    QueryType,
     DeviceNetwork,
     ColumnDataType,
     Frequency,
@@ -30,6 +27,9 @@ class BigQueryApi:
         self.sites_table = Utils.table_name(Config.BIGQUERY_SITES_SITES)
         self.airqlouds_sites_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS_SITES)
         self.devices_table = Utils.table_name(Config.BIGQUERY_DEVICES_DEVICES)
+        self.satellite_forecast_table = Utils.table_name(
+            Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE
+        )
         self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
         self.all_time_grouping = Config.all_time_grouping
         self.extra_time_grouping = Config.extra_time_grouping
@@ -41,6 +41,15 @@ class BigQueryApi:
         return (
             f"{self.devices_table}.site_id AS site_id, "
             f"{self.devices_table}.network AS network "
+        )
+
+    @property
+    def location_info_query(self):
+        """Generates a location information query including country and city details."""
+        return (
+            f"{self.satellite_forecast_table}.country AS country, "
+            f"{self.satellite_forecast_table}.city AS city, "
+            f"{self.satellite_forecast_table}.network AS network "
         )
 
     @property
@@ -183,6 +192,44 @@ class BigQueryApi:
 
         return self.add_site_join(query)
 
+    def get_location_query(
+        self,
+        table: str,
+        filter_value: List,
+        pollutants_query: str,
+        time_grouping: str,
+        start_date: str,
+        end_date: str,
+        frequency: Frequency,
+    ):
+        """
+        Constructs a SQL query to retrieve pollutant data for specific locations.
+
+        Args:
+            table (str): Name of the table containing the primary device measurements.
+            filter_value (str): List of location identifiers to filter the query (used in UNNEST).
+            pollutants_query (str): SQL fragment for selecting standard pollutants.
+            time_grouping (str): SQL expression for time-based grouping (e.g., by hour, day).
+            start_date (str): Start timestamp (inclusive) for filtering data.
+            end_date (str): End timestamp (inclusive) for filtering data.
+            frequency (Any): Frequency of aggregation (e.g., 'raw', 'hourly', 'daily').
+
+        Returns:
+            str: The fully constructed SQL query
+        """
+        table_name = Utils.table_name(table)
+        query = (
+            f"{pollutants_query}, {time_grouping}, {self.location_info_query} "
+            f"FROM {table_name} "
+            f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
+            f"AND {table_name}.country = @filter_value "
+        )
+
+        if frequency.value in self.extra_time_grouping:
+            query += " GROUP BY ALL"
+
+        return query
+
     def get_site_query(
         self,
         table: str,
@@ -317,6 +364,7 @@ class BigQueryApi:
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
+
         query = self.build_filter_query(
             table,
             filter_type,
@@ -437,9 +485,14 @@ class BigQueryApi:
                 device_category=device_category,
             )
 
-        query_parameters = [
-            bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
-        ]
+        if isinstance(filter_value, list):
+            query_parameters = [
+                bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
+            ]
+        else:
+            query_parameters = [
+                bigquery.ScalarQueryParameter("filter_value", "STRING", filter_value),
+            ]
 
         job_config.query_parameters = query_parameters
         job_config.use_query_cache = use_cache
@@ -459,6 +512,7 @@ class BigQueryApi:
         adjusted_limit = limits + 1
 
         # Execute the query with ordering and adjusted limit
+
         measurements = (
             self.client.query(
                 query=f"select distinct * from ({query}) order by {order_by_clause} limit {adjusted_limit}",
@@ -604,8 +658,9 @@ class BigQueryApi:
             str: SQL ORDER BY clause for consistent pagination.
         """
         filter_type = self.field_mappings.get(filter_type, None)
-        order_by_clause = f"{cursor_field}, {filter_type}"
-
+        order_by_clause = (
+            f"{cursor_field}" if not filter_type else f"{cursor_field}, {filter_type}"
+        )
         # Add device_id to ordering if we're filtering by site_id for consistent results
         if filter_type == "site_id" and "device_id" in self.get_columns(table):
             order_by_clause += ", device_id"
@@ -708,6 +763,16 @@ class BigQueryApi:
             )
         elif filter_type == "airqlouds":
             return self.get_airqloud_query(
+                table,
+                filter_value,
+                pollutants_query,
+                time_grouping,
+                start_date,
+                end_date,
+                frequency,
+            )
+        elif filter_type in {"country", "city"}:
+            return self.get_location_query(
                 table,
                 filter_value,
                 pollutants_query,

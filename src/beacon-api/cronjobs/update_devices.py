@@ -12,31 +12,28 @@ import csv
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import requests
-import logging
+
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 from sqlmodel import Session, select, func, or_, and_
 from app.configs.database import SessionLocal
 from app.models.device import Device
 from app.crud.device import CRUDDevice
+from app.models.site import Site
+from app.crud.site import CRUDSite
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+
 
 # Import settings for Platform API configuration
 from app.configs.settings import settings
 
 # Platform API configuration
 PLATFORM_BASE_URL = settings.PLATFORM_BASE_URL
-DEVICES_ENDPOINT = f"{PLATFORM_BASE_URL}/devices/summary"
+DEVICES_ENDPOINT = f"{PLATFORM_BASE_URL}/devices"
 DECRYPT_ENDPOINT = f"{PLATFORM_BASE_URL}/devices/decrypt/bulk"
 DEFAULT_TENANT = "airqo"
 PAGE_LIMIT = 50   # Number of devices per page (matches batch size)
@@ -44,7 +41,7 @@ BATCH_SIZE = 50   # Process devices in batches of 50
 API_TOKEN = settings.TOKEN
 
 if not API_TOKEN:
-    logger.warning("TOKEN not found in environment variables. API requests may fail.")
+    pass
 
 
 class DeviceUpdater:
@@ -63,10 +60,13 @@ class DeviceUpdater:
         self.session = session
         self.force_update_keys = force_update_keys
         self.crud = CRUDDevice(Device)
+        self.site_crud = CRUDSite(Site)
         self.stats = {
             'total_fetched': 0,
             'new_devices': 0,
             'updated_devices': 0,
+            'new_sites': 0,
+            'updated_sites': 0,
             'null_updates': 0,
             'key_updates': 0,
             'decrypted_read_keys': 0,
@@ -97,19 +97,18 @@ class DeviceUpdater:
             while True:
                 params = {
                     'tenant': tenant,
-                    'detailLevel': 'summary',
                     'limit': PAGE_LIMIT,
                     'skip': skip
                 }
                 
-                logger.info(f"Fetching devices: skip={skip}, limit={PAGE_LIMIT}")
+                
                 response = requests.get(DEVICES_ENDPOINT, params=params, headers=self.headers, timeout=30)
                 response.raise_for_status()
                 
                 data = response.json()
                 
                 if not data.get('success'):
-                    logger.error(f"API returned unsuccessful response: {data.get('message')}")
+                    
                     break
                 
                 devices = data.get('devices', [])
@@ -121,7 +120,7 @@ class DeviceUpdater:
                 meta = data.get('meta', {})
                 total = meta.get('total', 0)
                 
-                logger.info(f"Fetched {len(devices)} devices (Total in DB: {len(all_devices)}/{total})")
+                
                 
                 # Check if we have more pages
                 if not meta.get('nextPage') or len(all_devices) >= total:
@@ -130,11 +129,11 @@ class DeviceUpdater:
                 skip += PAGE_LIMIT
                 
         except requests.RequestException as e:
-            logger.error(f"Error fetching devices from platform: {e}")
+            
             raise
         
         self.stats['total_fetched'] = len(all_devices)
-        logger.info(f"Successfully fetched {len(all_devices)} devices from platform")
+        
         return all_devices
     
     def parse_device_from_api(self, api_device: Dict[str, Any]) -> Dict[str, Any]:
@@ -157,27 +156,67 @@ class DeviceUpdater:
             try:
                 created_at = datetime.fromisoformat(api_device['createdAt'].replace('Z', '+00:00'))
             except (ValueError, AttributeError):
-                logger.warning(f"Could not parse createdAt for device {api_device.get('_id')}")
+                pass
         
         last_updated = None
         if online_status.get('lastUpdate'):
             try:
                 last_updated = datetime.fromisoformat(online_status['lastUpdate'].replace('Z', '+00:00'))
             except (ValueError, AttributeError):
-                logger.warning(f"Could not parse lastUpdate for device {api_device.get('_id')}")
+                # Fallback to lastRawData if available
+                if api_device.get('lastRawData'):
+                    try:
+                         last_updated = datetime.fromisoformat(api_device['lastRawData'].replace('Z', '+00:00'))
+                    except:
+                        pass
+                
+                if not last_updated:
+                    pass
         
         next_maintenance = None
-        if latest_deployment and latest_deployment.get('nextMaintenance'):
+        # Try getting next maintenance from top level first (new format), then deployment activity
+        if api_device.get('nextMaintenance'):
+             try:
+                next_maintenance = datetime.fromisoformat(api_device['nextMaintenance'].replace('Z', '+00:00'))
+             except (ValueError, AttributeError):
+                pass
+                
+        if not next_maintenance and latest_deployment and latest_deployment.get('nextMaintenance'):
             try:
                 next_maintenance = datetime.fromisoformat(latest_deployment['nextMaintenance'].replace('Z', '+00:00'))
             except (ValueError, AttributeError):
-                logger.warning(f"Could not parse nextMaintenance for device {api_device.get('_id')}")
+                pass
         
+        # Extract site data if available
+        site_data = None
+        site_info = api_device.get('site')
+        if site_info and isinstance(site_info, dict):
+            site_category_info = site_info.get('site_category', {})
+            category_val = site_category_info.get('category') if isinstance(site_category_info, dict) else None
+            
+            site_data = {
+                "site_id": site_info.get('_id'),
+                "site_name": site_info.get('name') or site_info.get('search_name') or "Unknown Site",
+                "location_name": site_info.get('location_name'),
+                "search_name": site_info.get('search_name'),
+                "village": site_info.get('village'),
+                "town": None, # Not explicitly in new API response
+                "city": site_info.get('city'),
+                "district": site_info.get('district'),
+                "country": site_info.get('country'),
+                "data_provider": site_info.get('network', api_device.get('network')), # Fallback to device network
+                "site_category": category_val,
+                "latitude": site_info.get('latitude'),
+                "longitude": site_info.get('longitude'),
+                "created_at": datetime.now(timezone.utc), # We don't have site creation time in nested obj usually
+                "updated_at": datetime.now(timezone.utc)
+            }
+
         # Build device data
         device_data = {
             'device_id': api_device.get('_id'),
             'device_name': api_device.get('name'),
-            'site_id': api_device.get('site', {}).get('_id') if isinstance(api_device.get('site'), dict) else None,
+            'site_id': site_data.get('site_id') if site_data else None,
             'network': api_device.get('network'),
             'category': api_device.get('category'),
             'is_active': api_device.get('isActive', False),
@@ -196,7 +235,7 @@ class DeviceUpdater:
             # network_id and firmware fields are from custom endpoints (not updated here)
         }
         
-        return device_data
+        return device_data, site_data
     
     def decrypt_keys(self, devices_with_encrypted_keys: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
         """
@@ -209,7 +248,7 @@ class DeviceUpdater:
             Dictionary mapping device_number to {'read_key': decrypted_read_key, 'write_key': decrypted_write_key}
         """
         if not devices_with_encrypted_keys:
-            logger.info("No encrypted keys to decrypt")
+            
             return {}
         
         # Prepare payload for bulk decrypt - separate read and write keys
@@ -234,10 +273,10 @@ class DeviceUpdater:
                 })
         
         if not decrypt_payload:
-            logger.info("No valid encrypted keys to decrypt")
+            
             return {}
         
-        logger.info(f"Decrypting {len(decrypt_payload)} keys (read + write)...")
+        
         
         try:
             response = requests.post(
@@ -250,7 +289,7 @@ class DeviceUpdater:
             data = response.json()
             
             if not data.get('success'):
-                logger.error(f"Decrypt API returned unsuccessful response: {data.get('message')}")
+                
                 return {}
             
             # Map device_number to decrypted keys
@@ -277,15 +316,15 @@ class DeviceUpdater:
                             self.stats['decrypted_write_keys'] += 1
                             
                     except (ValueError, TypeError):
-                        logger.warning(f"Could not convert device_number to int: {device_number}")
+                        pass
             
-            logger.info(f"Successfully decrypted keys for {len(decrypted_mapping)} devices")
+            
             return decrypted_mapping
             
         except requests.RequestException as e:
-            logger.error(f"Error decrypting keys: {e}")
+            
             # Fallback: If the new API format fails, try the old format for read keys only
-            logger.info("Attempting fallback decryption for read keys only...")
+            
             return self._decrypt_keys_fallback(devices_with_encrypted_keys)
     
     def _decrypt_keys_fallback(self, devices_with_encrypted_keys: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
@@ -317,7 +356,7 @@ class DeviceUpdater:
             data = response.json()
             
             if not data.get('success'):
-                logger.error(f"Fallback decrypt API also failed: {data.get('message')}")
+                
                 return {}
             
             # Map device_number to read keys only
@@ -334,13 +373,13 @@ class DeviceUpdater:
                         decrypted_mapping[device_num_int] = {'read_key': decrypted_key}
                         self.stats['decrypted_read_keys'] += 1
                     except (ValueError, TypeError):
-                        logger.warning(f"Could not convert device_number to int: {device_number}")
+                        pass
             
-            logger.info(f"Fallback: Successfully decrypted {len(decrypted_mapping)} read keys")
+            
             return decrypted_mapping
             
         except requests.RequestException as e:
-            logger.error(f"Fallback decryption also failed: {e}")
+            
             return {}
     
     def should_update_field(self, current_value: Any, new_value: Any, field_name: str) -> bool:
@@ -379,16 +418,64 @@ class DeviceUpdater:
         
         return False
     
-    def update_or_create_device(self, device_data: Dict[str, Any]) -> None:
+    def update_or_create_site(self, site_data: Dict[str, Any]) -> None:
         """
-        Update existing device or create new one
+        Update existing site or create new one
+        """
+        site_id = site_data.get('site_id')
+        if not site_id:
+            return
+
+        try:
+            existing_site = self.site_crud.get_by_site_id(self.session, site_id=site_id)
+            
+            if existing_site:
+                # Update existing site
+                update_data = {}
+                for field, new_value in site_data.items():
+                    if field in ['site_id', 'site_key', 'created_at']:
+                         continue
+                    
+                    current_value = getattr(existing_site, field, None)
+                    if new_value is not None and current_value != new_value:
+                        update_data[field] = new_value
+                
+                if update_data:
+                    for field, value in update_data.items():
+                        setattr(existing_site, field, value)
+                    
+                    existing_site.updated_at = datetime.now(timezone.utc)
+                    self.session.add(existing_site)
+                    self.session.commit()
+                    self.stats['updated_sites'] += 1
+                    
+            else:
+                # Create new site
+                new_site = Site(**site_data)
+                self.session.add(new_site)
+                self.session.commit()
+                self.stats['new_sites'] += 1
+                
+                
+        except Exception as e:
+            
+            self.session.rollback()
+
+    def update_or_create_device(self, device_data: Dict[str, Any], site_data: Dict[str, Any] = None) -> None:
+        """
+        Update existing device or create new one. Also handles site update if site_data provided.
         
         Args:
             device_data: Parsed device data from API
+            site_data: Parsed site data from API (optional)
         """
+        # Handle site update first if data available
+        if site_data:
+            self.update_or_create_site(site_data)
+
         device_id = device_data.get('device_id')
         if not device_id:
-            logger.warning("Device data missing device_id, skipping")
+            pass
             self.stats['errors'] += 1
             return
         
@@ -414,12 +501,15 @@ class DeviceUpdater:
                         # Track if we're updating a previously null value
                         if current_value is None and new_value is not None:
                             null_field_updated = True
-                            logger.info(f"Updating null field '{field}' for device {device_id}")
+                            if field in ['read_key', 'write_key', 'channel_id']:
+                                pass
+                            else:
+                                pass
                         
                         # Track if we're updating a key field (force update scenario)
                         if field in ['read_key', 'write_key', 'channel_id'] and current_value is not None:
                             key_field_updated = True
-                            logger.info(f"Force updating key field '{field}' for device {device_id}")
+                            pass
                 
                 if update_data:
                     # Update the device
@@ -436,9 +526,10 @@ class DeviceUpdater:
                     if key_field_updated:
                         self.stats['key_updates'] += 1
                     
-                    logger.info(f"Updated device: {device_id} ({len(update_data)} fields)")
+                    update_count = len(update_data)
+                    
                 else:
-                    logger.debug(f"No updates needed for device: {device_id}")
+                    pass
             
             else:
                 # Create new device
@@ -447,10 +538,10 @@ class DeviceUpdater:
                 self.session.commit()
                 
                 self.stats['new_devices'] += 1
-                logger.info(f"Created new device: {device_id}")
+                
         
         except Exception as e:
-            logger.error(f"Error updating/creating device {device_id}: {e}")
+            
             self.session.rollback()
             self.stats['errors'] += 1
     
@@ -460,7 +551,7 @@ class DeviceUpdater:
             count = self.session.exec(select(func.count(Device.device_key))).one()
             return count
         except Exception as e:
-            logger.error(f"Error getting device count: {e}")
+            
             return 0
     
     def update_single_device(self, device_id: str) -> bool:
@@ -474,19 +565,18 @@ class DeviceUpdater:
         Returns:
             True if device was successfully updated, False otherwise
         """
-        logger.info(f"Fetching single device: {device_id}")
+        
         
         try:
             # First get the device from our database to get the device_name
             existing_device = self.crud.get_by_device_id(self.session, device_id=device_id)
             if not existing_device:
-                logger.warning(f"Device {device_id} not found in database")
+                pass
                 return False
             
             # Fetch from Platform API - use device name for filtering if available
             params = {
                 'tenant': DEFAULT_TENANT,
-                'detailLevel': 'summary',
                 'limit': 100  # Fetch a reasonable batch to find our device
             }
             
@@ -495,7 +585,7 @@ class DeviceUpdater:
             data = response.json()
             
             if not data.get('success'):
-                logger.error(f"API returned unsuccessful response: {data.get('message')}")
+                
                 return False
             
             # Find the specific device in the response
@@ -528,7 +618,7 @@ class DeviceUpdater:
                     skip += 100
             
             if not api_device:
-                logger.warning(f"Device {device_id} not found in Platform API")
+                pass
                 return False
             
             # Prepare for decryption if needed
@@ -546,7 +636,7 @@ class DeviceUpdater:
                 decrypted_keys_mapping = self.decrypt_keys(devices_to_decrypt)
             
             # Parse and update the device
-            device_data = self.parse_device_from_api(api_device)
+            device_data, site_data = self.parse_device_from_api(api_device)
             
             # Apply decrypted keys if available
             if device_number and device_number in decrypted_keys_mapping:
@@ -557,16 +647,16 @@ class DeviceUpdater:
                     device_data['write_key'] = decrypted_keys['write_key']
             
             # Update the device in database
-            self.update_or_create_device(device_data)
+            self.update_or_create_device(device_data, site_data)
             
-            logger.info(f"Successfully updated device {device_id}")
+            
             return True
             
         except requests.RequestException as e:
-            logger.error(f"Error fetching device {device_id} from Platform API: {e}")
+            
             return False
         except Exception as e:
-            logger.error(f"Error updating device {device_id}: {e}")
+            
             return False
 
     def get_devices_missing_keys(self) -> List[Device]:
@@ -585,13 +675,13 @@ class DeviceUpdater:
             devices = self.session.exec(statement).all()
             return devices
         except Exception as e:
-            logger.error(f"Error querying devices with missing keys: {e}")
+            
             return []
     
     def create_missing_keys_csv(self, devices_missing_keys: List[Device]) -> str:
         """Create CSV file with devices missing keys"""
         if not devices_missing_keys:
-            logger.info("No devices missing keys - skipping CSV creation")
+            pass
             return ""
         
         csv_filename = Path(__file__).parent / f"devices_missing_keys_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
@@ -613,12 +703,12 @@ class DeviceUpdater:
                         'channel_id_missing': 'Yes' if device.channel_id is None else 'No'
                     })
             
-            logger.info(f"Created CSV report: {csv_filename}")
+            
             self.stats['devices_missing_keys'] = len(devices_missing_keys)
             return str(csv_filename)
             
         except Exception as e:
-            logger.error(f"Error creating CSV file: {e}")
+            
             return ""
     
     def create_server_fetch_failures_csv(self, api_devices: List[Dict[str, Any]], processed_device_ids: set) -> str:
@@ -632,7 +722,7 @@ class DeviceUpdater:
                 failed_devices.append(api_device)
         
         if not failed_devices:
-            logger.info("All devices from server were processed successfully")
+            pass
             return ""
         
         csv_filename = Path(__file__).parent / f"server_fetch_failures_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
@@ -654,11 +744,11 @@ class DeviceUpdater:
                         'failure_reason': 'Processing failed or incomplete data'
                     })
             
-            logger.info(f"Created server fetch failures CSV: {csv_filename}")
+            
             return str(csv_filename)
             
         except Exception as e:
-            logger.error(f"Error creating server failures CSV: {e}")
+            
             return ""
     
     def process_devices_in_batches(self, api_devices: List[Dict[str, Any]], decrypted_keys_mapping: Dict[str, Dict[str, str]]) -> set:
@@ -672,11 +762,11 @@ class DeviceUpdater:
             batch_num = (i // BATCH_SIZE) + 1
             total_batches = (total_devices + BATCH_SIZE - 1) // BATCH_SIZE
             
-            logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} devices)")
+            
             
             for api_device in batch:
                 try:
-                    device_data = self.parse_device_from_api(api_device)
+                    device_data, site_data = self.parse_device_from_api(api_device)
                     device_id = device_data.get('device_id')
                     
                     if not device_id:
@@ -689,28 +779,28 @@ class DeviceUpdater:
                         
                         if 'read_key' in decrypted_keys:
                             device_data['read_key'] = decrypted_keys['read_key']
-                            logger.debug(f"Using decrypted read_key for device {device_id}")
+                            pass
                         
                         if 'write_key' in decrypted_keys:
                             device_data['write_key'] = decrypted_keys['write_key']
-                            logger.debug(f"Using decrypted write_key for device {device_id}")
+                            pass
                     
-                    self.update_or_create_device(device_data)
+                    self.update_or_create_device(device_data, site_data)
                     processed_device_ids.add(device_id)
                     
                 except Exception as e:
-                    logger.error(f"Error processing device {api_device.get('_id', 'unknown')}: {e}")
+                    
                     self.stats['errors'] += 1
             
             self.stats['batches_processed'] = batch_num
-            logger.info(f"Completed batch {batch_num}/{total_batches}")
+            
             
             # Commit after each batch
             try:
                 self.session.commit()
-                logger.debug(f"Committed batch {batch_num}")
+                
             except Exception as e:
-                logger.error(f"Error committing batch {batch_num}: {e}")
+                
                 self.session.rollback()
                 self.stats['errors'] += 1
         
@@ -723,25 +813,23 @@ class DeviceUpdater:
         Returns:
             Dictionary with execution statistics
         """
-        logger.info("=" * 80)
-        logger.info("Starting device update job")
-        logger.info("=" * 80)
+        
         
         try:
             # Get current database count
             db_count_before = self.get_database_device_count()
-            logger.info(f"Current devices in database: {db_count_before}")
+            
             
             # Fetch devices from platform
             api_devices = self.fetch_devices_from_platform()
             
-            logger.info(f"Platform devices: {len(api_devices)}, Database devices: {db_count_before}")
+            
             
             # Check if counts match
             if len(api_devices) == db_count_before:
-                logger.info("Device counts match - focusing on updating null values")
+                pass
             else:
-                logger.info(f"Device count mismatch - will sync (Diff: {len(api_devices) - db_count_before})")
+                pass
             
             # Collect devices with encrypted keys for bulk decryption
             devices_to_decrypt = []
@@ -753,68 +841,48 @@ class DeviceUpdater:
                 if device_number and (encrypted_read_key or encrypted_write_key):
                     decrypt_item = {'device_number': device_number}
                     
-                    if encrypted_read_key:
-                        decrypt_item['encrypted_read_key'] = encrypted_read_key
-                    
-                    if encrypted_write_key:
-                        decrypt_item['encrypted_write_key'] = encrypted_write_key
-                    
-                    devices_to_decrypt.append(decrypt_item)
+            if not api_devices:
+                pass
+                return self.stats
             
-            # Decrypt all keys in bulk
-            decrypted_keys_mapping = self.decrypt_keys(devices_to_decrypt)
+            # Identify devices with encrypted keys
+            devices_with_encrypted_keys = []
+            for device in api_devices:
+                if device.get('readKey') or device.get('writeKey'):
+                    # Check if we need to decrypt based on our update policy
+                    # We always need to decrypt if we don't have the keys locally
+                    # But verifying against DB for every device here interacts with batch processing
+                    # So we'll collect them all and let the batch processor decide to use them
+                    if device.get('device_number'):
+                        devices_with_encrypted_keys.append({
+                            'device_number': device.get('device_number'),
+                            'encrypted_read_key': device.get('readKey'),
+                            'encrypted_write_key': device.get('writeKey')
+                        })
+            
+            # Decrypt keys in bulk
+            decrypted_keys_mapping = self.decrypt_keys(devices_with_encrypted_keys)
             
             # Process devices in batches
-            logger.info("Processing devices in batches...")
             processed_device_ids = self.process_devices_in_batches(api_devices, decrypted_keys_mapping)
             
-            # Get final count
+            # Generate reports
+            devices_missing_keys = self.get_devices_missing_keys()
+            csv_missing = self.create_missing_keys_csv(devices_missing_keys)
+            
+            csv_failures = self.create_server_fetch_failures_csv(api_devices, processed_device_ids)
+            
+            # Final stats logging
             db_count_after = self.get_database_device_count()
             
-            # Check for devices missing keys and create CSV report
-            logger.info("Checking for AirQo devices missing keys...")
-            devices_missing_keys = self.get_devices_missing_keys()
-            missing_keys_csv = self.create_missing_keys_csv(devices_missing_keys)
-            
-            # Create CSV for devices that couldn't be fetched/processed from server
-            logger.info("Checking for server fetch failures...")
-            server_failures_csv = self.create_server_fetch_failures_csv(api_devices, processed_device_ids)
-            
-            # Prepare results
-            self.stats['db_count_before'] = db_count_before
-            self.stats['db_count_after'] = db_count_after
-            self.stats['missing_keys_csv'] = missing_keys_csv
-            self.stats['server_failures_csv'] = server_failures_csv
-            self.stats['success'] = True
-            
-            logger.info("=" * 80)
-            logger.info("Device update job completed successfully")
-            logger.info("Statistics:")
-            logger.info(f"  - Devices fetched from API: {self.stats['total_fetched']}")
-            logger.info(f"  - Database count before: {db_count_before}")
-            logger.info(f"  - Database count after: {db_count_after}")
-            logger.info(f"  - New devices created: {self.stats['new_devices']}")
-            logger.info(f"  - Devices updated: {self.stats['updated_devices']}")
-            logger.info(f"  - Null values filled: {self.stats['null_updates']}")
-            logger.info(f"  - Key fields force-updated: {self.stats['key_updates']}")
-            logger.info(f"  - Batches processed: {self.stats['batches_processed']}")
-            logger.info(f"  - Read keys decrypted: {self.stats['decrypted_read_keys']}")
-            logger.info(f"  - Write keys decrypted: {self.stats['decrypted_write_keys']}")
-            logger.info(f"  - AirQo devices missing keys: {self.stats['devices_missing_keys']}")
-            logger.info(f"  - Missing keys CSV: {missing_keys_csv if missing_keys_csv else 'None'}")
-            logger.info(f"  - Server failures CSV: {server_failures_csv if server_failures_csv else 'None'}")
-            logger.info(f"  - Force update keys enabled: {self.force_update_keys}")
-            logger.info(f"  - Errors: {self.stats['errors']}")
-            logger.info("=" * 80)
-            
+            if csv_failures:
+                pass
+                
             return self.stats
             
         except Exception as e:
-            logger.error(f"Device update job failed: {e}", exc_info=True)
-            self.stats['success'] = False
-            self.stats['error'] = str(e)
-            return self.stats
-
+            
+            raise
 
 def main():
     """Main entry point for the cronjob"""
@@ -828,7 +896,7 @@ def main():
             sys.exit(1)
         
     except Exception as e:
-        logger.error(f"Fatal error in device update job: {e}", exc_info=True)
+        
         sys.exit(1)
     finally:
         session.close()

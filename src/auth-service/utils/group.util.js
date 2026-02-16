@@ -2,6 +2,7 @@ const UserModel = require("@models/User");
 const RoleModel = require("@models/Role");
 const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
+const PreferenceModel = require("@models/Preference");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
@@ -11,7 +12,7 @@ const constants = require("@config/constants");
 const SLUG_MAX_LENGTH = parseInt(constants.SLUG_MAX_LENGTH ?? 60, 10);
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- create-group-util`
+  `${constants.ENVIRONMENT} -- create-group-util`,
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError, logText } = require("@utils/shared");
@@ -33,11 +34,10 @@ const findGroupAssignmentIndex = (user, grp_id) => {
     return -1;
   }
   return user.group_roles.findIndex((assignment) =>
-    assignment.group.equals(grp_id)
+    assignment.group.equals(grp_id),
   );
 };
 
-// Improved getSuperAdminPermissions function
 const assignPermissionsToRole = async (tenant, role_id, permissions, next) => {
   const permissionIds = await getPermissionIds(tenant, permissions, next);
 
@@ -50,7 +50,7 @@ const assignPermissionsToRole = async (tenant, role_id, permissions, next) => {
     throw new HttpError(
       "Internal Server Error",
       httpStatus.INTERNAL_SERVER_ERROR,
-      { message: errorMessage }
+      { message: errorMessage },
     );
   }
 };
@@ -64,16 +64,16 @@ const getPermissionIds = async (tenant, permissions, next) => {
 
     const existingPermissionIds = existingPermissions.map((p) => p._id);
     const existingPermissionNames = existingPermissions.map(
-      (p) => p.permission
+      (p) => p.permission,
     );
 
     const missingPermissions = permissions.filter(
-      (permission) => !existingPermissionNames.includes(permission)
+      (permission) => !existingPermissionNames.includes(permission),
     );
 
     if (missingPermissions.length > 0) {
       const errorMessage = `The following permissions do not exist for tenant '${tenant}': ${missingPermissions.join(
-        ", "
+        ", ",
       )}. Please create them using the appropriate API endpoint.`;
       throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
         message: errorMessage,
@@ -89,7 +89,7 @@ const getPermissionIds = async (tenant, permissions, next) => {
     throw new HttpError(
       "Internal Server Error",
       httpStatus.INTERNAL_SERVER_ERROR,
-      { message: "Failed to retrieve permission IDs" }
+      { message: "Failed to retrieve permission IDs" },
     );
   }
 };
@@ -106,7 +106,7 @@ const groupUtil = {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: `Group ${group._id} not found`,
-          })
+          }),
         );
         return;
       }
@@ -157,8 +157,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -259,8 +259,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -277,7 +277,7 @@ const groupUtil = {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: `Group ${group._id} not found`,
-          })
+          }),
         );
         return;
       }
@@ -314,8 +314,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -353,14 +353,14 @@ const groupUtil = {
       const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
         group._id,
         updateFields,
-        { new: true }
+        { new: true },
       );
 
       if (!updatedGroup) {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: `Group ${group._id} not found`,
-          })
+          }),
         );
         return;
       }
@@ -382,8 +382,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -521,7 +521,7 @@ const groupUtil = {
           const baseSlug = groupUtil.generateSlugFromTitle(group.grp_title);
           const uniqueSlug = await groupUtil.generateUniqueSlug(
             tenant,
-            baseSlug
+            baseSlug,
           );
 
           if (!dryRun) {
@@ -529,7 +529,7 @@ const groupUtil = {
             const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
               group._id,
               { organization_slug: uniqueSlug },
-              { new: true, select: "_id grp_title organization_slug" }
+              { new: true, select: "_id grp_title organization_slug" },
             );
 
             if (updatedGroup) {
@@ -579,8 +579,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -651,7 +651,7 @@ const groupUtil = {
         const slugExists = await groupUtil.checkSlugExists(
           tenant,
           slug,
-          grp_id
+          grp_id,
         );
         if (slugExists) {
           return {
@@ -674,7 +674,7 @@ const groupUtil = {
         finalSlug = await groupUtil.generateUniqueSlug(
           tenant,
           baseSlug,
-          grp_id
+          grp_id,
         );
       }
 
@@ -682,7 +682,7 @@ const groupUtil = {
       const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
         grp_id,
         { organization_slug: finalSlug },
-        { new: true, select: "_id grp_title organization_slug" }
+        { new: true, select: "_id grp_title organization_slug" },
       );
 
       if (!updatedGroup) {
@@ -705,17 +705,16 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
   removeUniqueConstraint: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const responseFromRemoveUniqueConstraint = await GroupModel(
-        tenant
-      ).collection.dropIndex("grp_website_1");
+      const responseFromRemoveUniqueConstraint =
+        await GroupModel(tenant).collection.dropIndex("grp_website_1");
 
       if (responseFromRemoveUniqueConstraint.ok === 1) {
         return {
@@ -728,8 +727,8 @@ const groupUtil = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Index removal failed" }
-          )
+            { message: "Index removal failed" },
+          ),
         );
       }
     } catch (error) {
@@ -738,8 +737,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -759,7 +758,7 @@ const groupUtil = {
           next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `User with ID ${user_id} not found in tenant ${tenant}`,
-            })
+            }),
           );
           return;
         }
@@ -770,7 +769,7 @@ const groupUtil = {
           next(
             new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
               message: "Authentication required - no user provided",
-            })
+            }),
           );
           return;
         }
@@ -787,7 +786,7 @@ const groupUtil = {
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message:
                 "Group title is required for automatic slug generation when organization_slug is not provided",
-            })
+            }),
           );
           return;
         }
@@ -797,16 +796,16 @@ const groupUtil = {
           const baseSlug = groupUtil.generateSlugFromTitle(body.grp_title);
           organizationSlug = await groupUtil.generateUniqueSlug(
             tenant,
-            baseSlug
+            baseSlug,
           );
           slugWasGenerated = true;
 
           logger.info(
-            `Auto-generated organization slug: ${organizationSlug} for group: ${body.grp_title}`
+            `Auto-generated organization slug: ${organizationSlug} for group: ${body.grp_title}`,
           );
         } catch (slugError) {
           logger.error(
-            `Error generating organization slug: ${slugError.message}`
+            `Error generating organization slug: ${slugError.message}`,
           );
           next(
             new HttpError(
@@ -815,8 +814,8 @@ const groupUtil = {
               {
                 message: "Failed to generate organization slug",
                 errors: { slug_generation: slugError.message },
-              }
-            )
+              },
+            ),
           );
           return;
         }
@@ -834,7 +833,7 @@ const groupUtil = {
       logObject("the user making the request", user);
       const responseFromRegisterGroup = await GroupModel(tenant).register(
         modifiedBody,
-        next
+        next,
       );
 
       if (responseFromRegisterGroup.success === false) {
@@ -849,8 +848,8 @@ const groupUtil = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: "Unable to retrieve the group Id of created group",
-            }
-          )
+            },
+          ),
         );
         return;
       }
@@ -866,7 +865,7 @@ const groupUtil = {
 
       const responseFromCreateRole = await rolePermissionsUtil.createRole(
         requestForRole,
-        next
+        next,
       );
 
       if (responseFromCreateRole.success === false) {
@@ -882,20 +881,24 @@ const groupUtil = {
             {
               message:
                 "Unable to retrieve the role id of the newly created super admin of this group",
-            }
-          )
+            },
+          ),
         );
         return;
       }
 
       try {
         // Attempt to assign permissions; error handling within this function
-        await assignPermissionsToRole(
-          tenant,
-          role_id,
-          constants.DEFAULTS.DEFAULT_ADMIN,
-          next
-        );
+        const adminPermissions = [
+          ...constants.DEFAULTS.DEFAULT_ADMIN,
+          constants.MEMBER_VIEW,
+          constants.MEMBER_INVITE,
+          constants.MEMBER_SEARCH,
+          constants.MEMBER_EXPORT,
+          constants.MEMBER_REMOVE,
+        ];
+
+        await assignPermissionsToRole(tenant, role_id, adminPermissions, next);
 
         const updatedUser = await UserModel(tenant).findByIdAndUpdate(
           user._id,
@@ -908,7 +911,7 @@ const groupUtil = {
               },
             },
           },
-          { new: true }
+          { new: true },
         );
 
         if (!updatedUser) {
@@ -918,8 +921,8 @@ const groupUtil = {
               httpStatus.INTERNAL_SERVER_ERROR,
               {
                 message: `Unable to assign the group to the User ${user._id}`,
-              }
-            )
+              },
+            ),
           );
           return;
         }
@@ -935,64 +938,68 @@ const groupUtil = {
           }
         }
 
-        // Publish group.created event to Kafka
-        try {
-          const kafkaProducer = kafka.producer();
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
-            topic: constants.GROUPS_TOPIC,
-            messages: [
-              {
-                key: grp_id.toString(),
-                value: JSON.stringify({
-                  type: "group.created",
-                  timestamp: new Date().toISOString(),
-                  payload: {
-                    groupId: grp_id,
-                    groupName: responseFromRegisterGroup.data.grp_title,
-                    groupDescription:
-                      responseFromRegisterGroup.data.grp_description,
-                    tenant: tenant,
-                    createdBy: user._id,
-                  },
-                }),
-              },
-            ],
-          });
-          await kafkaProducer.disconnect();
-          logger.info(
-            `Successfully published group.created event for group ID: ${grp_id}`
-          );
-        } catch (kafkaError) {
-          logger.error(
-            `KAFKA-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}`,
-            { grp_id, tenant, error: kafkaError }
-          );
-          // Rollback group, role, and user assignment if Kafka publishing fails
-          await Promise.all([
-            GroupModel(tenant).findByIdAndDelete(grp_id),
-            RoleModel(tenant).findByIdAndDelete(role_id),
-            UserModel(tenant).findByIdAndUpdate(user._id, {
-              $pull: { group_roles: { group: grp_id } },
-            }),
-          ]);
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `A system communication error occurred while creating the organization. The operation has been safely rolled back. Please try again.`,
+        // Fire-and-forget Kafka event publishing with non-blocking rollback
+        (async () => {
+          let kafkaProducer;
+          let sendSucceeded = false;
+          try {
+            kafkaProducer = kafka.producer();
+            await kafkaProducer.connect();
+            await kafkaProducer.send({
+              topic: constants.GROUPS_TOPIC,
+              messages: [
+                {
+                  key: grp_id.toString(),
+                  value: JSON.stringify({
+                    type: "group.created",
+                    timestamp: new Date().toISOString(),
+                    payload: {
+                      groupId: grp_id,
+                      groupName: responseFromRegisterGroup.data.grp_title,
+                      groupDescription:
+                        responseFromRegisterGroup.data.grp_description,
+                      tenant: tenant,
+                      createdBy: user._id,
+                    },
+                  }),
+                },
+              ],
+            });
+            sendSucceeded = true;
+            logger.info(
+              `Successfully published group.created event for group ID: ${grp_id}`,
+            );
+          } catch (kafkaError) {
+            logger.error(
+              `KAFKA-SEND-ERROR: Failed to publish group.created event for group ID ${grp_id}: ${kafkaError.message}. This is a non-blocking error.`,
+              { grp_id, tenant, error: kafkaError },
+            );
+          } finally {
+            if (kafkaProducer) {
+              try {
+                await kafkaProducer.disconnect();
+              } catch (disconnectError) {
+                logger.error(
+                  `KAFKA-DISCONNECT-ERROR: Failed to disconnect Kafka producer for group ID ${grp_id}: ${disconnectError.message}`,
+                );
               }
-            )
-          );
-          return;
-        }
+            }
+          }
+        })();
 
         return responseFromRegisterGroup;
       } catch (error) {
         //Rollback group and role creation if permission assignment fails
-        await GroupModel(tenant).findByIdAndDelete(grp_id);
-        await RoleModel(tenant).findByIdAndDelete(role_id);
+        try {
+          await Promise.all([
+            GroupModel(tenant).findByIdAndDelete(grp_id),
+            RoleModel(tenant).findByIdAndDelete(role_id),
+          ]);
+        } catch (rollbackError) {
+          logger.error(
+            `CRITICAL-ROLLBACK-ERROR: Failed to rollback group creation after permission error for group ID ${grp_id}: ${rollbackError.message}`,
+          );
+        }
         next(error);
         return;
       }
@@ -1002,8 +1009,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1017,7 +1024,7 @@ const groupUtil = {
       if (update.organization_slug) {
         delete update.organization_slug;
         logger.warn(
-          `Attempt to update organization_slug for group ${grp_id} was blocked. Use the dedicated slug endpoint instead.`
+          `Attempt to update organization_slug for group ${grp_id} was blocked. Use the dedicated slug endpoint instead.`,
         );
       }
 
@@ -1027,13 +1034,13 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id} not found`,
-          })
+          }),
         );
       }
 
       const filter = generateFilter.groups(request, next);
       const responseFromModifyGroup = await GroupModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify({ update, filter }, next);
       logObject("responseFromModifyGroup", responseFromModifyGroup);
       return responseFromModifyGroup;
@@ -1043,8 +1050,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1067,12 +1074,12 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id} not found`,
-          })
+          }),
         );
       }
 
       const responseFromRemoveGroup = await GroupModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).remove({ filter }, next);
       return responseFromRemoveGroup;
     } catch (error) {
@@ -1081,8 +1088,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1092,7 +1099,7 @@ const groupUtil = {
       const { tenant, limit, skip } = query;
       const filter = generateFilter.groups(request, next);
       const responseFromListGroups = await GroupModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list({ filter, limit, skip }, next);
       return responseFromListGroups;
     } catch (error) {
@@ -1101,8 +1108,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1116,21 +1123,21 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid group ID ${grp_id}`,
-          })
+          }),
         );
       }
 
       // Fetch the default role for this group
       const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
         tenant,
-        grp_id
+        grp_id,
       );
 
       if (!defaultGroupRole || !defaultGroupRole._id) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Default Role not found for group ID ${grp_id}`,
-          })
+          }),
         );
       }
       const defaultRoleId = defaultGroupRole._id;
@@ -1151,7 +1158,7 @@ const groupUtil = {
 
         const existingAssignment = user.group_roles
           ? user.group_roles.find(
-              (assignment) => assignment.group.toString() === grp_id.toString()
+              (assignment) => assignment.group.toString() === grp_id.toString(),
             )
           : undefined;
 
@@ -1180,9 +1187,8 @@ const groupUtil = {
       }
 
       if (bulkWriteOperations.length > 0) {
-        const { nModified } = await UserModel(tenant).bulkWrite(
-          bulkWriteOperations
-        );
+        const { nModified } =
+          await UserModel(tenant).bulkWrite(bulkWriteOperations);
         assignedUsers = nModified;
       }
 
@@ -1203,8 +1209,8 @@ const groupUtil = {
             notAssignedUsers.reduce((errors, user) => {
               errors[user.user_id] = user.reason;
               return errors;
-            }, {})
-          )
+            }, {}),
+          ),
         );
       }
 
@@ -1220,8 +1226,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1238,7 +1244,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Missing required parameters: grp_id, user_id, or tenant",
-          })
+          }),
         );
         return;
       }
@@ -1251,9 +1257,30 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User or Group not found",
-          })
+          }),
         );
         return;
+      }
+
+      // Get user to check current assignments
+      const user = await UserModel(tenant).findById(user_id).lean();
+
+      // Check if already assigned
+      const isAlreadyAssigned = isUserAssignedToGroup(user, grp_id);
+
+      if (isAlreadyAssigned) {
+        return {
+          success: true,
+          message: "User is already a member of this group",
+          data: {
+            _id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            userName: user.userName,
+          },
+          status: httpStatus.OK,
+        };
       }
 
       // Get default group role with error handling
@@ -1261,7 +1288,7 @@ const groupUtil = {
       try {
         defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
           tenant,
-          grp_id
+          grp_id,
         );
       } catch (roleError) {
         logger.error(`Error getting default role: ${roleError.message}`);
@@ -1271,8 +1298,8 @@ const groupUtil = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: "Failed to get default role for group",
-            }
-          )
+            },
+          ),
         );
         return;
       }
@@ -1281,7 +1308,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Default Role not found for group ID ${grp_id}`,
-          })
+          }),
         );
         return;
       }
@@ -1292,14 +1319,20 @@ const groupUtil = {
           user_id,
           grp_id,
           defaultGroupRole._id,
-          "user"
+          "user",
         );
 
         if (assignmentResult && assignmentResult.success) {
           return {
             success: true,
             message: "User assigned to the Group successfully",
-            data: assignmentResult.data,
+            data: {
+              _id: assignmentResult.data._id,
+              email: assignmentResult.data.email,
+              firstName: assignmentResult.data.firstName,
+              lastName: assignmentResult.data.lastName,
+              userName: assignmentResult.data.userName,
+            },
             status: httpStatus.OK,
           };
         } else {
@@ -1312,8 +1345,8 @@ const groupUtil = {
               httpStatus.INTERNAL_SERVER_ERROR,
               {
                 message: `Failed to assign user to group: ${errorMessage}`,
-              }
-            )
+              },
+            ),
           );
           return;
         }
@@ -1325,8 +1358,8 @@ const groupUtil = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: `Assignment operation failed: ${assignError.message}`,
-            }
-          )
+            },
+          ),
         );
         return;
       }
@@ -1336,8 +1369,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1352,115 +1385,121 @@ const groupUtil = {
       };
 
       if (!grp_id || !user_ids || !Array.isArray(user_ids) || !tenant) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Missing required parameters: grp_id, user_ids array, or tenant",
-          })
+          }),
         );
-        return;
       }
 
-      // Check if group exists
       const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
       if (!groupExists) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
-        return;
       }
 
-      // Get default role
       const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
         tenant,
-        grp_id
+        grp_id,
       );
-
       if (!defaultGroupRole || !defaultGroupRole._id) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Default Role not found for group ID ${grp_id}`,
-          })
+          }),
         );
-        return;
       }
 
-      const results = [];
-      const errors = [];
+      const users = await UserModel(tenant)
+        .find({ _id: { $in: user_ids } })
+        .lean();
+      const userMap = new Map(users.map((user) => [user._id.toString(), user]));
 
-      // Process each user
+      const results = {
+        successful: [],
+        already_members: [],
+        failed_assignments: [],
+        not_found: [],
+      };
+
       for (const user_id of user_ids) {
+        const user = userMap.get(user_id);
+        if (!user) {
+          results.not_found.push({ user_id, reason: "User not found" });
+          continue;
+        }
+
+        if (isUserAssignedToGroup(user, grp_id)) {
+          results.already_members.push({
+            user_id,
+            reason: "User is already a member",
+          });
+          continue;
+        }
+
         try {
-          const assignmentResult = await UserModel(tenant).assignUserToGroup(
+          await UserModel(tenant).assignUserToGroup(
             user_id,
             grp_id,
             defaultGroupRole._id,
-            "user"
+            "user",
           );
-
-          if (assignmentResult.success) {
-            results.push({
-              user_id,
-              success: true,
-              message: "User assigned successfully",
-            });
-          } else {
-            errors.push({
-              user_id,
-              success: false,
-              message: assignmentResult.message,
-            });
-            logger.error(
-              `❌ [GROUP UTIL] Failed to assign user ${user_id}: ${assignmentResult.message}`
-            );
-          }
-        } catch (userError) {
-          errors.push({
-            user_id,
-            success: false,
-            message: userError.message,
-          });
-          logger.error(
-            `🐛 [GROUP UTIL] Error processing user ${user_id}: ${userError.message}`
-          );
+          results.successful.push(user_id);
+        } catch (error) {
+          results.failed_assignments.push({ user_id, reason: error.message });
+          logger.error(`Failed to assign user ${user_id}: ${error.message}`);
         }
       }
 
-      const successCount = results.length;
-      const errorCount = errors.length;
+      const summary = {
+        total_requested: user_ids.length,
+        successfully_assigned: results.successful.length,
+        already_members: results.already_members.length,
+        users_not_found: results.not_found.length,
+        failed_assignments: results.failed_assignments.length,
+      };
+
+      let message = `Bulk assignment completed.`;
+      let status = httpStatus.OK;
+
+      if (summary.successfully_assigned === 0 && summary.already_members > 0) {
+        message = "No new users assigned; all were already members.";
+      } else if (
+        summary.failed_assignments > 0 ||
+        summary.users_not_found > 0
+      ) {
+        status = httpStatus.MULTI_STATUS;
+      }
 
       return {
         success: true,
-        message: `Bulk assignment completed: ${successCount} successful, ${errorCount} failed`,
+        message,
+        status,
         data: {
-          successful: results,
-          failed: errors,
-          summary: {
-            total: user_ids.length,
-            successful: successCount,
-            failed: errorCount,
-          },
+          summary,
+          ...results,
         },
-        status: errorCount > 0 ? httpStatus.MULTI_STATUS : httpStatus.OK,
       };
     } catch (error) {
       logger.error(`🐛 [GROUP UTIL] Bulk assignment error: ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
-      return;
     }
   },
 
   unAssignUser: async (request, next) => {
     try {
       const { grp_id, user_id, tenant } = {
+        ...request.body,
         ...request.query,
         ...request.params,
       };
@@ -1470,43 +1509,94 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id.toString()} or User ${user_id.toString()} not found`,
-          })
+          }),
         );
+        return;
       }
 
-      const groupAssignmentIndex = findGroupAssignmentIndex(user, grp_id);
+      // Check if the user is the manager of the group
+      if (
+        group.grp_manager &&
+        group.grp_manager.toString() === user_id.toString()
+      ) {
+        // Count other members in the group
+        const otherMembersCount = await UserModel(tenant).countDocuments({
+          _id: { $ne: user_id },
+          "group_roles.group": grp_id,
+        });
 
-      logObject("groupAssignmentIndex", groupAssignmentIndex);
+        if (otherMembersCount === 0) {
+          // Manager is the last member, delete the group instead of orphaning it
+          try {
+            await RoleModel(tenant).deleteMany({ group_id: grp_id });
+            await GroupModel(tenant).findByIdAndDelete(grp_id);
+          } catch (error) {
+            logger.error(
+              `Error during group/role cleanup for grp_id ${grp_id}: ${error.message}`,
+            );
+            // Decide if you want to re-throw or just log
+          }
+        } else {
+          // There are other members, prevent the manager from leaving
+          next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message:
+                "You are the manager of this group. Please transfer ownership to another member before leaving, or delete the group if you are the only member.",
+            }),
+          );
+          return;
+        }
+      }
 
-      if (groupAssignmentIndex === -1) {
+      if (!isUserAssignedToGroup(user, grp_id)) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id.toString()} is not assigned to the user`,
-          })
+          }),
         );
+        return;
       }
 
-      user.group_roles.splice(groupAssignmentIndex, 1);
+      // Delete the user's preference for this group
+      try {
+        await PreferenceModel(tenant).deleteOne({
+          user_id: user_id,
+          group_id: grp_id,
+        });
+        logger.info(
+          `Deleted preference for user ${user_id} in group ${grp_id}`,
+        );
+      } catch (prefError) {
+        logger.error(`Failed to delete preference: ${prefError.message}`);
+        // Decide if this should be a critical failure or just a warning
+      }
 
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { group_roles: user.group_roles },
-        { new: true }
+        { $pull: { group_roles: { group: grp_id } } },
+        { new: true },
       );
 
       if (!isEmpty(updatedUser)) {
         return {
           success: true,
           message: "Successfully unassigned User from the Group",
-          data: updatedUser,
+          data: {
+            _id: updatedUser._id,
+            email: updatedUser.email,
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            userName: updatedUser.userName,
+          },
           status: httpStatus.OK,
         };
       } else {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Unable to unassign the User",
-          })
+          }),
         );
+        return;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1514,11 +1604,13 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
+      return;
     }
   },
+
   unAssignManyUsers: async (request, next) => {
     try {
       const { user_ids, grp_id, tenant } = {
@@ -1533,19 +1625,56 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id} not found`,
-          })
+          }),
         );
+        return;
+      }
+
+      // Check if the manager is part of the unassignment list
+      if (
+        group.grp_manager &&
+        user_ids.includes(group.grp_manager.toString())
+      ) {
+        // Count how many members would be left in the group after this operation
+        const remainingMembersCount = await UserModel(tenant).countDocuments({
+          "group_roles.group": grp_id,
+          _id: { $nin: user_ids }, // Exclude users being removed
+        });
+
+        if (remainingMembersCount > 0) {
+          // If members would be left, block the manager's removal
+          next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: `The group manager (${group.grp_manager.toString()}) cannot be removed as part of a bulk operation while other members remain. Please transfer ownership first.`,
+            }),
+          );
+          return;
+        } else {
+          // If this operation removes everyone, including the manager, proceed to delete the group and its roles
+          try {
+            await RoleModel(tenant).deleteMany({ group_id: grp_id });
+            await GroupModel(tenant).findByIdAndDelete(grp_id);
+            logger.info(
+              `Group ${grp_id} and its roles were deleted as the last members, including the manager, were unassigned.`,
+            );
+          } catch (error) {
+            logger.error(
+              `Error during group/role cleanup for grp_id ${grp_id} in bulk operation: ${error.message}`,
+            );
+            // Continue with user un-assignment but log the cleanup failure
+          }
+        }
       }
 
       // Check if all the provided users actually exist
       const existingUsers = await UserModel(tenant).find(
         { _id: { $in: user_ids } },
-        "_id"
+        "_id",
       );
 
       if (existingUsers.length !== user_ids.length) {
         const nonExistentUsers = user_ids.filter(
-          (user_id) => !existingUsers.find((user) => user._id.equals(user_id))
+          (user_id) => !existingUsers.find((user) => user._id.equals(user_id)),
         );
 
         const errorMessages = {};
@@ -1557,9 +1686,10 @@ const groupUtil = {
           new HttpError(
             "Bad Request Error",
             httpStatus.BAD_REQUEST,
-            errorMessages
-          )
+            errorMessages,
+          ),
         );
+        return;
       }
 
       // Check if all the provided user_ids are assigned to the group
@@ -1570,23 +1700,23 @@ const groupUtil = {
 
       if (users.length !== user_ids.length) {
         const unassignedUsers = user_ids.filter(
-          (user_id) => !users.find((user) => user._id.equals(user_id))
+          (user_id) => !users.find((user) => user._id.equals(user_id)),
         );
 
         const errorMessages = {};
         unassignedUsers.forEach((user_id) => {
-          errorMessages[
-            user_id
-          ] = `User ${user_id} is not assigned to this group ${grp_id}`;
+          errorMessages[user_id] =
+            `User ${user_id} is not assigned to this group ${grp_id}`;
         });
 
         next(
           new HttpError(
             "Bad Request Error",
             httpStatus.BAD_REQUEST,
-            errorMessages
-          )
+            errorMessages,
+          ),
         );
+        return;
       }
 
       // Remove the group assignment from each user's groups array
@@ -1598,20 +1728,50 @@ const groupUtil = {
             group_roles: { $elemMatch: { group: grp_id } },
           },
           {
-            $pull: {
-              group_roles: { group: grp_id },
-            },
-          }
+            $pull: { group_roles: { group: grp_id } },
+          },
         );
 
         const notFoundCount = totalUsers - nModified;
         if (nModified === 0) {
+          // Even if no users were modified, still attempt to delete preferences
+          // as a cleanup step in case of data inconsistency.
+          await PreferenceModel(tenant).deleteMany({
+            user_id: { $in: user_ids },
+            group_id: grp_id,
+          });
+          logger.info(
+            `Attempted cleanup of preferences for users in group ${grp_id}`,
+          );
+
           next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "No matching User found in the system",
-            })
+            }),
+          );
+          return;
+        }
+
+        // Delete preferences for the users that were successfully unassigned
+        const validUserIds = user_ids.filter((id) =>
+          mongoose.Types.ObjectId.isValid(id),
+        );
+        const invalidUserIds = user_ids.filter(
+          (id) => !mongoose.Types.ObjectId.isValid(id),
+        );
+        if (invalidUserIds.length > 0) {
+          logger.warn(
+            `Invalid user_ids found and skipped during preference deletion: ${invalidUserIds.join(", ")}`,
           );
         }
+        const userObjectIds = validUserIds.map((id) => ObjectId(id));
+        const deleteResult = await PreferenceModel(tenant).deleteMany({
+          user_id: { $in: userObjectIds },
+          group_id: grp_id,
+        });
+        logger.info(
+          `Deleted ${deleteResult.deletedCount} preferences for users from group ${grp_id}`,
+        );
 
         if (notFoundCount > 0) {
           return {
@@ -1626,9 +1786,10 @@ const groupUtil = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: error.message }
-          )
+            { message: error.message },
+          ),
         );
+        return;
       }
 
       const unassignedUserIds = user_ids.map((user_id) => user_id);
@@ -1645,11 +1806,13 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
+      return;
     }
   },
+
   listAvailableUsers: async (request, next) => {
     try {
       const { tenant, grp_id } = { ...request.query, ...request.params };
@@ -1658,7 +1821,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid group ID ${grp_id}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -1694,7 +1857,7 @@ const groupUtil = {
 
       logObject(
         "responseFromListAvailableUsers",
-        responseFromListAvailableUsers
+        responseFromListAvailableUsers,
       );
 
       return {
@@ -1709,8 +1872,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1723,7 +1886,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid group ID ${grp_id}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -1796,8 +1959,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1810,7 +1973,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid group ID ${grp_id}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -1993,7 +2156,7 @@ const groupUtil = {
       });
 
       mergedResults.sort(
-        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
       );
 
       logObject("mergedResults", mergedResults);
@@ -2010,95 +2173,9 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
-    }
-  },
-  setManager: async (request, next) => {
-    try {
-      const { grp_id, user_id } = request.params;
-      const { tenant } = request.query;
-      const user = await UserModel(tenant).findById(user_id).lean();
-      const group = await GroupModel(tenant).findById(grp_id).lean();
-
-      if (isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not found",
-          })
-        );
-        return;
-      }
-
-      if (isEmpty(group)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Group not found",
-          })
-        );
-        return;
-      }
-
-      if (
-        group.grp_manager &&
-        group.grp_manager.toString() === user_id.toString()
-      ) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `User ${user_id.toString()} is already the group manager`,
-          })
-        );
-        return;
-      }
-
-      logObject("the user object", user);
-      // Updated check to use group_roles array
-      const userGroupIds = user.group_roles.map((groupRole) =>
-        groupRole.group.toString()
-      );
-
-      if (!userGroupIds.includes(grp_id.toString())) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Group ${grp_id.toString()} is not part of User's groups, not authorized to manage this group`,
-          })
-        );
-        return;
-      }
-
-      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
-        grp_id,
-        { grp_manager: user_id },
-        { new: true }
-      );
-
-      if (!isEmpty(updatedGroup)) {
-        return {
-          success: true,
-          message: "User assigned to Group successfully",
-          status: httpStatus.OK,
-          data: updatedGroup,
-        };
-      } else {
-        next(
-          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
-            message: "No group record was updated",
-          })
-        );
-        return;
-      }
-    } catch (error) {
-      logObject("the error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
     }
   },
 
@@ -2125,7 +2202,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User not found",
-          })
+          }),
         );
         return;
       }
@@ -2134,7 +2211,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -2147,7 +2224,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} is already the group manager`,
-          })
+          }),
         );
         return;
       }
@@ -2159,7 +2236,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User must be a member of the group before becoming manager`,
-          })
+          }),
         );
         return;
       }
@@ -2170,14 +2247,14 @@ const groupUtil = {
         previousManagerUpdate = await groupUtil.removeManagerRole(
           group.grp_manager,
           grp_id,
-          tenant
+          tenant,
         );
       }
 
       // Get or create the group manager role
       const managerRole = await groupUtil.ensureGroupManagerRole(
         grp_id,
-        tenant
+        tenant,
       );
 
       // Update group manager
@@ -2189,7 +2266,7 @@ const groupUtil = {
           grp_manager_firstname: user.firstName,
           grp_manager_lastname: user.lastName,
         },
-        { new: true }
+        { new: true },
       );
 
       // Assign manager role to new manager if requested
@@ -2199,7 +2276,7 @@ const groupUtil = {
           user_id,
           grp_id,
           managerRole._id,
-          tenant
+          tenant,
         );
       }
 
@@ -2222,8 +2299,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -2262,9 +2339,8 @@ const groupUtil = {
           managerRole = createRoleResult.data;
 
           // Assign manager permissions
-          const managerPermissions = await groupUtil.getManagerPermissions(
-            tenant
-          );
+          const managerPermissions =
+            await groupUtil.getManagerPermissions(tenant);
           if (managerPermissions.length > 0) {
             await RoleModel(tenant).findByIdAndUpdate(managerRole._id, {
               $addToSet: { role_permissions: { $each: managerPermissions } },
@@ -2325,7 +2401,7 @@ const groupUtil = {
               },
             },
           },
-        }
+        },
       );
 
       // Add the new manager role
@@ -2341,7 +2417,7 @@ const groupUtil = {
             },
           },
         },
-        { new: true }
+        { new: true },
       );
 
       return result;
@@ -2358,7 +2434,7 @@ const groupUtil = {
     try {
       const managerRoleIds = await groupUtil.getGroupManagerRoleIds(
         grp_id,
-        tenant
+        tenant,
       );
 
       const result = await UserModel(tenant).findByIdAndUpdate(
@@ -2371,7 +2447,7 @@ const groupUtil = {
             },
           },
         },
-        { new: true }
+        { new: true },
       );
 
       return result;
@@ -2419,7 +2495,7 @@ const groupUtil = {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: `Group ${grp_id} not found`,
-          })
+          }),
         );
         return;
       }
@@ -2437,26 +2513,26 @@ const groupUtil = {
       const memberStats = await groupUtil.getMemberStatistics(
         grp_id,
         tenant,
-        time_range
+        time_range,
       );
 
       // Get activity metrics
       const activityMetrics = await groupUtil.getActivityMetrics(
         grp_id,
         tenant,
-        time_range
+        time_range,
       );
 
       // Get role distribution
       const roleDistribution = await groupUtil.getRoleDistribution(
         grp_id,
-        tenant
+        tenant,
       );
 
       // Get pending access requests
       const pendingRequests = await groupUtil.getPendingAccessRequests(
         grp_id,
-        tenant
+        tenant,
       );
 
       const dashboardData = {
@@ -2474,7 +2550,7 @@ const groupUtil = {
         management_insights: await groupUtil.getManagementInsights(
           grp_id,
           tenant,
-          time_range
+          time_range,
         ),
       };
 
@@ -2492,8 +2568,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -2680,7 +2756,7 @@ const groupUtil = {
       const memberStats = await groupUtil.getMemberStatistics(
         grp_id,
         tenant,
-        timeRange
+        timeRange,
       );
 
       // Generate insights based on data
@@ -2745,7 +2821,7 @@ const groupUtil = {
                   user_id,
                   grp_id,
                   role_id,
-                  tenant
+                  tenant,
                 );
               }
               break;
@@ -2756,7 +2832,7 @@ const groupUtil = {
                   user_id,
                   grp_id,
                   role_id,
-                  tenant
+                  tenant,
                 );
               }
               break;
@@ -2766,7 +2842,7 @@ const groupUtil = {
                 user_id,
                 grp_id,
                 tenant,
-                reason
+                reason,
               );
               break;
 
@@ -2813,8 +2889,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -2833,7 +2909,7 @@ const groupUtil = {
         {
           $set: { "group_roles.$.role": role_id },
         },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -2859,7 +2935,7 @@ const groupUtil = {
         {
           $set: { "group_roles.$.role": null },
         },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -2881,7 +2957,7 @@ const groupUtil = {
         {
           $pull: { group_roles: { group: grp_id } },
         },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -2908,7 +2984,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -2919,20 +2995,20 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User not found",
-          })
+          }),
         );
         return;
       }
 
       const isGroupMember = user.group_roles?.some(
-        (gr) => gr.group.toString() === grp_id.toString()
+        (gr) => gr.group.toString() === grp_id.toString(),
       );
 
       if (!isGroupMember) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User is not a member of this group",
-          })
+          }),
         );
         return;
       }
@@ -2949,7 +3025,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Role not found or does not belong to this group",
-          })
+          }),
         );
         return;
       }
@@ -2966,7 +3042,7 @@ const groupUtil = {
             "group_roles.$.updatedAt": new Date(),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -2992,8 +3068,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -3017,7 +3093,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -3035,7 +3111,7 @@ const groupUtil = {
           // Check if already a group member
           if (existingUser) {
             const isAlreadyMember = existingUser.group_roles?.some(
-              (gr) => gr.group.toString() === grp_id.toString()
+              (gr) => gr.group.toString() === grp_id.toString(),
             );
 
             if (isAlreadyMember) {
@@ -3064,9 +3140,8 @@ const groupUtil = {
             invitationData.user_id = existingUser._id;
           }
 
-          const accessRequest = await AccessRequestModel(tenant).create(
-            invitationData
-          );
+          const accessRequest =
+            await AccessRequestModel(tenant).create(invitationData);
 
           // If auto-approve and user exists, add to group immediately
           if (auto_approve && existingUser && role_id) {
@@ -3098,7 +3173,7 @@ const groupUtil = {
       }
 
       const successCount = results.filter(
-        (r) => r.status === "invited" || r.status === "approved"
+        (r) => r.status === "invited" || r.status === "approved",
       ).length;
 
       return {
@@ -3125,8 +3200,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -3145,7 +3220,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -3214,9 +3289,8 @@ const groupUtil = {
         },
       ]);
 
-      const totalCount = await AccessRequestModel(tenant).countDocuments(
-        filter
-      );
+      const totalCount =
+        await AccessRequestModel(tenant).countDocuments(filter);
 
       return {
         success: true,
@@ -3247,8 +3321,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -3273,7 +3347,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -3289,7 +3363,7 @@ const groupUtil = {
           status_updated_at: updateDate,
           status_updated_by: request.user?._id,
         },
-        { new: true }
+        { new: true },
       );
 
       // Handle member notifications if requested
@@ -3326,8 +3400,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -3354,7 +3428,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -3401,8 +3475,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -3430,7 +3504,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -3486,12 +3560,12 @@ const groupUtil = {
         sort_by === "name"
           ? "firstName"
           : sort_by === "joined_date"
-          ? "group_roles.createdAt"
-          : sort_by === "last_login"
-          ? "lastLogin"
-          : sort_by === "role"
-          ? "role_info.role_name"
-          : sort_by;
+            ? "group_roles.createdAt"
+            : sort_by === "last_login"
+              ? "lastLogin"
+              : sort_by === "role"
+                ? "role_info.role_name"
+                : sort_by;
 
       const sortDirection = sort_order === "desc" ? -1 : 1;
       pipeline.push({ $sort: { [sortField]: sortDirection } });
@@ -3564,8 +3638,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -3593,7 +3667,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -3748,8 +3822,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -3768,7 +3842,7 @@ const groupUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group not found",
-          })
+          }),
         );
         return;
       }
@@ -3860,10 +3934,10 @@ const groupUtil = {
             healthScore >= 80
               ? "excellent"
               : healthScore >= 60
-              ? "good"
-              : healthScore >= 40
-              ? "fair"
-              : "poor",
+                ? "good"
+                : healthScore >= 40
+                  ? "fair"
+                  : "poor",
           member_statistics: stats,
           health_issues: healthIssues,
           recommendations: healthIssues.map((issue) => issue.recommendation),
@@ -3879,8 +3953,8 @@ const groupUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -4041,7 +4115,7 @@ const groupUtil = {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: `Group ${grp_id} not found`,
-          })
+          }),
         );
         return;
       }
@@ -4054,28 +4128,28 @@ const groupUtil = {
           analyticsData = await groupUtil.getMemberAnalyticsData(
             grp_id,
             actualTenant,
-            time_range
+            time_range,
           );
           break;
         case "activity":
           analyticsData = await groupUtil.getActivityAnalyticsData(
             grp_id,
             actualTenant,
-            time_range
+            time_range,
           );
           break;
         case "roles":
           analyticsData = await groupUtil.getRoleAnalyticsData(
             grp_id,
             actualTenant,
-            time_range
+            time_range,
           );
           break;
         default:
           analyticsData = await groupUtil.getOverviewAnalyticsData(
             grp_id,
             actualTenant,
-            time_range
+            time_range,
           );
       }
 
@@ -4099,8 +4173,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4235,7 +4309,7 @@ const groupUtil = {
           engagement_score: Math.round(
             (memberAnalytics.active_members /
               Math.max(memberAnalytics.total_members, 1)) *
-              100
+              100,
           ),
         },
         quick_stats: memberAnalytics,
@@ -4265,7 +4339,7 @@ const groupUtil = {
       const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
         grp_id,
         { $addToSet: { cohorts: { $each: cohort_ids } } },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -4280,8 +4354,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4305,7 +4379,7 @@ const groupUtil = {
       const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
         grp_id,
         { $pullAll: { cohorts: cohort_ids } },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -4320,8 +4394,8 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4357,8 +4431,119 @@ const groupUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  leaveGroup: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { tenant } = request.query;
+      const { _id: user_id } = request.user;
+
+      if (!request.user || !request.user._id) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Authentication is required to perform this action.",
+          }),
+        );
+      }
+
+      // Find the user and group
+      const user = await UserModel(tenant).findById(user_id);
+      const group = await GroupModel(tenant).findById(grp_id);
+
+      if (!user || !group) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User or Group not found",
+          }),
+        );
+      }
+
+      // Check if the user is the manager of the group
+      if (
+        group.grp_manager &&
+        group.grp_manager.toString() === user_id.toString()
+      ) {
+        // Count other members in the group
+        const otherMembersCount = await UserModel(tenant).countDocuments({
+          _id: { $ne: user_id },
+          "group_roles.group": grp_id,
+        });
+
+        if (otherMembersCount > 0) {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message:
+                "You are the manager of this group. Please transfer ownership to another member before leaving.",
+            }),
+          );
+        }
+      }
+
+      if (!isUserAssignedToGroup(user, grp_id)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "You are not a member of this group",
+          }),
+        );
+      }
+
+      // Delete the user's preference for this group
+      try {
+        await PreferenceModel(tenant).deleteOne({
+          user_id: user_id,
+          group_id: grp_id,
+        });
+        logger.info(
+          `Deleted preference for user ${user_id} after leaving group ${grp_id}`,
+        );
+      } catch (prefError) {
+        logger.error(
+          `Failed to delete preference on leave: ${prefError.message}`,
+        );
+      }
+
+      // Use findByIdAndUpdate with $pull to atomically remove the group role
+      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+        user_id,
+        { $pull: { group_roles: { group: grp_id } } },
+        { new: true },
+      );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message:
+              "User not found after update, possibly deleted during operation.",
+          }),
+        );
+      }
+
+      return {
+        success: true,
+        message: "Successfully left the group",
+        data: {
+          _id: updatedUser._id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          userName: updatedUser.userName,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error on leaveGroup: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
       );
     }
   },

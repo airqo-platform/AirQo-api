@@ -43,6 +43,7 @@ require("@bin/jobs/dashboard-analytics-job");
 require("@bin/jobs/preferences-update-job");
 require("@bin/jobs/profile-picture-update-job");
 require("@bin/jobs/role-cleanup-job");
+require("@bin/jobs/daily-compromise-summary-job");
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
@@ -102,7 +103,7 @@ app.use(
     store: new MongoStore(options),
     resave: false,
     saveUninitialized: false,
-  })
+  }),
 ); // session setup
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
@@ -133,7 +134,7 @@ app.use(
     extended: true,
     limit: "50mb",
     parameterLimit: 50000,
-  })
+  }),
 );
 // app.use(attachUserId); // Attach user ID to all requests
 // app.use(trackAPIRequest); // Track all API requests
@@ -163,7 +164,7 @@ app.use(
     tempFileDir: "/tmp/",
     debug: isDev,
     abortOnLimit: true,
-  })
+  }),
 );
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
@@ -284,7 +285,7 @@ app.use(function (err, req, res, next) {
     }
   } else {
     logger.error(
-      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`
+      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`,
     );
   }
 });
@@ -361,7 +362,7 @@ const createServer = () => {
       // Enhanced cron job shutdown handling
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
         console.log(
-          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`,
         );
 
         // Stop each job individually with error handling
@@ -390,40 +391,40 @@ const createServer = () => {
                 console.log(`💥 Destroyed job: ${jobName}`);
               } else {
                 console.log(
-                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
+                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`,
                 );
                 logger.warn(
-                  `Job ${jobName} doesn't have destroy method (older node-cron version)`
+                  `Job ${jobName} doesn't have destroy method (older node-cron version)`,
                 );
               }
 
               // Remove from registry
               delete global.cronJobs[jobName];
               console.log(
-                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
+                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`,
               );
             }
             // Simple job pattern (current auth service pattern)
             else if (typeof jobObj.stop === "function") {
               jobObj.stop();
               console.log(
-                `✅ Successfully stopped cron job: ${jobName} (simple mode)`
+                `✅ Successfully stopped cron job: ${jobName} (simple mode)`,
               );
             }
             // Unknown pattern
             else {
               console.warn(
-                `⚠️  Job ${jobName} has unknown structure, skipping`
+                `⚠️  Job ${jobName} has unknown structure, skipping`,
               );
               logger.warn(`Job ${jobName} has unknown structure, skipping`);
             }
           } catch (error) {
             console.error(
               `❌ Error stopping cron job ${jobName}:`,
-              error.message
+              error.message,
             );
             logger.error(
-              `❌ Error stopping cron job ${jobName}: ${error.message}`
+              `❌ Error stopping cron job ${jobName}: ${error.message}`,
             );
 
             // Try emergency cleanup
@@ -436,10 +437,10 @@ const createServer = () => {
             } catch (emergencyError) {
               console.error(
                 `💥 Emergency cleanup failed for ${jobName}:`,
-                emergencyError.message
+                emergencyError.message,
               );
               logger.error(
-                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
+                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`,
               );
             }
           }
@@ -485,10 +486,10 @@ const createServer = () => {
         } catch (error) {
           console.error(
             "❌ Error closing Firebase connections:",
-            error.message
+            error.message,
           );
           logger.error(
-            `❌ Error closing Firebase connections: ${error.message}`
+            `❌ Error closing Firebase connections: ${error.message}`,
           );
         }
       }
@@ -540,10 +541,10 @@ const createServer = () => {
     // Force exit after timeout if graceful shutdown fails (increased from 10s to 15s)
     setTimeout(() => {
       console.error(
-        "Could not close connections in time, forcefully shutting down"
+        "Could not close connections in time, forcefully shutting down",
       );
       logger.error(
-        "Could not close connections in time, forcefully shutting down"
+        "Could not close connections in time, forcefully shutting down",
       );
       process.exit(1);
     }, 15000); // timeout to 15 seconds

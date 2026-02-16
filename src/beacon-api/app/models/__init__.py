@@ -13,7 +13,7 @@ from .device_file import DeviceFiles, DeviceFilesCreate, DeviceFilesUpdate, Devi
 from .airqloud import (
     AirQloud, AirQloudCreate, AirQloudUpdate, AirQloudRead, AirQloudWithDeviceCount, AirQloudWithPerformance,
     AirQloudDevice, AirQloudDeviceCreate, AirQloudDeviceRead, AirQloudDeviceUpdate,
-    AirQloudSingleBulkCreateResponse
+    AirQloudSingleBulkCreateResponse, PaginatedAirQloudResponse
 )
 from .performance import (
     DevicePerformance, DevicePerformanceCreate, DevicePerformanceRead,
@@ -46,6 +46,7 @@ __all__ = [
     "DeviceFiles", "DeviceFilesCreate", "DeviceFilesUpdate", "DeviceFilesRead",
     "AirQloud", "AirQloudCreate", "AirQloudUpdate", "AirQloudRead", "AirQloudWithDeviceCount", "AirQloudWithPerformance",
     "AirQloudDevice", "AirQloudDeviceCreate", "AirQloudDeviceRead", "AirQloudDeviceUpdate",
+    "PaginatedAirQloudResponse",
     "DevicePerformance", "DevicePerformanceCreate", "DevicePerformanceRead",
     "AirQloudPerformance", "AirQloudPerformanceCreate", "AirQloudPerformanceRead",
     "PerformanceQueryRequest", "PerformanceResponse",
