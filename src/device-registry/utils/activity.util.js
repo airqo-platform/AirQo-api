@@ -1251,31 +1251,43 @@ const createActivity = {
         const actualDeploymentType =
           deployment_type || (grid_id ? "mobile" : "static");
 
-        // Validate the date for this specific deployment
-        const inputDate = moment(date);
-        if (inputDate.isAfter(moment())) {
-          failed_deployments.push({
-            deviceName,
-            deployment_type: actualDeploymentType,
-            error: { message: "date cannot be in the future" },
-          });
-          return; // Skip to the next item
-        }
-        if (inputDate.isBefore(moment().subtract(1, "month"))) {
-          failed_deployments.push({
-            deviceName,
-            deployment_type: actualDeploymentType,
-            error: {
-              message: "date cannot be more than one month in the past",
-            },
-          });
-          return; // Skip to the next item
-        }
-
         try {
+          // Validate the date for this specific deployment
+          const inputDate = moment(date);
+          if (inputDate.isAfter(moment())) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: { message: "date cannot be in the future" },
+            });
+            return; // Skip to the next item
+          }
+          if (inputDate.isBefore(moment().subtract(1, "month"))) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: {
+                message: "date cannot be more than one month in the past",
+              },
+            });
+            return; // Skip to the next item
+          }
+
           // Moved validation from validator to here for per-item processing
           if (actualDeploymentType === "static") {
-            if (!latitude || !longitude || !site_name) {
+            const hasValidLatitude =
+              latitude !== null &&
+              latitude !== undefined &&
+              Number.isFinite(Number(latitude));
+            const hasValidLongitude =
+              longitude !== null &&
+              longitude !== undefined &&
+              Number.isFinite(Number(longitude));
+            const hasSiteName =
+              typeof site_name === "string"
+                ? site_name.trim().length > 0
+                : Boolean(site_name);
+            if (!hasValidLatitude || !hasValidLongitude || !hasSiteName) {
               failed_deployments.push({
                 deviceName,
                 deployment_type: "static",

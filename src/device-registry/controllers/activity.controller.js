@@ -70,8 +70,8 @@ const handleDeployment = async (
 
     // Determine deployment type from request body
     const { deployment_type, site_id, grid_id } = request.body;
-    const actualDeploymentType =
-      deployment_type || (site_id ? "static" : grid_id ? "mobile" : "static");
+    const actualDeploymentType = // Consistent with util and validator
+      deployment_type || (grid_id ? "mobile" : "static");
 
     const result = await deployFunction(request, next);
 
