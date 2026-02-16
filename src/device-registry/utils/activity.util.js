@@ -1476,7 +1476,7 @@ const createActivity = {
           failed_deployments.push({
             deviceName,
             deployment_type: actualDeploymentType,
-            error: { ...error, message: error.message },
+            error: { message: error.message },
             user_id: user_id ? user_id : null,
           });
         }
