@@ -1254,6 +1254,15 @@ const createActivity = {
         try {
           // Validate the date for this specific deployment
           const inputDate = moment(date);
+          if (!inputDate.isValid()) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: { message: "invalid date format" },
+            });
+            return; // Skip to the next item
+          }
+
           if (inputDate.isAfter(moment())) {
             failed_deployments.push({
               deviceName,
