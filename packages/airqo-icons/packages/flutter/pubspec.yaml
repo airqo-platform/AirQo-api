@@ -5,9 +5,6 @@ homepage: https://airqo.net/packages
 repository: https://github.com/airqo-platform/AirQo-api
 issue_tracker: https://github.com/airqo-platform/AirQo-api/issues
 documentation: https://github.com/airqo-platform/AirQo-api/tree/staging/packages/airqo-icons/packages/flutter
-enviroenvironment:
-  sdk: ">=3.0.0 <4.0.0"
-  flutter: ">=3.0.0"
 dependencies:
   flutter:
     sdk: flutter
