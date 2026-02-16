@@ -1,6 +1,6 @@
 {
   "name": "@airqo/icons-react",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Production-ready React icon library with 1,383+ TypeScript components and tree-shakable imports",
   "keywords": [
     "icons",
@@ -14,12 +14,12 @@
     "design-system",
     "tree-shaking"
   ],
-  "homepage": "https://aero-glyphs.vercel.app/",
-  "bugs": "https://github.com/airqo-platform/airqo-libraries/issues",
+  "homepage": "https://airqo.net/packages",
+  "bugs": "https://github.com/airqo-platform/AirQo-api/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/airqo-platform/airqo-libraries.git",
-    "directory": "src/airqo-icons/packages/react"
+    "url": "https://github.com/airqo-platform/AirQo-api.git",
+    "directory": "packages/airqo-icons/packages/react"
   },
   "license": "MIT",
   "author": "AirQo Organization",
