@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- sync-networks-job`
+  `${constants.ENVIRONMENT} -- sync-networks-job`,
 );
 const NetworkModel = require("@models/Network");
 const cron = require("node-cron");
@@ -42,8 +42,8 @@ const initializeApiClient = () => {
   if (!isValid) {
     logger.warn(
       `⚠️ API client not initialized. Missing configuration: ${missingConfigs.join(
-        ", "
-      )}`
+        ", ",
+      )}`,
     );
     return null;
   }
@@ -58,20 +58,20 @@ const initializeApiClient = () => {
     (error) => {
       if (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN") {
         logger.error(
-          `API DNS resolution error for ${error.config?.baseURL}. Check API_BASE_URL and network connectivity.`
+          `API DNS resolution error for ${error.config?.baseURL}. Check API_BASE_URL and network connectivity.`,
         );
       } else if (error.code === "ECONNABORTED") {
         logger.error(
           `API request timeout: ${error.config?.url}`,
-          error.message
+          error.message,
         );
       } else if (error.response?.status >= 500) {
         logger.error(
-          `API server error: ${error.response?.status} ${error.response?.statusText}`
+          `API server error: ${error.response?.status} ${error.response?.statusText}`,
         );
       }
       return Promise.reject(error);
-    }
+    },
   );
 
   return apiClient;
@@ -85,6 +85,8 @@ const apiClient = initializeApiClient();
  * @returns {Promise<Array>} A list of networks from the auth-service.
  */
 const fetchAuthServiceNetworks = async () => {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 5000; // 5 seconds
   if (!apiClient) {
     logger.error("API client is not initialized; cannot fetch networks.");
     return [];
@@ -95,41 +97,63 @@ const fetchAuthServiceNetworks = async () => {
   const limit = 100; // Fetch 100 networks per page
   let hasMore = true;
 
-  while (hasMore) {
-    try {
-      const response = await apiClient.get("/api/v2/users/networks", {
-        params: { tenant: "airqo", page, limit },
-      });
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    allNetworks = [];
+    page = 1;
+    hasMore = true;
+    let success = true;
 
-      if (response.data && response.data.success) {
-        const networks = response.data.networks || [];
-        if (networks.length > 0) {
-          allNetworks = allNetworks.concat(networks);
-        }
+    while (hasMore) {
+      try {
+        const response = await apiClient.get("/api/v2/users/networks", {
+          params: { tenant: "airqo", page, limit },
+        });
 
-        // Stop if we receive fewer networks than the limit, indicating the last page
-        if (networks.length < limit) {
-          hasMore = false;
+        if (response.data && response.data.success) {
+          const networks = response.data.networks || [];
+          if (networks.length > 0) {
+            allNetworks = allNetworks.concat(networks);
+          }
+
+          if (networks.length < limit) {
+            hasMore = false;
+          } else {
+            page++;
+          }
         } else {
-          page++;
+          logger.error(
+            `Failed to fetch page ${page} of networks: ${response.data
+              .message || "Unknown error"}`,
+          );
+          hasMore = false;
+          success = false;
         }
-      } else {
+      } catch (error) {
         logger.error(
-          `Failed to fetch page ${page} of networks: ${response.data.message ||
-            "Unknown error"}`
+          `Error on page ${page} calling auth-service. Message: ${
+            error.message
+          }. Code: ${error.code || "N/A"}`,
         );
-        hasMore = false; // Stop on error
+        hasMore = false;
+        success = false;
       }
-    } catch (error) {
-      logger.error(
-        `Error on page ${page} calling auth-service. Message: ${
-          error.message
-        }. Code: ${error.code || "N/A"}`
+    }
+
+    if (success) {
+      return allNetworks; // Successfully fetched all networks
+    }
+
+    if (attempt < MAX_RETRIES) {
+      logger.warn(
+        `Attempt ${attempt} failed. Retrying in ${RETRY_DELAY_MS /
+          1000} seconds...`,
       );
-      hasMore = false; // Stop on critical error
+      await new Promise((res) => setTimeout(res, RETRY_DELAY_MS));
     }
   }
-  return allNetworks;
+
+  logger.error(`All ${MAX_RETRIES} attempts to fetch networks failed.`);
+  return [];
 };
 
 /**
@@ -143,7 +167,7 @@ const fetchDeviceRegistryNetworks = async () => {
       .lean();
   } catch (error) {
     logger.error(
-      `Error fetching networks from device-registry DB: ${error.message}`
+      `Error fetching networks from device-registry DB: ${error.message}`,
     );
     return [];
   }
@@ -157,11 +181,11 @@ const fetchDeviceRegistryNetworks = async () => {
 const reconcileNetworks = async (authNetworks, registryNetworks) => {
   // Use 'name' as the unique key for synchronization, not '_id'
   const authNetworkMap = new Map(
-    authNetworks.map((net) => [net.net_name, net])
+    authNetworks.map((net) => [net.net_name, net]),
   );
   const registryNetworkMap = new Map(
     // Ensure we use 'name' which is guaranteed to be consistent
-    registryNetworks.map((net) => [net.name, net])
+    registryNetworks.map((net) => [net.name, net]),
   );
 
   const bulkOps = [];
@@ -252,13 +276,13 @@ const performNetworkSync = async () => {
       if (!isValid) {
         global.dedupLogger.error(
           `🚫 ${JOB_NAME} skipped: Missing required configuration - ${missingConfigs.join(
-            ", "
-          )}`
+            ", ",
+          )}`,
         );
         global.dedupLogger.error(
           `🔧 Please set the following environment variables: ${missingConfigs.join(
-            ", "
-          )}`
+            ", ",
+          )}`,
         );
         return;
       }
@@ -273,7 +297,7 @@ const performNetworkSync = async () => {
 
       if (!authNetworks || authNetworks.length === 0) {
         logger.warn(
-          "Could not fetch networks from auth-service, or no networks found. Skipping sync."
+          "Could not fetch networks from auth-service, or no networks found. Skipping sync.",
         );
         return;
       }
@@ -310,7 +334,7 @@ const start = () => {
     {
       scheduled: true,
       timezone: constants.TIMEZONE,
-    }
+    },
   );
 
   if (!global.cronJobs) {
