@@ -593,6 +593,14 @@ const organizationRequest = {
                 user: null,
               };
 
+              // Add default member management permissions
+              createGroupRequest.body.default_permissions = [
+                constants.MEMBER_VIEW,
+                constants.MEMBER_INVITE,
+                constants.MEMBER_SEARCH,
+                constants.MEMBER_EXPORT,
+                constants.MEMBER_REMOVE,
+              ];
               groupResponse = await createGroupUtil.create(
                 createGroupRequest,
                 next,
