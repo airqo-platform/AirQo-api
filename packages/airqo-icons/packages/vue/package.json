@@ -48,12 +48,12 @@
     "design-system",
     "tree-shaking"
   ],
-  "homepage": "https://aero-glyphs.vercel.app/docs#vue",
-  "bugs": "https://github.com/airqo-platform/airqo-libraries/issues",
+  "homepage": "https://airqo.net/packages",
+  "bugs": "https://github.com/airqo-platform/AirQo-api/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/airqo-platform/airqo-libraries.git",
-    "directory": "src/airqo-icons/packages/vue"
+    "url": "https://github.com/airqo-platform/AirQo-api.git",
+    "directory": "packages/airqo-icons/packages/vue"
   },
   "license": "MIT",
   "author": "AirQo Organization",
