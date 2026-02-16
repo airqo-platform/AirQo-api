@@ -599,8 +599,10 @@ const organizationRequest = {
                 constants.MEMBER_INVITE,
                 constants.MEMBER_SEARCH,
                 constants.MEMBER_EXPORT,
+                constants.MEMBER_EDIT,
                 constants.MEMBER_REMOVE,
               ];
+
               groupResponse = await createGroupUtil.create(
                 createGroupRequest,
                 next,
