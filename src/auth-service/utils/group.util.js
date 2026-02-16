@@ -889,7 +889,7 @@ const groupUtil = {
 
       try {
         // Attempt to assign permissions; error handling within this function
-        const adminPermissions = [
+        let adminPermissions = [
           ...constants.DEFAULTS.DEFAULT_ADMIN,
           constants.MEMBER_VIEW,
           constants.MEMBER_INVITE,
@@ -897,6 +897,16 @@ const groupUtil = {
           constants.MEMBER_EXPORT,
           constants.MEMBER_REMOVE,
         ];
+
+        // If specific default permissions are provided, use them instead
+        if (
+          body.default_permissions &&
+          Array.isArray(body.default_permissions)
+        ) {
+          adminPermissions = [
+            ...new Set([...adminPermissions, ...body.default_permissions]),
+          ];
+        }
 
         await assignPermissionsToRole(tenant, role_id, adminPermissions, next);
 
