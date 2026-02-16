@@ -573,8 +573,7 @@ const commonValidations = {
       .toDate()
       .isISO8601({ strict: true, strictSeparator: true })
       .withMessage("date must be a valid datetime.")
-      .bail()
-      .custom(validateDateRange),
+      .bail(),
   ],
   description: [
     body("description")
@@ -976,25 +975,6 @@ const activitiesValidations = {
     ...commonValidations.eachDate,
     commonValidations.objectId("*.user_id", body),
     commonValidations.objectId("*.host_id", body),
-    // Custom validation for batch deployment location requirements
-    body("*").custom((item) => {
-      const { deployment_type, latitude, longitude, site_name, grid_id } = item;
-      const type = deployment_type || "static";
-
-      if (type === "static") {
-        if (!latitude || !longitude || !site_name) {
-          throw new Error(
-            "latitude, longitude, and site_name are required for static deployments",
-          );
-        }
-      } else if (type === "mobile") {
-        if (!grid_id) {
-          throw new Error("grid_id is required for mobile deployments");
-        }
-      }
-
-      return true;
-    }),
   ],
 
   listActivities: [

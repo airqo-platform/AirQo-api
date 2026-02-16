@@ -7,6 +7,7 @@ const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const GridModel = require("@models/Grid");
 const constants = require("@config/constants");
+const moment = require("moment");
 
 const {
   distance,
@@ -1212,7 +1213,6 @@ const createActivity = {
     return result;
   },
 
-  // ENHANCED: Batch deployment supporting mixed deployment types
   batchDeployWithCoordinates: async (request, next) => {
     try {
       const { body, query } = request;
@@ -1252,6 +1252,65 @@ const createActivity = {
           deployment_type || (grid_id ? "mobile" : "static");
 
         try {
+          // Validate the date for this specific deployment
+          const inputDate = moment(date);
+          if (!inputDate.isValid()) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: { message: "invalid date format" },
+            });
+            return; // Skip to the next item
+          }
+
+          if (inputDate.isAfter(moment())) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: { message: "date cannot be in the future" },
+            });
+            return; // Skip to the next item
+          }
+          if (inputDate.isBefore(moment().subtract(1, "month"))) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: {
+                message: "date cannot be more than one month in the past",
+              },
+            });
+            return; // Skip to the next item
+          }
+
+          // Moved validation from validator to here for per-item processing
+          if (actualDeploymentType === "static") {
+            const hasValidLatitude =
+              latitude !== null &&
+              latitude !== undefined &&
+              Number.isFinite(Number(latitude));
+            const hasValidLongitude =
+              longitude !== null &&
+              longitude !== undefined &&
+              Number.isFinite(Number(longitude));
+            const hasSiteName =
+              typeof site_name === "string"
+                ? site_name.trim().length > 0
+                : Boolean(site_name);
+            if (!hasValidLatitude || !hasValidLongitude || !hasSiteName) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: "static",
+                message:
+                  "latitude, longitude, and site_name are required for static deployments",
+                error: {
+                  message:
+                    "latitude, longitude, and site_name are required for static deployments",
+                },
+              });
+              return; // Skip to the next item in the loop
+            }
+          }
+
           if (actualDeploymentType === "static") {
             // Handle static deployment (existing logic)
             static_count++;
@@ -1296,6 +1355,7 @@ const createActivity = {
                 failed_deployments.push({
                   deviceName,
                   error: responseFromCreateSite.errors,
+                  message: responseFromCreateSite.message,
                   deployment_type: actualDeploymentType,
                   user_id: user_id ? user_id : null,
                 });
@@ -1345,6 +1405,7 @@ const createActivity = {
               failed_deployments.push({
                 deviceName,
                 deployment_type: "static",
+                message: responseFromDeploy.message,
                 error: responseFromDeploy.errors,
                 user_id: user_id ? user_id : null,
               });
@@ -1357,6 +1418,7 @@ const createActivity = {
               failed_deployments.push({
                 deviceName,
                 deployment_type: "mobile",
+                message: "grid_id is required for mobile deployments",
                 error: {
                   message: "grid_id is required for mobile deployments",
                 },
@@ -1404,6 +1466,7 @@ const createActivity = {
               failed_deployments.push({
                 deviceName,
                 deployment_type: "mobile",
+                message: responseFromDeploy.message,
                 error: responseFromDeploy.errors,
                 user_id: user_id ? user_id : null,
               });
@@ -1439,13 +1502,21 @@ const createActivity = {
         sites_reused: existing_sites.length,
       };
 
+      const overallSuccess =
+        failed_deployments.length === 0 && successful_deployments.length > 0;
+      const message =
+        failed_deployments.length === 0
+          ? "Batch deployment completed successfully"
+          : `Batch deployment processed with ${failed_deployments.length} failure(s)`;
+
       return {
-        success: true,
-        message: "Batch deployment processed",
+        success: overallSuccess,
+        message,
         successful_deployments,
         failed_deployments,
         existing_sites,
         deployment_summary,
+        status: overallSuccess ? httpStatus.OK : httpStatus.BAD_REQUEST,
       };
     } catch (error) {
       logger.error(`🐛🐛 Batch Deploy Error ${error.message}`);

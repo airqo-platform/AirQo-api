@@ -1,6 +1,6 @@
 {
   "name": "@airqo/icons-vue",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Production-ready Vue icon library with 1,383+ TypeScript components and tree-shakable imports",
   "type": "module",
   "main": "./dist/index.umd.cjs",
@@ -48,12 +48,12 @@
     "design-system",
     "tree-shaking"
   ],
-  "homepage": "https://aero-glyphs.vercel.app/docs#vue",
-  "bugs": "https://github.com/airqo-platform/airqo-libraries/issues",
+  "homepage": "https://airqo.net/packages",
+  "bugs": "https://github.com/airqo-platform/AirQo-api/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/airqo-platform/airqo-libraries.git",
-    "directory": "src/airqo-icons/packages/vue"
+    "url": "https://github.com/airqo-platform/AirQo-api.git",
+    "directory": "packages/airqo-icons/packages/vue"
   },
   "license": "MIT",
   "author": "AirQo Organization",
