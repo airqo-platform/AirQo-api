@@ -1,6 +1,6 @@
 {
   "name": "@airqo/icons-vue",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Production-ready Vue icon library with 1,383+ TypeScript components and tree-shakable imports",
   "type": "module",
   "main": "./dist/index.umd.cjs",

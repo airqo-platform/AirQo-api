@@ -1,6 +1,6 @@
 {
   "name": "@airqo/icons-react",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Production-ready React icon library with 1,383+ TypeScript components and tree-shakable imports",
   "keywords": [
     "icons",
