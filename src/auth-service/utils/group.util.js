@@ -898,7 +898,24 @@ const groupUtil = {
           constants.MEMBER_REMOVE,
         ];
 
-        await assignPermissionsToRole(tenant, role_id, adminPermissions, next);
+        let finalPermissions = [...adminPermissions];
+
+        // If specific default permissions are provided, merge them with the defaults
+        if (
+          body.default_permissions &&
+          Array.isArray(body.default_permissions)
+        ) {
+          // Validate and sanitize the provided permissions
+          const validProvidedPermissions = body.default_permissions.filter(
+            (p) => typeof p === "string" && p.trim() !== "" && constants[p],
+          );
+
+          finalPermissions = [
+            ...new Set([...adminPermissions, ...validProvidedPermissions]),
+          ];
+        }
+
+        await assignPermissionsToRole(tenant, role_id, finalPermissions);
 
         const updatedUser = await UserModel(tenant).findByIdAndUpdate(
           user._id,
@@ -1014,6 +1031,7 @@ const groupUtil = {
       );
     }
   },
+
   update: async (request, next) => {
     try {
       const { body, query, params } = request;
