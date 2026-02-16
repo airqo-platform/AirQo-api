@@ -11,7 +11,7 @@ const getDefaultTheme = () => {
     primaryColor: "#1976d2", // Default blue color from schema
     mode: "light", // Default from schema
     interfaceStyle: "bordered", // Default from schema (NOT "default")
-    contentLayout: "wide", // Default from schema (NOT "wide")
+    contentLayout: "wide", // Default from schema (NOT "compact")
   };
 };
 
