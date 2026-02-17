@@ -2084,7 +2084,7 @@ const createActivity = {
 
       (async () => {
         try {
-          const recallTopic = constants.RECALL_TOPIC || "activities-topic";
+          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
           const producer = await getKafkaProducer();
           await producer.send({
             topic: recallTopic,
@@ -2296,7 +2296,7 @@ const createActivity = {
 
       (async () => {
         try {
-          const maintainTopic = constants.MAINTAIN_TOPIC || "activities-topic";
+          const maintainTopic = constants.MAINTAIN_TOPIC || "maintain-topic";
           const producer = await getKafkaProducer();
           await producer.send({
             topic: maintainTopic,
