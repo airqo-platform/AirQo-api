@@ -106,7 +106,7 @@ class AirQoDataDriftCompute:
 
         if (
             DateUtils.str_to_date(window_start) + timedelta(hours=cls.COOLDOWN_HOURS)
-        ) < device_metadata["recent_maintenance_date"]:
+        ) < DateUtils.str_to_date(device_metadata["recent_maintenance_date"]):
             raise ValueError(
                 "All data should be before or after maintenance cooldown period"
             )
