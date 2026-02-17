@@ -161,8 +161,6 @@ const mockNext = (error) => {
 
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
-  const siteUpdates = [];
-  const pm25Updates = []; // NEW: Separate array for PM2.5 updates
   let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
@@ -201,6 +199,9 @@ const processDeviceBatch = async (devices, processor) => {
       logText(`${JOB_NAME} stopping during batch processing`);
       break;
     }
+
+    const siteUpdates = [];
+    const pm25Updates = [];
 
     const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
 
@@ -277,12 +278,6 @@ const processDeviceBatch = async (devices, processor) => {
 
     // Yield between chunks
     await processor.yieldControl();
-  }
-
-  // After processing all device chunks, perform site updates
-  if (siteUpdates.length > 0) {
-    await SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false });
-    logText(`Updated ${siteUpdates.length} sites with latest raw status.`);
   }
 
   return totalUpdates;
@@ -557,7 +552,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     }
 
     // Prepare site update if PM2.5 is valid and device is primary for its site
-    let siteUpdate = null;
+    const siteUpdates = [];
     if (device.site_id && device.isPrimaryInLocation) {
       // Fetch current site to get its rawOnlineStatus for accuracy check
       const currentSite = await SiteModel("airqo")
@@ -583,35 +578,44 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
         const siteUpdateFields = {
           rawOnlineStatus: isRawOnline,
           lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
-          ...siteSetUpdate,
         };
-        if (latestRawPm25) {
-          siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
-        }
 
-        siteUpdate = {
+        // Unconditional status update for the site
+        siteUpdates.push({
           updateOne: {
-            filter: {
-              _id: device.site_id,
-              ...(latestRawPm25
-                ? {
-                    $or: [
-                      { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
-                      { "latest_pm2_5.raw.time": { $exists: false } },
-                    ],
-                  }
-                : {}),
-            },
-            update: { $set: siteUpdateFields, $inc: siteIncUpdate },
+            filter: { _id: device.site_id },
+            update: { $set: { ...siteUpdateFields, ...siteSetUpdate } },
           },
-        };
+        });
+
+        // Conditional PM2.5 update for the site
+        if (latestRawPm25) {
+          siteUpdates.push({
+            updateOne: {
+              filter: {
+                _id: device.site_id,
+                $or: [
+                  { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                  { "latest_pm2_5.raw.time": { $exists: false } },
+                ],
+              },
+              update: {
+                $set: { "latest_pm2_5.raw": latestRawPm25 },
+                ...(siteIncUpdate && { $inc: siteIncUpdate }),
+              },
+            },
+          });
+        }
       }
+    }
+
+    if (siteUpdates.length > 0) {
+      await SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false });
     }
 
     return {
       deviceUpdate: statusUpdate,
       pm25Update: pm25Update,
-      siteUpdate: siteUpdate,
     };
   } catch (error) {
     logger.error(
