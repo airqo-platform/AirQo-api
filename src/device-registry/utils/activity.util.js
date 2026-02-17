@@ -1263,7 +1263,7 @@ const createActivity = {
           deployment_type || (grid_id ? "mobile" : "static");
 
         try {
-          // FIX 1: Check for duplicate deviceName
+          // Check for duplicate deviceName
           if (deviceNameToDeployment.has(deviceName)) {
             failed_deployments.push({
               deviceName,
@@ -1449,59 +1449,49 @@ const createActivity = {
         }
       }
 
-      // Fetch/create all sites and cache their coordinates
+      // Atomic site creation using findOneAndUpdate with upsert
       const sitePromises = [];
       for (const [coordsKey, siteData] of uniqueSites) {
         sitePromises.push(
           (async () => {
             try {
-              const existingSite = await SiteModel(tenant).findOne({
-                $or: [
-                  { name: siteData.name },
-                  {
+              // Atomic upsert to prevent race conditions
+              const site = await SiteModel(tenant).findOneAndUpdate(
+                {
+                  name: siteData.name,
+                },
+                {
+                  $setOnInsert: {
+                    name: siteData.name,
                     latitude: siteData.latitude,
                     longitude: siteData.longitude,
                   },
-                ],
+                },
+                {
+                  upsert: true,
+                  new: true,
+                  setDefaultsOnInsert: true,
+                },
+              );
+
+              const wasExisting = !site.$isNew;
+
+              // Cache site data
+              siteMap.set(coordsKey, site._id);
+              siteDataCache.set(site._id.toString(), {
+                latitude: site.latitude,
+                longitude: site.longitude,
               });
 
-              if (existingSite) {
-                siteMap.set(coordsKey, existingSite._id);
-                // FIX 3: Cache site coordinates to avoid N+1 query
-                siteDataCache.set(existingSite._id.toString(), {
-                  latitude: existingSite.latitude,
-                  longitude: existingSite.longitude,
-                });
-                return { coordsKey, site_id: existingSite._id, existing: true };
-              } else {
-                const siteRequest = {
-                  body: siteData,
-                  query: { tenant },
-                };
-
-                const responseFromCreateSite = await createSiteUtil.create(
-                  siteRequest,
-                  next,
-                );
-
-                if (responseFromCreateSite.success) {
-                  const createdSite = responseFromCreateSite.data;
-                  siteMap.set(coordsKey, createdSite._id);
-                  // FIX 3: Cache newly created site coordinates
-                  siteDataCache.set(createdSite._id.toString(), {
-                    latitude: createdSite.latitude || siteData.latitude,
-                    longitude: createdSite.longitude || siteData.longitude,
-                  });
-                  return {
-                    coordsKey,
-                    site_id: createdSite._id,
-                    existing: false,
-                  };
-                } else {
-                  return { coordsKey, error: responseFromCreateSite };
-                }
-              }
+              return {
+                coordsKey,
+                site_id: site._id,
+                existing: wasExisting,
+              };
             } catch (error) {
+              logger.error(
+                `Site creation failed for ${coordsKey}: ${error.message}`,
+              );
               return { coordsKey, error: { message: error.message } };
             }
           })(),
@@ -1529,7 +1519,7 @@ const createActivity = {
               .lean()
           : [];
 
-      // FIX 2: Normalize grid map keys to strings for consistent lookup
+      // Normalize grid map keys to strings for consistent lookup
       const gridMap = new Map();
       existingGrids.forEach((grid) => {
         gridMap.set(grid._id.toString(), grid);
@@ -1573,7 +1563,7 @@ const createActivity = {
               continue;
             }
 
-            // FIX 3: Use cached site data instead of fetching from DB
+            // Use cached site data instead of fetching from DB
             const siteData = siteDataCache.get(site_id.toString());
 
             if (!siteData) {
@@ -1648,11 +1638,9 @@ const createActivity = {
               },
             });
           } else {
-            mobile_count++;
-
-            // Mobile deployment
+            // Mobile deployment (mobile_count already incremented in Phase 1)
             const grid_id_obj = ObjectId(deployment.grid_id);
-            // FIX 2: Convert to string for consistent map lookup
+            // Convert to string for consistent map lookup
             const gridData = gridMap.get(deployment.grid_id.toString());
 
             if (!gridData) {
@@ -1747,48 +1735,33 @@ const createActivity = {
         }
       }
 
-      // PHASE 5: Execute bulk operations with proper error handling
+      // PHASE 5: Execute bulk operations WITHOUT transactions
       let createdActivities = [];
       let updatedDevices = [];
 
       if (activitiesToInsert.length > 0) {
         try {
-          // FIX 4 & 5: Use .create() instead of insertMany to trigger pre-save middleware
-          // and handle partial failures with MongoDB transactions
-          const session = await mongoose.startSession();
+          // Use .create() to trigger pre-save middleware (validates deployment invariants)
+          createdActivities = await ActivityModel(tenant).create(
+            activitiesToInsert,
+          );
 
-          try {
-            await session.withTransaction(async () => {
-              // Bulk create activities (triggers pre-save middleware)
-              createdActivities = await ActivityModel(tenant).create(
-                activitiesToInsert,
-                { session },
-              );
+          // Bulk update devices
+          await DeviceModel(tenant).bulkWrite(deviceBulkOps, {
+            ordered: false,
+          });
 
-              // Bulk update devices
-              await DeviceModel(tenant).bulkWrite(deviceBulkOps, {
-                ordered: false,
-                session,
-              });
-            });
-
-            await session.endSession();
-
-            // Fetch updated devices for response
-            const updatedDeviceNames = deviceBulkOps.map(
-              (op) => op.updateOne.filter.name,
-            );
-            updatedDevices = await DeviceModel(tenant)
-              .find({ name: { $in: updatedDeviceNames } })
-              .lean();
-          } catch (transactionError) {
-            await session.endSession();
-            throw transactionError;
-          }
+          // Fetch updated devices for response
+          const updatedDeviceNames = deviceBulkOps.map(
+            (op) => op.updateOne.filter.name,
+          );
+          updatedDevices = await DeviceModel(tenant)
+            .find({ name: { $in: updatedDeviceNames } })
+            .lean();
         } catch (error) {
           logger.error(`Bulk operation error: ${error.message}`);
 
-          // FIX 5: Mark all remaining deployments as failed
+          // Mark all remaining deployments as failed
           for (const [deviceName, deployment] of deviceNameToDeployment) {
             if (!failed_deployments.find((f) => f.deviceName === deviceName)) {
               failed_deployments.push({
@@ -1862,7 +1835,7 @@ const createActivity = {
             user_id: deployment.user_id || null,
           });
 
-          // Queue cache update (don't block on it)
+          // Queue cache update without individual .catch()
           cacheUpdatePromises.push(
             updateActivityCache(
               tenant,
@@ -1870,11 +1843,7 @@ const createActivity = {
               activity.device_id,
               activity.device,
               next,
-            ).catch((error) => {
-              logger.error(
-                `Cache update failed for ${activity.device}: ${error.message}`,
-              );
-            }),
+            ),
           );
         } else {
           failed_deployments.push({
@@ -1886,9 +1855,17 @@ const createActivity = {
         }
       }
 
-      // Fire cache updates but don't wait for them
-      Promise.all(cacheUpdatePromises).catch((error) => {
-        logger.error(`Some cache updates failed: ${error.message}`);
+      // Use Promise.allSettled instead of Promise.all with redundant catch
+      Promise.allSettled(cacheUpdatePromises).then((results) => {
+        const failures = results.filter((r) => r.status === "rejected");
+        if (failures.length > 0) {
+          failures.forEach((failure) => {
+            logger.error(
+              `Cache update failed: ${failure.reason?.message ||
+                failure.reason}`,
+            );
+          });
+        }
       });
 
       // PHASE 7: Send Kafka notifications (fire and forget)
