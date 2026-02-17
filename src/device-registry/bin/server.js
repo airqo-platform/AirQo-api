@@ -176,6 +176,12 @@ require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
 require("@bin/jobs/refresh-grids-job");
+try {
+  const syncNetworksJob = require("@bin/jobs/sync-networks-job");
+  syncNetworksJob.start();
+} catch (err) {
+  global.dedupLogger.error(`sync-networks-job failed to start: ${err.message}`);
+}
 
 // Defensively load precompute activities job
 // Default behavior: ENABLED (runs unless explicitly disabled)

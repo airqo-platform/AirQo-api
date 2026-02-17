@@ -33,5 +33,6 @@ const staticLists = {
         .map((value) => value.trim())
         .filter((value) => value !== "")
     : [],
+  BOT_MONITORED_ENDPOINTS: ["/api/v2/devices/readings"],
 };
 module.exports = staticLists;

@@ -35,6 +35,81 @@ const mongoose = require("mongoose");
 const { isValidObjectId } = mongoose;
 const ObjectId = mongoose.Types.ObjectId;
 
+const getSiteCountSummary = async (request, next) => {
+  try {
+    const { tenant } = request.query;
+    const filter = generateFilter.sites(request, next);
+
+    const pipeline = [
+      { $match: filter },
+      {
+        $facet: {
+          total_sites: [{ $count: "count" }],
+          operational: [
+            { $match: { isOnline: true, rawOnlineStatus: true } },
+            { $count: "count" },
+          ],
+          transmitting: [
+            { $match: { isOnline: false, rawOnlineStatus: true } },
+            { $count: "count" },
+          ],
+          data_available: [
+            { $match: { isOnline: true, rawOnlineStatus: false } },
+            { $count: "count" },
+          ],
+          not_transmitting: [
+            { $match: { isOnline: false, rawOnlineStatus: false } },
+            { $count: "count" },
+          ],
+        },
+      },
+      {
+        $project: {
+          total_sites: {
+            $ifNull: [{ $arrayElemAt: ["$total_sites.count", 0] }, 0],
+          },
+          operational: {
+            $ifNull: [{ $arrayElemAt: ["$operational.count", 0] }, 0],
+          },
+          transmitting: {
+            $ifNull: [{ $arrayElemAt: ["$transmitting.count", 0] }, 0],
+          },
+          not_transmitting: {
+            $ifNull: [{ $arrayElemAt: ["$not_transmitting.count", 0] }, 0],
+          },
+          data_available: {
+            $ifNull: [{ $arrayElemAt: ["$data_available.count", 0] }, 0],
+          },
+        },
+      },
+    ];
+
+    const results = await SiteModel(tenant).aggregate(pipeline);
+    const defaultSummary = {
+      total_sites: 0,
+      operational: 0,
+      transmitting: 0,
+      not_transmitting: 0,
+      data_available: 0,
+    };
+    const summary = results[0] || defaultSummary;
+
+    return {
+      success: true,
+      message: "Successfully retrieved site health summary.",
+      data: summary,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 const createSite = {
   getSiteById: async (req, next) => {
     try {
@@ -1705,4 +1780,7 @@ const createSite = {
   },
 };
 
-module.exports = createSite;
+module.exports = {
+  ...createSite,
+  getSiteCountSummary,
+};

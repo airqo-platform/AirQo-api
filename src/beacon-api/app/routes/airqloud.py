@@ -8,6 +8,7 @@ from app.models import (
     AirQloudUpdate,
     AirQloudRead,
     AirQloudDeviceRead,
+    PaginatedAirQloudResponse,
 )
 from app.crud import airqloud as airqloud_crud
 from app.utils.background_tasks import (
@@ -118,15 +119,16 @@ async def sync_airqlouds(
 # REMOVED: generate_unique_airqloud_id - no longer needed as IDs come from Platform API
 
 
-@router.get("")
+@router.get("", response_model=PaginatedAirQloudResponse)
 async def get_airqlouds(
     *,
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks,
     skip: int = Query(0, ge=0, description="Number of items to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Number of items to return"),
+    limit: int = Query(10, ge=1, le=1000, description="Number of items to return"),
     country: Optional[str] = Query(None, description="Filter by country"),
     search: Optional[str] = Query(None, description="Search airqlouds by name, ID, or country"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
     include_performance: bool = Query(False, description="Include performance data for the past N days"),
     performance_days: int = Query(14, ge=1, le=365, description="Number of days of performance data to include starting from yesterday (default: 14)")
 ):
@@ -143,6 +145,7 @@ async def get_airqlouds(
     - **limit**: Maximum number of records to return
     - **country**: Filter AirQlouds by country (optional)
     - **search**: Search term to find airqlouds (searches across name, ID, country)
+    - **is_active**: Filter by active status (optional)
     - **include_performance**: Set to `true` to include performance data (default: false)
     - **performance_days**: Number of days of performance history to include starting from yesterday (default: 14, max: 365)
     
@@ -152,54 +155,42 @@ async def get_airqlouds(
     - AirQloud ID (e.g., "airqloud_001")
     - Country (e.g., "Uganda", "Kenya")
     
-    **Search Behavior:**
-    - Case-insensitive partial matching
-    - Returns paginated results of matches
-    
     **Returns:**
-    List of AirQlouds with the number of devices in each cluster.
-    
-    When `include_performance=true`, each AirQloud includes compact performance arrays:
-    - **freq**: Array of frequency values (one per day)
-    - **error_margin**: Array of error margin values (one per day)
-    - **timestamp**: Array of timestamps (one per day)
+    Paginated list of AirQlouds with metadata.
     
     **Response Format:**
     ```json
-    [
-      {
-        "id": "aq_967u90womy",
-        "name": "Kisumu",
-        "country": "Kenya",
-        "visibility": null,
-        "is_active": false,
-        "created_at": "2025-11-06T17:45:56.260014+03:00",
-        "device_count": 15,
-        "freq": [12, 14, 16, ...],
-        "error_margin": [2.5, 3.1, 2.8, ...],
-        "timestamp": ["2025-10-25T00:00:00", "2025-10-26T00:00:00", ...]
+    {
+      "airqlouds": [
+        {
+          "id": "aq_967u90womy",
+          "name": "Kisumu",
+          "country": "Kenya",
+          ...
+        }
+      ],
+      "meta": {
+        "total": 15,
+        "page": 1,
+        "pages": 1,
+        "limit": 100,
+        "skip": 0
       }
-    ]
+    }
     ```
-    
-    **Examples:**
-    - `GET /airqlouds` - Get all airqlouds with device counts only
-    - `GET /airqlouds?search=kampala` - Search for airqlouds matching "kampala"
-    - `GET /airqlouds?country=Uganda&search=central` - Search in Uganda for "central"
-    - `GET /airqlouds?include_performance=true` - Get airqlouds with performance for past 14 days
-    - `GET /airqlouds?search=nairobi&include_performance=true&performance_days=7` - Search and include 7 days of performance
     """
     try:
         if include_performance:
             # Return current data without waiting for missing data fetch
-            airqlouds = airqloud_crud.get_all_with_performance(
+            airqlouds, total_count = airqloud_crud.get_all_with_performance(
                 db, 
                 skip=skip, 
                 limit=limit,
                 country=country,
                 search=search,
                 days=performance_days,
-                fetch_missing=False  # Don't block on fetching missing data
+                fetch_missing=False,  # Don't block on fetching missing data
+                is_active=is_active
             )
             
             # Trigger background fetch for missing data
@@ -215,14 +206,28 @@ async def get_airqlouds(
                 )
                 logger.info(f"Triggered background fetch for {len(airqloud_ids)} airqlouds")
         else:
-            airqlouds = airqloud_crud.get_all_with_device_counts(
+            airqlouds, total_count = airqloud_crud.get_all_with_device_counts(
                 db, 
                 skip=skip, 
                 limit=limit,
                 country=country,
-                search=search
+                search=search,
+                is_active=is_active
             )
-        return airqlouds
+        
+        pages = (total_count + limit - 1) // limit if limit > 0 else 0
+        page = (skip // limit) + 1 if limit > 0 else 1
+        
+        return {
+            "airqlouds": airqlouds,
+            "meta": {
+                "total": total_count,
+                "page": page,
+                "pages": pages,
+                "limit": limit,
+                "skip": skip
+            }
+        }
     except Exception as e:
         logger.error(f"Error fetching AirQlouds: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch AirQlouds: {str(e)}")

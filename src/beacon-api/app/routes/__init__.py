@@ -21,6 +21,8 @@ api_router.include_router(performance_router, prefix="/performance", tags=["Perf
 api_router.include_router(items_stock_router, prefix="/items-stock", tags=["Items Stock Management"])
 api_router.include_router(categories_router, prefix="/categories", tags=["Categories"])
 api_router.include_router(data_router, prefix="/data", tags=["Data"])
+from .maintenance import router as maintenance_router
+api_router.include_router(maintenance_router, prefix="/maintenance", tags=["Maintenance"])
 # api_router.include_router(sites_router, prefix="/sites", tags=["Sites"])
 # api_router.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
 # api_router.include_router(device_locations_router, prefix="/locations", tags=["Device Locations"])

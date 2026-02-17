@@ -48,12 +48,12 @@ const validateLocationReference = (value, { req }) => {
   if (typeof mobility === "boolean") {
     if (mobility === true && actualDeploymentType !== "mobile") {
       throw new Error(
-        "mobility=true is only valid for mobile deployments (with a grid_id)."
+        "mobility=true is only valid for mobile deployments (with a grid_id).",
       );
     }
     if (mobility === false && actualDeploymentType !== "static") {
       throw new Error(
-        "mobility=false is only valid for static deployments (with a site_id)."
+        "mobility=false is only valid for static deployments (with a site_id).",
       );
     }
   }
@@ -71,14 +71,14 @@ const validateLocationReference = (value, { req }) => {
     // Mobile devices must be vehicle-mounted
     if (mountType && mountType !== "vehicle") {
       throw new Error(
-        `Mobile devices must have mountType 'vehicle', not '${mountType}'`
+        `Mobile devices must have mountType 'vehicle', not '${mountType}'`,
       );
     }
 
     // Mobile devices must use alternator power
     if (powerType && powerType !== "alternator") {
       throw new Error(
-        `Mobile devices must have powerType 'alternator', not '${powerType}'`
+        `Mobile devices must have powerType 'alternator', not '${powerType}'`,
       );
     }
   }
@@ -101,7 +101,7 @@ const validateLocationReference = (value, { req }) => {
     // Static devices should not use alternator power (business rule)
     if (powerType === "alternator") {
       throw new Error(
-        "Static devices should use 'solar' or 'mains' power, not 'alternator'"
+        "Static devices should use 'solar' or 'mains' power, not 'alternator'",
       );
     }
   }
@@ -151,7 +151,7 @@ const validateMountTypeConsistency = (value, { req }) => {
     actualDeploymentType === "mobile"
   ) {
     throw new Error(
-      `${mountType} mountType is not valid for mobile deployments`
+      `${mountType} mountType is not valid for mobile deployments`,
     );
   }
 
@@ -186,7 +186,7 @@ const validatePowerTypeConsistency = (value, { req }) => {
     actualDeploymentType === "mobile"
   ) {
     throw new Error(
-      `${powerType} powerType is not typically valid for mobile deployments`
+      `${powerType} powerType is not typically valid for mobile deployments`,
     );
   }
 
@@ -205,7 +205,7 @@ const commonDeployValidations = {
     .custom((value) => {
       if (value && !isValidObjectId(value)) {
         throw new Error(
-          "site_id must be a valid MongoDB ObjectId (24 hex characters)"
+          "site_id must be a valid MongoDB ObjectId (24 hex characters)",
         );
       }
       return true;
@@ -223,7 +223,7 @@ const commonDeployValidations = {
     .custom((value) => {
       if (value && !isValidObjectId(value)) {
         throw new Error(
-          "grid_id must be a valid MongoDB ObjectId (24 hex characters)"
+          "grid_id must be a valid MongoDB ObjectId (24 hex characters)",
         );
       }
       return true;
@@ -277,7 +277,7 @@ const commonDeployValidations = {
     .customSanitizer((value) => value.toLowerCase())
     .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
     .withMessage(
-      "mountType must be one of: pole, wall, faceboard, rooftop, suspended, vehicle"
+      "mountType must be one of: pole, wall, faceboard, rooftop, suspended, vehicle",
     )
     .bail()
     .custom(validateMountTypeConsistency),
@@ -293,7 +293,7 @@ const commonDeployValidations = {
     .trim()
     .isISO8601({ strict: true, strictSeparator: true })
     .withMessage(
-      "date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)"
+      "date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)",
     )
     .bail()
     .toDate()
@@ -315,7 +315,7 @@ const commonDeployValidations = {
     .custom((value) => {
       if (value && !isValidObjectId(value)) {
         throw new Error(
-          "host_id must be a valid MongoDB ObjectId (24 hex characters)"
+          "host_id must be a valid MongoDB ObjectId (24 hex characters)",
         );
       }
       return true;
@@ -336,7 +336,7 @@ const commonDeployValidations = {
     .custom((value) => {
       if (!isValidObjectId(value)) {
         throw new Error(
-          "user_id must be a valid MongoDB ObjectId (24 hex characters)"
+          "user_id must be a valid MongoDB ObjectId (24 hex characters)",
         );
       }
       return true;
@@ -352,7 +352,7 @@ const commonDeployValidations = {
     .custom((value) => {
       if (value && !isValidObjectId(value)) {
         throw new Error(
-          "user_id must be a valid MongoDB ObjectId (24 hex characters)"
+          "user_id must be a valid MongoDB ObjectId (24 hex characters)",
         );
       }
       return true;
@@ -360,6 +360,30 @@ const commonDeployValidations = {
     .customSanitizer((value) => {
       return value && isValidObjectId(value) ? ObjectId(value) : value;
     }),
+
+  // Optional user details for activity logging
+  firstName: body("firstName")
+    .optional()
+    .notEmpty()
+    .withMessage("firstName should not be empty if provided")
+    .trim(),
+  lastName: body("lastName")
+    .optional()
+    .notEmpty()
+    .withMessage("lastName should not be empty if provided")
+    .trim(),
+  userName: body("userName")
+    .optional()
+    .notEmpty()
+    .withMessage("userName should not be empty if provided")
+    .trim(),
+  email: body("email")
+    .optional()
+    .notEmpty()
+    .withMessage("email should not be empty if provided")
+    .bail()
+    .isEmail()
+    .withMessage("this is not a valid email address"),
 };
 
 const commonValidations = {
@@ -377,7 +401,7 @@ const commonValidations = {
   objectId: (
     field,
     location = query,
-    errorMessage = "Invalid ObjectId format"
+    errorMessage = "Invalid ObjectId format",
   ) => {
     return location(field)
       .optional() // The field is optional
@@ -491,7 +515,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["solar", "mains", "alternator"])
       .withMessage(
-        "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        "the powerType value is not among the expected ones which include: solar, mains and alternator",
       )
       .bail()
       .custom(validatePowerTypeConsistency),
@@ -505,7 +529,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
       .withMessage(
-        "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop ",
       )
       .bail()
       .custom(validateMountTypeConsistency),
@@ -549,8 +573,7 @@ const commonValidations = {
       .toDate()
       .isISO8601({ strict: true, strictSeparator: true })
       .withMessage("date must be a valid datetime.")
-      .bail()
-      .custom(validateDateRange),
+      .bail(),
   ],
   description: [
     body("description")
@@ -589,7 +612,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(constants.ACTIVITY_TYPES)
       .withMessage(
-        "the activity_type value is not among the expected ones which are: recallment, deployment and maintenance"
+        "the activity_type value is not among the expected ones which are: recallment, deployment and maintenance",
       ),
   ],
   activityTags: [
@@ -610,7 +633,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(constants.MAINTENANCE_TYPES)
       .withMessage(
-        "the maintenance_type value is not among the expected ones which are: corrective and preventive"
+        "the maintenance_type value is not among the expected ones which are: corrective and preventive",
       ),
   ],
   recallTypeQuery: [
@@ -624,8 +647,8 @@ const commonValidations = {
       .isIn(constants.RECALL_TYPES)
       .withMessage(
         `the maintenance_type value is not among the expected ones which are: ${JSON.stringify(
-          constants.RECALL_TYPES
-        )}`
+          constants.RECALL_TYPES,
+        )}`,
       ),
   ],
 
@@ -870,7 +893,7 @@ const activitiesValidations = {
       .custom((powerType, { req }) => {
         // Get the current item being validated
         const currentItem = req.body.find(
-          (item) => item.powerType === powerType
+          (item) => item.powerType === powerType,
         );
         if (currentItem) {
           const deploymentType =
@@ -898,7 +921,7 @@ const activitiesValidations = {
       .custom((mountType, { req }) => {
         // Get the current item being validated
         const currentItem = req.body.find(
-          (item) => item.mountType === mountType
+          (item) => item.mountType === mountType,
         );
         if (currentItem) {
           const deploymentType =
@@ -952,25 +975,29 @@ const activitiesValidations = {
     ...commonValidations.eachDate,
     commonValidations.objectId("*.user_id", body),
     commonValidations.objectId("*.host_id", body),
-    // Custom validation for batch deployment location requirements
-    body("*").custom((item) => {
-      const { deployment_type, latitude, longitude, site_name, grid_id } = item;
-      const type = deployment_type || "static";
-
-      if (type === "static") {
-        if (!latitude || !longitude || !site_name) {
-          throw new Error(
-            "latitude, longitude, and site_name are required for static deployments"
-          );
-        }
-      } else if (type === "mobile") {
-        if (!grid_id) {
-          throw new Error("grid_id is required for mobile deployments");
-        }
-      }
-
-      return true;
-    }),
+    body("*.firstName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty if provided"),
+    body("*.lastName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty if provided"),
+    body("*.userName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("userName should not be empty if provided"),
+    body("*.email")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("email should not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("email must be a valid email address"),
   ],
 
   listActivities: [
@@ -1032,6 +1059,10 @@ const activitiesValidations = {
     commonDeployValidations.network,
     commonDeployValidations.user_id_optional,
     commonDeployValidations.host_id,
+    commonDeployValidations.firstName,
+    commonDeployValidations.lastName,
+    commonDeployValidations.userName,
+    commonDeployValidations.email,
   ],
 
   validateDeployOwnedDevice: [
@@ -1049,25 +1080,30 @@ const activitiesValidations = {
     commonDeployValidations.date,
     commonDeployValidations.network,
     commonDeployValidations.host_id,
+    commonDeployValidations.firstName,
+    commonDeployValidations.lastName,
+    commonDeployValidations.userName,
+    commonDeployValidations.email,
   ],
   recalculate: [
     ...commonValidations.tenant,
     body("dry_run")
       .optional()
       .isBoolean()
-      .withMessage("dry_run must be a boolean value (true or false)"),
+      .withMessage("dry_run must be a boolean value (true or false)")
+      .toBoolean(),
   ],
 };
 
 const validateUniqueDeviceNames = (req, res, next) => {
   const deviceNames = req.body.map((item) => item.deviceName);
   const duplicates = deviceNames.filter(
-    (name, index) => deviceNames.indexOf(name) !== index
+    (name, index) => deviceNames.indexOf(name) !== index,
   );
 
   if (duplicates.length > 0) {
     let error = new Error(
-      "Duplicate device names found: " + [...new Set(duplicates)].join(", ")
+      "Duplicate device names found: " + [...new Set(duplicates)].join(", "),
     );
     error.statusCode = 400;
     next(error);
@@ -1089,7 +1125,7 @@ const validateDeviceNameQuery = [
     .withMessage("deviceName must be between 3 and 50 characters")
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "deviceName can only contain letters, numbers, spaces, hyphens and underscores"
+      "deviceName can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 ];
 

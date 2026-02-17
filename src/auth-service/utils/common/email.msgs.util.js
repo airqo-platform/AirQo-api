@@ -116,7 +116,7 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Your request to access ${processString(
-                                      entity_title
+                                      entity_title,
                                     )} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
@@ -139,47 +139,26 @@ module.exports = {
     let content;
     switch (category) {
       case "policy":
-        content = ` <tr>
+        content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in our work.
-                                    <br />
-                                    Kindly let us know how you would like to partner with us and we will get back to you.
-                                    <br />
-                                    Alternatively, you can get in touch with our Policy Engagement Officer Angela Nshimye at angela@airqo.net who will be of
-                                    further support.
-                                    <br />
-                                </td>
-                            </tr>`;
-        break;
-      case "champions":
-        content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for choosing to become an AirQo air quality champion. 
-                                We appreciate your interest and effort in improving your community's health and quality of life. 
-                               
-                                    <br /><br />
-                                 As a first step, we would like to learn more about you so that we can jointly understand how to work together to build a healthier and better community.
-                                    <br /><br />
-                                    Kindly complete this <a href = "${constants.CHAMPIONS_FORM}">Form</a> to provide your information. 
-                                    <br />
+                                    <p>Thank you for reaching out and for your interest in AirQo’s work.</p>
+                                    <p>We collaborate with policymakers and public institutions to support evidence-based air quality policies and interventions.</p>
+                                    <p>Kindly let us know how you would like to engage or partner with us, and our team will follow up.</p>
+                                    <p>Alternatively, you may contact our Policy Engagement Officer, Angela Nshimye at <a href="mailto:angela@airqo.net">angela@airqo.net</a> for direct support.</p>
                                 </td>
                             </tr>`;
         break;
       case "researchers":
-        content = ` <tr>
+        content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for your interest in accessing our air quality data to further research in air quality monitoring and
-                                management,
-                                    <br />
-                            You can visit our website at airqo.net and navigate to <a href="https://airqo.net/explore-data">Explore Data</a> or
-                            click <a href="https://airqo.net/explore-data">here</a> to access data.
-                                    <br />
-                                    If you still need further support, please contact our Data Scientists Richard Sserujogi at richard.sserunjogi@airqo.net or Wabinyai
-                                    Fidel Raja at raja@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in using AirQo data for research.</p>
+                                    <p>We provide open air quality data to support research, innovation, and evidence-based decision-making across African cities.</p>
+                                    <p>Access data via <a href="https://airqo.net/explore-data">airqo.net - Explore Data</a>, or click <a href="https://airqo.net/explore-data">here</a> to access datasets directly.</p>
+                                    <p>For advanced support, collaborations, or custom data needs, contact:</p>
+                                    <p>Wabinyai Fidel Raja - Data Scientist: <a href="mailto:raja@airqo.net">raja@airqo.net</a></p>
+                                    <p>We are happy to support academic, policy, and applied research initiatives.</p>
                                 </td>
                             </tr>`;
         break;
@@ -187,13 +166,12 @@ module.exports = {
         content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <p>Thank you for your interest in our work.</p>
-                                    <p>If you are interested in Data Science (ML/AI), please reach out to our Data Science Lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: ds@airqo.net.</p>
-                                    <p>For inquiries related to Hardware (Embedded Systems) Engineering, accessing the AirQo API, obtaining AirQo devices, or setting up an Air Quality Monitoring Network, please contact our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
-                                    <p>To contribute to our open-source community as a software engineer, please fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a>.</p>
-                                    <p>You can access our data through the AirQo website or the mobile app.</p>
+                                    <p>Thank you for your interest in building with AirQo.</p>
+                                    <p><b>Build open-source tools for cleaner air across Africa.</b></p>
+                                    <p>Join our open-source community and help build, improve, and maintain tools that power air quality monitoring and decision-making across African cities. Contributions may include frontend or backend development, data platforms, documentation, or developer tooling.</p>
+                                    <p>Fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a> to get started.</p>
                                 </td>
-                  </tr>`;
+                            </tr>`;
         break;
       case "assistance":
         content = `<tr>
@@ -206,17 +184,16 @@ module.exports = {
                     </tr>`;
         break;
       default:
+        // Partner category
         content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in supporting our work in closing the air quality data gaps
-                                in African Cities. We are happy to foster partnerships to advance air quality monitoring and management in African
-                                Cities.
-                                    <br />
-                                    <br />
-                                    Please get in touch with our project lead Professor Engineer at baino@airqo.net or Programme Manager Deo Okure at
-                                    dokure@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in supporting AirQo’s mission.</p>
+                                    <p>We work with funders to close air quality data gaps and enable sustainable air quality monitoring and management across African cities.</p>
+                                    <p>If you are interested in funding, strategic support, or long-term collaboration, please contact:</p>
+                                    <p>Professor Engineer - Project Lead: <a href="mailto:baino@airqo.net">baino@airqo.net</a></p>
+                                    <p>Deo Okure - Head of Research & Global Partnerships: <a href="mailto:dokure@airqo.net">dokure@airqo.net</a></p>
+                                    <p>We look forward to exploring how your support can accelerate clean air solutions.</p>
                                 </td>
                             </tr>`;
         break;
@@ -292,10 +269,10 @@ module.exports = {
                 (service, index) => `
                   <p style="margin: 8px 0;">
                     ${index + 1}. <strong>${service.service}</strong> (Used ${
-                  service.count
-                } times)
+                      service.count
+                    } times)
                   </p>
-                `
+                `,
               )
               .join("")}
           </div>`
@@ -817,7 +794,76 @@ module.exports = {
     return constants.EMAIL_BODY({ email: recipientEmail, content });
   },
 
-  // Add to email.msgs.js
+  requestToJoinGroupByEmail: ({
+    email,
+    inviterEmail,
+    entity_title,
+    userExists,
+    inviter_name,
+    group_description,
+    request_id,
+    token,
+    targetId,
+    expires_at,
+  }) => {
+    // For existing users - direct accept link
+    const existingUserAcceptLink = `${constants.ANALYTICS_BASE_URL}/org-invite?token=${token}&target_id=${targetId}`;
+
+    // For new users - simple registration link, they'll see invitations after login
+    const newUserRegistrationLink = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register`;
+
+    // For logged-in users - link to view pending invitations
+    const pendingInvitationsLink = `${constants.ANALYTICS_BASE_URL}/user/profile`;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Hello,</p>
+        <p>You have been invited by <strong>${escapeHtml(
+          inviter_name,
+        )}</strong> (${escapeHtml(
+          inviterEmail,
+        )}) to join the organization "<strong>${escapeHtml(
+          entity_title,
+        )}</strong>" on AirQo Analytics.</p>
+        ${
+          group_description
+            ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(
+                group_description,
+              )}</em></div>`
+            : ""
+        }
+        ${
+          userExists
+            ? `
+              <p>Since you already have an AirQo account, you can accept this invitation directly using the link below:</p>
+              <div style="text-align: center; margin: 24px 0;">
+                  <a href="${existingUserAcceptLink}" style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Accept Invitation</a>
+              </div>
+              <p style="margin-top: 16px;">Alternatively, you can view and manage all your pending invitations in your <a href="${pendingInvitationsLink}" style="color: #135DFF;">account dashboard</a>.</p>
+            `
+            : `
+              <p>To join this organization, you'll need to create an AirQo account first. Once you've registered and logged in, you'll be able to view and accept this invitation from your account dashboard.</p>
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="${newUserRegistrationLink}" style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Create Account</a>
+              </div>
+              <p style="margin-top: 16px; font-size: 14px; color: #6B7280;">After registering, log in to view your pending invitations in your account dashboard.</p>
+            `
+        }
+        ${
+          expires_at
+            ? `<p style="font-size: 14px; color: #6B7280; margin-top: 24px;">Please note: This invitation will expire on ${new Date(expires_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}.</p>`
+            : ""
+        }
+        <p>If you have any questions, please contact the person who invited you.</p>
+        <p>Best,<br/>The AirQo Team</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email, content });
+  },
+
   notifyAdminsOfNewOrgRequest: ({
     organization_name,
     contact_name,
@@ -828,12 +874,12 @@ module.exports = {
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>A new organization request has been submitted:</p>
         <ul>
-          <li><strong>Organization Name:</strong> ${organization_name}</li>
-          <li><strong>Contact Name:</strong> ${contact_name}</li>
-          <li><strong>Contact Email:</strong> ${contact_email}</li>
+          <li><strong>Organization Name:</strong> ${escapeHtml(organization_name)}</li>
+          <li><strong>Contact Name:</strong> ${escapeHtml(contact_name)}</li>
+          <li><strong>Contact Email:</strong> ${escapeHtml(contact_email)}</li>
         </ul>
         <p>Please review and process this request in the admin dashboard.</p>
-        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/organisations/requests</p>
+        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/org-requests</p>
       </td>
     </tr>
   `;
@@ -854,7 +900,7 @@ module.exports = {
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Thank you for submitting an organization request for "${organization_name}".</p>
+        <p>Thank you for submitting an organization request for "${escapeHtml(organization_name)}".</p>
         <p>We have received your request and will review it shortly. You will receive another email once your request has been processed.</p>
         <p>If you have any questions, please contact our support team at support@airqo.net.</p>
       </td>
@@ -875,7 +921,7 @@ module.exports = {
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Congratulations! Your organization request for "${organization_name}" has been approved.</p>
+        <p>Congratulations! Your organization request for "${escapeHtml(organization_name)}" has been approved.</p>
         <p>You can now access your organization dashboard using the following link:</p>
         <p><a href="${login_url}">${login_url}</a></p>
         <p>If you have any questions or need assistance, please contact our support team at support@airqo.net.</p>
@@ -898,7 +944,7 @@ module.exports = {
   <tr>
     <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
       <p>We have reviewed your organization request for "${escapeHtml(
-        organization_name
+        organization_name,
       )}" and regret to inform you that we are unable to approve it at this time.</p>
       ${
         rejection_reason
@@ -924,7 +970,7 @@ module.exports = {
     const content = `
   <tr>
     <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-      <p>🎉 <strong>Congratulations!</strong> Your organization request for "${organization_name}" has been approved.</p>
+      <p>🎉 <strong>Congratulations!</strong> Your organization request for "${escapeHtml(organization_name)}" has been approved.</p>
       
       <div style="padding: 16px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745; margin: 20px 0;">
         <h3 style="color: #28a745; margin-top: 0;">Next Steps - Complete Your Account Setup</h3>
@@ -1155,6 +1201,88 @@ module.exports = {
                                     <p>--The AirQo Team</p>
                                 </td>
                             </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  botAlert: ({
+    recipients,
+    ip,
+    interval,
+    occurrences,
+    prefix,
+    prefixBotCount,
+  }) => {
+    const content = `
+        <tr>
+            <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                <p>An automated system has detected bot-like activity and taken action.</p>
+                <h3>Details:</h3>
+                <ul>
+                  <li><strong>IP Address:</strong> ${escapeHtml(String(ip))}</li>
+                  <li><strong>Detected Interval:</strong> Approximately ${escapeHtml(
+                    String(interval),
+                  )} minutes</li>
+                  <li><strong>Pattern Occurrences:</strong> ${escapeHtml(
+                    String(occurrences),
+                  )} times</li>
+                  <li><strong>Action Taken:</strong> The IP address has been automatically blacklisted.</li>
+                </ul>
+                <h3>Prefix Analysis:</h3>
+                <ul>
+                  <li><strong>IP Prefix:</strong> ${escapeHtml(String(prefix))}.*.*</li>
+                  <li><strong>Bots from this Prefix:</strong> ${escapeHtml(
+                    String(prefixBotCount),
+                  )}</li>
+                  <li><strong>Prefix Action:</strong> ${
+                    prefixBotCount >= 3
+                      ? `The entire prefix ${escapeHtml(String(prefix))}.*.* has been blacklisted.`
+                      : "Prefix is being monitored."
+                  }</li>
+                </ul>
+                <p>No immediate action is required, but this information is provided for your awareness.</p>
+            </td>
+        </tr>`;
+    return constants.EMAIL_BODY({
+      email: constants.SUPPORT_EMAIL,
+      content,
+      name: "Admin",
+    });
+  },
+  compromiseSummary: ({ email, compromiseDetails, count }) => {
+    const name = "AirQo User";
+    const today = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const detailsHtml = compromiseDetails
+      .map(
+        (c) => `
+      <li style="margin-bottom: 8px;">
+        Token ending in ...${escapeHtml(c.tokenSuffix || "XXXX")} used by IP: <strong>${escapeHtml(
+          c.ip,
+        )}</strong> at ${new Date(c.timestamp).toLocaleString()}
+      </li>
+    `,
+      )
+      .join("");
+
+    const content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <h3 style="color: #D92D20;">Daily Security Summary for ${today}</h3>
+          <p>We detected <strong>${count}</strong> potential security event(s) involving your AirQo API token(s) in the last 24 hours. For your security, the IP addresses involved have been automatically blacklisted.</p>
+          <h4>Affected IPs:</h4>
+          <ul style="padding-left: 20px;">
+            ${detailsHtml}
+          </ul>
+          <p><strong>Action Required:</strong> We strongly recommend that you log in to your AirQo account, delete the compromised token(s), and generate new ones. Also, consider updating your account password as a precaution.</p>
+          <p>If you have any questions, please contact our support team.</p>
+        </td>
+      </tr>
+    `;
+
     return constants.EMAIL_BODY({ email, content, name });
   },
 };

@@ -248,7 +248,9 @@ def get_active_fetches_count() -> dict:
             "active_device_fetches": len(_active_device_fetches),
             "active_airqloud_fetches": len(_active_airqloud_fetches),
             "device_keys_update_running": _device_keys_update_running,
-            "device_keys_throttle_remaining_seconds": throttle_remaining
+            "device_keys_throttle_remaining_seconds": throttle_remaining,
+            "device_sync_running": _device_sync_running,
+            "sites_update_running": _sites_update_running
         }
 
 
@@ -316,3 +318,141 @@ def update_all_null_device_keys_background():
         with _lock:
             _device_keys_update_running = False
 
+
+# Track if a sites update is already running
+_sites_update_running: bool = False
+# Track when the last sites update was triggered (for throttling)
+_last_sites_update: Optional[datetime] = None
+# Minimum interval between sites update attempts (5 minutes)
+_SITES_UPDATE_THROTTLE_SECONDS = 300
+
+def update_missing_sites_background():
+    """
+    Background task to update missing sites in dim_site table.
+    This is triggered when devices are fetched and potential missing sites are detected.
+    
+    Reuses the SiteUpdater class from cronjobs/update_sites.py.
+    
+    Uses locking and throttling.
+    """
+    global _sites_update_running, _last_sites_update
+    
+    with _lock:
+        now = datetime.now()
+        
+        # Check throttle
+        if _last_sites_update is not None:
+            elapsed = (now - _last_sites_update).total_seconds()
+            if elapsed < _SITES_UPDATE_THROTTLE_SECONDS:
+                logger.debug(f"[Background] Sites update throttled, {_SITES_UPDATE_THROTTLE_SECONDS - elapsed:.0f}s remaining")
+                return
+        
+        if _sites_update_running:
+            logger.info("[Background] Sites update already running, skipping")
+            return
+            
+        _sites_update_running = True
+        _last_sites_update = now
+        
+    logger.info("[Background] Starting missing sites update")
+    
+    try:
+        import sys
+        import importlib.util
+        from pathlib import Path
+        
+        # Dynamically load the update_sites module
+        cronjobs_path = Path(__file__).parent.parent.parent / "cronjobs" / "update_sites.py"
+        if not cronjobs_path.exists():
+            logger.error(f"[Background] update_sites.py not found at {cronjobs_path}")
+            with _lock:
+                _sites_update_running = False
+            return
+
+        spec = importlib.util.spec_from_file_location("update_sites", cronjobs_path)
+        update_sites_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(update_sites_module)
+        SiteUpdater = update_sites_module.SiteUpdater
+        
+        with SessionLocal() as db:
+            updater = SiteUpdater(db)
+            updater.run()
+            
+            # Access stats if available
+            if hasattr(updater, 'stats'):
+                logger.info(f"[Background] Sites update stats: {updater.stats}")
+                 
+    except Exception as e:
+        logger.error(f"[Background] Error in sites update: {str(e)}")
+    finally:
+        with _lock:
+            _sites_update_running = False
+
+
+# Track if a device sync is already running
+_device_sync_running: bool = False
+# Track when the last device sync was triggered
+_last_device_sync: Optional[datetime] = None
+# Minimum interval between device sync attempts (5 minutes)
+_DEVICE_SYNC_THROTTLE_SECONDS = 300
+
+def sync_devices_background():
+    """
+    Background task to sync devices from Platform API.
+    
+    Reuses the DeviceUpdater class from cronjobs/update_devices.py.
+    
+    Uses locking and throttling.
+    """
+    global _device_sync_running, _last_device_sync
+    
+    with _lock:
+        now = datetime.now()
+        
+        # Check throttle
+        if _last_device_sync is not None:
+            elapsed = (now - _last_device_sync).total_seconds()
+            if elapsed < _DEVICE_SYNC_THROTTLE_SECONDS:
+                logger.debug(f"[Background] Device sync throttled, {_DEVICE_SYNC_THROTTLE_SECONDS - elapsed:.0f}s remaining")
+                return
+        
+        if _device_sync_running:
+            logger.info("[Background] Device sync already running, skipping")
+            return
+            
+        _device_sync_running = True
+        _last_device_sync = now
+        
+    logger.info("[Background] Starting device sync")
+    
+    try:
+        import sys
+        import importlib.util
+        from pathlib import Path
+        
+        # Dynamically load the update_devices module
+        cronjobs_path = Path(__file__).parent.parent.parent / "cronjobs" / "update_devices.py"
+        if not cronjobs_path.exists():
+            logger.error(f"[Background] update_devices.py not found at {cronjobs_path}")
+            with _lock:
+                _device_sync_running = False
+            return
+
+        spec = importlib.util.spec_from_file_location("update_devices", cronjobs_path)
+        update_devices_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(update_devices_module)
+        DeviceUpdater = update_devices_module.DeviceUpdater
+        
+        with SessionLocal() as db:
+            updater = DeviceUpdater(db)
+            updater.run()
+            
+            # Access stats if available
+            if hasattr(updater, 'stats'):
+                logger.info(f"[Background] Device sync stats: {updater.stats}")
+                 
+    except Exception as e:
+        logger.error(f"[Background] Error in device sync: {str(e)}")
+    finally:
+        with _lock:
+            _device_sync_running = False

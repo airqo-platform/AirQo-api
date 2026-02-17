@@ -20,18 +20,21 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 ├── codecov.yml
 ├── contributing.md
 ├── docs
-│   ├── img
-│   └── system-architecture.md
+│   ├── img
+│   └── system-architecture.md
 ├── infra
-│   ├── ansible
-│   └── terraform
+│   ├── ansible
+│   └── terraform
 ├── k8s
-│   ├── analytics
-│   ├── workflows
-│   ├── auth-service
-│   ├── calibrate
-│   ├── cilium
-│   └── *
+│   ├── analytics
+│   ├── workflows
+│   ├── auth-service
+│   ├── calibrate
+│   ├── cilium
+│   └── *
+├── packages
+│   ├── airqo-icons
+│   └── *
 └── src
     ├── analytics
     ├── auth-service

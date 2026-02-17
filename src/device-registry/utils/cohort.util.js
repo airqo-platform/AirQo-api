@@ -7,10 +7,10 @@ const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { generateFilter } = require("@utils/common");
+const { generateFilter, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-cohort-util`
+  `${constants.ENVIRONMENT} -- create-cohort-util`,
 );
 const { logObject, logText, HttpError } = require("@utils/shared");
 const mongoose = require("mongoose");
@@ -32,7 +32,7 @@ function filterOutPrivateIDs(privateIds, randomIds) {
 
   // Filter randomIds array to exclude privateIds
   const filteredIds = randomIds.filter(
-    (randomId) => !privateIdSet.has(randomId)
+    (randomId) => !privateIdSet.has(randomId),
   );
 
   return filteredIds;
@@ -49,7 +49,7 @@ const createCohort = {
           limit,
           skip,
         },
-        next
+        next,
       );
       return responseFromListNetworks;
     } catch (error) {
@@ -58,8 +58,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -83,12 +83,12 @@ const createCohort = {
         };
       }
       const network = await NetworkModel(tenant)
-        .find(filter)
+        .findOne(filter)
         .lean();
 
       logObject("network", network);
 
-      if (network.length !== 1) {
+      if (!network) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -96,14 +96,14 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       } else {
-        const networkId = network[0]._id;
+        const networkId = network._id;
         const responseFromUpdateNetwork = await NetworkModel(
-          tenant
+          tenant,
         ).findByIdAndUpdate(ObjectId(networkId), body, { new: true });
 
         logObject(
           "responseFromUpdateNetwork in Util",
-          responseFromUpdateNetwork
+          responseFromUpdateNetwork,
         );
 
         if (!isEmpty(responseFromUpdateNetwork)) {
@@ -128,8 +128,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -141,12 +141,12 @@ const createCohort = {
       const filter = generateFilter.networks(request, next);
 
       const network = await NetworkModel(tenant)
-        .find(filter)
+        .findOne(filter)
         .lean();
 
       logObject("network", network);
 
-      if (network.length !== 1) {
+      if (!network) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -154,9 +154,9 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       } else {
-        const networkId = network[0]._id;
+        const networkId = network._id;
         const responseFromDeleteNetwork = await NetworkModel(
-          tenant
+          tenant,
         ).findByIdAndDelete(ObjectId(networkId));
 
         if (!isEmpty(responseFromDeleteNetwork)) {
@@ -181,8 +181,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -195,7 +195,7 @@ const createCohort = {
       // 1. Verify that the secret is configured on the server
       if (!constants.ADMIN_SETUP_SECRET) {
         logger.error(
-          "CRITICAL: ADMIN_SETUP_SECRET is not configured in environment variables."
+          "CRITICAL: ADMIN_SETUP_SECRET is not configured in environment variables.",
         );
         return next(
           new HttpError(
@@ -203,8 +203,8 @@ const createCohort = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: "Admin secret not configured on server",
-            }
-          )
+            },
+          ),
         );
       }
 
@@ -219,13 +219,13 @@ const createCohort = {
         return next(
           new HttpError("Forbidden", httpStatus.FORBIDDEN, {
             message: "Invalid admin secret provided",
-          })
+          }),
         );
       }
 
       const responseFromCreateNetwork = await NetworkModel(tenant).register(
         body,
-        next
+        next,
       );
       return responseFromCreateNetwork;
     } catch (error) {
@@ -234,8 +234,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -247,23 +247,21 @@ const createCohort = {
 
       const responseFromRegisterCohort = await CohortModel(tenant).register(
         modifiedBody,
-        next
+        next,
       );
 
       logObject("responseFromRegisterCohort", responseFromRegisterCohort);
 
       if (responseFromRegisterCohort.success === true) {
         try {
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
+          const kafkaProducer = kafka.producer();
           await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.COHORT_TOPIC,
             messages: [
               {
                 action: "create",
-                value: JSON.stringify(responseFromRegisterCohort.data),
+                value: stringify(responseFromRegisterCohort.data),
               },
             ],
           });
@@ -282,8 +280,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -302,7 +300,7 @@ const createCohort = {
             filter,
             update,
           },
-          next
+          next,
         );
         return responseFromModifyCohort;
       }
@@ -312,8 +310,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -388,7 +386,7 @@ const createCohort = {
           filter,
           update,
         },
-        next
+        next,
       );
 
       return responseFromUpdateCohortName;
@@ -398,8 +396,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -421,7 +419,7 @@ const createCohort = {
           {
             filter,
           },
-          next
+          next,
         );
         return responseFromRemoveCohort;
       }
@@ -431,8 +429,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -441,6 +439,66 @@ const createCohort = {
       const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const filter = generateFilter.cohorts(request, next);
 
+      const originalFilter = { ...filter };
+
+      // Only exclude user cohorts if we are not fetching by a specific ID
+      if (!filter._id) {
+        const userCohortExclusion = { name: { $not: /^coh_user_/i } };
+        if (filter.name) {
+          // If a name filter already exists, combine it with the exclusion using $and
+          const existingNameFilter = { name: filter.name };
+          filter.$and = [
+            ...(filter.$and || []),
+            existingNameFilter,
+            userCohortExclusion,
+          ];
+          delete filter.name;
+        } else {
+          // If no name filter, just add the exclusion directly
+          filter.name = userCohortExclusion.name;
+        }
+      }
+
+      const result = await createCohort._list(request, filter, next);
+
+      // Handle case where a specific cohort ID was requested but not found
+      if (
+        isEmpty(result.data) &&
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
+      ) {
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
+        return {
+          success: false,
+          message: "Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `Cohort with ID ${idString} does not exist`,
+          },
+        };
+      }
+
+      return {
+        ...result,
+        message: "Successfully retrieved cohorts",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  _list: async (request, filter, next) => {
+    try {
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
@@ -484,24 +542,6 @@ const createCohort = {
           ? agg.totalCount[0].count
           : 0;
 
-      if (
-        isEmpty(paginatedResults) &&
-        filter._id &&
-        Object.keys(filter).length === 1
-      ) {
-        const idString = filter._id.$in
-          ? `[${filter._id.$in.join(", ")}]`
-          : filter._id;
-        return {
-          success: false,
-          message: "Cohort not found",
-          status: httpStatus.NOT_FOUND,
-          errors: {
-            message: `Cohort with ID ${idString} does not exist`,
-          },
-        };
-      }
-
       const baseUrl =
         typeof request.protocol === "string" &&
         typeof request.get === "function" &&
@@ -535,10 +575,73 @@ const createCohort = {
 
       return {
         success: true,
-        message: "Successfully retrieved cohorts",
         data: paginatedResults,
         status: httpStatus.OK,
         meta,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error on _list: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      // Ensure we don't proceed with a partial result
+      return {
+        success: false,
+      };
+    }
+  },
+
+  listUserCohorts: async (request, next) => {
+    try {
+      const { tenant, limit, skip, detailLevel, sortBy, order } = request.query;
+      const filter = generateFilter.cohorts(request, next);
+
+      const originalFilter = { ...filter };
+      // Filter for only individual user cohorts. Use $and to correctly combine with other name filters.
+      const userCohortInclusion = { name: { $regex: /^coh_user_/i } };
+      if (filter.name) {
+        // If filter.name is a string, it's treated as an implicit $eq.
+        // If it's an object, it contains operators like $in.
+        // In both cases, we create a separate object for the $and array.
+        const existingNameFilter = { name: filter.name };
+        filter.$and = [
+          ...(filter.$and || []),
+          existingNameFilter,
+          userCohortInclusion,
+        ];
+        delete filter.name;
+      } else {
+        // If no name filter exists, just add the regex filter
+        filter.name = userCohortInclusion.name;
+      }
+
+      const result = await createCohort._list(request, filter, next);
+
+      if (
+        isEmpty(result.data) &&
+        originalFilter._id &&
+        Object.keys(originalFilter).length === 1
+      ) {
+        const idString = originalFilter._id.$in
+          ? `[${originalFilter._id.$in.join(", ")}]`
+          : originalFilter._id;
+        return {
+          success: false,
+          message: "User Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `User Cohort with ID ${idString} does not exist`,
+          },
+        };
+      }
+
+      return {
+        ...result,
+        message: "Successfully retrieved user cohorts",
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -546,20 +649,19 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
-
   verify: async (request, next) => {
     try {
       const { tenant } = request.query;
       const filter = generateFilter.cohorts(request, next);
-      const response = await CohortModel(tenant)
-        .find(filter)
+      const response = await CohortModel(tenant) // Use findOne for single document lookup
+        .findOne(filter)
         .lean()
-        .select("_id");
+        .select("_id name");
 
       if (isEmpty(response)) {
         return {
@@ -573,6 +675,7 @@ const createCohort = {
           success: true,
           status: httpStatus.OK,
           message: "Cohort ID is Valid!!",
+          data: response, // Directly return the cohort object
         };
       }
     } catch (error) {
@@ -581,8 +684,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -631,7 +734,7 @@ const createCohort = {
 
       logObject(
         "responseFromListAvailableDevices",
-        responseFromListAvailableDevices
+        responseFromListAvailableDevices,
       );
 
       return {
@@ -646,8 +749,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -695,7 +798,7 @@ const createCohort = {
 
       logObject(
         "responseFromListAssignedDevices",
-        responseFromListAssignedDevices
+        responseFromListAssignedDevices,
       );
 
       return {
@@ -710,8 +813,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -766,7 +869,7 @@ const createCohort = {
           message: "Bad Request Error",
           errors: {
             message: `The following devices are already assigned to the Cohort ${cohort_id}: ${alreadyAssignedDevices.join(
-              ", "
+              ", ",
             )}`,
           },
           status: httpStatus.BAD_REQUEST,
@@ -776,7 +879,7 @@ const createCohort = {
       const totalDevices = device_ids.length;
       const { nModified, n } = await DeviceModel(tenant).updateMany(
         { _id: { $in: device_ids } },
-        { $addToSet: { cohorts: cohort_id } }
+        { $addToSet: { cohorts: cohort_id } },
       );
 
       const notFoundCount = totalDevices - nModified;
@@ -810,8 +913,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -835,13 +938,13 @@ const createCohort = {
       //check of all these provided devices actually do exist?
       const existingDevices = await DeviceModel(tenant).find(
         { _id: { $in: device_ids } },
-        "_id"
+        "_id",
       );
 
       if (existingDevices.length !== device_ids.length) {
         const nonExistentDevices = device_ids.filter(
           (device_id) =>
-            !existingDevices.find((device) => device._id.equals(device_id))
+            !existingDevices.find((device) => device._id.equals(device_id)),
         );
 
         return {
@@ -879,7 +982,7 @@ const createCohort = {
         const { nModified, n } = await DeviceModel(tenant).updateMany(
           { _id: { $in: device_ids }, cohorts: { $in: [cohort_id] } },
           { $pull: { cohorts: cohort_id } },
-          { multi: true }
+          { multi: true },
         );
 
         const notFoundCount = totalDevices - nModified;
@@ -921,8 +1024,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -968,7 +1071,7 @@ const createCohort = {
       const updatedDevice = await DeviceModel(tenant).findByIdAndUpdate(
         device_id,
         { $addToSet: { cohorts: cohort_id } },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -983,8 +1086,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1011,7 +1114,7 @@ const createCohort = {
 
       // Check if the cohort is part of the device's cohorts
       const isCohortInDevice = device.cohorts.some(
-        (cohortId) => cohortId.toString() === cohort_id.toString()
+        (cohortId) => cohortId.toString() === cohort_id.toString(),
       );
       if (!isCohortInDevice) {
         return {
@@ -1028,7 +1131,7 @@ const createCohort = {
       const updatedDevice = await DeviceModel(tenant).findByIdAndUpdate(
         device_id,
         { $pull: { cohorts: cohort_id } },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -1043,8 +1146,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1089,8 +1192,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1114,7 +1217,7 @@ const createCohort = {
       });
 
       const privateDeviceIds = privateDevices.map((device) =>
-        device._id.toString()
+        device._id.toString(),
       );
       const privateDeviceNames = privateDevices.map((device) => device.name);
 
@@ -1146,8 +1249,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1173,7 +1276,7 @@ const createCohort = {
           message: "Bad Request Error",
           errors: {
             message: `The following cohorts were not found: ${notFoundIds.join(
-              ", "
+              ", ",
             )}`,
           },
           status: httpStatus.BAD_REQUEST,
@@ -1196,7 +1299,7 @@ const createCohort = {
       const networkId = existingCohorts[0].network;
       const allSameNetwork = existingCohorts.every(
         (cohort) =>
-          cohort.network && cohort.network.toString() === networkId.toString()
+          cohort.network && cohort.network.toString() === networkId.toString(),
       );
 
       if (!allSameNetwork) {
@@ -1219,7 +1322,7 @@ const createCohort = {
 
       const newCohortResponse = await CohortModel(tenant).register(
         newCohortData,
-        next
+        next,
       );
 
       // const newCohort = newCohortResponse.data;
@@ -1257,12 +1360,12 @@ const createCohort = {
       // 5. Assign the new cohort to all these devices
       const updateResult = await DeviceModel(tenant).updateMany(
         { _id: { $in: devicesToUpdate } },
-        { $addToSet: { cohorts: newCohort._id } }
+        { $addToSet: { cohorts: newCohort._id } },
       );
 
       logObject(
         "updateResult from assigning devices to new cohort",
-        updateResult
+        updateResult,
       );
 
       return {
@@ -1282,8 +1385,8 @@ const createCohort = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -1307,7 +1410,7 @@ const createCohort = {
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 50, 200));
       const activitiesLimit = Math.min(
         parseInt(activities_limit, 10) || 100,
-        500
+        500,
       );
 
       // Sorting controls
@@ -1316,7 +1419,7 @@ const createCohort = {
 
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
-        "summary"
+        "summary",
       );
 
       // ✅ Get standard device filter from generateFilter
@@ -1642,8 +1745,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1678,7 +1781,7 @@ const createCohort = {
       // Get device filter WITHOUT search parameter
       const baseDeviceFilter = generateFilter.devices(
         deviceFilterRequest,
-        next
+        next,
       );
       const deviceFilter = {
         ...baseDeviceFilter,
@@ -1698,9 +1801,10 @@ const createCohort = {
             .filter(
               (device) =>
                 device.site_id &&
-                (!device.deployment_type || device.deployment_type === "static")
+                (!device.deployment_type ||
+                  device.deployment_type === "static"),
             )
-            .map((device) => device.site_id.toString())
+            .map((device) => device.site_id.toString()),
         ),
       ].map((id) => ObjectId(id));
 
@@ -1733,7 +1837,7 @@ const createCohort = {
       // Build aggregation pipeline for sites
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
-        "summary"
+        "summary",
       );
 
       const pipeline = [
@@ -1920,7 +2024,7 @@ const createCohort = {
               (activity) =>
                 activity.device === device.name ||
                 (activity.device_id &&
-                  activity.device_id.toString() === device._id.toString())
+                  activity.device_id.toString() === device._id.toString()),
             );
             return {
               device_id: device._id,
@@ -1985,8 +2089,8 @@ const createCohort = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

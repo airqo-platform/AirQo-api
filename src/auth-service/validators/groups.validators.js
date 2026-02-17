@@ -1,4 +1,3 @@
-// groups.validators.js
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -122,7 +121,28 @@ const update = [
       .toUpperCase()
       .isIn(["INACTIVE", "ACTIVE"])
       .withMessage(
-        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE"
+        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE",
+      ),
+  ],
+];
+
+const updateName = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("grp_title")
+      .exists()
+      .withMessage("the grp_title is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the grp_title should not be empty")
+      .bail()
+      .isLength({ max: 41 })
+      .withMessage("the grp_title must not exceed 41 characters")
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the grp_title can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ],
 ];
@@ -154,7 +174,7 @@ const list = [
       .toUpperCase()
       .isIn(["INACTIVE", "ACTIVE"])
       .withMessage(
-        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE"
+        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE",
       ),
   ]),
 ];
@@ -172,7 +192,7 @@ const create = [
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the grp_title can only contain letters, numbers, spaces, hyphens and underscores"
+        "the grp_title can only contain letters, numbers, spaces, hyphens and underscores",
       )
       .bail(),
     body("grp_sites")
@@ -411,7 +431,7 @@ const getGroupAnalytics = [
         "performance",
       ])
       .withMessage(
-        "metric_type must be one of: overview, members, activity, roles, engagement, performance"
+        "metric_type must be one of: overview, members, activity, roles, engagement, performance",
       ),
     query("include_trends")
       .optional()
@@ -455,7 +475,7 @@ const bulkMemberManagement = [
         "update_permissions",
       ])
       .withMessage(
-        "action_type must be one of: assign_role, remove_role, remove_member, change_status, update_permissions"
+        "action_type must be one of: assign_role, remove_role, remove_member, change_status, update_permissions",
       ),
     body("actions.*.role_id")
       .optional()
@@ -467,7 +487,7 @@ const bulkMemberManagement = [
         !action.role_id
       ) {
         throw new Error(
-          "role_id is required when action_type is assign_role or update_permissions"
+          "role_id is required when action_type is assign_role or update_permissions",
         );
       }
       return true;
@@ -503,13 +523,13 @@ const manageAccessRequests = [
       .optional()
       .isIn(["list", "bulk_decision", "single_decision"])
       .withMessage(
-        "action must be one of: list, bulk_decision, single_decision"
+        "action must be one of: list, bulk_decision, single_decision",
       ),
     query("status_filter")
       .optional()
       .isIn(["pending", "approved", "rejected", "expired", "all"])
       .withMessage(
-        "status_filter must be one of: pending, approved, rejected, expired, all"
+        "status_filter must be one of: pending, approved, rejected, expired, all",
       ),
     query("date_from")
       .optional()
@@ -667,7 +687,7 @@ const sendGroupInvitations = [
       .optional()
       .isIn(["standard", "urgent", "reminder"])
       .withMessage(
-        "invitation_type must be one of: standard, urgent, reminder"
+        "invitation_type must be one of: standard, urgent, reminder",
       ),
   ],
 ];
@@ -681,7 +701,7 @@ const updateGroupStatus = [
       .withMessage("status is required")
       .isIn(["ACTIVE", "INACTIVE", "SUSPENDED", "ARCHIVED", "MAINTENANCE"])
       .withMessage(
-        "status must be one of: ACTIVE, INACTIVE, SUSPENDED, ARCHIVED, MAINTENANCE"
+        "status must be one of: ACTIVE, INACTIVE, SUSPENDED, ARCHIVED, MAINTENANCE",
       ),
     body("reason")
       .optional()
@@ -849,13 +869,13 @@ const searchGroupMembers = [
       .optional()
       .isIn(["active", "inactive", "pending", "suspended", "all"])
       .withMessage(
-        "status must be one of: active, inactive, pending, suspended, all"
+        "status must be one of: active, inactive, pending, suspended, all",
       ),
     query("member_type")
       .optional()
       .isIn(["user", "admin", "manager", "guest", "all"])
       .withMessage(
-        "member_type must be one of: user, admin, manager, guest, all"
+        "member_type must be one of: user, admin, manager, guest, all",
       ),
     query("joined_after")
       .optional()
@@ -876,7 +896,7 @@ const searchGroupMembers = [
       .optional()
       .isIn(["name", "email", "joined_date", "last_login", "role", "status"])
       .withMessage(
-        "sort_by must be one of: name, email, joined_date, last_login, role, status"
+        "sort_by must be one of: name, email, joined_date, last_login, role, status",
       ),
     query("sort_order")
       .optional()
@@ -951,7 +971,7 @@ const exportGroupData = [
       .optional()
       .isIn(["active", "inactive", "all"])
       .withMessage(
-        "member_status_filter must be one of: active, inactive, all"
+        "member_status_filter must be one of: active, inactive, all",
       ),
     query("compression")
       .optional()
@@ -970,7 +990,7 @@ const exportGroupData = [
       .optional()
       .isIn(["download", "email", "cloud_storage"])
       .withMessage(
-        "delivery_method must be one of: download, email, cloud_storage"
+        "delivery_method must be one of: download, email, cloud_storage",
       ),
     query("email_recipient")
       .if(query("delivery_method").equals("email"))
@@ -1047,11 +1067,14 @@ const unassignCohortsFromGroup = [
 
 const listGroupCohorts = [validateTenant, validateGroupIdParam];
 
+const leaveGroup = [validateTenant, validateGroupIdParam];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
   deleteGroup,
   update,
+  updateName,
   list,
   create,
   removeUniqueConstraint,
@@ -1081,4 +1104,5 @@ module.exports = {
   assignCohortsToGroup,
   unassignCohortsFromGroup,
   listGroupCohorts,
+  leaveGroup,
 };

@@ -15,6 +15,7 @@ const {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
+  validateGetSiteCountSummary,
   validateBulkUpdateSites,
 } = require("@validators/site.validators");
 const { validate } = require("@validators/common");
@@ -37,6 +38,52 @@ router.get(
   pagination(),
   siteController.listSummary
 );
+
+router.get(
+  "/summary/count",
+  validateTenant,
+  validateGetSiteCountSummary,
+  validate,
+  siteController.getSiteCountSummary
+);
+
+// STATUS-BASED LISTING ENDPOINTS
+router.get(
+  "/status/operational",
+  validateTenant,
+  validateSiteQueryParams,
+  pagination(),
+  validate,
+  siteController.listOperationalSites
+);
+
+router.get(
+  "/status/transmitting",
+  validateTenant,
+  validateSiteQueryParams,
+  pagination(),
+  validate,
+  siteController.listTransmittingSites
+);
+
+router.get(
+  "/status/data-available",
+  validateTenant,
+  validateSiteQueryParams,
+  pagination(),
+  validate,
+  siteController.listDataAvailableSites
+);
+
+router.get(
+  "/status/not-transmitting",
+  validateTenant,
+  validateSiteQueryParams,
+  pagination(),
+  validate,
+  siteController.listNotTransmittingSites
+);
+
 router.get(
   "/weather",
   validateTenant,

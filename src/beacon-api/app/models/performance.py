@@ -85,6 +85,7 @@ class PerformanceResponse(SQLModel):
     id: str = Field(description="Device ID or AirQloud ID")
     freq: Optional[int] = Field(default=None)
     error_margin: Optional[float] = Field(default=None)
+    battery_voltage: Optional[float] = Field(default=None)
     timestamp: datetime
     performance_key: Optional[int] = Field(default=None)
     created_at: Optional[datetime] = None
@@ -96,4 +97,5 @@ class GroupedPerformanceResponse(SQLModel):
     name: Optional[str] = Field(default=None, description="Device name or AirQloud name")
     freq: list[Optional[int]] = Field(default_factory=list, description="List of frequency values")
     error_margin: list[Optional[float]] = Field(default_factory=list, description="List of error margin values")
+    battery_voltage: list[Optional[float]] = Field(default_factory=list, description="List of battery voltage values")
     timestamp: list[datetime] = Field(default_factory=list, description="List of timestamps")

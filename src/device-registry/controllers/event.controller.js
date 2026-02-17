@@ -541,6 +541,65 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 };
 
 const createEvent = {
+  getRepresentativeAirQualityForGrid: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = {
+        ...req,
+        query: { ...req.query, grid_id: req.params.grid_id },
+      };
+      const result = await createEventUtil.getRepresentativeAirQuality(
+        request,
+        next
+      );
+      handleResponse({ res, result, key: "data" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getRepresentativeAirQualityForCohort: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = {
+        ...req,
+        query: { ...req.query, cohort_id: req.params.cohort_id },
+      };
+      const result = await createEventUtil.getRepresentativeAirQuality(
+        request,
+        next
+      );
+      handleResponse({ res, result, key: "data" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   addValues: async (req, res, next) => {
     try {
       logText("Adding values with mobile device support...");

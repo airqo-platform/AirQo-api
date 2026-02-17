@@ -160,6 +160,18 @@ const routes = [
     middlewares: [checkValidation("nearestReadings"), pagination()],
     controller: "getNearestReadings",
   },
+  {
+    method: "get",
+    path: "/grids/:grid_id/representative",
+    middlewares: [checkValidation("validateGetRepresentativeAQForGrid")],
+    controller: "getRepresentativeAirQualityForGrid",
+  },
+  {
+    method: "get",
+    path: "/cohorts/:cohort_id/representative",
+    middlewares: [checkValidation("validateGetRepresentativeAQForCohort")],
+    controller: "getRepresentativeAirQualityForCohort",
+  },
 ];
 
 // Register routes safely

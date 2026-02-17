@@ -10,6 +10,7 @@ from .airqloud import airqloud
 from .performance import device_performance, airqloud_performance
 from .fetch_log import device_fetch_log, airqloud_fetch_log
 from .items_stock import items_stock, items_stock_history
+from . import maintenance
 
 __all__ = [
     "device", 
@@ -26,5 +27,6 @@ __all__ = [
     "device_fetch_log",
     "airqloud_fetch_log",
     "items_stock",
-    "items_stock_history"
+    "items_stock_history",
+    "maintenance"
 ]

@@ -5,7 +5,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- blaclist-ip-model`
+  `${constants.ENVIRONMENT} -- blacklist-ip-model`,
 );
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
@@ -24,8 +24,10 @@ const BlacklistedIPSchema = new mongoose.Schema(
       unique: true,
       required: [true, "ip is required!"],
     },
+    reason: { type: String, default: "Automated blacklisting" },
+    blacklistedAt: { type: Date, default: Date.now },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 BlacklistedIPSchema.pre("save", function (next) {
@@ -41,40 +43,46 @@ BlacklistedIPSchema.index({ ip: 1 }, { unique: true });
 BlacklistedIPSchema.statics = {
   async register(args, next) {
     try {
-      const modifiedArgs = args;
-      const data = await this.create({
-        ...modifiedArgs,
-      });
+      const { ip, reason } = args;
+      const filter = { ip };
+
+      const update = {
+        $set: {
+          ip,
+          blacklistedAt: new Date(),
+        },
+        $setOnInsert: {
+          reason: "Automated blacklisting",
+        },
+      };
+
+      if (reason !== undefined && reason !== null) {
+        update.$set.reason = reason;
+      }
+
+      const options = {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+        runValidators: true,
+      };
+
+      const data = await this.findOneAndUpdate(filter, update, options);
 
       if (!isEmpty(data)) {
-        return createSuccessResponse("create", data, "IP", {
-          message: "IP created",
+        return createSuccessResponse("upsert", data._doc, "IP", {
+          message: "IP blacklisted successfully",
         });
       } else {
         return createEmptySuccessResponse(
           "IP",
-          "operation successful but IP NOT successfully created"
+          "operation successful but IP could not be blacklisted",
         );
       }
     } catch (err) {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-
-      // Handle specific duplicate key errors
-      if (err.keyValue) {
-        let response = {};
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
-        });
-        return {
-          success: false,
-          message: "validation errors for some of the provided fields",
-          status: httpStatus.CONFLICT,
-          errors: response,
-        };
-      } else {
-        return createErrorResponse(err, "create", logger, "IP");
-      }
+      return createErrorResponse(err, "create", logger, "IP");
     }
   },
 
@@ -85,7 +93,7 @@ BlacklistedIPSchema.statics = {
       logObject("filtering here", filter);
       const inclusionProjection = constants.IPS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.IPS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.category ? filter.category : "none",
       );
 
       if (!isEmpty(filter.category)) {
@@ -127,7 +135,7 @@ BlacklistedIPSchema.statics = {
       const updatedIP = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedIP)) {
@@ -136,7 +144,7 @@ BlacklistedIPSchema.statics = {
         return createNotFoundResponse(
           "IP",
           "update",
-          "IP does not exist, please crosscheck"
+          "IP does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -161,7 +169,7 @@ BlacklistedIPSchema.statics = {
         return createNotFoundResponse(
           "IP",
           "delete",
-          "IP does not exist, please crosscheck"
+          "IP does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -175,6 +183,8 @@ BlacklistedIPSchema.methods = {
     return {
       _id: this._id,
       ip: this.ip,
+      reason: this.reason,
+      blacklistedAt: this.blacklistedAt,
     };
   },
 };

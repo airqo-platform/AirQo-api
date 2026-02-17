@@ -7,8 +7,10 @@ const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const { logObject, logText, logElement } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
+const sharedUtils = require("@utils/shared");
 const httpStatus = require("http-status");
 
+const createAccessToken = require("@controllers/token.controller");
 describe("tokenUtil", () => {
   describe("create", () => {
     let req;
@@ -55,7 +57,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Access token created successfully",
           created_token: "access_token1",
-        })
+        }),
       ).to.be.true;
     });
 
@@ -73,7 +75,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Access token created successfully",
           created_token: "access_token2",
-        })
+        }),
       ).to.be.true;
       expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
     });
@@ -87,8 +89,8 @@ describe("tokenUtil", () => {
         badRequestStub.calledOnceWith(
           res,
           "bad request errors",
-          convertErrorArrayToObject(null)
-        )
+          convertErrorArrayToObject(null),
+        ),
       ).to.be.true;
     });
 
@@ -104,7 +106,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Internal Server Error",
           errors: { message: error.message },
-        })
+        }),
       ).to.be.true;
     });
   });
@@ -154,7 +156,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Access tokens listed successfully",
           tokens: ["access_token1", "access_token2"],
-        })
+        }),
       ).to.be.true;
     });
 
@@ -172,7 +174,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Access tokens listed successfully",
           tokens: ["access_token3"],
-        })
+        }),
       ).to.be.true;
       expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
     });
@@ -186,8 +188,8 @@ describe("tokenUtil", () => {
         badRequestStub.calledOnceWith(
           res,
           "bad request errors",
-          convertErrorArrayToObject(null)
-        )
+          convertErrorArrayToObject(null),
+        ),
       ).to.be.true;
     });
 
@@ -203,7 +205,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Internal Server Error",
           errors: { message: error.message },
-        })
+        }),
       ).to.be.true;
     });
   });
@@ -264,8 +266,8 @@ describe("tokenUtil", () => {
         badRequestStub.calledOnceWith(
           res,
           "bad request errors",
-          convertErrorArrayToObject(null)
-        )
+          convertErrorArrayToObject(null),
+        ),
       ).to.be.true;
     });
 
@@ -286,7 +288,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Internal Server Error",
           errors: { message: error.message },
-        })
+        }),
       ).to.be.true;
     });
   });
@@ -337,7 +339,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Access token deleted successfully",
           deleted_token: { deleted: true },
-        })
+        }),
       ).to.be.true;
     });
 
@@ -350,8 +352,8 @@ describe("tokenUtil", () => {
         badRequestStub.calledOnceWith(
           res,
           "bad request errors",
-          convertErrorArrayToObject(null)
-        )
+          convertErrorArrayToObject(null),
+        ),
       ).to.be.true;
     });
 
@@ -372,7 +374,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Internal Server Error",
           errors: { message: error.message },
-        })
+        }),
       ).to.be.true;
     });
   });
@@ -423,7 +425,7 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Access token updated successfully",
           updated_token: { updated: true },
-        })
+        }),
       ).to.be.true;
     });
 
@@ -436,8 +438,8 @@ describe("tokenUtil", () => {
         badRequestStub.calledOnceWith(
           res,
           "bad request errors",
-          convertErrorArrayToObject(null)
-        )
+          convertErrorArrayToObject(null),
+        ),
       ).to.be.true;
     });
 
@@ -458,8 +460,107 @@ describe("tokenUtil", () => {
         res.json.calledOnceWith({
           message: "Internal Server Error",
           errors: { message: error.message },
-        })
+        }),
       ).to.be.true;
+    });
+  });
+
+  describe("getWhitelistedIPStats", () => {
+    let req;
+    let res;
+    let next;
+    let extractErrorsFromRequestStub;
+    let getWhitelistedIPStatsStub;
+
+    beforeEach(() => {
+      req = {
+        query: {},
+        params: {},
+      };
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+      next = sinon.stub();
+      extractErrorsFromRequestStub = sinon
+        .stub(sharedUtils, "extractErrorsFromRequest")
+        .returns(null);
+      getWhitelistedIPStatsStub = sinon.stub(
+        tokenUtil,
+        "getWhitelistedIPStats",
+      );
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return stats for whitelisted IPs successfully", async () => {
+      const mockStats = [{ ip: "1.1.1.1", total_requests: 10 }];
+      getWhitelistedIPStatsStub.resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Stats retrieved",
+        data: mockStats,
+      });
+
+      await createAccessToken.getWhitelistedIPStats(req, res, next);
+
+      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
+      expect(
+        res.json.calledOnceWith({
+          message: "Stats retrieved",
+          whitelisted_ip_stats: mockStats,
+        }),
+      ).to.be.true;
+      expect(next.called).to.be.false;
+    });
+
+    it("should handle cases with no whitelisted IPs found", async () => {
+      getWhitelistedIPStatsStub.resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "No whitelisted IPs found.",
+        data: [],
+      });
+
+      await createAccessToken.getWhitelistedIPStats(req, res, next);
+
+      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
+      expect(
+        res.json.calledOnceWith({
+          message: "No whitelisted IPs found.",
+          whitelisted_ip_stats: [],
+        }),
+      ).to.be.true;
+    });
+
+    it("should handle validation errors", async () => {
+      extractErrorsFromRequestStub.returns({
+        msg: "validation error",
+      }); // Simulate validation errors
+
+      await createAccessToken.getWhitelistedIPStats(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      const nextArg = next.firstCall.args[0];
+      expect(nextArg).to.be.an.instanceOf(Error);
+      expect(nextArg.status).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle internal server errors from the utility function", async () => {
+      getWhitelistedIPStatsStub.resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "DB error",
+        errors: { message: "DB error" },
+      });
+
+      await createAccessToken.getWhitelistedIPStats(req, res, next);
+
+      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
+        .true;
+      expect(res.json.calledOnce).to.be.true;
     });
   });
 });

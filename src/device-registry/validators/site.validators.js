@@ -230,6 +230,20 @@ const validateSiteQueryParams = oneOf([
     .withMessage(
       "the online_status value is not among the expected ones which include: online, offline"
     ),
+  query("isOnline")
+    .optional()
+    .notEmpty()
+    .withMessage("isOnline should not be empty if provided")
+    .bail()
+    .isBoolean()
+    .withMessage("isOnline must be a boolean value (true or false)"),
+  query("rawOnlineStatus")
+    .optional()
+    .notEmpty()
+    .withMessage("rawOnlineStatus should not be empty if provided")
+    .bail()
+    .isBoolean()
+    .withMessage("rawOnlineStatus must be a boolean value (true or false)"),
   query("category")
     .optional()
     .notEmpty()
@@ -513,6 +527,34 @@ const validateBulkUpdateSites = [
   ...validateUpdateSite,
 ];
 
+const validateGetSiteCountSummary = [
+  query("group_id")
+    .optional()
+    .isString()
+    .withMessage("group_id must be a string")
+    .trim(),
+  query("cohort_id")
+    .optional()
+    .isString()
+    .withMessage("cohort_id must be a string")
+    .custom((value) => {
+      if (value) {
+        const ids = value.split(",");
+        for (const id of ids) {
+          if (!mongoose.Types.ObjectId.isValid(id.trim())) {
+            throw new Error(`Invalid cohort ID format: ${id.trim()}`);
+          }
+        }
+      }
+      return true;
+    }),
+  query("network")
+    .optional()
+    .isString()
+    .withMessage("network must be a string")
+    .trim(),
+];
+
 module.exports = {
   validateTenant: createTenantValidation({ isOptional: true }),
   validateSiteIdentifier,
@@ -526,6 +568,7 @@ module.exports = {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
+  validateGetSiteCountSummary,
   validateBulkUpdateSites,
   validateSiteIdParam,
   validateCategoryField,

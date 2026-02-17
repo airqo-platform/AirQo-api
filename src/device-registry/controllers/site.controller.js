@@ -43,7 +43,91 @@ function handleResponse({
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
 
+const listSitesByStatus = async (req, res, next, statusFilters, logMessage) => {
+  try {
+    logText(logMessage);
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+
+    const request = req;
+    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+    request.query.tenant = isEmpty(req.query.tenant)
+      ? defaultTenant
+      : req.query.tenant;
+
+    // Apply status-specific filters and default detail level
+    Object.assign(request.query, statusFilters, { detailLevel: "summary" });
+
+    const result = await siteUtil.list(request, next);
+
+    if (isEmpty(result) || res.headersSent) {
+      return;
+    }
+
+    if (result.success === true) {
+      const status = result.status ? result.status : httpStatus.OK;
+      return res.status(status).json({
+        success: true,
+        message: result.message,
+        meta: result.meta || {},
+        sites: result.data,
+      });
+    } else {
+      const status = result.status ? result.status : httpStatus.BAD_REQUEST;
+      return res.status(status).json({
+        success: false,
+        message: result.message,
+        errors: result.errors
+          ? result.errors
+          : { message: "Internal Server Error" },
+        meta: result.meta || {},
+      });
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 const siteController = {
+  getSiteCountSummary: async (req, res, next) => {
+    try {
+      logText("getting site count summary...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await siteUtil.getSiteCountSummary(request, next);
+
+      handleResponse({ res, result, key: "summary" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getSiteDetailsById: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -65,6 +149,42 @@ const siteController = {
         )
       );
     }
+  },
+  listOperationalSites: async (req, res, next) => {
+    await listSitesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: true, rawOnlineStatus: true },
+      "listing operational sites..."
+    );
+  },
+  listTransmittingSites: async (req, res, next) => {
+    await listSitesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: false, rawOnlineStatus: true },
+      "listing transmitting sites..."
+    );
+  },
+  listDataAvailableSites: async (req, res, next) => {
+    await listSitesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: true, rawOnlineStatus: false },
+      "listing data available sites..."
+    );
+  },
+  listNotTransmittingSites: async (req, res, next) => {
+    await listSitesByStatus(
+      req,
+      res,
+      next,
+      { isOnline: false, rawOnlineStatus: false },
+      "listing not transmitting sites..."
+    );
   },
   bulkCreate: async (req, res, next) => {
     try {

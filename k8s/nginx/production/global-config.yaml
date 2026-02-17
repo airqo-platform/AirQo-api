@@ -187,4 +187,6 @@ data:
       proxy_set_header        X-Client-IP $client_ip;
       proxy_set_header        X-Host-Name $host_name;
       proxy_set_header        X-Client-Original-IP $proxy_add_x_forwarded_for;
+      proxy_set_header        Referer $http_referer;
+      proxy_set_header        Origin $http_origin;
     }"

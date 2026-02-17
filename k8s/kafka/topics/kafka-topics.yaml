@@ -321,3 +321,17 @@ spec:
   replicas: 2
   config:
     retention.ms: 18000000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: network-events-topic
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  partitions: 2
+  replicas: 2
+  config:
+    retention.ms: 18000000

@@ -26,12 +26,14 @@ const {
   validateGetUserOrganizations,
   validatePrepareDeviceShipping,
   validateBulkPrepareDeviceShipping,
+  validateCreateShippingBatch,
   validateGetShippingStatus,
   validateGenerateShippingLabels,
   validateGetShippingBatchDetails,
   validateGetDeviceCountSummary,
   validateTransferDevice,
   validateUserIdBody,
+  validateRemoveDevicesFromBatch,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
 
@@ -359,6 +361,15 @@ router.post(
   deviceController.prepareBulkDevicesForShipping
 );
 
+// shipping batch and prepare devices
+router.post(
+  "/shipping-batches",
+  validateTenant,
+  validateCreateShippingBatch,
+  validate,
+  deviceController.createShippingBatch
+);
+
 // Get shipping preparation status
 router.get(
   "/shipping-status",
@@ -393,6 +404,15 @@ router.get(
   validateGetShippingBatchDetails,
   validate,
   deviceController.getShippingBatchDetails
+);
+
+// Remove devices from a shipping batch
+router.delete(
+  "/shipping-batches/:id/devices",
+  validateTenant,
+  validateRemoveDevicesFromBatch,
+  validate,
+  deviceController.removeDevicesFromShippingBatch
 );
 
 // =============================================================================
