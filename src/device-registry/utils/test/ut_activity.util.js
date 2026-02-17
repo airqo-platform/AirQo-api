@@ -40,8 +40,8 @@ describe("createActivity", () => {
         getModelByTenantStub.calledWithExactly(
           "example_tenant",
           "activity",
-          sinon.match.any // You can further customize this match
-        )
+          sinon.match.any,
+        ),
       ).to.be.true;
     });
 
@@ -77,8 +77,8 @@ describe("createActivity", () => {
         getModelByTenantStub.calledWithExactly(
           "example_tenant",
           "activity",
-          sinon.match.any // You can further customize this match
-        )
+          sinon.match.any, // You can further customize this match
+        ),
       ).to.be.true;
     });
 
@@ -123,8 +123,8 @@ describe("createActivity", () => {
         getModelByTenantStub.calledWithExactly(
           "example_tenant",
           "activity",
-          sinon.match.any // You can further customize this match
-        )
+          sinon.match.any, // You can further customize this match
+        ),
       ).to.be.true;
     });
 
@@ -165,8 +165,8 @@ describe("createActivity", () => {
         getModelByTenantStub.calledWithExactly(
           "example_tenant",
           "activity",
-          sinon.match.any // You can further customize this match
-        )
+          sinon.match.any, // You can further customize this match
+        ),
       ).to.be.true;
     });
 
@@ -207,8 +207,8 @@ describe("createActivity", () => {
         getModelByTenantStub.calledWithExactly(
           "example_tenant",
           "activity",
-          sinon.match.any // You can further customize this match
-        )
+          sinon.match.any, // You can further customize this match
+        ),
       ).to.be.true;
     });
 
@@ -244,8 +244,8 @@ describe("createActivity", () => {
         getModelByTenantStub.calledWithExactly(
           "example_tenant",
           "activity",
-          sinon.match.any // You can further customize this match
-        )
+          sinon.match.any, // You can further customize this match
+        ),
       ).to.be.true;
     });
 
@@ -346,7 +346,7 @@ describe("createActivity", () => {
         listSiteStub.calledWithExactly({
           tenant: "example_tenant",
           filter: sinon.match.any,
-        })
+        }),
       ).to.be.true;
       expect(registerActivityStub.calledWithExactly(sinon.match.any)).to.be
         .true;
@@ -549,5 +549,383 @@ describe("createActivity", () => {
     });
 
     // Add more test cases as needed to cover different scenarios
+  });
+  describe("batchDeployWithCoordinates", () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should successfully deploy multiple static devices in batch", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: [
+          {
+            deviceName: "device1",
+            deployment_type: "static",
+            latitude: 0.3476,
+            longitude: 32.5825,
+            site_name: "Kampala Site",
+            height: 10,
+            mountType: "pole",
+            powerType: "solar",
+            isPrimaryInLocation: true,
+            network: "airqo",
+            date: "2024-01-15T10:00:00.000Z",
+          },
+          {
+            deviceName: "device2",
+            deployment_type: "static",
+            latitude: 0.35,
+            longitude: 32.59,
+            site_name: "Nakawa Site",
+            height: 12,
+            mountType: "rooftop",
+            powerType: "mains",
+            isPrimaryInLocation: false,
+            network: "airqo",
+            date: "2024-01-15T11:00:00.000Z",
+          },
+        ],
+      };
+
+      // Mock DeviceModel
+      const findStub = sandbox
+        .stub()
+        .resolves([
+          { _id: "device1_id", name: "device1", isActive: false },
+          { _id: "device2_id", name: "device2", isActive: false },
+        ]);
+      sandbox.stub(createActivity, "DeviceModel").returns({
+        find: findStub,
+        bulkWrite: sandbox.stub().resolves({ modifiedCount: 2 }),
+      });
+
+      // Mock SiteModel
+      const siteStub = sandbox.stub();
+      siteStub.onFirstCall().resolves(null); // Site 1 doesn't exist
+      siteStub.onSecondCall().resolves(null); // Site 2 doesn't exist
+      sandbox.stub(createActivity, "SiteModel").returns({
+        findOne: siteStub,
+      });
+
+      // Mock createSiteUtil
+      sandbox.stub(createActivity, "createSiteUtil").returns({
+        create: sandbox.stub().resolves({
+          success: true,
+          data: { _id: "site1_id", latitude: 0.3476, longitude: 32.5825 },
+        }),
+      });
+
+      // Mock ActivityModel
+      sandbox.stub(createActivity, "ActivityModel").returns({
+        create: sandbox.stub().resolves([
+          {
+            _id: "activity1_id",
+            device: "device1",
+            device_id: "device1_id",
+            activityType: "deployment",
+            deployment_type: "static",
+          },
+          {
+            _id: "activity2_id",
+            device: "device2",
+            device_id: "device2_id",
+            activityType: "deployment",
+            deployment_type: "static",
+          },
+        ]),
+      });
+
+      // Mock mongoose session
+      const sessionMock = {
+        withTransaction: sandbox.stub().callsFake(async (fn) => await fn()),
+        endSession: sandbox.stub().resolves(),
+      };
+      sandbox.stub(mongoose, "startSession").resolves(sessionMock);
+
+      const result = await createActivity.batchDeployWithCoordinates(request);
+
+      expect(result.success).to.be.true;
+      expect(result.successful_deployments).to.have.lengthOf(2);
+      expect(result.failed_deployments).to.have.lengthOf(0);
+      expect(result.deployment_summary.successful_static).to.equal(2);
+      expect(result.deployment_summary.successful_mobile).to.equal(0);
+    });
+
+    it("should successfully deploy multiple mobile devices in batch", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: [
+          {
+            deviceName: "mobile1",
+            deployment_type: "mobile",
+            grid_id: "grid1_id",
+            height: 8,
+            mountType: "vehicle",
+            powerType: "alternator",
+            isPrimaryInLocation: true,
+            network: "airqo",
+            date: "2024-01-15T10:00:00.000Z",
+            mobility_metadata: { route_id: "route1" },
+          },
+          {
+            deviceName: "mobile2",
+            deployment_type: "mobile",
+            grid_id: "grid2_id",
+            height: 9,
+            mountType: "vehicle",
+            powerType: "alternator",
+            isPrimaryInLocation: false,
+            network: "airqo",
+            date: "2024-01-15T11:00:00.000Z",
+            mobility_metadata: { route_id: "route2" },
+          },
+        ],
+      };
+
+      // Mock DeviceModel
+      const findStub = sandbox
+        .stub()
+        .resolves([
+          { _id: "mobile1_id", name: "mobile1", isActive: false },
+          { _id: "mobile2_id", name: "mobile2", isActive: false },
+        ]);
+      sandbox.stub(createActivity, "DeviceModel").returns({
+        find: findStub,
+        bulkWrite: sandbox.stub().resolves({ modifiedCount: 2 }),
+      });
+
+      // Mock GridModel
+      sandbox.stub(createActivity, "GridModel").returns({
+        find: sandbox.stub().resolves([
+          {
+            _id: ObjectId("grid1_id"),
+            centers: [{ latitude: 0.3476, longitude: 32.5825 }],
+          },
+          {
+            _id: ObjectId("grid2_id"),
+            centers: [{ latitude: 0.35, longitude: 32.59 }],
+          },
+        ]),
+      });
+
+      // Mock ActivityModel
+      sandbox.stub(createActivity, "ActivityModel").returns({
+        create: sandbox.stub().resolves([
+          {
+            _id: "activity1_id",
+            device: "mobile1",
+            device_id: "mobile1_id",
+            activityType: "deployment",
+            deployment_type: "mobile",
+          },
+          {
+            _id: "activity2_id",
+            device: "mobile2",
+            device_id: "mobile2_id",
+            activityType: "deployment",
+            deployment_type: "mobile",
+          },
+        ]),
+      });
+
+      const result = await createActivity.batchDeployWithCoordinates(request);
+
+      expect(result.success).to.be.true;
+      expect(result.successful_deployments).to.have.lengthOf(2);
+      expect(result.deployment_summary.successful_mobile).to.equal(2);
+      expect(result.deployment_summary.successful_static).to.equal(0);
+    });
+
+    it("should handle duplicate device names in batch", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: [
+          {
+            deviceName: "device1",
+            deployment_type: "static",
+            latitude: 0.3476,
+            longitude: 32.5825,
+            site_name: "Site 1",
+            height: 10,
+            mountType: "pole",
+            powerType: "solar",
+            isPrimaryInLocation: true,
+            network: "airqo",
+            date: "2024-01-15T10:00:00.000Z",
+          },
+          {
+            deviceName: "device1", // Duplicate
+            deployment_type: "static",
+            latitude: 0.35,
+            longitude: 32.59,
+            site_name: "Site 2",
+            height: 12,
+            mountType: "rooftop",
+            powerType: "mains",
+            isPrimaryInLocation: false,
+            network: "airqo",
+            date: "2024-01-15T11:00:00.000Z",
+          },
+        ],
+      };
+
+      const result = await createActivity.batchDeployWithCoordinates(request);
+
+      expect(result.failed_deployments).to.have.lengthOf(1);
+      expect(result.failed_deployments[0].deviceName).to.equal("device1");
+      expect(result.failed_deployments[0].error.message).to.include(
+        "Duplicate",
+      );
+    });
+
+    it("should handle grid not found for mobile deployment", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: [
+          {
+            deviceName: "mobile1",
+            deployment_type: "mobile",
+            grid_id: "nonexistent_grid",
+            height: 8,
+            mountType: "vehicle",
+            powerType: "alternator",
+            isPrimaryInLocation: true,
+            network: "airqo",
+            date: "2024-01-15T10:00:00.000Z",
+          },
+        ],
+      };
+
+      // Mock DeviceModel
+      sandbox.stub(createActivity, "DeviceModel").returns({
+        find: sandbox
+          .stub()
+          .resolves([{ _id: "mobile1_id", name: "mobile1", isActive: false }]),
+      });
+
+      // Mock GridModel - returns empty array
+      sandbox.stub(createActivity, "GridModel").returns({
+        find: sandbox.stub().resolves([]),
+      });
+
+      const result = await createActivity.batchDeployWithCoordinates(request);
+
+      expect(result.failed_deployments).to.have.lengthOf(1);
+      expect(result.failed_deployments[0].error.message).to.include(
+        "Grid not found",
+      );
+    });
+
+    it("should handle partial failures in batch", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: [
+          {
+            deviceName: "device1",
+            deployment_type: "static",
+            latitude: 0.3476,
+            longitude: 32.5825,
+            site_name: "Site 1",
+            height: 10,
+            mountType: "pole",
+            powerType: "solar",
+            isPrimaryInLocation: true,
+            network: "airqo",
+            date: "2024-01-15T10:00:00.000Z",
+          },
+          {
+            deviceName: "nonexistent_device",
+            deployment_type: "static",
+            latitude: 0.35,
+            longitude: 32.59,
+            site_name: "Site 2",
+            height: 12,
+            mountType: "rooftop",
+            powerType: "mains",
+            isPrimaryInLocation: false,
+            network: "airqo",
+            date: "2024-01-15T11:00:00.000Z",
+          },
+        ],
+      };
+
+      // Mock DeviceModel - only device1 exists
+      sandbox.stub(createActivity, "DeviceModel").returns({
+        find: sandbox
+          .stub()
+          .resolves([{ _id: "device1_id", name: "device1", isActive: false }]),
+      });
+
+      const result = await createActivity.batchDeployWithCoordinates(request);
+
+      expect(result.successful_deployments).to.have.lengthOf(1);
+      expect(result.failed_deployments).to.have.lengthOf(1);
+      expect(result.failed_deployments[0].deviceName).to.equal(
+        "nonexistent_device",
+      );
+      expect(result.deployment_summary.total_successful).to.equal(1);
+      expect(result.deployment_summary.total_failed).to.equal(1);
+    });
+
+    it("should save user details (firstName, lastName, email, userName) with activities", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: [
+          {
+            deviceName: "device1",
+            deployment_type: "static",
+            latitude: 0.3476,
+            longitude: 32.5825,
+            site_name: "Kampala Site",
+            height: 10,
+            mountType: "pole",
+            powerType: "solar",
+            isPrimaryInLocation: true,
+            network: "airqo",
+            date: "2024-01-15T10:00:00.000Z",
+            firstName: "John",
+            lastName: "Doe",
+            email: "john.doe@example.com",
+            userName: "jdoe",
+          },
+        ],
+      };
+
+      const createActivityStub = sandbox.stub().resolves([
+        {
+          _id: "activity1_id",
+          device: "device1",
+          device_id: "device1_id",
+          activityType: "deployment",
+          deployment_type: "static",
+          firstName: "John",
+          lastName: "Doe",
+          email: "john.doe@example.com",
+          userName: "jdoe",
+        },
+      ]);
+
+      sandbox.stub(createActivity, "ActivityModel").returns({
+        create: createActivityStub,
+      });
+
+      await createActivity.batchDeployWithCoordinates(request);
+
+      // Verify that create was called with user details
+      const callArgs = createActivityStub.getCall(0).args[0];
+      expect(callArgs[0]).to.include({
+        firstName: "John",
+        lastName: "Doe",
+        email: "john.doe@example.com",
+        userName: "jdoe",
+      });
+    });
   });
 });

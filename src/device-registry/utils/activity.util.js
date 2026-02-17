@@ -1232,6 +1232,7 @@ const createActivity = {
       const activitiesToInsert = [];
       const deviceBulkOps = [];
       const deviceIdMap = new Map(); // device name -> device_id
+      const siteDataCache = new Map(); // site_id -> {latitude, longitude}
 
       // PHASE 1: Validate and prepare data
       for (const deployment of body) {
@@ -1262,6 +1263,20 @@ const createActivity = {
           deployment_type || (grid_id ? "mobile" : "static");
 
         try {
+          // FIX 1: Check for duplicate deviceName
+          if (deviceNameToDeployment.has(deviceName)) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: {
+                message:
+                  "Duplicate deviceName in batch - each device can only be deployed once per batch",
+              },
+              user_id: user_id || null,
+            });
+            continue;
+          }
+
           // Validate the date for this specific deployment
           const inputDate = moment(date);
           if (!inputDate.isValid()) {
@@ -1434,7 +1449,7 @@ const createActivity = {
         }
       }
 
-      // Fetch/create all sites
+      // Fetch/create all sites and cache their coordinates
       const sitePromises = [];
       for (const [coordsKey, siteData] of uniqueSites) {
         sitePromises.push(
@@ -1452,6 +1467,11 @@ const createActivity = {
 
               if (existingSite) {
                 siteMap.set(coordsKey, existingSite._id);
+                // FIX 3: Cache site coordinates to avoid N+1 query
+                siteDataCache.set(existingSite._id.toString(), {
+                  latitude: existingSite.latitude,
+                  longitude: existingSite.longitude,
+                });
                 return { coordsKey, site_id: existingSite._id, existing: true };
               } else {
                 const siteRequest = {
@@ -1467,6 +1487,11 @@ const createActivity = {
                 if (responseFromCreateSite.success) {
                   const createdSite = responseFromCreateSite.data;
                   siteMap.set(coordsKey, createdSite._id);
+                  // FIX 3: Cache newly created site coordinates
+                  siteDataCache.set(createdSite._id.toString(), {
+                    latitude: createdSite.latitude || siteData.latitude,
+                    longitude: createdSite.longitude || siteData.longitude,
+                  });
                   return {
                     coordsKey,
                     site_id: createdSite._id,
@@ -1504,6 +1529,7 @@ const createActivity = {
               .lean()
           : [];
 
+      // FIX 2: Normalize grid map keys to strings for consistent lookup
       const gridMap = new Map();
       existingGrids.forEach((grid) => {
         gridMap.set(grid._id.toString(), grid);
@@ -1547,17 +1573,14 @@ const createActivity = {
               continue;
             }
 
-            // Get site details for coordinates
-            const siteData = await SiteModel(tenant)
-              .findById(site_id)
-              .select("latitude longitude")
-              .lean();
+            // FIX 3: Use cached site data instead of fetching from DB
+            const siteData = siteDataCache.get(site_id.toString());
 
             if (!siteData) {
               failed_deployments.push({
                 deviceName,
                 deployment_type: "static",
-                error: { message: "Site data not found" },
+                error: { message: "Site data not found in cache" },
                 user_id: user_id || null,
               });
               continue;
@@ -1578,10 +1601,10 @@ const createActivity = {
               bearing_in_radians,
             } = responseFromCreateApproximateCoordinates;
 
-            // **CRITICAL**: Activity with user details and device_id
+            // Activity with user details and device_id
             activitiesToInsert.push({
               device: deviceName,
-              device_id: device_id, // Include device_id
+              device_id: device_id,
               date: (date && new Date(date)) || new Date(),
               description: "device deployed",
               activityType: "deployment",
@@ -1590,7 +1613,7 @@ const createActivity = {
               host_id: host_id || null,
               user_id: user_id || null,
               network,
-              firstName, // User details
+              firstName,
               lastName,
               userName,
               email,
@@ -1625,9 +1648,12 @@ const createActivity = {
               },
             });
           } else {
+            mobile_count++;
+
             // Mobile deployment
             const grid_id_obj = ObjectId(deployment.grid_id);
-            const gridData = gridMap.get(deployment.grid_id);
+            // FIX 2: Convert to string for consistent map lookup
+            const gridData = gridMap.get(deployment.grid_id.toString());
 
             if (!gridData) {
               failed_deployments.push({
@@ -1661,10 +1687,10 @@ const createActivity = {
               }
             }
 
-            // **CRITICAL**: Activity with user details and device_id
+            // Activity with user details and device_id
             activitiesToInsert.push({
               device: deviceName,
-              device_id: device_id, // Include device_id
+              device_id: device_id,
               date: (date && new Date(date)) || new Date(),
               description: "mobile device deployed",
               activityType: "deployment",
@@ -1673,7 +1699,7 @@ const createActivity = {
               host_id: host_id || null,
               user_id: user_id || null,
               network,
-              firstName, // User details
+              firstName,
               lastName,
               userName,
               email,
@@ -1721,35 +1747,48 @@ const createActivity = {
         }
       }
 
-      // PHASE 5: Execute bulk operations
+      // PHASE 5: Execute bulk operations with proper error handling
       let createdActivities = [];
       let updatedDevices = [];
 
       if (activitiesToInsert.length > 0) {
         try {
-          // Bulk insert activities
-          createdActivities = await ActivityModel(tenant).insertMany(
-            activitiesToInsert,
-            { ordered: false },
-          );
+          // FIX 4 & 5: Use .create() instead of insertMany to trigger pre-save middleware
+          // and handle partial failures with MongoDB transactions
+          const session = await mongoose.startSession();
 
-          // Bulk update devices
-          const deviceUpdateResult = await DeviceModel(tenant).bulkWrite(
-            deviceBulkOps,
-            { ordered: false },
-          );
+          try {
+            await session.withTransaction(async () => {
+              // Bulk create activities (triggers pre-save middleware)
+              createdActivities = await ActivityModel(tenant).create(
+                activitiesToInsert,
+                { session },
+              );
 
-          // Fetch updated devices for response
-          const updatedDeviceNames = deviceBulkOps.map(
-            (op) => op.updateOne.filter.name,
-          );
-          updatedDevices = await DeviceModel(tenant)
-            .find({ name: { $in: updatedDeviceNames } })
-            .lean();
+              // Bulk update devices
+              await DeviceModel(tenant).bulkWrite(deviceBulkOps, {
+                ordered: false,
+                session,
+              });
+            });
+
+            await session.endSession();
+
+            // Fetch updated devices for response
+            const updatedDeviceNames = deviceBulkOps.map(
+              (op) => op.updateOne.filter.name,
+            );
+            updatedDevices = await DeviceModel(tenant)
+              .find({ name: { $in: updatedDeviceNames } })
+              .lean();
+          } catch (transactionError) {
+            await session.endSession();
+            throw transactionError;
+          }
         } catch (error) {
           logger.error(`Bulk operation error: ${error.message}`);
 
-          // If bulk operations fail, mark all as failed
+          // FIX 5: Mark all remaining deployments as failed
           for (const [deviceName, deployment] of deviceNameToDeployment) {
             if (!failed_deployments.find((f) => f.deviceName === deviceName)) {
               failed_deployments.push({
@@ -1767,11 +1806,6 @@ const createActivity = {
       const deviceUpdateMap = new Map();
       updatedDevices.forEach((device) => {
         deviceUpdateMap.set(device.name, device);
-      });
-
-      const activityMap = new Map();
-      createdActivities.forEach((activity) => {
-        activityMap.set(activity.device, activity);
       });
 
       // Trigger cache updates asynchronously (don't await)
