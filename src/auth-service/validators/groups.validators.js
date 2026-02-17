@@ -137,6 +137,8 @@ const updateName = [
       .notEmpty()
       .withMessage("the grp_title should not be empty")
       .bail()
+      .isLength({ max: 41 })
+      .withMessage("the grp_title must not exceed 41 characters")
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(

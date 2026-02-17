@@ -1076,8 +1076,12 @@ const groupUtil = {
   updateName: async (request, next) => {
     try {
       const { body, query, params } = request;
-      const { grp_id, tenant } = { ...query, ...params };
+      const { tenant: rawTenant } = query;
+      const { grp_id } = params;
       const { grp_title } = body;
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = (rawTenant || defaultTenant).toLowerCase();
 
       const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
 
@@ -1089,21 +1093,16 @@ const groupUtil = {
         );
       }
 
-      const update = {
-        grp_title: grp_title
-          .replace(/[^a-zA-Z0-9]/g, "_")
-          .slice(0, 41)
-          .trim()
-          .toLowerCase(),
-      };
+      const update = { grp_title };
 
       const filter = { _id: grp_id };
 
-      const responseFromModifyGroup = await GroupModel(
-        tenant.toLowerCase(),
-      ).modifyName({ update, filter }, next);
+      const responseFromModifyGroup = await GroupModel(tenant).modifyName(
+        { update, filter },
+        next,
+      );
 
-      if (responseFromModifyGroup && responseFromModifyGroup.success) {
+      if (responseFromModifyGroup.success) {
         responseFromModifyGroup.message = "Group title updated successfully";
       }
 

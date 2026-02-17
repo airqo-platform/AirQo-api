@@ -376,6 +376,9 @@ GroupSchema.statics = {
 
       if (modifiedUpdate.grp_title) {
         delete modifiedUpdate.grp_title;
+        logger.warn(
+          "Attempted to update grp_title via general modify endpoint. This is not allowed.",
+        );
       }
 
       const updatedGroup = await this.findOneAndUpdate(
@@ -402,7 +405,14 @@ GroupSchema.statics = {
   async modifyName({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
+      const modifiedUpdate = Object.assign({}, update);
+
+      // Normalize grp_title to match the format used in registration
+      if (modifiedUpdate.grp_title) {
+        modifiedUpdate.grp_title = convertToLowerCaseWithUnderscore(
+          modifiedUpdate.grp_title,
+        );
+      }
 
       // Only allow grp_title to be updated
       const updateToApply = { grp_title: modifiedUpdate.grp_title };
@@ -428,6 +438,7 @@ GroupSchema.statics = {
         return createNotFoundResponse("group", "update", "group not found");
       }
     } catch (err) {
+      logger.error(err, { source: "modifyName" });
       return createErrorResponse(err, "update", logger, "group");
     }
   },
