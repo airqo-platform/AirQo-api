@@ -199,12 +199,10 @@ const processDeviceBatch = async (devices, processor) => {
       break;
     }
 
-    const pm25Updates = [];
-    const siteUpdates = [];
+    const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
 
     // Pre-fetch site data for the entire chunk to avoid N+1 queries
-    const siteIdsInChunk = devices
-      .slice(i, i + CONCURRENCY_LIMIT)
+    const siteIdsInChunk = chunk
       .filter((d) => d.site_id && d.isPrimaryInLocation)
       .map((d) => d.site_id);
 
@@ -214,10 +212,13 @@ const processDeviceBatch = async (devices, processor) => {
         .find({ _id: { $in: siteIdsInChunk } })
         .select("rawOnlineStatus onlineStatusAccuracy")
         .lean();
-      sites.forEach((site) => siteDataMap.set(site._id.toString(), site));
+      sites.forEach((site) => {
+        siteDataMap.set(site._id.toString(), site);
+      });
     }
 
-    const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
+    const pm25Updates = [];
+    const siteUpdates = [];
 
     // Process chunk with yielding support
     const batchResult = await processor.processBatch(
@@ -291,8 +292,21 @@ const processDeviceBatch = async (devices, processor) => {
     }
 
     // Perform site updates for the chunk
-    if (siteUpdates.length > 0) {
-      await SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false });
+    try {
+      if (siteUpdates.length > 0) {
+        const BULK_TIMEOUT = 15000;
+        await Promise.race([
+          SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Site bulk write timeout")),
+              BULK_TIMEOUT,
+            ),
+          ),
+        ]);
+      }
+    } catch (error) {
+      logger.error(`Site bulk write error: ${error.message}`);
     }
 
     // Yield between chunks
