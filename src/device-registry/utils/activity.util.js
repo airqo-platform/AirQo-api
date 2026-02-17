@@ -30,18 +30,6 @@ const BACK_FILL_BATCH_SIZE = 1000;
 const UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE = 50;
 const FETCH_DEVICES_WITH_ACTIVITIES_LIMIT = 100;
 
-let _kafkaProducer = null;
-
-const getKafkaProducer = async () => {
-  if (!_kafkaProducer) {
-    _kafkaProducer = kafka.producer({
-      groupId: constants.UNIQUE_PRODUCER_GROUP,
-    });
-    await _kafkaProducer.connect();
-  }
-  return _kafkaProducer;
-};
-
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -1879,27 +1867,27 @@ const createActivity = {
           });
         }
       });
-
       // PHASE 7: Send Kafka notifications (fire and forget)
       if (successful_deployments.length > 0) {
         (async () => {
           try {
             const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
-            const producer = await getKafkaProducer();
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
+            await kafkaProducer.connect();
             const messages = successful_deployments.map((deployment) => ({
               value: JSON.stringify({
-                action: "create",
-                value: {
-                  createdActivity: deployment.createdActivity,
-                  updatedDevice: deployment.updatedDevice,
-                  user_id: deployment.user_id,
-                },
+                createdActivity: deployment.createdActivity,
+                updatedDevice: deployment.updatedDevice,
+                user_id: deployment.user_id,
               }),
             }));
-            await producer.send({
+            await kafkaProducer.send({
               topic: deployTopic,
               messages,
             });
+            await kafkaProducer.disconnect();
           } catch (error) {
             logger.error(
               `Kafka deployment notification failed: ${error.message}`,
@@ -2085,21 +2073,23 @@ const createActivity = {
       (async () => {
         try {
           const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-          const producer = await getKafkaProducer();
-          await producer.send({
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
             topic: recallTopic,
             messages: [
               {
                 value: JSON.stringify({
-                  action: "create",
-                  value: {
-                    createdActivity,
-                    updatedDevice,
-                  },
+                  createdActivity,
+                  updatedDevice,
+                  user_id: user_id || null,
                 }),
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`Kafka recall notification failed: ${error.message}`);
         }
@@ -2297,21 +2287,23 @@ const createActivity = {
       (async () => {
         try {
           const maintainTopic = constants.MAINTAIN_TOPIC || "maintain-topic";
-          const producer = await getKafkaProducer();
-          await producer.send({
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
             topic: maintainTopic,
             messages: [
               {
                 value: JSON.stringify({
-                  action: "create",
-                  value: {
-                    createdActivity,
-                    updatedDevice,
-                  },
+                  createdActivity,
+                  updatedDevice,
+                  user_id: user_id || null,
                 }),
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(
             `Kafka maintenance notification failed: ${error.message}`,
