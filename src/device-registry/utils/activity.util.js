@@ -1069,7 +1069,7 @@ const createActivity = {
         name: deviceName,
       });
 
-      if (!device) {
+      if (isEmpty(device)) {
         return {
           success: false,
           message: "Device not found",
@@ -1407,7 +1407,7 @@ const createActivity = {
       for (const [deviceName, deployment] of deviceNameToDeployment) {
         const device = existingDeviceMap.get(deviceName);
 
-        if (!device) {
+        if (isEmpty(device)) {
           failed_deployments.push({
             deviceName,
             deployment_type: deployment.actualDeploymentType,
@@ -1867,7 +1867,6 @@ const createActivity = {
           });
         }
       });
-
       // PHASE 7: Send Kafka notifications (fire and forget)
       if (successful_deployments.length > 0) {
         (async () => {
@@ -1877,24 +1876,22 @@ const createActivity = {
               groupId: constants.UNIQUE_PRODUCER_GROUP,
             });
             await kafkaProducer.connect();
-
             const messages = successful_deployments.map((deployment) => ({
-              action: "create",
               value: JSON.stringify({
                 createdActivity: deployment.createdActivity,
                 updatedDevice: deployment.updatedDevice,
                 user_id: deployment.user_id,
               }),
             }));
-
             await kafkaProducer.send({
               topic: deployTopic,
               messages,
             });
-
             await kafkaProducer.disconnect();
           } catch (error) {
-            logger.error(`Kafka notification failed: ${error.message}`);
+            logger.error(
+              `Kafka deployment notification failed: ${error.message}`,
+            );
           }
         })();
       }
@@ -1947,229 +1944,216 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
+      const { tenant, deviceName } = query;
+
       const {
         recallType,
+        date,
         user_id,
         firstName,
         lastName,
-        email,
         userName,
+        email,
+        network,
+        host_id,
       } = body;
-      const { tenant, deviceName } = query;
 
-      const deviceExists = await DeviceModel(tenant).exists({
-        name: deviceName,
-      });
+      const device = await DeviceModel(tenant)
+        .findOne({ name: deviceName })
+        .lean();
 
-      if (!deviceExists) {
+      if (isEmpty(device)) {
         return {
           success: false,
-          message: "Device not found",
+          message: `Invalid request, Device ${deviceName} not found`,
+          errors: { message: `Device ${deviceName} not found` },
           status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: `Invalid request, Device ${deviceName} not found`,
-          },
         };
       }
 
-      let requestForExistenceSearch = {};
-      requestForExistenceSearch["filter"] = {
-        name: deviceName,
-        isActive: false,
+      if (!device.isActive) {
+        return {
+          success: false,
+          message: "Device is not currently active",
+          errors: {
+            message: `Device ${deviceName} is not currently active`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const deviceUpdateData = {
+        $set: {
+          isActive: false,
+          status: "recalled",
+          recall_date: (date && new Date(date)) || new Date(),
+          site_id: null,
+          grid_id: null,
+        },
       };
-      requestForExistenceSearch["tenant"] = tenant;
-      const isDeviceRecalled = await createDeviceUtil.doesDeviceSearchExist(
-        requestForExistenceSearch,
-        next,
+
+      if (device.site_id) {
+        deviceUpdateData.$push = { previous_sites: device.site_id };
+      }
+
+      if (device.grid_id) {
+        deviceUpdateData.$push = deviceUpdateData.$push || {};
+        deviceUpdateData.$push.previous_grids = device.grid_id;
+      }
+
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { name: deviceName },
+        deviceUpdateData,
+        { new: true },
       );
 
-      if (isDeviceRecalled.success === true) {
+      if (!updatedDevice) {
         return {
           success: false,
-          message: `Device ${deviceName} already recalled`,
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Device ${deviceName} already recalled` },
+          message: "Recall operation failed",
+          errors: { message: `Failed to update device ${deviceName}` },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
-      } else if (isDeviceRecalled.success === false) {
-        let previousSiteId = null;
-        let previousGridId = null;
-        const filter = generateFilter.devices(request, next);
-        const responseFromListDevice = await DeviceModel(tenant).list(
-          {
-            filter,
-          },
-          next,
-        );
-
-        if (
-          responseFromListDevice.success === true &&
-          responseFromListDevice.data.length === 1
-        ) {
-          const deviceData = responseFromListDevice.data[0];
-          previousSiteId = deviceData.site
-            ? deviceData.site._id
-            : deviceData.site_id;
-          previousGridId = deviceData.assigned_grid
-            ? deviceData.assigned_grid[0]._id
-            : deviceData.grid_id;
-        } else if (responseFromListDevice.success === false) {
-          return responseFromListDevice;
-        } else {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: {
-              message: "unable to retrieve device information",
-            },
-          };
-        }
-
-        const siteActivityBody = {
-          device: deviceName,
-          user_id: user_id ? user_id : null,
-          date: new Date(),
-          description: "device recalled",
-          activityType: "recallment",
-          recallType,
-          firstName,
-          lastName,
-          email,
-          userName,
-          site_id: previousSiteId, // Keep for cache update
-        };
-
-        let deviceBody = {
-          body: {
-            height: 0,
-            mountType: "",
-            powerType: "",
-            isPrimaryInLocation: false,
-            nextMaintenance: "",
-            latitude: "",
-            longitude: "",
-            isActive: false,
-            status: "recalled",
-            deployment_type: "static",
-            mobility: false,
-            site_id: null,
-            grid_id: null,
-            host_id: null,
-            previous_sites: previousSiteId ? [previousSiteId] : [],
-            recall_date: new Date(),
-          },
-          query: {
-            name: deviceName,
-            tenant,
-          },
-        };
-
-        if (previousGridId) {
-          deviceBody.body.previous_grids = [previousGridId];
-        }
-
-        const responseFromRegisterActivity = await ActivityModel(
-          tenant,
-        ).register(siteActivityBody, next);
-
-        if (responseFromRegisterActivity.success === true) {
-          const createdActivity = responseFromRegisterActivity.data;
-
-          const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
-            deviceBody,
-            next,
-          );
-
-          if (responseFromUpdateDevice.success === true) {
-            const updatedDevice = responseFromUpdateDevice.data;
-
-            // **NEW: Update activity cache immediately**
-            // Use previousSiteId since device is being unassigned
-            await updateActivityCache(
-              tenant,
-              previousSiteId,
-              updatedDevice._id,
-              deviceName,
-              next,
-            );
-
-            const data = {
-              createdActivity: {
-                _id: createdActivity._id,
-                device: createdActivity.device,
-                date: createdActivity.date,
-                description: createdActivity.description,
-                activityType: createdActivity.activityType,
-                recallType,
-              },
-              updatedDevice: {
-                height: updatedDevice.height,
-                category: updatedDevice.category,
-                _id: updatedDevice._id,
-                long_name: updatedDevice.long_name,
-                network: updatedDevice.network,
-                device_number: updatedDevice.device_number,
-                name: updatedDevice.name,
-                mountType: updatedDevice.mountType,
-                powerType: updatedDevice.powerType,
-                isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
-                nextMaintenance: updatedDevice.nextMaintenance,
-                latitude: updatedDevice.latitude,
-                longitude: updatedDevice.longitude,
-                isActive: updatedDevice.isActive,
-                status: updatedDevice.status,
-                deployment_type: updatedDevice.deployment_type,
-                mobility: updatedDevice.mobility,
-                site_id: updatedDevice.site_id,
-                grid_id: updatedDevice.grid_id,
-                host_id: updatedDevice.host_id,
-                previous_sites: updatedDevice.previous_sites,
-                recall_date: updatedDevice.recall_date,
-              },
-              user_id: user_id ? user_id : null,
-            };
-
-            try {
-              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-              const kafkaProducer = kafka.producer({
-                groupId: constants.UNIQUE_PRODUCER_GROUP,
-              });
-              await kafkaProducer.connect();
-              await kafkaProducer.send({
-                topic: recallTopic,
-                messages: [
-                  {
-                    action: "create",
-                    value: JSON.stringify(data),
-                  },
-                ],
-              });
-
-              await kafkaProducer.disconnect();
-            } catch (error) {
-              logger.error(`internal server error -- ${error.message}`);
-            }
-
-            return {
-              success: true,
-              message: "successfully recalled the device",
-              data,
-            };
-          } else if (responseFromUpdateDevice.success === false) {
-            return responseFromUpdateDevice;
-          }
-        } else if (responseFromRegisterActivity.success === false) {
-          return responseFromRegisterActivity;
-        }
       }
+
+      const activityData = {
+        device: deviceName,
+        device_id: device._id,
+        date: (date && new Date(date)) || new Date(),
+        description: "device recalled",
+        activityType: "recallment",
+        recallType,
+        host_id: host_id || null,
+        user_id: user_id || null,
+        network: network || device.network,
+        firstName,
+        lastName,
+        userName,
+        email,
+        site_id: device.site_id || null,
+        grid_id: device.grid_id || null,
+      };
+
+      const createdActivity = await ActivityModel(tenant).create(activityData);
+
+      if (!createdActivity) {
+        logger.error(
+          `⚠️ Recall inconsistency: device ${deviceName} updated to recalled ` +
+            `but activity creation failed. Device _id: ${device._id}`,
+        );
+        return {
+          success: false,
+          message: "Recall partially completed — activity record not created",
+          errors: {
+            message:
+              "Device was recalled but activity log could not be created",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      Promise.allSettled([
+        updateActivityCache(
+          tenant,
+          device.site_id,
+          device._id,
+          deviceName,
+          next,
+        ),
+      ]).then((results) => {
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            logger.error(
+              `Cache update failed for ${deviceName}: ${result.reason?.message}`,
+            );
+          }
+        });
+      });
+
+      (async () => {
+        try {
+          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: recallTopic,
+            messages: [
+              {
+                value: JSON.stringify({
+                  createdActivity,
+                  updatedDevice,
+                  user_id: user_id || null,
+                }),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`Kafka recall notification failed: ${error.message}`);
+        }
+      })();
+
+      return {
+        success: true,
+        message: "successfully recalled the device",
+        data: {
+          createdActivity: {
+            activity_codes: createdActivity.activity_codes,
+            tags: createdActivity.tags,
+            _id: createdActivity._id,
+            device: createdActivity.device,
+            device_id: createdActivity.device_id,
+            date: createdActivity.date,
+            description: createdActivity.description,
+            activityType: createdActivity.activityType,
+            recallType: createdActivity.recallType,
+            site_id: createdActivity.site_id,
+            grid_id: createdActivity.grid_id,
+            host_id: createdActivity.host_id,
+            network: createdActivity.network,
+            firstName: createdActivity.firstName,
+            lastName: createdActivity.lastName,
+            userName: createdActivity.userName,
+            email: createdActivity.email,
+            createdAt: createdActivity.createdAt,
+          },
+          updatedDevice: {
+            _id: updatedDevice._id,
+            name: updatedDevice.name,
+            long_name: updatedDevice.long_name,
+            device_number: updatedDevice.device_number,
+            isActive: updatedDevice.isActive,
+            status: updatedDevice.status,
+            recall_date: updatedDevice.recall_date,
+            site_id: updatedDevice.site_id,
+            grid_id: updatedDevice.grid_id,
+            network: updatedDevice.network,
+            category: updatedDevice.category,
+            deployment_type: updatedDevice.deployment_type,
+            height: updatedDevice.height,
+            mountType: updatedDevice.mountType,
+            powerType: updatedDevice.powerType,
+            isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
+            latitude: updatedDevice.latitude,
+            longitude: updatedDevice.longitude,
+            mobility: updatedDevice.mobility,
+            host_id: updatedDevice.host_id,
+            previous_sites: updatedDevice.previous_sites,
+            previous_grids: updatedDevice.previous_grids,
+          },
+          user_id: user_id || null,
+        },
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Recall Error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
+          { message: error.message },
         ),
       );
     }
@@ -2177,183 +2161,207 @@ const createActivity = {
 
   maintain: async (request, next) => {
     try {
-      const { body, query } = request;
+      const { query, body } = request;
       const { tenant, deviceName } = query;
+
       const {
         date,
         tags,
         description,
-        site_id,
-        grid_id,
         maintenanceType,
-        network,
         user_id,
         firstName,
         lastName,
-        email,
         userName,
+        email,
+        network,
+        host_id,
+        site_id,
       } = body;
 
-      const deviceExists = await DeviceModel(tenant).exists({
-        name: deviceName,
-      });
+      const device = await DeviceModel(tenant)
+        .findOne({ name: deviceName })
+        .lean();
 
-      if (!deviceExists) {
-        logger.error(
-          `Maintain Device: Invalid request-- Device ${deviceName} not found`,
-        );
+      if (isEmpty(device)) {
         return {
           success: false,
-          message: "Device not found",
+          message: `Invalid request, Device ${deviceName} not found`,
+          errors: { message: `Device ${deviceName} not found` },
           status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: `Invalid request, Device ${deviceName} not found`,
-          },
         };
       }
 
-      // **CRITICAL**: Get full device details to capture device_id
-      const deviceDetails = await DeviceModel(tenant)
-        .findOne({
-          name: deviceName,
-        })
-        .lean();
-
-      if (!deviceDetails || deviceDetails.status !== "deployed") {
+      if (device.status !== "deployed") {
         return {
           success: false,
           message: "Maintenance can only be recorded for deployed devices",
-          status: httpStatus.BAD_REQUEST,
           errors: {
-            message: `Device ${deviceName} is not currently deployed.`,
+            message: `Cannot record maintenance for device ${deviceName} with status "${device.status}"`,
           },
+          status: httpStatus.BAD_REQUEST,
         };
       }
 
-      // **CRITICAL**: Include device_id in activity body
-      const siteActivityBody = {
+      const effectiveSiteId = site_id || device.site_id || null;
+
+      const deviceUpdateData = {
+        $set: {
+          nextMaintenance: getNextMaintenanceDate(date, 3),
+          maintenance_date: (date && new Date(date)) || new Date(),
+        },
+      };
+
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { name: deviceName },
+        deviceUpdateData,
+        { new: true },
+      );
+
+      if (!updatedDevice) {
+        return {
+          success: false,
+          message: "Maintenance operation failed",
+          errors: { message: `Failed to update device ${deviceName}` },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      const activityData = {
         device: deviceName,
-        device_id: deviceDetails._id, // Add device_id!
-        user_id: user_id ? user_id : null,
+        device_id: device._id,
         date: (date && new Date(date)) || new Date(),
-        description: description,
+        description,
         activityType: "maintenance",
-        site_id: site_id || null,
-        grid_id: grid_id || null,
-        network,
-        tags,
+        maintenanceType: maintenanceType || null,
+        tags: tags || [],
+        host_id: host_id || null,
+        user_id: user_id || null,
+        network: network || device.network,
         firstName,
         lastName,
-        email,
         userName,
-        maintenanceType,
+        email,
+        site_id: effectiveSiteId,
+        grid_id: device.grid_id || null,
         nextMaintenance: getNextMaintenanceDate(date, 3),
       };
 
-      let deviceBody = {};
-      deviceBody["body"] = {};
-      deviceBody["query"] = {};
-      deviceBody["body"]["nextMaintenance"] = getNextMaintenanceDate(date, 3);
-      deviceBody["body"]["maintenance_date"] =
-        (date && new Date(date)) || new Date();
-      deviceBody["query"]["name"] = deviceName;
-      deviceBody["query"]["tenant"] = tenant;
+      const createdActivity = await ActivityModel(tenant).create(activityData);
 
-      const responseFromRegisterActivity = await ActivityModel(tenant).register(
-        siteActivityBody,
-        next,
-      );
-
-      if (responseFromRegisterActivity.success === true) {
-        const createdActivity = responseFromRegisterActivity.data;
-
-        const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
-          deviceBody,
-          next,
+      if (!createdActivity) {
+        logger.error(
+          `⚠️ Maintenance inconsistency: device ${deviceName} nextMaintenance updated ` +
+            `but activity creation failed. Device _id: ${device._id}`,
         );
-
-        if (responseFromUpdateDevice.success === true) {
-          const updatedDevice = responseFromUpdateDevice.data;
-
-          // **NEW: Update activity cache immediately**
-          await updateActivityCache(
-            tenant,
-            siteActivityBody.site_id,
-            deviceDetails._id,
-            deviceName,
-            next,
-          );
-
-          const data = {
-            createdActivity: {
-              activity_codes: createdActivity.activity_codes,
-              tags: createdActivity.tags,
-              _id: createdActivity._id,
-              device: createdActivity.device,
-              device_id: createdActivity.device_id, // Now populated!
-              date: createdActivity.date,
-              description: createdActivity.description,
-              activityType: createdActivity.activityType,
-              site_id: createdActivity.site_id,
-              grid_id: createdActivity.grid_id,
-              deployment_type: createdActivity.deployment_type,
-              host_id: createdActivity.host_id,
-              network: createdActivity.network,
-              nextMaintenance: createdActivity.nextMaintenance,
-              createdAt: createdActivity.createdAt,
-            },
-            updatedDevice: {
-              _id: updatedDevice._id,
-              long_name: updatedDevice.long_name,
-              status: updatedDevice.status,
-              device_number: updatedDevice.device_number,
-              name: updatedDevice.name,
-              maintenance_date: updatedDevice.maintenance_date,
-              nextMaintenance: updatedDevice.nextMaintenance,
-            },
-            user_id: user_id ? user_id : null,
-          };
-
-          try {
-            const kafkaProducer = kafka.producer({
-              groupId: constants.UNIQUE_PRODUCER_GROUP,
-            });
-            await kafkaProducer.connect();
-            await kafkaProducer.send({
-              topic: "activities-topic",
-              messages: [
-                {
-                  action: "create",
-                  value: JSON.stringify(data),
-                },
-              ],
-            });
-
-            await kafkaProducer.disconnect();
-          } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
-          }
-
-          return {
-            success: true,
-            message: "successfully maintained the device",
-            data,
-          };
-        } else if (responseFromUpdateDevice.success === false) {
-          return responseFromUpdateDevice;
-        }
-      } else if (responseFromRegisterActivity.success === false) {
-        return responseFromRegisterActivity;
+        return {
+          success: false,
+          message:
+            "Maintenance partially completed — activity record not created",
+          errors: {
+            message:
+              "Device was updated but maintenance activity log could not be created",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
+
+      Promise.allSettled([
+        updateActivityCache(
+          tenant,
+          effectiveSiteId,
+          device._id,
+          deviceName,
+          next,
+        ),
+      ]).then((results) => {
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            logger.error(
+              `Cache update failed for ${deviceName}: ${result.reason?.message}`,
+            );
+          }
+        });
+      });
+
+      (async () => {
+        try {
+          const maintainTopic = constants.MAINTAIN_TOPIC || "maintain-topic";
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: maintainTopic,
+            messages: [
+              {
+                value: JSON.stringify({
+                  createdActivity,
+                  updatedDevice,
+                  user_id: user_id || null,
+                }),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(
+            `Kafka maintenance notification failed: ${error.message}`,
+          );
+        }
+      })();
+
+      return {
+        success: true,
+        message: "successfully maintained the device",
+        data: {
+          createdActivity: {
+            activity_codes: createdActivity.activity_codes,
+            tags: createdActivity.tags,
+            _id: createdActivity._id,
+            device: createdActivity.device,
+            device_id: createdActivity.device_id,
+            date: createdActivity.date,
+            description: createdActivity.description,
+            activityType: createdActivity.activityType,
+            maintenanceType: createdActivity.maintenanceType,
+            site_id: createdActivity.site_id,
+            grid_id: createdActivity.grid_id,
+            deployment_type: createdActivity.deployment_type,
+            host_id: createdActivity.host_id,
+            network: createdActivity.network,
+            nextMaintenance: createdActivity.nextMaintenance,
+            firstName: createdActivity.firstName,
+            lastName: createdActivity.lastName,
+            userName: createdActivity.userName,
+            email: createdActivity.email,
+            createdAt: createdActivity.createdAt,
+          },
+          updatedDevice: {
+            _id: updatedDevice._id,
+            name: updatedDevice.name,
+            long_name: updatedDevice.long_name,
+            device_number: updatedDevice.device_number,
+            isActive: updatedDevice.isActive,
+            status: updatedDevice.status,
+            nextMaintenance: updatedDevice.nextMaintenance,
+            maintenance_date: updatedDevice.maintenance_date,
+            site_id: updatedDevice.site_id,
+            network: updatedDevice.network,
+            category: updatedDevice.category,
+            deployment_type: updatedDevice.deployment_type,
+          },
+          user_id: user_id || null,
+        },
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Maintain Error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
+          { message: error.message },
         ),
       );
     }
