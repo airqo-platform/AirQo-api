@@ -1947,7 +1947,7 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
-      const { tenant, deviceName } = { ...query, ...body };
+      const { tenant, deviceName } = { ...body, ...query };
 
       const {
         recallType,
@@ -1961,7 +1961,7 @@ const createActivity = {
         host_id,
       } = body;
 
-      // STEP 1: Fetch device and validate in a single query
+      // STEP 1: Fetch device in a single lean query
       const device = await DeviceModel(tenant)
         .findOne({ name: deviceName })
         .lean();
@@ -1969,22 +1969,63 @@ const createActivity = {
       if (!device) {
         return {
           success: false,
-          message: "Device not found",
+          message: `Invalid request, Device ${deviceName} not found`,
           errors: { message: `Device ${deviceName} not found` },
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
         };
       }
 
       if (!device.isActive) {
         return {
           success: false,
-          message: "Device is not deployed",
-          errors: { message: `Device ${deviceName} is not currently deployed` },
+          message: "Device is not currently active",
+          errors: {
+            message: `Device ${deviceName} is not currently active`,
+          },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      // STEP 2: Prepare activity and device update in parallel
+      const deviceUpdateData = {
+        $set: {
+          isActive: false,
+          status: "recalled",
+          recall_date: (date && new Date(date)) || new Date(),
+          site_id: null,
+          grid_id: null,
+        },
+      };
+
+      // Conditionally include $push only when site_id or grid_id exist
+      // Empty $push: {} causes a MongoDB error
+      if (device.site_id) {
+        deviceUpdateData.$push = { previous_sites: device.site_id };
+      }
+
+      if (device.grid_id) {
+        deviceUpdateData.$push = deviceUpdateData.$push || {};
+        deviceUpdateData.$push.previous_grids = device.grid_id;
+      }
+
+      // Update device FIRST, then create activity
+      // Device-first ordering avoids orphaned activities if device update fails.
+      // Transactions are not available due to the multi-connection DB architecture.
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { name: deviceName },
+        deviceUpdateData,
+        { new: true },
+      );
+
+      if (!updatedDevice) {
+        return {
+          success: false,
+          message: "Recall operation failed",
+          errors: { message: `Failed to update device ${deviceName}` },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      // Create activity after device is confirmed updated
       const activityData = {
         device: deviceName,
         device_id: device._id,
@@ -2003,37 +2044,26 @@ const createActivity = {
         grid_id: device.grid_id || null,
       };
 
-      const deviceUpdateData = {
-        $set: {
-          isActive: false,
-          status: "recalled",
-          recall_date: (date && new Date(date)) || new Date(),
-          site_id: null,
-          grid_id: null,
-        },
-        $push: device.site_id ? { previous_sites: device.site_id } : {},
-      };
+      const createdActivity = await ActivityModel(tenant).create(activityData);
 
-      // STEP 3: Execute activity creation and device update in parallel
-      const [createdActivity, updatedDevice] = await Promise.all([
-        ActivityModel(tenant).create(activityData),
-        DeviceModel(tenant).findOneAndUpdate(
-          { name: deviceName },
-          deviceUpdateData,
-          { new: true },
-        ),
-      ]);
-
-      if (!createdActivity || !updatedDevice) {
+      if (!createdActivity) {
+        // Device is already updated — log the inconsistency for manual reconciliation
+        logger.error(
+          `⚠️ Recall inconsistency: device ${deviceName} updated to recalled ` +
+            `but activity creation failed. Device _id: ${device._id}`,
+        );
         return {
           success: false,
-          message: "Recall operation failed",
-          errors: { message: "Failed to create activity or update device" },
+          message: "Recall partially completed — activity record not created",
+          errors: {
+            message:
+              "Device was recalled but activity log could not be created",
+          },
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
-      // STEP 4: Fire-and-forget cache update and Kafka notification
+      // STEP 5: Fire-and-forget cache update
       Promise.allSettled([
         updateActivityCache(
           tenant,
@@ -2067,7 +2097,7 @@ const createActivity = {
                 action: "create",
                 value: JSON.stringify({
                   createdActivity,
-                  updatedDevice: updatedDevice._doc,
+                  updatedDevice,
                 }),
               },
             ],
@@ -2083,6 +2113,8 @@ const createActivity = {
         message: "successfully recalled the device",
         data: {
           createdActivity: {
+            activity_codes: createdActivity.activity_codes,
+            tags: createdActivity.tags,
             _id: createdActivity._id,
             device: createdActivity.device,
             device_id: createdActivity.device_id,
@@ -2092,6 +2124,7 @@ const createActivity = {
             recallType: createdActivity.recallType,
             site_id: createdActivity.site_id,
             grid_id: createdActivity.grid_id,
+            host_id: createdActivity.host_id,
             network: createdActivity.network,
             firstName: createdActivity.firstName,
             lastName: createdActivity.lastName,
@@ -2103,6 +2136,7 @@ const createActivity = {
             _id: updatedDevice._id,
             name: updatedDevice.name,
             long_name: updatedDevice.long_name,
+            device_number: updatedDevice.device_number,
             isActive: updatedDevice.isActive,
             status: updatedDevice.status,
             recall_date: updatedDevice.recall_date,
@@ -2111,7 +2145,18 @@ const createActivity = {
             network: updatedDevice.network,
             category: updatedDevice.category,
             deployment_type: updatedDevice.deployment_type,
+            height: updatedDevice.height,
+            mountType: updatedDevice.mountType,
+            powerType: updatedDevice.powerType,
+            isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
+            latitude: updatedDevice.latitude,
+            longitude: updatedDevice.longitude,
+            mobility: updatedDevice.mobility,
+            host_id: updatedDevice.host_id,
+            previous_sites: updatedDevice.previous_sites,
+            previous_grids: updatedDevice.previous_grids,
           },
+          user_id: user_id || null,
         },
         status: httpStatus.OK,
       };
@@ -2130,7 +2175,7 @@ const createActivity = {
   maintain: async (request, next) => {
     try {
       const { query, body } = request;
-      const { tenant, deviceName } = { ...query, ...body };
+      const { tenant, deviceName } = { ...body, ...query };
 
       const {
         date,
@@ -2155,15 +2200,52 @@ const createActivity = {
       if (!device) {
         return {
           success: false,
-          message: "Device not found",
+          message: `Invalid request, Device ${deviceName} not found`,
           errors: { message: `Device ${deviceName} not found` },
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (device.status !== "deployed") {
+        return {
+          success: false,
+          message: "Maintenance can only be recorded for deployed devices",
+          errors: {
+            message: `Cannot record maintenance for device ${deviceName} with status "${device.status}"`,
+          },
+          status: httpStatus.BAD_REQUEST,
         };
       }
 
       const effectiveSiteId = site_id || device.site_id || null;
 
-      // STEP 2: Prepare activity and device update concurrently
+      // STEP 2: Build device update
+      const deviceUpdateData = {
+        $set: {
+          nextMaintenance: getNextMaintenanceDate(date, 3),
+          maintenance_date: (date && new Date(date)) || new Date(),
+        },
+      };
+
+      // STEP 3: Update device FIRST, then create activity
+      // Device-first ordering avoids orphaned activities if device update fails.
+      // Transactions are not available due to the multi-connection DB architecture.
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { name: deviceName },
+        deviceUpdateData,
+        { new: true },
+      );
+
+      if (!updatedDevice) {
+        return {
+          success: false,
+          message: "Maintenance operation failed",
+          errors: { message: `Failed to update device ${deviceName}` },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      // STEP 4: Create activity after device is confirmed updated
       const activityData = {
         device: deviceName,
         device_id: device._id,
@@ -2183,33 +2265,27 @@ const createActivity = {
         nextMaintenance: getNextMaintenanceDate(date, 3),
       };
 
-      const deviceUpdateData = {
-        $set: {
-          nextMaintenance: getNextMaintenanceDate(date, 3),
-          maintenance_date: (date && new Date(date)) || new Date(),
-        },
-      };
+      const createdActivity = await ActivityModel(tenant).create(activityData);
 
-      // STEP 3: Execute activity creation and device update in parallel
-      const [createdActivity, updatedDevice] = await Promise.all([
-        ActivityModel(tenant).create(activityData),
-        DeviceModel(tenant).findOneAndUpdate(
-          { name: deviceName },
-          deviceUpdateData,
-          { new: true },
-        ),
-      ]);
-
-      if (!createdActivity || !updatedDevice) {
+      if (!createdActivity) {
+        // Device is already updated — log the inconsistency for manual reconciliation
+        logger.error(
+          `⚠️ Maintenance inconsistency: device ${deviceName} nextMaintenance updated ` +
+            `but activity creation failed. Device _id: ${device._id}`,
+        );
         return {
           success: false,
-          message: "Maintenance operation failed",
-          errors: { message: "Failed to create activity or update device" },
+          message:
+            "Maintenance partially completed — activity record not created",
+          errors: {
+            message:
+              "Device was updated but maintenance activity log could not be created",
+          },
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
-      // STEP 4: Fire-and-forget cache update
+      // STEP 5: Fire-and-forget cache update
       Promise.allSettled([
         updateActivityCache(
           tenant,
@@ -2243,7 +2319,7 @@ const createActivity = {
                 action: "create",
                 value: JSON.stringify({
                   createdActivity,
-                  updatedDevice: updatedDevice._doc,
+                  updatedDevice,
                 }),
               },
             ],
@@ -2261,6 +2337,8 @@ const createActivity = {
         message: "successfully maintained the device",
         data: {
           createdActivity: {
+            activity_codes: createdActivity.activity_codes,
+            tags: createdActivity.tags,
             _id: createdActivity._id,
             device: createdActivity.device,
             device_id: createdActivity.device_id,
@@ -2268,8 +2346,10 @@ const createActivity = {
             description: createdActivity.description,
             activityType: createdActivity.activityType,
             maintenanceType: createdActivity.maintenanceType,
-            tags: createdActivity.tags,
             site_id: createdActivity.site_id,
+            grid_id: createdActivity.grid_id,
+            deployment_type: createdActivity.deployment_type,
+            host_id: createdActivity.host_id,
             network: createdActivity.network,
             nextMaintenance: createdActivity.nextMaintenance,
             firstName: createdActivity.firstName,
@@ -2282,6 +2362,7 @@ const createActivity = {
             _id: updatedDevice._id,
             name: updatedDevice.name,
             long_name: updatedDevice.long_name,
+            device_number: updatedDevice.device_number,
             isActive: updatedDevice.isActive,
             status: updatedDevice.status,
             nextMaintenance: updatedDevice.nextMaintenance,
@@ -2291,6 +2372,7 @@ const createActivity = {
             category: updatedDevice.category,
             deployment_type: updatedDevice.deployment_type,
           },
+          user_id: user_id || null,
         },
         status: httpStatus.OK,
       };
