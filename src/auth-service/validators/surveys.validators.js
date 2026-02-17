@@ -98,7 +98,7 @@ const validateTriggerSchema = (trigger) => {
 
   if (!validTriggerTypes.includes(trigger.type)) {
     throw new Error(
-      `Trigger type must be one of: ${validTriggerTypes.join(", ")}`
+      `Trigger type must be one of: ${validTriggerTypes.join(", ")}`,
     );
   }
 
@@ -115,7 +115,7 @@ const validateTriggerSchema = (trigger) => {
       radius === undefined
     ) {
       throw new Error(
-        "Location-based triggers require latitude, longitude, and radius"
+        "Location-based triggers require latitude, longitude, and radius",
       );
     }
   }
@@ -124,7 +124,7 @@ const validateTriggerSchema = (trigger) => {
     const { threshold } = trigger.conditions;
     if (threshold === undefined || threshold < 0) {
       throw new Error(
-        "Air quality threshold triggers require a valid threshold value"
+        "Air quality threshold triggers require a valid threshold value",
       );
     }
   }
@@ -304,11 +304,14 @@ const createResponse = [
       .withMessage("userId is required")
       .bail()
       .trim()
-      .isMongoId()
-      .withMessage("userId must be a valid ObjectId")
-      .bail()
+      .custom((value) => {
+        if (value === "guest") return true;
+        if (mongoose.Types.ObjectId.isValid(value)) return true;
+        throw new Error("userId must be a valid ObjectId or 'guest'");
+      })
       .customSanitizer((value) => {
-        return ObjectId(value);
+        // Leave 'guest' as-is; convert valid ObjectId strings
+        return value === "guest" ? value : ObjectId(value);
       }),
 
     body("answers")
