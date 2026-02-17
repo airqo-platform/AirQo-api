@@ -86,18 +86,18 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
-  name: reports
+  name: docs
   namespace: staging
 spec:
   host: staging-platform.airqo.net
   upstreams:
-    - name: reports
-      service: airqo-stage-reports-svc
+    - name: docs
+      service: airqo-stage-docs-svc
       port: 3000
   subroutes:
-    - path: /reports
+    - path: /docs
       action:
-        pass: reports      
+        pass: docs      
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -176,8 +176,8 @@ spec:
       route: monitoring/grafana
     - path: /inventory
       route: staging/inventory  
-    - path: /reports
-      route: staging/reports  
+    - path: /docs
+      route: staging/docs  
     - path: /website
       route: staging/website      
     - path: ~ /api\/v[1-2]\/users
