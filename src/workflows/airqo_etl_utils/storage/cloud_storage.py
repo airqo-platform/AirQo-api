@@ -1,14 +1,68 @@
 import pandas as pd
 import logging
 import os
+import io
 from tempfile import NamedTemporaryFile
+from typing import Generator, Optional, Iterable
 
-from pkg_resources import safe_name
 
-from pkg_resources import safe_name
 from .base import FileStorage
 
 logger = logging.getLogger("airflow.task")
+
+
+class BytesIteratorIO(io.RawIOBase):
+    """Wrap an iterator of bytes into a binary file-like object.
+
+    Works with `io.BufferedReader` and `io.TextIOWrapper` to provide a
+    text-stream to consumers like `pandas.read_csv` without loading the whole
+    object into memory.
+    """
+
+    def __init__(self, iterator: Iterable[bytes]):
+        self._iter = iter(iterator)
+        self._buf = b""
+
+    def readable(self) -> bool:  # pragma: no cover - trivial
+        return True
+
+    def read(self, size: int = -1) -> bytes:
+        if size == -1:
+            parts = [self._buf]
+            self._buf = b""
+            for chunk in self._iter:
+                parts.append(chunk)
+            return b"".join(parts)
+
+        while len(self._buf) < size:
+            try:
+                nxt = next(self._iter)
+            except StopIteration:
+                break
+            if isinstance(nxt, memoryview):
+                nxt = nxt.tobytes()
+            self._buf += nxt
+
+        out = self._buf[:size]
+        self._buf = self._buf[size:]
+        return out
+
+    def readinto(self, b) -> int:
+        """Read bytes into a pre-allocated, writable buffer `b`.
+
+        This implements the raw IO `readinto` interface which some C
+        extensions (including pandas' C CSV parser) use for efficient
+        reads. Return number of bytes written, or 0 on EOF.
+        """
+        # Determine how many bytes to read
+        size = len(b)
+        data = self.read(size)
+        n = len(data)
+        if n == 0:
+            return 0
+        # memoryview supports assignment to the buffer
+        b[:n] = data
+        return n
 
 
 class GCSFileStorage(FileStorage):
@@ -131,6 +185,41 @@ class GCSFileStorage(FileStorage):
             logger.error(f"Failed to list files in GCS: {e}")
             raise
 
+    def stream_csv_files(
+        self, bucket: str, prefix: str = "", chunksize: Optional[int] = None
+    ) -> Generator[pd.DataFrame, None, None]:
+        """
+        Stream CSV files from a GCS bucket. Yields a pandas DataFrame per CSV file found.
+
+        - Only files with a .csv suffix are processed.
+        - Each file is read into a pandas.DataFrame in memory and yielded.
+        """
+        try:
+            bucket_obj = self.client.bucket(bucket)
+            blobs = bucket_obj.list_blobs(prefix=prefix)
+            for blob in blobs:
+                if not blob.name.lower().endswith(".csv"):
+                    continue
+                try:
+                    if chunksize:
+                        # Use blob.open to stream bytes and wrap to text for pandas.
+                        with blob.open("rb") as raw:
+                            txt = io.TextIOWrapper(raw, encoding="utf-8")
+                            for chunk in pd.read_csv(txt, chunksize=chunksize):
+                                yield chunk
+                    else:
+                        # Default behaviour: download full file and parse
+                        data = blob.download_as_bytes()
+                        bio = io.BytesIO(data)
+                        df = pd.read_csv(bio)
+                        yield df
+                except Exception as e:
+                    logger.error(f"Failed to stream CSV {blob.name} from GCS: {e}")
+                    continue
+        except Exception as e:
+            logger.error(f"Failed to list/stream CSVs from GCS: {e}")
+            raise
+
 
 class AWSFileStorage(FileStorage):
     """
@@ -205,6 +294,42 @@ class AWSFileStorage(FileStorage):
             raise
         finally:
             os.unlink(temp.name)
+
+    def stream_csv_files(
+        self, bucket: str, prefix: str = "", chunksize: Optional[int] = None
+    ) -> Generator[pd.DataFrame, None, None]:
+        """
+        Stream CSV files from an S3 bucket. Yields a pandas DataFrame per CSV file.
+
+        Uses `get_object` and reads the object body into memory before passing to pandas.
+        """
+        try:
+            paginator = self.s3.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                for obj in page.get("Contents", []) or []:
+                    key = obj.get("Key")
+                    if not key or not key.lower().endswith(".csv"):
+                        continue
+                    try:
+                        resp = self.s3.get_object(Bucket=bucket, Key=key)
+                        body = resp["Body"]
+                        if chunksize:
+                            # `body` is a StreamingBody; wrap as text and stream into pandas
+                            txt = io.TextIOWrapper(body, encoding="utf-8")
+                            for chunk in pd.read_csv(txt, chunksize=chunksize):
+                                yield chunk
+                        else:
+                            # Full download path
+                            data = body.read()
+                            bio = io.BytesIO(data)
+                            df = pd.read_csv(bio)
+                            yield df
+                    except Exception as e:
+                        logger.error(f"Failed to stream CSV {key} from S3: {e}")
+                        continue
+        except Exception as e:
+            logger.error(f"Failed to list/stream CSVs from S3: {e}")
+            raise
 
 
 class AzureBlobFileStorage(FileStorage):
@@ -293,6 +418,45 @@ class AzureBlobFileStorage(FileStorage):
             return f"azure://{bucket}/{destination_file}"
         except Exception as e:
             logger.error(f"Failed to upload dataframe to Azure: {e}")
+            raise
+
+    def stream_csv_files(
+        self, bucket: str, prefix: str = "", chunksize: Optional[int] = None
+    ) -> Generator[pd.DataFrame, None, None]:
+        """
+        Stream CSV files from an Azure Blob container. Yields a pandas DataFrame per CSV file.
+
+        - Only files with .csv extension are read.
+        - Uses `download_blob().readall()` to get bytes and then pandas to parse.
+        """
+        try:
+            container_client = self.client.get_container_client(bucket)
+            blobs = container_client.list_blobs(name_starts_with=prefix)
+            for b in blobs:
+                if not b.name.lower().endswith(".csv"):
+                    continue
+                try:
+                    blob_client = container_client.get_blob_client(b.name)
+                    stream = blob_client.download_blob()
+                    if chunksize:
+                        # stream.chunks() yields bytes; wrap into a file-like object
+                        iterator = stream.chunks()
+                        raw = BytesIteratorIO(iterator)
+                        buffered = io.BufferedReader(raw)
+                        txt = io.TextIOWrapper(buffered, encoding="utf-8")
+                        for chunk in pd.read_csv(txt, chunksize=chunksize):
+                            yield chunk
+                    else:
+                        # Full download path
+                        data = stream.readall()
+                        bio = io.BytesIO(data)
+                        df = pd.read_csv(bio)
+                        yield df
+                except Exception as e:
+                    logger.error(f"Failed to stream CSV {b.name} from Azure: {e}")
+                    continue
+        except Exception as e:
+            logger.error(f"Failed to list/stream CSVs from Azure: {e}")
             raise
 
 
@@ -455,6 +619,76 @@ class GoogleDriveFileStorage(FileStorage):
             raise
         finally:
             os.unlink(temp_path)
+
+    def stream_csv_files(
+        self, bucket: str, prefix: str = "", chunksize: Optional[int] = None
+    ) -> Generator[pd.DataFrame, None, None]:
+        """
+        Stream CSV files from a Google Drive folder. Yields a pandas DataFrame per CSV file.
+
+        Args:
+            bucket: Folder ID to search in.
+            prefix: optional filename prefix filter (applied to name contains).
+        """
+        try:
+            from googleapiclient.http import MediaIoBaseDownload
+
+            page_token = None
+            q = f"'{bucket}' in parents and trashed = false"
+            if prefix:
+                q = q + f" and name contains '{prefix}'"
+
+            while True:
+                res = (
+                    self.service.files()
+                    .list(
+                        q=q,
+                        spaces="drive",
+                        pageToken=page_token,
+                        fields="nextPageToken, files(id, name)",
+                    )
+                    .execute()
+                )
+                items = res.get("files", [])
+                for item in items:
+                    name = item.get("name", "")
+                    if not name.lower().endswith(".csv"):
+                        continue
+                    file_id = item.get("id")
+                    try:
+                        # Download to a temporary file on disk and stream from there
+                        with NamedTemporaryFile(delete=False) as temp:
+                            temp_path = temp.name
+                            request = self.service.files().get_media(fileId=file_id)
+                            downloader = MediaIoBaseDownload(temp, request)
+                            done = False
+                            while done is False:
+                                status, done = downloader.next_chunk()
+
+                        try:
+                            if chunksize:
+                                for chunk in pd.read_csv(
+                                    temp_path, chunksize=chunksize
+                                ):
+                                    yield chunk
+                            else:
+                                df = pd.read_csv(temp_path)
+                                yield df
+                        finally:
+                            try:
+                                os.unlink(temp_path)
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        logger.error(f"Failed to stream CSV {name} from Drive: {e}")
+                        continue
+
+                page_token = res.get("nextPageToken")
+                if not page_token:
+                    break
+        except Exception as e:
+            logger.error(f"Failed to list/stream CSVs from Drive: {e}")
+            raise
 
     def _get_file_id(self, filename: str, folder_id: str) -> str:
         """Helper to find file ID by name within a folder."""

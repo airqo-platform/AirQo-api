@@ -566,21 +566,19 @@ class BigQueryApi:
 
         # Retrieve the cursor data from Redis
         try:
-            cursor_value = CursorUtils.decode_cursor(cursor_token)
+            cursor_value = CursorUtils.parse_cursor(cursor_token)
         except ValueError as e:
             raise ValueError(f"Invalid pagination cursor: {str(e)}")
 
-        cursor_parts = cursor_value.split("|")
-
-        if len(cursor_parts) < 2:
+        if len(cursor_value) < 2:
             raise ValueError("Invalid cursor format")
 
-        timestamp_part = cursor_parts[0]
-        filter_value_part = cursor_parts[1]
+        timestamp_part = cursor_value.get("timestamp")
+        filter_value_part = cursor_value.get("filter_value")
 
-        if filter_type == "site_id" and len(cursor_parts) >= 3:
+        if filter_type == "site_id" and "device_id" in cursor_value:
             # Site ID case with device ID for multi-device sites
-            device_id_part = cursor_parts[2]
+            device_id_part = cursor_value.get("device_id")
             query += f"""
                 AND (
                     /* Records with later timestamps */
