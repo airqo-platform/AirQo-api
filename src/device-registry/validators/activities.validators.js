@@ -975,6 +975,29 @@ const activitiesValidations = {
     ...commonValidations.eachDate,
     commonValidations.objectId("*.user_id", body),
     commonValidations.objectId("*.host_id", body),
+    body("*.firstName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty if provided"),
+    body("*.lastName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty if provided"),
+    body("*.userName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("userName should not be empty if provided"),
+    body("*.email")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("email should not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("email must be a valid email address"),
   ],
 
   listActivities: [
