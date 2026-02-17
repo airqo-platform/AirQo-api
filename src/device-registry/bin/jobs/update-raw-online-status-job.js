@@ -2,7 +2,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const createDeviceUtil = require("@utils/device.util");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`,
 );
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
@@ -14,7 +14,7 @@ const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 
 // Constants
 const TIMEZONE = moment.tz.guess();
-const RAW_INACTIVE_THRESHOLD = 1 * 60 * 60 * 1000; // 1 hour in milliseconds
+const RAW_INACTIVE_THRESHOLD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 const BATCH_SIZE = 50; // Reduced for better yielding
 const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
@@ -24,7 +24,7 @@ const JOB_SCHEDULE = "35 * * * *"; // At minute 35 of every hour
 
 // Statuses for which the primary `isOnline` field should be updated by this job
 const STATUSES_FOR_PRIMARY_UPDATE = constants.VALID_DEVICE_STATUSES.filter(
-  (status) => status !== "deployed"
+  (status) => status !== "deployed",
 );
 
 // Non-blocking job processor class
@@ -63,7 +63,7 @@ class NonBlockingJobProcessor {
 
     if (this.startTime && Date.now() - this.startTime > MAX_EXECUTION_TIME) {
       logger.warn(
-        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`
+        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`,
       );
       return true;
     }
@@ -99,7 +99,7 @@ class NonBlockingJobProcessor {
       try {
         if (this.shouldStopExecution()) {
           logText(
-            `${this.jobName} batch processing stopped at item ${i}/${items.length}`
+            `${this.jobName} batch processing stopped at item ${i}/${items.length}`,
           );
           break;
         }
@@ -114,7 +114,7 @@ class NonBlockingJobProcessor {
           break;
         }
         logger.error(
-          `${this.jobName} error processing item ${i}: ${error.message}`
+          `${this.jobName} error processing item ${i}: ${error.message}`,
         );
         errors.push({ index: i, error: error.message });
       }
@@ -181,8 +181,8 @@ const processDeviceBatch = async (devices, processor) => {
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error("Device details query timeout")),
-            QUERY_TIMEOUT
-          )
+            QUERY_TIMEOUT,
+          ),
         ),
       ]);
 
@@ -218,7 +218,7 @@ const processDeviceBatch = async (devices, processor) => {
           }
         }
         return result ? result.deviceUpdate : null;
-      }
+      },
     );
 
     totalUpdates += batchResult.results.filter((result) => result !== null)
@@ -234,8 +234,8 @@ const processDeviceBatch = async (devices, processor) => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Bulk write timeout")),
-              BULK_TIMEOUT
-            )
+              BULK_TIMEOUT,
+            ),
           ),
         ]);
 
@@ -243,7 +243,7 @@ const processDeviceBatch = async (devices, processor) => {
         if (statusResult.matchedCount !== bulkOps.length) {
           logger.warn(
             `Status update: matched ${statusResult.matchedCount}/${bulkOps.length}, ` +
-              `modified ${statusResult.modifiedCount}`
+              `modified ${statusResult.modifiedCount}`,
           );
         }
       } catch (error) {
@@ -261,14 +261,14 @@ const processDeviceBatch = async (devices, processor) => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("PM2.5 bulk write timeout")),
-              BULK_TIMEOUT
-            )
+              BULK_TIMEOUT,
+            ),
           ),
         ]);
 
         logger.debug(
           `PM2.5 update: matched ${pm25Result.matchedCount}/${pm25Updates.length}, ` +
-            `modified ${pm25Result.modifiedCount}`
+            `modified ${pm25Result.modifiedCount}`,
         );
       } catch (error) {
         logger.error(`PM2.5 bulk write error: ${error.message}`);
@@ -307,8 +307,8 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     if (shouldMarkOfflineFromStaleData) {
       logger.debug(
         `Device ${device.name} has stale lastRawData (${Math.round(
-          existingDataAge / (60 * 60 * 1000)
-        )}h old)`
+          existingDataAge / (60 * 60 * 1000),
+        )}h old)`,
       );
     }
   }
@@ -405,26 +405,26 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
   try {
     const decryptResponse = await createDeviceUtil.decryptKey(
       detail.readKey,
-      mockNext
+      mockNext,
     );
     if (!decryptResponse.success) {
       return createFailureUpdate(
         device,
         "decryption_failed",
         shouldMarkOfflineFromStaleData,
-        hasExistingRawData
+        hasExistingRawData,
       );
     }
     apiKey = decryptResponse.data;
   } catch (error) {
     logger.error(
-      `Error decrypting key for device ${device.name}: ${error.message}`
+      `Error decrypting key for device ${device.name}: ${error.message}`,
     );
     return createFailureUpdate(
       device,
       "decryption_error",
       shouldMarkOfflineFromStaleData,
-      hasExistingRawData
+      hasExistingRawData,
     );
   }
 
@@ -444,7 +444,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     const thingspeakData = await Promise.race([
       createFeedUtil.fetchThingspeakData(request),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("ThingSpeak fetch timeout")), 30000)
+        setTimeout(() => reject(new Error("ThingSpeak fetch timeout")), 30000),
       ),
     ]);
 
@@ -460,7 +460,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
       // Use the centralized mapping utility to get the pm2_5 value
       const transformedMeasurement = createFeedUtil.transformMeasurement(
-        lastFeed
+        lastFeed,
       );
       const pm25Value = transformedMeasurement.pm2_5;
 
@@ -478,7 +478,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       if (shouldMarkOfflineFromStaleData) {
         isRawOnline = false;
         logger.debug(
-          `No ThingSpeak data for ${device.name}, marking offline based on stale lastRawData`
+          `No ThingSpeak data for ${device.name}, marking offline based on stale lastRawData`,
         );
       }
     }
@@ -567,7 +567,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
       if (!currentSite) {
         logger.warn(
-          `Site ${device.site_id} not found for device ${device.name}, skipping site update`
+          `Site ${device.site_id} not found for device ${device.name}, skipping site update`,
         );
       } else {
         const {
@@ -615,13 +615,13 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     };
   } catch (error) {
     logger.error(
-      `Error processing raw status for device ${device.name}: ${error.message}`
+      `Error processing raw status for device ${device.name}: ${error.message}`,
     );
     return createFailureUpdate(
       device,
       "fetch_error",
       shouldMarkOfflineFromStaleData,
-      hasExistingRawData
+      hasExistingRawData,
     );
   }
 };
@@ -631,7 +631,7 @@ const createFailureUpdate = (
   device,
   reason,
   shouldMarkOfflineFromStaleData = false,
-  hasExistingRawData = false
+  hasExistingRawData = false,
 ) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
   // Use stale data check to determine if should be offline
@@ -689,8 +689,8 @@ const updateRawOnlineStatus = async () => {
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error("Device count timed out")),
-            COUNT_TIMEOUT
-          )
+            COUNT_TIMEOUT,
+          ),
         ),
       ]);
     } catch (error) {
@@ -705,7 +705,7 @@ const updateRawOnlineStatus = async () => {
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation"
+        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation",
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
@@ -731,7 +731,7 @@ const updateRawOnlineStatus = async () => {
             totalProcessed += batch.length;
 
             logText(
-              `Batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}/${totalDevices}`
+              `Batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}/${totalDevices}`,
             );
 
             // Reset error count on successful batch
@@ -739,7 +739,7 @@ const updateRawOnlineStatus = async () => {
           } catch (batchError) {
             errorCount++;
             logger.error(
-              `Batch processing error (${errorCount}/${MAX_ERRORS}): ${batchError.message}`
+              `Batch processing error (${errorCount}/${MAX_ERRORS}): ${batchError.message}`,
             );
 
             // Stop if too many consecutive errors
@@ -768,18 +768,18 @@ const updateRawOnlineStatus = async () => {
         const updatedCount = await processDeviceBatch(batch, processor);
         totalProcessed += batch.length;
         logText(
-          `Final batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}`
+          `Final batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}`,
         );
       } catch (finalBatchError) {
         logger.error(
-          `Final batch processing error: ${finalBatchError.message}`
+          `Final batch processing error: ${finalBatchError.message}`,
         );
       }
     }
 
     const duration = (Date.now() - startTime) / 1000;
     logText(
-      `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
+      `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`,
     );
   } catch (error) {
     if (error.message.includes("stopped execution")) {
@@ -813,7 +813,7 @@ const startJob = () => {
       async () => {
         if (isJobRunning) {
           logger.warn(
-            `${JOB_NAME} is already running, skipping this execution.`
+            `${JOB_NAME} is already running, skipping this execution.`,
           );
           return;
         }
@@ -825,7 +825,7 @@ const startJob = () => {
           await currentJobPromise;
         } catch (err) {
           logger.error(
-            `🐛🐛 Error executing ${JOB_NAME}: ${err.stack || err.message}`
+            `🐛🐛 Error executing ${JOB_NAME}: ${err.stack || err.message}`,
           );
         } finally {
           isJobRunning = false;
@@ -835,7 +835,7 @@ const startJob = () => {
       {
         scheduled: true,
         timezone: TIMEZONE,
-      }
+      },
     );
 
     if (!global.cronJobs) {
@@ -852,14 +852,14 @@ const startJob = () => {
         try {
           if (currentJobPromise) {
             logText(
-              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`,
             );
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
         } catch (error) {
           logger.error(
-            `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${error.message}`
+            `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${error.message}`,
           );
         } finally {
           delete global.cronJobs[JOB_NAME];
