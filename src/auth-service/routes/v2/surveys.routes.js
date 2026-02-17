@@ -8,13 +8,12 @@ const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers); // Keep headers global
 
-// Get all available surveys
+// Get all available surveys — public, no auth required
 router.get(
   "/",
   surveyValidations.list,
-  enhancedJWTAuth,
-  pagination(), // Apply pagination here
-  createSurveyController.list
+  pagination(),
+  createSurveyController.list,
 );
 
 // Get specific survey by ID
@@ -23,7 +22,7 @@ router.get(
   surveyValidations.getSurveyById,
   enhancedJWTAuth,
   // No pagination for single item retrieval
-  createSurveyController.getById
+  createSurveyController.getById,
 );
 
 // Create new survey (admin only)
@@ -31,7 +30,7 @@ router.post(
   "/",
   surveyValidations.create,
   enhancedJWTAuth,
-  createSurveyController.create
+  createSurveyController.create,
 );
 
 //  Update survey
@@ -39,7 +38,7 @@ router.put(
   "/:survey_id",
   surveyValidations.update,
   enhancedJWTAuth,
-  createSurveyController.update
+  createSurveyController.update,
 );
 
 // Delete survey
@@ -47,15 +46,14 @@ router.delete(
   "/:survey_id",
   surveyValidations.deleteSurvey,
   enhancedJWTAuth,
-  createSurveyController.delete
+  createSurveyController.delete,
 );
 
-// Submit survey response
+// Submit survey response — public, accepts guest userId
 router.post(
   "/responses",
   surveyValidations.createResponse,
-  enhancedJWTAuth,
-  createSurveyController.createResponse
+  createSurveyController.createResponse,
 );
 
 // Get user's survey responses
@@ -64,7 +62,7 @@ router.get(
   surveyValidations.listResponses,
   enhancedJWTAuth,
   pagination(), // Apply pagination here
-  createSurveyController.listResponses
+  createSurveyController.listResponses,
 );
 
 // Get survey statistics
@@ -73,7 +71,7 @@ router.get(
   surveyValidations.getSurveyStats,
   enhancedJWTAuth,
   // No pagination for stats, usually aggregated
-  createSurveyController.getStats
+  createSurveyController.getStats,
 );
 
 module.exports = router;
