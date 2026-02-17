@@ -1069,7 +1069,7 @@ const createActivity = {
         name: deviceName,
       });
 
-      if (!device) {
+      if (isEmpty(device)) {
         return {
           success: false,
           message: "Device not found",
@@ -1407,7 +1407,7 @@ const createActivity = {
       for (const [deviceName, deployment] of deviceNameToDeployment) {
         const device = existingDeviceMap.get(deviceName);
 
-        if (!device) {
+        if (isEmpty(device)) {
           failed_deployments.push({
             deviceName,
             deployment_type: deployment.actualDeploymentType,
@@ -1962,7 +1962,7 @@ const createActivity = {
         .findOne({ name: deviceName })
         .lean();
 
-      if (!device) {
+      if (isEmpty(device)) {
         return {
           success: false,
           message: `Invalid request, Device ${deviceName} not found`,
@@ -2183,7 +2183,7 @@ const createActivity = {
         .findOne({ name: deviceName })
         .lean();
 
-      if (!device) {
+      if (isEmpty(device)) {
         return {
           success: false,
           message: `Invalid request, Device ${deviceName} not found`,
