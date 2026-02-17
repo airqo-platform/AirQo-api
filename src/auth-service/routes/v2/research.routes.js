@@ -1,18 +1,11 @@
+// research.routes.js
 const express = require("express");
 const router = express.Router();
 const researchController = require("@controllers/research.controller");
 const behavioralController = require("@controllers/behavioral.controller");
-const { enhancedJWTAuth } = require("@middleware/passport");
+const { enhancedJWTAuth, optionalJWTAuth } = require("@middleware/passport");
 const researchValidator = require("@validators/research.validators");
-
-const headers = (req, res, next) => {
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
+const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
 
@@ -21,32 +14,37 @@ router.post(
   "/consent",
   enhancedJWTAuth,
   researchValidator.validateCreateConsent,
-  researchController.createConsent
+  researchController.createConsent,
 );
+
+// GET consent — auth optional: populates req.user if token present, but does
+// not block unauthenticated requests; the util layer enforces its own access
+// control checks using req.user when available
 router.get(
   "/consent/:userId",
-  enhancedJWTAuth,
+  optionalJWTAuth,
   researchValidator.validateUserIdParam,
-  researchController.getConsent
+  researchController.getConsent,
 );
+
 router.put(
   "/consent/:userId",
   enhancedJWTAuth,
   researchValidator.validateUpdateConsent,
-  researchController.updateConsent
+  researchController.updateConsent,
 );
 router.delete(
   "/consent/:userId",
   enhancedJWTAuth,
   researchValidator.validateWithdrawal,
-  researchController.withdrawFromStudy
+  researchController.withdrawFromStudy,
 );
 
 // Researcher-specific endpoints
 router.get(
   "/behavioral-interventions/aggregate",
   enhancedJWTAuth,
-  behavioralController.getAggregatedBehavioralData
+  behavioralController.getAggregatedBehavioralData,
 );
 
 module.exports = router;
