@@ -1227,8 +1227,14 @@ const createActivity = {
       // Create a map to store site IDs based on unique latitude and longitude
       const siteMap = new Map();
 
-      // Create an array of promises for each deployment
-      const deploymentPromises = body.map(async (deployment) => {
+      // Maps for bulk operations
+      const deviceNameToDeployment = new Map();
+      const activitiesToInsert = [];
+      const deviceBulkOps = [];
+      const deviceIdMap = new Map(); // device name -> device_id
+
+      // PHASE 1: Validate and prepare data
+      for (const deployment of body) {
         const {
           date,
           height,
@@ -1245,6 +1251,10 @@ const createActivity = {
           deployment_type,
           grid_id,
           mobility_metadata,
+          firstName,
+          lastName,
+          userName,
+          email,
         } = deployment;
 
         // Determine deployment type
@@ -1260,7 +1270,7 @@ const createActivity = {
               deployment_type: actualDeploymentType,
               error: { message: "invalid date format" },
             });
-            return; // Skip to the next item
+            continue;
           }
 
           if (inputDate.isAfter(moment())) {
@@ -1269,8 +1279,9 @@ const createActivity = {
               deployment_type: actualDeploymentType,
               error: { message: "date cannot be in the future" },
             });
-            return; // Skip to the next item
+            continue;
           }
+
           if (inputDate.isBefore(moment().subtract(1, "month"))) {
             failed_deployments.push({
               deviceName,
@@ -1279,10 +1290,10 @@ const createActivity = {
                 message: "date cannot be more than one month in the past",
               },
             });
-            return; // Skip to the next item
+            continue;
           }
 
-          // Moved validation from validator to here for per-item processing
+          // Type-specific validation
           if (actualDeploymentType === "static") {
             const hasValidLatitude =
               latitude !== null &&
@@ -1296,6 +1307,7 @@ const createActivity = {
               typeof site_name === "string"
                 ? site_name.trim().length > 0
                 : Boolean(site_name);
+
             if (!hasValidLatitude || !hasValidLongitude || !hasSiteName) {
               failed_deployments.push({
                 deviceName,
@@ -1307,113 +1319,10 @@ const createActivity = {
                     "latitude, longitude, and site_name are required for static deployments",
                 },
               });
-              return; // Skip to the next item in the loop
+              continue;
             }
-          }
-
-          if (actualDeploymentType === "static") {
-            // Handle static deployment (existing logic)
             static_count++;
-
-            const coordsKey = `${latitude},${longitude}`;
-            let site_id;
-
-            // Check if site already exists
-            const existingSite = await SiteModel(tenant).findOne({
-              $or: [
-                { name: site_name },
-                { latitude: latitude, longitude: longitude },
-              ],
-            });
-
-            if (existingSite) {
-              site_id = existingSite._id;
-              existing_sites.push({
-                deviceName,
-                site_id,
-                message: `Using existing site with name "${existingSite.name}" and coordinates (${latitude}, ${longitude})`,
-              });
-            } else {
-              // Create new site
-              const siteRequestBody = {
-                name: site_name,
-                latitude: latitude,
-                longitude: longitude,
-              };
-
-              const siteRequest = {
-                body: siteRequestBody,
-                query: { tenant },
-              };
-
-              const responseFromCreateSite = await createSiteUtil.create(
-                siteRequest,
-                next,
-              );
-
-              if (responseFromCreateSite.success === false) {
-                failed_deployments.push({
-                  deviceName,
-                  error: responseFromCreateSite.errors,
-                  message: responseFromCreateSite.message,
-                  deployment_type: actualDeploymentType,
-                  user_id: user_id ? user_id : null,
-                });
-                return;
-              }
-
-              const createdSite = responseFromCreateSite.data;
-              site_id = createdSite._id;
-              siteMap.set(coordsKey, site_id);
-            }
-
-            // Proceed with static device deployment
-            const deviceRequestBody = {
-              date,
-              height,
-              mountType,
-              powerType,
-              isPrimaryInLocation,
-              site_id,
-              deployment_type: "static",
-              network,
-              user_id,
-              host_id,
-            };
-
-            const deviceRequest = {
-              body: deviceRequestBody,
-              query: { tenant, deviceName },
-            };
-
-            const responseFromDeploy = await createActivity.deploy(
-              deviceRequest,
-              next,
-            );
-
-            if (responseFromDeploy.success) {
-              const createdActivity = responseFromDeploy.data.createdActivity;
-              const updatedDevice = responseFromDeploy.data.updatedDevice;
-              successful_deployments.push({
-                deviceName,
-                deployment_type: "static",
-                createdActivity,
-                updatedDevice,
-                user_id: user_id ? user_id : null,
-              });
-            } else {
-              failed_deployments.push({
-                deviceName,
-                deployment_type: "static",
-                message: responseFromDeploy.message,
-                error: responseFromDeploy.errors,
-                user_id: user_id ? user_id : null,
-              });
-            }
           } else {
-            // Handle mobile deployment
-            mobile_count++;
-
             if (!grid_id) {
               failed_deployments.push({
                 deviceName,
@@ -1424,54 +1333,16 @@ const createActivity = {
                 },
                 user_id: user_id ? user_id : null,
               });
-              return;
+              continue;
             }
-
-            // Proceed with mobile device deployment
-            const deviceRequestBody = {
-              date,
-              height,
-              mountType,
-              powerType,
-              isPrimaryInLocation,
-              grid_id,
-              deployment_type: "mobile",
-              network,
-              user_id,
-              host_id,
-              mobility_metadata,
-            };
-
-            const deviceRequest = {
-              body: deviceRequestBody,
-              query: { tenant, deviceName },
-            };
-
-            const responseFromDeploy = await createActivity.deploy(
-              deviceRequest,
-              next,
-            );
-
-            if (responseFromDeploy.success) {
-              const createdActivity = responseFromDeploy.data.createdActivity;
-              const updatedDevice = responseFromDeploy.data.updatedDevice;
-              successful_deployments.push({
-                deviceName,
-                deployment_type: "mobile",
-                createdActivity,
-                updatedDevice,
-                user_id: user_id ? user_id : null,
-              });
-            } else {
-              failed_deployments.push({
-                deviceName,
-                deployment_type: "mobile",
-                message: responseFromDeploy.message,
-                error: responseFromDeploy.errors,
-                user_id: user_id ? user_id : null,
-              });
-            }
+            mobile_count++;
           }
+
+          // Store for processing
+          deviceNameToDeployment.set(deviceName, {
+            ...deployment,
+            actualDeploymentType,
+          });
         } catch (error) {
           failed_deployments.push({
             deviceName,
@@ -1480,10 +1351,542 @@ const createActivity = {
             user_id: user_id ? user_id : null,
           });
         }
+      }
+
+      // PHASE 2: Fetch all devices in bulk
+      const deviceNames = Array.from(deviceNameToDeployment.keys());
+
+      if (deviceNames.length === 0) {
+        return {
+          success: failed_deployments.length === 0,
+          message: "No valid deployments to process",
+          successful_deployments: [],
+          failed_deployments,
+          existing_sites: [],
+          deployment_summary: {
+            total_requested: body.length,
+            total_successful: 0,
+            total_failed: failed_deployments.length,
+            static_deployments: static_count,
+            mobile_deployments: mobile_count,
+            successful_static: 0,
+            successful_mobile: 0,
+            sites_created: 0,
+            sites_reused: 0,
+          },
+        };
+      }
+
+      const existingDevices = await DeviceModel(tenant)
+        .find({ name: { $in: deviceNames } })
+        .lean();
+
+      // Create device lookup map
+      const existingDeviceMap = new Map();
+      existingDevices.forEach((device) => {
+        existingDeviceMap.set(device.name, device);
+        deviceIdMap.set(device.name, device._id);
       });
 
-      // Wait for all deployments to complete
-      await Promise.all(deploymentPromises);
+      // Filter out non-existent and already deployed devices
+      for (const [deviceName, deployment] of deviceNameToDeployment) {
+        const device = existingDeviceMap.get(deviceName);
+
+        if (!device) {
+          failed_deployments.push({
+            deviceName,
+            deployment_type: deployment.actualDeploymentType,
+            error: { message: `Device ${deviceName} not found` },
+            user_id: deployment.user_id || null,
+          });
+          deviceNameToDeployment.delete(deviceName);
+          continue;
+        }
+
+        if (device.isActive) {
+          failed_deployments.push({
+            deviceName,
+            deployment_type: deployment.actualDeploymentType,
+            error: { message: `Device ${deviceName} already deployed` },
+            user_id: deployment.user_id || null,
+          });
+          deviceNameToDeployment.delete(deviceName);
+          continue;
+        }
+      }
+
+      // PHASE 3: Handle sites and grids in bulk
+      const uniqueSites = new Map();
+      const uniqueGrids = new Set();
+
+      for (const [deviceName, deployment] of deviceNameToDeployment) {
+        if (deployment.actualDeploymentType === "static") {
+          const coordsKey = `${deployment.latitude},${deployment.longitude}`;
+          if (!uniqueSites.has(coordsKey)) {
+            uniqueSites.set(coordsKey, {
+              name: deployment.site_name,
+              latitude: deployment.latitude,
+              longitude: deployment.longitude,
+            });
+          }
+        } else {
+          uniqueGrids.add(deployment.grid_id);
+        }
+      }
+
+      // Fetch/create all sites
+      const sitePromises = [];
+      for (const [coordsKey, siteData] of uniqueSites) {
+        sitePromises.push(
+          (async () => {
+            try {
+              const existingSite = await SiteModel(tenant).findOne({
+                $or: [
+                  { name: siteData.name },
+                  {
+                    latitude: siteData.latitude,
+                    longitude: siteData.longitude,
+                  },
+                ],
+              });
+
+              if (existingSite) {
+                siteMap.set(coordsKey, existingSite._id);
+                return { coordsKey, site_id: existingSite._id, existing: true };
+              } else {
+                const siteRequest = {
+                  body: siteData,
+                  query: { tenant },
+                };
+
+                const responseFromCreateSite = await createSiteUtil.create(
+                  siteRequest,
+                  next,
+                );
+
+                if (responseFromCreateSite.success) {
+                  const createdSite = responseFromCreateSite.data;
+                  siteMap.set(coordsKey, createdSite._id);
+                  return {
+                    coordsKey,
+                    site_id: createdSite._id,
+                    existing: false,
+                  };
+                } else {
+                  return { coordsKey, error: responseFromCreateSite };
+                }
+              }
+            } catch (error) {
+              return { coordsKey, error: { message: error.message } };
+            }
+          })(),
+        );
+      }
+
+      const siteResults = await Promise.all(sitePromises);
+
+      // Track existing vs created sites
+      siteResults.forEach((result) => {
+        if (result.existing) {
+          existing_sites.push({
+            site_id: result.site_id,
+            message: "Using existing site",
+          });
+        }
+      });
+
+      // Fetch all grids
+      const gridIds = Array.from(uniqueGrids).map((id) => ObjectId(id));
+      const existingGrids =
+        gridIds.length > 0
+          ? await GridModel(tenant)
+              .find({ _id: { $in: gridIds } })
+              .lean()
+          : [];
+
+      const gridMap = new Map();
+      existingGrids.forEach((grid) => {
+        gridMap.set(grid._id.toString(), grid);
+      });
+
+      // PHASE 4: Prepare bulk operations
+      for (const [deviceName, deployment] of deviceNameToDeployment) {
+        const {
+          date,
+          height,
+          mountType,
+          powerType,
+          isPrimaryInLocation,
+          latitude,
+          longitude,
+          network,
+          user_id,
+          host_id,
+          mobility_metadata,
+          actualDeploymentType,
+          firstName,
+          lastName,
+          userName,
+          email,
+        } = deployment;
+
+        const device_id = deviceIdMap.get(deviceName);
+
+        try {
+          if (actualDeploymentType === "static") {
+            const coordsKey = `${latitude},${longitude}`;
+            const site_id = siteMap.get(coordsKey);
+
+            if (!site_id) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: "static",
+                error: { message: "Failed to create or find site" },
+                user_id: user_id || null,
+              });
+              continue;
+            }
+
+            // Get site details for coordinates
+            const siteData = await SiteModel(tenant)
+              .findById(site_id)
+              .select("latitude longitude")
+              .lean();
+
+            if (!siteData) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: "static",
+                error: { message: "Site data not found" },
+                user_id: user_id || null,
+              });
+              continue;
+            }
+
+            const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
+              {
+                latitude: siteData.latitude,
+                longitude: siteData.longitude,
+              },
+              next,
+            );
+
+            const {
+              approximate_latitude,
+              approximate_longitude,
+              approximate_distance_in_km,
+              bearing_in_radians,
+            } = responseFromCreateApproximateCoordinates;
+
+            // **CRITICAL**: Activity with user details and device_id
+            activitiesToInsert.push({
+              device: deviceName,
+              device_id: device_id, // Include device_id
+              date: (date && new Date(date)) || new Date(),
+              description: "device deployed",
+              activityType: "deployment",
+              deployment_type: "static",
+              site_id,
+              host_id: host_id || null,
+              user_id: user_id || null,
+              network,
+              firstName, // User details
+              lastName,
+              userName,
+              email,
+              nextMaintenance: getNextMaintenanceDate(date, 3),
+            });
+
+            // Device bulk update
+            deviceBulkOps.push({
+              updateOne: {
+                filter: { name: deviceName },
+                update: {
+                  $set: {
+                    height,
+                    mountType,
+                    powerType,
+                    isPrimaryInLocation,
+                    deployment_type: "static",
+                    mobility: false,
+                    nextMaintenance: getNextMaintenanceDate(date, 3),
+                    latitude: approximate_latitude || siteData.latitude,
+                    longitude: approximate_longitude || siteData.longitude,
+                    approximate_distance_in_km: approximate_distance_in_km || 0,
+                    bearing_in_radians: bearing_in_radians || 0,
+                    site_id,
+                    host_id: host_id || null,
+                    grid_id: null,
+                    isActive: true,
+                    deployment_date: (date && new Date(date)) || new Date(),
+                    status: "deployed",
+                  },
+                },
+              },
+            });
+          } else {
+            // Mobile deployment
+            const grid_id_obj = ObjectId(deployment.grid_id);
+            const gridData = gridMap.get(deployment.grid_id);
+
+            if (!gridData) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: "mobile",
+                error: { message: "Grid not found" },
+                user_id: user_id || null,
+              });
+              continue;
+            }
+
+            let initialLatitude = null;
+            let initialLongitude = null;
+
+            if (gridData.centers && gridData.centers.length > 0) {
+              initialLatitude = gridData.centers[0].latitude;
+              initialLongitude = gridData.centers[0].longitude;
+            } else if (gridData.shape && gridData.shape.coordinates) {
+              const coordinates = gridData.shape.coordinates[0];
+              if (coordinates && coordinates.length > 0) {
+                const latSum = coordinates.reduce(
+                  (sum, coord) => sum + coord[1],
+                  0,
+                );
+                const lngSum = coordinates.reduce(
+                  (sum, coord) => sum + coord[0],
+                  0,
+                );
+                initialLatitude = latSum / coordinates.length;
+                initialLongitude = lngSum / coordinates.length;
+              }
+            }
+
+            // **CRITICAL**: Activity with user details and device_id
+            activitiesToInsert.push({
+              device: deviceName,
+              device_id: device_id, // Include device_id
+              date: (date && new Date(date)) || new Date(),
+              description: "mobile device deployed",
+              activityType: "deployment",
+              deployment_type: "mobile",
+              grid_id: grid_id_obj,
+              host_id: host_id || null,
+              user_id: user_id || null,
+              network,
+              firstName, // User details
+              lastName,
+              userName,
+              email,
+              mobility_metadata,
+              nextMaintenance: getNextMaintenanceDate(date, 3),
+            });
+
+            // Device bulk update
+            const deviceUpdate = {
+              height,
+              mountType,
+              powerType,
+              isPrimaryInLocation,
+              deployment_type: "mobile",
+              mobility: true,
+              nextMaintenance: getNextMaintenanceDate(date, 3),
+              grid_id: grid_id_obj,
+              site_id: null,
+              host_id: host_id || null,
+              isActive: true,
+              deployment_date: (date && new Date(date)) || new Date(),
+              status: "deployed",
+              mobility_metadata,
+            };
+
+            if (initialLatitude && initialLongitude) {
+              deviceUpdate.latitude = initialLatitude;
+              deviceUpdate.longitude = initialLongitude;
+            }
+
+            deviceBulkOps.push({
+              updateOne: {
+                filter: { name: deviceName },
+                update: { $set: deviceUpdate },
+              },
+            });
+          }
+        } catch (error) {
+          failed_deployments.push({
+            deviceName,
+            deployment_type: actualDeploymentType,
+            error: { message: error.message },
+            user_id: deployment.user_id || null,
+          });
+        }
+      }
+
+      // PHASE 5: Execute bulk operations
+      let createdActivities = [];
+      let updatedDevices = [];
+
+      if (activitiesToInsert.length > 0) {
+        try {
+          // Bulk insert activities
+          createdActivities = await ActivityModel(tenant).insertMany(
+            activitiesToInsert,
+            { ordered: false },
+          );
+
+          // Bulk update devices
+          const deviceUpdateResult = await DeviceModel(tenant).bulkWrite(
+            deviceBulkOps,
+            { ordered: false },
+          );
+
+          // Fetch updated devices for response
+          const updatedDeviceNames = deviceBulkOps.map(
+            (op) => op.updateOne.filter.name,
+          );
+          updatedDevices = await DeviceModel(tenant)
+            .find({ name: { $in: updatedDeviceNames } })
+            .lean();
+        } catch (error) {
+          logger.error(`Bulk operation error: ${error.message}`);
+
+          // If bulk operations fail, mark all as failed
+          for (const [deviceName, deployment] of deviceNameToDeployment) {
+            if (!failed_deployments.find((f) => f.deviceName === deviceName)) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: deployment.actualDeploymentType,
+                error: { message: `Bulk operation failed: ${error.message}` },
+                user_id: deployment.user_id || null,
+              });
+            }
+          }
+        }
+      }
+
+      // PHASE 6: Build success responses and trigger cache updates
+      const deviceUpdateMap = new Map();
+      updatedDevices.forEach((device) => {
+        deviceUpdateMap.set(device.name, device);
+      });
+
+      const activityMap = new Map();
+      createdActivities.forEach((activity) => {
+        activityMap.set(activity.device, activity);
+      });
+
+      // Trigger cache updates asynchronously (don't await)
+      const cacheUpdatePromises = [];
+
+      for (const activity of createdActivities) {
+        const deployment = deviceNameToDeployment.get(activity.device);
+        const updatedDevice = deviceUpdateMap.get(activity.device);
+
+        if (updatedDevice) {
+          successful_deployments.push({
+            deviceName: activity.device,
+            deployment_type: activity.deployment_type,
+            createdActivity: {
+              activity_codes: activity.activity_codes,
+              tags: activity.tags,
+              _id: activity._id,
+              device: activity.device,
+              device_id: activity.device_id,
+              date: activity.date,
+              description: activity.description,
+              activityType: activity.activityType,
+              site_id: activity.site_id,
+              grid_id: activity.grid_id,
+              deployment_type: activity.deployment_type,
+              host_id: activity.host_id,
+              network: activity.network,
+              nextMaintenance: activity.nextMaintenance,
+              createdAt: activity.createdAt,
+              firstName: activity.firstName,
+              lastName: activity.lastName,
+              userName: activity.userName,
+              email: activity.email,
+            },
+            updatedDevice: {
+              status: updatedDevice.status,
+              category: updatedDevice.category,
+              isActive: updatedDevice.isActive,
+              _id: updatedDevice._id,
+              long_name: updatedDevice.long_name,
+              network: updatedDevice.network,
+              device_number: updatedDevice.device_number,
+              name: updatedDevice.name,
+              deployment_date: updatedDevice.deployment_date,
+              deployment_type: updatedDevice.deployment_type,
+              mobility: updatedDevice.mobility,
+              latitude: updatedDevice.latitude,
+              longitude: updatedDevice.longitude,
+              mountType: updatedDevice.mountType,
+              powerType: updatedDevice.powerType,
+              site_id: updatedDevice.site_id,
+              grid_id: updatedDevice.grid_id,
+            },
+            user_id: deployment.user_id || null,
+          });
+
+          // Queue cache update (don't block on it)
+          cacheUpdatePromises.push(
+            updateActivityCache(
+              tenant,
+              activity.site_id,
+              activity.device_id,
+              activity.device,
+              next,
+            ).catch((error) => {
+              logger.error(
+                `Cache update failed for ${activity.device}: ${error.message}`,
+              );
+            }),
+          );
+        } else {
+          failed_deployments.push({
+            deviceName: activity.device,
+            deployment_type: activity.deployment_type,
+            error: { message: "Device update verification failed" },
+            user_id: deployment.user_id || null,
+          });
+        }
+      }
+
+      // Fire cache updates but don't wait for them
+      Promise.all(cacheUpdatePromises).catch((error) => {
+        logger.error(`Some cache updates failed: ${error.message}`);
+      });
+
+      // PHASE 7: Send Kafka notifications (fire and forget)
+      if (successful_deployments.length > 0) {
+        (async () => {
+          try {
+            const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
+            await kafkaProducer.connect();
+
+            const messages = successful_deployments.map((deployment) => ({
+              action: "create",
+              value: JSON.stringify({
+                createdActivity: deployment.createdActivity,
+                updatedDevice: deployment.updatedDevice,
+                user_id: deployment.user_id,
+              }),
+            }));
+
+            await kafkaProducer.send({
+              topic: deployTopic,
+              messages,
+            });
+
+            await kafkaProducer.disconnect();
+          } catch (error) {
+            logger.error(`Kafka notification failed: ${error.message}`);
+          }
+        })();
+      }
 
       // Create deployment summary
       const deployment_summary = {
@@ -1498,7 +1901,7 @@ const createActivity = {
         successful_mobile: successful_deployments.filter(
           (d) => d.deployment_type === "mobile",
         ).length,
-        sites_created: siteMap.size,
+        sites_created: siteMap.size - existing_sites.length,
         sites_reused: existing_sites.length,
       };
 
