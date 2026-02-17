@@ -200,7 +200,6 @@ const processDeviceBatch = async (devices, processor) => {
       break;
     }
 
-    const siteUpdates = [];
     const pm25Updates = [];
 
     const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
@@ -211,9 +210,6 @@ const processDeviceBatch = async (devices, processor) => {
       async (device, index) => {
         const result = await processIndividualDevice(device, deviceDetailsMap);
         if (result) {
-          if (result.siteUpdate) {
-            siteUpdates.push(result.siteUpdate);
-          }
           if (result.pm25Update) {
             pm25Updates.push(result.pm25Update);
           }
@@ -577,14 +573,19 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
         const siteUpdateFields = {
           rawOnlineStatus: isRawOnline,
-          lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
         };
+        if (lastFeedTime) {
+          siteUpdateFields.lastRawData = new Date(lastFeedTime);
+        }
 
         // Unconditional status update for the site
         siteUpdates.push({
           updateOne: {
             filter: { _id: device.site_id },
-            update: { $set: { ...siteUpdateFields, ...siteSetUpdate } },
+            update: {
+              $set: { ...siteUpdateFields, ...siteSetUpdate },
+              ...(siteIncUpdate && { $inc: siteIncUpdate }),
+            },
           },
         });
 
@@ -601,7 +602,6 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
               },
               update: {
                 $set: { "latest_pm2_5.raw": latestRawPm25 },
-                ...(siteIncUpdate && { $inc: siteIncUpdate }),
               },
             },
           });
