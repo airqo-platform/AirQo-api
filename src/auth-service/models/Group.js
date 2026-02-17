@@ -399,6 +399,38 @@ GroupSchema.statics = {
     }
   },
 
+  async modifyName({ filter = {}, update = {} } = {}, next) {
+    try {
+      const options = { new: true };
+      let modifiedUpdate = Object.assign({}, update);
+
+      // Only allow grp_title to be updated
+      const updateToApply = { grp_title: modifiedUpdate.grp_title };
+
+      if (!updateToApply.grp_title) {
+        return createErrorResponse(
+          { message: "grp_title is required for this operation" },
+          "update",
+          logger,
+          "group",
+        );
+      }
+
+      const updatedGroup = await this.findOneAndUpdate(
+        filter,
+        updateToApply,
+        options,
+      ).exec();
+
+      if (!isEmpty(updatedGroup)) {
+        return createSuccessResponse("update", updatedGroup._doc, "group");
+      } else {
+        return createNotFoundResponse("group", "update", "group not found");
+      }
+    } catch (err) {
+      return createErrorResponse(err, "update", logger, "group");
+    }
+  },
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {

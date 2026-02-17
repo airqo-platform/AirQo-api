@@ -1073,6 +1073,56 @@ const groupUtil = {
       );
     }
   },
+  updateName: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const { grp_id, tenant } = { ...query, ...params };
+      const { grp_title } = body;
+
+      const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
+
+      if (!groupExists) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Group ${grp_id} not found`,
+          }),
+        );
+      }
+
+      const update = {
+        grp_title: grp_title
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .slice(0, 41)
+          .trim()
+          .toLowerCase(),
+      };
+
+      const filter = { _id: grp_id };
+
+      const responseFromModifyGroup = await GroupModel(
+        tenant.toLowerCase(),
+      ).modifyName({ update, filter }, next);
+
+      if (responseFromModifyGroup && responseFromModifyGroup.success) {
+        responseFromModifyGroup.message = "Group title updated successfully";
+      }
+
+      return responseFromModifyGroup;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error on updateName: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          },
+        ),
+      );
+    }
+  },
   delete: async (request, next) => {
     try {
       return {

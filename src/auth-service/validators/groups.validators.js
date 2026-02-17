@@ -126,6 +126,25 @@ const update = [
   ],
 ];
 
+const updateName = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("grp_title")
+      .exists()
+      .withMessage("the grp_title is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the grp_title should not be empty")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the grp_title can only contain letters, numbers, spaces, hyphens and underscores",
+      ),
+  ],
+];
+
 const list = [
   validateTenant,
   oneOf([
@@ -1053,6 +1072,7 @@ module.exports = {
   pagination,
   deleteGroup,
   update,
+  updateName,
   list,
   create,
   removeUniqueConstraint,
