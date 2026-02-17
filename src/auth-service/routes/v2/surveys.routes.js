@@ -9,33 +9,67 @@ const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers); // Keep headers global
 
+// Rate limiter for public endpoints
+const surveyListLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP (higher than responses, it's read-only)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many requests. Please try again later.",
+  },
+});
+
 // Rate limiter for the public survey response submission endpoint
 const surveyResponseLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 requests per minute per IP
-  standardHeaders: true, // Return rate limit info in RateLimit-* headers
-  legacyHeaders: false, // Disable X-RateLimit-* legacy headers
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     message: "Too many survey responses submitted. Please try again later.",
   },
 });
 
-// Get all available surveys — public, no auth required
+// ---- GET routes: static/explicit paths MUST come before parameterized /:survey_id ----
+
+// Get all available surveys — public, rate limited
 router.get(
   "/",
+  surveyListLimiter,
   surveyValidations.list,
   pagination(),
   createSurveyController.list,
 );
 
-// Get specific survey by ID
+// Get user's survey responses — must be above /:survey_id to avoid shadowing
+router.get(
+  "/responses",
+  surveyValidations.listResponses,
+  enhancedJWTAuth,
+  pagination(),
+  createSurveyController.listResponses,
+);
+
+// Get survey statistics — must be above /:survey_id to avoid shadowing
+router.get(
+  "/stats/:survey_id",
+  surveyValidations.getSurveyStats,
+  enhancedJWTAuth,
+  createSurveyController.getStats,
+);
+
+// Get specific survey by ID — parameterized, declared last among GETs
 router.get(
   "/:survey_id",
   surveyValidations.getSurveyById,
   enhancedJWTAuth,
   createSurveyController.getById,
 );
+
+// ---- Non-GET routes (order is not affected by the shadowing issue) ----
 
 // Create new survey (admin only)
 router.post(
@@ -67,23 +101,6 @@ router.post(
   surveyResponseLimiter,
   surveyValidations.createResponse,
   createSurveyController.createResponse,
-);
-
-// Get user's survey responses
-router.get(
-  "/responses",
-  surveyValidations.listResponses,
-  enhancedJWTAuth,
-  pagination(),
-  createSurveyController.listResponses,
-);
-
-// Get survey statistics
-router.get(
-  "/stats/:survey_id",
-  surveyValidations.getSurveyStats,
-  enhancedJWTAuth,
-  createSurveyController.getStats,
 );
 
 module.exports = router;
