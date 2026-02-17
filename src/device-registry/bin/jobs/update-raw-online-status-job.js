@@ -161,7 +161,6 @@ const mockNext = (error) => {
 
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
-  let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
   const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
@@ -201,6 +200,22 @@ const processDeviceBatch = async (devices, processor) => {
     }
 
     const pm25Updates = [];
+    const siteUpdates = [];
+
+    // Pre-fetch site data for the entire chunk to avoid N+1 queries
+    const siteIdsInChunk = devices
+      .slice(i, i + CONCURRENCY_LIMIT)
+      .filter((d) => d.site_id && d.isPrimaryInLocation)
+      .map((d) => d.site_id);
+
+    let siteDataMap = new Map();
+    if (siteIdsInChunk.length > 0) {
+      const sites = await SiteModel("airqo")
+        .find({ _id: { $in: siteIdsInChunk } })
+        .select("rawOnlineStatus onlineStatusAccuracy")
+        .lean();
+      sites.forEach((site) => siteDataMap.set(site._id.toString(), site));
+    }
 
     const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
 
@@ -208,18 +223,21 @@ const processDeviceBatch = async (devices, processor) => {
     const batchResult = await processor.processBatch(
       chunk,
       async (device, index) => {
-        const result = await processIndividualDevice(device, deviceDetailsMap);
+        const result = await processIndividualDevice(
+          device,
+          deviceDetailsMap,
+          siteDataMap,
+        );
         if (result) {
-          if (result.pm25Update) {
-            pm25Updates.push(result.pm25Update);
+          if (result.deviceUpdate) {
+            if (result.pm25Update) pm25Updates.push(result.pm25Update);
+            if (result.siteUpdates) siteUpdates.push(...result.siteUpdates);
+            return result.deviceUpdate;
           }
         }
-        return result ? result.deviceUpdate : null;
+        return null;
       },
     );
-
-    totalUpdates += batchResult.results.filter((result) => result !== null)
-      .length;
 
     // Perform bulk write for STATUS updates (no conditional PM2.5 filter)
     const bulkOps = batchResult.results.filter(Boolean);
@@ -272,15 +290,22 @@ const processDeviceBatch = async (devices, processor) => {
       }
     }
 
+    // Perform site updates for the chunk
+    if (siteUpdates.length > 0) {
+      await SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false });
+    }
+
     // Yield between chunks
     await processor.yieldControl();
   }
-
-  return totalUpdates;
 };
 
 // Extracted individual device processing function - FIXED VERSION
-const processIndividualDevice = async (device, deviceDetailsMap) => {
+const processIndividualDevice = async (
+  device,
+  deviceDetailsMap,
+  siteDataMap,
+) => {
   // ============================================================================
   // PRE-CHECK: Evaluate existing lastRawData to detect stale data
   // This ensures we mark devices offline even if ThingSpeak fetch fails
@@ -392,6 +417,11 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     };
   }
 
+  // Skip devices that are in the exclusion list before decryption
+  if (constants.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB.includes(device.name)) {
+    return null;
+  }
+
   let apiKey;
   try {
     const decryptResponse = await createDeviceUtil.decryptKey(
@@ -417,11 +447,6 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
     );
-  }
-
-  // Skip devices that are in the exclusion list
-  if (constants.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB.includes(device.name)) {
-    return null;
   }
 
   // Fetch data from ThingSpeak with timeout
@@ -551,10 +576,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     const siteUpdates = [];
     if (device.site_id && device.isPrimaryInLocation) {
       // Fetch current site to get its rawOnlineStatus for accuracy check
-      const currentSite = await SiteModel("airqo")
-        .findById(device.site_id)
-        .select("rawOnlineStatus onlineStatusAccuracy")
-        .lean();
+      const currentSite = siteDataMap.get(device.site_id.toString());
 
       if (!currentSite) {
         logger.warn(
@@ -609,13 +631,10 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       }
     }
 
-    if (siteUpdates.length > 0) {
-      await SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false });
-    }
-
     return {
       deviceUpdate: statusUpdate,
       pm25Update: pm25Update,
+      siteUpdates: siteUpdates,
     };
   } catch (error) {
     logger.error(
@@ -731,11 +750,11 @@ const updateRawOnlineStatus = async () => {
 
         if (batch.length >= BATCH_SIZE) {
           try {
-            const updatedCount = await processDeviceBatch(batch, processor);
+            await processDeviceBatch(batch, processor);
             totalProcessed += batch.length;
 
             logText(
-              `Batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}/${totalDevices}`,
+              `Batch processed. Total: ${totalProcessed}/${totalDevices}`,
             );
 
             // Reset error count on successful batch
@@ -769,11 +788,9 @@ const updateRawOnlineStatus = async () => {
     // Process the final batch if it's not empty
     if (batch.length > 0 && !processor.shouldStopExecution()) {
       try {
-        const updatedCount = await processDeviceBatch(batch, processor);
+        await processDeviceBatch(batch, processor);
         totalProcessed += batch.length;
-        logText(
-          `Final batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}`,
-        );
+        logText(`Final batch processed. Total: ${totalProcessed}`);
       } catch (finalBatchError) {
         logger.error(
           `Final batch processing error: ${finalBatchError.message}`,
