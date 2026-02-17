@@ -1,12 +1,25 @@
 // surveys.routes.js
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const createSurveyController = require("@controllers/survey.controller");
 const surveyValidations = require("@validators/surveys.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers); // Keep headers global
+
+// Rate limiter for the public survey response submission endpoint
+const surveyResponseLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute per IP
+  standardHeaders: true, // Return rate limit info in RateLimit-* headers
+  legacyHeaders: false, // Disable X-RateLimit-* legacy headers
+  message: {
+    success: false,
+    message: "Too many survey responses submitted. Please try again later.",
+  },
+});
 
 // Get all available surveys — public, no auth required
 router.get(
@@ -21,7 +34,6 @@ router.get(
   "/:survey_id",
   surveyValidations.getSurveyById,
   enhancedJWTAuth,
-  // No pagination for single item retrieval
   createSurveyController.getById,
 );
 
@@ -33,7 +45,7 @@ router.post(
   createSurveyController.create,
 );
 
-//  Update survey
+// Update survey
 router.put(
   "/:survey_id",
   surveyValidations.update,
@@ -49,9 +61,10 @@ router.delete(
   createSurveyController.delete,
 );
 
-// Submit survey response — public, accepts guest userId
+// Submit survey response — public, rate limited to prevent abuse
 router.post(
   "/responses",
+  surveyResponseLimiter,
   surveyValidations.createResponse,
   createSurveyController.createResponse,
 );
@@ -61,7 +74,7 @@ router.get(
   "/responses",
   surveyValidations.listResponses,
   enhancedJWTAuth,
-  pagination(), // Apply pagination here
+  pagination(),
   createSurveyController.listResponses,
 );
 
@@ -70,7 +83,6 @@ router.get(
   "/stats/:survey_id",
   surveyValidations.getSurveyStats,
   enhancedJWTAuth,
-  // No pagination for stats, usually aggregated
   createSurveyController.getStats,
 );
 
