@@ -110,6 +110,15 @@ router.put(
   groupController.update,
 );
 
+// Route to specifically update the group title
+router.patch(
+  "/:grp_id/title",
+  groupValidations.updateName,
+  enhancedJWTAuth,
+  requireGroupAdmin(),
+  groupController.updateName,
+);
+
 // Group deletion - requires super admin
 router.delete(
   "/:grp_id",

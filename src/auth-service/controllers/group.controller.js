@@ -398,6 +398,9 @@ const groupController = {
   update: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.update),
 
+  updateName: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateName),
+
   delete: async (req, res, next) => {
     try {
       return executeGroupAction(req, res, next, groupUtil.delete);
