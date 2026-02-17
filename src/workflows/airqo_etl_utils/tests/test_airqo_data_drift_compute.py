@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch, Mock
 from airqo_etl_utils.airqo_data_drift_compute import AirQoDataDriftCompute
 from airqo_etl_utils.meta_data_utils import MetaDataUtils
 from airqo_etl_utils.constants import DataType, Frequency, DeviceCategory, MetaDataType
+from airqo_etl_utils.date import DateUtils
 
 
 @pytest.fixture
@@ -30,14 +31,14 @@ def measurements_baseline_schema():
 
 @pytest.fixture
 def mock_df_raw():
-    now = datetime(2025, 9, 1)
-    timestamps = [now + timedelta(minutes=i) for i in range(3000)]
-    pm2_values = np.random.normal(loc=30, scale=5, size=3000)
-    network = ["airqo"] * 3000
-    device_number = [42] * 3000
-    site_id = ["site_123"] * 3000
-    device_id = ["device_1"] * 3000
-    device_category = ["sensor"] * 3000
+    now = datetime.now() - timedelta(days=30)  # Start 30 days ago
+    timestamps = [now + timedelta(minutes=i) for i in range(1000)]
+    pm2_values = np.random.normal(loc=30, scale=5, size=1000)
+    network = ["airqo"] * 1000
+    device_number = [42] * 1000
+    site_id = ["site_123"] * 1000
+    device_id = ["device_1"] * 1000
+    device_category = ["sensor"] * 1000
     return pd.DataFrame(
         {
             "timestamp": timestamps,
@@ -98,8 +99,10 @@ def baseline_params():
         "device_category": "lowcost",
         "baseline_id": "mock-baseline-id",
         "pollutant": "pm2_5",
-        "window_start": now,
-        "window_end": now + timedelta(days=AirQoDataDriftCompute.BASELINE_WINDOW_DAYS),
+        "window_start": DateUtils.date_to_str(now - timedelta(days=30)),
+        "window_end": DateUtils.date_to_str(
+            now - timedelta(hours=AirQoDataDriftCompute.COOLDOWN_HOURS)
+        ),
         "sample_count": 3000,
         "sample_coverage_pct": 100.0,
         "valid_hours": 50,
@@ -135,8 +138,10 @@ class TestAirQoDataDriftCompute:
         device = {
             "device_id": baseline_params["device_id"],
             "site_id": baseline_params["site_id"],
-            "recent_maintenance_date": baseline_params["window_start"]
-            + timedelta(hours=60),
+            "recent_maintenance_date": DateUtils.date_to_str(
+                DateUtils.str_to_date(baseline_params["window_start"])
+                - timedelta(days=31)
+            ),
             "minimum": baseline_params["site_minimum"],
             "maximum": baseline_params["site_maximum"],
             "average": baseline_params["mean"],
@@ -146,7 +151,7 @@ class TestAirQoDataDriftCompute:
         result = AirQoDataDriftCompute.compute_baseline(
             data_type=DataType.AVERAGED,
             data=mock_df_raw,
-            device=device,
+            device_metadata=device,
             pollutants=pollutants,
             data_resolution=Frequency.HOURLY,
             baseline_type=Frequency.WEEKLY,
@@ -205,8 +210,10 @@ class TestAirQoDataDriftCompute:
         device = {
             "device_id": baseline_params["device_id"],
             "site_id": baseline_params["site_id"],
-            "recent_maintenance_date": baseline_params["window_start"]
-            + timedelta(hours=60),
+            "recent_maintenance_date": DateUtils.date_to_str(
+                DateUtils.str_to_date(baseline_params["window_start"])
+                - timedelta(days=31)
+            ),
             "minimum": baseline_params["site_minimum"],
             "maximum": baseline_params["site_maximum"],
             "average": baseline_params["mean"],
@@ -216,7 +223,7 @@ class TestAirQoDataDriftCompute:
         result = AirQoDataDriftCompute.compute_baseline(
             data_type=DataType.AVERAGED,
             data=mock_df_raw,
-            device=device,
+            device_metadata=device,
             pollutants=pollutants,
             data_resolution=Frequency.HOURLY,
             baseline_type=Frequency.WEEKLY,
@@ -282,8 +289,10 @@ class TestAirQoDataDriftCompute:
         device = {
             "device_id": baseline_params["device_id"],
             "site_id": baseline_params["site_id"],
-            "recent_maintenance_date": baseline_params["window_start"]
-            + timedelta(hours=60),
+            "recent_maintenance_date": DateUtils.date_to_str(
+                DateUtils.str_to_date(baseline_params["window_start"])
+                - timedelta(days=31)
+            ),
         }
         pollutants = [baseline_params["pollutant"]]
 
@@ -294,7 +303,7 @@ class TestAirQoDataDriftCompute:
             AirQoDataDriftCompute.compute_baseline(
                 data_type=DataType.AVERAGED,
                 data=small_data,
-                device=device,
+                device_metadata=device,
                 pollutants=pollutants,
                 data_resolution=Frequency.HOURLY,
                 baseline_type=Frequency.WEEKLY,
@@ -309,8 +318,10 @@ class TestAirQoDataDriftCompute:
         device = {
             "device_id": baseline_params["device_id"],
             "site_id": baseline_params["site_id"],
-            "recent_maintenance_date": baseline_params["window_start"]
-            + timedelta(hours=10),
+            "recent_maintenance_date": DateUtils.date_to_str(
+                DateUtils.str_to_date(baseline_params["window_start"])
+                + timedelta(days=10)
+            ),
         }
         pollutants = [baseline_params["pollutant"]]
 
@@ -321,7 +332,7 @@ class TestAirQoDataDriftCompute:
             AirQoDataDriftCompute.compute_baseline(
                 data_type=DataType.AVERAGED,
                 data=mock_df_raw,
-                device=device,
+                device_metadata=device,
                 pollutants=pollutants,
                 data_resolution=Frequency.HOURLY,
                 baseline_type=Frequency.WEEKLY,
@@ -339,13 +350,15 @@ class TestAirQoDataDriftCompute:
         device_pass = {
             "device_id": baseline_params["device_id"],
             "site_id": baseline_params["site_id"],
-            "recent_maintenance_date": baseline_params["window_start"]
-            + timedelta(hours=49),
+            "recent_maintenance_date": DateUtils.date_to_str(
+                DateUtils.str_to_date(baseline_params["window_start"])
+                - timedelta(days=30)
+            ),
         }
         result = AirQoDataDriftCompute.compute_baseline(
             data_type=DataType.AVERAGED,
             data=mock_df_raw,
-            device=device_pass,
+            device_metadata=device_pass,
             pollutants=pollutants,
             data_resolution=Frequency.HOURLY,
             baseline_type=Frequency.WEEKLY,
@@ -358,8 +371,10 @@ class TestAirQoDataDriftCompute:
         device_fail = {
             "device_id": baseline_params["device_id"],
             "site_id": baseline_params["site_id"],
-            "recent_maintenance_date": baseline_params["window_start"]
-            + timedelta(hours=47),
+            "recent_maintenance_date": DateUtils.date_to_str(
+                DateUtils.str_to_date(baseline_params["window_start"])
+                + timedelta(days=10)
+            ),
         }
         with pytest.raises(
             ValueError,
@@ -368,7 +383,7 @@ class TestAirQoDataDriftCompute:
             AirQoDataDriftCompute.compute_baseline(
                 data_type=DataType.AVERAGED,
                 data=mock_df_raw,
-                device=device_fail,
+                device_metadata=device_fail,
                 pollutants=pollutants,
                 data_resolution=Frequency.HOURLY,
                 baseline_type=Frequency.WEEKLY,
@@ -381,14 +396,14 @@ class TestAirQoDataDriftCompute:
         device = {
             "device_id": "test_device",
             "site_id": "test_site",
-            "recent_maintenance_date": datetime(2025, 1, 1),
+            "recent_maintenance_date": DateUtils.date_to_str(datetime(2025, 1, 1)),
         }
         pollutants = ["pm2_5"]
 
         result = AirQoDataDriftCompute.compute_baseline(
             data_type=DataType.AVERAGED,
             data=pd.DataFrame(),  # Empty data
-            device=device,
+            device_metadata=device,
             pollutants=pollutants,
             data_resolution=Frequency.WEEKLY,
             baseline_type=Frequency.WEEKLY,
