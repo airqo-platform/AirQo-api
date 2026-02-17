@@ -30,6 +30,18 @@ const BACK_FILL_BATCH_SIZE = 1000;
 const UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE = 50;
 const FETCH_DEVICES_WITH_ACTIVITIES_LIMIT = 100;
 
+let _kafkaProducer = null;
+
+const getKafkaProducer = async () => {
+  if (!_kafkaProducer) {
+    _kafkaProducer = kafka.producer({
+      groupId: constants.UNIQUE_PRODUCER_GROUP,
+    });
+    await _kafkaProducer.connect();
+  }
+  return _kafkaProducer;
+};
+
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -1873,28 +1885,25 @@ const createActivity = {
         (async () => {
           try {
             const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
-            const kafkaProducer = kafka.producer({
-              groupId: constants.UNIQUE_PRODUCER_GROUP,
-            });
-            await kafkaProducer.connect();
-
+            const producer = await getKafkaProducer();
             const messages = successful_deployments.map((deployment) => ({
-              action: "create",
               value: JSON.stringify({
-                createdActivity: deployment.createdActivity,
-                updatedDevice: deployment.updatedDevice,
-                user_id: deployment.user_id,
+                action: "create",
+                value: {
+                  createdActivity: deployment.createdActivity,
+                  updatedDevice: deployment.updatedDevice,
+                  user_id: deployment.user_id,
+                },
               }),
             }));
-
-            await kafkaProducer.send({
+            await producer.send({
               topic: deployTopic,
               messages,
             });
-
-            await kafkaProducer.disconnect();
           } catch (error) {
-            logger.error(`Kafka notification failed: ${error.message}`);
+            logger.error(
+              `Kafka deployment notification failed: ${error.message}`,
+            );
           }
         })();
       }
@@ -1947,7 +1956,7 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
-      const { tenant, deviceName } = { ...body, ...query };
+      const { tenant, deviceName } = query;
 
       const {
         recallType,
@@ -1961,7 +1970,6 @@ const createActivity = {
         host_id,
       } = body;
 
-      // STEP 1: Fetch device in a single lean query
       const device = await DeviceModel(tenant)
         .findOne({ name: deviceName })
         .lean();
@@ -1996,8 +2004,6 @@ const createActivity = {
         },
       };
 
-      // Conditionally include $push only when site_id or grid_id exist
-      // Empty $push: {} causes a MongoDB error
       if (device.site_id) {
         deviceUpdateData.$push = { previous_sites: device.site_id };
       }
@@ -2007,9 +2013,6 @@ const createActivity = {
         deviceUpdateData.$push.previous_grids = device.grid_id;
       }
 
-      // Update device FIRST, then create activity
-      // Device-first ordering avoids orphaned activities if device update fails.
-      // Transactions are not available due to the multi-connection DB architecture.
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
         { name: deviceName },
         deviceUpdateData,
@@ -2025,7 +2028,6 @@ const createActivity = {
         };
       }
 
-      // Create activity after device is confirmed updated
       const activityData = {
         device: deviceName,
         device_id: device._id,
@@ -2047,7 +2049,6 @@ const createActivity = {
       const createdActivity = await ActivityModel(tenant).create(activityData);
 
       if (!createdActivity) {
-        // Device is already updated — log the inconsistency for manual reconciliation
         logger.error(
           `⚠️ Recall inconsistency: device ${deviceName} updated to recalled ` +
             `but activity creation failed. Device _id: ${device._id}`,
@@ -2063,7 +2064,6 @@ const createActivity = {
         };
       }
 
-      // STEP 5: Fire-and-forget cache update
       Promise.allSettled([
         updateActivityCache(
           tenant,
@@ -2082,27 +2082,24 @@ const createActivity = {
         });
       });
 
-      // Kafka notification (fire-and-forget)
       (async () => {
         try {
-          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
+          const recallTopic = constants.RECALL_TOPIC || "activities-topic";
+          const producer = await getKafkaProducer();
+          await producer.send({
             topic: recallTopic,
             messages: [
               {
-                action: "create",
                 value: JSON.stringify({
-                  createdActivity,
-                  updatedDevice,
+                  action: "create",
+                  value: {
+                    createdActivity,
+                    updatedDevice,
+                  },
                 }),
               },
             ],
           });
-          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`Kafka recall notification failed: ${error.message}`);
         }
@@ -2175,7 +2172,7 @@ const createActivity = {
   maintain: async (request, next) => {
     try {
       const { query, body } = request;
-      const { tenant, deviceName } = { ...body, ...query };
+      const { tenant, deviceName } = query;
 
       const {
         date,
@@ -2192,7 +2189,6 @@ const createActivity = {
         site_id,
       } = body;
 
-      // STEP 1: Fetch device in a single lean query
       const device = await DeviceModel(tenant)
         .findOne({ name: deviceName })
         .lean();
@@ -2219,7 +2215,6 @@ const createActivity = {
 
       const effectiveSiteId = site_id || device.site_id || null;
 
-      // STEP 2: Build device update
       const deviceUpdateData = {
         $set: {
           nextMaintenance: getNextMaintenanceDate(date, 3),
@@ -2227,9 +2222,6 @@ const createActivity = {
         },
       };
 
-      // STEP 3: Update device FIRST, then create activity
-      // Device-first ordering avoids orphaned activities if device update fails.
-      // Transactions are not available due to the multi-connection DB architecture.
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
         { name: deviceName },
         deviceUpdateData,
@@ -2245,7 +2237,6 @@ const createActivity = {
         };
       }
 
-      // STEP 4: Create activity after device is confirmed updated
       const activityData = {
         device: deviceName,
         device_id: device._id,
@@ -2262,13 +2253,13 @@ const createActivity = {
         userName,
         email,
         site_id: effectiveSiteId,
+        grid_id: device.grid_id || null,
         nextMaintenance: getNextMaintenanceDate(date, 3),
       };
 
       const createdActivity = await ActivityModel(tenant).create(activityData);
 
       if (!createdActivity) {
-        // Device is already updated — log the inconsistency for manual reconciliation
         logger.error(
           `⚠️ Maintenance inconsistency: device ${deviceName} nextMaintenance updated ` +
             `but activity creation failed. Device _id: ${device._id}`,
@@ -2285,7 +2276,6 @@ const createActivity = {
         };
       }
 
-      // STEP 5: Fire-and-forget cache update
       Promise.allSettled([
         updateActivityCache(
           tenant,
@@ -2304,27 +2294,24 @@ const createActivity = {
         });
       });
 
-      // Kafka notification (fire-and-forget)
       (async () => {
         try {
-          const maintainTopic = constants.MAINTAIN_TOPIC || "maintain-topic";
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
+          const maintainTopic = constants.MAINTAIN_TOPIC || "activities-topic";
+          const producer = await getKafkaProducer();
+          await producer.send({
             topic: maintainTopic,
             messages: [
               {
-                action: "create",
                 value: JSON.stringify({
-                  createdActivity,
-                  updatedDevice,
+                  action: "create",
+                  value: {
+                    createdActivity,
+                    updatedDevice,
+                  },
                 }),
               },
             ],
           });
-          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(
             `Kafka maintenance notification failed: ${error.message}`,
