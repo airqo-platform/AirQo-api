@@ -1436,15 +1436,20 @@ const createActivity = {
 
       for (const [deviceName, deployment] of deviceNameToDeployment) {
         if (deployment.actualDeploymentType === "static") {
-          // Belt-and-braces null/NaN coordinate guard.
+          // Defense-in-depth null/NaN coordinate guard.
           //
-          // Phase 1 validates latitude/longitude using Number.isFinite(),
-          // but the batch validator marks these fields as optional and
-          // does not enforce the static/mobile conditional requirement —
-          // meaning a value of null, undefined, or NaN can slip through
-          // for a static deployment if the validator gap is hit.
+          // Three layers already protect against invalid coordinates:
+          //   1. The HTTP-layer validator (validateBatchDeploymentItems)
+          //      rejects missing or non-finite coordinates for static
+          //      deployments before the request reaches this function.
+          //   2. Phase 1 (above) validates using Number.isFinite() and
+          //      pushes invalid items directly to failed_deployments.
+          //   3. This guard — a final safety net for cases where either
+          //      earlier layer is bypassed (e.g. direct internal calls
+          //      that skip the router) or if the validator logic changes
+          //      in the future.
           //
-          // Without this guard, constructing lat_long as "null_null" or
+          // Without any guard, constructing lat_long as "null_null" or
           // "NaN_NaN" would succeed on the first insert (creating a
           // ghost site), then fail every subsequent insert with a
           // confusing E11000 duplicate key error on lat_long_1 — exactly

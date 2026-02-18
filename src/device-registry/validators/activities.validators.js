@@ -998,19 +998,27 @@ const activitiesValidations = {
       .isIn(["solar", "mains", "alternator"])
       .withMessage("Invalid powerType")
       .bail()
-      .custom((powerType, { req }) => {
-        const currentItem = req.body.find(
-          (item) => item.powerType === powerType,
-        );
-        if (currentItem) {
-          const deploymentType =
-            currentItem.deployment_type ||
-            (currentItem.grid_id ? "mobile" : "static");
-          if (powerType === "alternator" && deploymentType !== "mobile") {
-            throw new Error("Alternator powerType requires mobile deployment");
-          }
-          if (deploymentType === "mobile" && powerType !== "alternator") {
-            throw new Error("Mobile deployments require alternator powerType");
+      .custom((powerType, { req, path }) => {
+        // Extract the array index from the validator path (e.g. "[2].powerType")
+        // so we reference the exact item under validation rather than the
+        // first item whose powerType happens to match this value
+        const match = path.match(/\[(\d+)\]/);
+        if (match) {
+          const currentItem = req.body[parseInt(match[1], 10)];
+          if (currentItem) {
+            const deploymentType =
+              currentItem.deployment_type ||
+              (currentItem.grid_id ? "mobile" : "static");
+            if (powerType === "alternator" && deploymentType !== "mobile") {
+              throw new Error(
+                "Alternator powerType requires mobile deployment",
+              );
+            }
+            if (deploymentType === "mobile" && powerType !== "alternator") {
+              throw new Error(
+                "Mobile deployments require alternator powerType",
+              );
+            }
           }
         }
         return true;
@@ -1023,19 +1031,23 @@ const activitiesValidations = {
       .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
       .withMessage("Invalid mountType")
       .bail()
-      .custom((mountType, { req }) => {
-        const currentItem = req.body.find(
-          (item) => item.mountType === mountType,
-        );
-        if (currentItem) {
-          const deploymentType =
-            currentItem.deployment_type ||
-            (currentItem.grid_id ? "mobile" : "static");
-          if (mountType === "vehicle" && deploymentType !== "mobile") {
-            throw new Error("Vehicle mountType requires mobile deployment");
-          }
-          if (deploymentType === "mobile" && mountType !== "vehicle") {
-            throw new Error("Mobile deployments require vehicle mountType");
+      .custom((mountType, { req, path }) => {
+        // Extract the array index from the validator path (e.g. "[2].mountType")
+        // so we reference the exact item under validation rather than the
+        // first item whose mountType happens to match this value
+        const match = path.match(/\[(\d+)\]/);
+        if (match) {
+          const currentItem = req.body[parseInt(match[1], 10)];
+          if (currentItem) {
+            const deploymentType =
+              currentItem.deployment_type ||
+              (currentItem.grid_id ? "mobile" : "static");
+            if (mountType === "vehicle" && deploymentType !== "mobile") {
+              throw new Error("Vehicle mountType requires mobile deployment");
+            }
+            if (deploymentType === "mobile" && mountType !== "vehicle") {
+              throw new Error("Mobile deployments require vehicle mountType");
+            }
           }
         }
         return true;
@@ -1074,16 +1086,6 @@ const activitiesValidations = {
         return value && isValidObjectId(value) ? ObjectId(value) : value;
       }),
 
-    // Cross-field conditional validator — enforces:
-    //   static items: latitude + longitude + site_name required, no grid_id
-    //   mobile items: grid_id required and valid
-    //
-    // This is the validator-layer complement to the null/NaN guard in
-    // Phase 3 of batchDeployWithCoordinates. Together they ensure that
-    // invalid coordinates never reach the database and produce a
-    // confusing E11000 duplicate key error on lat_long_1.
-    body().custom(validateBatchDeploymentItems),
-
     body("*.network")
       .exists()
       .withMessage("network is required")
@@ -1115,6 +1117,20 @@ const activitiesValidations = {
       .bail()
       .isEmail()
       .withMessage("email must be a valid email address"),
+
+    // Cross-field conditional validator — runs last so all per-field
+    // validations have already completed. Enforces:
+    //   static items: latitude + longitude + site_name required, no grid_id
+    //   mobile items: grid_id required and valid
+    //
+    // This validator is one layer in a defense-in-depth strategy together
+    // with the Phase 1 and Phase 3 guards in batchDeployWithCoordinates.
+    // The HTTP-layer validator and Phase 1 reject invalid coordinates up
+    // front, while Phase 3 provides a final null/NaN safety net so that
+    // invalid coordinates do not reach the database and cause a confusing
+    // E11000 duplicate key error on lat_long_1 if earlier checks are
+    // bypassed or changed in the future.
+    body().custom(validateBatchDeploymentItems),
   ],
 
   listActivities: [
