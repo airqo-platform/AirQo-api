@@ -7,12 +7,12 @@ const surveyValidations = require("@validators/surveys.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 
-router.use(headers); // Keep headers global
+router.use(headers);
 
-// Rate limiter for public endpoints
+// Rate limiter for public read endpoints
 const surveyListLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute per IP (higher than responses, it's read-only)
+  windowMs: 60 * 1000,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -21,10 +21,10 @@ const surveyListLimiter = rateLimit({
   },
 });
 
-// Rate limiter for the public survey response submission endpoint
+// Rate limiter for public survey response submission endpoint
 const surveyResponseLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute per IP
+  windowMs: 60 * 1000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -61,15 +61,19 @@ router.get(
   createSurveyController.getStats,
 );
 
-// Get specific survey by ID — parameterized, declared last among GETs
+// Get specific survey by ID — public, rate limited
+// SECURITY NOTE: Survey metadata (title, description, questions, trigger config)
+// is intentionally public to allow unauthenticated users to browse available
+// surveys in the mobile app before deciding to participate. No user-specific
+// or sensitive data is exposed through this endpoint.
 router.get(
   "/:survey_id",
+  surveyListLimiter,
   surveyValidations.getSurveyById,
-  enhancedJWTAuth,
   createSurveyController.getById,
 );
 
-// ---- Non-GET routes (order is not affected by the shadowing issue) ----
+// ---- Non-GET routes ----
 
 // Create new survey (admin only)
 router.post(
