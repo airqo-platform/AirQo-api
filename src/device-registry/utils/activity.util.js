@@ -1442,6 +1442,7 @@ const createActivity = {
               name: deployment.site_name,
               latitude: deployment.latitude,
               longitude: deployment.longitude,
+              network: deployment.network,
             });
           }
         } else {
@@ -1449,32 +1450,188 @@ const createActivity = {
         }
       }
 
-      // Atomic site creation using findOneAndUpdate with upsert
+      // Site creation using find-then-create with all required fields.
+      //
+      // IMPORTANT — two-phase approach for generated_name:
+      //
+      // createSite.generateName() increments a shared counter document
+      // in UniqueIdentifierCounterModel via $inc. Running it in parallel
+      // inside Promise.all would cause a race condition where concurrent
+      // increments collide and produce duplicate generated_name values,
+      // which would then hit the unique index and throw 11000 errors.
+      //
+      // Phase A (sequential): For each site that does NOT already exist
+      //   in the DB, call generateName once in order to claim a counter
+      //   slot and reserve a unique name. Sites that already exist skip
+      //   this step entirely — they keep their existing generated_name.
+      //
+      // Phase B (parallel): With all names pre-reserved, run the actual
+      //   SiteModel.create() calls concurrently via Promise.all — safe
+      //   because the uniqueness concern is already resolved.
+
+      // Phase A: Pre-generate names sequentially for new sites only
+      // Map: coordsKey -> pre-generated name (only populated for new sites)
+      const preGeneratedNames = new Map();
+
+      for (const [coordsKey, siteData] of uniqueSites) {
+        const lat_long = `${siteData.latitude}_${siteData.longitude}`;
+
+        // Check if site already exists — if so, skip name generation
+        const existingCheck = await SiteModel(tenant)
+          .findOne({ lat_long })
+          .select("_id")
+          .lean();
+
+        if (!existingCheck) {
+          // Site does not exist yet — claim a counter slot now,
+          // sequentially, before any parallel work begins
+          const responseFromGenerateName = await createSiteUtil.generateName(
+            tenant,
+            next,
+          );
+
+          if (!responseFromGenerateName || !responseFromGenerateName.success) {
+            // Propagate failure: mark every device mapped to this site
+            // as failed immediately so Phase B skips this coordsKey
+            logger.error(
+              `generateName failed for site "${
+                siteData.name
+              }" at ${coordsKey}: ${
+                responseFromGenerateName
+                  ? responseFromGenerateName.errors
+                    ? responseFromGenerateName.errors.message
+                    : responseFromGenerateName.message
+                  : "generateName returned undefined"
+              }`,
+            );
+            preGeneratedNames.set(coordsKey, {
+              error: {
+                message:
+                  responseFromGenerateName && responseFromGenerateName.errors
+                    ? responseFromGenerateName.errors.message
+                    : "Unable to generate unique name for site, contact support",
+              },
+            });
+          } else {
+            preGeneratedNames.set(coordsKey, {
+              generated_name: responseFromGenerateName.data,
+            });
+          }
+        }
+        // If site exists, preGeneratedNames has no entry for this
+        // coordsKey — Phase B will detect the existing site via findOne
+        // and use its own generated_name without touching the counter
+      }
+
+      // Phase B: Create/find sites in parallel now that all names are
+      // pre-reserved and no further counter increments are needed
       const sitePromises = [];
+
       for (const [coordsKey, siteData] of uniqueSites) {
         sitePromises.push(
           (async () => {
             try {
-              // Atomic upsert to prevent race conditions
-              const site = await SiteModel(tenant).findOneAndUpdate(
-                {
-                  name: siteData.name,
-                },
-                {
-                  $setOnInsert: {
-                    name: siteData.name,
+              // Compute lat_long once — used for lookup, create, and
+              // race-condition re-fetch
+              const lat_long = `${siteData.latitude}_${siteData.longitude}`;
+
+              // Use an explicit flag to correctly track whether the site
+              // was found or newly created, since lean() returns a plain
+              // object with no $isNew/isNew properties, and isNew is
+              // always false on a document returned from create()
+              let wasExisting = false;
+
+              // Look up by lat_long (unique + immutable) not by name,
+              // since multiple sites can share the same name at different
+              // coordinates
+              let site = await SiteModel(tenant)
+                .findOne({ lat_long })
+                .lean();
+
+              if (site) {
+                wasExisting = true;
+              } else {
+                // Site does not exist — check that Phase A successfully
+                // reserved a generated_name for this coordsKey
+                const nameReservation = preGeneratedNames.get(coordsKey);
+
+                if (!nameReservation) {
+                  // Phase A found the site existed at the time of the
+                  // existence check, but it has since been deleted or
+                  // was never written — treat as a new site needing a
+                  // name. This is an extremely unlikely edge case but
+                  // we handle it defensively.
+                  throw new Error(
+                    `No pre-generated name found for site "${siteData.name}" at ${lat_long} — counter reservation was skipped`,
+                  );
+                }
+
+                if (nameReservation.error) {
+                  // Phase A already logged the error; re-throw so this
+                  // site lands in failed_deployments with a clear message
+                  throw new Error(nameReservation.error.message);
+                }
+
+                const generated_name = nameReservation.generated_name;
+
+                // Compute approximate coordinates — createApproximateCoordinates
+                // calls next() on error but does not return a value, so
+                // guard against undefined
+                const approxResult = distance.createApproximateCoordinates(
+                  {
                     latitude: siteData.latitude,
                     longitude: siteData.longitude,
                   },
-                },
-                {
-                  upsert: true,
-                  new: true,
-                  setDefaultsOnInsert: true,
-                },
-              );
+                  next,
+                );
 
-              const wasExisting = !site.$isNew;
+                if (!approxResult) {
+                  throw new Error(
+                    `Failed to compute approximate coordinates for site "${siteData.name}" at ${lat_long}`,
+                  );
+                }
+
+                try {
+                  site = await SiteModel(tenant).create({
+                    name: siteData.name,
+                    latitude: siteData.latitude,
+                    longitude: siteData.longitude,
+                    network:
+                      siteData.network || constants.DEFAULT_NETWORK || "airqo",
+                    lat_long,
+                    generated_name,
+                    // description mirrors generated_name — unique per
+                    // site, carries no raw coordinate data, and is
+                    // consistent with the existing Site.register pattern
+                    description: generated_name,
+                    approximate_latitude:
+                      approxResult.approximate_latitude || siteData.latitude,
+                    approximate_longitude:
+                      approxResult.approximate_longitude || siteData.longitude,
+                    approximate_distance_in_km:
+                      approxResult.approximate_distance_in_km || 0,
+                    bearing_in_radians: approxResult.bearing_in_radians || 0,
+                  });
+                } catch (createError) {
+                  // Handle race condition: another process may have
+                  // created the site between Phase A's existence check
+                  // and this create() call. Re-fetch by lat_long (unique
+                  // + immutable) — a 11000 error can fire on lat_long,
+                  // generated_name, or description, not just name, so
+                  // querying by name would risk returning the wrong site
+                  if (createError.code === 11000) {
+                    site = await SiteModel(tenant)
+                      .findOne({ lat_long })
+                      .lean();
+                    if (!site) {
+                      throw createError;
+                    }
+                    wasExisting = true;
+                  } else {
+                    throw createError;
+                  }
+                }
+              }
 
               // Cache site data
               siteMap.set(coordsKey, site._id);
@@ -1490,7 +1647,7 @@ const createActivity = {
               };
             } catch (error) {
               logger.error(
-                `Site creation failed for ${coordsKey}: ${error.message}`,
+                `Site creation failed for ${coordsKey} ("${siteData.name}"): ${error.message}`,
               );
               return { coordsKey, error: { message: error.message } };
             }
@@ -1500,9 +1657,29 @@ const createActivity = {
 
       const siteResults = await Promise.all(sitePromises);
 
-      // Track existing vs created sites
+      // Track existing vs created sites, and fail devices whose site
+      // could not be created
       siteResults.forEach((result) => {
-        if (result.existing) {
+        if (result.error) {
+          // Move all devices relying on this failed site into
+          // failed_deployments
+          for (const [deviceName, deployment] of deviceNameToDeployment) {
+            if (deployment.actualDeploymentType === "static") {
+              const coordsKey = `${deployment.latitude},${deployment.longitude}`;
+              if (coordsKey === result.coordsKey) {
+                failed_deployments.push({
+                  deviceName,
+                  deployment_type: "static",
+                  error: {
+                    message: `Site creation failed: ${result.error.message}`,
+                  },
+                  user_id: deployment.user_id || null,
+                });
+                deviceNameToDeployment.delete(deviceName);
+              }
+            }
+          }
+        } else if (result.existing) {
           existing_sites.push({
             site_id: result.site_id,
             message: "Using existing site",
@@ -1638,9 +1815,8 @@ const createActivity = {
               },
             });
           } else {
-            // Mobile deployment (mobile_count already incremented in Phase 1)
+            // Mobile deployment
             const grid_id_obj = ObjectId(deployment.grid_id);
-            // Convert to string for consistent map lookup
             const gridData = gridMap.get(deployment.grid_id.toString());
 
             if (!gridData) {
@@ -1741,7 +1917,8 @@ const createActivity = {
 
       if (activitiesToInsert.length > 0) {
         try {
-          // Use .create() to trigger pre-save middleware (validates deployment invariants)
+          // Use .create() to trigger pre-save middleware (validates
+          // deployment invariants)
           createdActivities = await ActivityModel(tenant).create(
             activitiesToInsert,
           );
@@ -1767,7 +1944,9 @@ const createActivity = {
               failed_deployments.push({
                 deviceName,
                 deployment_type: deployment.actualDeploymentType,
-                error: { message: `Bulk operation failed: ${error.message}` },
+                error: {
+                  message: `Bulk operation failed: ${error.message}`,
+                },
                 user_id: deployment.user_id || null,
               });
             }
@@ -1781,7 +1960,6 @@ const createActivity = {
         deviceUpdateMap.set(device.name, device);
       });
 
-      // Trigger cache updates asynchronously (don't await)
       const cacheUpdatePromises = [];
 
       for (const activity of createdActivities) {
@@ -1832,10 +2010,9 @@ const createActivity = {
               site_id: updatedDevice.site_id,
               grid_id: updatedDevice.grid_id,
             },
-            user_id: deployment.user_id || null,
+            user_id: deployment ? deployment.user_id || null : null,
           });
 
-          // Queue cache update without individual .catch()
           cacheUpdatePromises.push(
             updateActivityCache(
               tenant,
@@ -1850,12 +2027,11 @@ const createActivity = {
             deviceName: activity.device,
             deployment_type: activity.deployment_type,
             error: { message: "Device update verification failed" },
-            user_id: deployment.user_id || null,
+            user_id: deployment ? deployment.user_id || null : null,
           });
         }
       }
 
-      // Use Promise.allSettled instead of Promise.all with redundant catch
       Promise.allSettled(cacheUpdatePromises).then((results) => {
         const failures = results.filter((r) => r.status === "rejected");
         if (failures.length > 0) {
@@ -1867,6 +2043,7 @@ const createActivity = {
           });
         }
       });
+
       // PHASE 7: Send Kafka notifications (fire and forget)
       if (successful_deployments.length > 0) {
         (async () => {
@@ -2456,6 +2633,7 @@ const createActivity = {
       );
     }
   },
+
   getDevicesByDeploymentType: async (request, next) => {
     try {
       const { query, params } = request;
@@ -2488,7 +2666,8 @@ const createActivity = {
             as: deploymentType === "static" ? "site_temp" : "grid_temp",
           },
         },
-        // Convert array to single object using $unwind (with preserveNullAndEmptyArrays to handle missing references)
+        // Convert array to single object using $unwind
+        // (with preserveNullAndEmptyArrays to handle missing references)
         {
           $unwind: {
             path: deploymentType === "static" ? "$site_temp" : "$grid_temp",
@@ -2561,6 +2740,7 @@ const createActivity = {
       );
     }
   },
+
   recalculateNextMaintenance: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -2594,7 +2774,8 @@ const createActivity = {
       // Validate dates and track invalid rows
       const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
       const invalidActivities = [];
-      // Build latest maintenance date per device across ALL maintenance activities
+      // Build latest maintenance date per device across ALL maintenance
+      // activities
       const latestMaintenanceDateByDevice = new Map();
       for (const a of maintenanceActivities) {
         if (!isValidDate(a.date)) {
@@ -2632,7 +2813,9 @@ const createActivity = {
           activityBulkOps.push({
             updateOne: {
               filter: { _id: activity._id },
-              update: { $set: { nextMaintenance: correctNextMaintenance } },
+              update: {
+                $set: { nextMaintenance: correctNextMaintenance },
+              },
             },
           });
           // Mark device as needing nextMaintenance re-evaluation
@@ -2676,7 +2859,9 @@ const createActivity = {
                 updateOne: {
                   filter: { _id: device._id },
                   update: {
-                    $set: { nextMaintenance: latestCorrectNextMaintenance },
+                    $set: {
+                      nextMaintenance: latestCorrectNextMaintenance,
+                    },
                   },
                 },
               });
@@ -2729,6 +2914,7 @@ const createActivity = {
       );
     }
   },
+
   backfillDeviceIds: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -2736,7 +2922,8 @@ const createActivity = {
 
       logText(`Starting device_id backfill for tenant: ${tenant}`);
 
-      // Build filter for activities without device_id but WITH a valid device name
+      // Build filter for activities without device_id but WITH a valid
+      // device name
       const filter = {
         $or: [{ device_id: null }, { device_id: { $exists: false } }],
         device: { $exists: true, $nin: [null, ""] },
@@ -2793,7 +2980,8 @@ const createActivity = {
         logText(`Processing batch #${batchNumber} (batch_size=${batch_size})`);
 
         // Fetch batch with minimal projection
-        // No skip needed - updated documents automatically drop out of filter
+        // No skip needed - updated documents automatically drop out of
+        // filter
         const batchActivities = await ActivityModel(tenant)
           .find(filter)
           .select("_id device activityType date")
@@ -2880,7 +3068,8 @@ const createActivity = {
         }
       }
 
-      // After successful backfill, trigger cache recalculation for affected devices
+      // After successful backfill, trigger cache recalculation for
+      // affected devices
       if (totalBackfilled > 0) {
         logText("Triggering cache updates for affected devices...");
 
@@ -2958,6 +3147,7 @@ const createActivity = {
       );
     }
   },
+
   refreshActivityCaches: async (request, next) => {
     try {
       const { tenant } = request.query;
