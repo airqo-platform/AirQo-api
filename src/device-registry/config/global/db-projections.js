@@ -1732,7 +1732,7 @@ const dbProjections = {
 
     // Handle both function and non-function properties
     if (typeof this[key] === "function") {
-      return thiskey;
+      return this[key].apply(this, args);
     } else {
       return this[key];
     }
@@ -1805,7 +1805,7 @@ const dbProjections = {
 
       // If the projection exists as a function, call it
       if (typeof this[keyName] === "function") {
-        return thiskeyName;
+        return this[keyName]();
       }
 
       // If it exists as an object, return it
