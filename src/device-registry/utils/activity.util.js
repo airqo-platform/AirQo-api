@@ -1436,12 +1436,50 @@ const createActivity = {
 
       for (const [deviceName, deployment] of deviceNameToDeployment) {
         if (deployment.actualDeploymentType === "static") {
-          const coordsKey = `${deployment.latitude},${deployment.longitude}`;
+          // Belt-and-braces null/NaN coordinate guard.
+          //
+          // Phase 1 validates latitude/longitude using Number.isFinite(),
+          // but the batch validator marks these fields as optional and
+          // does not enforce the static/mobile conditional requirement —
+          // meaning a value of null, undefined, or NaN can slip through
+          // for a static deployment if the validator gap is hit.
+          //
+          // Without this guard, constructing lat_long as "null_null" or
+          // "NaN_NaN" would succeed on the first insert (creating a
+          // ghost site), then fail every subsequent insert with a
+          // confusing E11000 duplicate key error on lat_long_1 — exactly
+          // the production error we observed before this fix.
+          //
+          // We parse explicitly here so we always store finite Numbers
+          // in siteData, which makes lat_long construction in Phase A
+          // and Phase B deterministic and safe.
+          const parsedLat = Number(deployment.latitude);
+          const parsedLng = Number(deployment.longitude);
+
+          if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: "static",
+              error: {
+                message:
+                  `Invalid coordinates for static deployment: ` +
+                  `latitude="${deployment.latitude}", longitude="${deployment.longitude}". ` +
+                  `Both must be finite numbers — null, undefined, and NaN are not accepted.`,
+              },
+              user_id: deployment.user_id || null,
+            });
+            deviceNameToDeployment.delete(deviceName);
+            continue;
+          }
+
+          const coordsKey = `${parsedLat},${parsedLng}`;
           if (!uniqueSites.has(coordsKey)) {
             uniqueSites.set(coordsKey, {
               name: deployment.site_name,
-              latitude: deployment.latitude,
-              longitude: deployment.longitude,
+              // Store parsed Numbers, not raw strings, so that lat_long
+              // construction in Phase A/B is always type-consistent
+              latitude: parsedLat,
+              longitude: parsedLng,
               network: deployment.network,
             });
           }
