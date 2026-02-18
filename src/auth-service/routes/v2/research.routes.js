@@ -9,6 +9,19 @@ const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
 
+const rateLimit = require("express-rate-limit");
+
+const consentReadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many requests. Please try again later.",
+  },
+});
+
 // Consent Management
 router.post(
   "/consent",
@@ -22,6 +35,7 @@ router.post(
 // control checks using req.user when available
 router.get(
   "/consent/:userId",
+  consentReadLimiter,
   optionalJWTAuth,
   researchValidator.validateUserIdParam,
   researchController.getConsent,

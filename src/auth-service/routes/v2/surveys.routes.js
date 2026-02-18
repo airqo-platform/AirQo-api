@@ -61,7 +61,11 @@ router.get(
   createSurveyController.getStats,
 );
 
-// Get specific survey by ID — public, rate limited (shares surveyListLimiter)
+// Get specific survey by ID — public, rate limited
+// SECURITY NOTE: Survey metadata (title, description, questions, trigger config)
+// is intentionally public to allow unauthenticated users to browse available
+// surveys in the mobile app before deciding to participate. No user-specific
+// or sensitive data is exposed through this endpoint.
 router.get(
   "/:survey_id",
   surveyListLimiter,
