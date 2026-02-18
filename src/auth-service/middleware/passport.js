@@ -1680,10 +1680,38 @@ const optionalJWTAuth = (req, res, next) => {
       return next();
     }
 
+    // ========================================
+    // ROUTE BLOCKING CHECK (consistent with enhancedJWTAuth)
+    // ========================================
+    const endpoint =
+      req.headers["x-original-uri"] || req.originalUrl || req.url;
+
+    // Check if this endpoint should be blocked from JWT authentication
+    for (const route of specificRoutes) {
+      if (matchesRoute(endpoint, route.uri)) {
+        logger.warn(
+          `JWT blocked for endpoint: ${endpoint} - requires query token`,
+        );
+
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message:
+              "This endpoint requires query token authentication, JWT is not allowed",
+            route:
+              route.description ||
+              "JWT authentication not permitted for this endpoint",
+          }),
+        );
+      }
+    }
+    // ========================================
+    // END ROUTE BLOCKING CHECK
+    // ========================================
+
     jwt.verify(
       token,
       constants.JWT_SECRET,
-      { ignoreExpiration: true }, // We can handle expiration logic if needed, but for now, just decode
+      { ignoreExpiration: true },
       async (err, decoded) => {
         try {
           if (err || !decoded) {
@@ -1722,7 +1750,7 @@ const optionalJWTAuth = (req, res, next) => {
     );
   } catch (error) {
     logger.warn(`optionalJWTAuth unexpected error: ${error.message}`);
-    return next(); // On any unexpected error, just proceed without a user object
+    return next();
   }
 };
 
