@@ -1066,11 +1066,13 @@ const activitiesValidations = {
     body("*.latitude")
       .optional()
       .isFloat()
-      .withMessage("latitude must be a float if provided"),
+      .withMessage("latitude must be a float if provided")
+      .toFloat(),
     body("*.longitude")
       .optional()
       .isFloat()
-      .withMessage("longitude must be a float if provided"),
+      .withMessage("longitude must be a float if provided")
+      .toFloat(),
     body("*.site_name")
       .optional()
       .trim(),

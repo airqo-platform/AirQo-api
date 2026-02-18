@@ -1708,7 +1708,11 @@ const createActivity = {
           // failed_deployments
           for (const [deviceName, deployment] of deviceNameToDeployment) {
             if (deployment.actualDeploymentType === "static") {
-              const coordsKey = `${deployment.latitude},${deployment.longitude}`;
+              // Parse to Numbers before stringifying so this key matches
+              // the Phase 3 siteMap keys which use parsedLat/parsedLng
+              const parsedLat = Number(deployment.latitude);
+              const parsedLng = Number(deployment.longitude);
+              const coordsKey = `${parsedLat},${parsedLng}`;
               if (coordsKey === result.coordsKey) {
                 failed_deployments.push({
                   deviceName,
@@ -1770,7 +1774,9 @@ const createActivity = {
 
         try {
           if (actualDeploymentType === "static") {
-            const coordsKey = `${latitude},${longitude}`;
+            // Parse to Numbers before stringifying so this key matches
+            // the Phase 3 siteMap keys which use parsedLat/parsedLng
+            const coordsKey = `${Number(latitude)},${Number(longitude)}`;
             const site_id = siteMap.get(coordsKey);
 
             if (!site_id) {
