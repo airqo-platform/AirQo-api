@@ -689,6 +689,10 @@ class ProjectionFactory {
                 status: "$$device.status",
                 network: "$$device.network",
                 createdAt: "$$device.createdAt",
+                // deployment_date records when the device was physically
+                // deployed in the field — distinct from createdAt which
+                // captures when the device record was created in the system
+                deployment_date: "$$device.deployment_date",
               },
             },
           },
