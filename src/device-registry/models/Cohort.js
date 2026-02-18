@@ -309,6 +309,10 @@ cohortSchema.statics.list = async function(
                 description: device.description,
                 long_name: device.long_name,
                 createdAt: device.createdAt,
+                // deployment_date records when the device was physically
+                // deployed in the field — distinct from createdAt which
+                // is when the device record was created in the system
+                deployment_date: device.deployment_date || null,
                 host_id: device.host_id,
                 site: device.site &&
                   device.site[0] && {
