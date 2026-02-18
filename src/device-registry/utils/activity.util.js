@@ -1436,12 +1436,55 @@ const createActivity = {
 
       for (const [deviceName, deployment] of deviceNameToDeployment) {
         if (deployment.actualDeploymentType === "static") {
-          const coordsKey = `${deployment.latitude},${deployment.longitude}`;
+          // Defense-in-depth null/NaN coordinate guard.
+          //
+          // Three layers already protect against invalid coordinates:
+          //   1. The HTTP-layer validator (validateBatchDeploymentItems)
+          //      rejects missing or non-finite coordinates for static
+          //      deployments before the request reaches this function.
+          //   2. Phase 1 (above) validates using Number.isFinite() and
+          //      pushes invalid items directly to failed_deployments.
+          //   3. This guard — a final safety net for cases where either
+          //      earlier layer is bypassed (e.g. direct internal calls
+          //      that skip the router) or if the validator logic changes
+          //      in the future.
+          //
+          // Without any guard, constructing lat_long as "null_null" or
+          // "NaN_NaN" would succeed on the first insert (creating a
+          // ghost site), then fail every subsequent insert with a
+          // confusing E11000 duplicate key error on lat_long_1 — exactly
+          // the production error we observed before this fix.
+          //
+          // We parse explicitly here so we always store finite Numbers
+          // in siteData, which makes lat_long construction in Phase A
+          // and Phase B deterministic and safe.
+          const parsedLat = Number(deployment.latitude);
+          const parsedLng = Number(deployment.longitude);
+
+          if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: "static",
+              error: {
+                message:
+                  `Invalid coordinates for static deployment: ` +
+                  `latitude="${deployment.latitude}", longitude="${deployment.longitude}". ` +
+                  `Both must be finite numbers — null, undefined, and NaN are not accepted.`,
+              },
+              user_id: deployment.user_id || null,
+            });
+            deviceNameToDeployment.delete(deviceName);
+            continue;
+          }
+
+          const coordsKey = `${parsedLat},${parsedLng}`;
           if (!uniqueSites.has(coordsKey)) {
             uniqueSites.set(coordsKey, {
               name: deployment.site_name,
-              latitude: deployment.latitude,
-              longitude: deployment.longitude,
+              // Store parsed Numbers, not raw strings, so that lat_long
+              // construction in Phase A/B is always type-consistent
+              latitude: parsedLat,
+              longitude: parsedLng,
               network: deployment.network,
             });
           }
@@ -1665,7 +1708,11 @@ const createActivity = {
           // failed_deployments
           for (const [deviceName, deployment] of deviceNameToDeployment) {
             if (deployment.actualDeploymentType === "static") {
-              const coordsKey = `${deployment.latitude},${deployment.longitude}`;
+              // Parse to Numbers before stringifying so this key matches
+              // the Phase 3 siteMap keys which use parsedLat/parsedLng
+              const parsedLat = Number(deployment.latitude);
+              const parsedLng = Number(deployment.longitude);
+              const coordsKey = `${parsedLat},${parsedLng}`;
               if (coordsKey === result.coordsKey) {
                 failed_deployments.push({
                   deviceName,
@@ -1727,7 +1774,9 @@ const createActivity = {
 
         try {
           if (actualDeploymentType === "static") {
-            const coordsKey = `${latitude},${longitude}`;
+            // Parse to Numbers before stringifying so this key matches
+            // the Phase 3 siteMap keys which use parsedLat/parsedLng
+            const coordsKey = `${Number(latitude)},${Number(longitude)}`;
             const site_id = siteMap.get(coordsKey);
 
             if (!site_id) {

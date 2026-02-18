@@ -193,6 +193,105 @@ const validatePowerTypeConsistency = (value, { req }) => {
   return true;
 };
 
+// Batch-level cross-field validator that enforces the static/mobile
+// conditional requirements that cannot be expressed with per-field
+// express-validator rules alone.
+//
+// This is the validator-side complement to the null/NaN coordinate guard
+// in the util. Between the two, a request with missing or invalid
+// coordinates for a static deployment is rejected cleanly at the
+// validation layer rather than reaching the database and producing an
+// E11000 duplicate key error on lat_long_1 with { lat_long: null }.
+const validateBatchDeploymentItems = (items, { req }) => {
+  if (!Array.isArray(items)) {
+    throw new Error("Request body must be an array of deployment items");
+  }
+
+  const errors = [];
+
+  items.forEach((item, index) => {
+    const deploymentType =
+      item.deployment_type || (item.grid_id ? "mobile" : "static");
+
+    if (deploymentType === "static") {
+      // latitude
+      const lat = Number(item.latitude);
+      if (
+        item.latitude === null ||
+        item.latitude === undefined ||
+        item.latitude === "" ||
+        !Number.isFinite(lat)
+      ) {
+        errors.push(
+          `item[${index}] (${item.deviceName || "unknown"}): ` +
+            `latitude is required and must be a finite number for static deployments ` +
+            `(received: ${JSON.stringify(item.latitude)})`,
+        );
+      }
+
+      // longitude
+      const lng = Number(item.longitude);
+      if (
+        item.longitude === null ||
+        item.longitude === undefined ||
+        item.longitude === "" ||
+        !Number.isFinite(lng)
+      ) {
+        errors.push(
+          `item[${index}] (${item.deviceName || "unknown"}): ` +
+            `longitude is required and must be a finite number for static deployments ` +
+            `(received: ${JSON.stringify(item.longitude)})`,
+        );
+      }
+
+      // site_name
+      const siteName =
+        typeof item.site_name === "string"
+          ? item.site_name.trim()
+          : item.site_name;
+      if (!siteName) {
+        errors.push(
+          `item[${index}] (${item.deviceName || "unknown"}): ` +
+            `site_name is required for static deployments`,
+        );
+      }
+
+      // grid_id must not be present
+      if (item.grid_id) {
+        errors.push(
+          `item[${index}] (${item.deviceName || "unknown"}): ` +
+            `grid_id must not be provided for static deployments`,
+        );
+      }
+    }
+
+    if (deploymentType === "mobile") {
+      // grid_id required
+      if (!item.grid_id || !isValidObjectId(item.grid_id)) {
+        errors.push(
+          `item[${index}] (${item.deviceName || "unknown"}): ` +
+            `grid_id is required and must be a valid ObjectId for mobile deployments ` +
+            `(received: ${JSON.stringify(item.grid_id)})`,
+        );
+      }
+
+      // latitude/longitude must NOT be supplied for mobile (they come
+      // from the grid) — warn rather than hard-fail since they are
+      // harmlessly ignored, but surface the inconsistency
+      // (uncomment if you want to enforce this strictly)
+      // if (item.latitude !== undefined || item.longitude !== undefined) {
+      //   errors.push(`item[${index}]: latitude/longitude should not be provided for mobile deployments`);
+      // }
+    }
+  });
+
+  if (errors.length > 0) {
+    throw new Error(errors.join("; "));
+  }
+
+  return true;
+};
+
 // Define reusable validation components for deploy operations
 const commonDeployValidations = {
   // Enhanced location validation supporting both site_id and grid_id
@@ -867,6 +966,15 @@ const activitiesValidations = {
 
   batchDeployActivity: [
     ...commonValidations.tenant,
+
+    // Top-level array check
+    body()
+      .isArray({ min: 1 })
+      .withMessage(
+        "Request body must be a non-empty array of deployment items",
+      ),
+
+    // Per-item field validation (express-validator wildcard syntax)
     body("*.deviceName")
       .exists()
       .withMessage("deviceName is required")
@@ -890,22 +998,27 @@ const activitiesValidations = {
       .isIn(["solar", "mains", "alternator"])
       .withMessage("Invalid powerType")
       .bail()
-      .custom((powerType, { req }) => {
-        // Get the current item being validated
-        const currentItem = req.body.find(
-          (item) => item.powerType === powerType,
-        );
-        if (currentItem) {
-          const deploymentType =
-            currentItem.deployment_type ||
-            (currentItem.grid_id ? "mobile" : "static");
-
-          if (powerType === "alternator" && deploymentType !== "mobile") {
-            throw new Error("Alternator powerType requires mobile deployment");
-          }
-
-          if (deploymentType === "mobile" && powerType !== "alternator") {
-            throw new Error("Mobile deployments require alternator powerType");
+      .custom((powerType, { req, path }) => {
+        // Extract the array index from the validator path (e.g. "[2].powerType")
+        // so we reference the exact item under validation rather than the
+        // first item whose powerType happens to match this value
+        const match = path.match(/\[(\d+)\]/);
+        if (match) {
+          const currentItem = req.body[parseInt(match[1], 10)];
+          if (currentItem) {
+            const deploymentType =
+              currentItem.deployment_type ||
+              (currentItem.grid_id ? "mobile" : "static");
+            if (powerType === "alternator" && deploymentType !== "mobile") {
+              throw new Error(
+                "Alternator powerType requires mobile deployment",
+              );
+            }
+            if (deploymentType === "mobile" && powerType !== "alternator") {
+              throw new Error(
+                "Mobile deployments require alternator powerType",
+              );
+            }
           }
         }
         return true;
@@ -915,25 +1028,26 @@ const activitiesValidations = {
       .withMessage("mountType is required")
       .trim()
       .toLowerCase()
-      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"]) // ADD "vehicle"
+      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
       .withMessage("Invalid mountType")
       .bail()
-      .custom((mountType, { req }) => {
-        // Get the current item being validated
-        const currentItem = req.body.find(
-          (item) => item.mountType === mountType,
-        );
-        if (currentItem) {
-          const deploymentType =
-            currentItem.deployment_type ||
-            (currentItem.grid_id ? "mobile" : "static");
-
-          if (mountType === "vehicle" && deploymentType !== "mobile") {
-            throw new Error("Vehicle mountType requires mobile deployment");
-          }
-
-          if (deploymentType === "mobile" && mountType !== "vehicle") {
-            throw new Error("Mobile deployments require vehicle mountType");
+      .custom((mountType, { req, path }) => {
+        // Extract the array index from the validator path (e.g. "[2].mountType")
+        // so we reference the exact item under validation rather than the
+        // first item whose mountType happens to match this value
+        const match = path.match(/\[(\d+)\]/);
+        if (match) {
+          const currentItem = req.body[parseInt(match[1], 10)];
+          if (currentItem) {
+            const deploymentType =
+              currentItem.deployment_type ||
+              (currentItem.grid_id ? "mobile" : "static");
+            if (mountType === "vehicle" && deploymentType !== "mobile") {
+              throw new Error("Vehicle mountType requires mobile deployment");
+            }
+            if (deploymentType === "mobile" && mountType !== "vehicle") {
+              throw new Error("Mobile deployments require vehicle mountType");
+            }
           }
         }
         return true;
@@ -944,15 +1058,21 @@ const activitiesValidations = {
       .isBoolean()
       .withMessage("isPrimaryInLocation must be Boolean")
       .trim(),
-    // For batch operations, we can have mixed deployment types
+
+    // These are intentionally kept optional at the per-field level
+    // because their requirement is conditional on deployment_type.
+    // The cross-field validator below (validateBatchDeploymentItems)
+    // enforces the conditional rules holistically for each item.
     body("*.latitude")
       .optional()
       .isFloat()
-      .withMessage("latitude must be a float"),
+      .withMessage("latitude must be a float if provided")
+      .toFloat(),
     body("*.longitude")
       .optional()
       .isFloat()
-      .withMessage("longitude must be a float"),
+      .withMessage("longitude must be a float if provided")
+      .toFloat(),
     body("*.site_name")
       .optional()
       .trim(),
@@ -967,6 +1087,7 @@ const activitiesValidations = {
       .customSanitizer((value) => {
         return value && isValidObjectId(value) ? ObjectId(value) : value;
       }),
+
     body("*.network")
       .exists()
       .withMessage("network is required")
@@ -998,6 +1119,20 @@ const activitiesValidations = {
       .bail()
       .isEmail()
       .withMessage("email must be a valid email address"),
+
+    // Cross-field conditional validator — runs last so all per-field
+    // validations have already completed. Enforces:
+    //   static items: latitude + longitude + site_name required, no grid_id
+    //   mobile items: grid_id required and valid
+    //
+    // This validator is one layer in a defense-in-depth strategy together
+    // with the Phase 1 and Phase 3 guards in batchDeployWithCoordinates.
+    // The HTTP-layer validator and Phase 1 reject invalid coordinates up
+    // front, while Phase 3 provides a final null/NaN safety net so that
+    // invalid coordinates do not reach the database and cause a confusing
+    // E11000 duplicate key error on lat_long_1 if earlier checks are
+    // bypassed or changed in the future.
+    body().custom(validateBatchDeploymentItems),
   ],
 
   listActivities: [
