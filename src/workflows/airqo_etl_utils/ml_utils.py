@@ -14,7 +14,6 @@ import pandas as pd
 import pymongo as pm
 import lightgbm as lgb
 from lightgbm import LGBMRegressor, early_stopping
-from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from pathlib import Path
 from .config import configuration, db
