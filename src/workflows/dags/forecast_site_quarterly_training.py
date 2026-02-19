@@ -30,7 +30,7 @@ except Exception:
 
 def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
     current_date = datetime.today()
-    start_date = current_date - relativedelta(months=60)
+    start_date = current_date - relativedelta(months=60)  # Number of months used in training data
 
     start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
     end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
@@ -60,7 +60,12 @@ def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         raise ValueError("Feature engineering produced an empty dataframe.")
 
     featured_data = featured_data.copy()
-    featured_data["site_id_code"] = featured_data["site_id"].astype("category").cat.codes
+    featured_data = pd.get_dummies(
+        featured_data,
+        columns=["site_id"],
+        prefix="site",
+        dtype="int64",
+    )
 
     excluded = {"day", "site_id", "site_name", "pm25_mean", "pm25_min", "pm25_max"}
     features = [
