@@ -89,7 +89,7 @@ def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         date_col="day",
         project_name=project_name,
         bucket_name=bucket_name,
-        blob_name="pm25_mean_model.pkl",
+        blob_name="daily_pm25_mean_model.pkl",
     )
 
     results["low_q10"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
@@ -100,7 +100,7 @@ def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         date_col="day",
         project_name=project_name,
         bucket_name=bucket_name,
-        blob_name="pm25_low_model.pkl",
+        blob_name="daily_pm25_low_model.pkl",
     )
 
     results["high_q90"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
@@ -111,7 +111,7 @@ def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         date_col="day",
         project_name=project_name,
         bucket_name=bucket_name,
-        blob_name="pm25_high_model.pkl",
+        blob_name="daily_pm25_high_model.pkl",
     )
 
     return results

@@ -1388,11 +1388,11 @@ class ForecastModelTrainer(BaseMlUtils):
         # GCS
         project_name: str,
         bucket_name: str,
-        blob_name_mean: str,      # e.g. "models/pm25_mean_model.pkl"
-        blob_name_min: str,       # e.g. "models/pm25_min_model.pkl"
-        blob_name_max: str,       # e.g. "models/pm25_max_model.pkl"
-        blob_name_low: str ,# "models/pm25_low_model.pkl",
-        blob_name_high: str, #= "models/pm25_high_model.pkl",
+        blob_name_mean: str,      # e.g. "models/daily_pm25_mean_model.pkl"
+        blob_name_min: str,       # e.g. "models/daily_pm25_min_model.pkl"
+        blob_name_max: str,       # e.g. "models/daily_pm25_max_model.pkl"
+        blob_name_low: str ,# "models/daily_pm25_low_model.pkl",
+        blob_name_high: str, #= "models/daily_pm25_high_model.pkl",
     ) -> Dict[str, Dict]:
         out: Dict[str, Dict] = {}
 
