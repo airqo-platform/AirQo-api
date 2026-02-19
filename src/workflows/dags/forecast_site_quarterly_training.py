@@ -67,7 +67,15 @@ def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         dtype="int64",
     )
 
-    excluded = {"day", "site_id", "site_name", "pm25_mean", "pm25_min", "pm25_max"}
+    excluded = {
+        "day",
+        "site_id",
+        "site_name",
+        "pm25_mean",
+        "pm25_min",
+        "pm25_max",
+        "n_hours",
+    }
     features = [
         col
         for col in featured_data.columns

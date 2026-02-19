@@ -227,12 +227,9 @@ class BaseMlUtils:
             functions = ["mean", "std", "max", "min"]
             for s in shifts:
                 for f in functions:
-                    df1[f"pm2_5_{f}_{s}_day"] = (
-                        df1.groupby(["device_id"])[target_col]
-                        .shift(1)
-                        .rolling(s)
-                        .agg(f)
-                    )
+                    df1[f"pm2_5_{f}_{s}_day"] = df1.groupby(["device_id"])[
+                        target_col
+                    ].transform(lambda x: x.shift(1).rolling(s).agg(f))
         elif freq.str == "hourly":
             shifts = [1, 2, 6, 12]
             for s in shifts:
@@ -243,12 +240,9 @@ class BaseMlUtils:
             functions = ["mean", "std", "median", "skew"]
             for s in shifts:
                 for f in functions:
-                    df1[f"pm2_5_{f}_{s}_hour"] = (
-                        df1.groupby(["device_id"])[target_col]
-                        .shift(1)
-                        .rolling(s)
-                        .agg(f)
-                    )
+                    df1[f"pm2_5_{f}_{s}_hour"] = df1.groupby(["device_id"])[
+                        target_col
+                    ].transform(lambda x: x.shift(1).rolling(s).agg(f))
         else:
             raise ValueError("Invalid frequency")
         return df1
@@ -1105,13 +1099,15 @@ class ForecastSiteUtils(BaseMlUtils):
         if not roll_windows:
             raise ValueError("rolling_window cannot be empty")
 
-        shifted = g.shift(roll_shift)
-
         for w in roll_windows:
             if w <= 1:
                 raise ValueError(f"Rolling windows must be greater than 1, got {w}")
-            out[f"roll{w}_mean"] = shifted.transform(lambda s: s.rolling(w, min_periods=w).mean())
-            out[f"roll{w}_std"]  = shifted.transform(lambda s: s.rolling(w, min_periods=w).std())
+            out[f"roll{w}_mean"] = out.groupby(site_col, sort=False)[target_col].transform(
+                lambda s: s.shift(roll_shift).rolling(w, min_periods=w).mean()
+            )
+            out[f"roll{w}_std"] = out.groupby(site_col, sort=False)[target_col].transform(
+                lambda s: s.shift(roll_shift).rolling(w, min_periods=w).std()
+            )
         # ---- clean up ----
         if dropna:
             feature_cols =(
