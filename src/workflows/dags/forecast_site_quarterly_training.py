@@ -1,9 +1,9 @@
 """Quarterly site-level PM2.5 model training DAG.
 
 Trains and saves:
-- pm25_mean_model.pkl
-- pm25_low_model.pkl (10th quantile)
-- pm25_high_model.pkl (90th quantile)
+- daily_pm25_mean_model.pkl
+- daily_pm25_low_model.pkl (10th quantile)
+- daily_pm25_high_model.pkl (90th quantile)
 """
 
 from datetime import datetime
