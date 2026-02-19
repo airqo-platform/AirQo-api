@@ -174,11 +174,6 @@ spec:
       service: airqo-beacon-api-svc 
       port: 8000        
   routes:
-    - path: /
-      action:
-        redirect:
-          url: https://analytics.airqo.net
-          code: 301
     - path: /workflows
       route: pipeline/workflows
     - path: /argocd
@@ -191,6 +186,11 @@ spec:
       route: production/docs
     - path: /website
       route: production/website
+    - path: /
+      action:
+        redirect:
+          url: https://analytics.airqo.net
+          code: 301
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
