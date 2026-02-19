@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List, Any , Iterable, Sequence,  Optional, Tuple
+
+
+from pandas.io.formats.style import Subset
 from pymongo.errors import ServerSelectionTimeoutError
 
 import gcsfs
@@ -9,6 +12,7 @@ import numpy as np
 import optuna
 import pandas as pd
 import pymongo as pm
+import lightgbm as lgb
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
@@ -16,6 +20,10 @@ from pathlib import Path
 from .config import configuration, db
 from .constants import Frequency
 from .commons import download_file_from_gcs
+ 
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score 
+
+
 
 import logging
 
@@ -1032,3 +1040,430 @@ class SatelliteUtils(BaseMlUtils):
         GCSUtils.upload_trained_model_to_gcs(
             model, project_id, bucket, "satellite_prediction_model.pkl"
         )
+
+
+class ForecastSiteUtils(BaseMlUtils):
+    """
+    Feature engineering utilities for site-level PM2.5 forecasting.
+    Expects columns: site_id, day, pm25_mean
+    Produces: time features, lag features, rolling stats.
+    """
+    @staticmethod 
+    def add_time_lag_roll_features(
+        df: pd.DataFrame,
+        *,
+        date_col: str = "day",
+        site_col: str = "site_id",
+        target_col: str = "pm25_mean",
+        lags: Sequence[int] = (1,2,3,7,14),
+        rolling_window: Sequence[int] = (7,14),
+        roll_shift: int = 1,
+        dropna: bool = True,
+    ) -> pd.DataFrame:
+        # ---- validate inputs ----
+        required= {site_col, date_col, target_col}
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}")
+
+        out = df.copy()
+        out = out.sort_values([site_col, date_col])
+
+        # Parse dates safely
+        out[date_col] = pd.to_datetime(out[date_col], errors='coerce')
+        if out[date_col].isna().any():
+            bad = out.loc[out[date_col].isna(), [site_col, date_col]].head(5)
+            raise ValueError(
+                f"Some rows have invalid {date_col}. Example rows:\n{bad.to_string(index=False)}"
+            )
+
+        # Sort for correct lag/rolling behavior
+        out = out.sort_values([site_col, date_col]).reset_index(drop=True)
+
+        # ---- time features ----
+        dt = out[date_col].dt
+        out["day_of_week"] = dt.dayofweek
+        out["day_of_year"] = dt.dayofyear
+        out["month"] = dt.month
+        #out["week_of_year"] = dt.isocalendar().week.astype("int16")        
+        #out["is_weekend"] = dt.dayofweek >= 5
+
+        # ---- group object once ----
+        g = out.groupby(site_col, sort=False)[target_col]
+
+        # ---- lag features ----
+        for lag in lags: 
+            if lag <= 0:
+                raise ValueError(f"Lags must be positive, got {lag}")
+            out[f"{target_col}_lag_{lag}"] = g.shift(lag)
+
+        # ---- rolling features (per site) ----
+        # Important: rolling must be applied within each group, not across all sites.
+        if roll_shift <= 0:
+            raise ValueError(f"roll_shift must be positive, got {roll_shift}")
+
+        roll_windows = tuple(rolling_window)
+        if not roll_windows:
+            raise ValueError("rolling_window cannot be empty")
+
+        shifted = g.shift(roll_shift)
+
+        for w in roll_windows:
+            if w <= 1:
+                raise ValueError(f"Rolling windows must be greater than 1, got {w}")
+            out[f"roll{w}_mean"] = shifted.transform(lambda s: s.rolling(w, min_periods=w).mean())
+            out[f"roll{w}_std"]  = shifted.transform(lambda s: s.rolling(w, min_periods=w).std())
+        # ---- clean up ----
+        if dropna:
+            feature_cols =(
+                ["day_of_week", "day_of_year", "month"] +
+                [f"{target_col}_lag_{lag}" for lag in lags] +
+                [f"roll{w}_mean" for w in roll_windows] +
+                [f"roll{w}_std" for w in roll_windows]
+            )
+            out = out.dropna(subset=feature_cols).reset_index(drop=True)
+        return out
+
+class ForecastModelTrainer(BaseMlUtils):
+    """
+    Train/evaluate and save multiple forecast models to GCS using existing GCSUtils.
+
+    Saves each model as a single joblib artifact dict:
+      {
+        "kind": "mean" | "quantile",
+        "model": <fitted model>,
+        "features": [...],
+        "target": "...",
+        "date_col": "...",
+        "metrics": {...},
+        "params": {...},
+        "alpha": 0.1/0.9 (quantile only),
+      }
+    """
+
+    # -------------------------
+    # helpers
+    # -------------------------
+    @staticmethod
+    def _prep_time_split(
+        df: pd.DataFrame,
+        *,
+        features: List[str],
+        target: str,
+        date_col: str,
+        test_fraction: float,
+        min_rows: int = 50,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        missing = sorted(set(features + [target, date_col]) - set(df.columns))
+        if missing:
+            raise ValueError(f"Missing columns: {missing}")
+
+        work = df.copy()
+        work[date_col] = pd.to_datetime(work[date_col], errors="coerce")
+        work = work.dropna(subset=[date_col] + features + [target])
+        work = work.sort_values(date_col).reset_index(drop=True)
+
+        if len(work) < min_rows:
+            raise ValueError(f"Not enough rows after cleaning: {len(work)} (min_rows={min_rows})")
+
+        split_idx = int(len(work) * (1 - test_fraction))
+        if split_idx <= 0 or split_idx >= len(work):
+            raise ValueError("Bad test_fraction causing empty train/val split.")
+
+        return work.iloc[:split_idx], work.iloc[split_idx:]
+
+    @staticmethod
+    def _regression_metrics(y_true, y_pred) -> Dict[str, float]:
+        return {
+            "mae": float(mean_absolute_error(y_true, y_pred)),
+            "rmse": float(mean_squared_error(y_true, y_pred, squared=False)),
+            "r2": float(r2_score(y_true, y_pred)),
+        }
+
+    @staticmethod
+    def _fit_model(
+        *,
+        df: pd.DataFrame,
+        features: List[str],
+        target: str,
+        date_col: str,
+        test_fraction: float,
+        params: Dict,
+        eval_metric: str,
+        early_stopping_rounds: int,
+        log_period: int,
+    ) -> Tuple[lgb.LGBMRegressor, Dict]:
+        train_df, val_df = ForecastModelTrainer._prep_time_split(
+            df, features=features, target=target, date_col=date_col, test_fraction=test_fraction
+        )
+
+        X_train, y_train = train_df[features], train_df[target]
+        X_val, y_val = val_df[features], val_df[target]
+
+        model = lgb.LGBMRegressor(**params)
+        model.fit(
+            X_train,
+            y_train,
+            eval_set=[(X_val, y_val)],
+            eval_metric=eval_metric,
+            callbacks=[
+                lgb.early_stopping(stopping_rounds=early_stopping_rounds),
+                lgb.log_evaluation(period=log_period),
+            ],
+        )
+
+        preds = model.predict(X_val)
+        metrics = ForecastModelTrainer._regression_metrics(y_val, preds)
+        metrics.update(
+            {
+                "n_train": int(len(train_df)),
+                "n_val": int(len(val_df)),
+                "best_iteration": int(getattr(model, "best_iteration_", params.get("n_estimators", 0))),
+            }
+        )
+        return model, metrics
+
+    # -------------------------
+    # point model (mean/min/max)
+    # -------------------------
+    @staticmethod
+    def train_point_and_save_to_gcs(
+        df: pd.DataFrame,
+        *,
+        features: List[str],
+        target: str,  # "pm25_mean" or "pm25_min" or "pm25_max"
+        model_kind: str = "point",
+        date_col: str = "day",
+        test_fraction: float = 0.2,
+        random_state: int = 42,
+        lgb_params: Optional[Dict] = None,
+        # GCS
+        project_name: str,
+        bucket_name: str,
+        blob_name: str,
+        # training behavior
+        early_stopping_rounds: int = 100,
+        log_period: int = 200,
+    ) -> Dict:
+        params = {
+            "n_estimators": 3000,
+            "learning_rate": 0.03,
+            "max_depth": 8,
+            "num_leaves": 64,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "random_state": random_state,
+        }
+        if lgb_params:
+            params.update(lgb_params)
+
+        model, metrics = ForecastModelTrainer._fit_model(
+            df=df,
+            features=features,
+            target=target,
+            date_col=date_col,
+            test_fraction=test_fraction,
+            params=params,
+            eval_metric="mae",
+            early_stopping_rounds=early_stopping_rounds,
+            log_period=log_period,
+        )
+
+        artifact = {
+            "kind": model_kind,
+            "model": model,
+            "features": features,
+            "target": target,
+            "date_col": date_col,
+            "metrics": metrics,
+            "params": params,
+        }
+
+        GCSUtils.upload_trained_model_to_gcs(
+            trained_model=artifact,
+            project_name=project_name,
+            bucket_name=bucket_name,
+            source_blob_name=blob_name,
+        )
+
+        return metrics
+
+    # -------------------------
+    # quantile model (single alpha) on a target (usually pm25_mean)
+    # -------------------------
+    @staticmethod
+    def train_quantile_and_save_to_gcs(
+        df: pd.DataFrame,
+        *,
+        alpha: float,
+        features: List[str],
+        target: str = "pm25_mean",
+        date_col: str = "day",
+        test_fraction: float = 0.2,
+        random_state: int = 42,
+        lgb_params: Optional[Dict] = None,
+        # GCS
+        project_name: str,
+        bucket_name: str,
+        blob_name: str,
+        # training behavior
+        early_stopping_rounds: int = 150,
+        log_period: int = 200,
+    ) -> Dict:
+        if not (0.0 < alpha < 1.0):
+            raise ValueError(f"alpha must be between 0 and 1, got {alpha}")
+
+        params = {
+            "objective": "quantile",
+            "alpha": float(alpha),
+            "n_estimators": 4000,
+            "learning_rate": 0.03,
+            "max_depth": 8,
+            "num_leaves": 64,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "random_state": random_state,
+        }
+        if lgb_params:
+            params.update(lgb_params)
+
+        model, metrics = ForecastModelTrainer._fit_model(
+            df=df,
+            features=features,
+            target=target,
+            date_col=date_col,
+            test_fraction=test_fraction,
+            params=params,
+            eval_metric="quantile",
+            early_stopping_rounds=early_stopping_rounds,
+            log_period=log_period,
+        )
+        metrics["alpha"] = float(alpha)
+
+        artifact = {
+            "kind": "quantile",
+            "alpha": float(alpha),
+            "model": model,
+            "features": features,
+            "target": target,
+            "date_col": date_col,
+            "metrics": metrics,
+            "params": params,
+        }
+
+        GCSUtils.upload_trained_model_to_gcs(
+            trained_model=artifact,
+            project_name=project_name,
+            bucket_name=bucket_name,
+            source_blob_name=blob_name,
+        )
+
+        return metrics
+
+    # -------------------------
+    # one call: save mean + min + max (+ optional bands)
+    # -------------------------
+    @staticmethod
+    def train_and_save_all_forecast_models(
+        df: pd.DataFrame,
+        *,
+        features: List[str],
+        date_col: str = "day",
+        test_fraction: float = 0.2,
+        random_state: int = 42,
+        # targets
+        mean_target: str = "pm25_mean",
+        min_target: str = "pm25_min",
+        max_target: str = "pm25_max",
+        # quantiles
+        train_quantile_bands: bool = True,
+        low_alpha: float = 0.1,
+        high_alpha: float = 0.9,
+        # params overrides
+        lgb_params_mean: Optional[Dict] = None,
+        lgb_params_min: Optional[Dict] = None,
+        lgb_params_max: Optional[Dict] = None,
+        lgb_params_low: Optional[Dict] = None,
+        lgb_params_high: Optional[Dict] = None,
+        # GCS
+        project_name: str,
+        bucket_name: str,
+        blob_name_mean: str,      # e.g. "models/pm25_mean_model.pkl"
+        blob_name_min: str,       # e.g. "models/pm25_min_model.pkl"
+        blob_name_max: str,       # e.g. "models/pm25_max_model.pkl"
+        blob_name_low: str ,# "models/pm25_low_model.pkl",
+        blob_name_high: str, #= "models/pm25_high_model.pkl",
+    ) -> Dict[str, Dict]:
+        out: Dict[str, Dict] = {}
+
+        out["mean"] = ForecastModelTrainer.train_point_and_save_to_gcs(
+            df,
+            features=features,
+            target=mean_target,
+            model_kind="mean",
+            date_col=date_col,
+            test_fraction=test_fraction,
+            random_state=random_state,
+            lgb_params=lgb_params_mean,
+            project_name=project_name,
+            bucket_name=bucket_name,
+            blob_name=blob_name_mean,
+        )
+
+        out["min"] = ForecastModelTrainer.train_point_and_save_to_gcs(
+            df,
+            features=features,
+            target=min_target,
+            model_kind="min",
+            date_col=date_col,
+            test_fraction=test_fraction,
+            random_state=random_state,
+            lgb_params=lgb_params_min,
+            project_name=project_name,
+            bucket_name=bucket_name,
+            blob_name=blob_name_min,
+        )
+
+        out["max"] = ForecastModelTrainer.train_point_and_save_to_gcs(
+            df,
+            features=features,
+            target=max_target,
+            model_kind="max",
+            date_col=date_col,
+            test_fraction=test_fraction,
+            random_state=random_state,
+            lgb_params=lgb_params_max,
+            project_name=project_name,
+            bucket_name=bucket_name,
+            blob_name=blob_name_max,
+        )
+
+        if train_quantile_bands:
+            out["low_q"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
+                df,
+                alpha=low_alpha,
+                features=features,
+                target=mean_target,
+                date_col=date_col,
+                test_fraction=test_fraction,
+                random_state=random_state,
+                lgb_params=lgb_params_low,
+                project_name=project_name,
+                bucket_name=bucket_name,
+                blob_name=blob_name_low,
+            )
+            out["high_q"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
+                df,
+                alpha=high_alpha,
+                features=features,
+                target=mean_target,
+                date_col=date_col,
+                test_fraction=test_fraction,
+                random_state=random_state,
+                lgb_params=lgb_params_high,
+                project_name=project_name,
+                bucket_name=bucket_name,
+                blob_name=blob_name_high,
+            )
+
+        return out

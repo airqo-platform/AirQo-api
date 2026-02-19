@@ -4,12 +4,18 @@ This folder contains functionality for running various AirQo workflow scripts us
 
 ## Environment Setup
 
-- Just add the `.env` file to directory. This can be obtained from secret manager (`workflows-env-file`)
-- Add the `google_application_credentials.json` (`workflows-google-application-credentials`), `airnow_countries_metadata.json` (`airflow-airnow-countries-metadata`) and `plume_labs_metadata.json` (`airflow-plume-labs-metadata`) files to the `meta-data` folder in this directory. Create the `meta-data folder` if it does not exist.
+- Add the `.env` file to this directory. Preferred: obtain from secret manager (`workflows-env-file`). Alternative: copy `env.sample` to `.env` and fill in required values.
+- Add the following files to `meta_data/` in this directory (create the folder if it does not exist):
+  - `google_application_credentials.json` (`workflows-google-application-credentials`)
+  - `plume_labs_metadata.json` (`airflow-plume-labs-metadata`)
+  - (Optional) `airnow_countries_metadata.json` (`airflow-airnow-countries-metadata`) if you have DAGs/utilities that reference it
+- (Optional) Configure Slack notifications (for DAG success/failure alerts):
+  - Preferred: create an Airflow connection with conn id `slack` (or set `AIRFLOW_SLACK_CONN_ID` to another conn id).
+  - Alternative: set `SLACK_WEBHOOK_URL` (full incoming webhook URL) or `SLACK_WEBHOOK_TOKEN`.
 
 ## 1. Running the utility functions locally
 
-Follow these steps if you wish to run the various scripts locally without entirely launching Airflow, otherwise we recommend running using Docker
+Follow these steps if you wish to run the various scripts locally without entirely launching Airflow; otherwise, we recommend running using Docker.
 
 ### Create a virtual environment
 
@@ -28,7 +34,14 @@ source venv/bin/activate
 #### Windows
 
 ```bash
-source venv\bin\activate
+# PowerShell
+.\venv\Scripts\Activate.ps1
+
+# cmd.exe
+venv\Scripts\activate.bat
+
+# Git Bash
+source venv/Scripts/activate
 ```
 
 ### Install requirements
@@ -42,8 +55,13 @@ pip install -r dev-requirements.txt
 ### Prerequisites
 
 - Docker
-- Docker compose (>= v2.26.1)
+- Docker Compose v2 (recommended): `docker compose version`
 - You have set up your environment following the [Environment Setup](#environment-setup) instructions.
+
+### Ensure Docker is running
+
+- Windows/macOS: start Docker Desktop, then verify with `docker version`.
+- Linux: ensure the daemon is running (for example `sudo systemctl start docker`), then verify with `docker version`.
 
 ### Starting all containers
 
@@ -57,10 +75,15 @@ sh run.sh
 sh run-workflows-only.sh
 ```
 
-**Note for Windows users:** There is a command in the sh files that requires to be modified / uncommented for windows
+**Windows note:** the `*.sh` scripts require a POSIX shell (WSL, Git Bash, or similar). If you prefer PowerShell, use Docker Compose directly:
 
-Wait for the webserver to be available by checking its status at <http://localhost:8080/health>. Visit the admin web ui
-at <http://localhost:8080/home>. Use `airflow` for username and password
+```powershell
+docker compose -f docker-compose.yaml up --build
+```
+
+`run-workflows-only.sh` starts the core Airflow services (including `redis` + `airflow-worker` for `CeleryExecutor`) but does not start Kafka.
+
+Wait for the webserver to be available by checking its status at <http://localhost:8080/health>. Visit the admin web ui at <http://localhost:8080/home>. Use `airflow` for username and password.
 
 ### Interacting with kafka
 
@@ -76,19 +99,9 @@ docker exec -it message-broker bash
 kafka/bin/kafka-console-consumer.sh --topic <topic> --from-beginning --bootstrap-server localhost:9092
 ```
 
-Replace `<topic>` with the topic you want to listen to. For example `hourly-measurements-topic`
+Replace `<topic>` with the topic you want to listen to. For example `hourly-measurements-topic`.
 
-#### Stop viewing messages
-
-```bash
-Ctrl + c
-```
-
-#### Exit container
-
-```bash
-exit
-```
+**Tip:** from your host machine (not inside the container), Kafka is exposed on port `9093` (see `docker-compose.yaml`), so your bootstrap server would be `localhost:9093`.
 
 ### Stop containers
 
@@ -100,6 +113,61 @@ Ctrl + c
 
 ```bash
 sh clean.sh
+```
+
+### Reclaiming disk space (Docker + WSL2)
+
+The commands below are safe to run but destructive (they remove stopped containers, unused images, unused volumes, and build cache).
+
+```bash
+# Stop this stack (adjust if you used a different compose file)
+docker compose -f docker-compose.yaml down --volumes
+
+# Remove unused docker artifacts
+docker system prune -a --volumes
+docker builder prune -a
+```
+
+If you are on Windows + WSL2 and Docker Desktop space is not reclaimed immediately:
+
+```powershell
+wsl --shutdown
+```
+
+## Troubleshooting
+
+### Forecast training DAG timeouts
+
+If `AirQo-forecast-models-training-job` fails with a `TimeoutError` while saving/logging (often during MLflow logging or model upload), you can:
+
+- Increase resilience via retries (enabled in `src/workflows/dags/forecast_training_jobs.py`).
+- (Optional) Skip MLflow logging if the tracking server is flaky:
+
+```bash
+export SKIP_MLFLOW_ON_ERROR=true
+```
+
+- Tune GCS upload retries/backoff (defaults: 3 retries, 5s backoff):
+
+```bash
+export GCS_UPLOAD_MAX_RETRIES=5
+export GCS_UPLOAD_BACKOFF_SECONDS=10
+```
+
+### Forecast training DAG uses a lot of disk locally
+
+The forecast training DAG can generate very large intermediate pandas DataFrames. If these are returned from TaskFlow tasks, Airflow stores them as XComs. With the current setup, the XCom backend writes XCom payloads to disk under the mounted `./airflow_xcom` folder, which can easily grow to tens of GB.
+
+Mitigations:
+
+- Avoid returning large DataFrames from tasks (this DAG has been refactored to keep transformations within a single task per frequency).
+- For summary forecast model training, reduce BigQuery training lookback with:
+  - `HOURLY_SUMMARY_FORECAST_TRAINING_JOB_SCOPE`
+  - `DAILY_SUMMARY_FORECAST_TRAINING_JOB_SCOPE`
+- Clean up local XCom payloads if they have already accumulated:
+
+```bash
+rm -rf airflow_xcom/*
 ```
 
 ## 3. Running on GCP Cloud Shell
@@ -120,10 +188,9 @@ Run this command.
 sh run-workflows-only.sh
 ```
 
-Note: You may need to run this command to initialize your Cloud shell if you haven't already or if you're facing authentication errors.
-`export LD_LIBRARY_PATH=/usr/local/lib`
+Note: You may need to run this command to initialize your Cloud shell if you haven't already or if you're facing authentication errors: `export LD_LIBRARY_PATH=/usr/local/lib`
 
-### Access Preview.
+### Access Preview
 
 Access the web preview in your Browser by clicking on the web preview button and proceed to login.
 
