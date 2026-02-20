@@ -20,7 +20,26 @@ from .config import configuration, db
 from .constants import Frequency
 from .commons import download_file_from_gcs
  
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score 
+try:
+    from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_score
+except ImportError:
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+    def root_mean_squared_error(
+        y_true,
+        y_pred,
+        *,
+        sample_weight=None,
+        multioutput="uniform_average",
+    ):
+        return np.sqrt(
+            mean_squared_error(
+                y_true,
+                y_pred,
+                sample_weight=sample_weight,
+                multioutput=multioutput,
+            )
+        )
 
 
 
@@ -1171,7 +1190,7 @@ class ForecastModelTrainer(BaseMlUtils):
     def _regression_metrics(y_true, y_pred) -> Dict[str, float]:
         return {
             "mae": float(mean_absolute_error(y_true, y_pred)),
-            "rmse": float(mean_squared_error(y_true, y_pred, squared=False)),
+            "rmse": float(root_mean_squared_error(y_true, y_pred)),
             "r2": float(r2_score(y_true, y_pred)),
         }
 
