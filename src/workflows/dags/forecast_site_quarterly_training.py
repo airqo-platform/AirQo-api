@@ -7,7 +7,7 @@ Trains and saves:
 """
 
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -130,6 +130,84 @@ def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
     return results
 
 
+def _fetch_site_forecast_training_data() -> pd.DataFrame:
+    current_date = datetime.today()
+    start_date = current_date - relativedelta(months=60)  # Number of months used in training data
+
+    start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
+    end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
+
+    raw_data = BigQueryApi().fetch_site_data_for_forecast_jobs(
+        start_date_time=start_date_str,
+        end_date_time=end_date_str,
+        job_type="train",
+        min_hours=18,
+    )
+
+    if raw_data.empty:
+        raise ValueError("No site forecast training data found in the selected period.")
+
+    return raw_data
+
+
+def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:
+    featured_data = ForecastSiteUtils.add_time_lag_roll_features(
+        raw_data,
+        date_col="day",
+        site_col="site_id",
+        target_col="pm25_mean",
+        lags=(1, 2, 3, 7, 14),
+        rolling_window=(7, 14),
+        roll_shift=1,
+        dropna=True,
+    )
+
+    if featured_data.empty:
+        raise ValueError("Feature engineering produced an empty dataframe.")
+
+    featured_data = featured_data.copy()
+    featured_data = pd.get_dummies(
+        featured_data,
+        columns=["site_id"],
+        prefix="site",
+        dtype="int64",
+    )
+
+    return featured_data
+
+
+def _select_numeric_training_features(featured_data: pd.DataFrame) -> List[str]:
+    excluded = {
+        "day",
+        "site_id",
+        "site_name",
+        "pm25_mean",
+        "pm25_min",
+        "pm25_max",
+        "n_hours",
+    }
+    features = [
+        col
+        for col in featured_data.columns
+        if col not in excluded and pd.api.types.is_numeric_dtype(featured_data[col])
+    ]
+
+    if not features:
+        raise ValueError("No numeric features available for training.")
+
+    return features
+
+
+def _get_model_bucket_config() -> Dict[str, str]:
+    project_name = configuration.GOOGLE_CLOUD_PROJECT_ID
+    bucket_name = configuration.FORECAST_MODELS_BUCKET
+    if not project_name or not bucket_name:
+        raise ValueError(
+            "Missing required config: GOOGLE_CLOUD_PROJECT_ID or FORECAST_MODELS_BUCKET."
+        )
+    return {"project_name": project_name, "bucket_name": bucket_name}
+
+
 if AIRFLOW_AVAILABLE:
 
     @dag(
@@ -141,10 +219,77 @@ if AIRFLOW_AVAILABLE:
     )
     def train_site_forecast_models_quarterly():
         @task()
-        def run_training() -> Dict[str, Dict]:
-            return run_site_forecast_quarterly_training()
+        def fetch_training_data() -> pd.DataFrame:
+            return _fetch_site_forecast_training_data()
 
-        run_training()
+        @task()
+        def build_features(raw_data: pd.DataFrame) -> pd.DataFrame:
+            return _build_site_forecast_features(raw_data)
+
+        @task()
+        def train_mean_model(featured_data: pd.DataFrame) -> Dict:
+            features = _select_numeric_training_features(featured_data)
+            bucket_config = _get_model_bucket_config()
+            return ForecastModelTrainer.train_point_and_save_to_gcs(
+                featured_data,
+                features=features,
+                target="pm25_mean",
+                model_kind="mean",
+                date_col="day",
+                project_name=bucket_config["project_name"],
+                bucket_name=bucket_config["bucket_name"],
+                blob_name="daily_pm25_mean_model.pkl",
+            )
+
+        @task()
+        def train_low_q10_model(featured_data: pd.DataFrame) -> Dict:
+            features = _select_numeric_training_features(featured_data)
+            bucket_config = _get_model_bucket_config()
+            return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+                featured_data,
+                alpha=0.1,
+                features=features,
+                target="pm25_mean",
+                date_col="day",
+                project_name=bucket_config["project_name"],
+                bucket_name=bucket_config["bucket_name"],
+                blob_name="daily_pm25_low_model.pkl",
+            )
+
+        @task()
+        def train_high_q90_model(featured_data: pd.DataFrame) -> Dict:
+            features = _select_numeric_training_features(featured_data)
+            bucket_config = _get_model_bucket_config()
+            return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+                featured_data,
+                alpha=0.9,
+                features=features,
+                target="pm25_mean",
+                date_col="day",
+                project_name=bucket_config["project_name"],
+                bucket_name=bucket_config["bucket_name"],
+                blob_name="daily_pm25_high_model.pkl",
+            )
+
+        @task(task_id="inserting_model_in_bucket")
+        def inserting_model_in_bucket(
+            mean_metrics: Dict,
+            low_q10_metrics: Dict,
+            high_q90_metrics: Dict,
+        ) -> Dict[str, Dict]:
+            return {
+                "mean": mean_metrics,
+                "low_q10": low_q10_metrics,
+                "high_q90": high_q90_metrics,
+            }
+
+        raw_data = fetch_training_data()
+        featured_data = build_features(raw_data)
+        mean_metrics = train_mean_model(featured_data)
+        low_q10_metrics = train_low_q10_model(featured_data)
+        high_q90_metrics = train_high_q90_model(featured_data)
+
+        inserting_model_in_bucket(mean_metrics, low_q10_metrics, high_q90_metrics)
 
 
     train_site_forecast_models_quarterly()
