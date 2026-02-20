@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
-from typing import Dict, List, Any , Iterable, Sequence,  Optional, Tuple
+from typing import Dict, List, Any, Iterable, Sequence, Optional, Tuple
 
 
 from pandas.io.formats.style import Subset
 from pymongo.errors import ServerSelectionTimeoutError
+from dateutil.relativedelta import relativedelta
+
 
 import gcsfs
 import joblib
@@ -19,9 +21,12 @@ from pathlib import Path
 from .config import configuration, db
 from .constants import Frequency
 from .commons import download_file_from_gcs
- 
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score 
+from .date import DateUtils
+from airqo_etl_utils.storage import get_configured_storage
+from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.sql import query_manager
 
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 import logging
@@ -1047,20 +1052,21 @@ class ForecastSiteUtils(BaseMlUtils):
     Expects columns: site_id, day, pm25_mean
     Produces: time features, lag features, rolling stats.
     """
-    @staticmethod 
+
+    @staticmethod
     def add_time_lag_roll_features(
         df: pd.DataFrame,
         *,
         date_col: str = "day",
         site_col: str = "site_id",
         target_col: str = "pm25_mean",
-        lags: Sequence[int] = (1,2,3,7,14),
-        rolling_window: Sequence[int] = (7,14),
+        lags: Sequence[int] = (1, 2, 3, 7, 14),
+        rolling_window: Sequence[int] = (7, 14),
         roll_shift: int = 1,
         dropna: bool = True,
     ) -> pd.DataFrame:
         # ---- validate inputs ----
-        required= {site_col, date_col, target_col}
+        required = {site_col, date_col, target_col}
         missing = required - set(df.columns)
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
@@ -1069,7 +1075,7 @@ class ForecastSiteUtils(BaseMlUtils):
         out = out.sort_values([site_col, date_col])
 
         # Parse dates safely
-        out[date_col] = pd.to_datetime(out[date_col], errors='coerce')
+        out[date_col] = pd.to_datetime(out[date_col], errors="coerce")
         if out[date_col].isna().any():
             bad = out.loc[out[date_col].isna(), [site_col, date_col]].head(5)
             raise ValueError(
@@ -1084,14 +1090,14 @@ class ForecastSiteUtils(BaseMlUtils):
         out["day_of_week"] = dt.dayofweek
         out["day_of_year"] = dt.dayofyear
         out["month"] = dt.month
-        #out["week_of_year"] = dt.isocalendar().week.astype("int16")        
-        #out["is_weekend"] = dt.dayofweek >= 5
+        # out["week_of_year"] = dt.isocalendar().week.astype("int16")
+        # out["is_weekend"] = dt.dayofweek >= 5
 
         # ---- group object once ----
         g = out.groupby(site_col, sort=False)[target_col]
 
         # ---- lag features ----
-        for lag in lags: 
+        for lag in lags:
             if lag <= 0:
                 raise ValueError(f"Lags must be positive, got {lag}")
             out[f"{target_col}_lag_{lag}"] = g.shift(lag)
@@ -1110,18 +1116,23 @@ class ForecastSiteUtils(BaseMlUtils):
         for w in roll_windows:
             if w <= 1:
                 raise ValueError(f"Rolling windows must be greater than 1, got {w}")
-            out[f"roll{w}_mean"] = shifted.transform(lambda s: s.rolling(w, min_periods=w).mean())
-            out[f"roll{w}_std"]  = shifted.transform(lambda s: s.rolling(w, min_periods=w).std())
+            out[f"roll{w}_mean"] = shifted.transform(
+                lambda s: s.rolling(w, min_periods=w).mean()
+            )
+            out[f"roll{w}_std"] = shifted.transform(
+                lambda s: s.rolling(w, min_periods=w).std()
+            )
         # ---- clean up ----
         if dropna:
-            feature_cols =(
-                ["day_of_week", "day_of_year", "month"] +
-                [f"{target_col}_lag_{lag}" for lag in lags] +
-                [f"roll{w}_mean" for w in roll_windows] +
-                [f"roll{w}_std" for w in roll_windows]
+            feature_cols = (
+                ["day_of_week", "day_of_year", "month"]
+                + [f"{target_col}_lag_{lag}" for lag in lags]
+                + [f"roll{w}_mean" for w in roll_windows]
+                + [f"roll{w}_std" for w in roll_windows]
             )
             out = out.dropna(subset=feature_cols).reset_index(drop=True)
         return out
+
 
 class ForecastModelTrainer(BaseMlUtils):
     """
@@ -1163,7 +1174,9 @@ class ForecastModelTrainer(BaseMlUtils):
         work = work.sort_values(date_col).reset_index(drop=True)
 
         if len(work) < min_rows:
-            raise ValueError(f"Not enough rows after cleaning: {len(work)} (min_rows={min_rows})")
+            raise ValueError(
+                f"Not enough rows after cleaning: {len(work)} (min_rows={min_rows})"
+            )
 
         split_idx = int(len(work) * (1 - test_fraction))
         if split_idx <= 0 or split_idx >= len(work):
@@ -1193,7 +1206,11 @@ class ForecastModelTrainer(BaseMlUtils):
         log_period: int,
     ) -> Tuple[lgb.LGBMRegressor, Dict]:
         train_df, val_df = ForecastModelTrainer._prep_time_split(
-            df, features=features, target=target, date_col=date_col, test_fraction=test_fraction
+            df,
+            features=features,
+            target=target,
+            date_col=date_col,
+            test_fraction=test_fraction,
         )
 
         X_train, y_train = train_df[features], train_df[target]
@@ -1217,7 +1234,9 @@ class ForecastModelTrainer(BaseMlUtils):
             {
                 "n_train": int(len(train_df)),
                 "n_val": int(len(val_df)),
-                "best_iteration": int(getattr(model, "best_iteration_", params.get("n_estimators", 0))),
+                "best_iteration": int(
+                    getattr(model, "best_iteration_", params.get("n_estimators", 0))
+                ),
             }
         )
         return model, metrics
@@ -1387,11 +1406,11 @@ class ForecastModelTrainer(BaseMlUtils):
         # GCS
         project_name: str,
         bucket_name: str,
-        blob_name_mean: str,      # e.g. "models/daily_pm25_mean_model.pkl"
-        blob_name_min: str,       # e.g. "models/daily_pm25_min_model.pkl"
-        blob_name_max: str,       # e.g. "models/daily_pm25_max_model.pkl"
-        blob_name_low: str ,# "models/daily_pm25_low_model.pkl",
-        blob_name_high: str, #= "models/daily_pm25_high_model.pkl",
+        blob_name_mean: str,  # e.g. "models/daily_pm25_mean_model.pkl"
+        blob_name_min: str,  # e.g. "models/daily_pm25_min_model.pkl"
+        blob_name_max: str,  # e.g. "models/daily_pm25_max_model.pkl"
+        blob_name_low: str,  # "models/daily_pm25_low_model.pkl",
+        blob_name_high: str,  # = "models/daily_pm25_high_model.pkl",
     ) -> Dict[str, Dict]:
         out: Dict[str, Dict] = {}
 
@@ -1466,3 +1485,156 @@ class ForecastModelTrainer(BaseMlUtils):
             )
 
         return out
+
+    def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
+        storage_adapter = get_configured_storage()
+        query: str = ""
+        current_date = datetime.today()
+        start_date = current_date - relativedelta(months=60)
+
+        start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
+        end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
+        if query_manager.query_exists("consolidated_site_daily_aggregated"):
+            query = query_manager.get_query("consolidated_site_daily_aggregated")
+
+        query = query.format(
+            consolidated_table=Config.BIGQUERY_ANALYTICS_TABLE,
+            start_date=start_date_str,
+            end_date=end_date_str,
+            min_hours=18,
+        )
+
+        raw_data = storage_adapter.download_query(query)
+
+        if raw_data.empty:
+            raise ValueError(
+                "No site forecast training data found in the selected period."
+            )
+
+        featured_data = ForecastSiteUtils.add_time_lag_roll_features(
+            raw_data,
+            date_col="day",
+            site_col="site_id",
+            target_col="pm25_mean",
+            lags=(1, 2, 3, 7, 14),
+            rolling_window=(7, 14),
+            roll_shift=1,
+            dropna=True,
+        )
+
+        if featured_data.empty:
+            raise ValueError("Feature engineering produced an empty dataframe.")
+
+        featured_data = featured_data.copy()
+        featured_data["site_id_code"] = (
+            featured_data["site_id"].astype("category").cat.codes
+        )
+
+        excluded = {"day", "site_id", "site_name", "pm25_mean", "pm25_min", "pm25_max"}
+        features = [
+            col
+            for col in featured_data.columns
+            if col not in excluded and pd.api.types.is_numeric_dtype(featured_data[col])
+        ]
+
+        if not features:
+            raise ValueError("No numeric features available for training.")
+
+        project_name = configuration.GOOGLE_CLOUD_PROJECT_ID
+        bucket_name = configuration.FORECAST_MODELS_BUCKET
+        if not project_name or not bucket_name:
+            raise ValueError(
+                "Missing required config: GOOGLE_CLOUD_PROJECT_ID or FORECAST_MODELS_BUCKET."
+            )
+
+        results: Dict[str, Dict] = {}
+
+        results["mean"] = ForecastModelTrainer.train_point_and_save_to_gcs(
+            featured_data,
+            features=features,
+            target="pm25_mean",
+            model_kind="mean",
+            date_col="day",
+            project_name=project_name,
+            bucket_name=bucket_name,
+            blob_name="daily_pm25_mean_model.pkl",
+        )
+
+        results["low_q10"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
+            featured_data,
+            alpha=0.1,
+            features=features,
+            target="pm25_mean",
+            date_col="day",
+            project_name=project_name,
+            bucket_name=bucket_name,
+            blob_name="daily_pm25_low_model.pkl",
+        )
+
+        results["high_q90"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
+            featured_data,
+            alpha=0.9,
+            features=features,
+            target="pm25_mean",
+            date_col="day",
+            project_name=project_name,
+            bucket_name=bucket_name,
+            blob_name="daily_pm25_high_model.pkl",
+        )
+
+        return results
+
+    def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:
+        featured_data = ForecastSiteUtils.add_time_lag_roll_features(
+            raw_data,
+            date_col="day",
+            site_col="site_id",
+            target_col="pm25_mean",
+            lags=(1, 2, 3, 7, 14),
+            rolling_window=(7, 14),
+            roll_shift=1,
+            dropna=True,
+        )
+
+        if featured_data.empty:
+            raise ValueError("Feature engineering produced an empty dataframe.")
+
+        featured_data = featured_data.copy()
+        featured_data = pd.get_dummies(
+            featured_data,
+            columns=["site_id"],
+            prefix="site",
+            dtype="int64",
+        )
+
+        return featured_data
+
+    def _select_numeric_training_features(featured_data: pd.DataFrame) -> List[str]:
+        excluded = {
+            "day",
+            "site_id",
+            "site_name",
+            "pm25_mean",
+            "pm25_min",
+            "pm25_max",
+            "n_hours",
+        }
+        features = [
+            col
+            for col in featured_data.columns
+            if col not in excluded and pd.api.types.is_numeric_dtype(featured_data[col])
+        ]
+
+        if not features:
+            raise ValueError("No numeric features available for training.")
+
+        return features
+
+    def _get_model_bucket_config() -> Dict[str, str]:
+        project_name = configuration.GOOGLE_CLOUD_PROJECT_ID
+        bucket_name = configuration.FORECAST_MODELS_BUCKET
+        if not project_name or not bucket_name:
+            raise ValueError(
+                "Missing required config: GOOGLE_CLOUD_PROJECT_ID or FORECAST_MODELS_BUCKET."
+            )
+        return {"project_name": project_name, "bucket_name": bucket_name}

@@ -42,3 +42,4 @@ cdsapi>=0.7.4
 cfgrib
 xarray
 python-dateutil
+sqlfluff

@@ -1,10 +1,11 @@
 ## This DAG contains jobs for all training jobs for machine learning models.
-
+from typing import Dict
 from datetime import datetime
 
 from airflow.decorators import dag, task
 from dateutil.relativedelta import relativedelta
 
+import pandas as pd
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import DateUtils
@@ -113,6 +114,93 @@ def train_forecasting_models():
     daily_cyclic_data = get_daily_cyclic_features(daily_time_data)
     daily_loc_data = get_location_features(daily_cyclic_data)
     train_and_save_daily_model(daily_loc_data)
+
+
+@dag(
+    "AirQo-site-forecast-quarterly-training-job",
+    schedule="0 2 1 */3 *",
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    tags=["airqo", "forecast", "site-level", "training-job", "quarterly"],
+)
+def train_site_forecast_models_quarterly():
+    from airqo_etl_utils.ml_utils import ForecastModelTrainer
+
+    @task()
+    def fetch_training_data() -> pd.DataFrame:
+        return ForecastModelTrainer.run_site_forecast_quarterly_training()
+
+    @task()
+    def build_features(raw_data: pd.DataFrame) -> pd.DataFrame:
+        return ForecastModelTrainer._build_site_forecast_features(raw_data)
+
+    @task()
+    def train_mean_model(featured_data: pd.DataFrame) -> Dict:
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+        return ForecastModelTrainer.train_point_and_save_to_gcs(
+            featured_data,
+            features=features,
+            target="pm25_mean",
+            model_kind="mean",
+            date_col="day",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name="daily_pm25_mean_model.pkl",
+        )
+
+    @task()
+    def train_low_q10_model(featured_data: pd.DataFrame) -> Dict:
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+        return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+            featured_data,
+            alpha=0.1,
+            features=features,
+            target="pm25_mean",
+            date_col="day",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name="daily_pm25_low_model.pkl",
+        )
+
+    @task()
+    def train_high_q90_model(featured_data: pd.DataFrame) -> Dict:
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+        return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+            featured_data,
+            alpha=0.9,
+            features=features,
+            target="pm25_mean",
+            date_col="day",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name="daily_pm25_high_model.pkl",
+        )
+
+    @task(task_id="inserting_model_in_bucket")
+    def inserting_model_in_bucket(
+        mean_metrics: Dict,
+        low_q10_metrics: Dict,
+        high_q90_metrics: Dict,
+    ) -> Dict[str, Dict]:
+        return {
+            "mean": mean_metrics,
+            "low_q10": low_q10_metrics,
+            "high_q90": high_q90_metrics,
+        }
+
+    raw_data = fetch_training_data()
+    featured_data = build_features(raw_data)
+    mean_metrics = train_mean_model(featured_data)
+    low_q10_metrics = train_low_q10_model(featured_data)
+    high_q90_metrics = train_high_q90_model(featured_data)
+
+    inserting_model_in_bucket(mean_metrics, low_q10_metrics, high_q90_metrics)
+
+
+train_site_forecast_models_quarterly()
 
 
 train_forecasting_models()
