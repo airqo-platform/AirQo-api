@@ -196,11 +196,8 @@ def train_site_forecast_models_quarterly():
     mean_metrics = train_mean_model(featured_data)
     low_q10_metrics = train_low_q10_model(featured_data)
     high_q90_metrics = train_high_q90_model(featured_data)
-
     inserting_model_in_bucket(mean_metrics, low_q10_metrics, high_q90_metrics)
 
 
 train_site_forecast_models_quarterly()
-
-
 train_forecasting_models()

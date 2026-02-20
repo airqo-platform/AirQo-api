@@ -1494,6 +1494,7 @@ class ForecastModelTrainer(BaseMlUtils):
 
         start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
+
         if query_manager.query_exists("consolidated_site_daily_aggregated"):
             query = query_manager.get_query("consolidated_site_daily_aggregated")
 
