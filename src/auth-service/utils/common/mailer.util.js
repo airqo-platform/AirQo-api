@@ -1256,6 +1256,7 @@ const mailer = {
         name: params.name,
         email: params.email,
         client_id: params.client_id,
+        clientName: params.clientName,
       }),
   ),
   user: createMailerFunction("user", "USER_MANAGEMENT", (params) => {
@@ -1360,11 +1361,13 @@ const mailer = {
             name: params.name,
             email: params.email,
             client_id: params.client_id,
+            clientName: params.clientName,
           })
         : msgs.afterClientDeactivation({
             name: params.name,
             email: params.email,
             client_id: params.client_id,
+            clientName: params.clientName,
           });
     },
   ),
@@ -2222,6 +2225,7 @@ const mailer = {
     (params) =>
       msgs.clientActivationRequestAdmin({
         client_id: params.client_id,
+        clientName: params.clientName,
         name: params.name,
         email: params.userEmail,
       }),

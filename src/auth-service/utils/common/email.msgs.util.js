@@ -200,16 +200,23 @@ module.exports = {
     }
     return constants.EMAIL_BODY({ email, content, fullName });
   },
-  clientActivationRequest: ({ name = "", email, client_id = "" } = {}) => {
-    const content = ` <tr>
-    <td
-        style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Your request to activate your Client ID <strong>${client_id}</strong> has been received, we shall get back to you as soon as possible.</p>
-        <p>Before utilising the AirQo API, your Client ID <strong>${client_id}</strong> has to undergo the process of approval by AirQo administration.</p>
-        <p>Once your request is approved, you will receive a confirmation email</p>
+  clientActivationRequest: ({
+    name = "",
+    email,
+    client_id = "",
+    clientName = "",
+  } = {}) => {
+    const clientLabel = clientName
+      ? `<strong>${clientName}</strong> (ID: <strong>${client_id}</strong>)`
+      : `<strong>${client_id}</strong>`;
+    const content = `<tr>
+    <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Your request to activate your API client ${clientLabel} has been received, we shall get back to you as soon as possible.</p>
+        <p>Before utilising the AirQo API, your client ${clientLabel} has to undergo the process of approval by AirQo administration.</p>
+        <p>Once your request is approved, you will receive a confirmation email.</p>
         <p>Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a></p>
     </td>
-</tr>`;
+  </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
   yearEndSummary: ({
@@ -292,17 +299,24 @@ module.exports = {
 
     return constants.EMAIL_BODY({ email, content, name: username });
   },
-  afterClientActivation: ({ name = "", email, client_id = "" } = {}) => {
+  afterClientActivation: ({
+    name = "",
+    email,
+    client_id = "",
+    clientName = "",
+  } = {}) => {
+    const clientLabel = clientName
+      ? `${clientName} (ID: <strong>${client_id}</strong>)`
+      : `<strong>${client_id}</strong>`;
     const content = `<tr>
-                          <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                              <p>Congratulations! Your Client ID <strong>${client_id}</strong> has been successfully activated.</p>
-                              <p>If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
-                              team. We are here to help. </p>
-                              <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p
-                              <p>Sincerely,</p>
-                              <p>The AirQo Data Team </p>
-                          </td>
-                      </tr>`;
+    <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Congratulations! Your API client ${clientLabel} has been successfully activated.</p>
+        <p>If you have any questions or need assistance, please don't hesitate to reach out to our customer support team. We are here to help.</p>
+        <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p>
+        <p>Sincerely,</p>
+        <p>The AirQo Data Team</p>
+    </td>
+  </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
   afterClientDeactivation: ({ name = "", email, client_id = "" } = {}) => {
@@ -1287,27 +1301,30 @@ module.exports = {
   },
   clientActivationRequestAdmin: ({
     client_id = "",
+    clientName = "",
     name = "",
     email: userEmail = "",
   } = {}) => {
+    const clientLabel = clientName
+      ? `<strong>${clientName}</strong> (ID: <strong>${client_id}</strong>)`
+      : `ID: <strong>${client_id}</strong>`;
     const content = `<tr>
     <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>A new AirQo API Client Activation Request has been submitted.</p>
-        <p><strong>Client ID:</strong> ${client_id}</p>
+        <p>Client: ${clientLabel}</p>
         <p><strong>Requested by:</strong> ${name} (${userEmail})</p>
         <p>Please review and take action on this request via the admin clients management page:</p>
         <div style="text-align: center; margin: 24px 0;">
-            <a href="https://analytics.airqo.net/system/clients"
+            <a href="${constants.ANALYTICS_BASE_URL}/system/clients"
                style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
                 Manage API Clients
             </a>
         </div>
         <p style="font-size: 14px; color: #6c757d;">
-            Direct link: <a href="https://analytics.airqo.net/system/clients">https://analytics.airqo.net/system/clients</a>
+            Direct link: <a href="${constants.ANALYTICS_BASE_URL}/system/clients">${constants.ANALYTICS_BASE_URL}/system/clients</a>
         </p>
     </td>
   </tr>`;
-    // Use a placeholder email; the actual recipient is set via BCC in the mailer
     return constants.EMAIL_BODY({ email: userEmail, content, name: "Admin" });
   },
 };

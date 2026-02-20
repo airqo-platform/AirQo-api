@@ -200,10 +200,12 @@ const client = {
               : userDetails.firstName || userDetails.lastName;
 
         const email = userDetails.email;
+        const clientName = responseFromUpdateClient.data.name || "";
         const responseFromSendEmail = await mailer.afterClientActivation(
           {
             name,
             client_id,
+            clientName,
             email,
             action: isActive ? "activate" : "deactivate",
           },
@@ -257,6 +259,7 @@ const client = {
       logObject("clientDetailsResponse", clientDetailsResponse);
       const { firstName, lastName, email } = clientDetailsResponse.data[0].user;
       const name = firstName || lastName || "";
+      const clientName = clientDetailsResponse.data[0].name || "";
 
       // Send confirmation email to the user
       const responseFromSendEmail = await mailer.clientActivationRequest(
@@ -265,6 +268,7 @@ const client = {
           email,
           tenant,
           client_id,
+          clientName,
         },
         next,
       );
@@ -283,6 +287,7 @@ const client = {
               email: constants.SUPPORT_EMAIL || null,
               tenant,
               client_id,
+              clientName,
             },
             next,
           )
