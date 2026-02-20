@@ -270,7 +270,6 @@ const createMailerFunction = (
         "siteActivity",
         "fieldActivity",
         "existingUserAccessRequest",
-        "clientActivationRequest",
         "existingUserRegistrationRequest",
       ].includes(functionName);
 
@@ -656,6 +655,8 @@ const getEmailSubject = (functionName, params) => {
       params.action === "activate"
         ? "AirQo API Client Activated!"
         : "AirQo API Client Deactivated!",
+    clientActivationRequestAdmin:
+      "Action Required: Review AirQo API Client Activation Request",
 
     // ===== OPTIONAL FUNCTIONS =====
     yearEndEmail: "Your AirQo Account 2024 Year in Review 🌍",
@@ -735,7 +736,11 @@ const EMAIL_CATEGORIES = {
     "requestRejected",
   ],
 
-  CLIENT_MANAGEMENT: ["clientActivationRequest", "afterClientActivation"],
+  CLIENT_MANAGEMENT: [
+    "clientActivationRequest",
+    "afterClientActivation",
+    "clientActivationRequestAdmin",
+  ],
 
   OPTIONAL: [
     "yearEndEmail",
@@ -2209,6 +2214,25 @@ const mailer = {
     {
       cooldownDays: 1, // Ensure only one summary per day
       enableCooldown: true,
+    },
+  ),
+  clientActivationRequestAdmin: createMailerFunction(
+    "clientActivationRequestAdmin",
+    "CLIENT_MANAGEMENT",
+    (params) =>
+      msgs.clientActivationRequestAdmin({
+        client_id: params.client_id,
+        name: params.name,
+        email: params.userEmail,
+      }),
+    // Custom modifier: send TO a support/placeholder address, BCC to admins
+    (baseMailOptions, params) => {
+      const bccEmails = constants.REQUEST_ACCESS_EMAILS || "";
+      return {
+        ...baseMailOptions,
+        to: params.email || constants.SUPPORT_EMAIL, // null-safe fallback
+        bcc: bccEmails || undefined,
+      };
     },
   ),
 };

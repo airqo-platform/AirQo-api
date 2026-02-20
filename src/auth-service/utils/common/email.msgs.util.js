@@ -879,7 +879,7 @@ module.exports = {
           <li><strong>Contact Email:</strong> ${escapeHtml(contact_email)}</li>
         </ul>
         <p>Please review and process this request in the admin dashboard.</p>
-        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/org-requests</p>
+        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/system/org-requests</p>
       </td>
     </tr>
   `;
@@ -1284,5 +1284,30 @@ module.exports = {
     `;
 
     return constants.EMAIL_BODY({ email, content, name });
+  },
+  clientActivationRequestAdmin: ({
+    client_id = "",
+    name = "",
+    email: userEmail = "",
+  } = {}) => {
+    const content = `<tr>
+    <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A new AirQo API Client Activation Request has been submitted.</p>
+        <p><strong>Client ID:</strong> ${client_id}</p>
+        <p><strong>Requested by:</strong> ${name} (${userEmail})</p>
+        <p>Please review and take action on this request via the admin clients management page:</p>
+        <div style="text-align: center; margin: 24px 0;">
+            <a href="https://analytics.airqo.net/system/clients"
+               style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
+                Manage API Clients
+            </a>
+        </div>
+        <p style="font-size: 14px; color: #6c757d;">
+            Direct link: <a href="https://analytics.airqo.net/system/clients">https://analytics.airqo.net/system/clients</a>
+        </p>
+    </td>
+  </tr>`;
+    // Use a placeholder email; the actual recipient is set via BCC in the mailer
+    return constants.EMAIL_BODY({ email: userEmail, content, name: "Admin" });
   },
 };
