@@ -1,3 +1,12 @@
+"""Source metadata inference from OSM context and satellite pollutant signals.
+
+This module combines:
+1. Nearby OpenStreetMap-derived site context (category, land use, roads, natural features).
+2. Optional Sentinel-5P pollutant summaries over a date window.
+
+It returns ranked source-type candidates and supporting evidence for downstream APIs.
+"""
+
 from datetime import datetime, timedelta
 import math
 from statistics import mean
@@ -8,11 +17,19 @@ from models.site_category_model import SiteCategoryModel
 
 
 class SourceMetadataModel:
+    """Build source-attribution metadata for a latitude/longitude point.
+
+    The model produces a normalized ranking across source types:
+    `traffic`, `industrial`, `biomass_burning`, `dust_resuspension`, and
+    `mixed_urban`.
+    """
+
     MODEL_VERSION = "1.0.0"
     DEFAULT_POLLUTANTS = ["SO2", "HCHO", "CO", "NO2", "O3", "AOD"]
 
     @staticmethod
     def _clean_numeric(value, default=0.0):
+        """Safely coerce numeric-like input to float, falling back on invalid values."""
         try:
             if value is None:
                 return default
@@ -25,6 +42,7 @@ class SourceMetadataModel:
 
     @staticmethod
     def _normalize_scores(scores: Dict[str, float]) -> Dict[str, float]:
+        """Normalize non-negative scores to probabilities that sum to ~1.0."""
         total = sum(max(v, 0.0) for v in scores.values())
         if total <= 0:
             n = len(scores)
@@ -38,6 +56,12 @@ class SourceMetadataModel:
         natural: str,
         highway: str,
     ) -> Tuple[Dict[str, float], List[str]]:
+        """Infer source likelihoods from OSM-derived categorical context.
+
+        Returns a tuple of:
+        - score dict by source type
+        - human-readable evidence statements explaining applied heuristics
+        """
         score = {
             "traffic": 0.0,
             "industrial": 0.0,
@@ -97,6 +121,7 @@ class SourceMetadataModel:
     def _infer_from_satellite(
         self, pollutant_means: Dict[str, float]
     ) -> Tuple[Dict[str, float], List[str]]:
+        """Infer source likelihoods from pollutant threshold heuristics."""
         score = {
             "traffic": 0.0,
             "industrial": 0.0,
@@ -145,6 +170,10 @@ class SourceMetadataModel:
         end_date: str,
         pollutants: List[str],
     ) -> Dict[str, float]:
+        """Compute per-pollutant means from Sentinel-5P observations.
+
+        Each pollutant is queried independently to reduce cross-column NaN effects.
+        """
         aggregated = {}
         model = Sentinel5PModel()
 
@@ -180,6 +209,20 @@ class SourceMetadataModel:
         pollutants: List[str] = None,
         include_satellite: bool = True,
     ) -> Dict:
+        """Build ranked source metadata for a coordinate and time window.
+
+        Args:
+            latitude: Target latitude.
+            longitude: Target longitude.
+            start_date: Inclusive UTC date in `%Y-%m-%d`. Defaults to 7 days before now.
+            end_date: Inclusive UTC date in `%Y-%m-%d`. Defaults to today.
+            pollutants: Pollutants to aggregate when satellite data is enabled.
+            include_satellite: Whether to include Sentinel-5P-derived scoring.
+
+        Returns:
+            A dictionary containing primary and candidate source types, evidence,
+            and computation metadata.
+        """
         if pollutants is None or len(pollutants) == 0:
             pollutants = self.DEFAULT_POLLUTANTS
 
