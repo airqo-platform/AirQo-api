@@ -35,7 +35,7 @@ const validateTenant = query("tenant")
   .trim()
   .toLowerCase()
   .bail()
-  .isIn(constants.NETWORKS)
+  .isIn(constants.TENANTS)
   .withMessage("the tenant value is not among the expected ones");
 
 const createFromCohorts = [
@@ -76,7 +76,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {

@@ -18,7 +18,11 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return next(
-      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+      new HttpError(
+        "Validation error",
+        httpStatus.BAD_REQUEST,
+        errors.mapped(),
+      ),
     );
   }
   next();
@@ -33,7 +37,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -102,7 +106,7 @@ const commonValidations = {
           return true;
         } catch (error) {
           throw new Error(
-            "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs",
           );
         }
       }),
@@ -112,7 +116,7 @@ const commonValidations = {
     body("location")
       .exists()
       .withMessage(
-        "location details are missing in your request, consider using location"
+        "location details are missing in your request, consider using location",
       )
       .bail()
       .custom((value) => {
@@ -137,7 +141,7 @@ const commonValidations = {
       .bail()
       .isIn(["Polygon", "Point"])
       .withMessage(
-        "the location.type value is not among the expected ones which include: Polygon and Point"
+        "the location.type value is not among the expected ones which include: Polygon and Point",
       ),
   ],
 
@@ -145,7 +149,7 @@ const commonValidations = {
     body("location_id")
       .exists()
       .withMessage(
-        "location details are missing in your request, consider using location_id"
+        "location details are missing in your request, consider using location_id",
       )
       .bail()
       .trim()
@@ -235,14 +239,14 @@ const commonValidations = {
     body("coordinates")
       .exists()
       .withMessage(
-        "a required field is missing in your request body, consider using coordinates"
+        "a required field is missing in your request body, consider using coordinates",
       )
       .bail()
       .custom((value) => {
         return Array.isArray(value);
       })
       .withMessage(
-        "the coordinates should be an array or arrays, each containing a pair of coordinates"
+        "the coordinates should be an array or arrays, each containing a pair of coordinates",
       )
       .notEmpty()
       .withMessage("the coordinates cannot be empty"),

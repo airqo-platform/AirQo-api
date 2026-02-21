@@ -494,7 +494,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   objectId: (
@@ -1272,7 +1272,7 @@ const validateTenantQuery = [
     .withMessage("tenant cannot be empty if provided")
     .bail()
     .toLowerCase()
-    .isIn(constants.NETWORKS || ["airqo"])
+    .isIn(constants.TENANTS || ["airqo"])
     .withMessage("the tenant value is not among the expected ones"),
 ];
 

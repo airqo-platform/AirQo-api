@@ -28,7 +28,7 @@ const validateTenant = oneOf([
     .bail()
     .trim()
     .toLowerCase()
-    .isIn(constants.NETWORKS)
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
