@@ -4,17 +4,21 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const constants = require("@config/constants");
 
-const validateTenant = oneOf([
-  query("tenant")
-    .optional()
-    .notEmpty()
-    .withMessage("tenant should not be empty if provided")
-    .trim()
-    .toLowerCase()
-    .bail()
-    .isIn(["kcca", "airqo", "airqount"])
-    .withMessage("the tenant value is not among the expected ones"),
-]);
+const validateTenant = query("tenant")
+  .optional()
+  .trim()
+  .toLowerCase()
+  .custom((value) => {
+    if (constants.TENANTS.length === 0) {
+      throw new Error("Server configuration error: TENANTS are not set.");
+    }
+    if (!constants.TENANTS.includes(value)) {
+      throw new Error(
+        `Invalid tenant. Must be one of: ${constants.TENANTS.join(", ")}`,
+      );
+    }
+    return true;
+  });
 
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);

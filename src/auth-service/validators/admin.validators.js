@@ -12,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -188,7 +188,7 @@ const bulkAdminOperations = [
       .bail()
       .isIn(["setup_super_admin", "remove_super_admin", "audit_users"])
       .withMessage(
-        "operation must be one of: setup_super_admin, remove_super_admin, audit_users"
+        "operation must be one of: setup_super_admin, remove_super_admin, audit_users",
       ),
     body("user_ids")
       .optional()
@@ -258,13 +258,13 @@ const userSearchValidation = [
     .optional()
     .isIn(["active", "inactive", "pending", "all"])
     .withMessage(
-      "status_filter must be one of: active, inactive, pending, all"
+      "status_filter must be one of: active, inactive, pending, all",
     ),
   query("sort_by")
     .optional()
     .isIn(["email", "firstName", "lastName", "createdAt", "lastLogin"])
     .withMessage(
-      "sort_by must be one of: email, firstName, lastName, createdAt, lastLogin"
+      "sort_by must be one of: email, firstName, lastName, createdAt, lastLogin",
     ),
   query("sort_order")
     .optional()

@@ -1,6 +1,7 @@
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
 
 const commonValidations = {
   tenant: [
@@ -10,7 +11,7 @@ const commonValidations = {
       .withMessage("tenant should not be empty if provided")
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "airqount"])
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   transactionId: [

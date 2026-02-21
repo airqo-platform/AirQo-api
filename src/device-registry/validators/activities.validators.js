@@ -486,17 +486,21 @@ const commonDeployValidations = {
 };
 
 const commonValidations = {
-  tenant: [
-    query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
-  ],
+  tenant: query("tenant")
+    .optional()
+    .trim()
+    .toLowerCase()
+    .custom((value) => {
+      if (constants.TENANTS.length === 0) {
+        throw new Error("Server configuration error: TENANTS are not set.");
+      }
+      if (!constants.TENANTS.includes(value)) {
+        throw new Error(
+          `Invalid tenant. Must be one of: ${constants.TENANTS.join(", ")}`,
+        );
+      }
+      return true;
+    }),
   objectId: (
     field,
     location = query,
@@ -1264,17 +1268,21 @@ const validateDeviceNameQuery = [
     ),
 ];
 
-const validateTenantQuery = [
-  query("tenant")
-    .optional()
-    .trim()
-    .notEmpty()
-    .withMessage("tenant cannot be empty if provided")
-    .bail()
-    .toLowerCase()
-    .isIn(constants.NETWORKS || ["airqo"])
-    .withMessage("the tenant value is not among the expected ones"),
-];
+const validateTenantQuery = query("tenant")
+  .optional()
+  .trim()
+  .toLowerCase()
+  .custom((value) => {
+    if (constants.TENANTS.length === 0) {
+      throw new Error("Server configuration error: TENANTS are not set.");
+    }
+    if (!constants.TENANTS.includes(value)) {
+      throw new Error(
+        `Invalid tenant. Must be one of: ${constants.TENANTS.join(", ")}`,
+      );
+    }
+    return true;
+  });
 
 module.exports = {
   ...activitiesValidations,

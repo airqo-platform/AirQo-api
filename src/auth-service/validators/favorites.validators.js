@@ -12,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -32,7 +32,7 @@ const listByUserId = [
     param("firebase_user_id")
       .exists()
       .withMessage(
-        "the firebase_user_id param is missing in request path, consider using firebase_user_id"
+        "the firebase_user_id param is missing in request path, consider using firebase_user_id",
       )
       .bail()
       .notEmpty()
@@ -127,7 +127,7 @@ const syncFavorites = [
         return Array.isArray(value);
       })
       .withMessage(
-        "Invalid request body format. The favorite_places should be an array"
+        "Invalid request body format. The favorite_places should be an array",
       ),
     body("favorite_places.*")
       .optional()
@@ -172,7 +172,7 @@ const syncFavorites = [
     body("favorite_places.*.firebase_user_id")
       .exists()
       .withMessage(
-        "the firebase_user_id is missing in the favorite place object"
+        "the firebase_user_id is missing in the favorite place object",
       )
       .bail()
       .notEmpty()
@@ -205,7 +205,7 @@ const update = [
     param("favorite_id")
       .exists()
       .withMessage(
-        "the favorite param is missing in request path, consider using favorite_id"
+        "the favorite param is missing in request path, consider using favorite_id",
       )
       .bail()
       .trim()
@@ -288,7 +288,7 @@ const deleteFavorite = [
     param("favorite_id")
       .exists()
       .withMessage(
-        "the favorite param is missing in request path, consider using favorite_id"
+        "the favorite param is missing in request path, consider using favorite_id",
       )
       .bail()
       .trim()
@@ -307,7 +307,7 @@ const getById = [
     param("favorite_id")
       .exists()
       .withMessage(
-        "the favorite param is missing in request path, consider using favorite_id"
+        "the favorite param is missing in request path, consider using favorite_id",
       )
       .bail()
       .trim()

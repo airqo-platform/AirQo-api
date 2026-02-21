@@ -12,7 +12,7 @@ const validateTenant = oneOf([
     .bail()
     .trim()
     .toLowerCase()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -221,7 +221,7 @@ const update = [
     query("id")
       .exists()
       .withMessage(
-        "the candidate identifier is missing in request, consider using the id"
+        "the candidate identifier is missing in request, consider using the id",
       )
       .bail()
       .trim()
@@ -240,7 +240,7 @@ const update = [
       .toLowerCase()
       .isIn(["pending", "rejected"])
       .withMessage(
-        "the status value is not among the expected ones which include: rejected and pending"
+        "the status value is not among the expected ones which include: rejected and pending",
       ),
   ],
 ];

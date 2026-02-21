@@ -45,7 +45,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
 
@@ -57,8 +57,8 @@ const commonValidations = {
         new HttpError(
           "Validation Error",
           httpStatus.BAD_REQUEST,
-          errors.mapped()
-        )
+          errors.mapped(),
+        ),
       );
     }
     next();
@@ -128,7 +128,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["hourly", "daily", "raw", "minute"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
+        "the frequency value is not among the expected ones which include: hourly, daily, minute and raw",
       ),
   ],
 
@@ -142,7 +142,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["json", "csv"])
       .withMessage(
-        "the format value is not among the expected ones which include: csv and json"
+        "the format value is not among the expected ones which include: csv and json",
       ),
   ],
 
@@ -156,7 +156,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["yes", "no"])
       .withMessage(
-        "the external value is not among the expected ones which include: no and yes"
+        "the external value is not among the expected ones which include: no and yes",
       ),
   ],
 
@@ -170,7 +170,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["yes", "no"])
       .withMessage(
-        "the recent value is not among the expected ones which include: no and yes"
+        "the recent value is not among the expected ones which include: no and yes",
       ),
   ],
 
@@ -290,7 +290,7 @@ const commonValidations = {
   checkConflictingParams: (
     param1,
     param2,
-    errorMessage = `You cannot provide both ${param1} and ${param2}`
+    errorMessage = `You cannot provide both ${param1} and ${param2}`,
   ) => [
     query().custom((value, { req }) => {
       const value1 = req.query[param1];
@@ -449,7 +449,7 @@ const measurementsValidations = {
         "cohort_id",
         "grid_id",
         req,
-        res
+        res,
       );
       if (conflict) {
         //If conflict is true, stop and return the json response from conflictingParamHandler
@@ -459,7 +459,7 @@ const measurementsValidations = {
         "device_id",
         "site_id",
         req,
-        res
+        res,
       );
       if (conflict) {
         return conflict;
@@ -496,7 +496,7 @@ const measurementsValidations = {
         "cohort_id",
         "grid_id",
         req,
-        res
+        res,
       );
       if (conflict) {
         return conflict;
@@ -505,7 +505,7 @@ const measurementsValidations = {
         "device_id",
         "site_id",
         req,
-        res
+        res,
       );
       if (conflict) {
         return conflict;
