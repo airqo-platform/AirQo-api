@@ -7,7 +7,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- survey-responses-model`
+  `${constants.ENVIRONMENT} -- survey-responses-model`,
 );
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
@@ -34,7 +34,7 @@ const AnswerSchema = new Schema(
       default: Date.now,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Location Schema for context data
@@ -61,7 +61,7 @@ const LocationSchema = new Schema(
       min: [0, "Accuracy must be >= 0"],
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Context Data Schema
@@ -83,7 +83,7 @@ const ContextDataSchema = new Schema(
       type: Schema.Types.Mixed,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Main Survey Response Schema
@@ -140,7 +140,7 @@ const SurveyResponseSchema = new Schema(
       min: [0, "Time to complete must be >= 0"],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 SurveyResponseSchema.pre("save", function (next) {
@@ -150,7 +150,7 @@ SurveyResponseSchema.pre("save", function (next) {
 
   if (questionIds.length !== uniqueQuestionIds.length) {
     return next(
-      new Error("Answer question IDs must be unique within a response")
+      new Error("Answer question IDs must be unique within a response"),
     );
   }
 
@@ -199,7 +199,7 @@ SurveyResponseSchema.statics = {
       } else {
         return createEmptySuccessResponse(
           "survey response",
-          "operation successful but survey response NOT successfully created"
+          "operation successful but survey response NOT successfully created",
         );
       }
     } catch (err) {
@@ -256,7 +256,7 @@ SurveyResponseSchema.statics = {
       const exclusionProjection =
         constants.SURVEY_RESPONSES_EXCLUSION_PROJECTION
           ? constants.SURVEY_RESPONSES_EXCLUSION_PROJECTION(
-              filter.category ? filter.category : "none"
+              filter.category ? filter.category : "none",
             )
           : {};
 
@@ -279,8 +279,21 @@ SurveyResponseSchema.statics = {
           as: "user",
         })
         .addFields({
-          survey: { $arrayElemAt: ["$survey", 0] },
-          user: { $arrayElemAt: ["$user", 0] },
+          // Defensive: handle both array and non-array cases
+          survey: {
+            $cond: {
+              if: { $isArray: "$survey" },
+              then: { $arrayElemAt: ["$survey", 0] },
+              else: null,
+            },
+          },
+          user: {
+            $cond: {
+              if: { $isArray: "$user" },
+              then: { $arrayElemAt: ["$user", 0] },
+              else: null,
+            },
+          },
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -323,20 +336,20 @@ SurveyResponseSchema.statics = {
       const updatedSurveyResponse = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedSurveyResponse)) {
         return createSuccessResponse(
           "update",
           updatedSurveyResponse._doc,
-          "survey response"
+          "survey response",
         );
       } else {
         return createNotFoundResponse(
           "survey response",
           "update",
-          "survey response does not exist, please crosscheck"
+          "survey response does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -381,20 +394,20 @@ SurveyResponseSchema.statics = {
 
       const removedSurveyResponse = await this.findOneAndRemove(
         filter,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(removedSurveyResponse)) {
         return createSuccessResponse(
           "delete",
           removedSurveyResponse._doc,
-          "survey response"
+          "survey response",
         );
       } else {
         return createNotFoundResponse(
           "survey response",
           "delete",
-          "survey response does not exist, please crosscheck"
+          "survey response does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -431,7 +444,7 @@ const SurveyResponseModel = (tenant) => {
     let surveyResponses = getModelByTenant(
       dbTenant,
       "surveyresponse",
-      SurveyResponseSchema
+      SurveyResponseSchema,
     );
     return surveyResponses;
   }

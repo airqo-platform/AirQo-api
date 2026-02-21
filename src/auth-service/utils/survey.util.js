@@ -9,6 +9,7 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
+const { GUEST_USER_ID } = require("@bin/jobs/guest-user-init-job");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- survey-util`);
@@ -251,9 +252,10 @@ const survey = {
 
       let modifiedBody = Object.assign({}, body);
 
-      // Assign anonymous ObjectId for guest users
+      // Assign sentinel guest user ID for all guest users
+      // This ensures consistent guest user tracking and prevents $lookup failures
       if (isGuestUser) {
-        modifiedBody.userId = new ObjectId();
+        modifiedBody.userId = GUEST_USER_ID;
       }
 
       // Set default status if not provided
