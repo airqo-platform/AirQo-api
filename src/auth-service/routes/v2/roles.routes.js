@@ -16,6 +16,7 @@ router.use(headers);
 router.get(
   "/",
   roleValidations.list,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.list,
@@ -24,6 +25,7 @@ router.get(
 router.get(
   "/summary",
   roleValidations.listSummary,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.listSummary,
@@ -32,6 +34,7 @@ router.get(
 router.post(
   "/",
   roleValidations.create,
+  validate,
   enhancedJWTAuth,
   roleController.create,
 );
@@ -39,6 +42,7 @@ router.post(
 router.put(
   "/:role_id",
   roleValidations.update,
+  validate,
   enhancedJWTAuth,
   roleController.update,
 );
@@ -46,6 +50,7 @@ router.put(
 router.delete(
   "/:role_id",
   roleValidations.deleteRole,
+  validate,
   enhancedJWTAuth,
   roleController.delete,
 );
@@ -53,6 +58,7 @@ router.delete(
 router.get(
   "/:role_id/users",
   roleValidations.listUsersWithRole,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.listUsersWithRole,
@@ -61,6 +67,7 @@ router.get(
 router.get(
   "/:role_id/available_users",
   roleValidations.listAvailableUsersForRole,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.listAvailableUsersForRole,
@@ -69,6 +76,7 @@ router.get(
 router.post(
   "/:role_id/users",
   roleValidations.assignManyUsersToRole,
+  validate,
   enhancedJWTAuth,
   roleController.assignManyUsersToRole,
 );
@@ -76,6 +84,7 @@ router.post(
 router.post(
   "/:role_id/user",
   roleValidations.assignUserToRole,
+  validate,
   enhancedJWTAuth,
   roleController.assignUserToRole,
 );
@@ -83,6 +92,7 @@ router.post(
 router.put(
   "/:role_id/user/:user_id",
   roleValidations.assignUserToRolePut,
+  validate,
   enhancedJWTAuth,
   roleController.assignUserToRole,
 );
@@ -90,6 +100,7 @@ router.put(
 router.delete(
   "/:role_id/users",
   roleValidations.unAssignManyUsersFromRole,
+  validate,
   enhancedJWTAuth,
   roleController.unAssignManyUsersFromRole,
 );
@@ -104,6 +115,7 @@ router.delete(
 router.get(
   "/:role_id/permissions",
   roleValidations.listPermissionsForRole,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.listPermissionsForRole,
@@ -112,6 +124,7 @@ router.get(
 router.get(
   "/:role_id/available_permissions",
   roleValidations.listAvailablePermissionsForRole,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.listAvailablePermissionsForRole,
@@ -120,6 +133,7 @@ router.get(
 router.post(
   "/:role_id/permissions",
   roleValidations.assignPermissionToRole,
+  validate,
   enhancedJWTAuth,
   roleController.assignPermissionToRole,
 );
@@ -134,6 +148,7 @@ router.delete(
 router.put(
   "/:role_id/permissions",
   roleValidations.updateRolePermissions,
+  validate,
   enhancedJWTAuth,
   roleController.updateRolePermissions,
 );
@@ -141,6 +156,7 @@ router.put(
 router.delete(
   "/:role_id/permissions/:permission_id",
   roleValidations.unAssignPermissionFromRole,
+  validate,
   enhancedJWTAuth,
   roleController.unAssignPermissionFromRole,
 );
@@ -148,6 +164,7 @@ router.delete(
 router.post(
   "/:role_id/user/enhanced",
   roleValidations.assignUserToRole,
+  validate,
   enhancedJWTAuth,
   roleController.enhancedAssignUserToRole,
 );
@@ -155,6 +172,7 @@ router.post(
 router.put(
   "/:role_id/user/:user_id/enhanced",
   roleValidations.assignUserToRolePut,
+  validate,
   enhancedJWTAuth,
   roleController.enhancedAssignUserToRole,
 );
@@ -163,6 +181,7 @@ router.put(
 router.delete(
   "/:role_id/user/:user_id/enhanced",
   roleValidations.unAssignUserFromRole,
+  validate,
   enhancedJWTAuth,
   roleController.enhancedUnAssignUserFromRole,
 );
@@ -171,6 +190,7 @@ router.delete(
 router.get(
   "/users/:user_id/network-roles",
   roleValidations.getUserRoles,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserNetworkRoles,
@@ -179,6 +199,7 @@ router.get(
 router.get(
   "/users/:user_id/group-roles",
   roleValidations.getUserRoles,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserGroupRoles,
@@ -187,6 +208,7 @@ router.get(
 router.get(
   "/users/:user_id/role-summary",
   roleValidations.getUserRoles,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserRoleSummary,
@@ -195,6 +217,7 @@ router.get(
 router.get(
   "/admin/deprecated-field-audit",
   roleValidations.auditDeprecatedFields,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.auditDeprecatedFields,
@@ -203,6 +226,7 @@ router.get(
 router.get(
   "/users/:user_id/enhanced-details",
   roleValidations.getEnhancedUserDetails,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getEnhancedUserDetails,
@@ -211,6 +235,7 @@ router.get(
 router.get(
   "/users/:user_id/detailed-roles-permissions",
   roleValidations.getUserRolesWithFilters,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserRolesAndPermissionsDetailed,
@@ -219,6 +244,7 @@ router.get(
 router.get(
   "/users/:user_id/groups/:group_id/permissions",
   roleValidations.getUserPermissionsForGroup,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserPermissionsForGroup,
@@ -227,6 +253,7 @@ router.get(
 router.get(
   "/users/:user_id/permissions/by-group",
   roleValidations.getUserPermissionsForGroup,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserPermissionsForGroup,
@@ -238,12 +265,14 @@ router.get(
   injectCurrentUserId,
   pagination(),
   roleValidations.getUserPermissionsForGroup,
+  validate,
   roleController.getCurrentUserPermissionsForGroup,
 );
 
 router.get(
   "/users/:user_id/groups/:group_id/permissions/simplified",
   roleValidations.getUserPermissionsForGroup,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getSimplifiedPermissionsForGroup,
@@ -255,12 +284,14 @@ router.get(
   injectCurrentUserId,
   pagination(),
   roleValidations.getUserPermissionsForGroup,
+  validate,
   roleController.getSimplifiedPermissionsForGroup,
 );
 
 router.post(
   "/users/:user_id/permissions/bulk-check",
   roleValidations.bulkPermissionsCheck,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.bulkPermissionsCheck,
@@ -272,12 +303,14 @@ router.post(
   injectCurrentUserId,
   pagination(),
   roleValidations.bulkPermissionsCheck,
+  validate,
   roleController.bulkPermissionsCheck,
 );
 
 router.post(
   "/users/:user_id/permissions/check-actions",
   roleValidations.checkUserPermissionsForActions,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.checkUserPermissionsForActions,
@@ -286,6 +319,7 @@ router.post(
 router.get(
   "/users/:user_id/roles/by-group",
   roleValidations.getUserRolesWithFilters,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserRolesByGroup,
@@ -294,6 +328,7 @@ router.get(
 router.get(
   "/users/:user_id/groups/permissions-summary",
   roleValidations.getUserRoles,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserGroupsWithPermissionsSummary,
@@ -305,12 +340,14 @@ router.get(
   injectCurrentUserId,
   pagination(),
   roleValidations.getUserRoles,
+  validate,
   roleController.getUserGroupsWithPermissionsSummary,
 );
 
 router.get(
   "/users/:user_id/rbac-analysis",
   roleValidations.getUserRoles,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserRolesAndPermissionsViaRBAC,
@@ -319,6 +356,7 @@ router.get(
 router.get(
   "/users/:user_id/roles-simplified",
   roleValidations.getUserRoles,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.getUserRolesSimplified,
@@ -350,6 +388,7 @@ router.get(
 router.get(
   "/system/health",
   roleValidations.getSystemHealth,
+  validate,
   enhancedJWTAuth,
   roleController.getSystemRoleHealth,
   // No pagination here as it's a system health check
@@ -358,6 +397,7 @@ router.get(
 router.post(
   "/bulk-operations",
   roleValidations.bulkRoleOperations,
+  validate,
   enhancedJWTAuth,
   roleController.bulkRoleOperations,
 );
@@ -365,6 +405,7 @@ router.post(
 router.get(
   "/:role_id",
   roleValidations.getRoleById,
+  validate,
   enhancedJWTAuth,
   pagination(),
   roleController.list,

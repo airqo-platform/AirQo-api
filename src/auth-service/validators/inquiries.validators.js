@@ -2,6 +2,7 @@
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -11,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -52,7 +53,7 @@ const create = [
         "assistance",
       ])
       .withMessage(
-        "the category value is not among the expected ones which are: general, data, feedback, monitors, partners,researchers,policy,champions,developers,assistance"
+        "the category value is not among the expected ones which are: general, data, feedback, monitors, partners,researchers,policy,champions,developers,assistance",
       ),
     body("message")
       .exists()
@@ -75,7 +76,7 @@ const deleteInquiry = [
     query("id")
       .exists()
       .withMessage(
-        "the candidate identifier is missing in request, consider using the id"
+        "the candidate identifier is missing in request, consider using the id",
       )
       .bail()
       .trim()
@@ -94,7 +95,7 @@ const update = [
     query("id")
       .exists()
       .withMessage(
-        "the candidate identifier is missing in request, consider using the id"
+        "the candidate identifier is missing in request, consider using the id",
       )
       .bail()
       .trim()
@@ -113,7 +114,7 @@ const update = [
       .toLowerCase()
       .isIn(["pending", "rejected"])
       .withMessage(
-        "the status value is not among the expected ones which include: rejected and pending"
+        "the status value is not among the expected ones which include: rejected and pending",
       ),
   ],
 ];
