@@ -338,14 +338,20 @@ SurveyResponseSchema.statics = {
         const uniqueQuestionIds = [...new Set(questionIds)];
 
         if (questionIds.length !== uniqueQuestionIds.length) {
-          return {
-            success: false,
-            message: "Answer question IDs must be unique within a response",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
+          // Create a ValidationError to match Mongoose's error structure
+          // This will be caught in register() and returned as 409 CONFLICT
+          // (see the err.errors catch block around line 203)
+          const err = new Error(
+            "Answer question IDs must be unique within a response",
+          );
+          err.name = "ValidationError";
+          err.errors = {
+            answers: {
               message: "Answer question IDs must be unique within a response",
+              kind: "user defined",
             },
           };
+          return next(err);
         }
       }
 

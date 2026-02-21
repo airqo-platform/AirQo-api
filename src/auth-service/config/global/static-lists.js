@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const staticLists = {
   SUPER_ADMIN_EMAIL_ALLOWLIST: process.env.SUPER_ADMIN_EMAIL_ALLOWLIST
     ? process.env.SUPER_ADMIN_EMAIL_ALLOWLIST.split(",")
@@ -24,7 +23,9 @@ const staticLists = {
         .filter((value) => value !== "")
     : [],
   TENANTS: process.env.TENANTS
-    ? process.env.TENANTS.split(",").map((value) => value.trim().toLowerCase())
+    ? process.env.TENANTS.split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter((value) => value !== "")
     : ["airqo"],
   GUEST_USER_ID: new mongoose.Types.ObjectId("000000000000000000000001"),
   NETWORKS: process.env.NETWORKS
