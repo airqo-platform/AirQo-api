@@ -1,4 +1,6 @@
 from flask import jsonify, request
+import logging
+logger = logging.getLogger(__name__)
 
 from models.source_metadata_model import SourceMetadataModel
 
@@ -58,7 +60,8 @@ class SourceMetadataView:
             )
             return jsonify({"message": "Operation successful", "data": data}), 200
         except Exception as ex:
-            return jsonify({"error": str(ex)}), 500
+            logger.exception("Failed to build source metadata")
+            return jsonify({"error": "An internal error occurred while processing this request."}), 500
 
     @staticmethod
     def get_source_metadata_batch():
@@ -77,8 +80,12 @@ class SourceMetadataView:
             return jsonify({"error": "'pollutants' must be a list."}), 400
         pollutants = [str(p).strip().upper() for p in pollutants if str(p).strip()]
 
+        MAX_BATCH_SIZE = 100
         if not isinstance(items, list) or len(items) == 0:
             return jsonify({"error": "'items' must be a non-empty list."}), 400
+        if len(items) > MAX_BATCH_SIZE:
+            return jsonify({"error": f"Batch size exceeds maximum of {MAX_BATCH_SIZE} items."}), 400
+
 
         model = SourceMetadataModel()
         results = []
@@ -104,11 +111,12 @@ class SourceMetadataView:
                 result["request_id"] = item.get("id", idx)
                 results.append(result)
             except Exception as ex:
+                logger.exception("Failed to build source metadata for item %d", idx)
                 failures.append(
                     {
                         "index": idx,
                         "id": item.get("id"),
-                        "error": str(ex),
+                        "error": "An internal error occurred while processing this item.",
                     }
                 )
 
