@@ -378,14 +378,13 @@ const createMailerFunction = (
         ? customMailOptionsModifier(baseMailOptions, { email, ...otherParams })
         : baseMailOptions;
 
-      // ✅ STEP 4d: Check for duplicates before queuing
+      // ✅ STEP 4d: DB-backed deduplication check before queuing
       let emailResult;
       try {
         const shouldSend =
           await emailDeduplicator.checkAndMarkEmail(mailOptions);
 
         if (shouldSend) {
-          // Not a duplicate, add to the queue
           const queueResult = await addToEmailQueue(mailOptions, tenant);
           if (!queueResult.success) {
             throw new HttpError(
@@ -401,50 +400,51 @@ const createMailerFunction = (
             data: {
               accepted: [mailOptions.to],
               rejected: [],
-              messageId: `queued_${new Date().getTime()}`,
+              messageId: `queued_${Date.now()}`,
             },
           };
         } else {
-          // This is a duplicate, do not queue
-          const message = `Duplicate email prevented: ${mailOptions.to} - ${mailOptions.subject}`;
-          logger.info(message);
+          logger.info(
+            `Duplicate email prevented: ${mailOptions.to} — ${mailOptions.subject}`,
+          );
           emailResult = {
             success: false,
-            message: "Email not sent - duplicate detected",
+            message:
+              "Email not sent — duplicate detected within deduplication window",
             duplicate: true,
             data: null,
           };
         }
-      } catch (redisError) {
-        // If Redis fails, we "fail open" and queue the email anyway
+      } catch (dbError) {
+        // checkAndMarkEmail already fails open internally, but if something else
+        // throws (e.g. the queue insert), we still attempt to queue the email.
         logger.warn(
-          `Redis deduplication check failed, queuing email anyway: ${redisError.message}`,
-          {
-            email: mailOptions.to,
-            subject: mailOptions.subject,
-            redisError: redisError.message,
-          },
+          `Deduplication or queue step failed, queuing email anyway: ${dbError.message}`,
+          { email: mailOptions.to, subject: mailOptions.subject },
         );
         const queueResult = await addToEmailQueue(mailOptions, tenant);
         if (!queueResult.success) {
           throw new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: queueResult.error || "Failed to queue email." },
+            {
+              message:
+                queueResult.error ||
+                "Failed to queue email after dedup failure.",
+            },
           );
         }
         emailResult = {
           success: true,
-          message: "Email queued for sending (deduplication check failed).",
-          duplicate: false, // Assumed not a duplicate
+          message: "Email queued (deduplication check encountered an error).",
+          duplicate: false,
           data: {
             accepted: [mailOptions.to],
             rejected: [],
-            messageId: `queued_redis_fail_${new Date().getTime()}`,
+            messageId: `queued_dedup_err_${Date.now()}`,
           },
         };
       }
-
       // The rest of the logic now deals with the result of the *queuing* action,
       // not the direct sending action. The background processor handles the actual sending.
       if (!emailResult.success && !emailResult.duplicate) {
