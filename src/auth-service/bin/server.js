@@ -44,7 +44,6 @@ require("@bin/jobs/preferences-update-job");
 require("@bin/jobs/profile-picture-update-job");
 require("@bin/jobs/role-cleanup-job");
 require("@bin/jobs/daily-compromise-summary-job");
-require("@bin/jobs/guest-user-init-job");
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");

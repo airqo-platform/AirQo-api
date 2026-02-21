@@ -24,10 +24,9 @@ const staticLists = {
         .filter((value) => value !== "")
     : [],
   TENANTS: process.env.TENANTS
-    ? process.env.TENANTS.split(",")
-        .map((value) => value.trim())
-        .filter((value) => value !== "")
-    : [],
+    ? process.env.TENANTS.split(",").map((value) => value.trim().toLowerCase())
+    : ["airqo"],
+  GUEST_USER_ID: new mongoose.Types.ObjectId("000000000000000000000001"),
   NETWORKS: process.env.NETWORKS
     ? process.env.NETWORKS.split(",")
         .map((value) => value.trim())

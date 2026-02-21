@@ -9,7 +9,7 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
-const { GUEST_USER_ID } = require("@bin/jobs/guest-user-init-job");
+const { GUEST_USER_ID } = constants;
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- survey-util`);

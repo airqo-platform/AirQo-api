@@ -304,6 +304,13 @@ SurveyResponseSchema.statics = {
             },
           },
         })
+        // Filter out responses where critical lookups failed (survey or user not found)
+        // This prevents returning incomplete/orphaned data to clients
+        .match({
+          survey: { $ne: null },
+          // Note: user can be null for guest responses if sentinel user doesn't exist yet
+          // We keep these responses to avoid breaking guest survey functionality
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
