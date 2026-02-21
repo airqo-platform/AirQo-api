@@ -1270,32 +1270,93 @@ module.exports = {
       day: "numeric",
     });
 
-    const detailsHtml = compromiseDetails
-      .map(
-        (c) => `
-      <li style="margin-bottom: 8px;">
-        Token ending in ...${escapeHtml(c.tokenSuffix || "XXXX")} used by IP: <strong>${escapeHtml(
-          c.ip,
-        )}</strong> at ${new Date(c.timestamp).toLocaleString()}
-      </li>
-    `,
-      )
+    const safeDetails = Array.isArray(compromiseDetails)
+      ? compromiseDetails
+      : [];
+
+    const uniqueCompromises = [
+      ...new Map(
+        safeDetails.map((item) => [`${item.ip}-${item.tokenSuffix}`, item]),
+      ).values(),
+    ];
+
+    const detailsHtml = uniqueCompromises
+      .map((c) => {
+        const rawTimestamp = c.timestamp;
+        let formattedTime = "Unknown time";
+        if (
+          rawTimestamp !== null &&
+          rawTimestamp !== undefined &&
+          rawTimestamp !== ""
+        ) {
+          const d = new Date(rawTimestamp);
+          if (!isNaN(d.getTime())) {
+            formattedTime = d.toLocaleString();
+          }
+        }
+
+        return `
+    <li style="margin-bottom: 8px;">
+      Token ending in <strong>...${escapeHtml(c.tokenSuffix || "XXXX")}</strong>
+      accessed from IP: <strong>${escapeHtml(c.ip || "N/A")}</strong>
+      at ${formattedTime}
+    </li>`;
+      })
       .join("");
 
     const content = `
-      <tr>
-        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-          <h3 style="color: #D92D20;">Daily Security Summary for ${today}</h3>
-          <p>We detected <strong>${count}</strong> potential security event(s) involving your AirQo API token(s) in the last 24 hours. For your security, the IP addresses involved have been automatically blacklisted.</p>
-          <h4>Affected IPs:</h4>
-          <ul style="padding-left: 20px;">
-            ${detailsHtml}
-          </ul>
-          <p><strong>Action Required:</strong> We strongly recommend that you log in to your AirQo account, delete the compromised token(s), and generate new ones. Also, consider updating your account password as a precaution.</p>
-          <p>If you have any questions, please contact our support team.</p>
-        </td>
-      </tr>
-    `;
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <h3 style="color: #D92D20;">Daily Security Alert Summary — ${today}</h3>
+        <p>
+          We detected <strong>${count}</strong> potential security event(s) involving your
+          AirQo API token(s) in the last 24 hours. Below, we show
+          <strong>${uniqueCompromises.length}</strong> unique token–IP combination(s) after
+          deduplicating repeated activity from the same token and IP. The IP addresses listed
+          below were automatically blacklisted by our security system.
+        </p>
+
+        <h4>Events Detected:</h4>
+        <ul style="padding-left: 20px;">
+          ${detailsHtml}
+        </ul>
+
+        <h4>Why am I seeing this?</h4>
+        <p>
+          Our system flags API requests from IP addresses that weren't previously associated
+          with your token. <strong>If you use a serverless platform (e.g. AWS Lambda, Google
+          Cloud Run, Vercel) or any setup with dynamic outbound IPs, this is expected
+          behavior</strong> — each invocation may originate from a different IP, triggering
+          this alert even for legitimate traffic.
+        </p>
+
+        <h4>Recommended Actions:</h4>
+        <ul style="padding-left: 20px;">
+          <li style="margin-bottom: 8px;">
+            <strong>Whitelist your IP (recommended for static IPs):</strong> If your
+            infrastructure uses a fixed egress IP, add it to the allowlist in your
+            <em>API Client settings</em> on the AirQo platform. This prevents future alerts
+            from that IP.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Use a fixed egress proxy (recommended for dynamic IPs):</strong> Route
+            your API calls through a NAT gateway or egress proxy with a stable IP so our
+            system can reliably identify your traffic.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Rotate your token if compromised:</strong> If you do not recognise this
+            activity and suspect your token has been stolen, generate a new token immediately
+            from the AirQo platform.
+          </li>
+        </ul>
+
+        <p>
+          If you have questions or need help configuring a whitelist, please contact our
+          support team — we're happy to assist.
+        </p>
+      </td>
+    </tr>
+  `;
 
     return constants.EMAIL_BODY({ email, content, name });
   },
