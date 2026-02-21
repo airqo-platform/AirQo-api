@@ -9,6 +9,7 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
+const { GUEST_USER_ID } = constants;
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- survey-util`);
@@ -216,6 +217,23 @@ const survey = {
       const { body, query, user } = request;
       const { tenant } = query;
 
+      // Early validation: Check for duplicate question IDs BEFORE any DB operations
+      if (body.answers && Array.isArray(body.answers)) {
+        const questionIds = body.answers.map((a) => a.questionId);
+        const uniqueQuestionIds = [...new Set(questionIds)];
+
+        if (questionIds.length !== uniqueQuestionIds.length) {
+          return {
+            success: false,
+            message: "validation errors for some of the provided fields",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              answers: "Answer question IDs must be unique within a response",
+            },
+          };
+        }
+      }
+
       // Validate that survey exists and is active
       const surveyExists = await SurveyModel(tenant).exists({
         _id: body.surveyId,
@@ -251,9 +269,10 @@ const survey = {
 
       let modifiedBody = Object.assign({}, body);
 
-      // Assign anonymous ObjectId for guest users
+      // Assign sentinel guest user ID for all guest users
+      // This ensures consistent guest user tracking and prevents $lookup failures
       if (isGuestUser) {
-        modifiedBody.userId = new ObjectId();
+        modifiedBody.userId = GUEST_USER_ID;
       }
 
       // Set default status if not provided
