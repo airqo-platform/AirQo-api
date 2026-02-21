@@ -46,7 +46,7 @@ const validatePermissionsFile = () => {
     Object.keys(DEFAULT_ROLE_DEFINITIONS).length === 0
   ) {
     errors.push(
-      "PERMISSIONS.DEFAULT_ROLE_DEFINITIONS object is missing or empty."
+      "PERMISSIONS.DEFAULT_ROLE_DEFINITIONS object is missing or empty.",
     );
     // Stop further checks if the main object is missing
     return errors;
@@ -72,7 +72,7 @@ const validatePermissionsFile = () => {
       for (const perm of roleDef.permissions) {
         if (!ALL.includes(perm)) {
           errors.push(
-            `Role '${roleKey}' contains an undefined permission: '${perm}'.`
+            `Role '${roleKey}' contains an undefined permission: '${perm}'.`,
           );
         }
       }
@@ -94,10 +94,10 @@ const initializeRBAC = async () => {
     console.error("❌ CRITICAL RBAC CONFIGURATION ERROR:");
     permissionFileErrors.forEach((err) => console.error(`   - ${err}`));
     console.error(
-      "🚨 Halting application startup due to invalid RBAC configuration in permissions.js"
+      "🚨 Halting application startup due to invalid RBAC configuration in permissions.js",
     );
     throw new Error(
-      `Invalid RBAC configuration: ${permissionFileErrors.join("; ")}`
+      `Invalid RBAC configuration: ${permissionFileErrors.join("; ")}`,
     );
   }
   console.log("✅ RBAC configuration file health check passed.");
@@ -122,16 +122,16 @@ const initializeRBAC = async () => {
       rbacInitialized = true; // Set flag after successful initialization
       if (permissions) {
         console.log(
-          `   📊 Permissions: ${permissions.created} created, ${permissions.updated} updated, ${permissions.existing} existing.`
+          `   📊 Permissions: ${permissions.created} created, ${permissions.updated} updated, ${permissions.existing} existing.`,
         );
       }
       if (airqo_roles) {
         console.log(
-          `   📊 AirQo Roles: ${airqo_roles.created} created, ${airqo_roles.updated} updated, ${airqo_roles.up_to_date} up-to-date.`
+          `   📊 AirQo Roles: ${airqo_roles.created} created, ${airqo_roles.updated} updated, ${airqo_roles.up_to_date} up-to-date.`,
         );
       }
       console.log(
-        `   📊 Audit: ${audit.organization_roles_audited} org roles audited, ${audit.permissions_added_to_roles} permissions added.`
+        `   📊 Audit: ${audit.organization_roles_audited} org roles audited, ${audit.permissions_added_to_roles} permissions added.`,
       );
       console.log(`   👑 Super Admin Role Exists: ${airqo_super_admin_exists}`);
       if (role_errors && role_errors.length > 0) {
@@ -143,7 +143,7 @@ const initializeRBAC = async () => {
     } else {
       console.error(
         "❌ RBAC initialization failed:",
-        result ? result.message : "Unknown error"
+        result ? result.message : "Unknown error",
       );
     }
   } catch (error) {
@@ -187,7 +187,7 @@ const setupConnectionHandlers = (db, dbType) => {
 const connectToMongoDB = () => {
   if (isConnected) {
     logger.info(
-      "MongoDB connections are already established. Skipping re-initialization."
+      "MongoDB connections are already established. Skipping re-initialization.",
     );
     return { commandDB, queryDB };
   }
@@ -205,11 +205,21 @@ const connectToMongoDB = () => {
       console.log("✅ MongoDB connected, proceeding with initializations...");
       try {
         await initializeRBAC();
+
+        // Initialize guest user after RBAC
+        console.log("🚀 Initializing guest user across all tenants...");
+        const {
+          ensureGuestUserExists,
+        } = require("@bin/jobs/guest-user-init-job");
+        await ensureGuestUserExists().catch((error) => {
+          logger.error(`Guest user initialization failed: ${error.message}`);
+          // Don't crash the app - guest user creation failure is non-critical
+        });
+
         // Also run the token migration job now that DB is ready
         const {
           migrateTokenStrategiesToDefault,
         } = require("@bin/jobs/token-strategy-migration-job");
-        // Also run the token migration job now that DB is ready
         console.log("🚀 Kicking off token strategy migration on startup...");
         migrateTokenStrategiesToDefault().catch((err) => {
           logger.error(`Startup migration failed: ${err.message}`);
@@ -224,14 +234,14 @@ const connectToMongoDB = () => {
         Promise.all(tenants.map((t) => runLegacyRoleMigration(t))).catch(
           (err) => {
             logger.error(
-              `Background migration 'runLegacyRoleMigration' failed: ${err.message}`
+              `Background migration 'runLegacyRoleMigration' failed: ${err.message}`,
             );
-          }
+          },
         );
       } catch (err) {
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
-          err.message
+          err.message,
         );
         if (
           process.env.NODE_ENV !== "test" &&
@@ -326,7 +336,7 @@ function getModelByTenant(
   tenantId,
   modelName,
   schema,
-  operationType = "query"
+  operationType = "query",
 ) {
   if (operationType === "command") {
     return getCommandModelByTenant(tenantId, modelName, schema);
