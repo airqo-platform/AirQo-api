@@ -1270,14 +1270,13 @@ module.exports = {
       day: "numeric",
     });
 
-    // Deduplicate by both IP and token suffix to avoid redundant entries
-    // when the same token is seen from the same IP multiple times in the window.
+    const safeDetails = Array.isArray(compromiseDetails)
+      ? compromiseDetails
+      : [];
+
     const uniqueCompromises = [
       ...new Map(
-        compromiseDetails.map((item) => [
-          `${item.ip}-${item.tokenSuffix}`,
-          item,
-        ]),
+        safeDetails.map((item) => [`${item.ip}-${item.tokenSuffix}`, item]),
       ).values(),
     ];
 
@@ -1298,8 +1297,10 @@ module.exports = {
         <h3 style="color: #D92D20;">Daily Security Alert Summary — ${today}</h3>
         <p>
           We detected <strong>${count}</strong> potential security event(s) involving your
-          AirQo API token(s) in the last 24 hours. The IP addresses below were automatically
-          blacklisted by our security system.
+          AirQo API token(s) in the last 24 hours. Below, we show
+          <strong>${uniqueCompromises.length}</strong> unique token–IP combination(s) after
+          deduplicating repeated activity from the same token and IP. The IP addresses listed
+          below were automatically blacklisted by our security system.
         </p>
 
         <h4>Events Detected:</h4>
@@ -1312,7 +1313,7 @@ module.exports = {
           Our system flags API requests from IP addresses that weren't previously associated
           with your token. <strong>If you use a serverless platform (e.g. AWS Lambda, Google
           Cloud Run, Vercel) or any setup with dynamic outbound IPs, this is expected
-          behaviour</strong> — each invocation may originate from a different IP, triggering
+          behavior</strong> — each invocation may originate from a different IP, triggering
           this alert even for legitimate traffic.
         </p>
 

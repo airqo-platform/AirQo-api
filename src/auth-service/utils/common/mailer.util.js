@@ -9,10 +9,7 @@ const path = require("path");
 const EmailQueueModel = require("@models/EmailQueue");
 const EmailLogModel = require("@models/EmailLog");
 const AdminAlertCounterModel = require("@models/AdminAlertCounter");
-const {
-  emailDeduplicator,
-  sendMailWithDeduplication,
-} = require("./email-deduplication.util");
+const { emailDeduplicator } = require("./email-deduplication.util");
 const {
   logObject,
   logText,
@@ -416,32 +413,32 @@ const createMailerFunction = (
           };
         }
       } catch (dbError) {
-        // checkAndMarkEmail already fails open internally, but if something else
-        // throws (e.g. the queue insert), we still attempt to queue the email.
+        // checkAndMarkEmail already fails open on DB errors internally.
+        // This catch handles the case where addToEmailQueue itself throws.
         logger.warn(
-          `Deduplication or queue step failed, queuing email anyway: ${dbError.message}`,
+          `Email queue insertion failed after deduplication step: ${dbError.message}`,
           { email: mailOptions.to, subject: mailOptions.subject },
         );
-        const queueResult = await addToEmailQueue(mailOptions, tenant);
-        if (!queueResult.success) {
+        const retryQueueResult = await addToEmailQueue(mailOptions, tenant);
+        if (!retryQueueResult.success) {
           throw new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message:
-                queueResult.error ||
-                "Failed to queue email after dedup failure.",
+                retryQueueResult.error ||
+                "Failed to queue email after deduplication step.",
             },
           );
         }
         emailResult = {
           success: true,
-          message: "Email queued (deduplication check encountered an error).",
+          message: "Email queued (prior queue insertion attempt failed).",
           duplicate: false,
           data: {
             accepted: [mailOptions.to],
             rejected: [],
-            messageId: `queued_dedup_err_${Date.now()}`,
+            messageId: `queued_retry_${Date.now()}`,
           },
         };
       }
@@ -801,7 +798,7 @@ const createSecurityEmailFunction = (
         };
       }
 
-      // ✅ STEP 3: MongoDB cooldown check (NEW - SECURITY EMAILS ONLY)
+      // ✅ STEP 3: MongoDB cooldown check (security emails only)
       if (enableCooldown) {
         try {
           const EmailLog = EmailLogModel(tenant);
@@ -822,21 +819,16 @@ const createSecurityEmailFunction = (
               },
             );
 
-            // In case of a race condition where another instance just sent it,
-            // we return success but indicate it was blocked.
             if (cooldownCheck.reason === "cooldown_active") {
               return {
                 success: true,
                 message: `Email not sent - ${cooldownDays}-day cooldown period active`,
-                data: {
-                  email,
-                  blockedByCooldown: true,
-                },
+                data: { email, blockedByCooldown: true },
               };
             }
 
             return {
-              success: true, // Not an error - cooldown is expected behavior
+              success: true,
               message: `Email not sent - ${cooldownDays}-day cooldown period active`,
               data: {
                 email,
@@ -852,22 +844,15 @@ const createSecurityEmailFunction = (
             };
           }
         } catch (cooldownError) {
-          // ✅ FAIL OPEN: If cooldown check fails, allow email (better safe than sorry for security alerts)
+          // Fail open: allow email if cooldown check fails
           logger.warn(
             `Cooldown check failed for ${functionName}, proceeding with email send: ${cooldownError.message}`,
-            {
-              email,
-              tenant,
-              functionName,
-            },
+            { email, tenant, functionName },
           );
         }
       }
 
-      // ✅ STEP 4: Subscription check (SKIP for CORE_CRITICAL security emails)
-      // Security emails are always sent regardless of subscription status
-
-      // ✅ STEP 5: Prepare email content
+      // ✅ STEP 4: Prepare email content
       const baseMailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -879,130 +864,152 @@ const createSecurityEmailFunction = (
         attachments: attachments,
       };
 
-      // ✅ STEP 6: Send email with existing deduplication (5-minute Redis check)
-      const emailResult = await sendMailWithDeduplication(
-        transporter,
-        baseMailOptions,
-        {
-          skipDeduplication: false,
-          logDuplicates: true,
-          throwOnDuplicate: false,
-        },
-      );
+      // ✅ STEP 5: DB-backed deduplication check before queuing
+      let emailResult;
+      try {
+        const shouldSend =
+          await emailDeduplicator.checkAndMarkEmail(baseMailOptions);
 
-      // ✅ STEP 7: Handle email sending results
-      if (!emailResult.success) {
-        if (emailResult.duplicate) {
-          return {
+        if (shouldSend) {
+          const queueResult = await addToEmailQueue(baseMailOptions, tenant);
+          if (!queueResult.success) {
+            throw new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: queueResult.error || "Failed to queue email." },
+            );
+          }
+          emailResult = {
             success: true,
-            message: `${functionName} email already sent recently - duplicate prevented`,
+            message: "Email successfully queued for sending.",
+            duplicate: false,
             data: {
-              email,
-              functionName,
-              duplicate: true,
-              preventedAt: new Date(),
-              ...otherParams,
+              accepted: [baseMailOptions.to],
+              rejected: [],
+              messageId: `queued_${Date.now()}`,
             },
-            status: httpStatus.OK,
           };
         } else {
-          const errorMessage =
-            emailResult.message || `${functionName} email sending failed`;
-          logger.error(
-            `${functionName} email failed for ${email}: ${errorMessage}`,
-            {
-              email,
-              tenant,
-              functionName,
-              error: errorMessage,
-              params: otherParams,
-            },
+          logger.info(
+            `Duplicate email prevented: ${baseMailOptions.to} — ${baseMailOptions.subject}`,
           );
-
-          const error = new HttpError(
+          emailResult = {
+            success: false,
+            message:
+              "Email not sent — duplicate detected within deduplication window",
+            duplicate: true,
+            data: null,
+          };
+        }
+      } catch (dbError) {
+        // checkAndMarkEmail already fails open on DB errors internally.
+        // This catch handles the case where addToEmailQueue itself throws.
+        logger.warn(
+          `Email queue insertion failed after deduplication step: ${dbError.message}`,
+          { email: baseMailOptions.to, subject: baseMailOptions.subject },
+        );
+        const retryQueueResult = await addToEmailQueue(baseMailOptions, tenant);
+        if (!retryQueueResult.success) {
+          throw new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: `Unable to send ${functionName} email at this time`,
-              operation: functionName,
-              emailResults: emailResult,
+              message:
+                retryQueueResult.error ||
+                "Failed to queue email after deduplication step.",
             },
           );
-
-          if (next) {
-            next(error);
-            return;
-          }
-          throw error;
         }
+        emailResult = {
+          success: true,
+          message: "Email queued (prior queue insertion attempt failed).",
+          duplicate: false,
+          data: {
+            accepted: [baseMailOptions.to],
+            rejected: [],
+            messageId: `queued_retry_${Date.now()}`,
+          },
+        };
       }
 
-      // ✅ STEP 8: Validate successful email delivery
-      const emailData = emailResult.data;
-
-      if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
-        // ✅ STEP 9: Log successful send to MongoDB for cooldown tracking
-        if (enableCooldown) {
-          try {
-            const EmailLog = EmailLogModel(tenant);
-            await EmailLog.logEmailSent({
-              email,
-              emailType: functionName,
-              metadata: {
-                messageId: emailData.messageId,
-                ...otherParams,
-              },
-            });
-          } catch (logError) {
-            // Log error but don't fail the request
-            logger.warn(
-              `Failed to log ${functionName} email send to database: ${logError.message}`,
-            );
-          }
-        }
-
+      // ✅ STEP 6: Handle duplicate result
+      if (!emailResult.success && emailResult.duplicate) {
         return {
           success: true,
-          message: `${functionName} email successfully sent`,
+          message: `${functionName} email already sent recently - duplicate prevented`,
           data: {
             email,
             functionName,
-            messageId: emailData.messageId,
-            emailResults: emailData,
-            duplicate: false,
-            sentAt: new Date(),
+            duplicate: true,
+            preventedAt: new Date(),
             ...otherParams,
           },
           status: httpStatus.OK,
         };
-      } else {
-        logger.error(`${functionName} email partially failed for ${email}:`, {
-          email,
-          functionName,
-          accepted: emailData?.accepted,
-          rejected: emailData?.rejected,
-          tenant,
-          params: otherParams,
-        });
+      }
 
+      if (!emailResult.success) {
+        const errorMessage =
+          emailResult.message || `${functionName} email queuing failed`;
+        logger.error(
+          `${functionName} email failed for ${email}: ${errorMessage}`,
+          {
+            email,
+            tenant,
+            functionName,
+            error: errorMessage,
+            params: otherParams,
+          },
+        );
         const error = new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           {
-            message: `${functionName} email delivery failed or partially rejected`,
+            message: `Unable to queue ${functionName} email at this time`,
             operation: functionName,
-            emailResults: emailData,
-            accepted: emailData?.accepted || [],
-            rejected: emailData?.rejected || [],
+            emailResults: emailResult,
           },
         );
-
         if (next) {
           next(error);
           return;
         }
         throw error;
       }
+
+      // ✅ STEP 7: Log successful send to MongoDB for cooldown tracking
+      if (enableCooldown) {
+        try {
+          const EmailLog = EmailLogModel(tenant);
+          await EmailLog.logEmailSent({
+            email,
+            emailType: functionName,
+            metadata: {
+              messageId: emailResult.data.messageId,
+              ...otherParams,
+            },
+          });
+        } catch (logError) {
+          logger.warn(
+            `Failed to log ${functionName} email send to database: ${logError.message}`,
+          );
+        }
+      }
+
+      return {
+        success: true,
+        message: `${functionName} email successfully queued`,
+        data: {
+          email,
+          functionName,
+          messageId: emailResult.data.messageId,
+          emailResults: emailResult.data,
+          duplicate: false,
+          sentAt: new Date(),
+          ...otherParams,
+        },
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(
         `🐛🐛 ${functionName} error for ${email}: ${error.message}`,
@@ -1743,70 +1750,95 @@ const mailer = {
             attachments: reportAttachments,
           };
 
-          // ✅ STEP 7: Send email with deduplication protection
-          const emailResult = await sendMailWithDeduplication(
-            transporter,
-            mailOptions,
-            {
-              // Using default options for deduplication
-            },
-          );
+          // ✅ STEP 7: DB-backed deduplication check before queuing
+          let emailResult;
+          try {
+            const shouldSend =
+              await emailDeduplicator.checkAndMarkEmail(mailOptions);
 
-          // ✅ STEP 8: Handle email sending results
-          if (!emailResult.success) {
-            if (emailResult.duplicate) {
-              // Duplicate report email detected
-              return {
+            if (shouldSend) {
+              const queueResult = await addToEmailQueue(mailOptions, tenant);
+              if (!queueResult.success) {
+                throw new Error(
+                  queueResult.error || "Failed to queue report email.",
+                );
+              }
+              emailResult = {
                 success: true,
-                message:
-                  "Report email already sent recently - duplicate prevented",
+                duplicate: false,
                 data: {
-                  recipientEmail,
-                  senderEmail,
-                  format,
-                  reportEmail: true,
-                  duplicate: true,
-                  preventedAt: new Date(),
+                  accepted: [mailOptions.to],
+                  rejected: [],
+                  messageId: `queued_${Date.now()}`,
                 },
-                status: httpStatus.OK,
               };
             } else {
-              // Other email sending failure
-              const errorMessage =
-                emailResult.message || "Report email sending failed";
-              logger.error(
-                `Report email failed for ${recipientEmail}: ${errorMessage}`,
-                {
-                  recipientEmail,
-                  senderEmail,
-                  tenant,
-                  format,
-                  error: errorMessage,
-                },
-              );
-
-              return {
+              emailResult = {
                 success: false,
-                message: "Report email sending failed",
-                data: {
-                  recipientEmail,
-                  senderEmail,
-                  format,
-                  error: errorMessage,
-                  emailResults: emailResult,
-                },
-                status: httpStatus.INTERNAL_SERVER_ERROR,
+                duplicate: true,
+                data: null,
               };
             }
+          } catch (dbError) {
+            logger.warn(
+              `Report email queue insertion failed after deduplication step: ${dbError.message}`,
+              { recipientEmail, senderEmail },
+            );
+            const retryQueueResult = await addToEmailQueue(mailOptions, tenant);
+            if (!retryQueueResult.success) {
+              throw new Error(
+                retryQueueResult.error ||
+                  "Failed to queue report email after deduplication step.",
+              );
+            }
+            emailResult = {
+              success: true,
+              duplicate: false,
+              data: {
+                accepted: [mailOptions.to],
+                rejected: [],
+                messageId: `queued_retry_${Date.now()}`,
+              },
+            };
           }
 
-          // ✅ STEP 9: Validate successful email delivery
-          const emailData = emailResult.data;
+          // ✅ STEP 8: Handle results
+          if (emailResult.duplicate) {
+            return {
+              success: true,
+              message:
+                "Report email already sent recently - duplicate prevented",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                reportEmail: true,
+                duplicate: true,
+                preventedAt: new Date(),
+              },
+              status: httpStatus.OK,
+            };
+          }
 
+          if (!emailResult.success) {
+            return {
+              success: false,
+              message: "Report email queuing failed",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                emailResults: emailResult,
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+
+          const emailData = emailResult.data;
           if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
             return {
               success: true,
-              message: "Report email successfully sent",
+              message: "Report email successfully queued",
               data: {
                 recipientEmail,
                 senderEmail,
@@ -1820,7 +1852,6 @@ const mailer = {
               status: httpStatus.OK,
             };
           } else {
-            // Email was sent but had rejections
             logger.error(
               `Report email partially failed for ${recipientEmail}:`,
               {
@@ -1832,7 +1863,6 @@ const mailer = {
                 format,
               },
             );
-
             return {
               success: false,
               message: "Report email delivery failed or partially rejected",
@@ -1859,7 +1889,6 @@ const mailer = {
               operation: "sendReport",
             },
           );
-
           return {
             success: false,
             message: "Report email processing failed",

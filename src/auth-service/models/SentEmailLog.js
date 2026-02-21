@@ -8,8 +8,7 @@ const SentEmailLogSchema = new mongoose.Schema(
     hash: {
       type: String,
       required: true,
-      unique: true,
-      index: true,
+      unique: true, // unique: true already creates an index; index: true is redundant and removed
     },
     createdAt: {
       type: Date,
@@ -23,11 +22,8 @@ const SentEmailLogSchema = new mongoose.Schema(
 const SentEmailLogModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant.toLowerCase();
-  try {
-    return mongoose.model("sent_email_logs");
-  } catch (error) {
-    return getModelByTenant(dbTenant, "sent_email_log", SentEmailLogSchema);
-  }
+
+  return getModelByTenant(dbTenant, "sent_email_log", SentEmailLogSchema);
 };
 
 module.exports = SentEmailLogModel;

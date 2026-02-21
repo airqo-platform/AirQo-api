@@ -62,7 +62,7 @@ class EmailDeduplicator {
       const SentEmailLog = SentEmailLogModel("airqo");
 
       // Atomic insert: succeeds only if `hash` is unique.
-      // If a duplicate key error (11000) is thrown, the email was already sent recently.
+      // A duplicate key error (11000) means the email was already sent recently.
       await new SentEmailLog({ hash: key }).save();
 
       if (this.enableMetrics) this.metrics.emailsSent++;
@@ -77,7 +77,7 @@ class EmailDeduplicator {
         return false;
       }
 
-      // Any other DB error: fail open so critical alerts aren't silently dropped
+      // Any other DB error: fail open so critical alerts are never silently dropped
       if (this.enableMetrics) this.metrics.dbErrors++;
       logger.error(
         `DB deduplication check failed, failing open to allow email: ${error.message}`,
@@ -110,4 +110,6 @@ const emailDeduplicator = new EmailDeduplicator({
   enableMetrics: true,
 });
 
+// NOTE: sendMailWithDeduplication is intentionally not exported.
+// All call sites in mailer.util.js use emailDeduplicator.checkAndMarkEmail() directly.
 module.exports = { EmailDeduplicator, emailDeduplicator };
