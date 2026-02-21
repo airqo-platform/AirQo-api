@@ -1,13 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Iterable, Sequence, Optional, Tuple
-
+import tempfile
 
 from pandas.io.formats.style import Subset
 from pymongo.errors import ServerSelectionTimeoutError
 from dateutil.relativedelta import relativedelta
 
 
-import gcsfs
 import joblib
 import mlflow
 import numpy as np
@@ -17,10 +16,8 @@ import pymongo as pm
 import lightgbm as lgb
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-from pathlib import Path
 from .config import configuration, db
 from .constants import Frequency
-from .commons import download_file_from_gcs
 from .date import DateUtils
 from airqo_etl_utils.storage import get_configured_storage
 from airqo_etl_utils.config import configuration as Config
@@ -43,72 +40,6 @@ pd.options.mode.chained_assignment = None
 
 
 ### This module contains utility functions for ML jobs.
-
-
-class GCSUtils:
-    """Utility class for saving and retrieving models from GCS"""
-
-    # TODO: In future, save and retrieve models from mlflow instead of GCS
-    @staticmethod
-    def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
-        """
-        Retrieves a trained model from Google Cloud Storage (GCS). If the specified model file
-        does not exist, an exception is raised.
-
-        Args:
-            project_name (str): The GCP project name.
-            bucket_name (str): The name of the GCS bucket containing the model files.
-            source_blob_name (str): The file path of the trained model in the GCS bucket.
-
-        Returns:
-            object: The trained model loaded using joblib.
-
-        Raises:
-            FileNotFoundError: If the requested model does not exist.
-        """
-        file_path = None
-        try:
-            if not Path(source_blob_name).exists():
-                file_path = download_file_from_gcs(
-                    bucket_name, source_blob_name, source_blob_name
-                )
-        except FileNotFoundError as e:
-            logger.warning(
-                f"Requested model '{source_blob_name}' not found in '{bucket_name}': {e}"
-            )
-            raise
-        except Exception as e:
-            logger.warning(
-                f"Error loading requested model '{source_blob_name}' from '{bucket_name}': {e}"
-            )
-            raise
-
-        try:
-            file_path = source_blob_name if file_path is None else file_path
-            with open(file_path, "rb") as file:
-                model = joblib.load(file)
-        except Exception as e:
-            logger.error(f"Error loading model from file '{file_path}': {e}")
-            raise
-
-        return model
-
-    @staticmethod
-    def upload_trained_model_to_gcs(
-        trained_model, project_name, bucket_name, source_blob_name
-    ):
-        fs = gcsfs.GCSFileSystem(project=project_name)
-        try:
-            fs.rename(
-                f"{bucket_name}/{source_blob_name}",
-                f"{bucket_name}/{datetime.now()}-{source_blob_name}",
-            )
-            print("Bucket: previous model is backed up")
-        except:
-            print("Bucket: No file to updated")
-
-        with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
-            job = joblib.dump(trained_model, handle)
 
 
 class BaseMlUtils:
@@ -502,9 +433,19 @@ class ForecastUtils(BaseMlUtils):
                 callbacks=[early_stopping(stopping_rounds=150)],
             )
 
-            GCSUtils.upload_trained_model_to_gcs(
-                clf, project_id, bucket, f"{frequency}_forecast_model.pkl"
-            )
+            storage = get_configured_storage()
+            if storage:
+                with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+                    joblib.dump(clf, tmp.name)
+                    storage.upload_file(
+                        bucket, tmp.name, f"{frequency}_forecast_model.pkl"
+                    )
+                    try:
+                        import os
+
+                        os.remove(tmp.name)
+                    except:
+                        pass
 
         # def create_error_df(data, target, preds):
         #     error_df = pd.DataFrame(
@@ -699,11 +640,24 @@ class ForecastUtils(BaseMlUtils):
             return df_tmp.iloc[-int(horizon) :, :]
 
         forecasts = pd.DataFrame()
-        forecast_model = GCSUtils.get_trained_model_from_gcs(
-            project_name, bucket_name, f"{frequency.str}_forecast_model.pkl"
-        )
-        # error_model = GCSUtils.get_trained_model_from_gcs(
-        #     project_name, bucket_name, f"{frequency}_error_model.pkl"
+        storage = get_configured_storage()
+        if not storage:
+            raise RuntimeError("Storage adapter not configured")
+
+        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+            storage.download_file(
+                bucket_name, f"{frequency.str}_forecast_model.pkl", tmp.name
+            )
+            with open(tmp.name, "rb") as f:
+                forecast_model = joblib.load(f)
+            try:
+                import os
+
+                os.remove(tmp.name)
+            except:
+                pass
+        # error_model = storage.download_file(
+        #     bucket_name, f"{frequency}_error_model.pkl", tmp.name
         # )
 
         df_tmp = data.copy()
@@ -1041,9 +995,17 @@ class SatelliteUtils(BaseMlUtils):
         #     origin = data.iloc[v_test]
         #     rmse.append(validate(train_v, test_v, 'pm2_5', origin))
 
-        GCSUtils.upload_trained_model_to_gcs(
-            model, project_id, bucket, "satellite_prediction_model.pkl"
-        )
+        storage = get_configured_storage()
+        if storage:
+            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+                joblib.dump(model, tmp.name)
+                storage.upload_file(bucket, tmp.name, "satellite_prediction_model.pkl")
+                try:
+                    import os
+
+                    os.remove(tmp.name)
+                except:
+                    pass
 
 
 class ForecastSiteUtils(BaseMlUtils):
@@ -1136,7 +1098,7 @@ class ForecastSiteUtils(BaseMlUtils):
 
 class ForecastModelTrainer(BaseMlUtils):
     """
-    Train/evaluate and save multiple forecast models to GCS using existing GCSUtils.
+    Train/evaluate and save multiple forecast models to GCS using storage adapters.
 
     Saves each model as a single joblib artifact dict:
       {
@@ -1297,12 +1259,17 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        GCSUtils.upload_trained_model_to_gcs(
-            trained_model=artifact,
-            project_name=project_name,
-            bucket_name=bucket_name,
-            source_blob_name=blob_name,
-        )
+        storage = get_configured_storage()
+        if storage:
+            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+                joblib.dump(artifact, tmp.name)
+                storage.upload_file(bucket_name, tmp.name, blob_name)
+                try:
+                    import os
+
+                    os.remove(tmp.name)
+                except:
+                    pass
 
         return metrics
 
@@ -1369,12 +1336,17 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        GCSUtils.upload_trained_model_to_gcs(
-            trained_model=artifact,
-            project_name=project_name,
-            bucket_name=bucket_name,
-            source_blob_name=blob_name,
-        )
+        storage = get_configured_storage()
+        if storage:
+            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+                joblib.dump(artifact, tmp.name)
+                storage.upload_file(bucket_name, tmp.name, blob_name)
+                try:
+                    import os
+
+                    os.remove(tmp.name)
+                except:
+                    pass
 
         return metrics
 
