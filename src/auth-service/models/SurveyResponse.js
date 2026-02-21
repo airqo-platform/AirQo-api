@@ -149,9 +149,18 @@ SurveyResponseSchema.pre("save", function (next) {
   const uniqueQuestionIds = [...new Set(questionIds)];
 
   if (questionIds.length !== uniqueQuestionIds.length) {
-    return next(
-      new Error("Answer question IDs must be unique within a response"),
+    // Use ValidationError instead of generic Error for proper 400 response
+    const err = new Error(
+      "Answer question IDs must be unique within a response",
     );
+    err.name = "ValidationError";
+    err.errors = {
+      answers: {
+        message: "Answer question IDs must be unique within a response",
+        kind: "user defined",
+      },
+    };
+    return next(err);
   }
 
   // Auto-set completedAt if status is completed and not already set

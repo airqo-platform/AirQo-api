@@ -217,6 +217,23 @@ const survey = {
       const { body, query, user } = request;
       const { tenant } = query;
 
+      // Early validation: Check for duplicate question IDs BEFORE any DB operations
+      if (body.answers && Array.isArray(body.answers)) {
+        const questionIds = body.answers.map((a) => a.questionId);
+        const uniqueQuestionIds = [...new Set(questionIds)];
+
+        if (questionIds.length !== uniqueQuestionIds.length) {
+          return {
+            success: false,
+            message: "validation errors for some of the provided fields",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              answers: "Answer question IDs must be unique within a response",
+            },
+          };
+        }
+      }
+
       // Validate that survey exists and is active
       const surveyExists = await SurveyModel(tenant).exists({
         _id: body.surveyId,
