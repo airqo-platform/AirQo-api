@@ -175,21 +175,23 @@ const validateAndAutoFixMultiPolygonCoordinatesStrict = (value) => {
 };
 
 const commonValidations = {
-  tenant: query("tenant")
-    .optional()
-    .trim()
-    .toLowerCase()
-    .custom((value) => {
-      if (constants.TENANTS.length === 0) {
-        throw new Error("Server configuration error: TENANTS are not set.");
-      }
-      if (!constants.TENANTS.includes(value)) {
-        throw new Error(
-          `Invalid tenant. Must be one of: ${constants.TENANTS.join(", ")}`,
-        );
-      }
-      return true;
-    }),
+  tenant: [
+    query("tenant")
+      .optional()
+      .trim()
+      .toLowerCase()
+      .custom((value) => {
+        if (constants.TENANTS.length === 0) {
+          throw new Error("Server configuration error: TENANTS are not set.");
+        }
+        if (!constants.TENANTS.includes(value)) {
+          throw new Error(
+            `Invalid tenant. Must be one of: ${constants.TENANTS.join(", ")}`,
+          );
+        }
+        return true;
+      }),
+  ],
 
   name: [
     body("name")
