@@ -1281,14 +1281,19 @@ module.exports = {
     ];
 
     const detailsHtml = uniqueCompromises
-      .map(
-        (c) => `
+      .map((c) => {
+        const d = new Date(c.timestamp);
+        const formattedTime = isNaN(d.getTime())
+          ? "Unknown time"
+          : d.toLocaleString();
+
+        return `
     <li style="margin-bottom: 8px;">
       Token ending in <strong>...${escapeHtml(c.tokenSuffix || "XXXX")}</strong>
       accessed from IP: <strong>${escapeHtml(c.ip)}</strong>
-      at ${new Date(c.timestamp).toLocaleString()}
-    </li>`,
-      )
+      at ${formattedTime}
+    </li>`;
+      })
       .join("");
 
     const content = `
