@@ -17,7 +17,11 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return next(
-      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+      new HttpError(
+        "Validation error",
+        httpStatus.BAD_REQUEST,
+        errors.mapped(),
+      ),
     );
   }
   next();
@@ -32,7 +36,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -79,7 +83,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["hourly", "daily", "raw", "minute"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
+        "the frequency value is not among the expected ones which include: hourly, daily, minute and raw",
       ),
   ],
 
@@ -93,7 +97,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["json", "csv"])
       .withMessage(
-        "the format value is not among the expected ones which include: csv and json"
+        "the format value is not among the expected ones which include: csv and json",
       ),
   ],
 
@@ -105,7 +109,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["yes", "no"])
       .withMessage(
-        "the external value is not among the expected ones which include: no and yes"
+        "the external value is not among the expected ones which include: no and yes",
       ),
   ],
 
@@ -117,7 +121,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["yes", "no"])
       .withMessage(
-        "the recent value is not among the expected ones which include: no and yes"
+        "the recent value is not among the expected ones which include: no and yes",
       ),
   ],
 
@@ -320,7 +324,7 @@ const commonValidations = {
       .bail()
       .isIn(["raw", "hourly", "daily"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: raw, hourly and daily"
+        "the frequency value is not among the expected ones which include: raw, hourly and daily",
       ),
     body("*.is_test_data")
       .optional()
@@ -399,7 +403,7 @@ const commonValidations = {
       .bail()
       .isIn(["raw", "hourly", "daily"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: raw, hourly and daily"
+        "the frequency value is not among the expected ones which include: raw, hourly and daily",
       ),
     body("*.is_test_data")
       .optional()
@@ -428,7 +432,7 @@ const commonValidations = {
     query("device_number")
       .exists()
       .withMessage(
-        "the record's identifier is missing in request, consider using the device_number"
+        "the record's identifier is missing in request, consider using the device_number",
       )
       .bail()
       .trim()
@@ -437,7 +441,7 @@ const commonValidations = {
     query("device_id")
       .exists()
       .withMessage(
-        "the record's identifier is missing in request, consider using the device_id"
+        "the record's identifier is missing in request, consider using the device_id",
       )
       .bail()
       .trim()
@@ -450,7 +454,7 @@ const commonValidations = {
     query("site_id")
       .exists()
       .withMessage(
-        "the record's identifier is missing in request, consider using the site_id"
+        "the record's identifier is missing in request, consider using the site_id",
       )
       .bail()
       .trim()
@@ -463,7 +467,7 @@ const commonValidations = {
     query("device")
       .exists()
       .withMessage(
-        "the device identifier is missing in request, consider using the device name"
+        "the device identifier is missing in request, consider using the device name",
       )
       .bail()
       .trim()
@@ -677,7 +681,7 @@ const addEventBodyEnhanced = [
     .bail()
     .isIn(["raw", "hourly", "daily"])
     .withMessage(
-      "the frequency value is not among the expected ones which include: raw, hourly and daily"
+      "the frequency value is not among the expected ones which include: raw, hourly and daily",
     ),
 
   body().custom((measurements, { req }) => {
@@ -689,7 +693,7 @@ const addEventBodyEnhanced = [
         // Check if both site_id and grid_id are provided
         if (measurement.site_id && measurement.grid_id) {
           throw new Error(
-            `Measurement ${i}: Cannot specify both site_id and grid_id in the same measurement`
+            `Measurement ${i}: Cannot specify both site_id and grid_id in the same measurement`,
           );
         }
 
@@ -701,7 +705,7 @@ const addEventBodyEnhanced = [
             !measurement.site_id
           ) {
             throw new Error(
-              `Measurement ${i}: Static deployments should have site_id, not grid_id`
+              `Measurement ${i}: Static deployments should have site_id, not grid_id`,
             );
           }
           if (
@@ -710,7 +714,7 @@ const addEventBodyEnhanced = [
             !measurement.grid_id
           ) {
             throw new Error(
-              `Measurement ${i}: Mobile deployments should have grid_id, not site_id`
+              `Measurement ${i}: Mobile deployments should have grid_id, not site_id`,
             );
           }
         }
@@ -748,7 +752,7 @@ const validateDeviceContext = [
       query("device").exists(),
       query("device_number").exists(),
     ],
-    "At least one device identifier (device_id, device, or device_number) must be provided"
+    "At least one device identifier (device_id, device, or device_number) must be provided",
   ),
   handleValidationErrors,
 ];

@@ -22,12 +22,12 @@ const countDecimalPlaces = (value) => {
 const validateDecimalPlaces = (
   value,
   minPlaces = 5,
-  fieldName = "coordinate"
+  fieldName = "coordinate",
 ) => {
   let dp = countDecimalPlaces(value);
   if (dp < minPlaces) {
     return Promise.reject(
-      `the ${fieldName} must have ${minPlaces} or more decimal places`
+      `the ${fieldName} must have ${minPlaces} or more decimal places`,
     );
   }
   return Promise.resolve(`${fieldName} validation test has passed`);
@@ -61,7 +61,7 @@ const createCoordinateValidation = (type, options = {}) => {
       type === "latitude"
         ? constants.LATITUDE_REGEX
         : constants.LONGITUDE_REGEX,
-      "i"
+      "i",
     )
     .withMessage(`please provide valid ${type} value`)
     .bail()
@@ -133,7 +133,7 @@ const createTenantValidation = (options = {}) => {
     .bail()
     .trim()
     .toLowerCase()
-    .isIn(constants.NETWORKS)
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones");
 };
 
@@ -202,7 +202,7 @@ const siteIdentifierChains = [
     .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "the site name can only contain letters, numbers, spaces, hyphens and underscores"
+      "the site name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
 ];
 
@@ -228,7 +228,7 @@ const validateSiteQueryParams = oneOf([
     .toLowerCase()
     .isIn(["online", "offline"])
     .withMessage(
-      "the online_status value is not among the expected ones which include: online, offline"
+      "the online_status value is not among the expected ones which include: online, offline",
     ),
   query("isOnline")
     .optional()
@@ -258,7 +258,7 @@ const validateSiteQueryParams = oneOf([
     .trim()
     .isISO8601({ strict: true, strictSeparator: true })
     .withMessage(
-      "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+      "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ).",
     )
     .bail()
     .toDate(),
@@ -270,7 +270,7 @@ const validateSiteQueryParams = oneOf([
     .trim()
     .isISO8601({ strict: true, strictSeparator: true })
     .withMessage(
-      "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+      "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ).",
     )
     .bail()
     .toDate(),
@@ -282,7 +282,7 @@ const validateSiteQueryParams = oneOf([
     .trim()
     .isISO8601({ strict: true, strictSeparator: true })
     .withMessage(
-      "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+      "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ).",
     )
     .bail()
     .toDate(),
@@ -304,14 +304,14 @@ const validateMandatorySiteIdentifier = oneOf([
   query("lat_long")
     .exists()
     .withMessage(
-      "an identifier is missing in the request, consider using lat_long"
+      "an identifier is missing in the request, consider using lat_long",
     )
     .bail()
     .trim(),
   query("generated_name")
     .exists()
     .withMessage(
-      "an identifier is missing in the request, consider using generated_name"
+      "an identifier is missing in the request, consider using generated_name",
     )
     .bail()
     .trim(),
@@ -331,7 +331,7 @@ const validateCreateSite = [
     .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "the site name can only contain letters, numbers, spaces, hyphens and underscores"
+      "the site name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
   body("site_tags")
     .optional()
@@ -362,7 +362,7 @@ const validateCreateSite = [
     .optional()
     .custom(validateCategoryField)
     .withMessage(
-      "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
+      "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields",
     ),
 ];
 
@@ -385,7 +385,7 @@ const validateUpdateSite = [
     .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "the site name can only contain letters, numbers, spaces, hyphens and underscores"
+      "the site name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
   body("status")
     .optional()
@@ -394,7 +394,7 @@ const validateUpdateSite = [
     .toLowerCase()
     .isIn(["active", "decommissioned"])
     .withMessage(
-      "the status value is not among the expected ones which include: decommissioned, active"
+      "the status value is not among the expected ones which include: decommissioned, active",
     ),
   body("visibility")
     .optional()
@@ -423,7 +423,7 @@ const validateUpdateSite = [
     .optional()
     .custom(validateCategoryField)
     .withMessage(
-      "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
+      "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields",
     ),
 ];
 
@@ -476,7 +476,7 @@ const validateBulkUpdateSites = [
       const MAX_BULK_UPDATE_SITES = 30;
       if (value.length > MAX_BULK_UPDATE_SITES) {
         throw new Error(
-          `Cannot update more than ${MAX_BULK_UPDATE_SITES} sites in a single request`
+          `Cannot update more than ${MAX_BULK_UPDATE_SITES} sites in a single request`,
         );
       }
       return true;
@@ -484,7 +484,7 @@ const validateBulkUpdateSites = [
     .bail()
     .custom((value) => {
       const invalidIds = value.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id)
+        (id) => !mongoose.Types.ObjectId.isValid(id),
       );
       if (invalidIds.length > 0) {
         throw new Error("All siteIds must be valid MongoDB ObjectIds");
@@ -514,11 +514,11 @@ const validateBulkUpdateSites = [
       const allowedFields = ["groups", "site_category"];
 
       const invalidFields = Object.keys(value).filter(
-        (field) => !allowedFields.includes(field)
+        (field) => !allowedFields.includes(field),
       );
       if (invalidFields.length > 0) {
         throw new Error(
-          `Invalid fields in updateData: ${invalidFields.join(", ")}`
+          `Invalid fields in updateData: ${invalidFields.join(", ")}`,
         );
       }
 

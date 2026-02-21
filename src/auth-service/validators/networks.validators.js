@@ -3,6 +3,7 @@ const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
+const constants = require("@config/constants");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -12,7 +13,7 @@ const validateTenant = oneOf([
     .bail()
     .trim()
     .toLowerCase()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -109,7 +110,7 @@ const create = [
       .bail()
       .notEmpty()
       .withMessage(
-        "the net_connection_endpoint should not be empty IF provided"
+        "the net_connection_endpoint should not be empty IF provided",
       )
       .trim(),
     body("net_connection_string")
@@ -141,7 +142,7 @@ const create = [
       .toLowerCase()
       .isIn(["active", "inactive", "pending"])
       .withMessage(
-        "the status value is not among the expected ones which include: active, inactive, pending"
+        "the status value is not among the expected ones which include: active, inactive, pending",
       )
       .trim(),
     body("net_phoneNumber")
@@ -159,7 +160,7 @@ const create = [
       .toLowerCase()
       .isIn(["business", "research", "policy", "awareness", "school", "others"])
       .withMessage(
-        "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
+        "the status value is not among the expected ones which include: business, research, policy, awareness, school, others",
       )
       .trim(),
     body("net_description")
@@ -279,7 +280,7 @@ const deleteNetwork = [
     param("net_id")
       .exists()
       .withMessage(
-        "the record's identifier is missing in request, consider using the id"
+        "the record's identifier is missing in request, consider using the id",
       )
       .bail()
       .trim()
@@ -321,7 +322,7 @@ const update = [
       .optional()
       .notEmpty()
       .withMessage(
-        "the net_connection_endpoint should not be empty IF provided"
+        "the net_connection_endpoint should not be empty IF provided",
       )
       .trim(),
     body("net_connection_string")
@@ -353,7 +354,7 @@ const update = [
       .toLowerCase()
       .isIn(["active", "inactive", "pending"])
       .withMessage(
-        "the net_status value is not among the expected ones which include: active, inactive, pending"
+        "the net_status value is not among the expected ones which include: active, inactive, pending",
       )
       .trim(),
     body("net_phoneNumber")
@@ -373,7 +374,7 @@ const update = [
       .toLowerCase()
       .isIn(["business", "research", "policy", "awareness", "school", "others"])
       .withMessage(
-        "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
+        "the status value is not among the expected ones which include: business, research, policy, awareness, school, others",
       )
       .trim(),
     body("net_name")
@@ -384,7 +385,7 @@ const update = [
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the net_name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the net_name can only contain letters, numbers, spaces, hyphens and underscores",
       )
       .bail(),
     body("net_users")
@@ -442,7 +443,7 @@ const refresh = [
       .optional()
       .notEmpty()
       .withMessage(
-        "the net_connection_endpoint should not be empty IF provided"
+        "the net_connection_endpoint should not be empty IF provided",
       )
       .trim(),
     body("net_connection_string")
@@ -474,7 +475,7 @@ const refresh = [
       .toLowerCase()
       .isIn(["active", "inactive", "pending"])
       .withMessage(
-        "the net_status value is not among the expected ones which include: active, inactive, pending"
+        "the net_status value is not among the expected ones which include: active, inactive, pending",
       )
       .trim(),
     body("net_phoneNumber")
@@ -494,7 +495,7 @@ const refresh = [
       .toLowerCase()
       .isIn(["business", "research", "policy", "awareness", "school", "others"])
       .withMessage(
-        "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
+        "the status value is not among the expected ones which include: business, research, policy, awareness, school, others",
       )
       .trim(),
     body("net_name")
@@ -505,7 +506,7 @@ const refresh = [
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the net_name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the net_name can only contain letters, numbers, spaces, hyphens and underscores",
       )
       .bail(),
     body("net_users")

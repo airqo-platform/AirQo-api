@@ -19,7 +19,11 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return next(
-      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+      new HttpError(
+        "Validation error",
+        httpStatus.BAD_REQUEST,
+        errors.mapped(),
+      ),
     );
   }
   next();
@@ -34,7 +38,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
 
@@ -95,7 +99,7 @@ const commonValidations = {
         "province",
       ])
       .withMessage(
-        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district",
       ),
   ],
 
@@ -127,7 +131,7 @@ const commonValidations = {
       .bail()
       .isIn(["Polygon", "Point"])
       .withMessage(
-        "the location.type value is not among the expected ones which include: Polygon and Point"
+        "the location.type value is not among the expected ones which include: Polygon and Point",
       ),
   ],
   locationOptional: [
@@ -158,7 +162,7 @@ const commonValidations = {
       .bail()
       .isIn(["Polygon", "Point"])
       .withMessage(
-        "the location.type value is not among the expected ones which include: Polygon and Point"
+        "the location.type value is not among the expected ones which include: Polygon and Point",
       ),
   ],
 
@@ -223,7 +227,7 @@ const commonValidations = {
         "province",
       ])
       .withMessage(
-        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district",
       ),
   ],
   adminLevelBodyOptional: [
@@ -245,7 +249,7 @@ const commonValidations = {
         "province",
       ])
       .withMessage(
-        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district",
       ),
   ],
 

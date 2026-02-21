@@ -19,8 +19,8 @@ const commonValidations = {
         new HttpError(
           "Validation error",
           httpStatus.BAD_REQUEST,
-          errors.mapped()
-        )
+          errors.mapped(),
+        ),
       );
     }
     next();
@@ -33,7 +33,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   dateRange: (startDateField, endDateField) => [

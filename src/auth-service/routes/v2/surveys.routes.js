@@ -40,6 +40,7 @@ router.get(
   "/",
   surveyListLimiter,
   surveyValidations.list,
+  // validate,
   pagination(),
   createSurveyController.list,
 );

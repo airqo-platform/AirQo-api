@@ -82,7 +82,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -193,8 +193,8 @@ const loginEnhanced = [
       .isIn(validStrategies)
       .withMessage(
         `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
-          ", "
-        )}`
+          ", ",
+        )}`,
       ),
     body("includeDebugInfo")
       .optional()
@@ -261,7 +261,7 @@ const firebaseLookup = oneOf([
   body("email")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the email"
+      "the user identifier is missing in request, consider using the email",
     )
     .bail()
     .notEmpty()
@@ -272,7 +272,7 @@ const firebaseLookup = oneOf([
   body("phoneNumber")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the phoneNumber"
+      "the user identifier is missing in request, consider using the phoneNumber",
     )
     .bail()
     .notEmpty()
@@ -286,7 +286,7 @@ const firebaseCreate = oneOf([
   body("email")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the email"
+      "the user identifier is missing in request, consider using the email",
     )
     .bail()
     .notEmpty()
@@ -297,7 +297,7 @@ const firebaseCreate = oneOf([
   body("phoneNumber")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the phoneNumber"
+      "the user identifier is missing in request, consider using the phoneNumber",
     )
     .bail()
     .notEmpty()
@@ -311,7 +311,7 @@ const firebaseLogin = oneOf([
   body("email")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the email"
+      "the user identifier is missing in request, consider using the email",
     )
     .bail()
     .notEmpty()
@@ -322,7 +322,7 @@ const firebaseLogin = oneOf([
   body("phoneNumber")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the phoneNumber"
+      "the user identifier is missing in request, consider using the phoneNumber",
     )
     .bail()
     .notEmpty()
@@ -336,7 +336,7 @@ const firebaseSignup = oneOf([
   body("email")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the email"
+      "the user identifier is missing in request, consider using the email",
     )
     .bail()
     .notEmpty()
@@ -347,7 +347,7 @@ const firebaseSignup = oneOf([
   body("phoneNumber")
     .exists()
     .withMessage(
-      "the user identifier is missing in request, consider using the phoneNumber"
+      "the user identifier is missing in request, consider using the phoneNumber",
     )
     .bail()
     .notEmpty()
@@ -361,7 +361,7 @@ const syncAnalyticsAndMobile = oneOf([
   body("firebase_uid")
     .exists()
     .withMessage(
-      "the firebase_uid is missing in body, consider using firebase_uid"
+      "the firebase_uid is missing in body, consider using firebase_uid",
     )
     .bail()
     .notEmpty()
@@ -427,7 +427,7 @@ const firebaseVerify = [
     body("email")
       .exists()
       .withMessage(
-        "a user identifier is missing in request, consider using email"
+        "a user identifier is missing in request, consider using email",
       )
       .bail()
       .notEmpty()
@@ -438,7 +438,7 @@ const firebaseVerify = [
     body("phoneNumber")
       .exists()
       .withMessage(
-        "a user identifier is missing in request, consider using phoneNumber"
+        "a user identifier is missing in request, consider using phoneNumber",
       )
       .bail()
       .notEmpty()
@@ -562,7 +562,7 @@ const createUser = [
       .bail()
       .isIn(["individual", "organisation"])
       .withMessage(
-        "the category value is not among the expected ones: individual, organisation"
+        "the category value is not among the expected ones: individual, organisation",
       )
       .trim(),
     body("email")
@@ -669,7 +669,7 @@ const updateUser = [
     query("id")
       .exists()
       .withMessage(
-        "the user identifier is missing in request, consider using id"
+        "the user identifier is missing in request, consider using id",
       )
       .bail()
       .trim()
@@ -857,7 +857,7 @@ const subscribeToNotifications = [
     body("email")
       .exists()
       .withMessage(
-        "the user identifier is missing in request, consider using the email"
+        "the user identifier is missing in request, consider using the email",
       )
       .bail()
       .notEmpty()
@@ -869,7 +869,7 @@ const subscribeToNotifications = [
     body("user_id")
       .exists()
       .withMessage(
-        "the user identifier is missing in request, consider using the user_id"
+        "the user identifier is missing in request, consider using the user_id",
       )
       .bail()
       .notEmpty()
@@ -895,7 +895,7 @@ const subscribeToNotifications = [
       .toLowerCase()
       .isIn(["email", "phone", "push", "text"])
       .withMessage(
-        "the type value is not among the expected ones: email, phone, push and text"
+        "the type value is not among the expected ones: email, phone, push and text",
       ),
   ],
 ];
@@ -906,7 +906,7 @@ const unSubscribeFromNotifications = [
     body("email")
       .exists()
       .withMessage(
-        "the user identifier is missing in request, consider using the email"
+        "the user identifier is missing in request, consider using the email",
       )
       .bail()
       .notEmpty()
@@ -918,7 +918,7 @@ const unSubscribeFromNotifications = [
     body("user_id")
       .exists()
       .withMessage(
-        "the user identifier is missing in request, consider using the user_id"
+        "the user identifier is missing in request, consider using the user_id",
       )
       .bail()
       .notEmpty()
@@ -944,7 +944,7 @@ const unSubscribeFromNotifications = [
       .toLowerCase()
       .isIn(["email", "phone", "push", "text"])
       .withMessage(
-        "the type value is not among the expected ones: email, phone, push and text"
+        "the type value is not among the expected ones: email, phone, push and text",
       ),
   ],
 ];
@@ -955,7 +955,7 @@ const notificationStatus = [
     body("email")
       .exists()
       .withMessage(
-        "the user identifier is missing in request, consider using the email"
+        "the user identifier is missing in request, consider using the email",
       )
       .bail()
       .notEmpty()
@@ -967,7 +967,7 @@ const notificationStatus = [
     body("user_id")
       .exists()
       .withMessage(
-        "the user identifier is missing in request, consider using the user_id"
+        "the user identifier is missing in request, consider using the user_id",
       )
       .bail()
       .notEmpty()
@@ -993,7 +993,7 @@ const notificationStatus = [
       .toLowerCase()
       .isIn(["email", "phone", "push", "text"])
       .withMessage(
-        "the type value is not among the expected ones: email, phone, push and text"
+        "the type value is not among the expected ones: email, phone, push and text",
       ),
   ],
 ];
@@ -1083,7 +1083,7 @@ const getOrganizationBySlug = [
     .bail()
     .isAlphanumeric("en-US", { ignore: "-_" })
     .withMessage(
-      "Organization slug must be alphanumeric with optional hyphens and underscores"
+      "Organization slug must be alphanumeric with optional hyphens and underscores",
     ),
 ];
 
@@ -1098,7 +1098,7 @@ const registerViaOrgSlug = [
     .bail()
     .isAlphanumeric("en-US", { ignore: "-_" })
     .withMessage(
-      "Organization slug must be alphanumeric with optional hyphens and underscores"
+      "Organization slug must be alphanumeric with optional hyphens and underscores",
     ),
   body("firstName")
     .exists()
@@ -1176,8 +1176,8 @@ const generateToken = [
       .isIn(validStrategies)
       .withMessage(
         `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
-          ", "
-        )}`
+          ", ",
+        )}`,
       ),
     body("options")
       .optional()
@@ -1206,8 +1206,8 @@ const updateTokenStrategy = [
       .isIn(validStrategies)
       .withMessage(
         `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
-          ", "
-        )}`
+          ", ",
+        )}`,
       ),
   ],
 ];
@@ -1230,8 +1230,8 @@ const refreshPermissions = [
       .isIn(validStrategies)
       .withMessage(
         `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
-          ", "
-        )}`
+          ", ",
+        )}`,
       ),
   ],
 ];
