@@ -1282,15 +1282,23 @@ module.exports = {
 
     const detailsHtml = uniqueCompromises
       .map((c) => {
-        const d = new Date(c.timestamp);
-        const formattedTime = isNaN(d.getTime())
-          ? "Unknown time"
-          : d.toLocaleString();
+        const rawTimestamp = c.timestamp;
+        let formattedTime = "Unknown time";
+        if (
+          rawTimestamp !== null &&
+          rawTimestamp !== undefined &&
+          rawTimestamp !== ""
+        ) {
+          const d = new Date(rawTimestamp);
+          if (!isNaN(d.getTime())) {
+            formattedTime = d.toLocaleString();
+          }
+        }
 
         return `
     <li style="margin-bottom: 8px;">
       Token ending in <strong>...${escapeHtml(c.tokenSuffix || "XXXX")}</strong>
-      accessed from IP: <strong>${escapeHtml(c.ip)}</strong>
+      accessed from IP: <strong>${escapeHtml(c.ip || "N/A")}</strong>
       at ${formattedTime}
     </li>`;
       })
