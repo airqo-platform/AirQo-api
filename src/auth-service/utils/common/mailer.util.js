@@ -1049,10 +1049,6 @@ const createAdminAlertFunction = (
   const { maxAlertsPerDay = 2 } = options;
 
   return async (params, next) => {
-    let tenant = "";
-    let recipients = [];
-    let otherParams = {};
-
     try {
       const {
         recipients: rawRecipients,
@@ -1067,8 +1063,6 @@ const createAdminAlertFunction = (
       } else if (typeof rawRecipients === "string") {
         recipients = rawRecipients.split(",").map((e) => e.trim());
       }
-
-      // Filter out empty strings and remove duplicates
       recipients = [...new Set(recipients.filter(Boolean))];
 
       if (recipients.length === 0) {
@@ -1088,9 +1082,9 @@ const createAdminAlertFunction = (
         };
       }
 
-      // ✅ STEP 1: Rate-limiting check
+      // ✅ STEP 1: Rate-limiting check (daily cap)
       try {
-        const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+        const today = new Date().toISOString().split("T")[0];
         const counter = await AdminAlertCounterModel(tenant).findOneAndUpdate(
           { date: today, emailType: functionName },
           { $inc: { count: 1 } },
@@ -1101,8 +1095,6 @@ const createAdminAlertFunction = (
           logger.info(
             `Skipping ${functionName} email. Daily limit of ${maxAlertsPerDay} reached.`,
           );
-          // Optional: Decrement the counter if we're not sending the email
-          // This makes the limit "at most" rather than "first N"
           await AdminAlertCounterModel(tenant).updateOne(
             { date: today, emailType: functionName },
             { $inc: { count: -1 } },
@@ -1117,24 +1109,60 @@ const createAdminAlertFunction = (
         logger.error(
           `Error checking rate limit for ${functionName}: ${rateLimitError.message}`,
         );
-        // Fail open: proceed with sending the email if the check fails.
+        // Fail open: proceed if rate limit check fails
       }
 
-      // ✅ STEP 2: Prepare and queue the email
+      // ✅ STEP 2: Prepare mail options
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: constants.SUPPORT_EMAIL, // Validated above
+        to: constants.SUPPORT_EMAIL,
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
         bcc: recipients.join(","),
         attachments: attachments,
       };
 
-      const queueResult = await addToEmailQueue(mailOptions, tenant);
+      // ✅ STEP 3: DB-backed deduplication check before queuing
+      // This prevents duplicate alerts fired across multiple pods within the 5-minute window.
+      let shouldSend = true;
+      try {
+        shouldSend = await emailDeduplicator.checkAndMarkEmail(mailOptions);
+      } catch (dedupError) {
+        // Fail open: if dedup check itself throws, allow the email through
+        logger.warn(
+          `Deduplication check failed for ${functionName}, proceeding anyway: ${dedupError.message}`,
+        );
+      }
 
+      if (!shouldSend) {
+        logger.info(
+          `Duplicate admin alert prevented within deduplication window: ${functionName}`,
+        );
+        // Roll back the rate limit counter increment since we're not actually sending
+        try {
+          const today = new Date().toISOString().split("T")[0];
+          await AdminAlertCounterModel(tenant).updateOne(
+            { date: today, emailType: functionName },
+            { $inc: { count: -1 } },
+          );
+        } catch (rollbackError) {
+          logger.warn(
+            `Failed to roll back rate limit counter for ${functionName}: ${rollbackError.message}`,
+          );
+        }
+        return {
+          success: true,
+          message:
+            "Duplicate admin alert prevented within deduplication window.",
+          status: httpStatus.OK,
+        };
+      }
+
+      // ✅ STEP 4: Queue the email
+      const queueResult = await addToEmailQueue(mailOptions, tenant);
       if (!queueResult.success) {
         throw new HttpError(
           "Internal Server Error",
@@ -1143,7 +1171,7 @@ const createAdminAlertFunction = (
         );
       }
 
-      // ✅ STEP 3: Log the successful queuing for rate-limiting
+      // ✅ STEP 5: Log the successful queuing for cooldown tracking
       try {
         const EmailLog = EmailLogModel(tenant);
         await EmailLog.logEmailSent({
@@ -1167,7 +1195,6 @@ const createAdminAlertFunction = (
       if (next) {
         next(error);
       } else {
-        // For fire-and-forget calls, just log the error.
         return { success: false, message: error.message };
       }
     }
