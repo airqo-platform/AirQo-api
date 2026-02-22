@@ -4,6 +4,7 @@ const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
 const msgs = require("./email.msgs.util");
 const msgTemplates = require("./email.templates.util");
+const crypto = require("crypto");
 const httpStatus = require("http-status");
 const path = require("path");
 const EmailQueueModel = require("@models/EmailQueue");
@@ -1045,8 +1046,8 @@ const createAdminAlertFunction = (
 ) => {
   const { maxAlertsPerDay = 2 } = options;
 
-  let counterIncremented = false;
   return async (params, next) => {
+    let counterIncremented = false;
     try {
       const {
         recipients: rawRecipients,
@@ -1056,10 +1057,10 @@ const createAdminAlertFunction = (
 
       // Normalize and validate recipients
       let recipients = []; // This was used before declaration
-      if (Array.isArray(params.recipients)) {
-        recipients = params.recipients;
-      } else if (typeof params.recipients === "string") {
-        recipients = params.recipients.split(",").map((e) => e.trim());
+      if (Array.isArray(rawRecipients)) {
+        recipients = rawRecipients;
+      } else if (typeof rawRecipients === "string") {
+        recipients = rawRecipients.split(",").map((e) => e.trim());
       }
       recipients = [...new Set(recipients.filter(Boolean))];
 
@@ -1118,7 +1119,7 @@ const createAdminAlertFunction = (
         // Fail open: proceed if rate limit check fails
       }
 
-      // ‚STEP 2: Prepare mail options
+      // ✅ STEP 2: Prepare mail options
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1218,7 +1219,7 @@ const createAdminAlertFunction = (
       return {
         success: true,
         message: "Admin alert email successfully queued.",
-        status: httpStatus.OK,
+        status: httpStatus.ACCEPTED,
       };
     } catch (error) {
       logger.error(`Error in ${functionName}: ${error.message}`);
