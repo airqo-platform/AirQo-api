@@ -1625,8 +1625,7 @@ const groupUtil = {
         group.grp_manager &&
         group.grp_manager.toString() === user_id.toString()
       ) {
-        // Count other members in the group
-        if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
+        if (group.grp_title === "airqo") {
           return next(
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
               message:
@@ -1751,8 +1750,7 @@ const groupUtil = {
         group.grp_manager &&
         user_ids.includes(group.grp_manager.toString())
       ) {
-        // Prevent manager removal from the default 'airqo' group
-        if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
+        if (group.grp_title === "airqo") {
           return next(
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
               message:
@@ -3078,6 +3076,26 @@ const groupUtil = {
    */
   removeMemberFromGroup: async (user_id, grp_id, tenant, reason) => {
     try {
+      // Safeguard: Prevent removing the manager from the default 'airqo' group.
+      const group = await GroupModel(tenant).findById(grp_id).lean();
+      if (group) {
+        const isManager =
+          group.grp_manager &&
+          group.grp_manager.toString() === user_id.toString();
+        if (isManager && group.grp_title === "airqo") {
+          return {
+            success: false,
+            message:
+              "The manager cannot be removed from the default 'airqo' organization.",
+          };
+        }
+      } else {
+        return {
+          success: false,
+          message: `Group with ID ${grp_id} not found.`,
+        };
+      }
+
       const result = await UserModel(tenant).findByIdAndUpdate(
         user_id,
         {
@@ -4589,7 +4607,7 @@ const groupUtil = {
       }
 
       // Prevent leaving the default "airqo" group
-      if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
+      if (group.grp_title === "airqo") {
         return next(
           new HttpError("Forbidden", httpStatus.FORBIDDEN, {
             message:
