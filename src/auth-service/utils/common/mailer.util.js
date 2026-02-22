@@ -550,16 +550,13 @@ const createMailerFunction = (
         throw error;
       }
     } catch (error) {
-      logger.error(
-        `🐛🐛 ${functionName} error for ${email}: ${error.message}`,
-        {
-          stack: error.stack,
-          email,
-          tenant,
-          functionName,
-          params: otherParams,
-        },
-      );
+      logger.error(`🐛🐛 ${functionName} error for ${email}: ${error.stack}`, {
+        stack: error.stack,
+        email,
+        tenant,
+        functionName,
+        params: otherParams,
+      });
 
       const httpError = new HttpError(
         "Internal Server Error",
@@ -1048,6 +1045,7 @@ const createAdminAlertFunction = (
 ) => {
   const { maxAlertsPerDay = 2 } = options;
 
+  let counterIncremented = false;
   return async (params, next) => {
     try {
       const {
@@ -1057,11 +1055,11 @@ const createAdminAlertFunction = (
       } = params;
 
       // Normalize and validate recipients
-      let recipients = [];
-      if (Array.isArray(rawRecipients)) {
-        recipients = rawRecipients;
-      } else if (typeof rawRecipients === "string") {
-        recipients = rawRecipients.split(",").map((e) => e.trim());
+      let recipients = []; // This was used before declaration
+      if (Array.isArray(params.recipients)) {
+        recipients = params.recipients;
+      } else if (typeof params.recipients === "string") {
+        recipients = params.recipients.split(",").map((e) => e.trim());
       }
       recipients = [...new Set(recipients.filter(Boolean))];
 
@@ -1076,9 +1074,9 @@ const createAdminAlertFunction = (
           `CRITICAL: ${functionName} cannot be sent because SUPPORT_EMAIL is not configured.`,
         );
         return {
-          success: false,
-          message: "Admin alert system is not configured.",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
+          success: true,
+          message: "Admin alert system not configured; email not sent.",
+          status: httpStatus.OK,
         };
       }
 
@@ -1092,19 +1090,27 @@ const createAdminAlertFunction = (
         );
 
         if (counter.count > maxAlertsPerDay) {
-          logger.info(
-            `Skipping ${functionName} email. Daily limit of ${maxAlertsPerDay} reached.`,
+          logger.warn(
+            `Rate limit exceeded for ${functionName}. Daily limit of ${maxAlertsPerDay} reached.`,
           );
-          await AdminAlertCounterModel(tenant).updateOne(
-            { date: today, emailType: functionName },
-            { $inc: { count: -1 } },
-          );
+          // Safely roll back the counter increment
+          try {
+            await AdminAlertCounterModel(tenant).updateOne(
+              { date: today, emailType: functionName },
+              { $inc: { count: -1 } },
+            );
+          } catch (rollbackError) {
+            logger.error(
+              `Failed to roll back rate limit counter for ${functionName}: ${rollbackError.message}`,
+            );
+          }
           return {
             success: true,
             message: `Daily alert limit reached. Email not sent.`,
             status: httpStatus.OK,
           };
         }
+        counterIncremented = true;
       } catch (rateLimitError) {
         logger.error(
           `Error checking rate limit for ${functionName}: ${rateLimitError.message}`,
@@ -1112,13 +1118,13 @@ const createAdminAlertFunction = (
         // Fail open: proceed if rate limit check fails
       }
 
-      // ✅ STEP 2: Prepare mail options
+      // ‚STEP 2: Prepare mail options
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: constants.SUPPORT_EMAIL,
+        to: recipients.join(","),
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
         bcc: recipients.join(","),
@@ -1137,7 +1143,21 @@ const createAdminAlertFunction = (
       //   implementation would need to accept and use the tenant parameter.
       let shouldSend = true;
       try {
-        shouldSend = await emailDeduplicator.checkAndMarkEmail(mailOptions);
+        let dedupOptions = {};
+        if (functionName === "sendBotAlert") {
+          // Create a stable key for bot alerts, ignoring dynamic parts of the body
+          const stableKeyContent = `${mailOptions.to}:${mailOptions.subject}:${otherParams.ip}`;
+          const stableKey = crypto
+            .createHash("md5")
+            .update(stableKeyContent)
+            .digest("hex");
+          dedupOptions.overrideKey = `email_dedup:${stableKey}`;
+        }
+
+        shouldSend = await emailDeduplicator.checkAndMarkEmail(
+          mailOptions,
+          dedupOptions,
+        );
       } catch (dedupError) {
         // Fail open: if dedup check itself throws, allow the email through
         logger.warn(
@@ -1150,16 +1170,18 @@ const createAdminAlertFunction = (
           `Duplicate admin alert prevented within deduplication window: ${functionName}`,
         );
         // Roll back the rate limit counter increment since we're not actually sending
-        try {
-          const today = new Date().toISOString().split("T")[0];
-          await AdminAlertCounterModel(tenant).updateOne(
-            { date: today, emailType: functionName },
-            { $inc: { count: -1 } },
-          );
-        } catch (rollbackError) {
-          logger.warn(
-            `Failed to roll back rate limit counter for ${functionName}: ${rollbackError.message}`,
-          );
+        if (counterIncremented) {
+          try {
+            const today = new Date().toISOString().split("T")[0];
+            await AdminAlertCounterModel(tenant).updateOne(
+              { date: today, emailType: functionName },
+              { $inc: { count: -1 } },
+            );
+          } catch (rollbackError) {
+            logger.warn(
+              `Failed to roll back rate limit counter for ${functionName}: ${rollbackError.message}`,
+            );
+          }
         }
         return {
           success: true,
@@ -1203,7 +1225,7 @@ const createAdminAlertFunction = (
       if (next) {
         next(error);
       } else {
-        return { success: false, message: error.message };
+        throw error;
       }
     }
   };
@@ -1211,7 +1233,7 @@ const createAdminAlertFunction = (
 
 const mailer = {
   notifyAdminsOfNewOrgRequest: createMailerFunction(
-    "notifyAdminsOfNewOrgRequest",
+    "notifyAdminsOfNewOrgRequest", //
     "ORG_MANAGEMENT",
     (params) =>
       msgs.notifyAdminsOfNewOrgRequest({
@@ -1221,7 +1243,7 @@ const mailer = {
       }),
   ),
   confirmOrgRequestReceived: createMailerFunction(
-    "confirmOrgRequestReceived",
+    "confirmOrgRequestReceived", //
     "ORG_MANAGEMENT",
     (params) =>
       msgs.confirmOrgRequestReceived({
@@ -1231,7 +1253,7 @@ const mailer = {
       }),
   ),
   notifyOrgRequestApproved: createMailerFunction(
-    "notifyOrgRequestApproved",
+    "notifyOrgRequestApproved", //
     "ORG_MANAGEMENT",
     (params) =>
       msgs.notifyOrgRequestApproved({
@@ -1242,7 +1264,7 @@ const mailer = {
       }),
   ),
   notifyOrgRequestRejected: createMailerFunction(
-    "notifyOrgRequestRejected",
+    "notifyOrgRequestRejected", //
     "ORG_MANAGEMENT",
     (params) =>
       msgs.notifyOrgRequestRejected({
@@ -1252,18 +1274,30 @@ const mailer = {
         rejection_reason: params.rejection_reason,
       }),
   ),
-  candidate: createMailerFunction("candidate", "USER_MANAGEMENT", (params) =>
-    msgs.joinRequest(params.firstName, params.lastName, params.email),
+  candidate: createMailerFunction(
+    "candidate",
+    "USER_MANAGEMENT",
+    (
+      params, //
+    ) => msgs.joinRequest(params.firstName, params.lastName, params.email),
   ),
-  request: createMailerFunction("request", "USER_MANAGEMENT", (params) =>
-    msgs.joinEntityRequest(params.email, params.entity_title),
+  request: createMailerFunction(
+    "request",
+    "USER_MANAGEMENT",
+    (
+      params, //
+    ) => msgs.joinEntityRequest(params.email, params.entity_title),
   ),
 
-  yearEndEmail: createMailerFunction("yearEndEmail", "OPTIONAL", (params) =>
-    msgs.yearEndSummary(params.userStat),
+  yearEndEmail: createMailerFunction(
+    "yearEndEmail",
+    "OPTIONAL",
+    (
+      params, //
+    ) => msgs.yearEndSummary(params.userStat),
   ),
   requestToJoinGroupByEmail: createMailerFunction(
-    "requestToJoinGroupByEmail",
+    "requestToJoinGroupByEmail", //
     "USER_MANAGEMENT",
     (params) =>
       msgs.requestToJoinGroupByEmail({
@@ -1282,16 +1316,21 @@ const mailer = {
       bcc: params.inviterEmail,
     }),
   ),
-  inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
-    msgs.inquiry(
-      params.fullName,
-      params.email,
-      params.category,
-      params.message,
-    ),
+  inquiry: createMailerFunction(
+    "inquiry",
+    "OPTIONAL",
+    (
+      params, //
+    ) =>
+      msgs.inquiry(
+        params.fullName,
+        params.email,
+        params.category,
+        params.message,
+      ),
   ),
   clientActivationRequest: createMailerFunction(
-    "clientActivationRequest",
+    "clientActivationRequest", //
     "CLIENT_MANAGEMENT",
     (params) =>
       msgs.clientActivationRequest({
@@ -1302,6 +1341,7 @@ const mailer = {
       }),
   ),
   user: createMailerFunction("user", "USER_MANAGEMENT", (params) => {
+    //
     if (params.tenant?.toLowerCase() === "kcca") {
       return msgs.welcome_kcca(
         params.firstName,
@@ -1318,14 +1358,19 @@ const mailer = {
       );
     }
   }),
-  verifyEmail: createMailerFunction("verifyEmail", "CORE_CRITICAL", (params) =>
-    msgTemplates.composeEmailVerificationMessage({
-      email: params.email,
-      firstName: params.firstName,
-      user_id: params.user_id,
-      token: params.token,
-      category: params.category,
-    }),
+  verifyEmail: createMailerFunction(
+    "verifyEmail",
+    "CORE_CRITICAL",
+    (
+      params, //
+    ) =>
+      msgTemplates.composeEmailVerificationMessage({
+        email: params.email,
+        firstName: params.firstName,
+        user_id: params.user_id,
+        token: params.token,
+        category: params.category,
+      }),
   ),
   clearEmailDeduplication: async (email, subject, content = "") => {
     try {
@@ -1350,6 +1395,7 @@ const mailer = {
   },
   getDeduplicationStats: async () => {
     try {
+      //
       const stats = await emailDeduplicator.getStats();
       return {
         success: true,
@@ -1363,7 +1409,7 @@ const mailer = {
     }
   },
   sendVerificationEmail: createMailerFunction(
-    "sendVerificationEmail",
+    "sendVerificationEmail", //
     "CORE_CRITICAL",
     (params) =>
       msgs.mobileEmailVerification({
@@ -1372,7 +1418,7 @@ const mailer = {
       }),
   ),
   verifyMobileEmail: createMailerFunction(
-    "verifyMobileEmail",
+    "verifyMobileEmail", //
     "CORE_CRITICAL",
     (params) =>
       msgTemplates.mobileEmailVerification({
@@ -1382,7 +1428,7 @@ const mailer = {
       }),
   ),
   afterEmailVerification: createMailerFunction(
-    "afterEmailVerification",
+    "afterEmailVerification", //
     "CORE_CRITICAL",
     (params) =>
       msgTemplates.afterEmailVerification({
@@ -1394,7 +1440,7 @@ const mailer = {
       }),
   ),
   afterClientActivation: createMailerFunction(
-    "afterClientActivation",
+    "afterClientActivation", //
     "CLIENT_MANAGEMENT",
     (params) => {
       const isActivation = params.action === "activate";
@@ -1414,7 +1460,7 @@ const mailer = {
     },
   ),
   afterAcceptingInvitation: createMailerFunction(
-    "afterAcceptingInvitation",
+    "afterAcceptingInvitation", //
     "USER_MANAGEMENT",
     (params) =>
       msgTemplates.afterAcceptingInvitation({
@@ -1425,6 +1471,7 @@ const mailer = {
       }),
   ),
   forgot: createMailerFunction("forgot", "CORE_CRITICAL", (params) => {
+    //
     return msgs.recovery_email({
       token: params.token,
       tenant: params.tenant,
@@ -1434,7 +1481,7 @@ const mailer = {
     });
   }),
   sendPasswordResetEmail: createMailerFunction(
-    "sendPasswordResetEmail",
+    "sendPasswordResetEmail", //
     "CORE_CRITICAL",
     (params) =>
       msgs.mobilePasswordReset({
@@ -1443,40 +1490,50 @@ const mailer = {
       }),
   ),
   signInWithEmailLink: createMailerFunction(
-    "signInWithEmailLink",
+    "signInWithEmailLink", //
     "CORE_CRITICAL",
     (params) => msgs.join_by_email(params.email, params.token),
   ),
   deleteMobileAccountEmail: createMailerFunction(
-    "deleteMobileAccountEmail",
+    "deleteMobileAccountEmail", //
     "CORE_CRITICAL",
     (params) =>
       msgTemplates.deleteMobileAccountEmail(params.email, params.token),
   ),
   authenticateEmail: createMailerFunction(
-    "authenticateEmail",
+    "authenticateEmail", //
     "CORE_CRITICAL",
     (params) => msgs.authenticate_email(params.token, params.email),
   ),
 
-  update: createMailerFunction("update", "USER_MANAGEMENT", (params) =>
-    msgs.user_updated({
-      firstName: params.firstName,
-      lastName: params.lastName,
-      updatedUserDetails: params.updatedUserDetails,
-      email: params.email,
-    }),
+  update: createMailerFunction(
+    "update",
+    "USER_MANAGEMENT",
+    (
+      params, //
+    ) =>
+      msgs.user_updated({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        updatedUserDetails: params.updatedUserDetails,
+        email: params.email,
+      }),
   ),
-  assign: createMailerFunction("assign", "USER_MANAGEMENT", (params) =>
-    msgs.user_assigned(
-      params.firstName,
-      params.lastName,
-      params.assignedTo,
-      params.email,
-    ),
+  assign: createMailerFunction(
+    "assign",
+    "USER_MANAGEMENT",
+    (
+      params, //
+    ) =>
+      msgs.user_assigned(
+        params.firstName,
+        params.lastName,
+        params.assignedTo,
+        params.email,
+      ),
   ),
   updateForgottenPassword: createMailerFunction(
-    "updateForgottenPassword",
+    "updateForgottenPassword", //
     "CORE_CRITICAL",
     (params) =>
       msgs.forgotten_password_updated(
@@ -1486,7 +1543,7 @@ const mailer = {
       ),
   ),
   updateKnownPassword: createMailerFunction(
-    "updateKnownPassword",
+    "updateKnownPassword", //
     "CORE_CRITICAL",
     (params) =>
       msgs.known_password_updated(
@@ -1496,11 +1553,12 @@ const mailer = {
       ),
   ),
   newMobileAppUser: createMailerFunction(
-    "newMobileAppUser",
+    "newMobileAppUser", //
     "OPTIONAL",
     (params) => params.message, // Direct HTML content
   ),
   feedback: createMailerFunction(
+    //
     "feedback",
     "OPTIONAL",
     (params) => params.message, // Just return the message content
@@ -1532,6 +1590,7 @@ const mailer = {
   ),
   sendReport: async (
     {
+      //
       senderEmail,
       normalizedRecepientEmails,
       pdfFile,
@@ -2063,28 +2122,38 @@ const mailer = {
       }
     }
   },
-  siteActivity: createMailerFunction("siteActivity", "OPTIONAL", (params) =>
-    msgs.site_activity({
-      firstName: params.firstName,
-      lastName: params.lastName,
-      siteActivityDetails: params.siteActivityDetails,
-      email: params.email,
-      activityDetails: params.activityDetails,
-      deviceDetails: params.deviceDetails,
-    }),
+  siteActivity: createMailerFunction(
+    "siteActivity",
+    "OPTIONAL",
+    (
+      params, //
+    ) =>
+      msgs.site_activity({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        siteActivityDetails: params.siteActivityDetails,
+        email: params.email,
+        activityDetails: params.activityDetails,
+        deviceDetails: params.deviceDetails,
+      }),
   ),
-  fieldActivity: createMailerFunction("fieldActivity", "OPTIONAL", (params) =>
-    msgs.field_activity({
-      firstName: params.firstName,
-      lastName: params.lastName,
-      activityDetails: params.activityDetails,
-      deviceDetails: params.deviceDetails,
-      activityType: params.activityType,
-      email: params.email,
-    }),
+  fieldActivity: createMailerFunction(
+    "fieldActivity",
+    "OPTIONAL",
+    (
+      params, //
+    ) =>
+      msgs.field_activity({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        activityDetails: params.activityDetails,
+        deviceDetails: params.deviceDetails,
+        activityType: params.activityType,
+        email: params.email,
+      }),
   ),
   compromisedToken: createSecurityEmailFunction(
-    "compromisedToken",
+    "compromisedToken", //
     (params) =>
       msgs.token_compromised({
         firstName: params.firstName,
@@ -2098,7 +2167,7 @@ const mailer = {
     },
   ),
   expiredToken: createSecurityEmailFunction(
-    "expiredToken",
+    "expiredToken", //
     (params) =>
       msgs.tokenExpired({
         firstName: params.firstName,
@@ -2112,7 +2181,7 @@ const mailer = {
     },
   ),
   expiringToken: createSecurityEmailFunction(
-    "expiringToken",
+    "expiringToken", //
     (params) =>
       msgs.tokenExpiringSoon({
         firstName: params.firstName,
@@ -2125,7 +2194,7 @@ const mailer = {
     },
   ),
   updateProfileReminder: createMailerFunction(
-    "updateProfileReminder",
+    "updateProfileReminder", //
     "OPTIONAL",
     (params) =>
       msgs.updateProfilePrompt({
@@ -2135,7 +2204,7 @@ const mailer = {
       }),
   ),
   existingUserAccessRequest: createMailerFunction(
-    "existingUserAccessRequest",
+    "existingUserAccessRequest", //
     "USER_MANAGEMENT",
     (params) =>
       msgs.existing_user({
@@ -2145,7 +2214,7 @@ const mailer = {
       }),
   ),
   existingUserRegistrationRequest: createMailerFunction(
-    "existingUserRegistrationRequest",
+    "existingUserRegistrationRequest", //
     "USER_MANAGEMENT",
     (params) =>
       msgs.existing_user({
@@ -2155,7 +2224,7 @@ const mailer = {
       }),
   ),
   requestRejected: createMailerFunction(
-    "requestRejected",
+    "requestRejected", //
     "USER_MANAGEMENT",
     (params) =>
       msgs.requestRejected({
@@ -2167,6 +2236,7 @@ const mailer = {
   ),
 
   sendPollutionAlert: createMailerFunction(
+    //
     "sendPollutionAlert",
     "OPTIONAL",
     (params) => {
@@ -2180,7 +2250,7 @@ const mailer = {
     },
   ),
   notifyOrgRequestApprovedWithOnboarding: createMailerFunction(
-    "notifyOrgRequestApprovedWithOnboarding",
+    "notifyOrgRequestApprovedWithOnboarding", //
     "ORG_MANAGEMENT",
     (params) =>
       msgs.notifyOrgRequestApprovedWithOnboarding({
@@ -2193,7 +2263,7 @@ const mailer = {
   ),
 
   onboardingAccountSetup: createMailerFunction(
-    "onboardingAccountSetup",
+    "onboardingAccountSetup", //
     "CORE_CRITICAL",
     (params) =>
       msgs.onboardingAccountSetup({
@@ -2205,7 +2275,7 @@ const mailer = {
   ),
 
   onboardingCompleted: createMailerFunction(
-    "onboardingCompleted",
+    "onboardingCompleted", //
     "ORG_MANAGEMENT",
     (params) =>
       msgs.onboardingCompleted({
@@ -2216,7 +2286,7 @@ const mailer = {
       }),
   ),
   inactiveAccount: createMailerFunction(
-    "inactiveAccount",
+    "inactiveAccount", //
     "OPTIONAL",
     (params) =>
       msgs.inactiveAccount({
@@ -2225,7 +2295,7 @@ const mailer = {
       }),
   ),
   sendAccountDeletionConfirmation: createMailerFunction(
-    "sendAccountDeletionConfirmation",
+    "sendAccountDeletionConfirmation", //
     "CORE_CRITICAL",
     (params) => {
       return msgs.accountDeletionConfirmation({
@@ -2237,7 +2307,7 @@ const mailer = {
     },
   ),
   sendAccountDeletionSuccess: createMailerFunction(
-    "sendAccountDeletionSuccess",
+    "sendAccountDeletionSuccess", //
     "CORE_CRITICAL",
     (params) =>
       msgs.accountDeletionSuccess({
@@ -2246,7 +2316,7 @@ const mailer = {
       }),
   ),
   sendMobileAccountDeletionCode: createMailerFunction(
-    "sendMobileAccountDeletionCode",
+    "sendMobileAccountDeletionCode", //
     "CORE_CRITICAL",
     (params) =>
       msgs.mobileAccountDeletionCode({
@@ -2256,7 +2326,7 @@ const mailer = {
       }),
   ),
   sendBotAlert: createAdminAlertFunction(
-    "sendBotAlert",
+    "sendBotAlert", //
     (params) =>
       msgs.botAlert({
         recipients: params.recipients,
@@ -2271,7 +2341,7 @@ const mailer = {
     },
   ),
   sendCompromiseSummary: createSecurityEmailFunction(
-    "sendCompromiseSummary",
+    "sendCompromiseSummary", //
     (params) =>
       msgs.compromiseSummary({
         email: params.email,
@@ -2284,7 +2354,7 @@ const mailer = {
     },
   ),
   clientActivationRequestAdmin: createMailerFunction(
-    "clientActivationRequestAdmin",
+    "clientActivationRequestAdmin", //
     "CLIENT_MANAGEMENT",
     (params) =>
       msgs.clientActivationRequestAdmin({
