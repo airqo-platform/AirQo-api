@@ -153,14 +153,8 @@ GroupSchema.pre(
           const query = this.getQuery();
           // For multi-document operations (e.g., updateMany), ensure that no
           // document matching the query is the default 'airqo' group.
-          const airqoFilter = {
-            ...query,
-            $or: [
-              { grp_title: "airqo" },
-              { grp_title: { $regex: /^airqo$/i } },
-            ],
-          };
-          const airqoExists = await this.model.exists(airqoFilter).lean();
+          const airqoFilter = { $and: [query, { grp_title: "airqo" }] };
+          const airqoExists = await this.model.exists(airqoFilter);
           if (airqoExists) {
             return next(
               new HttpError("Forbidden", httpStatus.FORBIDDEN, {

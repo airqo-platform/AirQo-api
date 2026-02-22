@@ -1626,6 +1626,16 @@ const groupUtil = {
         group.grp_manager.toString() === user_id.toString()
       ) {
         // Count other members in the group
+        if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message:
+                "The manager cannot be unassigned from the default 'airqo' organization. This group is essential for system operations.",
+            }),
+          );
+        }
+
+        // Count other members in the group
         const otherMembersCount = await UserModel(tenant).countDocuments({
           _id: { $ne: user_id },
           "group_roles.group": grp_id,
@@ -1741,6 +1751,16 @@ const groupUtil = {
         group.grp_manager &&
         user_ids.includes(group.grp_manager.toString())
       ) {
+        // Prevent manager removal from the default 'airqo' group
+        if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message:
+                "The manager cannot be unassigned from the default 'airqo' organization. This group is essential for system operations.",
+            }),
+          );
+        }
+
         // Count how many members would be left in the group after this operation
         const remainingMembersCount = await UserModel(tenant).countDocuments({
           "group_roles.group": grp_id,
