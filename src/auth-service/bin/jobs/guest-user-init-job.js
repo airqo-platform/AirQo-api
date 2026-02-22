@@ -7,13 +7,8 @@ const logger = log4js.getLogger(
 
 const ensureGuestUserExists = async () => {
   try {
-    logger.info("Starting job: ensureGuestUserExists");
-
-    // HOTFIX: Only run for airqo tenant to avoid permission errors
-    // Other tenants require separate database credentials
-    const tenant = "airqo";
-
-    logger.info(`Creating guest user for tenant: ${tenant}`);
+    // Use centralized DEFAULT_TENANT constant instead of hardcoded string
+    const tenant = constants.DEFAULT_TENANT || "airqo";
 
     try {
       // Check if guest user already exists in this tenant
@@ -22,15 +17,24 @@ const ensureGuestUserExists = async () => {
         .lean();
 
       if (existingGuestUser) {
-        logger.info(
-          `Guest user already exists in tenant '${tenant}' with ID: ${constants.GUEST_USER_ID.toString()}`,
-        );
-        logger.info("Finished job: ensureGuestUserExists");
         return;
       }
 
       // Create the sentinel guest user for this tenant
-      logger.info(`Creating sentinel guest user in tenant '${tenant}'...`);
+
+      // Non-bcrypt sentinel password to prevent bcrypt.compare from being called
+      const DUMMY_PASSWORD = "DUMMY_NON_BCRYPT_HASH";
+
+      // Validation: Ensure the dummy password doesn't match bcrypt pattern
+      // bcrypt hashes start with $2a$, $2b$, or $2y$
+      if (
+        DUMMY_PASSWORD.startsWith("$2") ||
+        /^\$2[aby]\$/.test(DUMMY_PASSWORD)
+      ) {
+        throw new Error(
+          "Guest user password must not match bcrypt hash pattern to prevent bcrypt.compare calls",
+        );
+      }
 
       const guestUser = {
         _id: constants.GUEST_USER_ID,
@@ -38,8 +42,7 @@ const ensureGuestUserExists = async () => {
         userName: "guest_user",
         firstName: "Guest",
         lastName: "User",
-        password:
-          "$2b$10$DUMMY.HASH.FOR.GUEST.USER.THAT.CANNOT.BE.USED.TO.LOGIN",
+        password: DUMMY_PASSWORD,
         verified: false,
         isActive: false,
         analyticsVersion: 4,
@@ -52,21 +55,14 @@ const ensureGuestUserExists = async () => {
       };
 
       await UserModel(tenant).create(guestUser);
-
-      logger.info(
-        `✅ Successfully created sentinel guest user in tenant '${tenant}' with ID: ${constants.GUEST_USER_ID.toString()}`,
-      );
     } catch (error) {
       // Check if error is due to duplicate key (race condition)
       if (error.code === 11000) {
-        logger.info(
-          `Guest user already exists in tenant '${tenant}' (created by another instance/process)`,
-        );
         return;
       }
 
-      // Log authorization errors but don't crash the app
-      if (error.message && error.message.includes("not authorized")) {
+      // Check for MongoDB authorization error (error code 13)
+      if (error.code === 13) {
         logger.error(
           `❌ Authorization error for tenant '${tenant}': Database credentials do not have access. Skipping guest user creation.`,
         );
@@ -76,9 +72,8 @@ const ensureGuestUserExists = async () => {
       logger.error(
         `❌ Error creating guest user in tenant '${tenant}': ${error.message}`,
       );
+      return;
     }
-
-    logger.info("Finished job: ensureGuestUserExists");
   } catch (error) {
     logger.error(
       `❌ Error in ensureGuestUserExists job: ${error.message}`,
