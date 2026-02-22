@@ -142,20 +142,40 @@ GroupSchema.pre(
         ...(updates.$set || {}),
       };
 
-      // Prevent renaming of the default 'airqo' group at the schema level
-      if (actualUpdates.grp_title) {
-        const query = this.getQuery();
-        const docToUpdate = await this.model.findOne(query).lean();
-        if (
-          docToUpdate &&
-          docToUpdate.grp_title &&
-          docToUpdate.grp_title.toLowerCase() === "airqo"
-        ) {
-          return next(
-            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-              message: "The default 'airqo' group cannot be renamed.",
-            }),
-          );
+      // This check ensures the following logic only runs for query middleware (e.g., findOneAndUpdate)
+      // and skips document middleware (e.g., save), where `this.getQuery` is not a function.
+      if (typeof this.getQuery === "function") {
+        // Query middleware (e.g., findOneAndUpdate, updateMany)
+        if (actualUpdates.grp_title) {
+          const query = this.getQuery();
+          // For multi-document operations (e.g., updateMany), ensure that no
+          // document matching the query is the default 'airqo' group.
+          const airqoFilter = {
+            ...query,
+            grp_title: /^airqo$/i,
+          };
+          const airqoExists = await this.model.exists(airqoFilter);
+          if (airqoExists) {
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message: "The default 'airqo' group cannot be renamed.",
+              }),
+            );
+          }
+        }
+      } else {
+        // Document middleware (e.g., doc.save())
+        if (!this.isNew && this.isModified("grp_title")) {
+          const originalDoc = await this.constructor
+            .findOne({ _id: this._id })
+            .lean();
+          if (originalDoc && originalDoc.grp_title.toLowerCase() === "airqo") {
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message: "The default 'airqo' group cannot be renamed.",
+              }),
+            );
+          }
         }
       }
       if (actualUpdates.grp_sites) {
