@@ -216,6 +216,16 @@ const connectToMongoDB = () => {
           // Don't crash the app - guest user creation failure is non-critical
         });
 
+        // Run default group initialization in the background
+        const {
+          ensureDefaultAirqoGroupExists,
+        } = require("@bin/jobs/default-group-init-job");
+        console.log("🚀 Kicking off default group initialization...");
+        ensureDefaultAirqoGroupExists("airqo").catch((err) => {
+          logger.error(
+            `Background job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
+          );
+        });
         // Also run the token migration job now that DB is ready
         const {
           migrateTokenStrategiesToDefault,

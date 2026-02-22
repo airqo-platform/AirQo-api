@@ -1083,12 +1083,22 @@ const groupUtil = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const tenant = (rawTenant || defaultTenant).toLowerCase();
 
-      const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
+      const group = await GroupModel(tenant).findById(grp_id).lean();
 
-      if (!groupExists) {
+      if (!group) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id} not found`,
+          }),
+        );
+      }
+
+      // Prevent renaming of the default 'airqo' group
+      if (group.is_default || group.grp_title === "airqo") {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message:
+              "The default 'airqo' organization cannot be renamed as it is essential for system operations.",
           }),
         );
       }
@@ -4525,6 +4535,16 @@ const groupUtil = {
         return next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "User or Group not found",
+          }),
+        );
+      }
+
+      // Check if the group is the default "airqo" group
+      if (group.is_default || group.grp_title === "airqo") {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message:
+              "You cannot leave the default 'airqo' organization. This group is mandatory for platform access.",
           }),
         );
       }
