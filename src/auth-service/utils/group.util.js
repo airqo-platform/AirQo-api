@@ -1059,13 +1059,10 @@ const groupUtil = {
       // Prevent renaming of the default "airqo" group through the general update endpoint
       const groupDetails = await GroupModel(tenant).findById(grp_id).lean();
       if (groupDetails) {
-        const isDefaultAirqoTitle =
-          typeof groupDetails.grp_title === "string" &&
-          groupDetails.grp_title.toLowerCase() === "airqo";
         if (
           update.grp_title &&
-          groupDetails.is_default &&
-          isDefaultAirqoTitle
+          groupDetails.grp_title &&
+          groupDetails.grp_title.toLowerCase() === "airqo"
         ) {
           return next(
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
@@ -1113,15 +1110,11 @@ const groupUtil = {
       }
 
       // Prevent renaming of the default "airqo" group
-      const isDefaultAirqoTitle =
-        typeof group.grp_title === "string" &&
-        group.grp_title.toLowerCase() === "airqo";
-
-      if (group.is_default && isDefaultAirqoTitle) {
+      if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
         return next(
           new HttpError("Forbidden", httpStatus.FORBIDDEN, {
             message:
-              "The default 'airqo' organization cannot be renamed because it is essential for system operations and is referenced throughout the application.",
+              "The default 'airqo' organization cannot be renamed as it is essential for system operations and is referenced throughout the application.",
           }),
         );
       }
@@ -4563,11 +4556,7 @@ const groupUtil = {
       }
 
       // Prevent leaving the default "airqo" group
-      const isDefaultAirqoTitle =
-        typeof group.grp_title === "string" &&
-        group.grp_title.toLowerCase() === "airqo";
-
-      if (group.is_default && isDefaultAirqoTitle) {
+      if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
         return next(
           new HttpError("Forbidden", httpStatus.FORBIDDEN, {
             message:

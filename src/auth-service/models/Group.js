@@ -108,7 +108,6 @@ const GroupSchema = new Schema(
     is_default: {
       type: Boolean,
       default: false,
-      immutable: true,
     },
   },
   {
