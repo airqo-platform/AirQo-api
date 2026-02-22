@@ -326,6 +326,23 @@ const groupUtil = {
       const { tenant } = request.query;
       const { name, description, profilePicture, website } = body;
 
+      // Prevent renaming of the default "airqo" group
+      if (name !== undefined) {
+        const groupDetails = await GroupModel(tenant)
+          .findById(group._id)
+          .lean();
+        if (
+          groupDetails &&
+          groupDetails.grp_title &&
+          groupDetails.grp_title.toLowerCase() === "airqo"
+        ) {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: "The default 'airqo' organization cannot be renamed.",
+            }),
+          );
+        }
+      }
       // Create update object with only provided fields
       const updateFields = {};
       if (name !== undefined) updateFields.grp_title = name;
@@ -1046,16 +1063,28 @@ const groupUtil = {
         );
       }
 
-      const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
-
-      if (!groupExists) {
-        next(
+      // Prevent renaming of the default "airqo" group through the general update endpoint
+      const groupDetails = await GroupModel(tenant).findById(grp_id).lean();
+      if (!groupDetails) {
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id} not found`,
           }),
         );
       }
 
+      if (
+        update.grp_title &&
+        groupDetails.grp_title &&
+        groupDetails.grp_title.toLowerCase() === "airqo"
+      ) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message:
+              "The default 'airqo' organization cannot be renamed because it is essential for system operations and is referenced throughout the application.",
+          }),
+        );
+      }
       const filter = generateFilter.groups(request, next);
       const responseFromModifyGroup = await GroupModel(
         tenant.toLowerCase(),
@@ -1083,12 +1112,22 @@ const groupUtil = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const tenant = (rawTenant || defaultTenant).toLowerCase();
 
-      const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
+      const group = await GroupModel(tenant).findById(grp_id).lean();
 
-      if (!groupExists) {
+      if (!group) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id} not found`,
+          }),
+        );
+      }
+
+      // Prevent renaming of the default "airqo" group
+      if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message:
+              "The default 'airqo' organization cannot be renamed as it is essential for system operations and is referenced throughout the application.",
           }),
         );
       }
@@ -4525,6 +4564,16 @@ const groupUtil = {
         return next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "User or Group not found",
+          }),
+        );
+      }
+
+      // Prevent leaving the default "airqo" group
+      if (group.grp_title && group.grp_title.toLowerCase() === "airqo") {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message:
+              "You cannot leave the default 'airqo' organization. This group is mandatory for platform access.",
           }),
         );
       }
