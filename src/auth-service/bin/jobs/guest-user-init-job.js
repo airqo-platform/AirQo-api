@@ -7,81 +7,73 @@ const logger = log4js.getLogger(
 
 const ensureGuestUserExists = async () => {
   try {
-    logger.info("Starting job: ensureGuestUserExists");
+    // Use centralized DEFAULT_TENANT constant instead of hardcoded string
+    const tenant = constants.DEFAULT_TENANT || "airqo";
 
-    // Get list of all tenants from constants
-    // This respects your existing tenant configuration
-    const tenants = constants.TENANTS || [
-      (constants.DEFAULT_TENANT || "airqo").toLowerCase(),
-    ];
+    try {
+      // Check if guest user already exists in this tenant
+      const existingGuestUser = await UserModel(tenant)
+        .findById(constants.GUEST_USER_ID)
+        .lean();
 
-    logger.info(
-      `Creating guest user for ${tenants.length} tenant(s): ${tenants.join(", ")}`,
-    );
-
-    // Create guest user in each tenant
-    for (const tenant of tenants) {
-      try {
-        const tenantLower = tenant.toLowerCase();
-
-        // Check if guest user already exists in this tenant
-        const existingGuestUser = await UserModel(tenantLower)
-          .findById(constants.GUEST_USER_ID)
-          .lean();
-
-        if (existingGuestUser) {
-          logger.info(
-            `Guest user already exists in tenant '${tenantLower}' with ID: ${constants.GUEST_USER_ID.toString()}`,
-          );
-          continue; // Skip to next tenant
-        }
-
-        // Create the sentinel guest user for this tenant
-        logger.info(
-          `Creating sentinel guest user in tenant '${tenantLower}'...`,
-        );
-
-        const guestUser = {
-          _id: constants.GUEST_USER_ID,
-          email: "guest@airqo.system",
-          userName: "guest_user",
-          firstName: "Guest",
-          lastName: "User",
-          password:
-            "$2b$10$DUMMY.HASH.FOR.GUEST.USER.THAT.CANNOT.BE.USED.TO.LOGIN",
-          verified: false,
-          isActive: false,
-          analyticsVersion: 4,
-          privilege: "guest",
-          organization: tenantLower,
-          long_organization: tenantLower,
-          network_roles: [],
-          group_roles: [],
-          permissions: [],
-        };
-
-        await UserModel(tenantLower).create(guestUser);
-
-        logger.info(
-          `✅ Successfully created sentinel guest user in tenant '${tenantLower}' with ID: ${constants.GUEST_USER_ID.toString()}`,
-        );
-      } catch (error) {
-        // Check if error is due to duplicate key (race condition)
-        if (error.code === 11000) {
-          logger.info(
-            `Guest user already exists in tenant '${tenant}' (created by another instance/process)`,
-          );
-          continue;
-        }
-
-        logger.error(
-          `❌ Error creating guest user in tenant '${tenant}': ${error.message}`,
-        );
-        // Continue to next tenant instead of failing the entire job
+      if (existingGuestUser) {
+        return;
       }
-    }
 
-    logger.info("Finished job: ensureGuestUserExists");
+      // Create the sentinel guest user for this tenant
+
+      // Non-bcrypt sentinel password to prevent bcrypt.compare from being called
+      const DUMMY_PASSWORD = "DUMMY_NON_BCRYPT_HASH";
+
+      // Validation: Ensure the dummy password doesn't match bcrypt pattern
+      // bcrypt hashes start with $2a$, $2b$, or $2y$
+      if (
+        DUMMY_PASSWORD.startsWith("$2") ||
+        /^\$2[aby]\$/.test(DUMMY_PASSWORD)
+      ) {
+        throw new Error(
+          "Guest user password must not match bcrypt hash pattern to prevent bcrypt.compare calls",
+        );
+      }
+
+      const guestUser = {
+        _id: constants.GUEST_USER_ID,
+        email: "guest@airqo.system",
+        userName: "guest_user",
+        firstName: "Guest",
+        lastName: "User",
+        password: DUMMY_PASSWORD,
+        verified: false,
+        isActive: false,
+        analyticsVersion: 4,
+        privilege: "guest",
+        organization: tenant,
+        long_organization: tenant,
+        network_roles: [],
+        group_roles: [],
+        permissions: [],
+      };
+
+      await UserModel(tenant).create(guestUser);
+    } catch (error) {
+      // Check if error is due to duplicate key (race condition)
+      if (error.code === 11000) {
+        return;
+      }
+
+      // Check for MongoDB authorization error (error code 13)
+      if (error.code === 13) {
+        logger.error(
+          `❌ Authorization error for tenant '${tenant}': Database credentials do not have access. Skipping guest user creation.`,
+        );
+        return;
+      }
+
+      logger.error(
+        `❌ Error creating guest user in tenant '${tenant}': ${error.message}`,
+      );
+      return;
+    }
   } catch (error) {
     logger.error(
       `❌ Error in ensureGuestUserExists job: ${error.message}`,
