@@ -153,14 +153,8 @@ GroupSchema.pre(
           const query = this.getQuery();
           // For multi-document operations (e.g., updateMany), ensure that no
           // document matching the query is the default 'airqo' group.
-          const airqoFilter = {
-            ...query,
-            $or: [
-              { grp_title: "airqo" },
-              { grp_title: { $regex: /^airqo$/i } },
-            ],
-          };
-          const airqoExists = await this.model.exists(airqoFilter).lean();
+          const airqoFilter = { $and: [query, { grp_title: "airqo" }] };
+          const airqoExists = await this.model.exists(airqoFilter);
           if (airqoExists) {
             return next(
               new HttpError("Forbidden", httpStatus.FORBIDDEN, {
@@ -253,6 +247,17 @@ GroupSchema.pre(
       return next();
     }
 
+    // Prevent deletion of the 'airqo' group by its title as a safeguard
+    if (
+      docToDelete.grp_title &&
+      docToDelete.grp_title.toLowerCase() === "airqo"
+    ) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "The default 'airqo' group cannot be deleted.",
+        }),
+      );
+    }
     // Check is_default flag
     if (docToDelete.is_default) {
       return next(
