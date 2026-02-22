@@ -146,15 +146,21 @@ GroupSchema.pre(
       // and skips document middleware (e.g., save), where `this.getQuery` is not a function.
       if (typeof this.getQuery === "function") {
         // Query middleware (e.g., findOneAndUpdate, updateMany)
-        if (actualUpdates.grp_title) {
+        if (
+          actualUpdates.grp_title &&
+          actualUpdates.grp_title.toLowerCase() !== "airqo"
+        ) {
           const query = this.getQuery();
           // For multi-document operations (e.g., updateMany), ensure that no
           // document matching the query is the default 'airqo' group.
           const airqoFilter = {
             ...query,
-            grp_title: /^airqo$/i,
+            $or: [
+              { grp_title: "airqo" },
+              { grp_title: { $regex: /^airqo$/i } },
+            ],
           };
-          const airqoExists = await this.model.exists(airqoFilter);
+          const airqoExists = await this.model.exists(airqoFilter).lean();
           if (airqoExists) {
             return next(
               new HttpError("Forbidden", httpStatus.FORBIDDEN, {
