@@ -247,6 +247,17 @@ GroupSchema.pre(
       return next();
     }
 
+    // Prevent deletion of the 'airqo' group by its title as a safeguard
+    if (
+      docToDelete.grp_title &&
+      docToDelete.grp_title.toLowerCase() === "airqo"
+    ) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message: "The default 'airqo' group cannot be deleted.",
+        }),
+      );
+    }
     // Check is_default flag
     if (docToDelete.is_default) {
       return next(
