@@ -1127,6 +1127,14 @@ const createAdminAlertFunction = (
 
       // ✅ STEP 3: DB-backed deduplication check before queuing
       // This prevents duplicate alerts fired across multiple pods within the 5-minute window.
+      // NOTE ON TENANT SCOPING:
+      // - The rate limiting above is scoped per tenant via AdminAlertCounterModel(tenant).
+      // - The emailDeduplicator.checkAndMarkEmail utility currently performs a global
+      //   deduplication check (its implementation uses a fixed tenant in the underlying
+      //   SentEmailLog model), so deduplication is NOT tenant-specific.
+      // - This is intentional here: admin alert deduplication is shared across tenants.
+      //   To change this behaviour to per-tenant deduplication, the deduplicator
+      //   implementation would need to accept and use the tenant parameter.
       let shouldSend = true;
       try {
         shouldSend = await emailDeduplicator.checkAndMarkEmail(mailOptions);
