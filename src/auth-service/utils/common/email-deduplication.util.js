@@ -56,9 +56,9 @@ class EmailDeduplicator {
    *
    * @returns {Promise<boolean>} true = send the email, false = duplicate, skip it
    */
-  async checkAndMarkEmail(emailData) {
+  async checkAndMarkEmail(emailData, { overrideKey } = {}) {
     try {
-      const key = this.generateEmailKey(emailData);
+      const key = overrideKey || this.generateEmailKey(emailData);
       const SentEmailLog = SentEmailLogModel("airqo");
 
       // Atomic insert: succeeds only if `hash` is unique.
@@ -91,9 +91,9 @@ class EmailDeduplicator {
    * Remove a deduplication key — useful for testing or manual overrides.
    * @returns {Promise<boolean>}
    */
-  async removeEmailKey(emailData) {
+  async removeEmailKey(emailData, { overrideKey } = {}) {
     try {
-      const key = this.generateEmailKey(emailData);
+      const key = overrideKey || this.generateEmailKey(emailData);
       const SentEmailLog = SentEmailLogModel("airqo");
       const result = await SentEmailLog.deleteOne({ hash: key });
       return result.deletedCount > 0;
