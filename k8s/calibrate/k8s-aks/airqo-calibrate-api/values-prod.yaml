@@ -1,0 +1,51 @@
+app:
+  name: airqo-prod-calibrate-api
+  label: prod-calibrate
+
+replicaCount: 3
+
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-prod-calibrate-api
+  tag: latest
+
+initContainer:
+  image:
+    repository: eu.gcr.io/airqo-250220/airqo-prod-calibrate-pickle-file
+    tag: latest
+
+secret:
+  name: prod-env-calibrate-api
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+  - name: shared-data
+    mountPath: /usr/pickle-files
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-calibrate-api-config-files
+  - name: shared-data
+    emptyDir: {}
+
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+  nodePort: 30011
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 70
+
+resources:
+  limits:
+    cpu: 1
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+

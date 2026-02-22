@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.api.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "airqo-prediction.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+        app: {{ .Values.api.label }}
+  replicas: {{ .Values.api.replicaCount }}
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      {{- with .Values.api.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ .Values.api.label }}
+    spec:
+      containers:
+        - name: {{ .Values.api.label }}
+          image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              name: {{ .Values.api.label }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.api.secret }} 
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

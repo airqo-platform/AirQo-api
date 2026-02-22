@@ -1,0 +1,79 @@
+app:
+  name: workflows
+  label: workflows
+  secret: sta-env-airflow
+  namespace: pipeline
+  serviceAccount: stage-airflow-sa
+replicaCount: 2
+images:
+  repositories:
+    initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
+    redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
+    containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
+  tag: stage-ad45ae09-1771331319
+resources:
+  initContainer:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 250m
+      memory: 80Mi
+  webserver:
+    requests:
+      cpu: 125m
+      memory: 1000Mi
+    limits:
+      cpu: 500m
+      memory: 1500Mi
+  scheduler:
+    requests:
+      cpu: 500m
+      memory: 1000Mi
+    limits:
+      cpu: 3000m
+      memory: 1800Mi
+  celery:
+    requests:
+      cpu: 125m
+      memory: 500Mi
+    limits:
+      cpu: 2500m
+      memory: 2000Mi
+  redis:
+    requests:
+      cpu: 5m
+      memory: 10Mi
+    limits:
+      cpu: 250m
+      memory: 40Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+  - name: xcom-config-volume
+    mountPath: /etc/airflow_xcom
+volumes:
+  - name: config-volume
+    configMap:
+      name: airflow-config-files
+  - name: xcom-config-volume
+    emptyDir: {}
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  ports:
+    - name: web-server
+      port: 8080
+      targetPort: 8080
+      nodePort: 30036
+      protocol: TCP
+    - name: redis-server
+      port: 6379
+      targetPort: 6379
+      nodePort: 30079
+      protocol: TCP
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 70

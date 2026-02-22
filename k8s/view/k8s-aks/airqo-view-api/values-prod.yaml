@@ -1,0 +1,27 @@
+api:
+  name: airqo-view-api
+  label: view-api
+  secret: prod-env-view-api
+  namespace: production
+replicaCount: 2
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-view-api
+  tag: latest
+resources:
+  limits:
+    cpu: 20m
+    memory: 420Mi
+  requests:
+    cpu: 5m
+    memory: 300Mi
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8080
+  protocol: TCP
+  targetPort: 8080
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80

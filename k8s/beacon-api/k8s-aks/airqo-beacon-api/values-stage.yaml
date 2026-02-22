@@ -1,0 +1,36 @@
+app:
+  name: airqo-stage-beacon-api
+  label: sta-beacon-api
+  gcpSecret: sta-env-beacon  
+  k8sSecret: sta-beacon-api # used by ExternalSecret
+  namespace: staging           # still used for Helm label generation only
+replicaCount: 2
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-stage-beacon-api
+  tag: latest
+resources:
+  limits:
+    cpu: 300m
+    memory: 500Mi
+  requests:
+    cpu: 10m
+    memory: 180Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: beacon-config-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8000
+  protocol: TCP
+  targetPort: 8000
+  nodePort: 31115
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetMemoryUtilizationPercentage: 80

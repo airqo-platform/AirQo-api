@@ -1,0 +1,35 @@
+app:
+  name: airqo-website-api
+  label: website-api
+  secret: prod-env-website-backend
+  namespace: production
+replicaCount: 3
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-website-api
+  tag: latest
+resources:
+  limits:
+    cpu: 100m
+    memory: 600Mi
+  requests:
+    cpu: 10m
+    memory: 300Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-website-api-config-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8000
+  protocol: TCP
+  targetPort: 8000
+  nodePort: 30020
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 70

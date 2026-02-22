@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.jobs.reports.name }}
+spec:
+  suspend: true
+  concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 0 1 */3 *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: {{ .Values.jobs.reports.name }}
+              image: "{{ .Values.images.repositories.reportJob }}:{{ .Values.images.tag }}"
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.jobs.reports.secret}}
+              resources:
+                {{- toYaml .Values.jobs.resources | nindent 16 }}
+              volumeMounts:
+                {{- toYaml .Values.volumeMounts | nindent 16 }}
+          volumes:
+            {{- toYaml .Values.volumes | nindent 12 }}

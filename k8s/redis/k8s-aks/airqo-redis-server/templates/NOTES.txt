@@ -1,0 +1,14 @@
+1. Get the Redis service address by running these commands:
+{{- if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Values.app.namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ .Values.app.name }}-svc)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Values.app.namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo $NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch its status by running 'kubectl get --namespace {{ .Values.app.namespace }} svc -w {{ .Values.app.name }}-svc'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Values.app.namespace }} {{ .Values.app.name }}-svc --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo $SERVICE_IP:{{ .Values.service.port }}
+{{- else if contains "ClusterIP" .Values.service.type }}
+  echo "Redis is running in ClusterIP mode within the cluster"
+  kubectl port-forward --namespace {{ .Values.app.namespace }} svc/{{ .Values.app.name }}-svc 6379:{{ .Values.service.port }}
+{{- end }}

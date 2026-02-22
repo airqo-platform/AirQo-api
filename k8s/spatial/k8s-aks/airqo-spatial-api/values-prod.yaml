@@ -1,0 +1,35 @@
+app:
+  name: airqo-spatial-api
+  label: spatial-api
+  secret: prod-env-spatial
+  namespace: production
+replicaCount: 3
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-spatial-api
+  tag: latest
+resources:
+  limits:
+    cpu: 200m
+    memory: 500Mi
+  requests:
+    cpu: 10m
+    memory: 250Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-spatial-api-config-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 5000
+  protocol: TCP
+  targetPort: 5000
+  nodePort: 30019
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 70

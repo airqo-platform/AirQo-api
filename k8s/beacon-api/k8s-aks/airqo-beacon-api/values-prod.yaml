@@ -1,0 +1,36 @@
+app:
+  name: airqo-beacon-api
+  label: beacon-api
+  gcpSecret: prod-env-beacon  
+  k8sSecret: prod-beacon-api
+  namespace: production
+replicaCount: 3
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-beacon-api
+  tag: latest
+resources:
+  limits:
+    cpu: 400m
+    memory: 600Mi
+  requests:
+    cpu: 50m
+    memory: 250Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: beacon-config-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8000
+  protocol: TCP
+  targetPort: 8000
+  nodePort: 30115
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 70
