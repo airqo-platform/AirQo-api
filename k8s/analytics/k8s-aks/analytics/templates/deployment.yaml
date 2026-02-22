@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.api.name }}
+  labels:
+    {{- include "airqo-analytics.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.api.label }}
+  replicas: {{ .Values.api.replicaCount }}
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      {{- with .Values.api.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ .Values.api.label }}
+    spec:
+      containers:
+        - name: {{ .Values.api.label }}
+          image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+              name: {{ .Values.api.label }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.api.secret }}
+          volumeMounts:
+            {{- toYaml .Values.volumeMounts | nindent 12 }}
+          resources:
+            limits:
+              cpu: {{ .Values.api.resources.common.limits.cpu }}
+              memory: {{ .Values.api.resources.common.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.common.requests.cpu }}
+              memory: {{ .Values.api.resources.common.requests.memory }}
+
+        - name: {{ .Values.api.label }}-redis
+          image: "{{ .Values.images.repositories.redisContainer }}:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+              name: redis
+          envFrom:
+            - secretRef:
+                name: {{ .Values.api.secret }}
+          command: ["redis-server"]
+          volumeMounts:
+            {{- toYaml .Values.volumeMounts | nindent 12 }}
+          resources:
+            limits:
+              cpu: {{ .Values.api.resources.redis.limits.cpu }}
+              memory: {{ .Values.api.resources.redis.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.redis.requests.cpu }}
+              memory: {{ .Values.api.resources.redis.requests.memory }}
+
+        - name: celery-beat
+          image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: {{ .Values.api.secret }}
+          volumeMounts:
+            {{- toYaml .Values.volumeMounts | nindent 12 }}
+          resources:
+            limits:
+              cpu: {{ .Values.api.resources.common.limits.cpu }}
+              memory: {{ .Values.api.resources.common.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.common.requests.cpu }}
+              memory: {{ .Values.api.resources.common.requests.memory }}
+
+        - name: celery-worker
+          image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: {{ .Values.api.secret }}
+          volumeMounts:
+            {{- toYaml .Values.volumeMounts | nindent 12 }}
+          resources:
+            limits:
+              cpu: {{ .Values.api.resources.common.limits.cpu }}
+              memory: {{ .Values.api.resources.common.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.common.requests.cpu }}
+              memory: {{ .Values.api.resources.common.requests.memory }}
+
+      volumes:
+        {{- toYaml .Values.volumes | nindent 8 }}
+

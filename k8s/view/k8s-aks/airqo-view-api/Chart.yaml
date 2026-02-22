@@ -1,0 +1,10 @@
+apiVersion: v2
+appVersion: "1.20.0"
+description: AirQo View API Helm Chart
+name: airqo-view-api
+home: https://airqo.net
+version: 1.1.0
+maintainers:
+  - name: AirQo
+    email: support@airqo.net
+    url: https://airqo.net

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: '{{ .Values.app.name }}-svc'
+  labels: {{- include "airqo-auth-api.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: {{ .Values.service.protocol }}
+      nodePort: {{ .Values.service.nodePort }}
+  selector:
+    app: {{ .Values.app.label }}

@@ -1,0 +1,47 @@
+{{- with .Values.jobs }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .predictPlaces.name }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  suspend: True
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 1200
+  schedule: '{{ .predictPlaces.schedule }}'
+  jobTemplate:
+    metadata:
+      name: {{ .predictPlaces.name }}
+    spec:
+      ttlSecondsAfterFinished: 100
+      template:
+        spec:
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 30
+          tolerations:
+            - key: "dedicated"
+              operator: "Equal"
+              value: "cronjobs"
+              effect: "NoExecute"
+          containers:
+            - name: {{ .predictPlaces.name}}
+              image: "{{ $.Values.images.repositories.predictPlaces }}:{{ $.Values.images.tag }}"
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: {{ .predictPlaces.configmap }}
+              {{- with $.Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml .predictPlaces.resources | nindent 16 }}
+          {{- with $.Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

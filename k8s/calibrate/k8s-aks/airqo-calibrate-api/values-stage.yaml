@@ -1,0 +1,50 @@
+app:
+  name: airqo-stage-calibrate-api
+  label: sta-calibrate
+
+replicaCount: 2
+
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-api
+  tag: latest
+
+initContainer:
+  image:
+    repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
+    tag: latest
+
+secret:
+  name: sta-env-calibrate-api   # GCP + K8s secret name
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+  - name: shared-data
+    mountPath: /usr/pickle-files
+volumes:
+  - name: config-volume
+    configMap:
+      name: stage-calibrate-api-config-files
+  - name: shared-data
+    emptyDir: {}
+
+ingress:
+  enabled: false
+
+service:
+  type: NodePort
+  port: 4001
+  targetPort: 4001
+  nodePort: 31011
+resources:
+  limits:
+    cpu: 700m
+    memory: 200Mi
+  requests:
+    cpu: 10m
+    memory: 20Mi
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetMemoryUtilizationPercentage: 80
+

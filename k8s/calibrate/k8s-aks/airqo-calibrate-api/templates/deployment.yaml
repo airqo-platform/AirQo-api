@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  labels:
+    {{- include "airqo-calibrate-api.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.app.label }}
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ .Values.app.label }}
+    spec:
+      initContainers:
+        - name: calibrate-pickle
+          image: "{{ .Values.initContainer.image.repository }}:{{ .Values.initContainer.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          resources: {}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          env:
+            - name: RF_REG_MODEL
+              value: /usr/pickle-files/rf_reg_model.pkl
+            - name: LASSO_MODEL
+              value: /usr/pickle-files/lasso_model.pkl
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      containers:
+        - name: {{ .Values.app.label }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              name: {{ .Values.app.label }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}   # ExternalSecret created per microservice
+          env:
+            - name: RF_REG_MODEL
+              value: /usr/pickle-files/rf_reg_model.pkl
+            - name: LASSO_MODEL
+              value: /usr/pickle-files/lasso_model.pkl
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+

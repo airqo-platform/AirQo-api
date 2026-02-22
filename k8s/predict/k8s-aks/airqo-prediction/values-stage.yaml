@@ -1,0 +1,42 @@
+nameOverride: ''
+fullnameOverride: ''
+namespace: staging
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-stage-prediction-api
+    predictJob: eu.gcr.io/airqo-250220/stage-airqo-predict-job
+    trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
+    predictPlaces: eu.gcr.io/airqo-250220/stage-airqo-predict-places-air-quality
+  tag: stage-1ac7021d-1756629581
+api:
+  name: airqo-stage-prediction-api
+  label: prediction-api
+  secret: sta-env-predict
+  replicaCount: 2
+  podAnnotations: {}
+  resources:
+    limits:
+      cpu: 50m
+      memory: 300Mi
+    requests:
+      cpu: 5m
+      memory: 150Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: env-predict-staging-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 5000
+  protocol: TCP
+  targetPort: 5000
+  nodePort: 31009
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetMemoryUtilizationPercentage: 85

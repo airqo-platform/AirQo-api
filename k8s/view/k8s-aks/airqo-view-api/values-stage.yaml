@@ -1,0 +1,27 @@
+api:
+  name: airqo-stage-view-api
+  label: sta-view-api
+  secret: sta-env-view-api
+  namespace: staging
+replicaCount: 1
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-stage-view-api
+  tag: latest
+resources:
+  limits:
+    cpu: 20m
+    memory: 420Mi
+  requests:
+    cpu: 5m
+    memory: 300Mi
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8080
+  protocol: TCP
+  targetPort: 8080
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80

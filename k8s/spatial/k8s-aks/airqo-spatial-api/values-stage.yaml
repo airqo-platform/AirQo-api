@@ -1,0 +1,35 @@
+app:
+  name: airqo-stage-spatial-api
+  label: sta-spatial-api
+  secret: sta-env-spatial
+  namespace: staging
+replicaCount: 2
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-stage-spatial-api
+  tag: latest
+resources:
+  limits:
+    cpu: 200m
+    memory: 500Mi
+  requests:
+    cpu: 10m
+    memory: 180Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: stage-spatial-api-config-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 5000
+  protocol: TCP
+  targetPort: 5000
+  nodePort: 31019
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetMemoryUtilizationPercentage: 80

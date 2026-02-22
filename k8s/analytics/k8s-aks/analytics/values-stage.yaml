@@ -1,0 +1,80 @@
+nameOverride: ''
+fullnameOverride: ''
+
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
+    reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
+    redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
+    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
+  tag: latest
+
+externalSecret:
+  enabled: true
+
+api:
+  name: airqo-stage-analytics-api
+  label: sta-analytics-api
+  secret: sta-env-analytics
+  replicaCount: 2
+  podAnnotations: {}
+
+  resources:
+    common:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 10m
+        memory: 250Mi
+    redis:
+      requests:
+        cpu: 50m
+        memory: 10Mi
+      limits:
+        cpu: 300m
+        memory: 50Mi
+
+jobs:
+  reports:
+    name: stage-analytics-report
+    secret: sta-env-analytics-report-job
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 4000Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: stage-analytics-config-files
+
+service:
+  type: NodePort
+  ports:
+    - name: analytics-api
+      port: 5000
+      protocol: TCP
+      targetPort: 5000
+      nodePort: 31003
+    - name: redis-server
+      port: 6379
+      targetPort: 6379
+      nodePort: 31114
+      protocol: TCP
+
+ingress:
+  enabled: false
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetMemoryUtilizationPercentage: 85
+
+

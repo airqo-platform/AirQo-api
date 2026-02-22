@@ -1,0 +1,33 @@
+app:
+  name: airqo-auth-api
+  label: auth-api
+  secret: prod-env-auth-service
+  namespace: production
+replicaCount: 3
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-auth-api
+  tag: latest
+resources:
+  limits:
+    cpu: 400m
+    memory: 600Mi
+  requests:
+    cpu: 50m
+    memory: 250Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-auth-api-config-files
+service:
+  type: NodePort
+  port: 3000
+  protocol: TCP
+  targetPort: 3000
+  nodePort: 30000
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 85

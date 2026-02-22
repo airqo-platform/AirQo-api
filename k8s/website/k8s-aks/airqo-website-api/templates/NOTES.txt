@@ -1,0 +1,18 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+  http://{{ .Values.ingress.host }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Values.app.namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ .Values.app.name }}-svc)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Values.app.namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+  You can watch the status of by running 'kubectl get --namespace {{ .Values.app.namespace }} svc -w {{ .Values.app.name }}-svc'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Values.app.namespace }} {{ .Values.app.name }}-svc --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+{{- else if contains "ClusterIP" .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Values.app.namespace }} -l "app={{ .Values.app.label }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Values.app.namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace {{ .Values.app.namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+{{- end }}

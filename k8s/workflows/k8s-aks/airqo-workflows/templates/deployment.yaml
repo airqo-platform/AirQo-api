@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "airqo-workflows.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.app.label }}
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ .Values.app.label }}
+    spec:
+      restartPolicy: Always
+      serviceAccountName: {{ .Values.app.serviceAccount }}
+      initContainers:
+        - name: '{{ .Values.app.name }}-xcom'
+          image: "{{ .Values.images.repositories.initContainer }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: {{ .Values.resources.initContainer.limits.cpu }}
+              memory: {{ .Values.resources.initContainer.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.initContainer.requests.cpu }}
+              memory: {{ .Values.resources.initContainer.requests.memory }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      containers:
+        - name: '{{ .Values.app.name }}-scheduler'
+          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          command: ["airflow"]
+          args: ["scheduler"]
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.scheduler.limits.cpu }}
+              memory: {{ .Values.resources.scheduler.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.scheduler.requests.cpu }}
+              memory: {{ .Values.resources.scheduler.requests.memory }}
+        - name: '{{ .Values.app.name }}-celery'
+          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          command: ["airflow"]
+          args: ["celery", "worker", "--autoscale=6,2"]
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.celery.limits.cpu }}
+              memory: {{ .Values.resources.celery.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.celery.requests.cpu }}
+              memory: {{ .Values.resources.celery.requests.memory }}
+        - name: '{{ .Values.app.name }}-webserver'
+          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          {{- $webTargetPort := include "getTargetPortByName" (list . "web-server") }}
+          ports:
+            - containerPort: {{ $webTargetPort }}
+              name: web-server
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          command: ["airflow"]
+          args: ["webserver"]
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.webserver.limits.cpu }}
+              memory: {{ .Values.resources.webserver.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.webserver.requests.cpu }}
+              memory: {{ .Values.resources.webserver.requests.memory }}
+          readinessProbe:
+            initialDelaySeconds: 120
+            timeoutSeconds: 120
+            httpGet:
+              path: /workflows/health
+              port: {{ $webTargetPort }}
+        - name: '{{ .Values.app.name }}-redis'
+          image: "{{ .Values.images.repositories.redisContainer }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
+          ports:
+            - containerPort: {{ $redisPort }}
+              name: redis
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          command: ["redis-server"]
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.redis.limits.cpu }}
+              memory: {{ .Values.resources.redis.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.redis.requests.cpu }}
+              memory: {{ .Values.resources.redis.requests.memory }}
+          readinessProbe:
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            tcpSocket:
+              port: {{ $redisPort }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
