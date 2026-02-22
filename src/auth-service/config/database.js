@@ -372,4 +372,5 @@ module.exports = {
   getQueryModelByTenant,
   getCommandTenantDB,
   getQueryTenantDB,
+  isConnected,
 };
