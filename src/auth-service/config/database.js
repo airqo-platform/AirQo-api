@@ -221,7 +221,7 @@ const connectToMongoDB = () => {
           ensureDefaultAirqoGroupExists,
         } = require("@bin/jobs/default-group-init-job");
         console.log("🚀 Kicking off default group initialization...");
-        ensureDefaultAirqoGroupExists("airqo").catch((err) => {
+        ensureDefaultAirqoGroupExists().catch((err) => {
           logger.error(
             `Background job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
           );

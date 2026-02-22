@@ -26,11 +26,7 @@ const ensureDefaultAirqoGroupExists = async (tenant = "airqo") => {
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
-    if (result) {
-      logger.info(`✅ Default 'airqo' group successfully verified/created.`);
-    } else {
-      logger.error(`❌ Failed to create or verify the default 'airqo' group.`);
-    }
+    logger.info(`✅ Default 'airqo' group successfully verified/created.`);
   } catch (error) {
     logger.error(
       `🐛🐛 Error in ensureDefaultAirqoGroupExists: ${error.message}`,

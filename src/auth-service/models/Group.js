@@ -41,6 +41,7 @@ const GroupSchema = new Schema(
       type: String,
       unique: true,
       required: [true, "grp_title is required"],
+      lowercase: true,
     },
     organization_slug: {
       type: String,
