@@ -58,7 +58,7 @@ const dbProjections = {
           net_api_key: 0,
           net_manager: 0,
           net_roles: 0,
-        }
+        },
       );
     }
 
@@ -71,7 +71,7 @@ const dbProjections = {
     role_code: 1,
     network_id: 1,
     role_permissions: 1,
-    role_users: "$role_users",
+    user_count: 1,
     network: "$network",
     group: "$group",
     createdAt: 1,
@@ -79,61 +79,6 @@ const dbProjections = {
   },
   ROLES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
-      "role_users.notifications": 0,
-      "role_users.emailConfirmed": 0,
-      "role_users.locationCount": 0,
-      "role_users.password": 0,
-      "role_users.privilege": 0,
-      "role_users.organization": 0,
-      "role_users.duration": 0,
-      "role_users.__v": 0,
-      "role_users.phoneNumber": 0,
-      "role_users.profilePicture": 0,
-      "role_users.resetPasswordExpires": 0,
-      "role_users.resetPasswordToken": 0,
-      "role_users.updatedAt": 0,
-      "role_users.role": 0,
-      "role_users.interest": 0,
-      "role_users.org_name": 0,
-      "role_users.accountStatus": 0,
-      "role_users.hasAccess": 0,
-      "role_users.collaborators": 0,
-      "role_users.publisher": 0,
-      "role_users.bus_nature": 0,
-      "role_users.org_department": 0,
-      "role_users.uni_faculty": 0,
-      "role_users.uni_course_yr": 0,
-      "role_users.pref_locations": 0,
-      "role_users.job_title": 0,
-      "role_users.userName": 0,
-      "role_users.product": 0,
-      "role_users.website": 0,
-      "role_users.description": 0,
-      "role_users.networks": 0,
-      "role_users.jobTitle": 0,
-      "role_users.category": 0,
-      "role_users.long_organization": 0,
-      "role_users.groups": 0,
-      "role_users.permissions": 0,
-      "role_users.network_roles": 0,
-      "role_users.verified": 0,
-      "role_users.analyticsVersion": 0,
-      "role_users.country": 0,
-      "role_users.createdAt": 0,
-      "role_users.is_email_verified": 0,
-      "role_users.group_roles": 0,
-      "role_users.lastLogin": 0,
-      "role_users.isActive": 0,
-      "role_users.loginCount": 0,
-      "role_users.interests": 0,
-      "role_users.interestsDescription": 0,
-      "role_users.subscriptionStatus": 0,
-      "role_users.theme": 0,
-      "role_users.preferredTokenStrategy": 0,
-      "role_users.deletionToken": 0,
-      "role_users.deletionTokenExpires": 0,
-      "role_users.status": 0,
-      "role_users.automaticRenewal": 0,
       network_id: 0,
       "network.__v": 0,
       "network.net_status": 0,
@@ -166,7 +111,9 @@ const dbProjections = {
       "role_permissions.__v": 0,
       "role_permissions.network_id": 0,
     };
+
     let projection = Object.assign({}, initialProjection);
+
     if (category === "summary") {
       projection = Object.assign(
         {},
@@ -179,11 +126,10 @@ const dbProjections = {
           "role_permissions.updatedAt": 0,
           "role_permissions.__v": 0,
           "role_permissions.network_id": 0,
-          role_users: 0,
           network: 0,
           createdAt: 0,
           updatedAt: 0,
-        }
+        },
       );
     }
 
@@ -339,7 +285,6 @@ const dbProjections = {
       "networks.role.__v": 0,
       "networks.role.createdAt": 0,
       "networks.role.updatedAt": 0,
-      "networks.role.role_users": 0,
       "networks.role.network_id": 0,
       "networks.role.role_code": 0,
       "networks.role.role_permissions.__v": 0,
@@ -391,15 +336,6 @@ const dbProjections = {
       "my_groups.createdAt": 0,
       "my_groups.updatedAt": 0,
       "my_groups.__v": 0,
-
-      "lol.role_status": 0,
-      "lol.role_permissions": 0,
-      "lol.role_code": 0,
-      "lol.role_name": 0,
-      "lol.createdAt": 0,
-      "lol.updatedAt": 0,
-      "lol.__v": 0,
-      "lol.role_users": 0,
       "clients.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
@@ -408,23 +344,19 @@ const dbProjections = {
     }
 
     if (category === "networks") {
-      projection = Object.assign(
-        {
-          verified: 0,
-          analyticsVersion: 0,
-          privilege: 0,
-          profilePicture: 0,
-          phoneNumber: 0,
-          updatedAt: 0,
-          lol: 0,
-          "networks.role": 0,
-          clients: 0,
-          permissions: 0,
-          my_networks: 0,
-          my_groups: 0,
-        },
-        {}
-      );
+      projection = {
+        verified: 0,
+        analyticsVersion: 0,
+        privilege: 0,
+        profilePicture: 0,
+        phoneNumber: 0,
+        updatedAt: 0,
+        "networks.role": 0,
+        clients: 0,
+        permissions: 0,
+        my_networks: 0,
+        my_groups: 0,
+      };
     }
 
     return projection;
@@ -665,7 +597,7 @@ const dbProjections = {
           createdAt: 0,
           grp_users: 0,
           grp_manager: 0,
-        }
+        },
       );
     }
     return projection;
