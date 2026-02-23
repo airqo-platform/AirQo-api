@@ -279,6 +279,12 @@ const connectToMongoDB = () => {
           "❌ RBAC initialization failed on connection:",
           err.message,
         );
+        // Reset connectionAttempted to allow future retries if the app doesn't exit
+        connectionAttempted = false;
+        logger.warn(
+          "⚠️ Database connection attempt failed, but retries are now allowed for subsequent connectToMongoDB calls.",
+        );
+
         if (
           process.env.NODE_ENV !== "test" &&
           process.env.ALLOW_RBAC_STARTUP_ERRORS !== "true"
