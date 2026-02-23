@@ -1339,10 +1339,17 @@ class BigQueryApi:
         - Requires at least `min_hours` hourly points per day (default 18)
         - Aggregates mean, min, max PM2.5 and hourly count per site per day
     """
-        if min_hours <= 0:
-            raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
+        try:
+            min_hours = int(min_hours)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"min_hours must be an integer, got {min_hours}") from e
+        if min_hours < 1 or min_hours > 24:
+            raise ValueError(
+                f"min_hours must be in the range [1, 24] for daily rollups, got {min_hours}"
+            )
 
         valid_job_types = {"train", "predict"}
+        job_type = (job_type or "").strip().lower()
         if job_type not in valid_job_types:
             raise ValueError(
                 f"Invalid job_type '{job_type}'. Expected one of {sorted(valid_job_types)}."
@@ -1377,6 +1384,8 @@ class BigQueryApi:
             FROM `{self.consolidated_data_table}`
             WHERE DATE(timestamp) BETWEEN @start_date AND @end_date
             AND pm2_5_calibrated_value IS NOT NULL
+            AND site_id IS NOT NULL
+            AND site_name IS NOT NULL
             GROUP BY day, site_id, site_name
             HAVING n_hours >= @min_hours
             ORDER BY day, site_id

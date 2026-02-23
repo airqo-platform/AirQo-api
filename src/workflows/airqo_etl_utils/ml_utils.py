@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Dict, List, Any , Iterable, Sequence,  Optional, Tuple
 from dateutil.relativedelta import relativedelta
+import os
 
 
 from pandas.io.formats.style import Subset
@@ -17,6 +18,7 @@ import lightgbm as lgb
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from pathlib import Path
+from mlflow.tracking import MlflowClient
 from .config import configuration, db
 from .constants import Frequency
 from .commons import download_file_from_gcs
@@ -1141,7 +1143,7 @@ class ForecastSiteUtils(BaseMlUtils):
 
     @staticmethod
     def fetch_training_data(
-        months_back: int = 60,
+        months_back: int = 120,
         min_hours: int = 18,
         job_type: str = "train",
     ) -> pd.DataFrame:
@@ -1346,6 +1348,173 @@ class ForecastModelTrainer(BaseMlUtils):
         }
 
     @staticmethod
+    def _is_mlflow_gating_enabled() -> bool:
+        value = str(getattr(configuration, "MLFLOW_ENABLE_MODEL_GATING", "true")).strip().lower()
+        return value not in {"0", "false", "no", "off"}
+
+    @staticmethod
+    def _setup_mlflow_for_databricks() -> None:
+        host = (getattr(configuration, "DATABRICKS_HOST", None) or "").strip()
+        token = (getattr(configuration, "DATABRICKS_TOKEN", None) or "").strip()
+        if host and token:
+            if not host.startswith("http://") and not host.startswith("https://"):
+                host = f"https://{host}"
+            os.environ["DATABRICKS_HOST"] = host
+            os.environ["DATABRICKS_TOKEN"] = token
+
+        tracking_uri = (getattr(configuration, "MLFLOW_TRACKING_URI", None) or "").strip()
+        registry_uri = (getattr(configuration, "MLFLOW_REGISTRY_URI", None) or "").strip()
+
+        if tracking_uri:
+            mlflow.set_tracking_uri(tracking_uri)
+        elif host and token:
+            mlflow.set_tracking_uri("databricks")
+
+        if registry_uri:
+            mlflow.set_registry_uri(registry_uri)
+
+    @staticmethod
+    def _build_experiment_name() -> str:
+        configured_name = (getattr(configuration, "MLFLOW_EXPERIMENT_NAME", None) or "").strip()
+        if configured_name:
+            return configured_name
+        env = (environment or "default").strip()
+        return f"/Shared/site_forecast_model_{env}"
+
+    @staticmethod
+    def _build_model_key(model_kind: str, target: str, alpha: Optional[float] = None) -> str:
+        env = (environment or "default").strip()
+        if alpha is None:
+            return f"{env}:{model_kind}:{target}"
+        alpha_label = str(alpha).replace(".", "_")
+        return f"{env}:{model_kind}:{target}:q{alpha_label}"
+
+    @staticmethod
+    def _is_better_model(candidate: Dict[str, float], previous: Dict[str, float]) -> bool:
+        return ForecastModelTrainer._metrics_rank_key(candidate) < ForecastModelTrainer._metrics_rank_key(previous)
+
+    @staticmethod
+    def _metrics_rank_key(metrics: Dict[str, float]) -> Tuple[float, float, float]:
+        # Lower RMSE/MAE is better, higher R2 is better.
+        return (
+            float(metrics["rmse"]),
+            float(metrics["mae"]),
+            -float(metrics["r2"]),
+        )
+
+    @staticmethod
+    def _log_and_decide_model_promotion(
+        *,
+        metrics: Dict[str, float],
+        params: Dict,
+        model_kind: str,
+        target: str,
+        alpha: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        default_decision = {
+            "should_deploy": True,
+            "decision_reason": "mlflow_gating_disabled",
+            "previous_model_metrics": None,
+        }
+        if not ForecastModelTrainer._is_mlflow_gating_enabled():
+            return default_decision
+
+        try:
+            ForecastModelTrainer._setup_mlflow_for_databricks()
+            if not mlflow.get_tracking_uri():
+                return {
+                    "should_deploy": True,
+                    "decision_reason": "mlflow_tracking_not_configured",
+                    "previous_model_metrics": None,
+                }
+
+            experiment_name = ForecastModelTrainer._build_experiment_name()
+            mlflow.set_experiment(experiment_name)
+            client = MlflowClient()
+            experiment = client.get_experiment_by_name(experiment_name)
+            if experiment is None:
+                return {
+                    "should_deploy": True,
+                    "decision_reason": "mlflow_experiment_not_found",
+                    "previous_model_metrics": None,
+                }
+
+            model_key = ForecastModelTrainer._build_model_key(
+                model_kind=model_kind,
+                target=target,
+                alpha=alpha,
+            )
+
+            with mlflow.start_run(run_name=f"{model_kind}_{target}_training") as active_run:
+                run_id = active_run.info.run_id
+                mlflow.log_params(params)
+                mlflow.log_metric("mae", float(metrics["mae"]))
+                mlflow.log_metric("rmse", float(metrics["rmse"]))
+                mlflow.log_metric("r2", float(metrics["r2"]))
+                mlflow.log_metric("n_train", float(metrics.get("n_train", 0)))
+                mlflow.log_metric("n_val", float(metrics.get("n_val", 0)))
+                mlflow.log_metric("best_iteration", float(metrics.get("best_iteration", 0)))
+                mlflow.set_tag("forecast_model_key", model_key)
+                mlflow.set_tag("model_kind", model_kind)
+                mlflow.set_tag("target", target)
+                mlflow.set_tag("environment", environment or "default")
+                if alpha is not None:
+                    mlflow.log_param("alpha", float(alpha))
+
+                previous_runs = client.search_runs(
+                    experiment_ids=[experiment.experiment_id],
+                    filter_string=f"tags.forecast_model_key = '{model_key}' AND attributes.run_id != '{run_id}'",
+                    order_by=["attributes.start_time DESC"],
+                    max_results=100,
+                )
+
+                best_model_metrics = None
+                for run in previous_runs:
+                    run_metrics = run.data.metrics or {}
+                    if {"rmse", "mae", "r2"}.issubset(run_metrics.keys()):
+                        candidate_best = {
+                            "rmse": float(run_metrics["rmse"]),
+                            "mae": float(run_metrics["mae"]),
+                            "r2": float(run_metrics["r2"]),
+                            "run_id": run.info.run_id,
+                        }
+                        if best_model_metrics is None or ForecastModelTrainer._is_better_model(
+                            candidate=candidate_best,
+                            previous=best_model_metrics,
+                        ):
+                            best_model_metrics = candidate_best
+
+                if best_model_metrics is None:
+                    decision_reason = "no_historical_model_metrics"
+                    should_deploy = True
+                else:
+                    should_deploy = ForecastModelTrainer._is_better_model(
+                        candidate=metrics,
+                        previous=best_model_metrics,
+                    )
+                    decision_reason = "candidate_beats_best_historical" if should_deploy else "best_historical_remains"
+                    mlflow.log_metric("best_historical_rmse", best_model_metrics["rmse"])
+                    mlflow.log_metric("best_historical_mae", best_model_metrics["mae"])
+                    mlflow.log_metric("best_historical_r2", best_model_metrics["r2"])
+                    mlflow.set_tag("best_historical_run_id", best_model_metrics["run_id"])
+
+                mlflow.set_tag("deployment_decision", "deploy_new" if should_deploy else "keep_previous")
+                mlflow.set_tag("decision_reason", decision_reason)
+
+            return {
+                "should_deploy": should_deploy,
+                "decision_reason": decision_reason,
+                "previous_model_metrics": best_model_metrics,
+            }
+        except Exception as e:
+            logger.exception("MLflow gating failed. Falling back to deploy candidate model.")
+            return {
+                "should_deploy": True,
+                "decision_reason": f"mlflow_error:{type(e).__name__}",
+                "previous_model_metrics": None,
+            }
+
+    @staticmethod
     def _fit_model(
         *,
         df: pd.DataFrame,
@@ -1444,12 +1613,24 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        GCSUtils.upload_trained_model_to_gcs(
-            trained_model=artifact,
-            project_name=project_name,
-            bucket_name=bucket_name,
-            source_blob_name=blob_name,
+        decision = ForecastModelTrainer._log_and_decide_model_promotion(
+            metrics=metrics,
+            params=params,
+            model_kind=model_kind,
+            target=target,
         )
+        metrics["should_deploy"] = bool(decision["should_deploy"])
+        metrics["decision_reason"] = decision["decision_reason"]
+        metrics["previous_model_metrics"] = decision["previous_model_metrics"]
+
+        if decision["should_deploy"]:
+            GCSUtils.upload_trained_model_to_gcs(
+                trained_model=artifact,
+                project_name=project_name,
+                bucket_name=bucket_name,
+                source_blob_name=blob_name,
+            )
+            metrics["deployed_model_blob"] = blob_name
 
         return metrics
 
@@ -1516,12 +1697,25 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        GCSUtils.upload_trained_model_to_gcs(
-            trained_model=artifact,
-            project_name=project_name,
-            bucket_name=bucket_name,
-            source_blob_name=blob_name,
+        decision = ForecastModelTrainer._log_and_decide_model_promotion(
+            metrics=metrics,
+            params=params,
+            model_kind="quantile",
+            target=target,
+            alpha=float(alpha),
         )
+        metrics["should_deploy"] = bool(decision["should_deploy"])
+        metrics["decision_reason"] = decision["decision_reason"]
+        metrics["previous_model_metrics"] = decision["previous_model_metrics"]
+
+        if decision["should_deploy"]:
+            GCSUtils.upload_trained_model_to_gcs(
+                trained_model=artifact,
+                project_name=project_name,
+                bucket_name=bucket_name,
+                source_blob_name=blob_name,
+            )
+            metrics["deployed_model_blob"] = blob_name
 
         return metrics
 
