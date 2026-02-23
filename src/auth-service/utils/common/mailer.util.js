@@ -1146,10 +1146,10 @@ const createAdminAlertFunction = (
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: recipients.join(","),
+        to: recipients[0],
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
-        bcc: recipients.join(","),
+        bcc: recipients.slice(1).join(","),
         attachments: attachments,
       };
 
