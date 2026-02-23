@@ -196,6 +196,15 @@ const setupConnectionHandlers = (db, dbType) => {
 };
 
 const connectToMongoDB = () => {
+  // Check if already fully connected and initialized
+  if (isConnected) {
+    logger.info(
+      "MongoDB connections are already established and initialized. Skipping re-initialization.",
+    );
+    return { commandDB, queryDB };
+  }
+
+  // Check if a connection attempt is already in progress
   if (connectionAttempted) {
     logger.info(
       "MongoDB connection already in progress. Skipping re-initialization.",
@@ -203,7 +212,7 @@ const connectToMongoDB = () => {
     return { commandDB, queryDB };
   }
 
-  connectionAttempted = true;
+  connectionAttempted = true; // Mark that a connection attempt has started
   try {
     // Connect to command database
     commandDB = createCommandConnection();
@@ -264,6 +273,7 @@ const connectToMongoDB = () => {
         console.log(
           "✅ All database initializations complete. isConnected is now true.",
         );
+        connectionAttempted = false; // Connection process is now complete
       } catch (err) {
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
@@ -282,7 +292,8 @@ const connectToMongoDB = () => {
     if (queryDB.readyState === 1) {
       handleDBInitialization();
     } else {
-      queryDB.on("open", handleDBInitialization);
+      // Use .once to ensure handleDBInitialization runs only once on the first successful connection
+      queryDB.once("open", handleDBInitialization);
     }
 
     // Error handling for the Node process
