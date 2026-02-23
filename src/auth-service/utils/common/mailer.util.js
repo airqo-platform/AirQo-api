@@ -1083,7 +1083,7 @@ const createAdminAlertFunction = (
       } else if (typeof rawRecipients === "string") {
         recipients = rawRecipients.split(",").map((e) => e.trim());
       }
-      recipients = [...new Set(recipients.filter(Boolean))];
+      recipients = [...new Set(recipients.filter(Boolean))].sort();
 
       if (recipients.length === 0) {
         logger.warn(`${functionName} called without valid recipients.`);
@@ -1146,10 +1146,10 @@ const createAdminAlertFunction = (
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: recipients.join(","),
+        to: recipients[0],
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
-        bcc: recipients.join(","),
+        bcc: recipients.length > 1 ? recipients.slice(1).join(",") : undefined,
         attachments: attachments,
       };
 
