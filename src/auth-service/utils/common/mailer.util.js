@@ -1083,7 +1083,7 @@ const createAdminAlertFunction = (
       } else if (typeof rawRecipients === "string") {
         recipients = rawRecipients.split(",").map((e) => e.trim());
       }
-      recipients = [...new Set(recipients.filter(Boolean))];
+      recipients = [...new Set(recipients.filter(Boolean))].sort();
 
       if (recipients.length === 0) {
         logger.warn(`${functionName} called without valid recipients.`);
