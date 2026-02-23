@@ -1143,7 +1143,7 @@ class ForecastSiteUtils(BaseMlUtils):
 
     @staticmethod
     def fetch_training_data(
-        months_back: int = 120,
+        months_back: int = 36,
         min_hours: int = 18,
         job_type: str = "train",
     ) -> pd.DataFrame:
