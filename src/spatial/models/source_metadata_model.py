@@ -289,7 +289,7 @@ class SourceMetadataModel:
         ]
 
         data_sources = ["OpenStreetMap (Overpass)"]
-        if include_satellite:
+        if include_satellite and satellite_error is None:
             data_sources.append("Google Earth Engine Sentinel-5P")
 
         return {
