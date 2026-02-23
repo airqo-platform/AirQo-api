@@ -285,7 +285,6 @@ const dbProjections = {
       "networks.role.__v": 0,
       "networks.role.createdAt": 0,
       "networks.role.updatedAt": 0,
-      "networks.role.role_users": 0,
       "networks.role.network_id": 0,
       "networks.role.role_code": 0,
       "networks.role.role_permissions.__v": 0,
@@ -337,15 +336,6 @@ const dbProjections = {
       "my_groups.createdAt": 0,
       "my_groups.updatedAt": 0,
       "my_groups.__v": 0,
-
-      "lol.role_status": 0,
-      "lol.role_permissions": 0,
-      "lol.role_code": 0,
-      "lol.role_name": 0,
-      "lol.createdAt": 0,
-      "lol.updatedAt": 0,
-      "lol.__v": 0,
-      "lol.role_users": 0,
       "clients.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
