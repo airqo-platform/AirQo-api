@@ -1,5 +1,7 @@
 const transporter = require("@config/mailer.config");
 const isEmpty = require("is-empty");
+const { getIsConnected, getQueryConnection } = require("@config/database");
+const mongoose = require("mongoose");
 const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
 const msgs = require("./email.msgs.util");
@@ -53,6 +55,20 @@ const processEmailQueue = async () => {
     return;
   }
   isProcessingQueue = true;
+
+  // Optimization: Check DB connection before proceeding
+  const queryConnection = getQueryConnection();
+  if (
+    !getIsConnected() ||
+    !queryConnection ||
+    queryConnection.readyState !== 1
+  ) {
+    logger.warn(
+      "Email queue processing skipped: No active database connection.",
+    );
+    isProcessingQueue = false;
+    return;
+  }
 
   try {
     const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -163,7 +179,12 @@ const createMailerFunction = (
     let otherParams = {};
     let tenant = "";
     try {
-      ({ email, tenant = "airqo", ...otherParams } = params);
+      // Fix: Use contact_email as a fallback for email
+      ({
+        email = params.contact_email,
+        tenant = "airqo",
+        ...otherParams
+      } = params);
 
       // ✅ STEP 1: Input validation
       if (!email) {

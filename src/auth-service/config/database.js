@@ -169,6 +169,7 @@ const createQueryConnection = () =>
 let commandDB = null;
 let queryDB = null;
 let isConnected = false;
+let connectionAttempted = false;
 
 const setupConnectionHandlers = (db, dbType) => {
   db.on("open", () => {
@@ -180,18 +181,38 @@ const setupConnectionHandlers = (db, dbType) => {
   });
 
   db.on("disconnected", () => {
+    if (dbType === "query") {
+      isConnected = false;
+    }
     logger.warn(`${dbType} database disconnected`);
+  });
+
+  db.on("reconnected", () => {
+    if (dbType === "query" && rbacInitialized) {
+      isConnected = true;
+    }
+    logger.info(`${dbType} database reconnected`);
   });
 };
 
 const connectToMongoDB = () => {
+  // Check if already fully connected and initialized
   if (isConnected) {
     logger.info(
-      "MongoDB connections are already established. Skipping re-initialization.",
+      "MongoDB connections are already established and initialized. Skipping re-initialization.",
     );
     return { commandDB, queryDB };
   }
 
+  // Check if a connection attempt is already in progress
+  if (connectionAttempted) {
+    logger.info(
+      "MongoDB connection already in progress. Skipping re-initialization.",
+    );
+    return { commandDB, queryDB };
+  }
+
+  connectionAttempted = true; // Mark that a connection attempt has started
   try {
     // Connect to command database
     commandDB = createCommandConnection();
@@ -248,11 +269,22 @@ const connectToMongoDB = () => {
             );
           },
         );
+        isConnected = true;
+        console.log(
+          "✅ All database initializations complete. isConnected is now true.",
+        );
+        connectionAttempted = false; // Connection process is now complete
       } catch (err) {
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
           err.message,
         );
+        // Reset connectionAttempted to allow future retries if the app doesn't exit
+        connectionAttempted = false;
+        logger.warn(
+          "⚠️ Database connection attempt failed, but retries are now allowed for subsequent connectToMongoDB calls.",
+        );
+
         if (
           process.env.NODE_ENV !== "test" &&
           process.env.ALLOW_RBAC_STARTUP_ERRORS !== "true"
@@ -266,7 +298,8 @@ const connectToMongoDB = () => {
     if (queryDB.readyState === 1) {
       handleDBInitialization();
     } else {
-      queryDB.on("open", handleDBInitialization);
+      // Use .once to ensure handleDBInitialization runs only once on the first successful connection
+      queryDB.once("open", handleDBInitialization);
     }
 
     // Error handling for the Node process
@@ -278,10 +311,9 @@ const connectToMongoDB = () => {
       logger.error("There was an uncaught error", err);
     });
 
-    isConnected = true;
-
     return { commandDB, queryDB };
   } catch (error) {
+    connectionAttempted = false;
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     throw error;
   }
@@ -289,6 +321,10 @@ const connectToMongoDB = () => {
 
 // Initialize connections
 const { commandDB: commandMongoDB, queryDB: queryMongoDB } = connectToMongoDB();
+
+const getIsConnected = () => isConnected;
+const getQueryConnection = () => queryMongoDB;
+const getCommandConnection = () => commandMongoDB;
 
 /**
  * Get a tenant-specific database from command DB (for write operations)
@@ -372,4 +408,7 @@ module.exports = {
   getQueryModelByTenant,
   getCommandTenantDB,
   getQueryTenantDB,
+  getIsConnected,
+  getQueryConnection,
+  getCommandConnection,
 };
