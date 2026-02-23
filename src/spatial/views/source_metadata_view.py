@@ -126,10 +126,7 @@ class SourceMetadataView:
                 pollutants=pollutants,
                 include_satellite=include_satellite,
             )
-            evidence = data.get("evidence", [])
-            if "satellite" in evidence:
-                data["satellite"] = SourceMetadataView._normalize_scores(data["satellite"])
-            
+           
             return jsonify({"message": "Operation successful", "data": data}), 200
         except Exception:
             logger.exception("Failed to build source metadata")
