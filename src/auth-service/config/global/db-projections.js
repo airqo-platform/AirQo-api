@@ -344,23 +344,19 @@ const dbProjections = {
     }
 
     if (category === "networks") {
-      projection = Object.assign(
-        {
-          verified: 0,
-          analyticsVersion: 0,
-          privilege: 0,
-          profilePicture: 0,
-          phoneNumber: 0,
-          updatedAt: 0,
-          lol: 0,
-          "networks.role": 0,
-          clients: 0,
-          permissions: 0,
-          my_networks: 0,
-          my_groups: 0,
-        },
-        {},
-      );
+      projection = {
+        verified: 0,
+        analyticsVersion: 0,
+        privilege: 0,
+        profilePicture: 0,
+        phoneNumber: 0,
+        updatedAt: 0,
+        "networks.role": 0,
+        clients: 0,
+        permissions: 0,
+        my_networks: 0,
+        my_groups: 0,
+      };
     }
 
     return projection;
