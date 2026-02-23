@@ -58,7 +58,7 @@ const dbProjections = {
           net_api_key: 0,
           net_manager: 0,
           net_roles: 0,
-        }
+        },
       );
     }
 
@@ -71,7 +71,7 @@ const dbProjections = {
     role_code: 1,
     network_id: 1,
     role_permissions: 1,
-    role_users: "$role_users",
+    user_count: 1,
     network: "$network",
     group: "$group",
     createdAt: 1,
@@ -183,7 +183,7 @@ const dbProjections = {
           network: 0,
           createdAt: 0,
           updatedAt: 0,
-        }
+        },
       );
     }
 
@@ -423,7 +423,7 @@ const dbProjections = {
           my_networks: 0,
           my_groups: 0,
         },
-        {}
+        {},
       );
     }
 
@@ -665,7 +665,7 @@ const dbProjections = {
           createdAt: 0,
           grp_users: 0,
           grp_manager: 0,
-        }
+        },
       );
     }
     return projection;
