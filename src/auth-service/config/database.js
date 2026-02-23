@@ -188,7 +188,7 @@ const setupConnectionHandlers = (db, dbType) => {
   });
 
   db.on("reconnected", () => {
-    if (dbType === "query") {
+    if (dbType === "query" && rbacInitialized) {
       isConnected = true;
     }
     logger.info(`${dbType} database reconnected`);
@@ -203,8 +203,8 @@ const connectToMongoDB = () => {
     return { commandDB, queryDB };
   }
 
+  connectionAttempted = true;
   try {
-    connectionAttempted = true;
     // Connect to command database
     commandDB = createCommandConnection();
     setupConnectionHandlers(commandDB, "command");
@@ -296,6 +296,7 @@ const connectToMongoDB = () => {
 
     return { commandDB, queryDB };
   } catch (error) {
+    connectionAttempted = false;
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     throw error;
   }
