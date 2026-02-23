@@ -169,6 +169,7 @@ const createQueryConnection = () =>
 let commandDB = null;
 let queryDB = null;
 let isConnected = false;
+let connectionAttempted = false;
 
 const setupConnectionHandlers = (db, dbType) => {
   db.on("open", () => {
@@ -180,19 +181,30 @@ const setupConnectionHandlers = (db, dbType) => {
   });
 
   db.on("disconnected", () => {
+    if (dbType === "query") {
+      isConnected = false;
+    }
     logger.warn(`${dbType} database disconnected`);
+  });
+
+  db.on("reconnected", () => {
+    if (dbType === "query") {
+      isConnected = true;
+    }
+    logger.info(`${dbType} database reconnected`);
   });
 };
 
 const connectToMongoDB = () => {
-  if (isConnected) {
+  if (connectionAttempted) {
     logger.info(
-      "MongoDB connections are already established. Skipping re-initialization.",
+      "MongoDB connection already in progress. Skipping re-initialization.",
     );
     return { commandDB, queryDB };
   }
 
   try {
+    connectionAttempted = true;
     // Connect to command database
     commandDB = createCommandConnection();
     setupConnectionHandlers(commandDB, "command");
