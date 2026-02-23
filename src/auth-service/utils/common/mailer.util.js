@@ -1,6 +1,6 @@
 const transporter = require("@config/mailer.config");
 const isEmpty = require("is-empty");
-const { isConnected } = require("@config/database");
+const { getIsConnected, getQueryConnection } = require("@config/database");
 const mongoose = require("mongoose");
 const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
@@ -57,7 +57,12 @@ const processEmailQueue = async () => {
   isProcessingQueue = true;
 
   // Optimization: Check DB connection before proceeding
-  if (!isConnected || mongoose.connection.readyState !== 1) {
+  const queryConnection = getQueryConnection();
+  if (
+    !getIsConnected() ||
+    !queryConnection ||
+    queryConnection.readyState !== 1
+  ) {
     logger.warn(
       "Email queue processing skipped: No active database connection.",
     );

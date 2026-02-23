@@ -248,6 +248,10 @@ const connectToMongoDB = () => {
             );
           },
         );
+        isConnected = true;
+        console.log(
+          "✅ All database initializations complete. isConnected is now true.",
+        );
       } catch (err) {
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
@@ -278,8 +282,6 @@ const connectToMongoDB = () => {
       logger.error("There was an uncaught error", err);
     });
 
-    isConnected = true;
-
     return { commandDB, queryDB };
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
@@ -289,6 +291,10 @@ const connectToMongoDB = () => {
 
 // Initialize connections
 const { commandDB: commandMongoDB, queryDB: queryMongoDB } = connectToMongoDB();
+
+const getIsConnected = () => isConnected;
+const getQueryConnection = () => queryMongoDB;
+const getCommandConnection = () => commandMongoDB;
 
 /**
  * Get a tenant-specific database from command DB (for write operations)
@@ -372,5 +378,7 @@ module.exports = {
   getQueryModelByTenant,
   getCommandTenantDB,
   getQueryTenantDB,
-  isConnected,
+  getIsConnected,
+  getQueryConnection,
+  getCommandConnection,
 };
