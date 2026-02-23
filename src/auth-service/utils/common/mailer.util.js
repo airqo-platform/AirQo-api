@@ -1,5 +1,7 @@
 const transporter = require("@config/mailer.config");
 const isEmpty = require("is-empty");
+const { getIsConnected, getQueryConnection } = require("@config/database");
+const mongoose = require("mongoose");
 const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
 const msgs = require("./email.msgs.util");
@@ -53,6 +55,20 @@ const processEmailQueue = async () => {
     return;
   }
   isProcessingQueue = true;
+
+  // Optimization: Check DB connection before proceeding
+  const queryConnection = getQueryConnection();
+  if (
+    !getIsConnected() ||
+    !queryConnection ||
+    queryConnection.readyState !== 1
+  ) {
+    logger.warn(
+      "Email queue processing skipped: No active database connection.",
+    );
+    isProcessingQueue = false;
+    return;
+  }
 
   try {
     const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -163,7 +179,12 @@ const createMailerFunction = (
     let otherParams = {};
     let tenant = "";
     try {
-      ({ email, tenant = "airqo", ...otherParams } = params);
+      // Fix: Use contact_email as a fallback for email
+      ({
+        email = params.contact_email,
+        tenant = "airqo",
+        ...otherParams
+      } = params);
 
       // ✅ STEP 1: Input validation
       if (!email) {
@@ -1062,7 +1083,7 @@ const createAdminAlertFunction = (
       } else if (typeof rawRecipients === "string") {
         recipients = rawRecipients.split(",").map((e) => e.trim());
       }
-      recipients = [...new Set(recipients.filter(Boolean))];
+      recipients = [...new Set(recipients.filter(Boolean))].sort();
 
       if (recipients.length === 0) {
         logger.warn(`${functionName} called without valid recipients.`);
@@ -1125,10 +1146,10 @@ const createAdminAlertFunction = (
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: recipients.join(","),
+        to: recipients[0],
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
-        bcc: recipients.join(","),
+        bcc: recipients.length > 1 ? recipients.slice(1).join(",") : undefined,
         attachments: attachments,
       };
 
