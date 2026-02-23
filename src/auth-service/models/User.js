@@ -605,6 +605,13 @@ UserSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
 
+// Multikey indexes for Role.list() $lookup sub-pipeline.
+// MongoDB automatically creates a multikey index when the indexed field is an
+// array of subdocuments; "network_roles.role" and "group_roles.role" are the
+// nested ObjectId fields that the $match uses in its $in expression.
+UserSchema.index({ "network_roles.role": 1 });
+UserSchema.index({ "group_roles.role": 1 });
+
 UserSchema.statics = {
   async register(args, next, options = {}) {
     const { sendDuplicateEmail = false } = options;
