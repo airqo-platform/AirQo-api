@@ -1092,6 +1092,8 @@ const dbProjections = {
     _id: 1,
     surveyId: 1,
     userId: 1,
+    deviceId: 1,
+    isGuest: 1,
     answers: 1,
     status: 1,
     startedAt: 1,
@@ -1158,6 +1160,19 @@ const dbProjections = {
         else: false,
       },
     },
+    hasDeviceTracking: {
+      $cond: {
+        if: {
+          $and: [
+            { $eq: ["$isGuest", true] },
+            { $ne: ["$deviceId", null] },
+            { $ne: ["$deviceId", ""] },
+          ],
+        },
+        then: true,
+        else: false,
+      },
+    },
   },
   SURVEY_RESPONSES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
@@ -1215,11 +1230,11 @@ const dbProjections = {
         answerCount: 0,
         completionEfficiency: 0,
         hasLocationData: 0,
+        hasDeviceTracking: 0,
         user: 0,
         survey: 0,
       });
     } else if (category === "analytics") {
-      // For analytics, keep response data but exclude personal info
       projection = Object.assign({}, projection, {
         "contextData.currentLocation": 0,
         user: 0,
@@ -1232,6 +1247,7 @@ const dbProjections = {
         updatedAt: 0,
         completionEfficiency: 0,
         answerCount: 0,
+        hasDeviceTracking: 0,
         "survey.description": 0,
         "survey.createdAt": 0,
         "user.email": 0,
@@ -1241,13 +1257,23 @@ const dbProjections = {
         "user.updatedAt": 0,
       });
     } else if (category === "export") {
-      // For data export, include more fields but exclude internal IDs
+      // For data export, include deviceId and isGuest for analysis
       projection = Object.assign({}, projection, {
         _id: 0,
         "survey._id": 0,
         "user._id": 0,
         hasLocationData: 0,
+        hasDeviceTracking: 0,
         completionEfficiency: 0,
+        // NOTE: deviceId and isGuest are kept for export
+      });
+    } else if (category === "privacy") {
+      projection = Object.assign({}, projection, {
+        deviceId: 0,
+        userId: 0,
+        "contextData.currentLocation": 0,
+        user: 0,
+        hasDeviceTracking: 0,
       });
     }
 
