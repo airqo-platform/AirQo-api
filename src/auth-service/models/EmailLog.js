@@ -16,7 +16,6 @@ const EmailLogSchema = new mongoose.Schema(
     emailType: {
       type: String,
       required: true,
-      enum: ["compromisedToken", "expiredToken", "expiringToken"],
       index: true,
     },
     lastSentAt: {
@@ -35,14 +34,14 @@ const EmailLogSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 EmailLogSchema.index({ email: 1, emailType: 1 });
 
 EmailLogSchema.index(
   { lastSentAt: 1 },
-  { expireAfterSeconds: 60 * 60 * 24 * 90 }
+  { expireAfterSeconds: 60 * 60 * 24 * 90 },
 );
 
 EmailLogSchema.statics = {
@@ -90,7 +89,7 @@ EmailLogSchema.statics = {
         if (!isDailyLimitEmail) {
           const timeSinceLastEmail = now - new Date(lastLog.lastSentAt);
           daysRemaining = Math.ceil(
-            (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000)
+            (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000),
           );
         }
 
@@ -100,7 +99,7 @@ EmailLogSchema.statics = {
           lastSentAt: lastLog.lastSentAt,
           daysRemaining,
           nextAvailableDate: new Date(
-            new Date(lastLog.lastSentAt).getTime() + cooldownMs
+            new Date(lastLog.lastSentAt).getTime() + cooldownMs,
           ),
         };
       }
@@ -151,7 +150,7 @@ EmailLogSchema.statics = {
         {
           upsert: true,
           new: true,
-        }
+        },
       );
 
       return {
