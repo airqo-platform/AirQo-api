@@ -84,11 +84,29 @@ EmailLogSchema.statics = {
       const lastLog = await this.findOne(query).sort({ lastSentAt: -1 }).lean();
 
       if (lastLog) {
-        let daysRemaining = 0;
-        if (!isDailyLimitEmail) {
+        let daysRemaining;
+        let nextAvailableDate;
+
+        if (isDailyLimitEmail) {
+          // Next send window opens at the start of tomorrow (EAT).
+          // Using lastSentAt's date rather than today handles the edge case where
+          // the log record is from a previous day but still within the query window.
+          const tomorrowEAT = moment(lastLog.lastSentAt)
+            .tz("Africa/Nairobi")
+            .startOf("day")
+            .add(1, "day");
+          nextAvailableDate = tomorrowEAT.toDate();
+          daysRemaining = Math.ceil(
+            (nextAvailableDate.getTime() - now.getTime()) /
+              (24 * 60 * 60 * 1000),
+          );
+        } else {
           const timeSinceLastEmail = now - new Date(lastLog.lastSentAt);
           daysRemaining = Math.ceil(
             (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000),
+          );
+          nextAvailableDate = new Date(
+            new Date(lastLog.lastSentAt).getTime() + cooldownMs,
           );
         }
 
@@ -97,9 +115,7 @@ EmailLogSchema.statics = {
           reason: isDailyLimitEmail ? "daily_limit_reached" : "cooldown_active",
           lastSentAt: lastLog.lastSentAt,
           daysRemaining,
-          nextAvailableDate: new Date(
-            new Date(lastLog.lastSentAt).getTime() + cooldownMs,
-          ),
+          nextAvailableDate,
         };
       }
 
@@ -138,9 +154,6 @@ EmailLogSchema.statics = {
           $set: {
             lastSentAt: new Date(),
             metadata: logMetadata,
-          },
-          $setOnInsert: {
-            sentCount: 0,
           },
           $inc: {
             sentCount: 1,
