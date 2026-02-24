@@ -1140,12 +1140,23 @@ const createAdminAlertFunction = (
         // Fail open: proceed if rate limit check fails
       }
 
-      // ✅ STEP 2: Prepare mail options
+      // ✅ STEP 2: Prepare mail option
+      // Filter SUPPORT_EMAIL out of the BCC list to prevent duplicate delivery.
+      // SUPPORT_EMAIL already receives the email via the `to` field; including it in
+      // BCC as well would result in two copies of every alert to that inbox.
+      const supportEmail = (constants.SUPPORT_EMAIL || "").toLowerCase().trim();
+      const filteredRecipients = recipients.filter(
+        (r) => r.toLowerCase().trim() !== supportEmail,
+      );
       // Privacy: All real recipients go in BCC so no recipient can see who else received
-      // the alert. The `to` field uses a non-deliverable placeholder — SUPPORT_EMAIL is
-      // used here purely as a routing anchor; the actual delivery happens via BCC only.
-      // SUPPORT_EMAIL must be a valid address that accepts mail (so the SMTP server does
-      // not reject the message), but it should NOT be an inbox that forwards externally.
+      // the alert. The `to` field uses a non-disclosing placeholder address (SUPPORT_EMAIL)
+      // so that the visible "To" header does not expose any real recipient's address.
+      // Note: SUPPORT_EMAIL WILL receive this email as the `to` recipient — it acts as an
+      // audit copy inbox, not a silent sink. It must be a valid address that accepts mail
+      // (so the SMTP server does not reject the message), but it should NOT be an inbox
+      // that forwards externally or redistributes security alert content.
+      // To avoid duplicate delivery, SUPPORT_EMAIL is explicitly excluded from the BCC
+      // list below, even if it appears in the recipients array.
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1154,7 +1165,10 @@ const createAdminAlertFunction = (
         to: constants.SUPPORT_EMAIL,
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
-        bcc: recipients.join(","),
+        bcc:
+          filteredRecipients.length > 0
+            ? filteredRecipients.join(",")
+            : undefined,
         attachments: attachments,
       };
 
