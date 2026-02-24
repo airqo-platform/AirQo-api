@@ -16,7 +16,6 @@ const EmailLogSchema = new mongoose.Schema(
     emailType: {
       type: String,
       required: true,
-      index: true,
     },
     lastSentAt: {
       type: Date,
