@@ -182,7 +182,7 @@ class DataSourcesApis:
                     }
                 )
 
-                base_url = device.get("api_code", "").rstrip("/")
+                base_url = integration.get("url", "").rstrip("/")
                 # Use serial_number as the primary device identifier when available,
                 # fall back to device_number for legacy records.
                 device_identifier = device.get("serial_number") or device.get(

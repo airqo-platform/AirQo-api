@@ -236,7 +236,7 @@ class Config:
             "url": AIR_GRADIENT_BASE_URL,
             "headers": {"accept": "application/json"},
             "secret": {"token": AIR_GRADIENT_API_KEY},
-            "endpoints": {"raw": "measures/raw"},
+            "endpoints": {"raw": "measures/raw", "current": "measures/current"},
         },
     }
 
