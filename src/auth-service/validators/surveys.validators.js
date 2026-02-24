@@ -314,9 +314,16 @@ const createResponse = [
         throw new Error("userId must be a valid ObjectId or 'guest'");
       })
       .customSanitizer((value) => {
-        // Leave 'guest' as-is; convert valid ObjectId strings
         return value === "guest" ? value : ObjectId(value);
       }),
+
+    body("deviceId")
+      .optional({ checkFalsy: true }) // ✅ FIXED
+      .isString()
+      .withMessage("deviceId must be a string")
+      .trim()
+      .isLength({ min: 10, max: 100 })
+      .withMessage("deviceId must be between 10 and 100 characters"),
 
     body("answers")
       .exists()
