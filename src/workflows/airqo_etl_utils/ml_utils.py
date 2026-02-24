@@ -19,7 +19,11 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from .config import configuration, db
 from .constants import Frequency
 from .date import DateUtils
-from airqo_etl_utils.storage import get_configured_storage
+from airqo_etl_utils.storage import (
+    get_configured_storage,
+    GCSFileStorage,
+    MlflowTracker,
+)
 from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.sql import query_manager
 
@@ -1207,6 +1211,128 @@ class ForecastModelTrainer(BaseMlUtils):
     # point model (mean/min/max)
     # -------------------------
     @staticmethod
+    def _build_candidate_param_sets(
+        base_params: Dict, lgb_params: Optional[Dict]
+    ) -> List[Tuple[str, Dict]]:
+        default_params = dict(base_params)
+        candidates: List[Tuple[str, Dict]] = [("default", default_params)]
+        if lgb_params:
+            tuned_params = dict(base_params)
+            tuned_params.update(lgb_params)
+            if tuned_params != default_params:
+                candidates.append(("tuned", tuned_params))
+        return candidates
+
+    @staticmethod
+    def _select_best_candidate(
+        candidates: List[Tuple[str, lgb.LGBMRegressor, Dict, Dict]],
+        metric_key: str = "mae",
+    ) -> Tuple[str, lgb.LGBMRegressor, Dict, Dict]:
+        if not candidates:
+            raise ValueError("No trained candidates available for model selection.")
+        return min(candidates, key=lambda x: x[2].get(metric_key, float("inf")))
+
+    @staticmethod
+    def _upload_model_artifact(bucket_name: str, source_file: str, blob_name: str) -> None:
+        storage = get_configured_storage()
+        if storage and hasattr(storage, "upload_file"):
+            storage.upload_file(bucket_name, source_file, blob_name)
+            return
+
+        GCSFileStorage().upload_file(bucket_name, source_file, blob_name)
+
+    @staticmethod
+    def _load_existing_artifact_metrics(
+        bucket_name: str, blob_name: str
+    ) -> Optional[Dict[str, float]]:
+        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+            local_path = tmp.name
+
+        try:
+            GCSFileStorage().download_file(bucket_name, blob_name, local_path)
+            artifact = joblib.load(local_path)
+            if isinstance(artifact, dict):
+                metrics = artifact.get("metrics")
+                if isinstance(metrics, dict):
+                    return metrics
+        except FileNotFoundError:
+            return None
+        except Exception as exc:
+            logger.warning(
+                f"Failed to load existing model metrics for {blob_name}: {exc}"
+            )
+            return None
+        finally:
+            try:
+                import os
+
+                os.remove(local_path)
+            except Exception:
+                pass
+
+        return None
+
+    @staticmethod
+    def _get_deployment_decision(
+        new_metrics: Dict[str, float], old_metrics: Optional[Dict[str, float]]
+    ) -> Tuple[bool, str]:
+        if not old_metrics:
+            return True, "no_previous_model_metrics"
+
+        required = {"r2", "mae", "rmse"}
+        if not required.issubset(new_metrics.keys()):
+            return False, "new_model_metrics_incomplete"
+        if not required.issubset(old_metrics.keys()):
+            return True, "previous_model_metrics_incomplete"
+
+        if (
+            float(new_metrics["r2"]) > float(old_metrics["r2"])
+            and float(new_metrics["mae"]) < float(old_metrics["mae"])
+            and float(new_metrics["rmse"]) < float(old_metrics["rmse"])
+        ):
+            return True, "candidate_beats_best_historical"
+
+        return False, "candidate_not_better_than_best_historical"
+
+    @staticmethod
+    def _deploy_if_better(
+        *,
+        bucket_name: str,
+        source_file: str,
+        blob_name: str,
+        new_metrics: Dict[str, float],
+    ) -> Dict[str, Any]:
+        old_metrics = ForecastModelTrainer._load_existing_artifact_metrics(
+            bucket_name=bucket_name,
+            blob_name=blob_name,
+        )
+        deploy_new, decision_reason = ForecastModelTrainer._get_deployment_decision(
+            new_metrics=new_metrics,
+            old_metrics=old_metrics,
+        )
+
+        if deploy_new:
+            ForecastModelTrainer._upload_model_artifact(
+                bucket_name=bucket_name,
+                source_file=source_file,
+                blob_name=blob_name,
+            )
+            return {
+                "deployed": True,
+                "reason": decision_reason,
+                "old_metrics": old_metrics,
+            }
+
+        logger.info(
+            f"Keeping existing model for {blob_name}; new model did not improve all metrics."
+        )
+        return {
+            "deployed": False,
+            "reason": decision_reason,
+            "old_metrics": old_metrics,
+        }
+
+    @staticmethod
     def train_point_and_save_to_gcs(
         df: pd.DataFrame,
         *,
@@ -1236,7 +1362,17 @@ class ForecastModelTrainer(BaseMlUtils):
         }
         if lgb_params:
             params.update(lgb_params)
-
+        tracker = MlflowTracker(
+            tracking_uri=configuration.MLFLOW_TRACKING_URI,
+            registry_uri=configuration.MLFLOW_REGISTRY_URI,
+            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
+            or f"site_forecast_{environment}",
+            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
+            enabled=True,
+        )
+        input_example = df[features].dropna().head(5)
+        if input_example.empty:
+            input_example = None
         model, metrics = ForecastModelTrainer._fit_model(
             df=df,
             features=features,
@@ -1259,17 +1395,38 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        storage = get_configured_storage()
-        if storage:
-            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-                joblib.dump(artifact, tmp.name)
-                storage.upload_file(bucket_name, tmp.name, blob_name)
-                try:
-                    import os
+        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+            joblib.dump(artifact, tmp.name)
+            deployment = ForecastModelTrainer._deploy_if_better(
+                bucket_name=bucket_name,
+                source_file=tmp.name,
+                blob_name=blob_name,
+                new_metrics=metrics,
+            )
+            try:
+                import os
 
-                    os.remove(tmp.name)
-                except:
-                    pass
+                os.remove(tmp.name)
+            except:
+                pass
+        metrics["deployed"] = deployment["deployed"]
+        metrics["deployment_reason"] = deployment["reason"]
+        tracker.log_run(
+            run_name=f"site-{model_kind}-{target}",
+            params=params,
+            metrics=metrics,
+            tags={
+                "pipeline": "site_forecast",
+                "model_kind": model_kind,
+                "model_king": model_kind,
+                "target": target,
+                "decision_reason": deployment["reason"],
+                "deployed": str(deployment["deployed"]).lower(),
+            },
+            model=model,
+            model_artifact_path="model",
+            input_example=input_example,
+        )
 
         return metrics
 
@@ -1311,7 +1468,17 @@ class ForecastModelTrainer(BaseMlUtils):
         }
         if lgb_params:
             params.update(lgb_params)
-
+        tracker = MlflowTracker(
+            tracking_uri=configuration.MLFLOW_TRACKING_URI,
+            registry_uri=configuration.MLFLOW_REGISTRY_URI,
+            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
+            or f"site_forecast_{environment}",
+            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
+            enabled=True,
+        )
+        input_example = df[features].dropna().head(5)
+        if input_example.empty:
+            input_example = None
         model, metrics = ForecastModelTrainer._fit_model(
             df=df,
             features=features,
@@ -1336,17 +1503,39 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        storage = get_configured_storage()
-        if storage:
-            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-                joblib.dump(artifact, tmp.name)
-                storage.upload_file(bucket_name, tmp.name, blob_name)
-                try:
-                    import os
+        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
+            joblib.dump(artifact, tmp.name)
+            deployment = ForecastModelTrainer._deploy_if_better(
+                bucket_name=bucket_name,
+                source_file=tmp.name,
+                blob_name=blob_name,
+                new_metrics=metrics,
+            )
+            try:
+                import os
 
-                    os.remove(tmp.name)
-                except:
-                    pass
+                os.remove(tmp.name)
+            except:
+                pass
+        metrics["deployed"] = deployment["deployed"]
+        metrics["deployment_reason"] = deployment["reason"]
+        tracker.log_run(
+            run_name=f"site-quantile-{target}-{alpha}",
+            params=params,
+            metrics=metrics,
+            tags={
+                "pipeline": "site_forecast",
+                "model_kind": "quantile",
+                "model_king": "quantile",
+                "target": target,
+                "alpha": str(alpha),
+                "decision_reason": deployment["reason"],
+                "deployed": str(deployment["deployed"]).lower(),
+            },
+            model=model,
+            model_artifact_path="model",
+            input_example=input_example,
+        )
 
         return metrics
 
@@ -1460,15 +1649,24 @@ class ForecastModelTrainer(BaseMlUtils):
 
     def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         storage_adapter = get_configured_storage()
+        if storage_adapter is None:
+            raise ValueError(
+                "Storage adapter is not configured. Set GOOGLE_APPLICATION_CREDENTIALS "
+                "to a valid service account JSON and ensure BigQuery dependencies are installed."
+            )
+
         query: str = ""
         current_date = datetime.today()
-        start_date = current_date - relativedelta(months=60)
+        start_date = current_date - relativedelta(months=90)
 
         start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
 
         if query_manager.query_exists("consolidated_site_daily_aggregated"):
             query = query_manager.get_query("consolidated_site_daily_aggregated")
+
+        if not Config.BIGQUERY_ANALYTICS_TABLE:
+            raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
 
         query = query.format(
             consolidated_table=Config.BIGQUERY_ANALYTICS_TABLE,

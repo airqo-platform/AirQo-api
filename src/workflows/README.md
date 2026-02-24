@@ -50,6 +50,21 @@ source venv/Scripts/activate
 pip install -r dev-requirements.txt
 ```
 
+### Test e.g  quarterly site forecast training locally
+
+After setting up `.env` and credentials, you can run the local forecast trainer test script:
+
+```bash
+python src/workflows/airqo_etl_utils/tests/forecast.py
+```
+
+Required `.env` values for this test:
+
+- `GOOGLE_APPLICATION_CREDENTIALS`
+- `GOOGLE_CLOUD_PROJECT_ID`
+- `BIGQUERY_ANALYTICS_TABLE`
+- `FORECAST_MODELS_BUCKET`
+
 ## 2. Running using Docker
 
 ### Prerequisites
