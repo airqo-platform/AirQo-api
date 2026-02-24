@@ -3,6 +3,8 @@ const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const moment = require("moment-timezone");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- email-log-model`);
 
 const EmailLogSchema = new mongoose.Schema(
   {
@@ -16,8 +18,6 @@ const EmailLogSchema = new mongoose.Schema(
     emailType: {
       type: String,
       required: true,
-      enum: ["compromisedToken", "expiredToken", "expiringToken"],
-      index: true,
     },
     lastSentAt: {
       type: Date,
@@ -35,14 +35,14 @@ const EmailLogSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-EmailLogSchema.index({ email: 1, emailType: 1 });
+EmailLogSchema.index({ email: 1, emailType: 1 }, { unique: true });
 
 EmailLogSchema.index(
   { lastSentAt: 1 },
-  { expireAfterSeconds: 60 * 60 * 24 * 90 }
+  { expireAfterSeconds: 60 * 60 * 24 * 90 },
 );
 
 EmailLogSchema.statics = {
@@ -86,11 +86,29 @@ EmailLogSchema.statics = {
       const lastLog = await this.findOne(query).sort({ lastSentAt: -1 }).lean();
 
       if (lastLog) {
-        let daysRemaining = 0;
-        if (!isDailyLimitEmail) {
+        let daysRemaining;
+        let nextAvailableDate;
+
+        if (isDailyLimitEmail) {
+          // Next send window opens at the start of tomorrow (EAT).
+          // Using lastSentAt's date rather than today handles the edge case where
+          // the log record is from a previous day but still within the query window.
+          const tomorrowEAT = moment(lastLog.lastSentAt)
+            .tz("Africa/Nairobi")
+            .startOf("day")
+            .add(1, "day");
+          nextAvailableDate = tomorrowEAT.toDate();
+          daysRemaining = Math.ceil(
+            (nextAvailableDate.getTime() - now.getTime()) /
+              (24 * 60 * 60 * 1000),
+          );
+        } else {
           const timeSinceLastEmail = now - new Date(lastLog.lastSentAt);
           daysRemaining = Math.ceil(
-            (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000)
+            (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000),
+          );
+          nextAvailableDate = new Date(
+            new Date(lastLog.lastSentAt).getTime() + cooldownMs,
           );
         }
 
@@ -99,9 +117,7 @@ EmailLogSchema.statics = {
           reason: isDailyLimitEmail ? "daily_limit_reached" : "cooldown_active",
           lastSentAt: lastLog.lastSentAt,
           daysRemaining,
-          nextAvailableDate: new Date(
-            new Date(lastLog.lastSentAt).getTime() + cooldownMs
-          ),
+          nextAvailableDate,
         };
       }
 
@@ -109,7 +125,9 @@ EmailLogSchema.statics = {
         canSend: true,
       };
     } catch (error) {
-      console.error(`Error checking email cooldown: ${error.message}`);
+      logger.error(
+        `Error checking email cooldown for ${emailType}/${email}: ${error.message}`,
+      );
       return {
         canSend: true,
         error: error.message,
@@ -131,35 +149,57 @@ EmailLogSchema.statics = {
         logMetadata.ip = ip;
       }
 
-      const result = await this.findOneAndUpdate(
-        {
-          email: email.toLowerCase().trim(),
-          emailType,
+      const filter = {
+        email: email.toLowerCase().trim(),
+        emailType,
+      };
+
+      const update = {
+        $set: {
+          lastSentAt: new Date(),
+          metadata: logMetadata,
         },
-        {
-          $set: {
-            lastSentAt: new Date(),
-            metadata: logMetadata,
-          },
-          $setOnInsert: {
-            sentCount: 0,
-          },
-          $inc: {
-            sentCount: 1,
-          },
+        $inc: {
+          sentCount: 1,
         },
-        {
+      };
+
+      let result;
+      try {
+        result = await this.findOneAndUpdate(filter, update, {
           upsert: true,
           new: true,
+        });
+      } catch (upsertErr) {
+        const isDuplicateKey =
+          upsertErr.code === 11000 ||
+          (upsertErr.message && upsertErr.message.includes("E11000"));
+
+        if (!isDuplicateKey) {
+          throw upsertErr;
         }
-      );
+
+        result = await this.findOneAndUpdate(filter, update, {
+          upsert: false,
+          new: true,
+        });
+
+        if (!result) {
+          logger.warn(
+            `logEmailSent: failed to find document after E11000 retry for ${emailType}/${email}`,
+          );
+        }
+      }
 
       return {
         success: true,
         data: result,
       };
     } catch (error) {
-      console.error(`Error logging email send: ${error.message}`);
+      logger.error(
+        `Error logging email send for ${emailType}/${email}: ${error.message}`,
+      );
+
       return {
         success: false,
         error: error.message,

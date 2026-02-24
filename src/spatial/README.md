@@ -57,6 +57,8 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/localmoran` | POST | Local Moran's I cluster/outlier analysis. |
 | `/site_location` | POST | ML-driven sensor placement inside a polygon. |
 | `/categorize_site` | GET | Classify a site by latitude/longitude. |
+| `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
+| `/source_metadata/batch` | POST | Infer source metadata for multiple points in one request. |
 | `/derived_pm2_5` | GET | Derived PM2.5 from satellite AOD for a point and date range (JSON body). |
 | `/derived_pm2_5_daily` | GET | Daily MODIS AOD data for a point and date range (JSON body). |
 | `/satellite_prediction` | POST | Predict PM2.5 from satellite features at a point. |
@@ -108,6 +110,24 @@ curl -X POST http://127.0.0.1:5000/api/v2/spatial/site_location \
 Site categorization:
 ```sh
 curl "http://127.0.0.1:5000/api/v2/spatial/categorize_site?latitude=0.322502&longitude=32.584726"
+```
+
+Source metadata (single point):
+```sh
+curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&include_satellite=false"
+```
+
+Source metadata (batch):
+```sh
+curl -X POST http://127.0.0.1:5000/api/v2/spatial/source_metadata/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "include_satellite": false,
+    "items": [
+      {"id": "site-1", "latitude": 0.322502, "longitude": 32.584726},
+      {"id": "site-2", "latitude": 0.347596, "longitude": 32.582520}
+    ]
+  }'
 ```
 
 Derived PM2.5 (GET with JSON body):

@@ -7,6 +7,7 @@ const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
+const EmailLogModel = require("@models/EmailLog");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -139,14 +140,14 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
           grp_manager_firstname: null,
           grp_manager_lastname: null,
         },
-      }
+      },
     );
 
     if (!isEmpty(updatedGroup.err)) {
       logger.error(
         `error while attempting to delete User from the corresponding Group ${stringify(
-          updatedGroup.err
-        )}`
+          updatedGroup.err,
+        )}`,
       );
     }
 
@@ -159,14 +160,14 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
           net_manager_firstname: null,
           net_manager_lastname: null,
         },
-      }
+      },
     );
 
     if (!isEmpty(updatedNetwork.err)) {
       logger.error(
         `error while attempting to delete User from the corresponding Network ${stringify(
-          updatedNetwork.err
-        )}`
+          updatedNetwork.err,
+        )}`,
       );
     }
 
@@ -184,7 +185,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
     throw new HttpError(
       "Internal Server Error",
       httpStatus.INTERNAL_SERVER_ERROR,
-      { message: error.message }
+      { message: error.message },
     );
   }
 };
@@ -224,7 +225,7 @@ const setCache = async ({ data, request } = {}, next) => {
         success: true,
         message: "Successfully retrieved the users",
         data,
-      })
+      }),
     );
     // FIX: Change from 0 to 600 (10 minutes = 600 seconds)
     await redisExpireAsync(cacheID, 600); // 10 minutes = 600 seconds
@@ -239,7 +240,7 @@ const setCache = async ({ data, request } = {}, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -268,8 +269,8 @@ const getCache = async (request, next) => {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: "No cache present",
-          }
-        )
+          },
+        ),
       );
     }
   } catch (error) {
@@ -277,9 +278,127 @@ const getCache = async (request, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
+};
+
+/**
+ * Atomically checks and records a rate-limited action in a single MongoDB
+ * operation. Uses findOneAndUpdate with upsert to eliminate the check-then-act
+ * race condition. The unique compound index on (email, emailType) ensures only
+ * one writer wins under concurrent load.
+ *
+ * SECURITY NOTE: Fails open on DB errors — rate limiting is disabled if MongoDB
+ * is unreachable. This is acceptable because:
+ *   (a) The unique index on UserModel.email is the true duplicate guard.
+ *   (b) Blocking ALL registrations during a DB outage is worse than temporarily
+ *       allowing duplicates (which the unique index prevents anyway).
+ * Alert on frequent fail-open triggers via logger.warn monitoring.
+ *
+ * @param {string} tenant    - The DB tenant
+ * @param {string} email     - The user's email
+ * @param {string} emailType - Action identifier (e.g. 'mobile_registration_attempt')
+ * @param {number} windowMs  - Cooldown window in milliseconds
+ * @returns {{ allowed: boolean, remainingMs: number }}
+ */
+const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
+  try {
+    const EmailLog = EmailLogModel(tenant);
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - windowMs);
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Step 1: Check if a record already exists within the window.
+    // This is a read-only check — no write yet.
+    const existing = await EmailLog.findOne({
+      email: normalizedEmail,
+      emailType,
+      lastSentAt: { $gte: windowStart },
+    }).lean();
+
+    if (existing) {
+      const remainingMs = Math.max(
+        0,
+        new Date(existing.lastSentAt).getTime() + windowMs - now.getTime(),
+      );
+      return { allowed: false, remainingMs };
+    }
+
+    // Step 2: No record in window — atomically claim the slot via upsert.
+    // The unique compound index on (email, emailType) ensures that if two
+    // concurrent requests both pass Step 1, only one will succeed here;
+    // the second will receive a duplicate key error caught below.
+    await EmailLog.findOneAndUpdate(
+      { email: normalizedEmail, emailType },
+      {
+        $set: { lastSentAt: now },
+        $inc: { sentCount: 1 },
+        $setOnInsert: { metadata: {} },
+      },
+      { upsert: true, new: true },
+    );
+
+    return { allowed: true, remainingMs: 0 };
+  } catch (err) {
+    // Duplicate key error from the unique index means a concurrent request
+    // just claimed the slot — treat as rate-limited, not a system error.
+    if (err.code === 11000) {
+      return { allowed: false, remainingMs: windowMs };
+    }
+    // Fail open for all other errors — see SECURITY NOTE in JSDoc above.
+    logger.warn(
+      `dbRateLimiter DB check failed for ${emailType}/${email} — failing open: ${err.message}`,
+    );
+    return { allowed: true, remainingMs: 0 };
+  }
+};
+
+/**
+ * Records a rate-limited action independently of the check.
+ *
+ * IMPORTANT: Only call this when you need to record AFTER a successful
+ * downstream operation (e.g. after a verification email actually sends) AND
+ * you did NOT call dbRateLimiter for this action in the same request.
+ *
+ * For flood protection flows (registration), dbRateLimiter already writes the
+ * record atomically on the allowed path — do NOT call this additionally or
+ * you will double-count and block the user prematurely.
+ */
+const dbRateLimiterRecord = async (tenant, email, emailType, metadata = {}) => {
+  try {
+    const EmailLog = EmailLogModel(tenant);
+    await EmailLog.findOneAndUpdate(
+      { email: email.toLowerCase().trim(), emailType },
+      {
+        $set: { lastSentAt: new Date(), metadata },
+        $inc: { sentCount: 1 },
+      },
+      { upsert: true, new: true },
+    );
+  } catch (err) {
+    logger.warn(
+      `dbRateLimiterRecord failed for ${emailType}/${email}: ${err.message}`,
+    );
+  }
+};
+
+/**
+ * Rate limit windows for distributed (MongoDB-backed) flood protection.
+ * These values are tuned for UX vs. security balance — see inline comments.
+ * Changing these affects all Kubernetes pods simultaneously (no restart needed).
+ */
+const RATE_LIMIT_WINDOWS = {
+  /** Short flood guard: prevents double-tap POSTs from impatient users or retry logic. */
+  MOBILE_REGISTRATION_MS: 30 * 1000, // 30 seconds
+  WEB_REGISTRATION_MS: 30 * 1000, // 30 seconds
+
+  /** Long enough to prevent spam, short enough for a legitimate user to retry. */
+  MOBILE_VERIFICATION_REMINDER_MS: 3 * 60 * 1000, // 3 minutes
+  WEB_VERIFICATION_REMINDER_MS: 5 * 60 * 1000, // 5 minutes — web flow slower
+
+  /** Brute-force guard on token submission. Failed attempts count against this. */
+  MOBILE_EMAIL_VERIFY_ATTEMPT_MS: 3 * 60 * 1000, // 3 minutes per attempt
 };
 
 const createUserModule = {
@@ -306,7 +425,7 @@ const createUserModule = {
       const permissionsResult =
         await createUserModule.getUserContextPermissions(
           permissionsRequest,
-          next
+          next,
         );
 
       if (!permissionsResult.success) {
@@ -351,9 +470,9 @@ const createUserModule = {
               ...groupRole,
               group:
                 groups.find(
-                  (g) => g._id.toString() === groupRole.group.toString()
+                  (g) => g._id.toString() === groupRole.group.toString(),
                 ) || groupRole.group,
-            })
+            }),
           );
         } catch (error) {
           logger.warn(`Could not populate group roles: ${error.message}`);
@@ -377,9 +496,9 @@ const createUserModule = {
               ...networkRole,
               network:
                 networks.find(
-                  (n) => n._id.toString() === networkRole.network.toString()
+                  (n) => n._id.toString() === networkRole.network.toString(),
                 ) || networkRole.network,
-            })
+            }),
           );
         } catch (error) {
           logger.warn(`Could not populate network roles: ${error.message}`);
@@ -433,7 +552,7 @@ const createUserModule = {
           limit,
           skip,
         },
-        next
+        next,
       );
       if (responseFromListLogs.success === true) {
         return {
@@ -455,8 +574,8 @@ const createUserModule = {
             {
               message: responseFromListLogs.message,
               ...errorObject,
-            }
-          )
+            },
+          ),
         );
       }
     } catch (error) {
@@ -465,16 +584,15 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
   listStatistics: async (tenant, next) => {
     try {
-      const responseFromListStatistics = await UserModel(tenant).listStatistics(
-        tenant
-      );
+      const responseFromListStatistics =
+        await UserModel(tenant).listStatistics(tenant);
       return responseFromListStatistics;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -482,8 +600,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -562,8 +680,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -589,7 +707,7 @@ const createUserModule = {
               message: "Internal Server Error",
               status: httpStatus.INTERNAL_SERVER_ERROR,
               errors: { message: "Cache timeout" },
-            })
+            }),
           ),
         ]);
 
@@ -610,7 +728,7 @@ const createUserModule = {
           limit,
           skip,
         },
-        next
+        next,
       );
 
       if (responseFromListUser.success === true) {
@@ -629,7 +747,7 @@ const createUserModule = {
                 message: "Internal Server Error",
                 status: httpStatus.INTERNAL_SERVER_ERROR,
                 errors: { message: "Cache timeout" },
-              })
+              }),
             ),
           ]);
           if (resultOfCacheOperation.success === false) {
@@ -649,8 +767,8 @@ const createUserModule = {
           message: !isEmpty(missingDataMessage)
             ? missingDataMessage
             : isEmpty(data[0].data)
-            ? "no users for this search"
-            : responseFromListUser.message,
+              ? "no users for this search"
+              : responseFromListUser.message,
           data,
           status: responseFromListUser.status || "",
           isCache: false,
@@ -658,8 +776,8 @@ const createUserModule = {
       } else {
         logger.error(
           `Unable to retrieve events --- ${stringify(
-            responseFromListUser.errors
-          )}`
+            responseFromListUser.errors,
+          )}`,
         );
 
         const errorObject = responseFromListUser.errors || { message: "" };
@@ -670,8 +788,8 @@ const createUserModule = {
             {
               message: responseFromListUser.message,
               ...errorObject,
-            }
-          )
+            },
+          ),
         );
       }
     } catch (error) {
@@ -680,8 +798,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -697,7 +815,7 @@ const createUserModule = {
           limit,
           skip,
         },
-        next
+        next,
       );
 
       return responseFromListUser;
@@ -707,8 +825,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -725,7 +843,7 @@ const createUserModule = {
           limit: 1,
           skip: 0,
         },
-        next
+        next,
       );
 
       return responseFromListUser;
@@ -737,8 +855,8 @@ const createUserModule = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -816,7 +934,7 @@ const createUserModule = {
           filter,
           update: { $set: sanitizedUpdate },
         },
-        next
+        next,
       );
 
       logObject("responseFromModifyUser", responseFromModifyUser);
@@ -861,7 +979,7 @@ const createUserModule = {
           }
         } catch (analyticsError) {
           logger.error(
-            `PostHog identify/update error: ${analyticsError.message}`
+            `PostHog identify/update error: ${analyticsError.message}`,
           );
         }
 
@@ -891,7 +1009,7 @@ const createUserModule = {
               lastName,
               updatedUserDetails: emailUpdatePayload,
             },
-            next
+            next,
           );
 
           if (responseFromSendEmail && responseFromSendEmail.success === true) {
@@ -911,8 +1029,8 @@ const createUserModule = {
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send update email" }
-              )
+                { message: "Failed to send update email" },
+              ),
             );
           }
         }
@@ -926,8 +1044,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -974,8 +1092,8 @@ const createUserModule = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       // return [
       //   {
@@ -998,7 +1116,7 @@ const createUserModule = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Please provide either email or phoneNumber",
-          })
+          }),
         );
         // return [
         //   {
@@ -1013,7 +1131,7 @@ const createUserModule = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "password must be provided when using email",
-          })
+          }),
         );
 
         // return [
@@ -1064,7 +1182,7 @@ const createUserModule = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: error.message,
-          })
+          }),
         );
 
         // return [
@@ -1083,8 +1201,8 @@ const createUserModule = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       // return [
       //   {
@@ -1103,7 +1221,7 @@ const createUserModule = {
       const { email, phoneNumber, firebase_uid } = body;
       let { firstName, lastName } = body;
       const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
+        constants.RANDOM_PASSWORD_CONFIGURATION(10),
       );
 
       const userExistsLocally = await UserModel(tenant).findOne({
@@ -1124,7 +1242,7 @@ const createUserModule = {
 
         const responseFromCreateUser = await UserModel(tenant).register(
           newAnalyticsUserDetails,
-          next
+          next,
         );
         if (responseFromCreateUser.success === true) {
           const createdUser = await responseFromCreateUser.data;
@@ -1145,7 +1263,7 @@ const createUserModule = {
               tenant,
               type: "user",
             },
-            next
+            next,
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success === false) {
@@ -1179,13 +1297,13 @@ const createUserModule = {
             filter: { _id: userExistsLocally._id },
             update: updatedAnalyticsUserDetails,
           },
-          next
+          next,
         );
         const updatedUser = await UserModel(tenant).list(
           {
             filter: { _id: userExistsLocally._id },
           },
-          next
+          next,
         );
 
         if (responseFromUpdateUser.success === true) {
@@ -1205,8 +1323,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1218,9 +1336,8 @@ const createUserModule = {
         body;
 
       // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
-      const firebaseUserResponse = await createUserModule.lookUpFirebaseUser(
-        request
-      );
+      const firebaseUserResponse =
+        await createUserModule.lookUpFirebaseUser(request);
       logObject("firebaseUserResponse[0]:", firebaseUserResponse[0]);
 
       if (
@@ -1233,7 +1350,7 @@ const createUserModule = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "User already exists on Firebase. Please login using Firebase.",
-          })
+          }),
         );
       } else {
         // Step 3: User does not exist on Firebase, create user on Firebase first
@@ -1262,12 +1379,12 @@ const createUserModule = {
             newAnalyticsUserDetails.firstName = firstName || "Unknown";
             newAnalyticsUserDetails.lastName = lastName || "Unknown";
             newAnalyticsUserDetails.password = accessCodeGenerator.generate(
-              constants.RANDOM_PASSWORD_CONFIGURATION(10)
+              constants.RANDOM_PASSWORD_CONFIGURATION(10),
             );
 
             logObject("newAnalyticsUserDetails:", newAnalyticsUserDetails);
             const newUser = await UserModel(tenant).create(
-              newAnalyticsUserDetails
+              newAnalyticsUserDetails,
             );
             return {
               success: true,
@@ -1284,8 +1401,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1298,7 +1415,7 @@ const createUserModule = {
       next(
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "the request is either missing the context or tenant",
-        })
+        }),
       );
     }
     return `${context}_${tenant}`;
@@ -1315,8 +1432,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1332,7 +1449,7 @@ const createUserModule = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Invalid Request -- Either Token or Email provided is invalid",
-          })
+          }),
         );
       }
       return JSON.parse(result);
@@ -1342,8 +1459,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1362,8 +1479,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1373,9 +1490,8 @@ const createUserModule = {
       const { email } = body;
 
       // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
-      const firebaseUserResponse = await createUserModule.lookUpFirebaseUser(
-        request
-      );
+      const firebaseUserResponse =
+        await createUserModule.lookUpFirebaseUser(request);
       logObject("firebaseUserResponse[0]...", firebaseUserResponse[0]);
       if (
         firebaseUserResponse &&
@@ -1425,7 +1541,7 @@ const createUserModule = {
                 email,
                 firebase_uid,
               },
-              next
+              next,
             );
 
             if (responseFromSendEmail) {
@@ -1444,14 +1560,14 @@ const createUserModule = {
               }
             } else {
               logger.error(
-                "mailer.verifyMobileEmail did not return a response"
+                "mailer.verifyMobileEmail did not return a response",
               );
               return next(
                 new HttpError(
                   "Internal Server Error",
                   httpStatus.INTERNAL_SERVER_ERROR,
-                  { message: "Failed to send after email verification email" }
-                )
+                  { message: "Failed to send after email verification email" },
+                ),
               );
             }
           }
@@ -1460,7 +1576,7 @@ const createUserModule = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Unable to Login, User does not exist on Firebase",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1469,8 +1585,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1494,14 +1610,14 @@ const createUserModule = {
 
       const cachedData = await createUserModule.getMobileUserCache(
         cacheID,
-        next
+        next,
       );
 
       if (!cachedData) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid or expired token",
-          })
+          }),
         );
       }
 
@@ -1514,7 +1630,7 @@ const createUserModule = {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Either Token or Email are Incorrect",
-            })
+            }),
           );
         }
 
@@ -1524,7 +1640,7 @@ const createUserModule = {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Email or phoneNumber is required.",
-            })
+            }),
           );
         }
 
@@ -1553,14 +1669,14 @@ const createUserModule = {
             { _id: userExistsLocally._id },
             {
               $set: updatedFields,
-            }
+            },
           );
           logObject("updatedUser", updatedUser);
           const responseFromDeleteCachedItem =
             await createUserModule.deleteCachedItem(cacheID, next);
           logObject(
             "responseFromDeleteCachedItem after updating existing user",
-            responseFromDeleteCachedItem
+            responseFromDeleteCachedItem,
           );
           if (
             responseFromDeleteCachedItem &&
@@ -1580,8 +1696,8 @@ const createUserModule = {
                 {
                   message:
                     "Unable to delete the token after successful operation",
-                }
-              )
+                },
+              ),
             );
           }
         } else {
@@ -1592,7 +1708,7 @@ const createUserModule = {
           const generatedFirstName = firebaseUser.firstName || "Unknown";
           const generatedLastName = firebaseUser.lastName || "Unknown";
           const generatedPassword = accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+            constants.RANDOM_PASSWORD_CONFIGURATION(10),
           );
           const generatedProfilePicture = firebaseUser.photoURL || "";
           const newUser = await UserModel(tenant).create({
@@ -1610,7 +1726,7 @@ const createUserModule = {
             await createUserModule.deleteCachedItem(cacheID, next);
           logObject(
             "responseFromDeleteCachedItem after creating new user",
-            responseFromDeleteCachedItem
+            responseFromDeleteCachedItem,
           );
           if (
             responseFromDeleteCachedItem &&
@@ -1630,8 +1746,8 @@ const createUserModule = {
                 {
                   message:
                     "Unable to delete the token after successful operation",
-                }
-              )
+                },
+              ),
             );
           }
         }
@@ -1642,8 +1758,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1655,7 +1771,7 @@ const createUserModule = {
 
       const link = await getAuth().generateSignInWithEmailLink(
         email,
-        constants.ACTION_CODE_SETTINGS
+        constants.ACTION_CODE_SETTINGS,
       );
 
       let linkSegments = link.split("%").filter((segment) => segment);
@@ -1674,19 +1790,19 @@ const createUserModule = {
             email,
             token,
           },
-          next
+          next,
         );
       }
       if (purpose === "auth") {
         responseFromSendEmail = await mailer.authenticateEmail(
           { email, token },
-          next
+          next,
         );
       }
       if (purpose === "login") {
         responseFromSendEmail = await mailer.signInWithEmailLink(
           { email, token },
-          next
+          next,
         );
       }
 
@@ -1715,8 +1831,8 @@ const createUserModule = {
             {
               message: "email sending process unsuccessful",
               ...errorObject,
-            }
-          )
+            },
+          ),
         );
       }
     } catch (error) {
@@ -1725,8 +1841,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1751,19 +1867,19 @@ const createUserModule = {
           new HttpError("Service Unavailable", httpStatus.SERVICE_UNAVAILABLE, {
             message:
               "Analytics data is currently being generated. Please try again in a few moments.",
-          })
+          }),
         );
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in getDashboardAnalyticsFromCache: ${error.message}`
+        `🐛🐛 Internal Server Error in getDashboardAnalyticsFromCache: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1777,12 +1893,12 @@ const createUserModule = {
       const startOfTwoMonthsAgo = new Date(
         twoMonthsAgo.getFullYear(),
         twoMonthsAgo.getMonth(),
-        1
+        1,
       );
       const endOfTwoMonthsAgo = new Date(
         twoMonthsAgo.getFullYear(),
         twoMonthsAgo.getMonth() + 1,
-        0
+        0,
       );
 
       const aggregationPipeline = [
@@ -1893,8 +2009,8 @@ const createUserModule = {
         dauTwoMonthsAgo > 0
           ? ((dau - dauTwoMonthsAgo) / dauTwoMonthsAgo) * 100
           : dau > 0
-          ? 100
-          : 0;
+            ? 100
+            : 0;
 
       const response = {
         userSatisfaction: null, // Placeholder
@@ -1933,14 +2049,14 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in getDashboardAnalyticsDirect: ${error.message}`
+        `🐛🐛 Internal Server Error in getDashboardAnalyticsDirect: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1982,7 +2098,7 @@ const createUserModule = {
           filter: { _id: user._id },
           update,
         },
-        next
+        next,
       );
 
       if (responseFromModifyUser.success) {
@@ -2008,14 +2124,14 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in initiateAccountDeletion: ${error.message}`
+        `🐛🐛 Internal Server Error in initiateAccountDeletion: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2049,7 +2165,7 @@ const createUserModule = {
           filter: { _id: user._id },
           update,
         },
-        next
+        next,
       );
 
       if (responseFromModifyUser.success) {
@@ -2074,14 +2190,14 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in initiateMobileAccountDeletion: ${error.message}`
+        `🐛🐛 Internal Server Error in initiateMobileAccountDeletion: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2148,7 +2264,7 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in confirmAccountDeletion: ${error.message}`
+        `🐛🐛 Internal Server Error in confirmAccountDeletion: ${error.message}`,
       );
       next(
         new HttpError(
@@ -2156,8 +2272,8 @@ const createUserModule = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -2191,7 +2307,7 @@ const createUserModule = {
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        { message: error.message },
       );
     }
   },
@@ -2206,7 +2322,7 @@ const createUserModule = {
           message,
           subject,
         },
-        next
+        next,
       );
 
       logObject("responseFromSendEmail ....", responseFromSendEmail);
@@ -2226,8 +2342,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2256,253 +2372,199 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Create registration lock
-      const lockKey = `mobile-reg-${normalizedEmail}-${tenant}`;
+      // ✅ STEP 2: DB-backed flood protection (replaces in-memory registrationLocks).
+      // dbRateLimiter atomically checks AND records in one operation — do not call
+      // dbRateLimiterRecord separately after this or the attempt will be double-counted.
+      const floodCheck = await dbRateLimiter(
+        dbTenant,
+        normalizedEmail,
+        "mobile_registration_attempt",
+        RATE_LIMIT_WINDOWS.MOBILE_REGISTRATION_MS,
+      );
 
-      if (registrationLocks.has(lockKey)) {
+      if (!floodCheck.allowed) {
+        // Round to nearest 10s to avoid leaking precise timing to bad actors.
+        const remainingSecs =
+          Math.ceil(floodCheck.remainingMs / 10000) * 10 || 30;
         logger.warn(
-          `Duplicate mobile registration attempt blocked for ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            lockExists: true,
-            userAgent: request.headers?.["user-agent"]?.substring(0, 100),
-          }
+          `Duplicate mobile registration attempt rate-limited (DB) for ${normalizedEmail}`,
+          { email: normalizedEmail, tenant, remainingSecs },
         );
-
         return {
           success: false,
           message: "Registration already in progress",
           errors: {
-            email:
-              "A mobile registration for this email is currently being processed. Please wait a moment and try again.",
+            email: `A mobile registration for this email is currently being processed. Please try again in about ${remainingSecs} seconds.`,
           },
         };
       }
 
-      // Set lock with automatic cleanup
-      registrationLocks.set(lockKey, {
-        createdAt: Date.now(),
-        type: "mobile",
-        userAgent: request.headers?.["user-agent"]?.substring(0, 100),
-      });
+      // ✅ STEP 3: Check for existing user with enhanced feedback
+      const existingUser = await UserModel(dbTenant)
+        .findOne({ email: normalizedEmail })
+        .lean();
 
-      setTimeout(() => {
-        registrationLocks.delete(lockKey);
-      }, 30000); // 30 second lock
+      if (!isEmpty(existingUser)) {
+        if (existingUser.verified) {
+          return {
+            success: false,
+            message: "Account already exists",
+            errors: {
+              email:
+                "This email is already registered. Please use the login option or 'Forgot Password' if needed.",
+            },
+            data: {
+              accountExists: true,
+              verified: true,
+              shouldLogin: true,
+              userId: existingUser._id,
+            },
+          };
+        } else {
+          // For unverified users, offer to resend verification
+          try {
+            await createUserModule.mobileVerificationReminder(
+              { tenant, email: normalizedEmail },
+              next,
+            );
 
-      try {
-        // ✅ STEP 3: Check for existing user with enhanced feedback
-        const existingUser = await UserModel(dbTenant)
-          .findOne({
-            email: normalizedEmail,
-          })
-          .lean();
-
-        if (!isEmpty(existingUser)) {
-          // ✅ Provide specific guidance for mobile users
-          if (existingUser.verified) {
-            // For verified users, direct them to login
             return {
               success: false,
-              message: "Account already exists",
+              message: "Account exists but not verified",
               errors: {
                 email:
-                  "This email is already registered. Please use the login option or 'Forgot Password' if needed.",
+                  "This email is already registered but not verified. A new verification code has been sent to your email.",
               },
               data: {
                 accountExists: true,
-                verified: true,
-                shouldLogin: true,
+                verified: false,
+                verificationEmailSent: true,
                 userId: existingUser._id,
               },
             };
-          } else {
-            // For unverified users, offer to resend verification
-
-            try {
-              await createUserModule.mobileVerificationReminder(
-                {
-                  tenant,
-                  email: normalizedEmail,
-                },
-                next
-              );
-
-              return {
-                success: false,
-                message: "Account exists but not verified",
-                errors: {
-                  email:
-                    "This email is already registered but not verified. A new verification code has been sent to your email.",
-                },
-                data: {
-                  accountExists: true,
-                  verified: false,
-                  verificationEmailSent: true,
-                  userId: existingUser._id,
-                },
-              };
-            } catch (emailError) {
-              logger.error(
-                `Failed to send mobile verification reminder: ${emailError.message}`
-              );
-
-              return {
-                success: false,
-                message: "Account exists but not verified",
-                errors: {
-                  email:
-                    "This email is already registered but not verified. Please check your email for the verification code or contact support.",
-                },
-                data: {
-                  accountExists: true,
-                  verified: false,
-                  verificationEmailFailed: true,
-                },
-              };
-            }
-          }
-        }
-
-        // ✅ STEP 4: Prepare user data for mobile registration
-        const userData = {
-          ...request.body,
-          email: normalizedEmail,
-          userName: normalizedEmail,
-          analyticsVersion: 4, // Mobile users get version 4
-          ...(request.body.interests && { interests: request.body.interests }),
-          ...(request.body.interestsDescription && {
-            interestsDescription: request.body.interestsDescription,
-          }),
-          ...(request.body.country && { country: request.body.country }),
-          // Add mobile-specific metadata
-          registrationSource: "mobile_app",
-          userAgent: request.headers?.["user-agent"]?.substring(0, 200),
-        };
-
-        // ✅ STEP 5: Create user with enhanced error handling
-        const newUserResponse = await UserModel(dbTenant).register(
-          userData,
-          next,
-          {
-            sendDuplicateEmail: false, // Mobile handles its own verification flow
-          }
-        );
-
-        if (newUserResponse && newUserResponse.success === true) {
-          const newUser = newUserResponse.data;
-          const userId = newUser._doc._id;
-
-          // ✅ STEP 6: Generate mobile verification token
-          const verificationToken = generateNumericToken(5);
-          const tokenExpiry = 86400; // 24hrs in seconds
-
-          const tokenCreationBody = {
-            token: verificationToken,
-            name: newUser._doc.firstName,
-            expires: new Date(Date.now() + tokenExpiry * 1000),
-          };
-
-          const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
-            tokenCreationBody,
-            next
-          );
-
-          if (verifyTokenResponse && verifyTokenResponse.success === false) {
-            logger.error(
-              `Failed to create verification token for mobile user ${normalizedEmail}: ${verifyTokenResponse.message}`,
-              {
-                email: normalizedEmail,
-                userId,
-                tenant,
-                tokenError: verifyTokenResponse.message,
-              }
-            );
-
-            // Consider rolling back user creation
-            try {
-              await UserModel(dbTenant).findByIdAndDelete(userId);
-              logger.info(
-                `Rolled back user creation due to token failure: ${userId}`
-              );
-            } catch (rollbackError) {
-              logger.error(
-                `Failed to rollback user creation: ${rollbackError.message}`
-              );
-            }
-
-            return verifyTokenResponse;
-          }
-
-          // ✅ STEP 7: Send verification email with enhanced monitoring
-          try {
-            const emailResult = await mailer.sendVerificationEmail({
-              email: normalizedEmail,
-              token: verificationToken,
-              tenant,
-            });
-
-            if (emailResult && emailResult.success === true) {
-              return {
-                success: true,
-                message:
-                  "Mobile user registered successfully. Please verify your email.",
-                data: {
-                  user: {
-                    _id: newUser._doc._id,
-                    email: newUser._doc.email,
-                    firstName: newUser._doc.firstName,
-                    lastName: newUser._doc.lastName,
-                    verified: newUser._doc.verified,
-                    analyticsVersion: newUser._doc.analyticsVersion,
-                  },
-                  verificationEmailSent: true,
-                  nextStep: "Check your email for a 5-digit verification code",
-                },
-              };
-            } else {
-              logger.error("Mobile verification email failed", {
-                email: normalizedEmail,
-                userId,
-                tenant,
-                emailError:
-                  (emailResult && emailResult.message) || "Unknown email error",
-              });
-
-              return {
-                success: false,
-                message: "User created but verification email failed",
-                data: {
-                  user: {
-                    _id: newUser._doc._id,
-                    email: newUser._doc.email,
-                    firstName: newUser._doc.firstName,
-                    lastName: newUser._doc.lastName,
-                    verified: false,
-                  },
-                  verificationEmailSent: false,
-                  emailError:
-                    (emailResult && emailResult.message) ||
-                    "Email service unavailable",
-                },
-              };
-            }
           } catch (emailError) {
             logger.error(
-              `Mobile verification email exception: ${emailError.message}`,
-              {
-                email: normalizedEmail,
-                userId,
-                tenant,
-                error: emailError.message,
-                stack: emailError.stack && emailError.stack.substring(0, 500),
-              }
+              `Failed to send mobile verification reminder: ${emailError.message}`,
             );
 
             return {
               success: false,
-              message: "User created but email delivery failed",
+              message: "Account exists but not verified",
+              errors: {
+                email:
+                  "This email is already registered but not verified. Please check your email for the verification code or contact support.",
+              },
+              data: {
+                accountExists: true,
+                verified: false,
+                verificationEmailFailed: true,
+              },
+            };
+          }
+        }
+      }
+
+      // ✅ STEP 4: Prepare user data for mobile registration
+      const userData = {
+        ...request.body,
+        email: normalizedEmail,
+        userName: normalizedEmail,
+        analyticsVersion: 4,
+        ...(request.body.interests && { interests: request.body.interests }),
+        ...(request.body.interestsDescription && {
+          interestsDescription: request.body.interestsDescription,
+        }),
+        ...(request.body.country && { country: request.body.country }),
+        registrationSource: "mobile_app",
+        userAgent: request.headers?.["user-agent"]?.substring(0, 200),
+      };
+
+      // ✅ STEP 5: Create user
+      const newUserResponse = await UserModel(dbTenant).register(
+        userData,
+        next,
+        {
+          sendDuplicateEmail: false,
+        },
+      );
+
+      if (newUserResponse && newUserResponse.success === true) {
+        const newUser = newUserResponse.data;
+        const userId = newUser._doc._id;
+
+        // ✅ STEP 6: Generate mobile verification token
+        const verificationToken = generateNumericToken(5);
+        const tokenExpiry = 86400; // 24hrs in seconds
+
+        const tokenCreationBody = {
+          token: verificationToken,
+          name: newUser._doc.firstName,
+          expires: new Date(Date.now() + tokenExpiry * 1000),
+        };
+
+        const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+          tokenCreationBody,
+          next,
+        );
+
+        if (verifyTokenResponse && verifyTokenResponse.success === false) {
+          logger.error(
+            `Failed to create verification token for mobile user ${normalizedEmail}: ${verifyTokenResponse.message}`,
+            { email: normalizedEmail, userId, tenant },
+          );
+
+          try {
+            await UserModel(dbTenant).findByIdAndDelete(userId);
+            logger.info(
+              `Rolled back user creation due to token failure: ${userId}`,
+            );
+          } catch (rollbackError) {
+            logger.error(
+              `Failed to rollback user creation: ${rollbackError.message}`,
+            );
+          }
+
+          return verifyTokenResponse;
+        }
+
+        // ✅ STEP 7: Send verification email
+        try {
+          const emailResult = await mailer.sendVerificationEmail({
+            email: normalizedEmail,
+            token: verificationToken,
+            tenant,
+          });
+
+          if (emailResult && emailResult.success === true) {
+            return {
+              success: true,
+              message:
+                "Mobile user registered successfully. Please verify your email.",
+              data: {
+                user: {
+                  _id: newUser._doc._id,
+                  email: newUser._doc.email,
+                  firstName: newUser._doc.firstName,
+                  lastName: newUser._doc.lastName,
+                  verified: newUser._doc.verified,
+                  analyticsVersion: newUser._doc.analyticsVersion,
+                },
+                verificationEmailSent: true,
+                nextStep: "Check your email for a 5-digit verification code",
+              },
+            };
+          } else {
+            logger.error("Mobile verification email failed", {
+              email: normalizedEmail,
+              userId,
+              tenant,
+              emailError:
+                (emailResult && emailResult.message) || "Unknown email error",
+            });
+
+            return {
+              success: false,
+              message: "User created but verification email failed",
               data: {
                 user: {
                   _id: newUser._doc._id,
@@ -2512,39 +2574,54 @@ const createUserModule = {
                   verified: false,
                 },
                 verificationEmailSent: false,
-                emailError: emailError.message,
+                emailError:
+                  (emailResult && emailResult.message) ||
+                  "Email service unavailable",
               },
             };
           }
-        } else {
-          logger.error("Mobile user creation failed", {
-            email: normalizedEmail,
-            tenant,
-            error:
-              (newUserResponse && newUserResponse.message) ||
-              "Unknown creation error",
-            errors: newUserResponse && newUserResponse.errors,
-          });
-          return newUserResponse && Object.keys(newUserResponse).length > 0
-            ? newUserResponse
-            : newUserResponse || {
-                success: false,
-                message: "Failed to create mobile user account",
-              };
+        } catch (emailError) {
+          logger.error(
+            `Mobile verification email exception: ${emailError.message}`,
+            { email: normalizedEmail, userId, tenant },
+          );
+
+          return {
+            success: false,
+            message: "User created but email delivery failed",
+            data: {
+              user: {
+                _id: newUser._doc._id,
+                email: newUser._doc.email,
+                firstName: newUser._doc.firstName,
+                lastName: newUser._doc.lastName,
+                verified: false,
+              },
+              verificationEmailSent: false,
+              emailError: emailError.message,
+            },
+          };
         }
-      } finally {
-        // ✅ STEP 8: Always cleanup the lock
-        registrationLocks.delete(lockKey);
+      } else {
+        logger.error("Mobile user creation failed", {
+          email: normalizedEmail,
+          tenant,
+          error:
+            (newUserResponse && newUserResponse.message) ||
+            "Unknown creation error",
+        });
+        return newUserResponse && Object.keys(newUserResponse).length > 0
+          ? newUserResponse
+          : {
+              success: false,
+              message: "Failed to create mobile user account",
+            };
       }
     } catch (error) {
       logger.error(`🐛🐛 Mobile registration error: ${error.message}`, {
         email: request.body?.email,
         tenant: request.query?.tenant,
         stack: error.stack,
-        userAgent:
-          request.headers &&
-          request.headers["user-agent"] &&
-          request.headers["user-agent"].substring(0, 100),
       });
 
       return {
@@ -2574,61 +2651,46 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 1: Rate limiting for verification reminders
-      const reminderKey = `verify-reminder-${normalizedEmail}-${tenant}`;
+      // ✅ STEP 1: DB-backed rate limiting.
+      // dbRateLimiter atomically checks AND records on the allowed path.
+      // Do NOT call dbRateLimiterRecord after email success — that would double-count
+      // and block the user from requesting a reminder until the window resets.
+      const rateCheck = await dbRateLimiter(
+        dbTenant,
+        normalizedEmail,
+        "web_verification_reminder",
+        RATE_LIMIT_WINDOWS.WEB_VERIFICATION_REMINDER_MS,
+      );
 
-      if (registrationLocks.has(reminderKey)) {
-        const lockData = registrationLocks.get(reminderKey);
-        const timeElapsed = Date.now() - lockData.createdAt;
-        const remainingTime = Math.ceil((300000 - timeElapsed) / 1000); // 5 minutes lock
-
+      if (!rateCheck.allowed) {
+        const remainingMins = Math.ceil(rateCheck.remainingMs / 60000);
         logger.warn(
-          `Verification reminder rate limited for ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            timeElapsed: timeElapsed / 1000,
-            remainingSeconds: remainingTime,
-          }
+          `Verification reminder rate-limited (DB) for ${normalizedEmail}`,
+          { email: normalizedEmail, tenant, remainingMins },
         );
-
         return {
           success: false,
           message: "Please wait before requesting another verification email",
           status: httpStatus.TOO_MANY_REQUESTS,
           errors: {
-            rateLimit: `Please wait ${remainingTime} seconds before requesting another verification email.`,
+            rateLimit: `Please wait ${remainingMins} minute(s) before requesting another verification email.`,
           },
         };
       }
-
-      // Set rate limiting lock
-      registrationLocks.set(reminderKey, {
-        createdAt: Date.now(),
-        type: "verification_reminder",
-      });
-
-      setTimeout(() => {
-        registrationLocks.delete(reminderKey);
-      }, 300000); // 5 minute rate limit
 
       // ✅ STEP 2: Enhanced user lookup with verification status check
       const user = await UserModel(dbTenant)
         .findOne({ email: normalizedEmail })
         .select(
-          "_id email firstName lastName verified createdAt lastLogin analyticsVersion"
+          "_id email firstName lastName verified createdAt lastLogin analyticsVersion",
         )
         .lean();
 
       if (isEmpty(user)) {
         logger.warn(
           `Verification reminder requested for non-existent user: ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-          }
+          { email: normalizedEmail, tenant },
         );
-
         return {
           success: false,
           message: "User not found",
@@ -2650,19 +2712,16 @@ const createUserModule = {
             verification:
               "Your account is already verified. You can proceed to login.",
           },
-          data: {
-            alreadyVerified: true,
-            canLogin: true,
-          },
+          data: { alreadyVerified: true, canLogin: true },
         };
       }
 
       const user_id = user._id;
 
-      // ✅ STEP 4: Generate new verification token with enhanced security
+      // ✅ STEP 4: Generate new verification token
       const token = accessCodeGenerator
         .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
         )
         .toUpperCase();
 
@@ -2672,22 +2731,21 @@ const createUserModule = {
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
 
-      // ✅ STEP 5: Create verification token with cleanup of old tokens
+      // ✅ STEP 5: Create verification token with cleanup of expired tokens
       try {
-        // Clean up any existing tokens for this user first
         await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
-          expires: { $lt: new Date() }, // Delete expired tokens
+          expires: { $lt: new Date() },
         });
 
         const responseFromCreateToken = await VerifyTokenModel(
-          dbTenant
+          dbTenant,
         ).register(tokenCreationBody, next);
 
         if (!responseFromCreateToken) {
           logger.error(
             `🐛🐛 Error creating verification reminder token: responseFromCreateToken is undefined`,
-            { email: normalizedEmail, userId: user_id, tenant }
+            { email: normalizedEmail, userId: user_id, tenant },
           );
           return {
             success: false,
@@ -2707,7 +2765,9 @@ const createUserModule = {
           return responseFromCreateToken;
         }
 
-        // ✅ STEP 6: Send verification email with enhanced monitoring
+        // ✅ STEP 6: Send verification email
+        // NOTE: dbRateLimiter already recorded this action on the allowed path above.
+        // Do not call dbRateLimiterRecord here — it would cause double-counting.
         try {
           const responseFromSendEmail = await mailer.verifyEmail(
             {
@@ -2715,25 +2775,21 @@ const createUserModule = {
               token,
               email: normalizedEmail,
               firstName: user.firstName,
-              category: "reminder", // Mark as reminder for analytics
+              category: "reminder",
             },
-            next
+            next,
           );
 
           if (responseFromSendEmail) {
             if (responseFromSendEmail.success === true) {
-              const userDetails = {
-                firstName: user.firstName,
-                lastName: user.lastName,
-                email: user.email,
-                verified: user.verified,
-              };
-
               return {
                 success: true,
                 message: "Verification email sent successfully",
                 data: {
-                  ...userDetails,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  email: user.email,
+                  verified: user.verified,
                   reminderSent: true,
                   expiresIn: "24 hours",
                 },
@@ -2750,7 +2806,7 @@ const createUserModule = {
             }
           } else {
             logger.error(
-              "mailer.verifyEmail did not return a response for reminder"
+              "mailer.verifyEmail did not return a response for reminder",
             );
             return {
               success: false,
@@ -2764,14 +2820,8 @@ const createUserModule = {
         } catch (emailError) {
           logger.error(
             `Verification reminder email exception: ${emailError.message}`,
-            {
-              email: normalizedEmail,
-              userId: user_id,
-              tenant,
-              error: emailError.message,
-            }
+            { email: normalizedEmail, userId: user_id, tenant },
           );
-
           return {
             success: false,
             message: "Failed to send verification email",
@@ -2782,14 +2832,8 @@ const createUserModule = {
       } catch (tokenError) {
         logger.error(
           `Token creation error for verification reminder: ${tokenError.message}`,
-          {
-            email: normalizedEmail,
-            userId: user_id,
-            tenant,
-            error: tokenError.message,
-          }
+          { email: normalizedEmail, userId: user_id, tenant },
         );
-
         return {
           success: false,
           message: "Failed to create verification token",
@@ -2803,7 +2847,6 @@ const createUserModule = {
         tenant: request.tenant,
         stack: error.stack,
       });
-
       return {
         success: false,
         message: "Internal Server Error",
@@ -2828,60 +2871,44 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 1: Enhanced rate limiting for mobile
-      const reminderKey = `mobile-verify-reminder-${normalizedEmail}-${tenant}`;
+      // ✅ STEP 1: DB-backed rate limiting.
+      // dbRateLimiter atomically checks AND records on the allowed path.
+      // Do NOT call dbRateLimiterRecord after email success — that would double-count.
+      const rateCheck = await dbRateLimiter(
+        dbTenant,
+        normalizedEmail,
+        "mobile_verification_reminder",
+        RATE_LIMIT_WINDOWS.MOBILE_VERIFICATION_REMINDER_MS,
+      );
 
-      if (registrationLocks.has(reminderKey)) {
-        const lockData = registrationLocks.get(reminderKey);
-        const timeElapsed = Date.now() - lockData.createdAt;
-        const remainingTime = Math.ceil((180000 - timeElapsed) / 1000); // 3 minutes lock for mobile
-
+      if (!rateCheck.allowed) {
+        const remainingMins = Math.ceil(rateCheck.remainingMs / 60000);
         logger.warn(
-          `Mobile verification reminder rate limited for ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            timeElapsed: timeElapsed / 1000,
-            remainingSeconds: remainingTime,
-          }
+          `Mobile verification reminder rate-limited (DB) for ${normalizedEmail}`,
+          { email: normalizedEmail, tenant, remainingMins },
         );
-
         return {
           success: false,
           message: "Please wait before requesting another verification code",
           errors: {
-            rateLimit: `Please wait ${remainingTime} seconds before requesting another code.`,
+            rateLimit: `Please wait ${remainingMins} minute(s) before requesting another code.`,
           },
         };
       }
-
-      // Set rate limiting lock (shorter for mobile UX)
-      registrationLocks.set(reminderKey, {
-        createdAt: Date.now(),
-        type: "mobile_verification_reminder",
-      });
-
-      setTimeout(() => {
-        registrationLocks.delete(reminderKey);
-      }, 180000); // 3 minute rate limit for mobile
 
       // ✅ STEP 2: Enhanced user lookup
       const user = await UserModel(dbTenant)
         .findOne({ email: normalizedEmail })
         .select(
-          "_id email firstName lastName verified analyticsVersion createdAt"
+          "_id email firstName lastName verified analyticsVersion createdAt",
         )
         .lean();
 
       if (isEmpty(user)) {
         logger.warn(
           `Mobile verification reminder for non-existent user: ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-          }
+          { email: normalizedEmail, tenant },
         );
-
         return {
           success: false,
           message: "User not found",
@@ -2901,10 +2928,7 @@ const createUserModule = {
             verification:
               "Your mobile account is already verified. You can proceed to login.",
           },
-          data: {
-            alreadyVerified: true,
-            canLogin: true,
-          },
+          data: { alreadyVerified: true, canLogin: true },
         };
       }
 
@@ -2917,20 +2941,22 @@ const createUserModule = {
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
 
-      // ✅ STEP 5: Create token with cleanup
+      // ✅ STEP 5: Create token with cleanup of old expired tokens
       try {
-        // Clean up old mobile tokens first
         await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
-          token: { $regex: /^\d{5}$/ }, // Delete old 5-digit tokens
+          token: { $regex: /^\d{5}$/ },
           expires: { $lt: new Date() },
         });
 
         const responseFromCreateToken = await VerifyTokenModel(
-          dbTenant
+          dbTenant,
         ).register(tokenCreationBody, next);
 
-        if (responseFromCreateToken.success === false) {
+        if (
+          responseFromCreateToken &&
+          responseFromCreateToken.success === false
+        ) {
           logger.error("Mobile verification token creation failed", {
             email: normalizedEmail,
             userId: user._id,
@@ -2941,29 +2967,23 @@ const createUserModule = {
         }
 
         // ✅ STEP 6: Send mobile verification email
+        // NOTE: dbRateLimiter already recorded this action on the allowed path above.
+        // Do not call dbRateLimiterRecord here — it would cause double-counting.
         try {
           const emailResponse = await mailer.sendVerificationEmail(
-            {
-              email: normalizedEmail,
-              token,
-              tenant,
-            },
-            next
+            { email: normalizedEmail, token, tenant },
+            next,
           );
 
           if (emailResponse && emailResponse.success === true) {
-            const userDetails = {
-              firstName: user.firstName,
-              lastName: user.lastName,
-              email: user.email,
-              verified: user.verified,
-            };
-
             return {
               success: true,
               message: "Verification code sent to your email.",
               data: {
-                ...userDetails,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                verified: user.verified,
                 reminderSent: true,
                 codeLength: 5,
                 expiresIn: "24 hours",
@@ -2986,14 +3006,8 @@ const createUserModule = {
         } catch (emailError) {
           logger.error(
             `Mobile verification reminder email exception: ${emailError.message}`,
-            {
-              email: normalizedEmail,
-              userId: user._id,
-              tenant,
-              error: emailError.message,
-            }
+            { email: normalizedEmail, userId: user._id, tenant },
           );
-
           return {
             success: false,
             message: "Email delivery failed",
@@ -3003,14 +3017,8 @@ const createUserModule = {
       } catch (tokenError) {
         logger.error(
           `Mobile verification token creation error: ${tokenError.message}`,
-          {
-            email: normalizedEmail,
-            userId: user._id,
-            tenant,
-            error: tokenError.message,
-          }
+          { email: normalizedEmail, userId: user._id, tenant },
         );
-
         return {
           success: false,
           message: "Failed to generate verification code",
@@ -3020,13 +3028,8 @@ const createUserModule = {
     } catch (error) {
       logger.error(
         `🐛🐛 Mobile verification reminder error: ${error.message}`,
-        {
-          email: request.email,
-          tenant: request.tenant,
-          stack: error.stack,
-        }
+        { email: request.email, tenant: request.tenant, stack: error.stack },
       );
-
       return {
         success: false,
         message: "An unexpected error occurred",
@@ -3071,8 +3074,8 @@ const createUserModule = {
             email: normalizedEmail,
             tenant,
             tokenFormat: "invalid",
-            providedToken: token.replace(/./g, "*"), // Mask token in logs
-          }
+            providedToken: token.replace(/./g, "*"),
+          },
         );
 
         return {
@@ -3084,53 +3087,32 @@ const createUserModule = {
         };
       }
 
-      // ✅ STEP 3: Rate limiting for verification attempts
-      const verifyKey = `mobile-verify-${normalizedEmail}-${tenant}`;
+      // ✅ STEP 3: DB-backed rate limiting for verification attempts.
+      // A window between attempts prevents brute force while allowing legitimate
+      // users to retry promptly. Works across all Kubernetes pods.
+      // Failed attempts count against this limit intentionally — this is the
+      // brute-force guard. dbRateLimiter atomically checks AND records on the
+      // allowed path, so no separate dbRateLimiterRecord call is needed here.
+      const verifyRateCheck = await dbRateLimiter(
+        tenant,
+        normalizedEmail,
+        "mobile_email_verify_attempt",
+        RATE_LIMIT_WINDOWS.MOBILE_EMAIL_VERIFY_ATTEMPT_MS,
+      );
 
-      if (registrationLocks.has(verifyKey)) {
-        const lockData = registrationLocks.get(verifyKey);
-        const attempts = lockData.attempts || 0;
-
-        if (attempts >= 5) {
-          // Max 5 attempts per 15 minutes
-          const timeElapsed = Date.now() - lockData.createdAt;
-          const remainingTime = Math.ceil((900000 - timeElapsed) / 1000); // 15 minutes
-
-          logger.warn(
-            `Mobile verification rate limited for ${normalizedEmail}`,
-            {
-              email: normalizedEmail,
-              tenant,
-              attempts,
-              remainingSeconds: remainingTime,
-            }
-          );
-
-          return {
-            success: false,
-            message: "Too many verification attempts",
-            errors: {
-              rateLimit: `Please wait ${Math.ceil(
-                remainingTime / 60
-              )} minutes before trying again.`,
-            },
-          };
-        }
-
-        // Increment attempts
-        lockData.attempts = attempts + 1;
-        registrationLocks.set(verifyKey, lockData);
-      } else {
-        // First attempt
-        registrationLocks.set(verifyKey, {
-          createdAt: Date.now(),
-          attempts: 1,
-          type: "mobile_verification",
-        });
-
-        setTimeout(() => {
-          registrationLocks.delete(verifyKey);
-        }, 900000); // 15 minute window
+      if (!verifyRateCheck.allowed) {
+        const remainingMins = Math.ceil(verifyRateCheck.remainingMs / 60000);
+        logger.warn(
+          `Mobile verification rate-limited (DB) for ${normalizedEmail}`,
+          { email: normalizedEmail, tenant },
+        );
+        return {
+          success: false,
+          message: "Too many verification attempts",
+          errors: {
+            rateLimit: `Please wait ${remainingMins} minute(s) before trying again.`,
+          },
+        };
       }
 
       const timeZone = moment.tz.guess();
@@ -3145,7 +3127,7 @@ const createUserModule = {
       const userDetails = await UserModel(tenant)
         .find({ email: normalizedEmail })
         .select(
-          "_id firstName lastName userName email verified analyticsVersion"
+          "_id firstName lastName userName email verified analyticsVersion",
         )
         .lean();
 
@@ -3158,7 +3140,7 @@ const createUserModule = {
             email: normalizedEmail,
             tenant,
             token: token.replace(/./g, "*"),
-          }
+          },
         );
 
         return {
@@ -3172,9 +3154,6 @@ const createUserModule = {
 
       // ✅ STEP 5: Check if already verified
       if (user.verified) {
-        // Clear rate limiting on successful verification check
-        registrationLocks.delete(verifyKey);
-
         return {
           success: true,
           message: "Account already verified",
@@ -3192,14 +3171,13 @@ const createUserModule = {
       }
 
       // ✅ STEP 6: Validate verification token
-
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
           skip,
           limit,
           filter,
         },
-        next
+        next,
       );
 
       if (responseFromListAccessToken.success === true) {
@@ -3211,7 +3189,7 @@ const createUserModule = {
               userId: user._id,
               tenant,
               tokenStatus: "not_found_or_expired",
-            }
+            },
           );
 
           return {
@@ -3232,7 +3210,7 @@ const createUserModule = {
               filter,
               update,
             },
-            next
+            next,
           );
 
           if (responseFromUpdateUser.success === true) {
@@ -3243,7 +3221,7 @@ const createUserModule = {
             // ✅ STEP 8: Delete verification token
             filter = { token };
             const responseFromDeleteToken = await VerifyTokenModel(
-              tenant
+              tenant,
             ).remove({ filter }, next);
 
             if (responseFromDeleteToken.success === true) {
@@ -3257,11 +3235,8 @@ const createUserModule = {
                       email: user.email,
                       analyticsVersion: user.analyticsVersion || 4,
                     },
-                    next
+                    next,
                   );
-
-                // Clear rate limiting on successful verification
-                registrationLocks.delete(verifyKey);
 
                 if (
                   responseFromSendEmail &&
@@ -3285,7 +3260,7 @@ const createUserModule = {
                     status: httpStatus.OK,
                   };
                 } else {
-                  // Verification successful but welcome email failed
+                  // Verification successful but welcome email failed — not a blocker
                   return {
                     success: true,
                     message: "Email verified successfully!",
@@ -3313,7 +3288,7 @@ const createUserModule = {
                     userId: user._id,
                     tenant,
                     error: emailError.message,
-                  }
+                  },
                 );
 
                 // Still return success since verification completed
@@ -3342,7 +3317,7 @@ const createUserModule = {
                   userId: user._id,
                   tenant,
                   deleteError: responseFromDeleteToken.message,
-                }
+                },
               );
 
               return {
@@ -3433,7 +3408,7 @@ const createUserModule = {
       const userDetails = await UserModel(tenant)
         .find({ _id: ObjectId(user_id) })
         .select(
-          "_id firstName lastName userName email verified analyticsVersion"
+          "_id firstName lastName userName email verified analyticsVersion",
         )
         .lean();
 
@@ -3444,7 +3419,7 @@ const createUserModule = {
             userId: user_id,
             tenant,
             token: token.substring(0, 5) + "...",
-          }
+          },
         );
 
         return {
@@ -3491,7 +3466,7 @@ const createUserModule = {
           limit,
           filter,
         },
-        next
+        next,
       );
 
       if (responseFromListAccessToken.success === true) {
@@ -3503,7 +3478,7 @@ const createUserModule = {
               userId: user_id,
               tenant,
               tokenStatus: "not_found_or_expired",
-            }
+            },
           );
 
           return {
@@ -3525,7 +3500,7 @@ const createUserModule = {
               filter,
               update,
             },
-            next
+            next,
           );
 
           if (responseFromUpdateUser.success === true) {
@@ -3536,7 +3511,7 @@ const createUserModule = {
             // ✅ STEP 6: Delete verification token
             filter = { token };
             const responseFromDeleteToken = await VerifyTokenModel(
-              tenant
+              tenant,
             ).remove({ filter }, next);
 
             if (responseFromDeleteToken.success === true) {
@@ -3550,7 +3525,7 @@ const createUserModule = {
                       email: user.email,
                       analyticsVersion: user.analyticsVersion || 3,
                     },
-                    next
+                    next,
                   );
 
                 if (
@@ -3603,7 +3578,7 @@ const createUserModule = {
                     userId: user_id,
                     tenant,
                     error: emailError.message,
-                  }
+                  },
                 );
 
                 // Still return success since verification completed
@@ -3632,7 +3607,7 @@ const createUserModule = {
                   userId: user_id,
                   tenant,
                   deleteError: responseFromDeleteToken.message,
-                }
+                },
               );
 
               return {
@@ -3700,264 +3675,243 @@ const createUserModule = {
       };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      // ✅ STEP 1: Use a distributed lock (Redis) to prevent race conditions
-      let lockAcquired = false;
-      const lockKey = `reg-${email.toLowerCase()}-${dbTenant}`;
-      try {
-        lockAcquired = await redisSetNXAsync(lockKey, "locked", 30);
-        if (!lockAcquired) {
-          logger.warn(
-            `Duplicate registration attempt blocked by Redis lock for ${email}`
-          );
+      // ✅ DB-backed flood check: prevents duplicate POSTs within a short window.
+      // dbRateLimiter atomically checks AND records on the allowed path — do not
+      // call dbRateLimiterRecord separately or the attempt will be double-counted.
+      const floodCheck = await dbRateLimiter(
+        dbTenant,
+        email.toLowerCase(),
+        "web_registration_attempt",
+        RATE_LIMIT_WINDOWS.WEB_REGISTRATION_MS,
+      );
+
+      if (!floodCheck.allowed) {
+        // Round to nearest 10s to avoid leaking precise timing to bad actors.
+        const remainingSecs =
+          Math.ceil(floodCheck.remainingMs / 10000) * 10 || 30;
+        logger.warn(
+          `Duplicate web registration attempt blocked (DB) for ${email}`,
+        );
+        return {
+          success: false,
+          message: "Registration already in progress for this email",
+          status: httpStatus.CONFLICT,
+          errors: [
+            {
+              param: "email",
+              message: `A registration for this email is currently being processed. Please try again in about ${remainingSecs} seconds.`,
+              location: "body",
+            },
+          ],
+        };
+      }
+
+      // ✅ STEP 2: Check for existing user with enhanced logging
+      const existingUser = await UserModel(dbTenant)
+        .findOne({
+          email: email.toLowerCase(),
+        })
+        .lean();
+
+      if (!isEmpty(existingUser)) {
+        if (existingUser.verified) {
           return {
             success: false,
-            message: "Registration already in progress for this email",
+            message:
+              "An account with this email already exists and is verified",
             status: httpStatus.CONFLICT,
             errors: [
               {
                 param: "email",
                 message:
-                  "A registration for this email is currently being processed. Please wait a moment and try again.",
+                  "This email is already registered. Please use the 'Forgot Password' feature if you need to reset your password.",
                 location: "body",
               },
             ],
+            data: {
+              accountExists: true,
+              verified: true,
+              loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
+              forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
+            },
           };
-        }
-      } catch (lockError) {
-        // Make Redis lock a soft dependency. If Redis is down, log it but proceed.
-        // This increases availability at the small risk of a race condition.
-        logger.error(
-          `REDIS-LOCK-ERROR: Failed to acquire registration lock for ${email}: ${lockError.message}`
-        );
-        logger.warn(
-          `Proceeding with registration for ${email} without a lock. This may not be safe under high concurrency.`
-        );
-      }
+        } else {
+          try {
+            await createUserModule.verificationReminder(
+              {
+                tenant,
+                email: existingUser.email,
+              },
+              next,
+            );
 
-      try {
-        // ✅ STEP 2: Check for existing user with enhanced logging
-        const existingUser = await UserModel(dbTenant)
-          .findOne({
-            email: email.toLowerCase(),
-          })
-          .lean();
-
-        if (!isEmpty(existingUser)) {
-          // ✅ ENHANCED RESPONSE: Provide helpful information based on verification status
-          if (existingUser.verified) {
-            // User exists and is verified - send them to login
             return {
               success: false,
               message:
-                "An account with this email already exists and is verified",
+                "Account exists but is not verified. A new verification email has been sent.",
               status: httpStatus.CONFLICT,
               errors: [
                 {
                   param: "email",
                   message:
-                    "This email is already registered. Please use the 'Forgot Password' feature if you need to reset your password.",
+                    "This email is already registered but not verified. We've sent a new verification email.",
                   location: "body",
                 },
               ],
               data: {
                 accountExists: true,
-                verified: true,
-                loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
-                forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
+                verified: false,
+                verificationEmailSent: true,
               },
             };
-          } else {
-            // User exists but not verified - offer to resend verification
-
-            // Trigger verification email resend
-            try {
-              await createUserModule.verificationReminder(
-                {
-                  tenant,
-                  email: existingUser.email,
-                },
-                next
-              );
-
-              return {
-                success: false,
-                message:
-                  "Account exists but is not verified. A new verification email has been sent.",
-                status: httpStatus.CONFLICT,
-                errors: [
-                  {
-                    param: "email",
-                    message:
-                      "This email is already registered but not verified. We've sent a new verification email.",
-                    location: "body",
-                  },
-                ],
-                data: {
-                  accountExists: true,
-                  verified: false,
-                  verificationEmailSent: true,
-                },
-              };
-            } catch (emailError) {
-              logger.error(
-                `Failed to send verification reminder: ${emailError.message}`
-              );
-
-              return {
-                success: false,
-                message: "Account exists but is not verified",
-                status: httpStatus.CONFLICT,
-                errors: [
-                  {
-                    param: "email",
-                    message:
-                      "This email is already registered but not verified. Please check your email for the verification link or contact support.",
-                    location: "body",
-                  },
-                ],
-              };
-            }
-          }
-        }
-
-        // ✅ STEP 3: Proceed with normal user creation
-        const userBody = request.body;
-        const newRequest = Object.assign(
-          {
-            userName: email,
-            password,
-            analyticsVersion: 3,
-            ...(userBody.interests && { interests: userBody.interests }),
-            ...(userBody.interestsDescription && {
-              interestsDescription: userBody.interestsDescription,
-            }),
-            ...(userBody.country && { country: userBody.country }),
-          },
-          userBody
-        );
-
-        const responseFromCreateUser = await UserModel(dbTenant).register(
-          newRequest,
-          next,
-          { sendDuplicateEmail: true }
-        );
-
-        if (!responseFromCreateUser) {
-          return {
-            success: false,
-            message: "Failed to create user",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: [{ message: "User creation failed" }],
-          };
-        }
-
-        if (responseFromCreateUser.success === true) {
-          if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
-            return responseFromCreateUser;
-          }
-
-          const createdUser = await responseFromCreateUser.data;
-          const user_id = createdUser._doc._id;
-
-          try {
-            const dnt =
-              request?.headers?.["dnt"] === "1" ||
-              request?.headers?.["sec-gpc"] === "1";
-            if (!dnt) {
-              const distinctId =
-                createdUser?._id?.toString() ||
-                createdUser?._doc?._id?.toString() ||
-                null;
-              if (distinctId) {
-                analyticsService.track(distinctId, "user_registered", {
-                  method: "email_password",
-                  category,
-                });
-              }
-            }
-          } catch (analyticsError) {
+          } catch (emailError) {
             logger.error(
-              `PostHog registration track error: ${analyticsError.message}`
+              `Failed to send verification reminder: ${emailError.message}`,
             );
-          }
-          const token = accessCodeGenerator
-            .generate(
-              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
-            )
-            .toUpperCase();
 
-          const tokenCreationBody = {
-            token,
-            name: createdUser._doc.firstName,
-          };
-
-          const responseFromCreateToken = await VerifyTokenModel(
-            dbTenant
-          ).register(tokenCreationBody, next);
-
-          if (responseFromCreateToken.success === false) {
-            return responseFromCreateToken;
-          }
-
-          // ✅ STEP 4: Enhanced email sending with monitoring
-          const responseFromSendEmail = await mailer.verifyEmail(
-            {
-              user_id,
-              token,
-              email: createdUser._doc.email,
-              firstName: createdUser._doc.firstName,
-              category,
-            },
-            next
-          );
-
-          if (responseFromSendEmail) {
-            if (responseFromSendEmail.success === true) {
-              const userDetails = {
-                firstName: createdUser._doc.firstName,
-                lastName: createdUser._doc.lastName,
-                email: createdUser._doc.email,
-                verified: createdUser._doc.verified,
-              };
-
-              return {
-                success: true,
-                message:
-                  "Registration successful! Please check your email for verification instructions.",
-                data: userDetails,
-                status: responseFromSendEmail.status || httpStatus.OK,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
-            }
-          } else {
-            logger.error("mailer.verifyEmail did not return a response");
             return {
               success: false,
-              message: "User created but verification email failed to send",
-              status: httpStatus.PARTIAL_CONTENT,
+              message: "Account exists but is not verified",
+              status: httpStatus.CONFLICT,
               errors: [
                 {
+                  param: "email",
                   message:
-                    "Please contact support to resend verification email",
+                    "This email is already registered but not verified. Please check your email for the verification link or contact support.",
+                  location: "body",
                 },
               ],
             };
           }
-        } else if (responseFromCreateUser.success === false) {
+        }
+      }
+
+      // ✅ STEP 3: Proceed with normal user creation
+      const userBody = request.body;
+      const newRequest = Object.assign(
+        {
+          userName: email,
+          password,
+          analyticsVersion: 3,
+          ...(userBody.interests && { interests: userBody.interests }),
+          ...(userBody.interestsDescription && {
+            interestsDescription: userBody.interestsDescription,
+          }),
+          ...(userBody.country && { country: userBody.country }),
+        },
+        userBody,
+      );
+
+      const responseFromCreateUser = await UserModel(dbTenant).register(
+        newRequest,
+        next,
+        { sendDuplicateEmail: true },
+      );
+
+      if (!responseFromCreateUser) {
+        return {
+          success: false,
+          message: "Failed to create user",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: [{ message: "User creation failed" }],
+        };
+      }
+
+      if (responseFromCreateUser.success === true) {
+        if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
           return responseFromCreateUser;
         }
-      } finally {
-        // ✅ STEP 5: Always release the Redis lock, with error handling
-        if (lockAcquired) {
-          try {
-            await redisDelAsync(lockKey);
-          } catch (lockError) {
-            logger.error(
-              `Failed to release Redis lock for ${lockKey}: ${lockError.message}`
-            );
+
+        const createdUser = await responseFromCreateUser.data;
+        const user_id = createdUser._doc._id;
+
+        try {
+          const dnt =
+            request?.headers?.["dnt"] === "1" ||
+            request?.headers?.["sec-gpc"] === "1";
+          if (!dnt) {
+            const distinctId =
+              createdUser?._id?.toString() ||
+              createdUser?._doc?._id?.toString() ||
+              null;
+            if (distinctId) {
+              analyticsService.track(distinctId, "user_registered", {
+                method: "email_password",
+                category,
+              });
+            }
           }
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog registration track error: ${analyticsError.message}`,
+          );
         }
+
+        const token = accessCodeGenerator
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
+          )
+          .toUpperCase();
+
+        const tokenCreationBody = {
+          token,
+          name: createdUser._doc.firstName,
+        };
+
+        const responseFromCreateToken = await VerifyTokenModel(
+          dbTenant,
+        ).register(tokenCreationBody, next);
+
+        if (responseFromCreateToken.success === false) {
+          return responseFromCreateToken;
+        }
+
+        // ✅ STEP 4: Enhanced email sending with monitoring
+        const responseFromSendEmail = await mailer.verifyEmail(
+          {
+            user_id,
+            token,
+            email: createdUser._doc.email,
+            firstName: createdUser._doc.firstName,
+            category,
+          },
+          next,
+        );
+
+        if (responseFromSendEmail) {
+          if (responseFromSendEmail.success === true) {
+            const userDetails = {
+              firstName: createdUser._doc.firstName,
+              lastName: createdUser._doc.lastName,
+              email: createdUser._doc.email,
+              verified: createdUser._doc.verified,
+            };
+
+            return {
+              success: true,
+              message:
+                "Registration successful! Please check your email for verification instructions.",
+              data: userDetails,
+              status: responseFromSendEmail.status || httpStatus.OK,
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else {
+          logger.error("mailer.verifyEmail did not return a response");
+          return {
+            success: false,
+            message: "User created but verification email failed to send",
+            status: httpStatus.PARTIAL_CONTENT,
+            errors: [
+              {
+                message: "Please contact support to resend verification email",
+              },
+            ],
+          };
+        }
+      } else if (responseFromCreateUser.success === false) {
+        return responseFromCreateUser;
       }
     } catch (error) {
       logger.error(
@@ -3966,7 +3920,7 @@ const createUserModule = {
           email: request.body?.email,
           tenant: request.query?.tenant,
           stack: error.stack,
-        }
+        },
       );
 
       return {
@@ -4025,7 +3979,7 @@ const createUserModule = {
             tenant,
             lockExists: true,
             requestedBy: (request.user && request.user.email) || "unknown",
-          }
+          },
         );
 
         return {
@@ -4116,7 +4070,7 @@ const createUserModule = {
 
         // ✅ STEP 4: Generate secure password with enhanced logging
         const password = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          constants.RANDOM_PASSWORD_CONFIGURATION(10),
         );
 
         const requestBody = {
@@ -4143,7 +4097,7 @@ const createUserModule = {
         const responseFromCreateUser = await UserModel(tenant).register(
           requestBody,
           next,
-          { sendDuplicateEmail: false } // Admin creation shouldn't send duplicate emails
+          { sendDuplicateEmail: false }, // Admin creation shouldn't send duplicate emails
         );
 
         if (responseFromCreateUser.success === true) {
@@ -4166,7 +4120,7 @@ const createUserModule = {
             }
           } catch (analyticsError) {
             logger.error(
-              `PostHog registration track error: ${analyticsError.message}`
+              `PostHog registration track error: ${analyticsError.message}`,
             );
           }
 
@@ -4181,7 +4135,7 @@ const createUserModule = {
                 tenant,
                 type: "user",
               },
-              next
+              next,
             );
 
             if (responseFromSendEmail) {
@@ -4241,7 +4195,7 @@ const createUserModule = {
                 userId: createdUser._doc._id,
                 tenant,
                 error: emailError.message,
-              }
+              },
             );
 
             return {
@@ -4304,7 +4258,7 @@ const createUserModule = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
-          })
+          }),
         );
       }
 
@@ -4318,13 +4272,13 @@ const createUserModule = {
           resetPasswordExpires: Date.now() + 3600000,
         };
         const responseFromModifyUser = await UserModel(
-          tenant.toLowerCase()
+          tenant.toLowerCase(),
         ).modify(
           {
             filter,
             update,
           },
-          next
+          next,
         );
         if (responseFromModifyUser.success === true) {
           /**
@@ -4338,7 +4292,7 @@ const createUserModule = {
               version,
               slug,
             },
-            next
+            next,
           );
 
           if (responseFromSendEmail) {
@@ -4358,8 +4312,8 @@ const createUserModule = {
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send forgot password email" }
-              )
+                { message: "Failed to send forgot password email" },
+              ),
             );
           }
         } else if (responseFromModifyUser.success === false) {
@@ -4374,8 +4328,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4399,7 +4353,7 @@ const createUserModule = {
       };
 
       const updatedUser = await UserModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).findOneAndUpdate(
         filter,
         {
@@ -4409,7 +4363,7 @@ const createUserModule = {
             resetPasswordExpires: null,
           },
         },
-        { new: true, context: "query" } // No runValidators
+        { new: true, context: "query" }, // No runValidators
       );
 
       if (!updatedUser) {
@@ -4417,7 +4371,7 @@ const createUserModule = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Password reset token is invalid or has expired.",
-          })
+          }),
         );
       }
       // 2. Use findOneAndUpdate WITHOUT runValidators
@@ -4430,11 +4384,11 @@ const createUserModule = {
             firstName,
             lastName,
           },
-          next
+          next,
         )
         .catch((error) => {
           logger.error(
-            `Failed to send password reset confirmation email to ${email}: ${error.message}`
+            `Failed to send password reset confirmation email to ${email}: ${error.message}`,
           );
         });
 
@@ -4450,8 +4404,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4467,7 +4421,7 @@ const createUserModule = {
         return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: "old_password and new password are required",
-          })
+          }),
         );
       }
 
@@ -4475,7 +4429,7 @@ const createUserModule = {
         return next(
           new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
             message: "Missing authenticated user",
-          })
+          }),
         );
       }
 
@@ -4491,7 +4445,7 @@ const createUserModule = {
         return next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "User not found",
-          })
+          }),
         );
       }
 
@@ -4501,7 +4455,7 @@ const createUserModule = {
         return next(
           new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
             message: "Invalid old password",
-          })
+          }),
         );
       }
 
@@ -4509,7 +4463,7 @@ const createUserModule = {
         return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: "New password must be different from old password",
-          })
+          }),
         );
       }
 
@@ -4523,7 +4477,7 @@ const createUserModule = {
             resetPasswordExpires: null,
           },
         },
-        { new: true, context: "query" } // No runValidators
+        { new: true, context: "query" }, // No runValidators
       );
 
       if (!updatedUser) {
@@ -4533,8 +4487,8 @@ const createUserModule = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: "Failed to update password",
-            }
-          )
+            },
+          ),
         );
       }
 
@@ -4545,14 +4499,14 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`
+        `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4631,7 +4585,7 @@ const createUserModule = {
           filter,
           update: { $set: sanitizedUpdate },
         },
-        next
+        next,
       );
 
       logObject("responseFromModifyUser", responseFromModifyUser);
@@ -4676,7 +4630,7 @@ const createUserModule = {
           }
         } catch (analyticsError) {
           logger.error(
-            `PostHog identify/update error: ${analyticsError.message}`
+            `PostHog identify/update error: ${analyticsError.message}`,
           );
         }
 
@@ -4706,7 +4660,7 @@ const createUserModule = {
               lastName,
               updatedUserDetails: emailUpdatePayload,
             },
-            next
+            next,
           );
 
           if (responseFromSendEmail && responseFromSendEmail.success === true) {
@@ -4726,8 +4680,8 @@ const createUserModule = {
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send update email" }
-              )
+                { message: "Failed to send update email" },
+              ),
             );
           }
         }
@@ -4741,8 +4695,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4758,7 +4712,7 @@ const createUserModule = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "The 'analytics' field must be a boolean value (true or false).",
-          })
+          }),
         );
       }
 
@@ -4775,14 +4729,14 @@ const createUserModule = {
         update,
         {
           new: true,
-        }
+        },
       );
 
       if (!updatedUser) {
         return next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "User not found.",
-          })
+          }),
         );
       }
 
@@ -4823,7 +4777,7 @@ const createUserModule = {
             cohorts: { $each: cohort_ids.map((id) => new ObjectId(id)) },
           },
         },
-        { new: true }
+        { new: true },
       );
 
       if (!user) {
@@ -4850,8 +4804,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4882,8 +4836,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4911,7 +4865,7 @@ const createUserModule = {
       } else {
         // Log that the user was not found, but do not throw an error to the client.
         logger.warn(
-          `Password reset requested for non-existent email: ${email} in tenant: ${tenant}`
+          `Password reset requested for non-existent email: ${email} in tenant: ${tenant}`,
         );
       }
 
@@ -4924,7 +4878,7 @@ const createUserModule = {
     } catch (error) {
       // This will catch database errors or mailer errors.
       logger.error(
-        `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`
+        `🐛🐛 Internal Server Error in initiatePasswordReset: ${error.message}`,
       );
       // Re-throw a generic error to be handled by the controller.
       throw new HttpError(
@@ -4933,7 +4887,7 @@ const createUserModule = {
         {
           message:
             "An internal error occurred during the password reset process.",
-        }
+        },
       );
     }
   },
@@ -4964,7 +4918,7 @@ const createUserModule = {
             resetPasswordExpires: null,
           },
         },
-        { new: true, context: "query" } // No runValidators
+        { new: true, context: "query" }, // No runValidators
       );
 
       if (!updatedUser) {
@@ -4972,8 +4926,8 @@ const createUserModule = {
         return next(
           new HttpError(
             "Password reset token is invalid or has expired.",
-            httpStatus.BAD_REQUEST
-          )
+            httpStatus.BAD_REQUEST,
+          ),
         );
       }
       // 2. Use findOneAndUpdate WITHOUT runValidators
@@ -4986,11 +4940,11 @@ const createUserModule = {
             firstName,
             lastName,
           },
-          next
+          next,
         )
         .catch((error) => {
           logger.error(
-            `Failed to send password reset confirmation email to ${email}: ${error.message}`
+            `Failed to send password reset confirmation email to ${email}: ${error.message}`,
           );
         });
 
@@ -5007,8 +4961,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5035,7 +4989,7 @@ const createUserModule = {
   },
   isPasswordTokenValid: async (
     { tenant = "airqo", filter = {} } = {},
-    next
+    next,
   ) => {
     try {
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
@@ -5043,7 +4997,7 @@ const createUserModule = {
         {
           filter,
         },
-        next
+        next,
       );
       logObject("responseFromListUser", responseFromListUser);
       if (responseFromListUser.success === true) {
@@ -5054,7 +5008,7 @@ const createUserModule = {
           next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "password reset link is invalid or has expired",
-            })
+            }),
           );
         } else if (responseFromListUser.data.length === 1) {
           return {
@@ -5073,8 +5027,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5111,7 +5065,7 @@ const createUserModule = {
           email_address: email,
           status_if_new: "subscribed",
           merge_fields: mergeFields,
-        }
+        },
       );
       const existingTags = responseFromMailChimp.tags.map((tag) => tag.name);
 
@@ -5131,7 +5085,7 @@ const createUserModule = {
             body: {
               tags: formattedTags,
             },
-          }
+          },
         );
 
       if (responseFromUpdateSubscriberTags === null) {
@@ -5149,20 +5103,20 @@ const createUserModule = {
             {
               message:
                 "unable to Update Subsriber Tags for the newsletter subscription",
-            }
-          )
+            },
+          ),
         );
       }
     } catch (error) {
       logObject("error.response.body", error.response.body);
       logger.error(
-        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`
+        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`,
       );
       next(
         new HttpError("Internal Server Error", error.response.body.status, {
           message: error.message,
           ...error.response.body,
-        })
+        }),
       );
     }
   },
@@ -5176,7 +5130,7 @@ const createUserModule = {
       const responseFromMailChimp = await mailchimp.lists.setListMember(
         listId,
         subscriberHash,
-        { email_address: email, status: "unsubscribed" }
+        { email_address: email, status: "unsubscribed" },
       );
 
       logObject("responseFromMailChimp", responseFromMailChimp);
@@ -5185,8 +5139,8 @@ const createUserModule = {
         return next(
           new HttpError(
             `Failed to unsubscribe from newsletter`,
-            httpStatus.INTERNAL_SERVER_ERROR
-          )
+            httpStatus.INTERNAL_SERVER_ERROR,
+          ),
         );
       }
 
@@ -5202,8 +5156,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5229,7 +5183,7 @@ const createUserModule = {
         {
           email_address: email,
           status: "subscribed",
-        }
+        },
       );
 
       logObject("responseFromMailChimp", responseFromMailChimp);
@@ -5242,14 +5196,14 @@ const createUserModule = {
     } catch (error) {
       logObject("resubscribe error", error.response.body);
       logger.error(
-        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`
+        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message, ...error.response.body }
-        )
+          { message: error.message, ...error.response.body },
+        ),
       );
     }
   },
@@ -5270,8 +5224,8 @@ const createUserModule = {
         return next(
           new HttpError(
             `Failed to unsubscribe from newsletter: ${responseFromMailChimp.error}`,
-            httpStatus.INTERNAL_SERVER_ERROR
-          )
+            httpStatus.INTERNAL_SERVER_ERROR,
+          ),
         );
       }
 
@@ -5287,7 +5241,7 @@ const createUserModule = {
         new HttpError("Internal Server Error", error.response.body.status, {
           message: error.message,
           ...error.response.body,
-        })
+        }),
       );
     }
   },
@@ -5311,7 +5265,7 @@ const createUserModule = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid token",
-          })
+          }),
         );
       }
 
@@ -5324,7 +5278,7 @@ const createUserModule = {
           constants.FIREBASE_COLLECTION_FAVORITE_PLACES,
         ];
         let collectionRef = db.collection(
-          `${constants.FIREBASE_COLLECTION_USERS}`
+          `${constants.FIREBASE_COLLECTION_USERS}`,
         );
         let docRef = collectionRef.doc(userId);
 
@@ -5335,7 +5289,7 @@ const createUserModule = {
               await deleteCollection(
                 db,
                 `${collection}/${userId}/${userId}`,
-                100
+                100,
               );
               collectionRef = db.collection(`${collection}`);
               docRef = collectionRef.doc(userId);
@@ -5352,8 +5306,8 @@ const createUserModule = {
                 httpStatus.INTERNAL_SERVER_ERROR,
                 {
                   message: error.message,
-                }
-              )
+                },
+              ),
             );
           });
 
@@ -5368,8 +5322,8 @@ const createUserModule = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: error.message }
-          )
+            { message: error.message },
+          ),
         );
       }
     } catch (error) {
@@ -5378,8 +5332,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5403,7 +5357,7 @@ const createUserModule = {
           pdfFile,
           csvFile,
         },
-        next
+        next,
       );
 
       if (responseFromSendEmail.success === true) {
@@ -5424,8 +5378,8 @@ const createUserModule = {
             {
               message: "Failed to send Report",
               ...errorObject,
-            }
-          )
+            },
+          ),
         );
       }
     } catch (error) {
@@ -5434,8 +5388,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5465,11 +5419,11 @@ const createUserModule = {
       }
 
       const updatedSubscription = await SubscriptionModel(
-        tenant
+        tenant,
       ).findOneAndUpdate(
         { email },
         { $set: { [`notifications.${type}`]: true } },
-        { new: true, upsert: true }
+        { new: true, upsert: true },
       );
 
       if (updatedSubscription) {
@@ -5494,8 +5448,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -5524,11 +5478,11 @@ const createUserModule = {
       }
 
       const updatedSubscription = await SubscriptionModel(
-        tenant
+        tenant,
       ).findOneAndUpdate(
         { email },
         { $set: { [`notifications.${type}`]: false } },
-        { new: true, upsert: true }
+        { new: true, upsert: true },
       );
 
       if (updatedSubscription) {
@@ -5553,8 +5507,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -5602,7 +5556,7 @@ const createUserModule = {
           email,
           type,
         },
-        next
+        next,
       );
 
       return result;
@@ -5631,7 +5585,7 @@ const createUserModule = {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "Organization not found",
-          })
+          }),
         );
       }
 
@@ -5652,8 +5606,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5673,7 +5627,7 @@ const createUserModule = {
         next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "Organization not found",
-          })
+          }),
         );
       }
 
@@ -5687,7 +5641,7 @@ const createUserModule = {
       // Register the user
       const responseFromCreateUser = await UserModel(tenant).register(
         userBody,
-        next
+        next,
       );
 
       if (responseFromCreateUser.success === true) {
@@ -5697,7 +5651,7 @@ const createUserModule = {
         // Generate verification token
         const token = accessCodeGenerator
           .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
           )
           .toUpperCase();
 
@@ -5708,7 +5662,7 @@ const createUserModule = {
         };
 
         const responseFromCreateToken = await VerifyTokenModel(
-          tenant.toLowerCase()
+          tenant.toLowerCase(),
         ).register(tokenCreationBody, next);
 
         if (responseFromCreateToken.success === false) {
@@ -5736,7 +5690,7 @@ const createUserModule = {
             organization: group.grp_title, // Add organization context
             org_slug: org_slug, // Add organization slug for branded links
           },
-          next
+          next,
         );
 
         // Track analytics event
@@ -5771,8 +5725,8 @@ const createUserModule = {
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send verification email" }
-            )
+              { message: "Failed to send verification email" },
+            ),
           );
         }
       }
@@ -5784,8 +5738,8 @@ const createUserModule = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5807,8 +5761,8 @@ const createUserModule = {
         isObjectId(v)
           ? v
           : mongoose.Types.ObjectId.isValid(v)
-          ? new mongoose.Types.ObjectId(v)
-          : v;
+            ? new mongoose.Types.ObjectId(v)
+            : v;
 
       // --- 1. Consolidate duplicate roles for all GROUPS (Safer Implementation) ---
       const groupRoleMap = new Map();
@@ -5824,7 +5778,7 @@ const createUserModule = {
       for (const [groupId, assignments] of groupRoleMap.entries()) {
         if (assignments.length > 1) {
           logger.info(
-            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for group ${groupId}. Consolidating.`,
           );
           const group = await GroupModel(tenant).findById(groupId).lean();
           if (!group) {
@@ -5840,18 +5794,19 @@ const createUserModule = {
               .lean();
             const superAdminRole = possibleRoles.find(
               (r) =>
-                r.role_code && r.role_code.toUpperCase() === "AIRQO_SUPER_ADMIN"
+                r.role_code &&
+                r.role_code.toUpperCase() === "AIRQO_SUPER_ADMIN",
             );
             const adminRole = possibleRoles.find(
-              (r) => r.role_code && r.role_code.toUpperCase() === "AIRQO_ADMIN"
+              (r) => r.role_code && r.role_code.toUpperCase() === "AIRQO_ADMIN",
             );
             const defaultUserRole = possibleRoles.find(
               (r) =>
                 r.role_code &&
-                r.role_code.toUpperCase() === "AIRQO_DEFAULT_USER"
+                r.role_code.toUpperCase() === "AIRQO_DEFAULT_USER",
             );
             const userRoleIds = new Set(
-              assignments.map((a) => a.role && a.role.toString())
+              assignments.map((a) => a.role && a.role.toString()),
             );
 
             if (
@@ -5869,14 +5824,14 @@ const createUserModule = {
               .find({ group_id: mongoose.Types.ObjectId(groupId) })
               .lean();
             const present = new Set(
-              assignments.map((a) => a.role && a.role.toString())
+              assignments.map((a) => a.role && a.role.toString()),
             );
             const prefer = (suffix) =>
               possibleRoles.find(
                 (r) =>
                   r.role_code &&
                   r.role_code.endsWith(suffix) &&
-                  present.has(r._id.toString())
+                  present.has(r._id.toString()),
               );
             desiredRole =
               prefer("_SUPER_ADMIN") ||
@@ -5887,7 +5842,7 @@ const createUserModule = {
             if (!desiredRole) {
               const orgName = normalizeName(group.grp_title);
               const defaultMember = possibleRoles.find(
-                (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+                (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`,
               );
               desiredRole =
                 defaultMember ||
@@ -5899,9 +5854,9 @@ const createUserModule = {
             const earliestCreatedAt = new Date(
               Math.min(
                 ...assignments.map((a) =>
-                  new Date(a.createdAt || Date.now()).getTime()
-                )
-              )
+                  new Date(a.createdAt || Date.now()).getTime(),
+                ),
+              ),
             );
             consolidatedGroupRoles.push({
               group: mongoose.Types.ObjectId(groupId),
@@ -5934,7 +5889,7 @@ const createUserModule = {
       for (const [networkId, assignments] of networkRoleMap.entries()) {
         if (assignments.length > 1) {
           logger.info(
-            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`
+            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`,
           );
           const network = await NetworkModel(tenant).findById(networkId).lean();
           if (!network) {
@@ -5946,14 +5901,14 @@ const createUserModule = {
             .find({ network_id: mongoose.Types.ObjectId(networkId) })
             .lean();
           const present = new Set(
-            assignments.map((a) => a.role && a.role.toString())
+            assignments.map((a) => a.role && a.role.toString()),
           );
           const prefer = (suffix) =>
             possibleRoles.find(
               (r) =>
                 r.role_code &&
                 r.role_code.endsWith(suffix) &&
-                present.has(r._id.toString())
+                present.has(r._id.toString()),
             );
           let desiredRole =
             prefer("_SUPER_ADMIN") ||
@@ -5964,7 +5919,7 @@ const createUserModule = {
           if (!desiredRole) {
             const orgName = normalizeName(network.net_name);
             const defaultMember = possibleRoles.find(
-              (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+              (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`,
             );
             desiredRole =
               defaultMember ||
@@ -5975,9 +5930,9 @@ const createUserModule = {
             const earliestCreatedAtNet = new Date(
               Math.min(
                 ...assignments.map((a) =>
-                  new Date(a.createdAt || Date.now()).getTime()
-                )
-              )
+                  new Date(a.createdAt || Date.now()).getTime(),
+                ),
+              ),
             );
             consolidatedNetworkRoles.push({
               network: mongoose.Types.ObjectId(networkId),
@@ -6001,15 +5956,15 @@ const createUserModule = {
         .select("_id")
         .lean();
       const deprecatedRoleIds = new Set(
-        deprecatedRoles.map((r) => r._id.toString())
+        deprecatedRoles.map((r) => r._id.toString()),
       );
 
       if (deprecatedRoleIds.size > 0) {
         finalGroupRoles = finalGroupRoles.filter(
-          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString()),
         );
         finalNetworkRoles = finalNetworkRoles.filter(
-          (a) => a.role && !deprecatedRoleIds.has(a.role.toString())
+          (a) => a.role && !deprecatedRoleIds.has(a.role.toString()),
         );
       }
 
@@ -6019,7 +5974,7 @@ const createUserModule = {
         .lean();
       if (airqoGroup) {
         const hasAirqoRole = finalGroupRoles.some(
-          (a) => a.group && a.group.toString() === airqoGroup._id.toString()
+          (a) => a.group && a.group.toString() === airqoGroup._id.toString(),
         );
         if (
           !hasAirqoRole &&
@@ -6059,7 +6014,8 @@ const createUserModule = {
           })
           .filter((x) => x && x.ctx && x.role)
           .sort(
-            (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
+            (x, y) =>
+              x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role),
           );
       };
 
@@ -6079,14 +6035,14 @@ const createUserModule = {
           .sort(
             (a, b) =>
               a.group.toString().localeCompare(b.group.toString()) ||
-              a.role.toString().localeCompare(b.role.toString())
+              a.role.toString().localeCompare(b.role.toString()),
           );
         finalNetworkRoles = finalNetworkRoles
           .filter((r) => r && r.network && r.role)
           .sort(
             (a, b) =>
               a.network.toString().localeCompare(b.network.toString()) ||
-              a.role.toString().localeCompare(b.role.toString())
+              a.role.toString().localeCompare(b.role.toString()),
           );
         updateQuery.$set = {
           group_roles: finalGroupRoles,
@@ -6105,14 +6061,14 @@ const createUserModule = {
       if (needsUpdate) {
         await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery);
         logger.info(
-          `[Role Cleanup] Successfully consolidated and cleaned roles for user ${user.email}.`
+          `[Role Cleanup] Successfully consolidated and cleaned roles for user ${user.email}.`,
         );
       }
     } catch (error) {
       logger.error(
         `[Role Cleanup] Error during role cleanup for ${
           user ? user.email : "unknown user"
-        }: ${error.message}`
+        }: ${error.message}`,
       );
     }
   },
@@ -6150,11 +6106,11 @@ const createUserModule = {
     if (constants.FORCE_SAFE_TOKEN_STRATEGY === true) {
       if (desiredStrategy !== SAFE_FALLBACK_STRATEGY) {
         logger.warn(
-          `FORCE_SAFE_TOKEN_STRATEGY is active. Overriding requested strategy '${desiredStrategy}' with '${SAFE_FALLBACK_STRATEGY}' for user ${user.email}.`
+          `FORCE_SAFE_TOKEN_STRATEGY is active. Overriding requested strategy '${desiredStrategy}' with '${SAFE_FALLBACK_STRATEGY}' for user ${user.email}.`,
         );
       }
       logger.info(
-        `Using forced safe token strategy: ${SAFE_FALLBACK_STRATEGY}`
+        `Using forced safe token strategy: ${SAFE_FALLBACK_STRATEGY}`,
       );
       return SAFE_FALLBACK_STRATEGY;
     }
@@ -6162,7 +6118,7 @@ const createUserModule = {
     // Validate if the desired strategy is a known, valid strategy.
     if (!Object.values(constants.TOKEN_STRATEGIES).includes(desiredStrategy)) {
       logger.warn(
-        `Invalid token strategy '${desiredStrategy}' requested for user ${user.email}. Falling back to '${SAFE_FALLBACK_STRATEGY}'.`
+        `Invalid token strategy '${desiredStrategy}' requested for user ${user.email}. Falling back to '${SAFE_FALLBACK_STRATEGY}'.`,
       );
       return SAFE_FALLBACK_STRATEGY;
     }
@@ -6170,14 +6126,14 @@ const createUserModule = {
     // Prevent the use of disallowed large strategies for login.
     if (DISALLOWED_STRATEGIES.has(desiredStrategy)) {
       logger.warn(
-        `Disallowed large token strategy '${desiredStrategy}' was requested for user ${user.email}. Overriding with '${SAFE_FALLBACK_STRATEGY}' to prevent potential login issues.`
+        `Disallowed large token strategy '${desiredStrategy}' was requested for user ${user.email}. Overriding with '${SAFE_FALLBACK_STRATEGY}' to prevent potential login issues.`,
       );
       return SAFE_FALLBACK_STRATEGY;
     }
 
     // If the strategy is valid and allowed, use it.
     logger.info(
-      `Using effective token strategy '${desiredStrategy}' for user ${user.email}.`
+      `Using effective token strategy '${desiredStrategy}' for user ${user.email}.`,
     );
     return desiredStrategy;
   },
@@ -6227,7 +6183,7 @@ const createUserModule = {
   _constructLoginUpdate: (
     user,
     strategy = null,
-    { autoVerify = false } = {}
+    { autoVerify = false } = {},
   ) => {
     const currentDate = new Date();
     const updatePayload = {
@@ -6321,12 +6277,12 @@ const createUserModule = {
           if (verificationResult.requiresV3Reminder) {
             await createUserModule.verificationReminder(
               { tenant: dbTenant, email: user.email },
-              next
+              next,
             );
           } else if (verificationResult.requiresV4Reminder) {
             await createUserModule.mobileVerificationReminder(
               { tenant: dbTenant, email: user.email },
-              next
+              next,
             );
           }
         } catch (reminderErr) {
@@ -6362,7 +6318,7 @@ const createUserModule = {
       // Get comprehensive permission data
       logObject("🔍 Getting comprehensive permissions for user:", user._id);
       const loginPermissions = await rbacService.getUserPermissionsForLogin(
-        user._id
+        user._id,
       );
 
       logObject("✅ Permissions calculated:", {
@@ -6376,7 +6332,7 @@ const createUserModule = {
       // Determine token strategy
       const strategy = createUserModule._getEffectiveTokenStrategy(
         user,
-        preferredStrategy
+        preferredStrategy,
       );
 
       logObject("🎯 Using token strategy:", strategy);
@@ -6386,7 +6342,7 @@ const createUserModule = {
 
       const populatedUser = await createUserModule._populateUserDataManually(
         user,
-        dbTenant
+        dbTenant,
       );
 
       // --- START of new logic ---
@@ -6395,13 +6351,13 @@ const createUserModule = {
       let transitionCutoffDate = new Date(
         (constants.AUTH && constants.AUTH.TOKEN_TRANSITION_CUTOFF_DATE) ||
           process.env.TOKEN_TRANSITION_CUTOFF_DATE ||
-          "2025-10-15T00:00:00Z"
+          "2025-10-15T00:00:00Z",
       );
 
       // Validate the date to prevent errors from invalid configuration.
       if (Number.isNaN(transitionCutoffDate.getTime())) {
         logger.error(
-          "Invalid TOKEN_TRANSITION_CUTOFF_DATE. Falling back to standard 24h expiration."
+          "Invalid TOKEN_TRANSITION_CUTOFF_DATE. Falling back to standard 24h expiration.",
         );
         transitionCutoffDate = new Date(0); // A date in the past.
       }
@@ -6423,7 +6379,7 @@ const createUserModule = {
         const remainingMilliseconds =
           transitionCutoffDate.getTime() - now.getTime();
         const remainingDays = Math.ceil(
-          remainingMilliseconds / (1000 * 60 * 60 * 24)
+          remainingMilliseconds / (1000 * 60 * 60 * 24),
         );
         // The token should last for the remaining transition period, but not less than 24 hours.
         effectiveExpiresIn = `${Math.max(1, remainingDays)}d`;
@@ -6466,12 +6422,12 @@ const createUserModule = {
           const updatePayload = createUserModule._constructLoginUpdate(
             user,
             strategy,
-            { autoVerify: shouldAutoVerify }
+            { autoVerify: shouldAutoVerify },
           );
           const updatedUser = await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
             updatePayload,
-            { new: true, upsert: false, runValidators: true }
+            { new: true, upsert: false, runValidators: true },
           );
           if (updatedUser) {
             // await createUserModule.ensureDefaultAirqoRole(
@@ -6481,7 +6437,7 @@ const createUserModule = {
           }
         } catch (updateError) {
           logger.error(
-            `Login stats/roles update error: ${updateError.message}`
+            `Login stats/roles update error: ${updateError.message}`,
           );
         }
       })();
@@ -6555,14 +6511,14 @@ const createUserModule = {
                 groups: Object.keys(loginPermissions.groupPermissions).reduce(
                   (sum, groupId) =>
                     sum + loginPermissions.groupPermissions[groupId].length,
-                  0
+                  0,
                 ),
                 networks: Object.keys(
-                  loginPermissions.networkPermissions
+                  loginPermissions.networkPermissions,
                 ).reduce(
                   (sum, networkId) =>
                     sum + loginPermissions.networkPermissions[networkId].length,
-                  0
+                  0,
                 ),
               },
               tokenCompressionRatio:
@@ -6652,7 +6608,7 @@ const createUserModule = {
             .catch((error) => {
               console.warn("⚠️ Failed to populate permissions:", error.message);
               return [];
-            })
+            }),
         );
         queryMap.permissions = queryPromises.length - 1;
       }
@@ -6667,7 +6623,7 @@ const createUserModule = {
             .catch((error) => {
               console.warn("⚠️ Failed to populate groups:", error.message);
               return [];
-            })
+            }),
         );
         queryMap.groups = queryPromises.length - 1;
       }
@@ -6682,7 +6638,7 @@ const createUserModule = {
             .catch((error) => {
               console.warn("⚠️ Failed to populate networks:", error.message);
               return [];
-            })
+            }),
         );
         queryMap.networks = queryPromises.length - 1;
       }
@@ -6697,7 +6653,7 @@ const createUserModule = {
             .catch((error) => {
               console.warn("⚠️ Failed to populate roles:", error.message);
               return [];
-            })
+            }),
         );
         queryMap.roles = queryPromises.length - 1;
       }
@@ -6719,7 +6675,9 @@ const createUserModule = {
       if (roles.length > 0) {
         const allRolePermissionIds = [
           ...new Set( // Remove duplicates
-            roles.flatMap((role) => role.role_permissions || []).filter(Boolean)
+            roles
+              .flatMap((role) => role.role_permissions || [])
+              .filter(Boolean),
           ),
         ];
 
@@ -6732,7 +6690,7 @@ const createUserModule = {
           } catch (rolePermError) {
             console.warn(
               "⚠️ Failed to populate role permissions:",
-              rolePermError.message
+              rolePermError.message,
             );
           }
         }
@@ -6743,7 +6701,7 @@ const createUserModule = {
       const networksMap = new Map(networks.map((n) => [n._id.toString(), n]));
       const rolesMap = new Map(roles.map((r) => [r._id.toString(), r]));
       const rolePermissionsMap = new Map(
-        rolePermissions.map((rp) => [rp._id.toString(), rp])
+        rolePermissions.map((rp) => [rp._id.toString(), rp]),
       );
 
       // Apply populated data to user object
@@ -6767,8 +6725,8 @@ const createUserModule = {
                         ? rolePermissions.filter((rp) =>
                             role.role_permissions.some(
                               (rpId) =>
-                                rpId && rpId.toString() === rp._id.toString()
-                            )
+                                rpId && rpId.toString() === rp._id.toString(),
+                            ),
                           )
                         : [],
                     };
@@ -6797,8 +6755,8 @@ const createUserModule = {
                         ? rolePermissions.filter((rp) =>
                             role.role_permissions.some(
                               (rpId) =>
-                                rpId && rpId.toString() === rp._id.toString()
-                            )
+                                rpId && rpId.toString() === rp._id.toString(),
+                            ),
                           )
                         : [],
                     };
@@ -6849,14 +6807,14 @@ const createUserModule = {
       // Use manual population instead of mongoose populate
       const populatedUser = await createUserModule._populateUserDataManually(
         user,
-        dbTenant
+        dbTenant,
       );
 
       const tokenFactory = new AbstractTokenFactory(dbTenant);
       const token = await tokenFactory.createToken(
         populatedUser,
         tokenStrategy,
-        options
+        options,
       );
 
       return {
@@ -6908,9 +6866,8 @@ const createUserModule = {
       rbacService.clearUserCache(userId);
 
       // Get fresh permissions
-      const loginPermissions = await rbacService.getUserPermissionsForLogin(
-        userId
-      );
+      const loginPermissions =
+        await rbacService.getUserPermissionsForLogin(userId);
 
       // Generate new token if strategy specified
       let newToken = null;
@@ -6990,7 +6947,7 @@ const createUserModule = {
       // Use manual population instead of mongoose populate
       const populatedUser = await createUserModule._populateUserDataManually(
         user,
-        dbTenant
+        dbTenant,
       );
 
       const tokenFactory = new AbstractTokenFactory(dbTenant);
@@ -7020,7 +6977,7 @@ const createUserModule = {
           };
 
           logObject(
-            `📊 ${strategy}: ${size} bytes (${results[strategy].compression} compression)`
+            `📊 ${strategy}: ${size} bytes (${results[strategy].compression} compression)`,
           );
         } catch (error) {
           results[strategy] = {
@@ -7082,12 +7039,11 @@ const createUserModule = {
         permissions = await rbacService.getUserPermissionsInContext(
           userId,
           contextId,
-          contextType
+          contextType,
         );
       } else {
-        const contextData = await rbacService.getUserPermissionsByContext(
-          userId
-        );
+        const contextData =
+          await rbacService.getUserPermissionsByContext(userId);
         permissions = contextData;
       }
 
@@ -7141,7 +7097,7 @@ const createUserModule = {
           status: httpStatus.BAD_REQUEST,
           errors: {
             strategy: `Must be one of: ${Object.values(
-              constants.TOKEN_STRATEGIES
+              constants.TOKEN_STRATEGIES,
             ).join(", ")}`,
           },
         };
@@ -7152,7 +7108,7 @@ const createUserModule = {
       const user = await UserModel(dbTenant).findByIdAndUpdate(
         userId,
         { preferredTokenStrategy: strategy },
-        { new: true }
+        { new: true },
       );
 
       if (!user) {
@@ -7201,7 +7157,7 @@ const createUserModule = {
         ([strategy, _]) =>
           // Fix: Use constants.TOKEN_STRATEGIES
           strategy === constants.TOKEN_STRATEGIES.COMPRESSED ||
-          strategy === constants.TOKEN_STRATEGIES.HASH_BASED
+          strategy === constants.TOKEN_STRATEGIES.HASH_BASED,
       ) || smallest;
 
     return {
@@ -7229,7 +7185,7 @@ const createUserModule = {
         case "fix-email-casing-all-collections": {
           return await createUserModule._fixEmailCasingAllCollections(
             tenant,
-            dryRun
+            dryRun,
           );
         }
         default:
@@ -7241,26 +7197,26 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in cleanup util: ${error.message}`
+        `🐛🐛 Internal Server Error in cleanup util: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
   _fixMissingGroupRoles: async (tenant, dryRun) => {
     try {
       logText(
-        `--- Running cleanup: fix-missing-group-roles for tenant: ${tenant} ---`
+        `--- Running cleanup: fix-missing-group-roles for tenant: ${tenant} ---`,
       );
       logText(
         dryRun
           ? "DRY RUN: No changes will be saved."
-          : "LIVE RUN: Changes will be saved to the database."
+          : "LIVE RUN: Changes will be saved to the database.",
       );
 
       const approvedRequests = await AccessRequestModel(tenant)
@@ -7302,7 +7258,7 @@ const createUserModule = {
         }
 
         const isAlreadyMember = user.group_roles.some(
-          (role) => role.group && role.group.toString() === groupId.toString()
+          (role) => role.group && role.group.toString() === groupId.toString(),
         );
 
         if (isAlreadyMember) {
@@ -7368,7 +7324,7 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in _fixMissingGroupRoles: ${error.message}`
+        `🐛🐛 Internal Server Error in _fixMissingGroupRoles: ${error.message}`,
       );
       throw error; // Re-throw to be handled by the calling function
     }
@@ -7473,7 +7429,7 @@ const createUserModule = {
         const result = await createUserModule._fixEmailCasingForCollection(
           Model(tenant),
           collection.field,
-          dryRun
+          dryRun,
         );
 
         summary.collectionsProcessed++;
