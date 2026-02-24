@@ -3,6 +3,8 @@ const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const moment = require("moment-timezone");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- email-log-model`);
 
 const EmailLogSchema = new mongoose.Schema(
   {
@@ -123,7 +125,9 @@ EmailLogSchema.statics = {
         canSend: true,
       };
     } catch (error) {
-      console.error(`Error checking email cooldown: ${error.message}`);
+      logger.error(
+        `Error checking email cooldown for ${emailType}/${email}: ${error.message}`,
+      );
       return {
         canSend: true,
         error: error.message,
@@ -181,8 +185,8 @@ EmailLogSchema.statics = {
         });
 
         if (!result) {
-          console.warn(
-            `logEmailSent: document not found on E11000 retry for ${emailType}/${email}`,
+          logger.warn(
+            `logEmailSent: failed to find document after E11000 retry for ${emailType}/${email}`,
           );
         }
       }
@@ -192,7 +196,10 @@ EmailLogSchema.statics = {
         data: result,
       };
     } catch (error) {
-      console.error(`Error logging email send: ${error.message}`);
+      logger.error(
+        `Error logging email send for ${emailType}/${email}: ${error.message}`,
+      );
+
       return {
         success: false,
         error: error.message,
