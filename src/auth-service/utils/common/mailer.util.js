@@ -1141,15 +1141,20 @@ const createAdminAlertFunction = (
       }
 
       // ✅ STEP 2: Prepare mail options
+      // Privacy: All real recipients go in BCC so no recipient can see who else received
+      // the alert. The `to` field uses a non-deliverable placeholder — SUPPORT_EMAIL is
+      // used here purely as a routing anchor; the actual delivery happens via BCC only.
+      // SUPPORT_EMAIL must be a valid address that accepts mail (so the SMTP server does
+      // not reject the message), but it should NOT be an inbox that forwards externally.
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: recipients[0],
+        to: constants.SUPPORT_EMAIL,
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
-        bcc: recipients.length > 1 ? recipients.slice(1).join(",") : undefined,
+        bcc: recipients.join(","),
         attachments: attachments,
       };
 
@@ -1167,8 +1172,13 @@ const createAdminAlertFunction = (
       try {
         let dedupOptions = {};
         if (functionName === "sendBotAlert") {
-          // Create a stable key for bot alerts, ignoring dynamic parts of the body
-          const stableKeyContent = `${mailOptions.to}:${mailOptions.subject}:${otherParams.ip}`;
+          // Create a stable deduplication key for bot alerts.
+          // We key on: the sorted BCC recipient list (so the same admin group produces
+          // the same key), the subject, and the triggering IP address (so different IPs
+          // each produce distinct keys and are not incorrectly collapsed together).
+          // We deliberately do NOT use mailOptions.to here because that is now always
+          // the SUPPORT_EMAIL placeholder and would collapse all bot IPs into one key.
+          const stableKeyContent = `${mailOptions.bcc}:${mailOptions.subject}:${otherParams.ip}`;
           const stableKey = crypto
             .createHash("md5")
             .update(stableKeyContent)

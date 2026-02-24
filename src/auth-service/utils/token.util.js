@@ -1988,17 +1988,15 @@ const token = {
       const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST;
       if (adminEmails.length > 0) {
         mailer
-          .sendBotAlert(
-            {
-              recipients: adminEmails,
-              ip,
-              interval: mostFrequentInterval,
-              occurrences: maxCount,
-              prefix: ipPrefix,
-              prefixBotCount: prefixBotLogs.length,
-            },
-            { tenant },
-          )
+          .sendBotAlert({
+            recipients: adminEmails,
+            tenant,
+            ip,
+            interval: mostFrequentInterval,
+            occurrences: maxCount,
+            prefix: ipPrefix,
+            prefixBotCount: prefixBotLogs.length,
+          })
           .catch((err) =>
             logger.error(
               `Failed to send bot alert email for IP ${ip}: ${err.message}`,
