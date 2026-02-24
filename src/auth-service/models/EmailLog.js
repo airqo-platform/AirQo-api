@@ -37,7 +37,7 @@ const EmailLogSchema = new mongoose.Schema(
   },
 );
 
-EmailLogSchema.index({ email: 1, emailType: 1 });
+EmailLogSchema.index({ email: 1, emailType: 1 }, { unique: true });
 
 EmailLogSchema.index(
   { lastSentAt: 1 },

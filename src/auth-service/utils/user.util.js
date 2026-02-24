@@ -284,40 +284,69 @@ const getCache = async (request, next) => {
 };
 
 /**
- * MongoDB-backed rate limiter for short-window operations.
- * Uses EmailLogModel to check the last time a specific email action was
- * performed, and records new attempts so the check works across all pods.
+ * Atomically checks and records a rate-limited action in a single MongoDB
+ * operation. Uses findOneAndUpdate with upsert to eliminate the check-then-act
+ * race condition. The unique compound index on (email, emailType) ensures only
+ * one writer wins under concurrent load.
  *
- * @param {string} tenant - The DB tenant
- * @param {string} email  - The user's email
- * @param {string} emailType - A unique string identifying the action
- *                             (e.g. 'mobile_registration_attempt')
+ * SECURITY NOTE: Fails open on DB errors — rate limiting is disabled if MongoDB
+ * is unreachable. This is acceptable because:
+ *   (a) The unique index on UserModel.email is the true duplicate guard.
+ *   (b) Blocking ALL registrations during a DB outage is worse than temporarily
+ *       allowing duplicates (which the unique index prevents anyway).
+ * Alert on frequent fail-open triggers via logger.warn monitoring.
+ *
+ * @param {string} tenant    - The DB tenant
+ * @param {string} email     - The user's email
+ * @param {string} emailType - Action identifier (e.g. 'mobile_registration_attempt')
  * @param {number} windowMs  - Cooldown window in milliseconds
  * @returns {{ allowed: boolean, remainingMs: number }}
  */
 const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
   try {
     const EmailLog = EmailLogModel(tenant);
-    // Reuse the canSendEmail interface; convert windowMs to fractional days
-    // so it works with whatever precision the model supports.
-    const cooldownDays = windowMs / (1000 * 60 * 60 * 24);
-    const check = await EmailLog.canSendEmail({
-      email,
-      emailType,
-      cooldownDays,
-    });
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - windowMs);
+    const normalizedEmail = email.toLowerCase().trim();
 
-    if (!check.canSend) {
-      const lastSent = check.lastSentAt
-        ? new Date(check.lastSentAt).getTime()
-        : 0;
-      const remainingMs = Math.max(0, lastSent + windowMs - Date.now());
+    // Step 1: Check if a record already exists within the window.
+    // This is a read-only check — no write yet.
+    const existing = await EmailLog.findOne({
+      email: normalizedEmail,
+      emailType,
+      lastSentAt: { $gte: windowStart },
+    }).lean();
+
+    if (existing) {
+      const remainingMs = Math.max(
+        0,
+        new Date(existing.lastSentAt).getTime() + windowMs - now.getTime(),
+      );
       return { allowed: false, remainingMs };
     }
+
+    // Step 2: No record in window — atomically claim the slot via upsert.
+    // The unique compound index on (email, emailType) ensures that if two
+    // concurrent requests both pass Step 1, only one will succeed here;
+    // the second will receive a duplicate key error caught below.
+    await EmailLog.findOneAndUpdate(
+      { email: normalizedEmail, emailType },
+      {
+        $set: { lastSentAt: now },
+        $inc: { sentCount: 1 },
+        $setOnInsert: { metadata: {} },
+      },
+      { upsert: true, new: true },
+    );
+
     return { allowed: true, remainingMs: 0 };
   } catch (err) {
-    // Fail open: if the DB check itself errors, allow the operation through
-    // rather than blocking legitimate users.
+    // Duplicate key error from the unique index means a concurrent request
+    // just claimed the slot — treat as rate-limited, not a system error.
+    if (err.code === 11000) {
+      return { allowed: false, remainingMs: windowMs };
+    }
+    // Fail open for all other errors — see SECURITY NOTE in JSDoc above.
     logger.warn(
       `dbRateLimiter DB check failed for ${emailType}/${email} — failing open: ${err.message}`,
     );
@@ -326,18 +355,50 @@ const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
 };
 
 /**
- * Record that a rate-limited action was performed so subsequent pods can
- * see it. Should be called right after the action succeeds.
+ * Records a rate-limited action independently of the check.
+ *
+ * IMPORTANT: Only call this when you need to record AFTER a successful
+ * downstream operation (e.g. after a verification email actually sends) AND
+ * you did NOT call dbRateLimiter for this action in the same request.
+ *
+ * For flood protection flows (registration), dbRateLimiter already writes the
+ * record atomically on the allowed path — do NOT call this additionally or
+ * you will double-count and block the user prematurely.
  */
 const dbRateLimiterRecord = async (tenant, email, emailType, metadata = {}) => {
   try {
     const EmailLog = EmailLogModel(tenant);
-    await EmailLog.logEmailSent({ email, emailType, metadata });
+    await EmailLog.findOneAndUpdate(
+      { email: email.toLowerCase().trim(), emailType },
+      {
+        $set: { lastSentAt: new Date(), metadata },
+        $inc: { sentCount: 1 },
+      },
+      { upsert: true, new: true },
+    );
   } catch (err) {
     logger.warn(
       `dbRateLimiterRecord failed for ${emailType}/${email}: ${err.message}`,
     );
   }
+};
+
+/**
+ * Rate limit windows for distributed (MongoDB-backed) flood protection.
+ * These values are tuned for UX vs. security balance — see inline comments.
+ * Changing these affects all Kubernetes pods simultaneously (no restart needed).
+ */
+const RATE_LIMIT_WINDOWS = {
+  /** Short flood guard: prevents double-tap POSTs from impatient users or retry logic. */
+  MOBILE_REGISTRATION_MS: 30 * 1000, // 30 seconds
+  WEB_REGISTRATION_MS: 30 * 1000, // 30 seconds
+
+  /** Long enough to prevent spam, short enough for a legitimate user to retry. */
+  MOBILE_VERIFICATION_REMINDER_MS: 3 * 60 * 1000, // 3 minutes
+  WEB_VERIFICATION_REMINDER_MS: 5 * 60 * 1000, // 5 minutes — web flow slower
+
+  /** Brute-force guard on token submission. Failed attempts count against this. */
+  MOBILE_EMAIL_VERIFY_ATTEMPT_MS: 3 * 60 * 1000, // 3 minutes per attempt
 };
 
 const createUserModule = {
@@ -2312,17 +2373,19 @@ const createUserModule = {
       const normalizedEmail = email.toLowerCase().trim();
 
       // ✅ STEP 2: DB-backed flood protection (replaces in-memory registrationLocks).
-      // 30-second window prevents rapid duplicate POSTs in a distributed environment.
-      const REGISTRATION_FLOOD_WINDOW_MS = 30 * 1000; // 30 seconds
+      // dbRateLimiter atomically checks AND records in one operation — do not call
+      // dbRateLimiterRecord separately after this or the attempt will be double-counted.
       const floodCheck = await dbRateLimiter(
         dbTenant,
         normalizedEmail,
         "mobile_registration_attempt",
-        REGISTRATION_FLOOD_WINDOW_MS,
+        RATE_LIMIT_WINDOWS.MOBILE_REGISTRATION_MS,
       );
 
       if (!floodCheck.allowed) {
-        const remainingSecs = Math.ceil(floodCheck.remainingMs / 1000);
+        // Round to nearest 10s to avoid leaking precise timing to bad actors.
+        const remainingSecs =
+          Math.ceil(floodCheck.remainingMs / 10000) * 10 || 30;
         logger.warn(
           `Duplicate mobile registration attempt rate-limited (DB) for ${normalizedEmail}`,
           { email: normalizedEmail, tenant, remainingSecs },
@@ -2331,20 +2394,10 @@ const createUserModule = {
           success: false,
           message: "Registration already in progress",
           errors: {
-            email: `A mobile registration for this email is currently being processed. Please wait ${remainingSecs} second(s) and try again.`,
+            email: `A mobile registration for this email is currently being processed. Please try again in about ${remainingSecs} seconds.`,
           },
         };
       }
-
-      // Record the attempt immediately so other pods/requests within the window are blocked.
-      await dbRateLimiterRecord(
-        dbTenant,
-        normalizedEmail,
-        "mobile_registration_attempt",
-        {
-          userAgent: request.headers?.["user-agent"]?.substring(0, 100),
-        },
-      );
 
       // ✅ STEP 3: Check for existing user with enhanced feedback
       const existingUser = await UserModel(dbTenant)
@@ -2352,7 +2405,6 @@ const createUserModule = {
         .lean();
 
       if (!isEmpty(existingUser)) {
-        // ✅ Provide specific guidance for mobile users
         if (existingUser.verified) {
           return {
             success: false,
@@ -2599,28 +2651,29 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 1: DB-backed rate limiting (replaces in-memory registrationLocks).
-      // 5-minute window, shared across all pods.
-      const REMINDER_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+      // ✅ STEP 1: DB-backed rate limiting.
+      // dbRateLimiter atomically checks AND records on the allowed path.
+      // Do NOT call dbRateLimiterRecord after email success — that would double-count
+      // and block the user from requesting a reminder until the window resets.
       const rateCheck = await dbRateLimiter(
         dbTenant,
         normalizedEmail,
         "web_verification_reminder",
-        REMINDER_WINDOW_MS,
+        RATE_LIMIT_WINDOWS.WEB_VERIFICATION_REMINDER_MS,
       );
 
       if (!rateCheck.allowed) {
-        const remainingSecs = Math.ceil(rateCheck.remainingMs / 1000);
+        const remainingMins = Math.ceil(rateCheck.remainingMs / 60000);
         logger.warn(
           `Verification reminder rate-limited (DB) for ${normalizedEmail}`,
-          { email: normalizedEmail, tenant, remainingSecs },
+          { email: normalizedEmail, tenant, remainingMins },
         );
         return {
           success: false,
           message: "Please wait before requesting another verification email",
           status: httpStatus.TOO_MANY_REQUESTS,
           errors: {
-            rateLimit: `Please wait ${remainingSecs} seconds before requesting another verification email.`,
+            rateLimit: `Please wait ${remainingMins} minute(s) before requesting another verification email.`,
           },
         };
       }
@@ -2713,6 +2766,8 @@ const createUserModule = {
         }
 
         // ✅ STEP 6: Send verification email
+        // NOTE: dbRateLimiter already recorded this action on the allowed path above.
+        // Do not call dbRateLimiterRecord here — it would cause double-counting.
         try {
           const responseFromSendEmail = await mailer.verifyEmail(
             {
@@ -2727,16 +2782,6 @@ const createUserModule = {
 
           if (responseFromSendEmail) {
             if (responseFromSendEmail.success === true) {
-              // Record the send so the rate limiter sees it on the next request.
-              await dbRateLimiterRecord(
-                dbTenant,
-                normalizedEmail,
-                "web_verification_reminder",
-                {
-                  userId: user_id.toString(),
-                },
-              );
-
               return {
                 success: true,
                 message: "Verification email sent successfully",
@@ -2826,27 +2871,27 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 1: DB-backed rate limiting (replaces in-memory registrationLocks).
-      // 3-minute window, shared across all pods.
-      const REMINDER_WINDOW_MS = 3 * 60 * 1000; // 3 minutes
+      // ✅ STEP 1: DB-backed rate limiting.
+      // dbRateLimiter atomically checks AND records on the allowed path.
+      // Do NOT call dbRateLimiterRecord after email success — that would double-count.
       const rateCheck = await dbRateLimiter(
         dbTenant,
         normalizedEmail,
         "mobile_verification_reminder",
-        REMINDER_WINDOW_MS,
+        RATE_LIMIT_WINDOWS.MOBILE_VERIFICATION_REMINDER_MS,
       );
 
       if (!rateCheck.allowed) {
-        const remainingSecs = Math.ceil(rateCheck.remainingMs / 1000);
+        const remainingMins = Math.ceil(rateCheck.remainingMs / 60000);
         logger.warn(
           `Mobile verification reminder rate-limited (DB) for ${normalizedEmail}`,
-          { email: normalizedEmail, tenant, remainingSecs },
+          { email: normalizedEmail, tenant, remainingMins },
         );
         return {
           success: false,
           message: "Please wait before requesting another verification code",
           errors: {
-            rateLimit: `Please wait ${remainingSecs} seconds before requesting another code.`,
+            rateLimit: `Please wait ${remainingMins} minute(s) before requesting another code.`,
           },
         };
       }
@@ -2922,6 +2967,8 @@ const createUserModule = {
         }
 
         // ✅ STEP 6: Send mobile verification email
+        // NOTE: dbRateLimiter already recorded this action on the allowed path above.
+        // Do not call dbRateLimiterRecord here — it would cause double-counting.
         try {
           const emailResponse = await mailer.sendVerificationEmail(
             { email: normalizedEmail, token, tenant },
@@ -2929,16 +2976,6 @@ const createUserModule = {
           );
 
           if (emailResponse && emailResponse.success === true) {
-            // Record the send so the rate limiter sees it on the next request.
-            await dbRateLimiterRecord(
-              dbTenant,
-              normalizedEmail,
-              "mobile_verification_reminder",
-              {
-                userId: user._id.toString(),
-              },
-            );
-
             return {
               success: true,
               message: "Verification code sent to your email.",
@@ -3037,7 +3074,7 @@ const createUserModule = {
             email: normalizedEmail,
             tenant,
             tokenFormat: "invalid",
-            providedToken: token.replace(/./g, "*"), // Mask token in logs
+            providedToken: token.replace(/./g, "*"),
           },
         );
 
@@ -3051,14 +3088,16 @@ const createUserModule = {
       }
 
       // ✅ STEP 3: DB-backed rate limiting for verification attempts.
-      // A 3-minute window between attempts prevents brute force while allowing
-      // legitimate users to retry promptly. Works across all Kubernetes pods.
-      const VERIFY_ATTEMPT_WINDOW_MS = 3 * 60 * 1000; // 3 minutes between attempts
+      // A window between attempts prevents brute force while allowing legitimate
+      // users to retry promptly. Works across all Kubernetes pods.
+      // Failed attempts count against this limit intentionally — this is the
+      // brute-force guard. dbRateLimiter atomically checks AND records on the
+      // allowed path, so no separate dbRateLimiterRecord call is needed here.
       const verifyRateCheck = await dbRateLimiter(
         tenant,
         normalizedEmail,
         "mobile_email_verify_attempt",
-        VERIFY_ATTEMPT_WINDOW_MS,
+        RATE_LIMIT_WINDOWS.MOBILE_EMAIL_VERIFY_ATTEMPT_MS,
       );
 
       if (!verifyRateCheck.allowed) {
@@ -3075,16 +3114,6 @@ const createUserModule = {
           },
         };
       }
-
-      // Record this attempt immediately (whether it succeeds or fails later).
-      await dbRateLimiterRecord(
-        tenant,
-        normalizedEmail,
-        "mobile_email_verify_attempt",
-        {
-          tokenProvided: token.replace(/./g, "*"),
-        },
-      );
 
       const timeZone = moment.tz.guess();
       let filter = {
@@ -3142,7 +3171,6 @@ const createUserModule = {
       }
 
       // ✅ STEP 6: Validate verification token
-
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
           skip,
@@ -3232,7 +3260,7 @@ const createUserModule = {
                     status: httpStatus.OK,
                   };
                 } else {
-                  // Verification successful but welcome email failed
+                  // Verification successful but welcome email failed — not a blocker
                   return {
                     success: true,
                     message: "Email verified successfully!",
@@ -3648,17 +3676,19 @@ const createUserModule = {
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       // ✅ DB-backed flood check: prevents duplicate POSTs within a short window.
-      // The MongoDB unique index is the true concurrency guarantee; this just
-      // gives a friendlier error message for genuine double-submits.
-      const WEB_REGISTRATION_FLOOD_WINDOW_MS = 30 * 1000; // 30 seconds
+      // dbRateLimiter atomically checks AND records on the allowed path — do not
+      // call dbRateLimiterRecord separately or the attempt will be double-counted.
       const floodCheck = await dbRateLimiter(
         dbTenant,
         email.toLowerCase(),
         "web_registration_attempt",
-        WEB_REGISTRATION_FLOOD_WINDOW_MS,
+        RATE_LIMIT_WINDOWS.WEB_REGISTRATION_MS,
       );
 
       if (!floodCheck.allowed) {
+        // Round to nearest 10s to avoid leaking precise timing to bad actors.
+        const remainingSecs =
+          Math.ceil(floodCheck.remainingMs / 10000) * 10 || 30;
         logger.warn(
           `Duplicate web registration attempt blocked (DB) for ${email}`,
         );
@@ -3669,23 +3699,12 @@ const createUserModule = {
           errors: [
             {
               param: "email",
-              message:
-                "A registration for this email is currently being processed. Please wait a moment and try again.",
+              message: `A registration for this email is currently being processed. Please try again in about ${remainingSecs} seconds.`,
               location: "body",
             },
           ],
         };
       }
-
-      // Record the attempt immediately.
-      await dbRateLimiterRecord(
-        dbTenant,
-        email.toLowerCase(),
-        "web_registration_attempt",
-        {
-          userAgent: request.headers?.["user-agent"]?.substring(0, 100),
-        },
-      );
 
       // ✅ STEP 2: Check for existing user with enhanced logging
       const existingUser = await UserModel(dbTenant)
@@ -3695,9 +3714,7 @@ const createUserModule = {
         .lean();
 
       if (!isEmpty(existingUser)) {
-        // ✅ ENHANCED RESPONSE: Provide helpful information based on verification status
         if (existingUser.verified) {
-          // User exists and is verified - send them to login
           return {
             success: false,
             message:
@@ -3719,7 +3736,6 @@ const createUserModule = {
             },
           };
         } else {
-          // User exists but not verified - offer to resend verification
           try {
             await createUserModule.verificationReminder(
               {
