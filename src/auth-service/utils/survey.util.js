@@ -217,7 +217,7 @@ const survey = {
       const { body, query, user } = request;
       const { tenant } = query;
 
-      // Early validation: Check for duplicate question IDs BEFORE any DB operations
+      // Early validation: Check for duplicate question IDs
       if (body.answers && Array.isArray(body.answers)) {
         const questionIds = body.answers.map((a) => a.questionId);
         const uniqueQuestionIds = [...new Set(questionIds)];
@@ -269,10 +269,51 @@ const survey = {
 
       let modifiedBody = Object.assign({}, body);
 
-      // Assign sentinel guest user ID for all guest users
-      // This ensures consistent guest user tracking and prevents $lookup failures
+      // Handle guest users
       if (isGuestUser) {
-        modifiedBody.userId = GUEST_USER_ID;
+        // Use sentinel user ID for database relationship (prevents $lookup failures)
+        modifiedBody.userId = constants.GUEST_USER_ID;
+
+        // Mark as guest response
+        modifiedBody.isGuest = true;
+
+        // BACKWARD COMPATIBLE: deviceId is optional for legacy clients
+        if (body.deviceId && body.deviceId.trim() !== "") {
+          // New client with deviceId → enable duplicate prevention
+          modifiedBody.deviceId = body.deviceId.trim();
+
+          // Check for duplicate submission from same device
+          const existingResponse = await SurveyResponseModel(tenant)
+            .findOne({
+              surveyId: body.surveyId,
+              deviceId: modifiedBody.deviceId,
+              isGuest: true,
+            })
+            .lean();
+
+          if (existingResponse) {
+            return {
+              success: false,
+              message: "You have already submitted a response to this survey",
+              status: httpStatus.CONFLICT,
+              errors: {
+                message:
+                  "You have already submitted a response to this survey from this device.",
+              },
+            };
+          }
+        } else {
+          // Legacy client without deviceId → allow submission (no duplicate check)
+          // deviceId will be undefined/null in DB, which is fine
+          logger.info(
+            `Guest survey response submitted without deviceId (legacy client) - Survey: ${body.surveyId}`,
+          );
+        }
+      } else {
+        // Authenticated user - mark as not guest
+        modifiedBody.isGuest = false;
+        // deviceId should not be set for authenticated users
+        delete modifiedBody.deviceId;
       }
 
       // Set default status if not provided

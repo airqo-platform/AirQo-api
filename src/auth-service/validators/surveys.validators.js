@@ -317,7 +317,13 @@ const createResponse = [
         // Leave 'guest' as-is; convert valid ObjectId strings
         return value === "guest" ? value : ObjectId(value);
       }),
-
+    body("deviceId")
+      .optional()
+      .isString()
+      .withMessage("deviceId must be a string")
+      .trim()
+      .isLength({ min: 10, max: 100 })
+      .withMessage("deviceId must be between 10 and 100 characters"),
     body("answers")
       .exists()
       .withMessage("answers array is required")

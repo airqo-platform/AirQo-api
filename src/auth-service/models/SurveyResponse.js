@@ -99,6 +99,16 @@ const SurveyResponseSchema = new Schema(
       ref: "user",
       required: [true, "User ID is required"],
     },
+    deviceId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    isGuest: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     answers: {
       type: [AnswerSchema],
       required: [true, "Answers array is required"],
@@ -186,6 +196,17 @@ SurveyResponseSchema.pre("update", function (next) {
 SurveyResponseSchema.index({ surveyId: 1, userId: 1 });
 SurveyResponseSchema.index({ surveyId: 1, status: 1 });
 SurveyResponseSchema.index({ userId: 1, createdAt: -1 });
+SurveyResponseSchema.index(
+  { surveyId: 1, deviceId: 1 },
+  {
+    unique: true,
+    sparse: true,
+    partialFilterExpression: {
+      isGuest: true,
+      deviceId: { $exists: true, $ne: null, $ne: "" },
+    },
+  },
+);
 
 SurveyResponseSchema.statics = {
   async register(args, next) {
@@ -252,6 +273,8 @@ SurveyResponseSchema.statics = {
           id: 1,
           surveyId: 1,
           userId: 1,
+          deviceId: 1,
+          isGuest: 1,
           answers: 1,
           status: 1,
           startedAt: 1,
@@ -444,6 +467,8 @@ SurveyResponseSchema.methods = {
       _id: this._id,
       surveyId: this.surveyId,
       userId: this.userId,
+      deviceId: this.deviceId,
+      isGuest: this.isGuest,
       answers: this.answers,
       status: this.status,
       startedAt: this.startedAt,
