@@ -240,7 +240,31 @@ SurveyResponseSchema.statics = {
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
 
-      if (err.keyValue) {
+      // Handle duplicate key errors (including race condition duplicates)
+      if (
+        err.code === 11000 ||
+        (err.name === "MongoServerError" && err.code === 11000)
+      ) {
+        // Check if it's a duplicate deviceId for guest survey response
+        if (
+          err.keyPattern &&
+          err.keyPattern.deviceId &&
+          err.keyPattern.surveyId
+        ) {
+          return {
+            success: false,
+            message: "You have already submitted a response to this survey",
+            status: httpStatus.CONFLICT,
+            errors: {
+              message:
+                "You have already submitted a response to this survey from this device.",
+            },
+          };
+        }
+
+        // Generic duplicate key error
+        response["message"] = "the Survey Response must be unique";
+      } else if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
@@ -248,8 +272,6 @@ SurveyResponseSchema.statics = {
         Object.entries(err.errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
-      } else if (err.code === 11000) {
-        response["message"] = "the Survey Response must be unique";
       } else {
         message = "Internal Server Error";
         status = httpStatus.INTERNAL_SERVER_ERROR;
