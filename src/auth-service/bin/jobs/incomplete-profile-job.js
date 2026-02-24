@@ -1,11 +1,9 @@
-// Replace the entire incomplete-profile-job.js file content
-
 const cron = require("node-cron");
 const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/jobs/incomplete-profile-job`
+  `${constants.ENVIRONMENT} -- bin/jobs/incomplete-profile-job`,
 );
 const {
   winstonLogger,
@@ -74,7 +72,7 @@ const checkStatus = async () => {
         // Check shutdown signal frequently during processing
         if (global.isShuttingDown) {
           logText(
-            `🛑 ${JOB_NAME} stopping due to shutdown signal during user processing`
+            `🛑 ${JOB_NAME} stopping due to shutdown signal during user processing`,
           );
 
           break;
@@ -90,8 +88,8 @@ const checkStatus = async () => {
             totalFailed++;
             logger.error(
               `🐛🐛 Failed to send email to ${user.email} -- ${stringify(
-                emailResponse
-              )}`
+                emailResponse,
+              )}`,
             );
           } else {
             totalSuccessful++;
@@ -100,7 +98,7 @@ const checkStatus = async () => {
         } catch (error) {
           totalFailed++;
           logger.error(
-            `❌ Failed to send email to ${user.email} --- ${stringify(error)}`
+            `❌ Failed to send email to ${user.email} --- ${stringify(error)}`,
           );
         }
       }
@@ -115,11 +113,11 @@ const checkStatus = async () => {
 
     // Log summary
     logText(
-      `📊 ${JOB_NAME} Summary: Processed: ${totalProcessed}, Successful: ${totalSuccessful}, Failed: ${totalFailed}`
+      `📊 ${JOB_NAME} Summary: Processed: ${totalProcessed}, Successful: ${totalSuccessful}, Failed: ${totalFailed}`,
     );
   } catch (error) {
     logger.error(
-      `🐛🐛 ${JOB_NAME} Internal Server Error --- ${stringify(error)}`
+      `🐛🐛 ${JOB_NAME} Internal Server Error --- ${stringify(error)}`,
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   } finally {
@@ -164,7 +162,7 @@ const startIncompleteProfileJob = () => {
           // Wait for current execution to finish if running
           if (currentJobPromise) {
             logText(
-              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`,
             );
 
             await currentJobPromise;
@@ -177,10 +175,10 @@ const startIncompleteProfileJob = () => {
             logText(`💥 ${JOB_NAME} destroyed successfully`);
           } else {
             logText(
-              `⚠️  ${JOB_NAME} destroy method not available (older node-cron version)`
+              `⚠️  ${JOB_NAME} destroy method not available (older node-cron version)`,
             );
             logger.warn(
-              `${JOB_NAME} destroy method not available (older node-cron version)`
+              `${JOB_NAME} destroy method not available (older node-cron version)`,
             );
           }
 
@@ -197,7 +195,7 @@ const startIncompleteProfileJob = () => {
     logText(`✅ ${JOB_NAME} registered and started successfully`);
 
     logText(
-      `⏰ ${JOB_NAME} scheduled: ${JOB_SCHEDULE} (Africa/Nairobi timezone)`
+      `⏰ ${JOB_NAME} scheduled: ${JOB_SCHEDULE} (Africa/Nairobi timezone)`,
     );
 
     return global.cronJobs[JOB_NAME];
@@ -236,7 +234,7 @@ process.on("unhandledRejection", (reason, promise) => {
     `🚫 Unhandled Rejection in ${JOB_NAME} at:`,
     promise,
     "reason:",
-    reason
+    reason,
   );
 });
 

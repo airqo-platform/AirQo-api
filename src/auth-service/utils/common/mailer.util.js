@@ -1140,16 +1140,35 @@ const createAdminAlertFunction = (
         // Fail open: proceed if rate limit check fails
       }
 
-      // ✅ STEP 2: Prepare mail options
+      // ✅ STEP 2: Prepare mail option
+      // Filter SUPPORT_EMAIL out of the BCC list to prevent duplicate delivery.
+      // SUPPORT_EMAIL already receives the email via the `to` field; including it in
+      // BCC as well would result in two copies of every alert to that inbox.
+      const supportEmail = (constants.SUPPORT_EMAIL || "").toLowerCase().trim();
+      const filteredRecipients = recipients.filter(
+        (r) => r.toLowerCase().trim() !== supportEmail,
+      );
+      // Privacy: All real recipients go in BCC so no recipient can see who else received
+      // the alert. The `to` field uses a non-disclosing placeholder address (SUPPORT_EMAIL)
+      // so that the visible "To" header does not expose any real recipient's address.
+      // Note: SUPPORT_EMAIL WILL receive this email as the `to` recipient — it acts as an
+      // audit copy inbox, not a silent sink. It must be a valid address that accepts mail
+      // (so the SMTP server does not reject the message), but it should NOT be an inbox
+      // that forwards externally or redistributes security alert content.
+      // To avoid duplicate delivery, SUPPORT_EMAIL is explicitly excluded from the BCC
+      // list below, even if it appears in the recipients array.
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: recipients[0],
+        to: constants.SUPPORT_EMAIL,
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
-        bcc: recipients.length > 1 ? recipients.slice(1).join(",") : undefined,
+        bcc:
+          filteredRecipients.length > 0
+            ? filteredRecipients.join(",")
+            : undefined,
         attachments: attachments,
       };
 
@@ -1167,8 +1186,13 @@ const createAdminAlertFunction = (
       try {
         let dedupOptions = {};
         if (functionName === "sendBotAlert") {
-          // Create a stable key for bot alerts, ignoring dynamic parts of the body
-          const stableKeyContent = `${mailOptions.to}:${mailOptions.subject}:${otherParams.ip}`;
+          // Create a stable deduplication key for bot alerts.
+          // We key on: the sorted BCC recipient list (so the same admin group produces
+          // the same key), the subject, and the triggering IP address (so different IPs
+          // each produce distinct keys and are not incorrectly collapsed together).
+          // We deliberately do NOT use mailOptions.to here because that is now always
+          // the SUPPORT_EMAIL placeholder and would collapse all bot IPs into one key.
+          const stableKeyContent = `${mailOptions.bcc}:${mailOptions.subject}:${otherParams.ip}`;
           const stableKey = crypto
             .createHash("md5")
             .update(stableKeyContent)
