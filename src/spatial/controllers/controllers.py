@@ -15,6 +15,7 @@ from views.site_selection_views import SiteSelectionView
 from views.report_view import ReportView 
 from views.PolygonSensorOptimizerViews import SensorOptimizationAPI
 from views.heatmapViews import AQIImageGenerator
+from views.source_metadata_view import SourceMetadataView
 
 
 
@@ -94,3 +95,13 @@ def get_heatmaps():
 @controller_bp.route("/heatmaps/<id>", methods=["GET"])
 def get_heatmap_by_id(id):
     return AQIImageGenerator.generate_aqi_image_for_city(id)
+
+
+@controller_bp.route("/source_metadata", methods=["GET"])
+def get_source_metadata():
+    return SourceMetadataView.get_source_metadata()
+
+
+@controller_bp.route("/source_metadata/batch", methods=["POST"])
+def get_source_metadata_batch():
+    return SourceMetadataView.get_source_metadata_batch()
