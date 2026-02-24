@@ -318,7 +318,7 @@ const createResponse = [
         return value === "guest" ? value : ObjectId(value);
       }),
     body("deviceId")
-      .optional()
+      .optional({ values: "falsy" })
       .isString()
       .withMessage("deviceId must be a string")
       .trim()

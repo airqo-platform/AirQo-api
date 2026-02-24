@@ -203,7 +203,7 @@ SurveyResponseSchema.index(
     sparse: true,
     partialFilterExpression: {
       isGuest: true,
-      deviceId: { $exists: true, $ne: null, $ne: "" },
+      deviceId: { $exists: true, $nin: [null, ""] },
     },
   },
 );

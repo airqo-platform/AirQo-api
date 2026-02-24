@@ -9,7 +9,6 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
-const { GUEST_USER_ID } = constants;
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- survey-util`);
@@ -278,7 +277,11 @@ const survey = {
         modifiedBody.isGuest = true;
 
         // BACKWARD COMPATIBLE: deviceId is optional for legacy clients
-        if (body.deviceId && body.deviceId.trim() !== "") {
+        if (
+          body.deviceId &&
+          typeof body.deviceId === "string" &&
+          body.deviceId.trim() !== ""
+        ) {
           // New client with deviceId → enable duplicate prevention
           modifiedBody.deviceId = body.deviceId.trim();
 
@@ -304,7 +307,9 @@ const survey = {
           }
         } else {
           // Legacy client without deviceId → allow submission (no duplicate check)
-          // deviceId will be undefined/null in DB, which is fine
+          // Explicitly remove deviceId to avoid persisting empty strings
+          delete modifiedBody.deviceId;
+
           logger.info(
             `Guest survey response submitted without deviceId (legacy client) - Survey: ${body.surveyId}`,
           );
