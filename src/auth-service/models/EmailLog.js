@@ -145,25 +145,47 @@ EmailLogSchema.statics = {
         logMetadata.ip = ip;
       }
 
-      const result = await this.findOneAndUpdate(
-        {
-          email: email.toLowerCase().trim(),
-          emailType,
+      const filter = {
+        email: email.toLowerCase().trim(),
+        emailType,
+      };
+
+      const update = {
+        $set: {
+          lastSentAt: new Date(),
+          metadata: logMetadata,
         },
-        {
-          $set: {
-            lastSentAt: new Date(),
-            metadata: logMetadata,
-          },
-          $inc: {
-            sentCount: 1,
-          },
+        $inc: {
+          sentCount: 1,
         },
-        {
+      };
+
+      let result;
+      try {
+        result = await this.findOneAndUpdate(filter, update, {
           upsert: true,
           new: true,
-        },
-      );
+        });
+      } catch (upsertErr) {
+        const isDuplicateKey =
+          upsertErr.code === 11000 ||
+          (upsertErr.message && upsertErr.message.includes("E11000"));
+
+        if (!isDuplicateKey) {
+          throw upsertErr;
+        }
+
+        result = await this.findOneAndUpdate(filter, update, {
+          upsert: false,
+          new: true,
+        });
+
+        if (!result) {
+          console.warn(
+            `logEmailSent: document not found on E11000 retry for ${emailType}/${email}`,
+          );
+        }
+      }
 
       return {
         success: true,
