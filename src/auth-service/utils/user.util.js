@@ -1007,11 +1007,9 @@ const createUserModule = {
         ? responseFromModifyUser.data.toJSON()
         : responseFromModifyUser.data;
 
-      // Skip email entirely in non-production environments.
-      if (
-        constants.ENVIRONMENT &&
-        constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-      ) {
+      // Only send emails in production. Any other value — including unset,
+      // null, or empty string — is treated as non-production and skips email.
+      if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
         return {
           success: true,
           message: responseFromModifyUser.message,
