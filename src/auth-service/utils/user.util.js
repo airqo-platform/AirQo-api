@@ -866,36 +866,34 @@ const createUserModule = {
       const { tenant } = { ...body, ...query, ...params };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      // 1. Create a sanitized copy of the body for the database update.
+      // ── 1. Sanitize the update payload ───────────────────────────────────────
+
       const sanitizedUpdate = { ...body };
 
-      // Comprehensive sanitization for 'interests' field
+      // Coerce `interests` to a clean string array.
       if ("interests" in sanitizedUpdate) {
         const interestsValue = sanitizedUpdate.interests;
         if (typeof interestsValue === "string") {
-          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
           sanitizedUpdate.interests = interestsValue.trim()
             ? [interestsValue.trim()]
             : [];
         } else if (Array.isArray(interestsValue)) {
-          // If it's an array, ensure all elements are strings and filter out any empty ones.
           sanitizedUpdate.interests = interestsValue
             .map((item) => (item ? String(item).trim() : ""))
             .filter(Boolean);
         } else {
-          // If it's null, undefined, or another type, remove it from the update payload.
           delete sanitizedUpdate.interests;
         }
       }
 
-      // Drop any keys with undefined values to prevent them from being written to the DB
+      // Drop keys whose value is explicitly undefined.
       Object.keys(sanitizedUpdate).forEach((key) => {
         if (sanitizedUpdate[key] === undefined) {
           delete sanitizedUpdate[key];
         }
       });
 
-      // Fields that should never be updated via this endpoint.
+      // These fields must never be mutated through this endpoint.
       delete sanitizedUpdate.password;
       delete sanitizedUpdate._id;
       delete sanitizedUpdate.user_id;
@@ -912,12 +910,10 @@ const createUserModule = {
         };
       }
 
-      // 2. Generate the filter to find the user.
+      // ── 2. Resolve the target user ────────────────────────────────────────────
+
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(dbTenant)
-        .findOne(filter)
-        .lean()
-        .select("email firstName lastName consent");
+      const user = await UserModel(dbTenant).findOne(filter).lean();
 
       if (!user) {
         return {
@@ -928,7 +924,8 @@ const createUserModule = {
         };
       }
 
-      // 3. Perform the database modification.
+      // ── 3. Persist the update ─────────────────────────────────────────────────
+
       const responseFromModifyUser = await UserModel(dbTenant).modify(
         {
           filter,
@@ -939,103 +936,133 @@ const createUserModule = {
 
       logObject("responseFromModifyUser", responseFromModifyUser);
 
-      if (responseFromModifyUser.success === true) {
-        try {
-          // PostHog Analytics: Update user properties
-          const distinctId = (user && user._id && user._id.toString()) || null;
-          if (distinctId) {
-            const dnt =
-              request?.headers?.["dnt"] === "1" ||
-              request?.headers?.["sec-gpc"] === "1";
+      if (responseFromModifyUser.success !== true) {
+        return responseFromModifyUser;
+      }
+
+      // ── 4. PostHog analytics ──────────────────────────────────────────────────
+      //
+      // All tracking — including PII — is gated behind the DNT check.
+      // PII is additionally gated behind the user's consent and the global
+      // ANALYTICS_PII_ENABLED flag.
+
+      try {
+        const distinctId = (user && user._id && user._id.toString()) || null;
+        if (distinctId) {
+          const dnt =
+            request?.headers?.["dnt"] === "1" ||
+            request?.headers?.["sec-gpc"] === "1";
+
+          if (!dnt) {
             const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
             const userConsented =
               user.consent && user.consent.analytics === true;
             const userProperties = {};
 
-            if (!dnt) {
-              // Start with non-PII properties
-              const baseProperties = ["organization", "jobTitle", "website"];
-
-              for (const key of baseProperties) {
-                if (
-                  Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)
-                ) {
-                  userProperties[key] = sanitizedUpdate[key];
-                }
+            const baseProperties = ["organization", "jobTitle", "website"];
+            for (const key of baseProperties) {
+              if (Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)) {
+                userProperties[key] = sanitizedUpdate[key];
               }
             }
 
-            // Conditionally add PII based on consent and global flag
             if (allowPII && userConsented) {
-              if (sanitizedUpdate.firstName)
+              if (sanitizedUpdate.firstName) {
                 userProperties.firstName = sanitizedUpdate.firstName;
-              if (sanitizedUpdate.lastName)
+              }
+              if (sanitizedUpdate.lastName) {
                 userProperties.lastName = sanitizedUpdate.lastName;
+              }
             }
 
             if (Object.keys(userProperties).length > 0) {
               analyticsService.identify(distinctId, userProperties);
             }
           }
-        } catch (analyticsError) {
-          logger.error(
-            `PostHog identify/update error: ${analyticsError.message}`,
-          );
         }
+      } catch (analyticsError) {
+        logger.error(
+          `PostHog identify/update error: ${analyticsError.message}`,
+        );
+      }
 
-        // 4. Prepare the payload for the email notification.
-        const emailUpdatePayload = { ...sanitizedUpdate };
+      // ── 5. Build response data ────────────────────────────────────────────────
 
-        const apiResponseData = responseFromModifyUser.data.toJSON
-          ? responseFromModifyUser.data.toJSON()
-          : responseFromModifyUser.data;
+      const emailUpdatePayload = { ...sanitizedUpdate };
 
-        if (
-          constants.ENVIRONMENT &&
-          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-        ) {
-          return {
-            success: true,
-            message: responseFromModifyUser.message,
-            data: apiResponseData,
-          };
-        } else {
-          const { email, firstName, lastName } = user;
+      const apiResponseData = responseFromModifyUser.data.toJSON
+        ? responseFromModifyUser.data.toJSON()
+        : responseFromModifyUser.data;
 
-          const responseFromSendEmail = await mailer.update(
-            {
-              email,
-              firstName,
-              lastName,
-              updatedUserDetails: emailUpdatePayload,
-            },
-            next,
-          );
+      // Skip email entirely in non-production environments.
+      if (
+        constants.ENVIRONMENT &&
+        constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
+      ) {
+        return {
+          success: true,
+          message: responseFromModifyUser.message,
+          data: apiResponseData,
+        };
+      }
 
-          if (responseFromSendEmail && responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: responseFromModifyUser.message,
-              data: apiResponseData,
-            };
-          } else if (
-            responseFromSendEmail &&
-            responseFromSendEmail.success === false
-          ) {
-            return responseFromSendEmail;
-          } else {
-            logger.error("mailer.update did not return a response");
-            return next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send update email" },
-              ),
-            );
-          }
-        }
+      // ── 6. Conditional email notification ─────────────────────────────────────
+      //
+      // Only send the "Your AirQo Account Updated" email when a user-facing
+      // profile field has changed. Updates to internal or preference fields
+      // (e.g. jobTitle, interests, website) complete silently with no email.
+      //
+      // hasOwnProperty is used intentionally — a field set to "" or null still
+      // warrants a notification. Only its complete absence from the payload skips it.
+      //
+      // To notify on additional fields in future, add them to this array.
+      const NOTIFIABLE_FIELDS = ["firstName", "lastName", "profilePicture"];
+      const hasNotifiableChange = NOTIFIABLE_FIELDS.some((field) =>
+        Object.prototype.hasOwnProperty.call(emailUpdatePayload, field),
+      );
+
+      if (!hasNotifiableChange) {
+        return {
+          success: true,
+          message: responseFromModifyUser.message,
+          data: apiResponseData,
+        };
+      }
+
+      // ── 7. Send notification email ────────────────────────────────────────────
+
+      const { email, firstName, lastName } = user;
+
+      const responseFromSendEmail = await mailer.update(
+        {
+          email,
+          firstName,
+          lastName,
+          updatedUserDetails: emailUpdatePayload,
+        },
+        next,
+      );
+
+      if (responseFromSendEmail && responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: responseFromModifyUser.message,
+          data: apiResponseData,
+        };
+      } else if (
+        responseFromSendEmail &&
+        responseFromSendEmail.success === false
+      ) {
+        return responseFromSendEmail;
       } else {
-        return responseFromModifyUser;
+        logger.error("mailer.update did not return a response");
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Failed to send update email" },
+          ),
+        );
       }
     } catch (error) {
       logObject("the util error", error);
@@ -4501,196 +4528,6 @@ const createUserModule = {
       logger.error(
         `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`,
       );
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-    }
-  },
-
-  update: async (request, next) => {
-    try {
-      const { query, body, params } = request;
-      const { tenant } = { ...body, ...query, ...params };
-      const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
-
-      // 1. Create a sanitized copy of the body for the database update.
-      const sanitizedUpdate = { ...body };
-
-      // Comprehensive sanitization for 'interests' field
-      if ("interests" in sanitizedUpdate) {
-        const interestsValue = sanitizedUpdate.interests;
-        if (typeof interestsValue === "string") {
-          // If it's a string, trim it. If it's not empty, put it in an array. Otherwise, empty array.
-          sanitizedUpdate.interests = interestsValue.trim()
-            ? [interestsValue.trim()]
-            : [];
-        } else if (Array.isArray(interestsValue)) {
-          // If it's an array, ensure all elements are strings and filter out any empty ones.
-          sanitizedUpdate.interests = interestsValue
-            .map((item) => (item ? String(item).trim() : ""))
-            .filter(Boolean);
-        } else {
-          // If it's null, undefined, or another type, remove it from the update payload.
-          delete sanitizedUpdate.interests;
-        }
-      }
-
-      // Drop any keys with undefined values to prevent them from being written to the DB
-      Object.keys(sanitizedUpdate).forEach((key) => {
-        if (sanitizedUpdate[key] === undefined) {
-          delete sanitizedUpdate[key];
-        }
-      });
-
-      // Fields that should never be updated via this endpoint.
-      delete sanitizedUpdate.password;
-      delete sanitizedUpdate._id;
-      delete sanitizedUpdate.user_id;
-      delete sanitizedUpdate.id;
-      delete sanitizedUpdate.email;
-      delete sanitizedUpdate.userName;
-
-      if (Object.keys(sanitizedUpdate).length === 0) {
-        return {
-          success: false,
-          message: "No updatable fields provided",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Payload contains no mutable fields" },
-        };
-      }
-
-      // 2. Generate the filter to find the user.
-      const filter = generateFilter.users(request, next);
-      const user = await UserModel(dbTenant)
-        .findOne(filter)
-        .lean()
-        .select("email firstName lastName consent");
-
-      if (!user) {
-        return {
-          success: false,
-          message: "User not found",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "User not found" },
-        };
-      }
-
-      // 3. Perform the database modification.
-      const responseFromModifyUser = await UserModel(dbTenant).modify(
-        {
-          filter,
-          update: { $set: sanitizedUpdate },
-        },
-        next,
-      );
-
-      logObject("responseFromModifyUser", responseFromModifyUser);
-
-      if (responseFromModifyUser.success === true) {
-        try {
-          // PostHog Analytics: Update user properties
-          const distinctId = (user && user._id && user._id.toString()) || null;
-          if (distinctId) {
-            const dnt =
-              request?.headers?.["dnt"] === "1" ||
-              request?.headers?.["sec-gpc"] === "1";
-            const allowPII = String(constants.ANALYTICS_PII_ENABLED) === "true";
-            const userConsented =
-              user.consent && user.consent.analytics === true;
-            const userProperties = {};
-
-            if (!dnt) {
-              // Start with non-PII properties
-              const baseProperties = ["organization", "jobTitle", "website"];
-
-              for (const key of baseProperties) {
-                if (
-                  Object.prototype.hasOwnProperty.call(sanitizedUpdate, key)
-                ) {
-                  userProperties[key] = sanitizedUpdate[key];
-                }
-              }
-
-              // Conditionally add PII based on consent and global flag
-              if (allowPII && userConsented) {
-                if (sanitizedUpdate.firstName)
-                  userProperties.firstName = sanitizedUpdate.firstName;
-                if (sanitizedUpdate.lastName)
-                  userProperties.lastName = sanitizedUpdate.lastName;
-              }
-
-              if (Object.keys(userProperties).length > 0) {
-                analyticsService.identify(distinctId, userProperties);
-              }
-            }
-          }
-        } catch (analyticsError) {
-          logger.error(
-            `PostHog identify/update error: ${analyticsError.message}`,
-          );
-        }
-
-        // 4. Prepare the payload for the email notification.
-        const emailUpdatePayload = { ...sanitizedUpdate };
-
-        const apiResponseData = responseFromModifyUser.data.toJSON
-          ? responseFromModifyUser.data.toJSON()
-          : responseFromModifyUser.data;
-
-        if (
-          constants.ENVIRONMENT &&
-          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-        ) {
-          return {
-            success: true,
-            message: responseFromModifyUser.message,
-            data: apiResponseData,
-          };
-        } else {
-          const { email, firstName, lastName } = user;
-
-          const responseFromSendEmail = await mailer.update(
-            {
-              email,
-              firstName,
-              lastName,
-              updatedUserDetails: emailUpdatePayload,
-            },
-            next,
-          );
-
-          if (responseFromSendEmail && responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: responseFromModifyUser.message,
-              data: apiResponseData,
-            };
-          } else if (
-            responseFromSendEmail &&
-            responseFromSendEmail.success === false
-          ) {
-            return responseFromSendEmail;
-          } else {
-            logger.error("mailer.update did not return a response");
-            return next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send update email" },
-              ),
-            );
-          }
-        }
-      } else {
-        return responseFromModifyUser;
-      }
-    } catch (error) {
-      logObject("the util error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
