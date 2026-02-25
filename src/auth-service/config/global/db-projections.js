@@ -1107,10 +1107,13 @@ const dbProjections = {
       },
     },
     updatedAt: 1,
-    // Include survey info
-    survey: { $arrayElemAt: ["$survey", 0] },
-    // Include user info
-    user: { $arrayElemAt: ["$user", 0] },
+    // survey and user are already plain objects after $unwind in the aggregation
+    // pipeline (SurveyResponse.js list method). Do NOT use $arrayElemAt here —
+    // that caused: "PlanExecutor error :: $arrayElemAt's first argument must be
+    // an array, but is object". Pass through the already-deconstructed objects
+    // directly.
+    survey: "$survey",
+    user: "$user",
     // Calculate answer count
     answerCount: {
       $cond: {
@@ -1119,7 +1122,7 @@ const dbProjections = {
         else: 0,
       },
     },
-    // Calculate completion percentage based on time
+    // Calculate completion percentage based on survey's expected time
     completionEfficiency: {
       $cond: {
         if: {

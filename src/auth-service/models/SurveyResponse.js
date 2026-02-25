@@ -326,35 +326,27 @@ SurveyResponseSchema.statics = {
           foreignField: "_id",
           as: "survey",
         })
+        // $unwind with preserveNullAndEmptyArrays: false automatically excludes
+        // documents where the survey lookup returned an empty array (orphaned
+        // responses). This replaces the previous $addFields + $arrayElemAt approach
+        // which threw a PlanExecutor error when MongoDB handed a non-array value
+        // to $arrayElemAt during pipeline execution.
+        .unwind({
+          path: "$survey",
+          preserveNullAndEmptyArrays: false,
+        })
         .lookup({
           from: "users",
           localField: "userId",
           foreignField: "_id",
           as: "user",
         })
-        .addFields({
-          // Defensive: handle both array and non-array cases
-          survey: {
-            $cond: {
-              if: { $isArray: "$survey" },
-              then: { $arrayElemAt: ["$survey", 0] },
-              else: null,
-            },
-          },
-          user: {
-            $cond: {
-              if: { $isArray: "$user" },
-              then: { $arrayElemAt: ["$user", 0] },
-              else: null,
-            },
-          },
-        })
-        // Filter out responses where critical lookups failed (survey or user not found)
-        // This prevents returning incomplete/orphaned data to clients
-        .match({
-          survey: { $ne: null },
-          // Note: user can be null for guest responses if sentinel user doesn't exist yet
-          // We keep these responses to avoid breaking guest survey functionality
+        // preserveNullAndEmptyArrays: true because guest responses use a sentinel
+        // userId (constants.GUEST_USER_ID) that may not resolve to a real user
+        // document. Dropping those would silently hide all guest survey data.
+        .unwind({
+          path: "$user",
+          preserveNullAndEmptyArrays: true,
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
