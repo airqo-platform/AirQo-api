@@ -59,12 +59,14 @@ const getOrCreateAirqoGroup = async (tenant) => {
     new: true,
     upsert: true,
     // setDefaultsOnInsert: ensures schema-defined defaults (e.g. theme,
-    // grp_profile_picture) are applied when the document is first created,
-    // consistent with other upsert call sites in this codebase.
+    // grp_profile_picture) are applied when the document is first created.
     setDefaultsOnInsert: true,
-    // runValidators: ensures the upserted/updated document passes schema
-    // validation, catching constraint violations early rather than at query time.
-    runValidators: true,
+    // runValidators is intentionally omitted for Mongoose 5.x compatibility.
+    // In Mongoose 5, runValidators on a findOneAndUpdate upsert runs validators
+    // with `this` set to null, causing any validator that calls
+    // this.ownerDocument() to throw "Cannot read properties of null".
+    // Schema constraints are still enforced at the database index level
+    // (e.g. the unique index on grp_title).
   };
 
   const airqoGroup = await GroupModel(tenant)
