@@ -1,6 +1,6 @@
 # Air Quality Spatial Analysis API
 
-Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps, and satellite-derived PM2.5 endpoints.
+Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps,and satellite-derived PM2.5.
 
 ## Prerequisites
 - Python 3.10+ and `pip`.
@@ -86,7 +86,7 @@ All routes are prefixed with `/api/v2/spatial`.
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/getisord` | POST | Getis-Ord hotspot/coldspot analysis for a grid and time window. |
-| `/getisord_confidence` | POST | Getis-Ord with confidence-level output. |
+| `/getisord_confidence` | POST | Getis-Ord with confidence reporting. |
 | `/localmoran` | POST | Local Moran's I cluster/outlier analysis. |
 | `/site_location` | POST | ML-driven sensor placement inside a polygon. |
 | `/categorize_site` | GET | Classify a site by latitude/longitude. |
@@ -177,12 +177,3 @@ Heatmaps:
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 ```
-
-## Notes and troubleshooting
-- Timestamps must be ISO 8601 (`YYYY-MM-DDTHH:MM:SS`); the analysis endpoints reject identical start/end times and ranges longer than 12 months.
-- `must_have_locations` must fall inside the supplied polygon for site selection.
-- BigQuery/Earth Engine operations require valid service account credentials and access to the configured datasets and buckets.
-- Redis is optional; if unavailable the heatmap endpoints still work but skip caching.
-- On Windows, if startup fails with `ModuleNotFoundError: No module named 'fcntl'` from `import ee`, uninstall the wrong `ee` package and keep `earthengine-api` only:
-  - `pip uninstall -y ee blessings`
-- If `python -m flask run` fails before loading `app.py` with `ImportError: cannot import name '_app_ctx_stack' from 'flask'`, your venv has conflicting Flask CLI plugins (commonly from Airflow). Create a clean venv in `src/spatial` and reinstall only `requirements.txt`.
