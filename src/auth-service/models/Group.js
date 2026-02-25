@@ -35,6 +35,27 @@ function validateProfilePicture(grp_profile_picture) {
   return true;
 }
 
+// Helper — returns true if a document matches any of the three
+// environment-agnostic protection criteria, or the _id fallback.
+const isProtectedGroup = (doc) => {
+  if (!doc) return false;
+
+  const nameMatch = doc.grp_title && doc.grp_title.toLowerCase() === "airqo";
+
+  const slugMatch =
+    doc.organization_slug && doc.organization_slug.toLowerCase() === "airqo";
+
+  const flagMatch = doc.is_default === true;
+
+  // Last-resort _id fallback — only evaluated when the constant is set.
+  const idMatch =
+    constants.DEFAULT_GROUP &&
+    doc._id &&
+    doc._id.toString() === constants.DEFAULT_GROUP.toString();
+
+  return nameMatch || slugMatch || flagMatch || idMatch;
+};
+
 const GroupSchema = new Schema(
   {
     grp_title: {
@@ -238,89 +259,56 @@ GroupSchema.pre(
     "deleteMany",
   ],
   async function (next) {
-    // Resolve the document being deleted whether this is query middleware
-    // (findOneAndDelete, deleteOne …) or document middleware (doc.remove()).
-    const Model = this.model || this.constructor;
-    const query = this.getQuery ? this.getQuery() : { _id: this._id };
-    const docToDelete =
-      typeof this.getQuery === "function" ? await Model.findOne(query) : this;
+    try {
+      const isQueryMiddleware = typeof this.getQuery === "function";
 
-    if (!docToDelete) {
-      return next();
-    }
+      if (isQueryMiddleware) {
+        // ---------------------------------------------------------------
+        // Query middleware path (findOneAndDelete, deleteOne, deleteMany…)
+        //
+        // WHY Model.find() and NOT Model.findOne():
+        // deleteMany can match and remove multiple documents in one call.
+        // Using findOne would only check the first matched document — if
+        // the protected airqo group happened not to be first, the hook
+        // would call next() and deleteMany would silently remove it.
+        // We must fetch ALL matched documents and block if ANY is protected.
+        // ---------------------------------------------------------------
+        const query = this.getQuery();
+        const Model = this.model;
 
-    // -------------------------------------------------------------------------
-    // Guard 1 — grp_title name check (primary, environment-agnostic).
-    //
-    // WHY CHANGED: previously the hook relied solely on constants.DEFAULT_GROUP
-    // (_id) which differs across dev/staging/production. grp_title is a stable
-    // string that is identical in every environment and carries a unique index.
-    // -------------------------------------------------------------------------
-    if (
-      docToDelete.grp_title &&
-      docToDelete.grp_title.toLowerCase() === "airqo"
-    ) {
-      return next(
-        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message: "The default 'airqo' group cannot be deleted.",
-        }),
-      );
-    }
+        const docsToDelete = await Model.find(query).lean();
 
-    // -------------------------------------------------------------------------
-    // Guard 2 — organization_slug check (belt-and-suspenders).
-    //
-    // WHY ADDED: catches the edge case where grp_title was somehow altered on
-    // the document but the slug was not, or vice-versa. Provides a second
-    // stable string-based protection layer with no environment dependency.
-    // -------------------------------------------------------------------------
-    if (
-      docToDelete.organization_slug &&
-      docToDelete.organization_slug.toLowerCase() === "airqo"
-    ) {
-      return next(
-        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message:
-            "The default 'airqo' group (identified by its slug) cannot be deleted.",
-        }),
-      );
-    }
+        if (!docsToDelete || docsToDelete.length === 0) {
+          return next();
+        }
 
-    // -------------------------------------------------------------------------
-    // Guard 3 — is_default flag check.
-    //
-    // WHY KEPT: catches any other group that was explicitly flagged as a system
-    // default beyond just the airqo group, e.g. a future second default group.
-    // -------------------------------------------------------------------------
-    if (docToDelete.is_default) {
-      return next(
-        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message: "Cannot delete default/system groups.",
-        }),
-      );
-    }
+        const protectedDoc = docsToDelete.find(isProtectedGroup);
 
-    // -------------------------------------------------------------------------
-    // Guard 4 — constants.DEFAULT_GROUP _id fallback.
-    //
-    // WHY LAST: this is the original guard, demoted to last-resort fallback for
-    // backwards compatibility. It still works in environments where
-    // constants.DEFAULT_GROUP is correctly set, but Guards 1–3 above will have
-    // already caught the airqo group before this point. The null-check prevents
-    // a crash in environments where the constant is undefined or stale.
-    // -------------------------------------------------------------------------
-    if (constants.DEFAULT_GROUP) {
-      const defaultId = constants.DEFAULT_GROUP.toString();
-      if (docToDelete._id.toString() === defaultId) {
-        return next(
-          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: "Cannot delete a configured default group.",
-          }),
-        );
+        if (protectedDoc) {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: `Cannot delete the default '${protectedDoc.grp_title}' group.`,
+            }),
+          );
+        }
+      } else {
+        // ---------------------------------------------------------------
+        // Document middleware path (doc.remove())
+        // `this` is the document itself — no query to resolve.
+        // ---------------------------------------------------------------
+        if (isProtectedGroup(this)) {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: `Cannot delete the default '${this.grp_title}' group.`,
+            }),
+          );
+        }
       }
-    }
 
-    return next();
+      return next();
+    } catch (error) {
+      return next(error);
+    }
   },
 );
 

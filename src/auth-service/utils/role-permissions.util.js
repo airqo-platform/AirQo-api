@@ -31,14 +31,13 @@ const normalizeName = (name) => {
  *
  * Identification strategy: queries by `grp_title: "airqo"` — the field that
  * carries a unique index and is stable across ALL environments (dev, staging,
- * production).  The document's `_id` is NEVER used here because it differs
- * per environment and would make this logic brittle.
+ * production). The document's `_id` is NEVER used here because it differs
+ * per environment.
  *
  * @param {string} tenant - The tenant identifier.
  * @returns {Promise<Object>} The AirQo group document.
  */
 const getOrCreateAirqoGroup = async (tenant) => {
-  // grp_title has a unique index — single-field filter is unambiguous.
   const filter = { grp_title: "airqo" };
 
   const update = {
@@ -56,7 +55,17 @@ const getOrCreateAirqoGroup = async (tenant) => {
     },
   };
 
-  const options = { new: true, upsert: true };
+  const options = {
+    new: true,
+    upsert: true,
+    // setDefaultsOnInsert: ensures schema-defined defaults (e.g. theme,
+    // grp_profile_picture) are applied when the document is first created,
+    // consistent with other upsert call sites in this codebase.
+    setDefaultsOnInsert: true,
+    // runValidators: ensures the upserted/updated document passes schema
+    // validation, catching constraint violations early rather than at query time.
+    runValidators: true,
+  };
 
   const airqoGroup = await GroupModel(tenant)
     .findOneAndUpdate(filter, update, options)
