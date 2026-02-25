@@ -199,6 +199,7 @@ SurveyResponseSchema.index({ userId: 1, createdAt: -1 });
 // Supports filtered list queries sorted by createdAt (e.g. all responses for a
 // survey in reverse-chronological order) without a blocking post-join sort.
 SurveyResponseSchema.index({ surveyId: 1, createdAt: -1 });
+SurveyResponseSchema.index({ createdAt: -1 });
 SurveyResponseSchema.index(
   { surveyId: 1, deviceId: 1 },
   {
