@@ -9,6 +9,8 @@ spec:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: {{ .Values.service.protocol }}
+      {{- if and .Values.service.nodePort (ne .Values.service.type "ClusterIP") }}
       nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
   selector:
     app: {{ .Values.app.label }}

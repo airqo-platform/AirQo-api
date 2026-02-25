@@ -11,5 +11,5 @@ spec:
       protocol: {{ .Values.service.protocol }}
       nodePort: {{ .Values.service.nodePort }}
   selector:
-    app: {{ .Values.app.label }}
+    app: {{ .Values.api.label }}
 

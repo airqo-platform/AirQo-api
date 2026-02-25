@@ -34,7 +34,7 @@ spec:
               name: {{ .Values.app.label }}
           envFrom:
             - secretRef:
-                name: {{ .Values.app.secret }}   # ExternalSecret created per microservice
+                name: {{ .Values.app.k8sSecret }}   # ExternalSecret created per microservice
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
