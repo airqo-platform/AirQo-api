@@ -7,7 +7,7 @@ This module combines:
 It returns ranked source-type candidates and supporting evidence for downstream APIs.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 from statistics import mean
 from typing import Dict, List, Tuple
@@ -317,8 +317,9 @@ class SourceMetadataModel:
             },
             "metadata": {
                 "model_version": self.MODEL_VERSION,
-                "computed_at_utc": datetime.utcnow().isoformat() + "Z",
+                "computed_at_utc": datetime.now(timezone.utc).isoformat(),
                 "date_range": {"start_date": start_date, "end_date": end_date},
                 "data_sources": data_sources,
+                "disclaimer": "Source attribution is inferred from heuristics and satellite/context signals; further study and ground validation are required.",
             },
         }
