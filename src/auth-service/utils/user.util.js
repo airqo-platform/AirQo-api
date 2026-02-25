@@ -913,7 +913,10 @@ const createUserModule = {
       // ── 2. Resolve the target user ────────────────────────────────────────────
 
       const filter = generateFilter.users(request, next);
-      const user = await UserModel(dbTenant).findOne(filter).lean();
+      const user = await UserModel(dbTenant)
+        .findOne(filter)
+        .select("_id email firstName lastName consent")
+        .lean();
 
       if (!user) {
         return {
@@ -967,10 +970,20 @@ const createUserModule = {
             }
 
             if (allowPII && userConsented) {
-              if (sanitizedUpdate.firstName) {
+              if (
+                Object.prototype.hasOwnProperty.call(
+                  sanitizedUpdate,
+                  "firstName",
+                )
+              ) {
                 userProperties.firstName = sanitizedUpdate.firstName;
               }
-              if (sanitizedUpdate.lastName) {
+              if (
+                Object.prototype.hasOwnProperty.call(
+                  sanitizedUpdate,
+                  "lastName",
+                )
+              ) {
                 userProperties.lastName = sanitizedUpdate.lastName;
               }
             }
