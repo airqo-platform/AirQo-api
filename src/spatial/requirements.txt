@@ -1,32 +1,51 @@
-#requirements.txt
-osmnx
-flask~=3.0.3
-pandas~=2.2.3
-geopandas
-pysal~=24.7
-geojson~=3.1.0
-libpysal~=4.12.1
-requests~=2.32.3
-python-dotenv~=1.0.1
-pandas-gbq
+# ------------------------
+# Web framework
+# ------------------------
+Flask==3.0.3
+Flask-Cors==5.0.0
+Flask-SQLAlchemy>=3.1.0
+gunicorn>=22.0.0
+python-dotenv==1.0.1
+
+# ------------------------
+# Core scientific stack
+# ------------------------
+numpy>=1.26,<3.0
+pandas==2.2.3
+scikit-learn==1.5.2
+joblib==1.4.2
+lightgbm>=4.1.0
+matplotlib>=3.8
+pillow>=10.0
+
+# ------------------------
+# Geospatial stack
+# ------------------------
+osmnx>=1.9.4
+geopandas>=0.14.4
+shapely==2.0.6
+pysal==24.7
+libpysal==4.12.1
+esda==2.6.0
+geojson==3.1.0
+overpy==0.7
+geopy==2.4.1
+
+# ------------------------
+# Google Cloud / BigQuery
+# ------------------------
 google-cloud-bigquery
 google-cloud-storage
 google-cloud-bigquery-storage
-google-cloud-bigquery[pandas] 
-gunicorn
-flask-cors~=5.0.0
-earthengine-api~=1.1.1
-overpy~=0.7
-geopy~=2.4.1
-protobuf~=5.28.2
-esda~=2.6.0
-shapely~=2.0.6
-scikit-learn~=1.5.2
-gcsfs~=2024.9.0.post1
-joblib~=1.4.2
-lightgbm~=4.1.0 
-numpy
-google-generativeai
-redis
-matplotlib
-pillow
+google-cloud-bigquery[pandas]
+pandas-gbq
+gcsfs==2024.9.0.post1
+protobuf>=5.28.2
+
+# ------------------------
+# External APIs & utilities
+# ------------------------
+requests==2.32.3
+earthengine-api==1.1.1
+redis>=5.0.0 
+
