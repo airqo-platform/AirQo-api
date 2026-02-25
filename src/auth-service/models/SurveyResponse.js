@@ -196,6 +196,10 @@ SurveyResponseSchema.pre("update", function (next) {
 SurveyResponseSchema.index({ surveyId: 1, userId: 1 });
 SurveyResponseSchema.index({ surveyId: 1, status: 1 });
 SurveyResponseSchema.index({ userId: 1, createdAt: -1 });
+// Supports filtered list queries sorted by createdAt (e.g. all responses for a
+// survey in reverse-chronological order) without a blocking post-join sort.
+SurveyResponseSchema.index({ surveyId: 1, createdAt: -1 });
+SurveyResponseSchema.index({ createdAt: -1 });
 SurveyResponseSchema.index(
   { surveyId: 1, deviceId: 1 },
   {
@@ -320,11 +324,25 @@ SurveyResponseSchema.statics = {
 
       const response = await this.aggregate()
         .match(filter)
+        // ── Sort BEFORE the $lookup/$unwind stages ──────────────────────────────
+        // createdAt is a root-document field, so the sort can be served from the
+        // { surveyId: 1, createdAt: -1 } or { userId: 1, createdAt: -1 } indexes
+        // (see schema-level index declarations) without materialising the joined
+        // result set first. Moving the sort here avoids an expensive blocking sort
+        // over the much-larger post-join documents.
+        .sort({ createdAt: -1 })
         .lookup({
           from: "surveys",
           localField: "surveyId",
           foreignField: "_id",
           as: "survey",
+        })
+        // preserveNullAndEmptyArrays: false — excludes orphaned responses (no
+        // matching survey). $unwind with false is equivalent to the previous
+        // .match({ survey: { $ne: null } }) but more efficient.
+        .unwind({
+          path: "$survey",
+          preserveNullAndEmptyArrays: false,
         })
         .lookup({
           from: "users",
@@ -332,31 +350,26 @@ SurveyResponseSchema.statics = {
           foreignField: "_id",
           as: "user",
         })
+        // preserveNullAndEmptyArrays: true — keeps guest responses whose sentinel
+        // userId (constants.GUEST_USER_ID) has no matching user document. When
+        // $unwind finds an empty array with this option it removes the field
+        // entirely rather than setting it to null, so the $addFields stage below
+        // is required to normalise the missing key to explicit null.
+        .unwind({
+          path: "$user",
+          preserveNullAndEmptyArrays: true,
+        })
+        // ── Normalise missing user to explicit null ─────────────────────────────
+        // After $unwind with preserveNullAndEmptyArrays: true, guest responses
+        // whose userId did not resolve to a user document will have NO "user" key
+        // on the document at all — not null, not undefined, simply absent. Without
+        // this stage, the downstream projection `user: "$user"` silently omits the
+        // key, giving the API an inconsistent response shape for guest vs
+        // authenticated responses. $ifNull coerces the absent field to null so
+        // consumers always receive a "user" key.
         .addFields({
-          // Defensive: handle both array and non-array cases
-          survey: {
-            $cond: {
-              if: { $isArray: "$survey" },
-              then: { $arrayElemAt: ["$survey", 0] },
-              else: null,
-            },
-          },
-          user: {
-            $cond: {
-              if: { $isArray: "$user" },
-              then: { $arrayElemAt: ["$user", 0] },
-              else: null,
-            },
-          },
+          user: { $ifNull: ["$user", null] },
         })
-        // Filter out responses where critical lookups failed (survey or user not found)
-        // This prevents returning incomplete/orphaned data to clients
-        .match({
-          survey: { $ne: null },
-          // Note: user can be null for guest responses if sentinel user doesn't exist yet
-          // We keep these responses to avoid breaking guest survey functionality
-        })
-        .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
