@@ -1,6 +1,6 @@
 # Air Quality Spatial Analysis API
 
-Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps,and satellite-derived PM2.5.
+Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps, and satellite-derived PM2.5.
 
 ## Prerequisites
 - Python 3.10+ and `pip`.
