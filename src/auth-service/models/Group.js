@@ -36,11 +36,10 @@ function validateProfilePicture(grp_profile_picture) {
 }
 
 // ---------------------------------------------------------------------------
-// protectedFilter — a MongoDB query expression that matches any document
-// which qualifies as a protected group. Used both for the pre-check findOne
-// and for the this.where($nor) guard that narrows the delete scope.
+// protectedFilter — MongoDB query expression matching any protected group.
+// Used for the pre-check findOne and the this.where($nor) query guard.
 //
-// Criteria mirror the four guards established in the previous refactor:
+// Criteria (all four guards preserved from the previous refactor):
 //   1. grp_title === "airqo"            — primary, environment-agnostic
 //   2. organization_slug === "airqo"    — belt-and-suspenders slug check
 //   3. is_default === true              — any explicitly flagged system group
@@ -50,14 +49,13 @@ const protectedFilter = [
   { grp_title: { $regex: /^airqo$/i } },
   { organization_slug: { $regex: /^airqo$/i } },
   { is_default: true },
-  // Only include the _id condition when the constant is actually set,
-  // to avoid matching everything when DEFAULT_GROUP is undefined.
+  // Only included when the constant is set — avoids matching everything
+  // when DEFAULT_GROUP is undefined.
   ...(constants.DEFAULT_GROUP ? [{ _id: constants.DEFAULT_GROUP }] : []),
 ];
 
 // isProtectedGroup — used on the document middleware path (doc.remove())
 // where `this` is a plain JS document object, not a DB query result.
-// All four criteria are checked in-memory against the document's fields.
 const isProtectedGroup = (doc) => {
   if (!doc) return false;
 
@@ -274,7 +272,9 @@ GroupSchema.pre(
     "findOneAndRemove",
     "remove",
     "findOneAndDelete",
-    "findByIdAndDelete",
+    // "findByIdAndDelete" removed — Mongoose v6+ routes findByIdAndDelete
+    // through findOneAndDelete internally, so registering it here is
+    // redundant; findOneAndDelete above already covers it.
     "deleteOne",
     "deleteMany",
   ],
@@ -287,48 +287,50 @@ GroupSchema.pre(
         // Query middleware path (findOneAndDelete, deleteOne, deleteMany…)
         //
         // Step 1 — targeted findOne intersection check.
-        //   Run a single findOne({ $and: [callerQuery, { $or: protectedFilter }] })
-        //   to detect whether any document in the caller's match set is
-        //   protected. This is O(1) — one index seek — rather than fetching
-        //   every matched document into memory.
+        //   Single index seek: { $and: [callerQuery, { $or: protectedFilter }] }
+        //   Only grp_title is projected since that is all we need for the
+        //   error message; _id is always returned by MongoDB unless explicitly
+        //   suppressed, giving us a reliable fallback if grp_title is missing.
         //
         // Step 2 — this.where($nor) query guard.
-        //   If no protected document is found, narrow the delete query at
-        //   the database level using this.where({ $nor: protectedFilter })
-        //   before calling next(). This closes the TOCTOU window between the
-        //   check and the actual delete: even if a document becomes protected
-        //   between the findOne and the delete, the $nor clause prevents it
-        //   from being matched by the final delete operation.
+        //   Merges the exclusion into the live query to close the TOCTOU
+        //   window between the check and the actual delete.
         // -----------------------------------------------------------------
         const callerQuery = this.getQuery();
         const Model = this.model;
 
         const protectedDoc = await Model.findOne({
           $and: [callerQuery, { $or: protectedFilter }],
-        }).lean();
+        })
+          .select("grp_title") // project only what is needed for the error message
+          .lean();
 
         if (protectedDoc) {
+          // grp_title may be absent if the document matched via slug, flag,
+          // or _id guard rather than by name — fall back to _id in that case.
+          const identifier =
+            protectedDoc.grp_title || protectedDoc._id || "default group";
+
           return next(
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-              message: `Cannot delete the default '${protectedDoc.grp_title}' group.`,
+              message: `Cannot delete the default '${identifier}' group.`,
             }),
           );
         }
 
         // No protected document found — apply $nor guard before proceeding.
-        // this.where() merges additional conditions into the live query so
-        // the delete cannot match any protected group even in a race window.
         this.where({ $nor: protectedFilter });
       } else {
         // -----------------------------------------------------------------
         // Document middleware path (doc.remove())
         // `this` is the document instance — no query object, no this.where().
-        // isProtectedGroup checks the in-memory document fields directly.
         // -----------------------------------------------------------------
         if (isProtectedGroup(this)) {
+          const identifier = this.grp_title || this._id || "default group";
+
           return next(
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-              message: `Cannot delete the default '${this.grp_title}' group.`,
+              message: `Cannot delete the default '${identifier}' group.`,
             }),
           );
         }
