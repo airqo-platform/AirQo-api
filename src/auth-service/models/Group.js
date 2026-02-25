@@ -35,8 +35,29 @@ function validateProfilePicture(grp_profile_picture) {
   return true;
 }
 
-// Helper — returns true if a document matches any of the three
-// environment-agnostic protection criteria, or the _id fallback.
+// ---------------------------------------------------------------------------
+// protectedFilter — a MongoDB query expression that matches any document
+// which qualifies as a protected group. Used both for the pre-check findOne
+// and for the this.where($nor) guard that narrows the delete scope.
+//
+// Criteria mirror the four guards established in the previous refactor:
+//   1. grp_title === "airqo"            — primary, environment-agnostic
+//   2. organization_slug === "airqo"    — belt-and-suspenders slug check
+//   3. is_default === true              — any explicitly flagged system group
+//   4. _id === constants.DEFAULT_GROUP  — backwards-compat _id fallback
+// ---------------------------------------------------------------------------
+const protectedFilter = [
+  { grp_title: { $regex: /^airqo$/i } },
+  { organization_slug: { $regex: /^airqo$/i } },
+  { is_default: true },
+  // Only include the _id condition when the constant is actually set,
+  // to avoid matching everything when DEFAULT_GROUP is undefined.
+  ...(constants.DEFAULT_GROUP ? [{ _id: constants.DEFAULT_GROUP }] : []),
+];
+
+// isProtectedGroup — used on the document middleware path (doc.remove())
+// where `this` is a plain JS document object, not a DB query result.
+// All four criteria are checked in-memory against the document's fields.
 const isProtectedGroup = (doc) => {
   if (!doc) return false;
 
@@ -47,7 +68,6 @@ const isProtectedGroup = (doc) => {
 
   const flagMatch = doc.is_default === true;
 
-  // Last-resort _id fallback — only evaluated when the constant is set.
   const idMatch =
     constants.DEFAULT_GROUP &&
     doc._id &&
@@ -263,26 +283,29 @@ GroupSchema.pre(
       const isQueryMiddleware = typeof this.getQuery === "function";
 
       if (isQueryMiddleware) {
-        // ---------------------------------------------------------------
+        // -----------------------------------------------------------------
         // Query middleware path (findOneAndDelete, deleteOne, deleteMany…)
         //
-        // WHY Model.find() and NOT Model.findOne():
-        // deleteMany can match and remove multiple documents in one call.
-        // Using findOne would only check the first matched document — if
-        // the protected airqo group happened not to be first, the hook
-        // would call next() and deleteMany would silently remove it.
-        // We must fetch ALL matched documents and block if ANY is protected.
-        // ---------------------------------------------------------------
-        const query = this.getQuery();
+        // Step 1 — targeted findOne intersection check.
+        //   Run a single findOne({ $and: [callerQuery, { $or: protectedFilter }] })
+        //   to detect whether any document in the caller's match set is
+        //   protected. This is O(1) — one index seek — rather than fetching
+        //   every matched document into memory.
+        //
+        // Step 2 — this.where($nor) query guard.
+        //   If no protected document is found, narrow the delete query at
+        //   the database level using this.where({ $nor: protectedFilter })
+        //   before calling next(). This closes the TOCTOU window between the
+        //   check and the actual delete: even if a document becomes protected
+        //   between the findOne and the delete, the $nor clause prevents it
+        //   from being matched by the final delete operation.
+        // -----------------------------------------------------------------
+        const callerQuery = this.getQuery();
         const Model = this.model;
 
-        const docsToDelete = await Model.find(query).lean();
-
-        if (!docsToDelete || docsToDelete.length === 0) {
-          return next();
-        }
-
-        const protectedDoc = docsToDelete.find(isProtectedGroup);
+        const protectedDoc = await Model.findOne({
+          $and: [callerQuery, { $or: protectedFilter }],
+        }).lean();
 
         if (protectedDoc) {
           return next(
@@ -291,11 +314,17 @@ GroupSchema.pre(
             }),
           );
         }
+
+        // No protected document found — apply $nor guard before proceeding.
+        // this.where() merges additional conditions into the live query so
+        // the delete cannot match any protected group even in a race window.
+        this.where({ $nor: protectedFilter });
       } else {
-        // ---------------------------------------------------------------
+        // -----------------------------------------------------------------
         // Document middleware path (doc.remove())
-        // `this` is the document itself — no query to resolve.
-        // ---------------------------------------------------------------
+        // `this` is the document instance — no query object, no this.where().
+        // isProtectedGroup checks the in-memory document fields directly.
+        // -----------------------------------------------------------------
         if (isProtectedGroup(this)) {
           return next(
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
