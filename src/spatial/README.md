@@ -177,3 +177,9 @@ Heatmaps:
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 ```
+
+## Notes and troubleshooting
+- Timestamps must be ISO 8601 (`YYYY-MM-DDTHH:MM:SS`); the analysis endpoints reject identical start/end times and ranges longer than 12 months.
+- `must_have_locations` must fall inside the supplied polygon for site selection.
+- BigQuery/Earth Engine operations require valid service account credentials and access to the configured datasets and buckets.
+- Redis is optional; if unavailable the heatmap endpoints still work but skip caching.
