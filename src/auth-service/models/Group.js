@@ -272,9 +272,9 @@ GroupSchema.pre(
     "findOneAndRemove",
     "remove",
     "findOneAndDelete",
-    // "findByIdAndDelete" removed — Mongoose v6+ routes findByIdAndDelete
-    // through findOneAndDelete internally, so registering it here is
-    // redundant; findOneAndDelete above already covers it.
+    // "findByIdAndDelete" removed — Mongoose 5.x and later routes
+    // findByIdAndDelete through findOneAndDelete internally, so registering
+    // it here is redundant; findOneAndDelete above already covers it.
     "deleteOne",
     "deleteMany",
   ],
