@@ -1111,7 +1111,8 @@ const dbProjections = {
     // pipeline (SurveyResponse.js list method). Do NOT use $arrayElemAt here —
     // that caused: "PlanExecutor error :: $arrayElemAt's first argument must be
     // an array, but is object". Pass through the already-deconstructed objects
-    // directly.
+    // directly. For guest responses user will be null (normalised by the
+    // $addFields stage in the pipeline) but the key is always present.
     survey: "$survey",
     user: "$user",
     // Calculate answer count
@@ -1122,7 +1123,13 @@ const dbProjections = {
         else: 0,
       },
     },
-    // Calculate completion percentage based on survey's expected time
+    // Ratio of survey.timeToComplete (expected) to timeToComplete (actual),
+    // expressed as a percentage.
+    //   • Values > 100 mean the respondent was FASTER than expected.
+    //   • Values < 100 mean the respondent was SLOWER than expected.
+    //   • Values are NOT capped at 100; consumers must not interpret this as a
+    //     bounded completion percentage.
+    //   • null when either timeToComplete or survey.timeToComplete is absent/zero.
     completionEfficiency: {
       $cond: {
         if: {
