@@ -406,6 +406,11 @@ const listResponses = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    query("status")
+      .optional()
+      .trim()
+      .isIn(["completed", "skipped", "partial"])
+      .withMessage("status must be one of: completed, skipped, partial"),
   ],
 ];
 

@@ -35,6 +35,45 @@ function validateProfilePicture(grp_profile_picture) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// protectedFilter — MongoDB query expression matching any protected group.
+// Used for the pre-check findOne and the this.where($nor) query guard.
+//
+// Criteria (all four guards preserved from the previous refactor):
+//   1. grp_title === "airqo"            — primary, environment-agnostic
+//   2. organization_slug === "airqo"    — belt-and-suspenders slug check
+//   3. is_default === true              — any explicitly flagged system group
+//   4. _id === constants.DEFAULT_GROUP  — backwards-compat _id fallback
+// ---------------------------------------------------------------------------
+const protectedFilter = [
+  { grp_title: { $regex: /^airqo$/i } },
+  { organization_slug: { $regex: /^airqo$/i } },
+  { is_default: true },
+  // Only included when the constant is set — avoids matching everything
+  // when DEFAULT_GROUP is undefined.
+  ...(constants.DEFAULT_GROUP ? [{ _id: constants.DEFAULT_GROUP }] : []),
+];
+
+// isProtectedGroup — used on the document middleware path (doc.remove())
+// where `this` is a plain JS document object, not a DB query result.
+const isProtectedGroup = (doc) => {
+  if (!doc) return false;
+
+  const nameMatch = doc.grp_title && doc.grp_title.toLowerCase() === "airqo";
+
+  const slugMatch =
+    doc.organization_slug && doc.organization_slug.toLowerCase() === "airqo";
+
+  const flagMatch = doc.is_default === true;
+
+  const idMatch =
+    constants.DEFAULT_GROUP &&
+    doc._id &&
+    doc._id.toString() === constants.DEFAULT_GROUP.toString();
+
+  return nameMatch || slugMatch || flagMatch || idMatch;
+};
+
 const GroupSchema = new Schema(
   {
     grp_title: {
@@ -233,54 +272,74 @@ GroupSchema.pre(
     "findOneAndRemove",
     "remove",
     "findOneAndDelete",
-    "findByIdAndDelete",
+    // "findByIdAndDelete" removed — Mongoose 5.x and later routes
+    // findByIdAndDelete through findOneAndDelete internally, so registering
+    // it here is redundant; findOneAndDelete above already covers it.
     "deleteOne",
     "deleteMany",
   ],
   async function (next) {
-    const query = this.getQuery ? this.getQuery() : { _id: this._id };
-    const Model = this.model || this.constructor;
-    const docToDelete =
-      typeof this.getQuery === "function" ? await Model.findOne(query) : this;
+    try {
+      const isQueryMiddleware = typeof this.getQuery === "function";
 
-    if (!docToDelete) {
+      if (isQueryMiddleware) {
+        // -----------------------------------------------------------------
+        // Query middleware path (findOneAndDelete, deleteOne, deleteMany…)
+        //
+        // Step 1 — targeted findOne intersection check.
+        //   Single index seek: { $and: [callerQuery, { $or: protectedFilter }] }
+        //   Only grp_title is projected since that is all we need for the
+        //   error message; _id is always returned by MongoDB unless explicitly
+        //   suppressed, giving us a reliable fallback if grp_title is missing.
+        //
+        // Step 2 — this.where($nor) query guard.
+        //   Merges the exclusion into the live query to close the TOCTOU
+        //   window between the check and the actual delete.
+        // -----------------------------------------------------------------
+        const callerQuery = this.getQuery();
+        const Model = this.model;
+
+        const protectedDoc = await Model.findOne({
+          $and: [callerQuery, { $or: protectedFilter }],
+        })
+          .select("grp_title") // project only what is needed for the error message
+          .lean();
+
+        if (protectedDoc) {
+          // grp_title may be absent if the document matched via slug, flag,
+          // or _id guard rather than by name — fall back to _id in that case.
+          const identifier =
+            protectedDoc.grp_title || protectedDoc._id || "default group";
+
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: `Cannot delete the default '${identifier}' group.`,
+            }),
+          );
+        }
+
+        // No protected document found — apply $nor guard before proceeding.
+        this.where({ $nor: protectedFilter });
+      } else {
+        // -----------------------------------------------------------------
+        // Document middleware path (doc.remove())
+        // `this` is the document instance — no query object, no this.where().
+        // -----------------------------------------------------------------
+        if (isProtectedGroup(this)) {
+          const identifier = this.grp_title || this._id || "default group";
+
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: `Cannot delete the default '${identifier}' group.`,
+            }),
+          );
+        }
+      }
+
       return next();
+    } catch (error) {
+      return next(error);
     }
-
-    // Prevent deletion of the 'airqo' group by its title as a safeguard
-    if (
-      docToDelete.grp_title &&
-      docToDelete.grp_title.toLowerCase() === "airqo"
-    ) {
-      return next(
-        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message: "The default 'airqo' group cannot be deleted.",
-        }),
-      );
-    }
-    // Check is_default flag
-    if (docToDelete.is_default) {
-      return next(
-        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message: "Cannot delete default/system groups",
-        }),
-      );
-    }
-
-    // Check against environment default IDs
-    const defaultIds = [constants.DEFAULT_GROUP]
-      .filter(Boolean)
-      .map((id) => id.toString());
-
-    if (defaultIds.includes(docToDelete._id.toString())) {
-      return next(
-        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message: "Cannot delete configured default groups",
-        }),
-      );
-    }
-
-    next();
   },
 );
 
