@@ -989,7 +989,13 @@ const createUserModule = {
             }
 
             if (Object.keys(userProperties).length > 0) {
-              analyticsService.identify(distinctId, userProperties);
+              // .catch() ensures an async rejection from the PostHog client
+              // does not become an unhandled promise rejection at runtime.
+              analyticsService
+                .identify(distinctId, userProperties)
+                .catch((err) =>
+                  logger.error(`PostHog identify error: ${err.message}`),
+                );
             }
           }
         }
@@ -1041,14 +1047,29 @@ const createUserModule = {
       }
 
       // ── 7. Send notification email ────────────────────────────────────────────
+      //
+      // Prefer updated name values from the payload so the email salutation
+      // reflects the new name when firstName/lastName are part of this update.
+      // Fall back to the pre-update values from `user` for unchanged fields.
+      const emailFirstName = Object.prototype.hasOwnProperty.call(
+        emailUpdatePayload,
+        "firstName",
+      )
+        ? emailUpdatePayload.firstName
+        : user.firstName;
 
-      const { email, firstName, lastName } = user;
+      const emailLastName = Object.prototype.hasOwnProperty.call(
+        emailUpdatePayload,
+        "lastName",
+      )
+        ? emailUpdatePayload.lastName
+        : user.lastName;
 
       const responseFromSendEmail = await mailer.update(
         {
-          email,
-          firstName,
-          lastName,
+          email: user.email,
+          firstName: emailFirstName,
+          lastName: emailLastName,
           updatedUserDetails: emailUpdatePayload,
         },
         next,
