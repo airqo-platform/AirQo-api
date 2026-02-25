@@ -28,24 +28,40 @@ const normalizeName = (name) => {
 
 /**
  * Ensures the default "AirQo" group exists, creating it if necessary.
+ *
+ * Identification strategy: queries by `grp_title: "airqo"` — the field that
+ * carries a unique index and is stable across ALL environments (dev, staging,
+ * production).  The document's `_id` is NEVER used here because it differs
+ * per environment and would make this logic brittle.
+ *
  * @param {string} tenant - The tenant identifier.
  * @returns {Promise<Object>} The AirQo group document.
  */
 const getOrCreateAirqoGroup = async (tenant) => {
-  const query = { organization_slug: "airqo" };
+  // grp_title has a unique index — single-field filter is unambiguous.
+  const filter = { grp_title: "airqo" };
+
   const update = {
-    $setOnInsert: {
-      grp_title: "AirQo",
-      grp_description: "The default AirQo organization group",
-      grp_status: "ACTIVE",
+    // $set: always-applied fields — keeps slug and flags in sync on every run.
+    $set: {
       organization_slug: "airqo",
+      grp_status: "ACTIVE",
       is_default: true,
     },
+    // $setOnInsert: only written on first creation so manual admin edits to
+    // description etc. are preserved on subsequent startup runs.
+    $setOnInsert: {
+      grp_title: "airqo",
+      grp_description: "The default AirQo organization group",
+    },
   };
+
   const options = { new: true, upsert: true };
+
   const airqoGroup = await GroupModel(tenant)
-    .findOneAndUpdate(query, update, options)
+    .findOneAndUpdate(filter, update, options)
     .lean();
+
   return airqoGroup;
 };
 
@@ -943,9 +959,19 @@ const auditAndSyncExistingRoles = async (tenant) => {
   }
 };
 
+/**
+ * Update tenant settings with references to the default AirQo group and roles.
+ *
+ * The AirQo group is located by name (via getOrCreateAirqoGroup) so this
+ * function is environment-agnostic — it never relies on a hard-coded _id.
+ */
 const updateTenantSettingsWithDefaultRoles = async (tenant) => {
   try {
+    // Locate the default group by name, not by _id.
+    // getOrCreateAirqoGroup queries using { grp_title: "airqo" } which is
+    // stable across all environments.
     const airqoGroup = await getOrCreateAirqoGroup(tenant);
+
     const defaultRoleCodes = ["AIRQO_DEFAULT_MEMBER", "AIRQO_DEFAULT_USER"];
     const defaultUserRole = await RoleModel(tenant)
       .findOne({ role_code: { $in: defaultRoleCodes } })
@@ -953,16 +979,22 @@ const updateTenantSettingsWithDefaultRoles = async (tenant) => {
 
     if (defaultUserRole) {
       const settingsUpdate = {
+        // The _id used here was derived from a name-based lookup above, so it
+        // is correct for the current environment.
         defaultGroup: airqoGroup._id,
         defaultGroupRole: defaultUserRole._id,
-        defaultNetwork: constants.DEFAULT_NETWORK, // Assuming this is static for now
+        // DEFAULT_NETWORK is a separate concern (network layer) and is managed
+        // outside the scope of this group-name refactor.
+        defaultNetwork: constants.DEFAULT_NETWORK,
         defaultNetworkRole: defaultUserRole._id,
       };
+
       await TenantSettingsModel(tenant).findOneAndUpdate(
         { tenant },
         { $set: settingsUpdate },
         { upsert: true, new: true },
       );
+
       logText("✅ Tenant settings updated with default roles.");
     } else {
       logger.warn("⚠️ Could not find default roles to update tenant settings.");

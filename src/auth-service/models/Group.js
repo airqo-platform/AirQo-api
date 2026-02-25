@@ -238,8 +238,10 @@ GroupSchema.pre(
     "deleteMany",
   ],
   async function (next) {
-    const query = this.getQuery ? this.getQuery() : { _id: this._id };
+    // Resolve the document being deleted whether this is query middleware
+    // (findOneAndDelete, deleteOne …) or document middleware (doc.remove()).
     const Model = this.model || this.constructor;
+    const query = this.getQuery ? this.getQuery() : { _id: this._id };
     const docToDelete =
       typeof this.getQuery === "function" ? await Model.findOne(query) : this;
 
@@ -247,7 +249,13 @@ GroupSchema.pre(
       return next();
     }
 
-    // Prevent deletion of the 'airqo' group by its title as a safeguard
+    // -------------------------------------------------------------------------
+    // Guard 1 — grp_title name check (primary, environment-agnostic).
+    //
+    // WHY CHANGED: previously the hook relied solely on constants.DEFAULT_GROUP
+    // (_id) which differs across dev/staging/production. grp_title is a stable
+    // string that is identical in every environment and carries a unique index.
+    // -------------------------------------------------------------------------
     if (
       docToDelete.grp_title &&
       docToDelete.grp_title.toLowerCase() === "airqo"
@@ -258,29 +266,61 @@ GroupSchema.pre(
         }),
       );
     }
-    // Check is_default flag
+
+    // -------------------------------------------------------------------------
+    // Guard 2 — organization_slug check (belt-and-suspenders).
+    //
+    // WHY ADDED: catches the edge case where grp_title was somehow altered on
+    // the document but the slug was not, or vice-versa. Provides a second
+    // stable string-based protection layer with no environment dependency.
+    // -------------------------------------------------------------------------
+    if (
+      docToDelete.organization_slug &&
+      docToDelete.organization_slug.toLowerCase() === "airqo"
+    ) {
+      return next(
+        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+          message:
+            "The default 'airqo' group (identified by its slug) cannot be deleted.",
+        }),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Guard 3 — is_default flag check.
+    //
+    // WHY KEPT: catches any other group that was explicitly flagged as a system
+    // default beyond just the airqo group, e.g. a future second default group.
+    // -------------------------------------------------------------------------
     if (docToDelete.is_default) {
       return next(
         new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message: "Cannot delete default/system groups",
+          message: "Cannot delete default/system groups.",
         }),
       );
     }
 
-    // Check against environment default IDs
-    const defaultIds = [constants.DEFAULT_GROUP]
-      .filter(Boolean)
-      .map((id) => id.toString());
-
-    if (defaultIds.includes(docToDelete._id.toString())) {
-      return next(
-        new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-          message: "Cannot delete configured default groups",
-        }),
-      );
+    // -------------------------------------------------------------------------
+    // Guard 4 — constants.DEFAULT_GROUP _id fallback.
+    //
+    // WHY LAST: this is the original guard, demoted to last-resort fallback for
+    // backwards compatibility. It still works in environments where
+    // constants.DEFAULT_GROUP is correctly set, but Guards 1–3 above will have
+    // already caught the airqo group before this point. The null-check prevents
+    // a crash in environments where the constant is undefined or stale.
+    // -------------------------------------------------------------------------
+    if (constants.DEFAULT_GROUP) {
+      const defaultId = constants.DEFAULT_GROUP.toString();
+      if (docToDelete._id.toString() === defaultId) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "Cannot delete a configured default group.",
+          }),
+        );
+      }
     }
 
-    next();
+    return next();
   },
 );
 
