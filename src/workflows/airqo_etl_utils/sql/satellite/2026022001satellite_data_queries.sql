@@ -1,3 +1,4 @@
+-- name: location_approximated_satellite_hourly_data
 -- Merged hourly satellite measurements (air quality + wind)
 -- Placeholders:
 -- {geo_table} -> metadata table with city locations

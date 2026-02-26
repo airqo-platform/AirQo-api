@@ -26,6 +26,7 @@ from .cloud_storage import (
     AzureBlobFileStorage,
     GoogleDriveFileStorage,
 )
+from .mlflow_tracker import MlflowTracker
 
 __all__ = [
     "register_storage",
@@ -38,6 +39,7 @@ __all__ = [
     "AWSFileStorage",
     "AzureBlobFileStorage",
     "GoogleDriveFileStorage",
+    "MlflowTracker",
     "get_configured_storage",
 ]
 

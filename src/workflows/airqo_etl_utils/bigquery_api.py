@@ -1279,10 +1279,16 @@ class BigQueryApi:
             ValueError: If the provided start_date_time is invalid.
             RuntimeError: If there is an error fetching data from BigQuery.
         """
+        valid_job_types = {"train", "predict"}
+        if job_type not in valid_job_types:
+            raise ValueError(
+                f"Invalid job_type '{job_type}'. Expected one of {sorted(valid_job_types)}."
+            )
+
         try:
-            pd.to_datetime(start_date_time)
-        except ValueError:
-            raise ValueError(f"Invalid start date time: {start_date_time}")
+            start_date = pd.to_datetime(start_date_time).date()
+        except ValueError as e:
+            raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
         select_fields = """
             t1.device_id,
@@ -1301,16 +1307,94 @@ class BigQueryApi:
         FROM `{self.hourly_measurements_table}` t1
         JOIN `{self.sites_table}` t2
         ON t1.site_id = t2.id
-        WHERE DATE(t1.timestamp) >= '{start_date_time}'
+        WHERE DATE(t1.timestamp) >= @start_date
         AND t1.device_id IS NOT NULL
         ORDER BY t1.device_id, t1.timestamp
         """
+        query_parameters = [
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+        ]
 
         try:
-            return self.execute_data_query(query)
+            return self.execute_data_query(
+                query=query, query_parameters=query_parameters
+            )
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
+    
+    def fetch_site_data_for_forecast_jobs(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        job_type: str,
+        min_hours: int = 18,
+    ) -> pd.DataFrame:
+
+    # fetch data for forecast jobs
+        """
+        Fetch daily aggregated PM2.5 stats per site for forecast jobs.
+
+        Notes:
+        - Filters to rows with non-null pm2_5_calibrated_value
+        - Requires at least `min_hours` hourly points per day (default 18)
+        - Aggregate 
+    """
+        if min_hours <= 0:
+            raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
+
+        valid_job_types = {"train", "predict"}
+        if job_type not in valid_job_types:
+            raise ValueError(
+                f"Invalid job_type '{job_type}'. Expected one of {sorted(valid_job_types)}."
+            )
+
+        try:
+            start_date = pd.to_datetime(start_date_time).date()
+            end_date = pd.to_datetime(end_date_time).date()
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid date format. start_date_time='{start_date_time}', end_date_time='{end_date_time}'"
+            ) from e
+
+        if start_date > end_date:
+            raise ValueError(
+                f"start_date_time must be <= end_date_time, got {start_date} > {end_date}"
+            )
+
+        select_fields = """
+            DATE(timestamp) AS day,
+            site_id,
+            site_name,
+            ANY_VALUE(site_latitude) AS latitude,
+            ANY_VALUE(site_longitude) AS longitude,
+            AVG(pm2_5_calibrated_value) AS pm25_mean,
+            MIN(pm2_5_calibrated_value) AS pm25_min,
+            MAX(pm2_5_calibrated_value) AS pm25_max,
+            COUNT(pm2_5_calibrated_value) AS n_hours             
+        """
+        query = f"""
+            SELECT {select_fields}
+            FROM `{self.consolidated_data_table}`
+            WHERE DATE(timestamp) BETWEEN @start_date AND @end_date
+            AND pm2_5_calibrated_value IS NOT NULL
+            GROUP BY day, site_id, site_name
+            HAVING n_hours >= @min_hours
+            ORDER BY day, site_id
+            """
+        query_parameters = [
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+            bigquery.ScalarQueryParameter("min_hours", "INT64", min_hours),
+        ]
+        try:
+            return self.execute_data_query(
+                query=query, query_parameters=query_parameters
+            )
+        except Exception as e:
+            raise RuntimeError(f"Error fetching data from BigQuery: {e}")
+            
+        
     def fetch_device_data_for_satellite_job(
         self,
         start_date_time: str,
@@ -1513,7 +1597,10 @@ class BigQueryApi:
         return query
 
     def execute_data_query(
-        self, query: str, use_cache: Optional[bool] = True
+        self,
+        query: str,
+        use_cache: Optional[bool] = True,
+        query_parameters: Optional[List[bigquery.ScalarQueryParameter]] = None,
     ) -> pd.DataFrame:
         """
         Executes the given SQL query using the BigQuery client and returns the result as a Pandas DataFrame.
@@ -1529,6 +1616,8 @@ class BigQueryApi:
         """
         query_config = bigquery.QueryJobConfig()
         query_config.use_query_cache = use_cache
+        if query_parameters:
+            query_config.query_parameters = query_parameters
         data = (
             self.client.query(query=query, job_config=query_config)
             .result()
@@ -1687,3 +1776,6 @@ class BigQueryApi:
             return "BYTES"
         else:
             raise ValueError(f"Unsupported type for value {value}: {type(value)}")
+
+
+    
