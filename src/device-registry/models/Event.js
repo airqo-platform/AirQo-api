@@ -887,18 +887,27 @@ async function fetchData(model, filter) {
   } = filter;
 
   // ── Sanitise pagination inputs ──────────────────────────────────────────
-  if (typeof limit !== "number" || isNaN(limit) || limit < 0) {
-    limit = DEFAULT_LIMIT;
-  }
+  // Accept numeric strings (e.g. from query params) by coercing with Number()
+  // first, then validate.  limit must be >= 1 — zero is explicitly rejected
+  // because it causes division-by-zero in page calculations and an empty
+  // $limit stage that silently returns no data.
+  const parsedLimit = Number(limit);
+  limit =
+    Number.isFinite(parsedLimit) && parsedLimit >= 1
+      ? Math.trunc(parsedLimit)
+      : DEFAULT_LIMIT;
+
   const MAX_LIMIT = 10000;
   if (limit > MAX_LIMIT) limit = MAX_LIMIT;
 
-  if (typeof page !== "number" || isNaN(page) || page < 1) {
-    page = DEFAULT_PAGE;
-  }
-  if (page) {
-    skip = parseInt((page - 1) * limit);
-  }
+  const parsedPage = Number(page);
+  page =
+    Number.isFinite(parsedPage) && parsedPage >= 1
+      ? Math.trunc(parsedPage)
+      : DEFAULT_PAGE;
+
+  // Compute skip only after both values are validated positive integers.
+  skip = (page - 1) * limit;
 
   const startTime = filter["values.time"]["$gte"];
   const endTime = filter["values.time"]["$lte"];
@@ -941,7 +950,9 @@ async function fetchData(model, filter) {
     "internal",
     "isHistorical",
   ];
-  keysToDelete.forEach((k) => delete search[k]);
+  keysToDelete.forEach((k) => {
+    delete search[k];
+  });
 
   if (tenant !== "airqo") {
     pm2_5 = "$pm2_5";
@@ -995,7 +1006,9 @@ async function fetchData(model, filter) {
       "site",
       as,
     ];
-    excludeFields.forEach((f) => (projection[f] = 0));
+    excludeFields.forEach((f) => {
+      projection[f] = 0;
+    });
   }
 
   if (!metadata || metadata === "device" || metadata === "device_id") {
@@ -1086,7 +1099,9 @@ async function fetchData(model, filter) {
       "stc",
       "siteDetails",
     ];
-    runningFields.forEach((f) => (projection[f] = 0));
+    runningFields.forEach((f) => {
+      projection[f] = 0;
+    });
   }
 
   if (!isEmpty(index)) {
@@ -1299,25 +1314,27 @@ async function fetchData(model, filter) {
 
       // ── $facet: count + paginated data in ONE round-trip ──────────────
       //
-      //  The $facet stage fans the same input into two independent branches:
+      //  The $facet is placed BEFORE postGroupStages (photos, healthtips,
+      //  AQI enrichment) so the "totalCount" branch only pays the cost of
+      //  the lightweight match/lookup/group work already done in
+      //  preFacetStages — it never runs the expensive $lookup / $addFields
+      //  enrichment stages.
       //
-      //  • "totalCount" — applies only $count; gives us the true total
-      //    BEFORE any skip/limit is applied.
-      //
-      //  • "paginatedData" — applies $skip then $limit to the same set.
-      //
-      //  Because both branches operate on the documents that have already
-      //  passed through all the earlier match / lookup / group / project
-      //  stages, "totalCount" is always accurate regardless of the page
-      //  requested.
+      //  "paginatedData" first paginates (skip + limit) so that the heavy
+      //  postGroupStages are applied only to the current page's worth of
+      //  documents, not the full result set.
       const facetStage = {
         $facet: {
           totalCount: [{ $count: "count" }],
-          paginatedData: [{ $skip: skip }, { $limit: limit }],
+          paginatedData: [
+            { $skip: skip },
+            { $limit: limit },
+            ...postGroupStages,
+          ],
         },
       };
 
-      const fullPipeline = [...preFacetStages, ...postGroupStages, facetStage];
+      const fullPipeline = [...preFacetStages, facetStage];
 
       const [facetResult] = await model
         .aggregate(fullPipeline)
@@ -1356,14 +1373,28 @@ async function fetchData(model, filter) {
       return [{ meta, data }];
     } catch (error) {
       if (isTimeoutError(error)) {
-        return buildTimeoutErrorResponse(
-          skip,
-          limit,
-          startTime,
-          endTime,
-          isHistorical,
-          metadata,
-        );
+        // Inline the timeout response so we can guarantee a consistent meta
+        // shape (hasNextPage / hasPrevPage present) across all error branches.
+        const currentPage = limit > 0 ? Math.trunc(skip / limit) + 1 : 1;
+        return [
+          {
+            meta: {
+              total: 0,
+              page: currentPage,
+              pages: 1,
+              limit,
+              skip,
+              hasNextPage: false,
+              hasPrevPage: currentPage > 1,
+              startTime,
+              endTime,
+              error: "Request timeout",
+              timeoutMs: AGGREGATE_TIMEOUT_MS,
+              optimized: isHistorical,
+            },
+            data: [],
+          },
+        ];
       }
       logger.error(
         `Error in fetchData ${isHistorical ? "historical" : "current"} query: ${
@@ -1390,9 +1421,6 @@ async function fetchData(model, filter) {
       ];
     }
   }
-
-  // ════════════════════════════════════════════════════════════════════════
-  //  recent === "no"  (historical list)
   // ════════════════════════════════════════════════════════════════════════
   if (recent === "no") {
     try {
@@ -1584,14 +1612,26 @@ async function fetchData(model, filter) {
       return [{ meta, data }];
     } catch (error) {
       if (isTimeoutError(error)) {
-        return buildTimeoutErrorResponse(
-          skip,
-          limit,
-          startTime,
-          endTime,
-          isHistorical,
-          metadata,
-        );
+        const currentPage = limit > 0 ? Math.trunc(skip / limit) + 1 : 1;
+        return [
+          {
+            meta: {
+              total: 0,
+              page: currentPage,
+              pages: 1,
+              limit,
+              skip,
+              hasNextPage: false,
+              hasPrevPage: currentPage > 1,
+              startTime,
+              endTime,
+              error: "Request timeout",
+              timeoutMs: AGGREGATE_TIMEOUT_MS,
+              optimized: isHistorical,
+            },
+            data: [],
+          },
+        ];
       }
       logger.error(`Error in fetchData historical query: ${error.message}`);
       return [
