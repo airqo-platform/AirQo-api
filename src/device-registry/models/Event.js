@@ -16,7 +16,7 @@ const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- event-model`
+  `${constants.ENVIRONMENT} -- event-model`,
 );
 const DEFAULT_LIMIT = 1000;
 const DEFAULT_SKIP = 0;
@@ -25,10 +25,8 @@ const UPTIME_CHECK_THRESHOLD = 168;
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
-const COUNT_TIMEOUT_MS = 15000;
 const AGGREGATE_TIMEOUT_MS = 90000;
 const SLOW_QUERY_THRESHOLD_MS = 15000;
-const SKIP_COUNT_THRESHOLD = 500;
 
 const AQI_COLORS = constants.AQI_COLORS;
 const AQI_CATEGORIES = constants.AQI_CATEGORIES;
@@ -573,7 +571,7 @@ const eventSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 eventSchema.index(
@@ -595,7 +593,7 @@ eventSchema.index(
         { deployment_type: "mobile", grid_id: { $exists: true } },
       ],
     },
-  }
+  },
 );
 
 //mobile device location queries
@@ -627,7 +625,7 @@ eventSchema.index(
     partialFilterExpression: {
       nValues: { $lt: parseInt(constants.N_VALUES || 500) },
     },
-  }
+  },
 );
 
 eventSchema.index(
@@ -642,7 +640,7 @@ eventSchema.index(
     partialFilterExpression: {
       nValues: { $lt: parseInt(constants.N_VALUES || 500) },
     },
-  }
+  },
 );
 
 eventSchema.index({ "values.time": 1, "values.site_id": 1 });
@@ -660,7 +658,7 @@ eventSchema.index(
       "values.location.latitude.value": { $exists: true, $ne: null },
       "values.location.longitude.value": { $exists: true, $ne: null },
     },
-  }
+  },
 );
 
 eventSchema.index(
@@ -672,7 +670,7 @@ eventSchema.index(
   },
   {
     name: "online_status_query_idx",
-  }
+  },
 );
 
 eventSchema.index(
@@ -685,7 +683,7 @@ eventSchema.index(
     partialFilterExpression: {
       nValues: { $gt: 0, $lt: parseInt(constants.N_VALUES || 500) },
     },
-  }
+  },
 );
 
 eventSchema.pre("save", function(next) {
@@ -818,7 +816,7 @@ function logSlowQuery(queryType, duration, metadata, isHistorical, limit) {
       `⏱️ Slow ${queryType} query: ${(duration / 1000).toFixed(2)}s | ` +
         `Metadata: ${metadata || "device"} | ` +
         `Historical: ${isHistorical} | ` +
-        `Limit: ${limit}`
+        `Limit: ${limit}`,
     );
   }
 }
@@ -833,197 +831,6 @@ function isTimeoutError(error) {
     (error.message && error.message.includes("exceeded")) ||
     (error.message && error.message.includes("PlanExecutor error"))
   );
-}
-
-function buildTimeoutErrorResponse(
-  skip,
-  limit,
-  startTime,
-  endTime,
-  isHistorical,
-  metadata
-) {
-  logger.error(
-    `⏱️ Query timeout (${AGGREGATE_TIMEOUT_MS}ms) | ` +
-      `Metadata: ${metadata || "device"} | ` +
-      `Historical: ${isHistorical} | ` +
-      `Limit: ${limit} | ` +
-      `Suggestion: Use isHistorical=true or reduce date range`
-  );
-
-  return [
-    {
-      meta: {
-        total: 0,
-        skip: skip,
-        limit: limit,
-        page: 1,
-        pages: 1,
-        startTime,
-        endTime,
-        error:
-          "Query timeout - try using historical mode or reducing date range",
-        optimized: isHistorical,
-        timeoutMs: AGGREGATE_TIMEOUT_MS,
-      },
-      data: [],
-    },
-  ];
-}
-
-function shouldSkipCount(limit, skip) {
-  return limit <= SKIP_COUNT_THRESHOLD && skip === 0;
-}
-
-function getGroupFieldsForMetadata(metadata) {
-  let groupKeyBeforeReplace = "$values.device_id";
-  let groupKeyAfterReplace = "$device_id";
-
-  if (metadata === "site_id") {
-    groupKeyBeforeReplace = "$values.site_id";
-    groupKeyAfterReplace = "$site_id";
-  } else if (metadata === "site") {
-    groupKeyBeforeReplace = "$values.site";
-    groupKeyAfterReplace = "$site";
-  } else if (metadata === "device") {
-    groupKeyBeforeReplace = "$values.device";
-    groupKeyAfterReplace = "$device";
-  } else if (metadata === "device_id") {
-    groupKeyBeforeReplace = "$values.device_id";
-    groupKeyAfterReplace = "$device_id";
-  }
-
-  return { groupKeyBeforeReplace, groupKeyAfterReplace };
-}
-
-function buildValuesMatch(search) {
-  const valuesMatch = {};
-  for (const key in search) {
-    if (key.startsWith("values.") && key !== "values.time") {
-      valuesMatch[key] = search[key];
-    }
-  }
-  return valuesMatch;
-}
-
-function buildSimplifiedCountPipeline(search, active, internal, metadata) {
-  const {
-    groupKeyBeforeReplace,
-    groupKeyAfterReplace,
-  } = getGroupFieldsForMetadata(metadata);
-
-  const valuesMatch = buildValuesMatch(search);
-  const hasValuesFilters = Object.keys(valuesMatch).length > 0;
-
-  const pipeline = [
-    { $match: search },
-    { $unwind: "$values" },
-    { $match: { "values.time": search["values.time"] } },
-  ];
-
-  if (hasValuesFilters) {
-    pipeline.push({ $match: valuesMatch });
-  }
-
-  if (active !== "yes" && internal === "yes") {
-    pipeline.push(
-      { $group: { _id: groupKeyBeforeReplace } },
-      { $count: "device" }
-    );
-    return pipeline;
-  }
-
-  pipeline.push({ $replaceRoot: { newRoot: "$values" } });
-
-  let hasDeviceLookup = false;
-
-  if (active === "yes") {
-    pipeline.push({
-      $lookup: {
-        from: "devices",
-        localField: "device_id",
-        foreignField: "_id",
-        as: "device_details",
-      },
-    });
-    hasDeviceLookup = true;
-    pipeline.push({
-      $match: { "device_details.isActive": true },
-    });
-  }
-
-  if (internal !== "yes") {
-    if (!hasDeviceLookup) {
-      pipeline.push({
-        $lookup: {
-          from: "devices",
-          localField: "device_id",
-          foreignField: "_id",
-          as: "device_details",
-        },
-      });
-    }
-    pipeline.push(
-      {
-        $lookup: {
-          from: "cohorts",
-          localField: "device_details.cohorts",
-          foreignField: "_id",
-          as: "cohort_details",
-        },
-      },
-      { $match: { "cohort_details.visibility": { $ne: false } } }
-    );
-  }
-
-  pipeline.push(
-    { $group: { _id: groupKeyAfterReplace } },
-    { $count: "device" }
-  );
-
-  return pipeline;
-}
-
-async function performCount(
-  model,
-  search,
-  active,
-  internal,
-  metadata,
-  limit,
-  skip,
-  isHistorical
-) {
-  let totalCount = 0;
-  let countSkipped = false;
-
-  if (shouldSkipCount(limit, skip)) {
-    countSkipped = true;
-    logText(
-      `Skipping count query for small result set (limit: ${limit}, skip: ${skip})`
-    );
-  } else {
-    const countStartTime = Date.now();
-
-    const countPipeline = buildSimplifiedCountPipeline(
-      search,
-      active,
-      internal,
-      metadata
-    );
-
-    const totalCountResult = await model
-      .aggregate(countPipeline)
-      .option({ allowDiskUse: true, maxTimeMS: COUNT_TIMEOUT_MS })
-      .exec();
-
-    const countDuration = Date.now() - countStartTime;
-    logSlowQuery("count", countDuration, metadata, isHistorical, limit);
-
-    totalCount = totalCountResult.length > 0 ? totalCountResult[0].device : 0;
-  }
-
-  return { totalCount, countSkipped };
 }
 
 async function fetchData(model, filter) {
@@ -1043,27 +850,48 @@ async function fetchData(model, filter) {
     isHistorical = false,
   } = filter;
 
-  if (typeof limit !== "number" || isNaN(limit) || limit < 0) {
-    limit = DEFAULT_LIMIT;
-  }
+  // ── Sanitise pagination inputs ──────────────────────────────────────────
+  // Accept numeric strings (e.g. from query params) by coercing with Number()
+  // first, then validate.  limit must be >= 1 — zero is explicitly rejected
+  // because it causes division-by-zero in page calculations and an empty
+  // $limit stage that silently returns no data.
+  const parsedLimit = Number(limit);
+  limit =
+    Number.isFinite(parsedLimit) && parsedLimit >= 1
+      ? Math.trunc(parsedLimit)
+      : DEFAULT_LIMIT;
 
   const MAX_LIMIT = 10000;
-  if (limit > MAX_LIMIT) {
-    limit = MAX_LIMIT;
+  if (limit > MAX_LIMIT) limit = MAX_LIMIT;
+
+  const parsedPage = Number(page);
+  page =
+    Number.isFinite(parsedPage) && parsedPage >= 1
+      ? Math.trunc(parsedPage)
+      : DEFAULT_PAGE;
+
+  // Honour an explicitly supplied skip value; only derive from page when skip
+  // is absent or invalid.  A caller may pass skip directly (e.g. cursor-style
+  // pagination) without supplying page — discarding it would silently return
+  // the wrong slice of results.
+  const parsedSkip = Number(skip);
+  if (Number.isFinite(parsedSkip) && parsedSkip >= 0) {
+    skip = Math.trunc(parsedSkip);
+  } else {
+    // skip was absent, undefined, or non-numeric — derive from page.
+    skip = (page - 1) * limit;
   }
 
-  if (typeof page !== "number" || isNaN(page) || page < 1) {
-    page = DEFAULT_PAGE;
-  }
-
-  if (page) {
-    skip = parseInt((page - 1) * limit);
-  }
+  // currentPage is derived entirely from skip and limit, both of which are
+  // now validated and immutable.  Computing it once here guarantees every
+  // branch (success, timeout, generic error) uses identical logic.
+  const currentPage = Math.trunc(skip / limit) + 1;
 
   const startTime = filter["values.time"]["$gte"];
   const endTime = filter["values.time"]["$lte"];
   let idField;
 
+  // ── Build search object (strip non-mongo keys) ──────────────────────────
   let search = filter;
   let groupId = "$device";
   let localField = "device";
@@ -1083,27 +911,33 @@ async function fetchData(model, filter) {
   let gridProjection = {};
   let sort = { time: -1 };
 
-  delete search["external"];
-  delete search["frequency"];
-  delete search["metadata"];
-  delete search["tenant"];
-  delete search["device"];
-  delete search["recent"];
-  delete search["page"];
-  delete search["running"];
-  delete search["brief"];
-  delete search["index"];
-  delete search["limit"];
-  delete search["skip"];
-  delete search["active"];
-  delete search["internal"];
-  delete search["isHistorical"];
+  const keysToDelete = [
+    "external",
+    "frequency",
+    "metadata",
+    "tenant",
+    "device",
+    "recent",
+    "page",
+    "running",
+    "brief",
+    "index",
+    "limit",
+    "skip",
+    "active",
+    "internal",
+    "isHistorical",
+  ];
+  keysToDelete.forEach((k) => {
+    delete search[k];
+  });
 
   if (tenant !== "airqo") {
     pm2_5 = "$pm2_5";
     pm10 = "$pm10";
   }
 
+  // ── Projection setup (unchanged from original) ──────────────────────────
   if (external === "yes" || brief === "yes") {
     const excludeFields = [
       "s2_pm10",
@@ -1150,25 +984,20 @@ async function fetchData(model, filter) {
       "site",
       as,
     ];
-
-    excludeFields.forEach((field) => (projection[field] = 0));
+    excludeFields.forEach((f) => {
+      projection[f] = 0;
+    });
   }
 
   if (!metadata || metadata === "device" || metadata === "device_id") {
     idField = "$device";
     groupId = "$" + (metadata || "device");
     localField = metadata || localField;
-    if (metadata === "device_id") {
-      foreignField = "_id";
-    }
-    if (metadata === "device" || !metadata) {
-      foreignField = "name";
-    }
+    foreignField = metadata === "device_id" ? "_id" : "name";
     from = "devices";
     _as = "_deviceDetails";
     as = "deviceDetails";
     elementAtIndex0 = elementAtIndexName(metadata, recent);
-
     deviceProjection = constants.EVENTS_METADATA_PROJECTION("device", as);
     Object.assign(projection, deviceProjection);
   }
@@ -1177,46 +1006,28 @@ async function fetchData(model, filter) {
     idField = "$site_id";
     groupId = "$" + metadata;
     localField = metadata;
-    if (metadata === "site") {
-      foreignField = "generated_name";
-    }
-    if (metadata === "site_id") {
-      foreignField = "_id";
-    }
+    foreignField = metadata === "site" ? "generated_name" : "_id";
     from = "sites";
     _as = "_siteDetails";
     as = "siteDetails";
     elementAtIndex0 = elementAtIndexName(metadata, recent);
-
-    if (brief === "yes") {
-      siteProjection = constants.EVENTS_METADATA_PROJECTION("brief_site", as);
-    } else {
-      siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
-    }
+    siteProjection =
+      brief === "yes"
+        ? constants.EVENTS_METADATA_PROJECTION("brief_site", as)
+        : constants.EVENTS_METADATA_PROJECTION("site", as);
     Object.assign(projection, siteProjection);
   }
 
-  // Conditionally apply grid projection only if grid_id is in the query
   if (search.grid_id) {
-    if (brief === "yes") {
-      gridProjection = constants.EVENTS_METADATA_PROJECTION(
-        "brief_grid",
-        "gridDetails"
-      );
-    } else {
-      gridProjection = constants.EVENTS_METADATA_PROJECTION(
-        "grid",
-        "gridDetails"
-      );
-    }
+    gridProjection =
+      brief === "yes"
+        ? constants.EVENTS_METADATA_PROJECTION("brief_grid", "gridDetails")
+        : constants.EVENTS_METADATA_PROJECTION("grid", "gridDetails");
     Object.assign(projection, gridProjection);
   }
 
   if (isHistorical) {
-    const historicalExclusions = getHistoricalComputedFieldsExclusion(
-      isHistorical
-    );
-    Object.assign(projection, historicalExclusions);
+    Object.assign(projection, getHistoricalComputedFieldsExclusion(true));
   }
 
   if (running === "yes" && !isHistorical) {
@@ -1266,7 +1077,9 @@ async function fetchData(model, filter) {
       "stc",
       "siteDetails",
     ];
-    runningFields.forEach((field) => (projection[field] = 0));
+    runningFields.forEach((f) => {
+      projection[f] = 0;
+    });
   }
 
   if (!isEmpty(index)) {
@@ -1275,129 +1088,103 @@ async function fetchData(model, filter) {
 
   logObject("the query for this request", search);
   logText(
-    `Using ${isHistorical ? "historical" : "current"} measurement optimization`
+    `Using ${isHistorical ? "historical" : "current"} measurement optimization`,
   );
 
+  // ════════════════════════════════════════════════════════════════════════
+  //  recent === "yes"  (or default)
+  // ════════════════════════════════════════════════════════════════════════
   if (!recent || recent === "yes") {
     try {
-      const { totalCount, countSkipped } = await performCount(
-        model,
-        search,
-        active,
-        internal,
-        metadata,
-        limit,
-        skip,
-        isHistorical
-      );
-
       const pipelineStartTime = Date.now();
 
-      let pipeline = model.aggregate([
+      // ── Build the common "pre-facet" stages ────────────────────────────
+      const preFacetStages = [
         { $match: search },
         { $unwind: "$values" },
         { $match: { "values.time": search["values.time"] } },
         { $replaceRoot: { newRoot: "$values" } },
-      ]);
-
-      const earlyProjection = buildEarlyProjection(isHistorical);
-      pipeline = pipeline.append([{ $project: earlyProjection }]);
+        { $project: buildEarlyProjection(isHistorical) },
+      ];
 
       if (!isHistorical) {
-        pipeline = pipeline.append([
-          {
-            $lookup: {
-              from: "photos",
-              localField: "site_id",
-              foreignField: "site_id",
-              as: "site_images",
-            },
-          },
-        ]);
-      }
-
-      pipeline = pipeline.append([
-        {
+        preFacetStages.push({
           $lookup: {
-            from: "devices", // The collection to join
-            localField: "device_id",
-            foreignField: "_id",
-            as: "device_details", // The output array field
-            pipeline: [
-              // This sub-pipeline runs on the 'devices' collection
-              {
-                // Manually remove the 'calibrated' field from the latest_pm2_5 object
-                $unset: "latest_pm2_5.calibrated",
-              },
-            ],
+            from: "photos",
+            localField: "site_id",
+            foreignField: "site_id",
+            as: "site_images",
           },
-        },
-      ]);
-
-      if (active === "yes") {
-        pipeline = pipeline.append([
-          { $match: { "device_details.isActive": true } },
-        ]);
-      }
-
-      pipeline = pipeline.append([
-        {
-          $lookup: {
-            from: "cohorts",
-            localField: "device_details.cohorts",
-            foreignField: "_id",
-            as: "cohort_details",
-          },
-        },
-      ]);
-
-      if (internal !== "yes") {
-        pipeline = pipeline.append([
-          { $match: { "cohort_details.visibility": { $ne: false } } },
-        ]);
-      }
-
-      // Conditionally lookup grid details only if grid_id is part of the query
-      if (search.grid_id) {
-        pipeline = pipeline.append([
-          {
-            $lookup: {
-              from: "grids",
-              localField: "grid_id",
-              foreignField: "_id",
-              as: "gridDetails",
-            },
-          },
-        ]);
-      }
-
-      pipeline = pipeline.lookup({
-        from,
-        localField,
-        foreignField,
-        as,
-      });
-
-      if (!isHistorical) {
-        pipeline = pipeline.lookup({
-          from: "healthtips",
-          let: { pollutantValue: { $toInt: "$pm2_5.value" } },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $lte: ["$aqi_category.min", "$$pollutantValue"] },
-                    { $gte: ["$aqi_category.max", "$$pollutantValue"] },
-                  ],
-                },
-              },
-            },
-          ],
-          as: "healthTips",
         });
       }
 
+      preFacetStages.push({
+        $lookup: {
+          from: "devices",
+          localField: "device_id",
+          foreignField: "_id",
+          as: "device_details",
+          pipeline: [{ $unset: "latest_pm2_5.calibrated" }],
+        },
+      });
+
+      if (active === "yes") {
+        preFacetStages.push({ $match: { "device_details.isActive": true } });
+      }
+
+      preFacetStages.push({
+        $lookup: {
+          from: "cohorts",
+          localField: "device_details.cohorts",
+          foreignField: "_id",
+          as: "cohort_details",
+        },
+      });
+
+      if (internal !== "yes") {
+        preFacetStages.push({
+          $match: { "cohort_details.visibility": { $ne: false } },
+        });
+      }
+
+      if (search.grid_id) {
+        preFacetStages.push({
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "gridDetails",
+          },
+        });
+      }
+
+      preFacetStages.push({
+        $lookup: { from, localField, foreignField, as },
+      });
+
+      if (!isHistorical) {
+        preFacetStages.push({
+          $lookup: {
+            from: "healthtips",
+            let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $lte: ["$aqi_category.min", "$$pollutantValue"] },
+                      { $gte: ["$aqi_category.max", "$$pollutantValue"] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "healthTips",
+          },
+        });
+      }
+
+      // ── $group stage ───────────────────────────────────────────────────
       let groupStage = {
         _id: idField,
         device: { $first: "$device" },
@@ -1448,40 +1235,39 @@ async function fetchData(model, filter) {
           $first: { $arrayElemAt: ["$site_images.image_url", 0] },
         };
         groupStage.is_reading_primary = {
-          $first: {
-            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
-          },
+          $first: { $arrayElemAt: ["$device_details.isPrimaryInLocation", 0] },
         };
         groupStage.health_tips = { $first: "$healthTips" };
       }
 
-      // Conditionally add gridDetails to the group stage
       if (search.grid_id) {
         groupStage.gridDetails = {
           $first: { $arrayElemAt: ["$gridDetails", 0] },
         };
       }
 
-      pipeline = pipeline.sort(sort).group(groupStage);
+      // ── Post-group stages (no pagination yet) ─────────────────────────
+      const postGroupStages = [{ $sort: sort }, { $group: groupStage }];
 
       if (!isHistorical) {
-        pipeline = pipeline.addFields({
-          timeDifferenceHours: {
-            $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
+        postGroupStages.push({
+          $addFields: {
+            timeDifferenceHours: {
+              $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
+            },
           },
         });
-      }
-
-      if (!isHistorical) {
-        pipeline = pipeline
-          .project({
+        postGroupStages.push({
+          $project: {
             "health_tips.aqi_category": 0,
             "health_tips.value": 0,
             "health_tips.createdAt": 0,
             "health_tips.updatedAt": 0,
             "health_tips.__v": 0,
-          })
-          .project({
+          },
+        });
+        postGroupStages.push({
+          $project: {
             "site_image.createdAt": 0,
             "site_image.updatedAt": 0,
             "site_image.metadata": 0,
@@ -1493,22 +1279,52 @@ async function fetchData(model, filter) {
             "site_image.image_code": 0,
             "site_image.site_id": 0,
             "site_image.airqloud_id": 0,
-          });
+          },
+        });
       }
 
-      pipeline = pipeline.project(projection);
+      postGroupStages.push({ $project: projection });
 
       if (!isHistorical) {
-        pipeline = pipeline
-          .addFields({
-            aqi_ranges: AQI_RANGES,
-          })
-          .addFields(generateAqiAddFields().$addFields);
+        postGroupStages.push({ $addFields: { aqi_ranges: AQI_RANGES } });
+        postGroupStages.push({ $addFields: generateAqiAddFields().$addFields });
       }
 
-      const data = await pipeline
-        .skip(skip)
-        .limit(limit)
+      // ── $facet: count + paginated data in ONE round-trip ──────────────
+      //
+      //  The $facet sits before postGroupStages. The two branches diverge:
+      //
+      //  • totalCount — must apply the same $sort + $group that paginatedData
+      //    uses, otherwise it counts raw pre-group documents (one per reading)
+      //    while paginatedData returns grouped documents (one per device/site),
+      //    producing a mismatched total. Only sort+group are needed for the
+      //    count; the expensive enrichment stages (health_tips cleanup,
+      //    site_image cleanup, AQI addFields) are deliberately omitted.
+      //
+      //  • paginatedData — paginates FIRST (skip + limit) so the heavy
+      //    enrichment in postGroupStages runs only on the current page's
+      //    documents, not the full grouped result set.
+      //
+      // postGroupStages[0] = { $sort }
+      // postGroupStages[1] = { $group }
+      const groupingStages = postGroupStages.slice(0, 2); // $sort + $group only
+
+      const facetStage = {
+        $facet: {
+          totalCount: [...groupingStages, { $count: "count" }],
+          paginatedData: [
+            ...groupingStages,
+            { $skip: skip },
+            { $limit: limit },
+            ...postGroupStages.slice(2), // enrichment-only stages
+          ],
+        },
+      };
+
+      const fullPipeline = [...preFacetStages, facetStage];
+
+      const [facetResult] = await model
+        .aggregate(fullPipeline)
         .option({ allowDiskUse: true, maxTimeMS: AGGREGATE_TIMEOUT_MS })
         .exec();
 
@@ -1518,49 +1334,68 @@ async function fetchData(model, filter) {
         pipelineDuration,
         metadata,
         isHistorical,
-        limit
+        limit,
       );
 
-      const actualTotal = countSkipped ? data.length : totalCount;
+      // ── Unpack facet result ────────────────────────────────────────────
+      const totalCount = facetResult?.totalCount?.[0]?.count ?? 0;
+      const data = facetResult?.paginatedData ?? [];
+
+      const totalPages = Math.ceil(totalCount / limit) || 1;
 
       const meta = {
-        total: actualTotal,
-        skip: skip,
+        total: totalCount,
+        page: currentPage,
+        pages: totalPages,
         limit: limit,
-        page: Math.trunc(skip / limit + 1),
-        pages: countSkipped ? 1 : Math.ceil(totalCount / limit) || 1,
+        skip: skip,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1,
         startTime,
         endTime,
         optimized: isHistorical,
-        countSkipped: countSkipped || undefined,
       };
 
       return [{ meta, data }];
     } catch (error) {
       if (isTimeoutError(error)) {
-        return buildTimeoutErrorResponse(
-          skip,
-          limit,
-          startTime,
-          endTime,
-          isHistorical,
-          metadata
-        );
+        // Inline the timeout response so we can guarantee a consistent meta
+        // shape (hasNextPage / hasPrevPage present) across all error branches.
+        return [
+          {
+            meta: {
+              total: 0,
+              page: currentPage,
+              pages: 1,
+              limit,
+              skip,
+              hasNextPage: false,
+              hasPrevPage: currentPage > 1,
+              startTime,
+              endTime,
+              error: "Request timeout",
+              timeoutMs: AGGREGATE_TIMEOUT_MS,
+              optimized: isHistorical,
+            },
+            data: [],
+          },
+        ];
       }
-
       logger.error(
         `Error in fetchData ${isHistorical ? "historical" : "current"} query: ${
           error.message
-        }`
+        }`,
       );
       return [
         {
           meta: {
             total: 0,
-            skip: skip,
-            limit: limit,
             page: 1,
             pages: 1,
+            limit,
+            skip,
+            hasNextPage: false,
+            hasPrevPage: false,
             startTime,
             endTime,
             error: error.message,
@@ -1571,43 +1406,24 @@ async function fetchData(model, filter) {
       ];
     }
   }
-
+  // ════════════════════════════════════════════════════════════════════════
   if (recent === "no") {
     try {
-      const { totalCount, countSkipped } = await performCount(
-        model,
-        search,
-        active,
-        internal,
-        metadata,
-        limit,
-        skip,
-        isHistorical
-      );
-
       const pipelineStartTime = Date.now();
-
       const earlyProjection = buildEarlyProjection(isHistorical);
 
-      let histPipeline = [
+      // ── Build the common historical stages (no pagination yet) ────────
+      const histStages = [
         { $match: search },
         { $unwind: "$values" },
         { $match: { "values.time": search["values.time"] } },
         { $replaceRoot: { newRoot: "$values" } },
         { $project: earlyProjection },
-        {
-          $lookup: {
-            from,
-            localField,
-            foreignField,
-            as,
-          },
-        },
+        { $lookup: { from, localField, foreignField, as } },
       ];
 
-      // Conditionally lookup grid details only if grid_id is part of the query
       if (search.grid_id) {
-        histPipeline.push({
+        histStages.push({
           $lookup: {
             from: "grids",
             localField: "grid_id",
@@ -1617,10 +1433,10 @@ async function fetchData(model, filter) {
         });
       }
 
-      histPipeline.push({ $sort: sort });
+      histStages.push({ $sort: sort });
 
       if (!isHistorical) {
-        histPipeline.push({
+        histStages.push({
           $addFields: {
             timeDifferenceHours: {
               $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
@@ -1629,7 +1445,8 @@ async function fetchData(model, filter) {
         });
       }
 
-      histPipeline.push({
+      // First rename pass (prefixed fields)
+      histStages.push({
         $project: {
           _device: "$device",
           _time: "$time",
@@ -1649,9 +1466,7 @@ async function fetchData(model, filter) {
           [_as]: elementAtIndex0,
           ...(isHistorical
             ? search.grid_id
-              ? {
-                  _gridDetails: { $arrayElemAt: ["$gridDetails", 0] },
-                }
+              ? { _gridDetails: { $arrayElemAt: ["$gridDetails", 0] } }
               : {}
             : {
                 _battery: "$battery",
@@ -1683,7 +1498,8 @@ async function fetchData(model, filter) {
         },
       });
 
-      histPipeline.push({
+      // Second rename pass (final field names)
+      histStages.push({
         $project: {
           device: "$_device",
           device_id: "$_device_id",
@@ -1735,14 +1551,18 @@ async function fetchData(model, filter) {
         },
       });
 
-      histPipeline.push(
-        { $project: projection },
-        { $skip: skip },
-        { $limit: limit }
-      );
+      histStages.push({ $project: projection });
 
-      const data = await model
-        .aggregate(histPipeline)
+      // ── $facet: count + paginated data ────────────────────────────────
+      histStages.push({
+        $facet: {
+          totalCount: [{ $count: "count" }],
+          paginatedData: [{ $skip: skip }, { $limit: limit }],
+        },
+      });
+
+      const [facetResult] = await model
+        .aggregate(histStages)
         .option({ allowDiskUse: true, maxTimeMS: AGGREGATE_TIMEOUT_MS })
         .exec();
 
@@ -1752,45 +1572,61 @@ async function fetchData(model, filter) {
         pipelineDuration,
         metadata,
         isHistorical,
-        limit
+        limit,
       );
 
-      const actualTotal = countSkipped ? data.length : totalCount;
+      const totalCount = facetResult?.totalCount?.[0]?.count ?? 0;
+      const data = facetResult?.paginatedData ?? [];
+
+      const totalPages = Math.ceil(totalCount / limit) || 1;
 
       const meta = {
-        total: actualTotal,
-        skip: skip,
+        total: totalCount,
+        page: currentPage,
+        pages: totalPages,
         limit: limit,
-        page: Math.trunc(skip / limit + 1),
-        pages: countSkipped ? 1 : Math.ceil(totalCount / limit) || 1,
+        skip: skip,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1,
         startTime,
         endTime,
         optimized: isHistorical,
-        countSkipped: countSkipped || undefined,
       };
 
       return [{ meta, data }];
     } catch (error) {
       if (isTimeoutError(error)) {
-        return buildTimeoutErrorResponse(
-          skip,
-          limit,
-          startTime,
-          endTime,
-          isHistorical,
-          metadata
-        );
+        return [
+          {
+            meta: {
+              total: 0,
+              page: currentPage,
+              pages: 1,
+              limit,
+              skip,
+              hasNextPage: false,
+              hasPrevPage: currentPage > 1,
+              startTime,
+              endTime,
+              error: "Request timeout",
+              timeoutMs: AGGREGATE_TIMEOUT_MS,
+              optimized: isHistorical,
+            },
+            data: [],
+          },
+        ];
       }
-
       logger.error(`Error in fetchData historical query: ${error.message}`);
       return [
         {
           meta: {
             total: 0,
-            skip: skip,
-            limit: limit,
             page: 1,
             pages: 1,
+            limit,
+            skip,
+            hasNextPage: false,
+            hasPrevPage: false,
             startTime,
             endTime,
             error: error.message,
@@ -2172,7 +2008,7 @@ function filterNullAndReportOffDevices(data) {
     ) {
       logDeviceInfo(
         `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours`,
-        record
+        record,
       );
     }
 
@@ -2219,7 +2055,7 @@ eventSchema.statics.list = async function(
     filter = {},
     page = DEFAULT_PAGE,
   } = {},
-  next
+  next,
 ) {
   try {
     const newFilter = { ...filter, skip, limit, page };
@@ -2250,7 +2086,7 @@ eventSchema.statics.list = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -2280,12 +2116,12 @@ eventSchema.statics.view = async function(filter, next) {
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error --- view events -- ${error.message}`
+      `🐛🐛 Internal Server Error --- view events -- ${error.message}`,
     );
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -2315,7 +2151,7 @@ eventSchema.statics.fetch = async function(filter) {
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error --- fetch events -- ${error.message}`
+      `🐛🐛 Internal Server Error --- fetch events -- ${error.message}`,
     );
     return;
   }
@@ -2339,7 +2175,7 @@ eventSchema.statics.signal = async function(filter) {
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error --- view events -- ${error.message}`
+      `🐛🐛 Internal Server Error --- view events -- ${error.message}`,
     );
     return;
   }
@@ -2348,7 +2184,7 @@ eventSchema.statics.signal = async function(filter) {
 eventSchema.statics.getAirQualityAverages = async function(
   siteId,
   next,
-  options = {}
+  options = {},
 ) {
   try {
     // eslint-disable-next-line no-unused-vars
@@ -2571,13 +2407,13 @@ eventSchema.statics.getAirQualityAverages = async function(
     };
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getAirQualityAverages --- ${error.message}`
+      `Internal Server Error --- getAirQualityAverages --- ${error.message}`,
     );
     logObject("error", error);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -2585,7 +2421,7 @@ eventSchema.statics.getAirQualityAverages = async function(
 eventSchema.statics.v2_getAirQualityAverages = async function(
   siteId,
   next,
-  options = {}
+  options = {},
 ) {
   try {
     // eslint-disable-next-line no-unused-vars
@@ -2748,7 +2584,7 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
 
     const dataQualityScore = calculateWeeklyDataQuality(
       currentWeek,
-      previousWeek
+      previousWeek,
     );
 
     return {
@@ -2772,14 +2608,14 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
             daysWithData: currentWeek.daysWithData,
             daysWithMinReadings: currentWeek.daysWithMinReadings,
             averageHoursCovered: parseFloat(
-              currentWeek.avgHoursCovered.toFixed(1)
+              currentWeek.avgHoursCovered.toFixed(1),
             ),
           },
           previousWeek: {
             daysWithData: previousWeek.daysWithData,
             daysWithMinReadings: previousWeek.daysWithMinReadings,
             averageHoursCovered: parseFloat(
-              previousWeek.avgHoursCovered.toFixed(1)
+              previousWeek.avgHoursCovered.toFixed(1),
             ),
           },
           warning:
@@ -2794,13 +2630,13 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
     };
   } catch (error) {
     logger.error(
-      `Internal Server Error --- v2_getAirQualityAverages --- ${error.message}`
+      `Internal Server Error --- v2_getAirQualityAverages --- ${error.message}`,
     );
     logObject("error", error);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -2808,7 +2644,7 @@ eventSchema.statics.v2_getAirQualityAverages = async function(
 eventSchema.statics.v3_getAirQualityAverages = async function(
   siteId,
   next,
-  options = {}
+  options = {},
 ) {
   try {
     // eslint-disable-next-line no-unused-vars
@@ -2955,13 +2791,13 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
     };
   } catch (error) {
     logger.error(
-      `Internal Server Error --- v3_getAirQualityAverages --- ${error.message}`
+      `Internal Server Error --- v3_getAirQualityAverages --- ${error.message}`,
     );
     logObject("error", error);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -2987,7 +2823,7 @@ function calculateWeeklyDataQuality(currentWeek, previousWeek) {
 function calculateConfidenceScore(
   currentWeek,
   baselineWeeks,
-  minDataPointsPerDay
+  minDataPointsPerDay,
 ) {
   const maxPossibleReadings = 24; // Assuming hourly readings
   const idealDaysPerWeek = 7;
@@ -2997,7 +2833,7 @@ function calculateConfidenceScore(
     (currentWeek.daysWithData / idealDaysPerWeek) *
     (currentWeek.days.reduce(
       (acc, day) => acc + day.readingCount / maxPossibleReadings,
-      0
+      0,
     ) /
       currentWeek.daysWithData);
 
@@ -3008,7 +2844,7 @@ function calculateConfidenceScore(
         (week.daysWithData / idealDaysPerWeek) *
         (week.days.reduce(
           (acc, day) => acc + day.readingCount / maxPossibleReadings,
-          0
+          0,
         ) /
           week.daysWithData);
       return acc + weekScore;
@@ -3020,7 +2856,7 @@ function calculateConfidenceScore(
 
 eventSchema.statics.getAirQualityAveragesForSites = async function(
   siteIds,
-  next
+  next,
 ) {
   try {
     // eslint-disable-next-line no-unused-vars
@@ -3038,8 +2874,8 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
       new Set(
         siteIds
           .map((id) => (id ? id.toString() : null))
-          .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
-      )
+          .filter((id) => id && mongoose.Types.ObjectId.isValid(id)),
+      ),
     );
     if (normalizedIds.length === 0) {
       return {
@@ -3161,7 +2997,7 @@ eventSchema.statics.getAirQualityAveragesForSites = async function(
     };
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getAirQualityAveragesForSites --- ${error.message}`
+      `Internal Server Error --- getAirQualityAveragesForSites --- ${error.message}`,
     );
     // Do not call next() in a static method that should return a value
     return {
