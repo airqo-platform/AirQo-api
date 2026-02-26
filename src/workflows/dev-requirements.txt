@@ -4,6 +4,7 @@ apache-airflow-providers-slack
 confluent-avro
 google-cloud-bigquery
 google-cloud-storage
+google-cloud-bigquery-storage
 pandas~=2.1.0
 requests~=2.31.0
 python-dotenv~=1.0.0
@@ -13,6 +14,7 @@ simplejson~=3.19.1
 sentry-sdk
 geopy
 mlflow
+skops
 lightgbm~=4.1.0
 setuptools~=68.2.2
 urllib3~=1.26.16
@@ -42,3 +44,4 @@ cdsapi>=0.7.4
 cfgrib
 xarray
 python-dateutil
+sqlfluff

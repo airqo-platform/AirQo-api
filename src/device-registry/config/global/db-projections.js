@@ -1158,6 +1158,17 @@ class ProjectionFactory {
 
       devices: {
         summary: {
+          // -------------------------------------------------------------------------
+          // IMPORTANT: deployment_date is intentionally NOT listed here.
+          //
+          // deployment_date must be present in the API response for:
+          //   - GET /api/v2/devices/summary   (detailLevel: "summary")
+          //   - GET /api/v2/devices/status/*  (detailLevel: "summary")
+          //
+          // It is already included in the base inclusion projection
+          // (devices.inclusion.deployment_date = 1) and must not be suppressed
+          // by this summary-level additionalExclusions list.
+          // -------------------------------------------------------------------------
           additionalExclusions: {
             alias: 0,
             approximate_distance_in_km: 0,
@@ -1167,7 +1178,6 @@ class ProjectionFactory {
             visibility: 0,
             isPrimaryInLocation: 0,
             nextMaintenance: 0,
-            deployment_date: 0,
             name_id: 0,
             recall_date: 0,
             maintenance_date: 0,
@@ -1532,11 +1542,6 @@ class ProjectionFactory {
       kyaquizprogress: "kyaQuizProgress",
       kyaquiz_progress: "kyaQuizProgress",
       kya_quiz_progress: "kyaQuizProgress",
-      kyalessonsprogress: "kyaLessonsProgress",
-      kyalessons_progress: "kyaLessonsProgress",
-      kya_lessons_progress: "kyaLessonsProgress",
-      kyaprogress: "kyaLessonsProgress",
-      kya_progress: "kyaLessonsProgress",
       kya_user_progress: "kyaLessonsProgress",
       kya_user_quiz_progress: "kyaQuizProgress",
       kyauserquizprogress: "kyaQuizProgress",

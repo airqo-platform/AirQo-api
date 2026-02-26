@@ -14,6 +14,7 @@ from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.constants import DeviceNetwork
+from airqo_etl_utils.sql import query_manager
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -464,18 +465,27 @@ class SatelliteUtils:
         Returns:
             pd.DataFrame: DataFrame containing timestamp, latitudes and longitudes and airquality measurements.
         """
-        sql_path = Path(__file__).parent / "sql" / "satellite" / "merged_hourly.sql"
-        if not sql_path.exists():
-            raise FileNotFoundError(f"SQL template not found: {sql_path}")
+        query: str = ""
+        if query_manager.query_exists("location_approximated_satellite_hourly_data"):
+            query = query_manager.get_query(
+                "location_approximated_satellite_hourly_data"
+            )
+        else:
+            logger.warning(
+                "Query 'location_approximated_satellite_hourly_data' not found in QueryManager. Using fallback query string."
+            )
+            raise RuntimeError(
+                "Required query 'location_approximated_satellite_hourly_data' not found in QueryManager. Please ensure the query is defined and available."
+            )
 
-        sql_template = sql_path.read_text(encoding="utf-8")
-        query = sql_template.format(
+        query = query.format(
             geo_table=configuration.BIGQUERY_GEO_CONTINENT_META_DATA_TABLE,
             sat_table=configuration.BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE,
             start_date=start_date,
             end_date=end_date,
             distance_meters=100,
         )
+
         from airqo_etl_utils.storage import get_configured_storage
 
         storage_adapter = get_configured_storage()
