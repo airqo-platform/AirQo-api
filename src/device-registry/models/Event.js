@@ -833,42 +833,6 @@ function isTimeoutError(error) {
   );
 }
 
-function buildTimeoutErrorResponse(
-  skip,
-  limit,
-  startTime,
-  endTime,
-  isHistorical,
-  metadata,
-) {
-  logger.error(
-    `⏱️ Query timeout (${AGGREGATE_TIMEOUT_MS}ms) | ` +
-      `Metadata: ${metadata || "device"} | ` +
-      `Historical: ${isHistorical} | ` +
-      `Limit: ${limit} | ` +
-      `Suggestion: Use isHistorical=true or reduce date range`,
-  );
-
-  return [
-    {
-      meta: {
-        total: 0,
-        skip: skip,
-        limit: limit,
-        page: 1,
-        pages: 1,
-        startTime,
-        endTime,
-        error:
-          "Query timeout - try using historical mode or reducing date range",
-        optimized: isHistorical,
-        timeoutMs: AGGREGATE_TIMEOUT_MS,
-      },
-      data: [],
-    },
-  ];
-}
-
 async function fetchData(model, filter) {
   let {
     metadata,
@@ -917,6 +881,11 @@ async function fetchData(model, filter) {
     // skip was absent, undefined, or non-numeric — derive from page.
     skip = (page - 1) * limit;
   }
+
+  // currentPage is derived entirely from skip and limit, both of which are
+  // now validated and immutable.  Computing it once here guarantees every
+  // branch (success, timeout, generic error) uses identical logic.
+  const currentPage = Math.trunc(skip / limit) + 1;
 
   const startTime = filter["values.time"]["$gte"];
   const endTime = filter["values.time"]["$lte"];
@@ -1372,7 +1341,6 @@ async function fetchData(model, filter) {
       const totalCount = facetResult?.totalCount?.[0]?.count ?? 0;
       const data = facetResult?.paginatedData ?? [];
 
-      const currentPage = Math.trunc(skip / limit) + 1;
       const totalPages = Math.ceil(totalCount / limit) || 1;
 
       const meta = {
@@ -1393,7 +1361,6 @@ async function fetchData(model, filter) {
       if (isTimeoutError(error)) {
         // Inline the timeout response so we can guarantee a consistent meta
         // shape (hasNextPage / hasPrevPage present) across all error branches.
-        const currentPage = limit > 0 ? Math.trunc(skip / limit) + 1 : 1;
         return [
           {
             meta: {
@@ -1611,7 +1578,6 @@ async function fetchData(model, filter) {
       const totalCount = facetResult?.totalCount?.[0]?.count ?? 0;
       const data = facetResult?.paginatedData ?? [];
 
-      const currentPage = Math.trunc(skip / limit) + 1;
       const totalPages = Math.ceil(totalCount / limit) || 1;
 
       const meta = {
@@ -1630,7 +1596,6 @@ async function fetchData(model, filter) {
       return [{ meta, data }];
     } catch (error) {
       if (isTimeoutError(error)) {
-        const currentPage = limit > 0 ? Math.trunc(skip / limit) + 1 : 1;
         return [
           {
             meta: {
