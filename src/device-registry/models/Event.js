@@ -906,8 +906,17 @@ async function fetchData(model, filter) {
       ? Math.trunc(parsedPage)
       : DEFAULT_PAGE;
 
-  // Compute skip only after both values are validated positive integers.
-  skip = (page - 1) * limit;
+  // Honour an explicitly supplied skip value; only derive from page when skip
+  // is absent or invalid.  A caller may pass skip directly (e.g. cursor-style
+  // pagination) without supplying page — discarding it would silently return
+  // the wrong slice of results.
+  const parsedSkip = Number(skip);
+  if (Number.isFinite(parsedSkip) && parsedSkip >= 0) {
+    skip = Math.trunc(parsedSkip);
+  } else {
+    // skip was absent, undefined, or non-numeric — derive from page.
+    skip = (page - 1) * limit;
+  }
 
   const startTime = filter["values.time"]["$gte"];
   const endTime = filter["values.time"]["$lte"];
@@ -1314,22 +1323,31 @@ async function fetchData(model, filter) {
 
       // ── $facet: count + paginated data in ONE round-trip ──────────────
       //
-      //  The $facet is placed BEFORE postGroupStages (photos, healthtips,
-      //  AQI enrichment) so the "totalCount" branch only pays the cost of
-      //  the lightweight match/lookup/group work already done in
-      //  preFacetStages — it never runs the expensive $lookup / $addFields
-      //  enrichment stages.
+      //  The $facet sits before postGroupStages. The two branches diverge:
       //
-      //  "paginatedData" first paginates (skip + limit) so that the heavy
-      //  postGroupStages are applied only to the current page's worth of
-      //  documents, not the full result set.
+      //  • totalCount — must apply the same $sort + $group that paginatedData
+      //    uses, otherwise it counts raw pre-group documents (one per reading)
+      //    while paginatedData returns grouped documents (one per device/site),
+      //    producing a mismatched total. Only sort+group are needed for the
+      //    count; the expensive enrichment stages (health_tips cleanup,
+      //    site_image cleanup, AQI addFields) are deliberately omitted.
+      //
+      //  • paginatedData — paginates FIRST (skip + limit) so the heavy
+      //    enrichment in postGroupStages runs only on the current page's
+      //    documents, not the full grouped result set.
+      //
+      // postGroupStages[0] = { $sort }
+      // postGroupStages[1] = { $group }
+      const groupingStages = postGroupStages.slice(0, 2); // $sort + $group only
+
       const facetStage = {
         $facet: {
-          totalCount: [{ $count: "count" }],
+          totalCount: [...groupingStages, { $count: "count" }],
           paginatedData: [
+            ...groupingStages,
             { $skip: skip },
             { $limit: limit },
-            ...postGroupStages,
+            ...postGroupStages.slice(2), // enrichment-only stages
           ],
         },
       };
