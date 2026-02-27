@@ -1345,6 +1345,7 @@ class ForecastModelTrainer(BaseMlUtils):
         if decision_reason in {
             "candidate_beats_best_historical",
             "no_previous_model_metrics",
+            "previous_model_metrics_incomplete",
         }:
             return "deployed"
         return "not_deployed"

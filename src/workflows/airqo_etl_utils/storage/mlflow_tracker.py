@@ -84,8 +84,10 @@ class MlflowTracker:
         if self.model_gating_enabled:
             safe_tags["mlflow.model_gating_enabled"] = "true"
 
+        started_run_id: Optional[str] = None
         try:
-            mlflow.start_run(run_name=run_name)
+            started_run = mlflow.start_run(run_name=run_name)
+            started_run_id = started_run.info.run_id
             if dataset_metadata:
                 try:
                     dataset_frame = pd.DataFrame(
@@ -167,11 +169,31 @@ class MlflowTracker:
                     logger.warning(
                         f"Failed to log MLflow model artifact for '{run_name}': {exc}"
                     )
-            mlflow.end_run(status=terminal_status)
+            active_run = mlflow.active_run()
+            if (
+                started_run_id is not None
+                and active_run is not None
+                and active_run.info.run_id == started_run_id
+            ):
+                try:
+                    mlflow.end_run(status=terminal_status)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to end MLflow run '{run_name}' ({started_run_id}) "
+                        f"with status {terminal_status}: {exc}"
+                    )
         except Exception as exc:
-            if mlflow.active_run() is not None:
+            active_run = mlflow.active_run()
+            if (
+                started_run_id is not None
+                and active_run is not None
+                and active_run.info.run_id == started_run_id
+            ):
                 try:
                     mlflow.end_run(status="FAILED")
-                except Exception:
-                    pass
+                except Exception as end_exc:
+                    logger.warning(
+                        f"Failed to end MLflow run '{run_name}' ({started_run_id}) "
+                        f"with status FAILED: {end_exc}"
+                    )
             logger.warning(f"Failed to log MLflow run '{run_name}': {exc}")
