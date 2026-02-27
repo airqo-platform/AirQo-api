@@ -58,6 +58,7 @@ class MlflowTracker:
         params: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, str]] = None,
+        terminal_status: str = "FINISHED",
         model: Any = None,
         model_artifact_path: str = "model",
         input_example: Optional[pd.DataFrame] = None,
@@ -76,19 +77,30 @@ class MlflowTracker:
             safe_tags["mlflow.model_gating_enabled"] = "true"
 
         try:
-            with mlflow.start_run(run_name=run_name):
-                if safe_params:
-                    mlflow.log_params(safe_params)
-                if safe_metrics:
-                    mlflow.log_metrics(safe_metrics)
-                if safe_tags:
-                    mlflow.set_tags(safe_tags)
-                if model is not None:
+            mlflow.start_run(run_name=run_name)
+            if safe_params:
+                mlflow.log_params(safe_params)
+            if safe_metrics:
+                mlflow.log_metrics(safe_metrics)
+            if safe_tags:
+                mlflow.set_tags(safe_tags)
+            if model is not None:
+                try:
                     mlflow.sklearn.log_model(
                         sk_model=model,
                         name=model_artifact_path,
                         input_example=input_example,
                         serialization_format="skops",
                     )
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to log MLflow model artifact for '{run_name}': {exc}"
+                    )
+            mlflow.end_run(status=terminal_status)
         except Exception as exc:
+            if mlflow.active_run() is not None:
+                try:
+                    mlflow.end_run(status="FAILED")
+                except Exception:
+                    pass
             logger.warning(f"Failed to log MLflow run '{run_name}': {exc}")
