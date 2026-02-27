@@ -1285,12 +1285,20 @@ class ForecastModelTrainer(BaseMlUtils):
         if not required.issubset(old_metrics.keys()):
             return True, "previous_model_metrics_incomplete"
 
-        if (
-            float(new_metrics["r2"]) > float(old_metrics["r2"])
-            and float(new_metrics["mae"]) < float(old_metrics["mae"])
-            and float(new_metrics["rmse"]) < float(old_metrics["rmse"])
-        ):
+        improvements = {
+            "r2": float(new_metrics["r2"]) > float(old_metrics["r2"]),
+            "mae": float(new_metrics["mae"]) < float(old_metrics["mae"]),
+            "rmse": float(new_metrics["rmse"]) < float(old_metrics["rmse"]),
+        }
+
+        # Deploy when the candidate improves the primary score metric and
+        # also wins on at least one error metric.
+        improved_metrics = sum(improvements.values())
+        if improvements["r2"] and improved_metrics >= 2:
             return True, "candidate_beats_best_historical"
+
+        if improved_metrics >= 2:
+            return False, "candidate_improves_majority_metrics_but_not_r2"
 
         return False, "candidate_not_better_than_best_historical"
 
@@ -1331,6 +1339,21 @@ class ForecastModelTrainer(BaseMlUtils):
             "reason": decision_reason,
             "old_metrics": old_metrics,
         }
+
+    @staticmethod
+    def _get_run_status(decision_reason: str) -> str:
+        if decision_reason in {
+            "candidate_beats_best_historical",
+            "no_previous_model_metrics",
+        }:
+            return "deployed"
+        return "not_deployed"
+
+    @staticmethod
+    def _get_mlflow_terminal_status(decision_reason: str) -> str:
+        if decision_reason == "candidate_not_better_than_best_historical":
+            return "FAILED"
+        return "FINISHED"
 
     @staticmethod
     def train_point_and_save_to_gcs(
@@ -1422,7 +1445,13 @@ class ForecastModelTrainer(BaseMlUtils):
                 "target": target,
                 "decision_reason": deployment["reason"],
                 "deployed": str(deployment["deployed"]).lower(),
+                "status": ForecastModelTrainer._get_run_status(
+                    deployment["reason"]
+                ),
             },
+            terminal_status=ForecastModelTrainer._get_mlflow_terminal_status(
+                deployment["reason"]
+            ),
             model=model,
             model_artifact_path="model",
             input_example=input_example,
@@ -1531,7 +1560,13 @@ class ForecastModelTrainer(BaseMlUtils):
                 "alpha": str(alpha),
                 "decision_reason": deployment["reason"],
                 "deployed": str(deployment["deployed"]).lower(),
+                "status": ForecastModelTrainer._get_run_status(
+                    deployment["reason"]
+                ),
             },
+            terminal_status=ForecastModelTrainer._get_mlflow_terminal_status(
+                deployment["reason"]
+            ),
             model=model,
             model_artifact_path="model",
             input_example=input_example,
