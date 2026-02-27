@@ -1,13 +1,11 @@
+"""Utility functions and classes for ML training, forecasting, and fault detection."""
+
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Iterable, Sequence, Optional, Tuple
-import tempfile
+from typing import Dict, List, Any, Sequence, Optional, Tuple
+import logging
 
-from pandas.io.formats.style import Subset
-from pymongo.errors import ServerSelectionTimeoutError
 from dateutil.relativedelta import relativedelta
-
-
-import joblib
+from pymongo.errors import ServerSelectionTimeoutError
 import mlflow
 import numpy as np
 import optuna
@@ -16,24 +14,20 @@ import pymongo as pm
 import lightgbm as lgb
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
 from .config import configuration, db
 from .constants import Frequency
 from .date import DateUtils
 from airqo_etl_utils.storage import (
     get_configured_storage,
     GCSFileStorage,
-    MlflowTracker,
+    FileStorage,
 )
-from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.utils.machine_learning.mlflow_tracker import MlflowTracker
 from airqo_etl_utils.sql import query_manager
 
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
-
-import logging
-
 logger = logging.getLogger("airflow.task")
-
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
@@ -41,9 +35,6 @@ environment = configuration.ENVIRONMENT
 additional_columns = ["site_id"]
 
 pd.options.mode.chained_assignment = None
-
-
-### This module contains utility functions for ML jobs.
 
 
 class BaseMlUtils:
@@ -324,11 +315,23 @@ class BaseMlUtils:
 
 
 class ForecastUtils(BaseMlUtils):
+    """Device-level PM2.5 forecast training, prediction, and persistence."""
+
     @staticmethod
     def train_and_save_forecast_models(training_data, frequency):
+        """Train a LightGBM forecast model via Optuna hyperparameter search and save to GCS.
+
+        Uses Optuna TPE sampler with successive halving pruner across 15 trials.
+        The best hyperparameters train a final LGBMRegressor, serialized and
+        uploaded to the configured GCS bucket. MLflow autologging tracks the run.
+
+        Args:
+            training_data: DataFrame with device_id, timestamp, pm2_5, and
+                pre-computed feature columns.
+            frequency: Model frequency label (e.g. 'hourly', 'daily') used
+                for artifact naming and MLflow experiment.
         """
-        Perform the actual training for hourly data
-        """
+        filestorage: FileStorage = GCSFileStorage()
         training_data.dropna(subset=["device_id"], inplace=True)
         training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
         features = [
@@ -417,7 +420,7 @@ class ForecastUtils(BaseMlUtils):
         )
         with mlflow.start_run():
             best_params = study.best_params
-            print(f"Best params are {best_params}")
+            logger.info(f"Best params: {best_params}")
             clf = LGBMRegressor(
                 n_estimators=best_params["n_estimators"],
                 learning_rate=best_params["learning_rate"],
@@ -436,113 +439,24 @@ class ForecastUtils(BaseMlUtils):
                 eval_metric="rmse",
                 callbacks=[early_stopping(stopping_rounds=150)],
             )
-
-            storage = get_configured_storage()
-            if storage:
-                with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-                    joblib.dump(clf, tmp.name)
-                    storage.upload_file(
-                        bucket, tmp.name, f"{frequency}_forecast_model.pkl"
-                    )
-                    try:
-                        import os
-
-                        os.remove(tmp.name)
-                    except:
-                        pass
-
-        # def create_error_df(data, target, preds):
-        #     error_df = pd.DataFrame(
-        #         {
-        #             "actual_values": target,
-        #             "predicted_values": preds,
-        #         }
-        #     )
-        #     error_df["errors"] = (
-        #         error_df["predicted_values"] - error_df["actual_values"]
-        #     )
-        #     error_df = pd.concat([error_df, data], axis=1)
-        #     error_df.drop(["actual_values", "pm2_5"], axis=1, inplace=True)
-        #     error_df.rename(columns={"predicted_values": "pm2_5"}, inplace=True)
-        #
-        #     return error_df
-        #
-        # error_df1 = create_error_df(
-        #     train_data, train_target, clf.predict(train_data[features])
-        # )
-        # error_df2 = create_error_df(
-        #     test_data, test_target, clf.predict(test_data[features])
-        # )
-        #
-        # error_features1 = [c for c in error_df1.columns if c not in ["errors"]]
-        # error_features2 = [c for c in error_df2.columns if c not in ["errors"]]
-        #
-        # error_target1 = error_df1["errors"]
-        # error_target2 = error_df2["errors"]
-        #
-        # error_clf = LGBMRegressor(
-        #     n_estimators=31,
-        #     colsample_bytree=1,
-        #     learning_rate=0.1,
-        #     metric="rmse",
-        #     max_depth=5,
-        #     random_state=42,
-        #     verbosity=2,
-        # )
-        #
-        # error_clf.fit(
-        #     error_df1[error_features1],
-        #     error_target1,
-        #     eval_set=[(error_df2[error_features2], error_target2)],
-        #     categorical_feature=["device_id", "site_id", "device_category"],
-        #     callbacks=[early_stopping(stopping_rounds=150)],
-        # )
-        #
-        # GCSUtils.upload_trained_model_to_gcs(
-        #     error_clf, project_id, bucket, f"{frequency}_error_model.pkl"
-        # )
-
-    # TODO: quantile regression approach
-    # alphas = [0.025, 0.975]
-    # models = []
-    # names = [
-    #     f"{frequency}_lower_quantile_model",
-    #     f"{frequency}_upper_quantile_model",
-    # ]
-    #
-    # for alpha in alphas:
-    #     clf = LGBMRegressor(
-    #         n_estimators=best_params["n_estimators"],
-    #         learning_rate=best_params["learning_rate"],
-    #         colsample_bytree=best_params["colsample_bytree"],
-    #         reg_alpha=best_params["reg_alpha"],
-    #         reg_lambda=best_params["reg_lambda"],
-    #         max_depth=best_params["max_depth"],
-    #         random_state=42,
-    #         verbosity=2,
-    #         objective="quantile",
-    #         alpha=alpha,
-    #         metric="quantile",
-    #     )
-    #     clf.fit(
-    #         train_data[features],
-    #         train_target,
-    #         eval_set=[(test_data[features], test_target)],
-    #         categorical_feature=["device_id", "site_id", "device_category"],
-    #     )
-    #     models.append(clf)
-    # for n, m in zip(names, models):
-    #     upload_trained_model_to_gcs(m, project_id, bucket, f"{n}.pkl")
+            filestorage.save_file_object(
+                bucket=bucket,
+                obj=clf,
+                destination_file=f"{frequency}_forecast_model.pkl",
+            )
 
     @staticmethod
     def generate_forecasts(
         data: pd.DataFrame, project_name: str, bucket_name: str, frequency: Frequency
     ) -> pd.DataFrame:
+        """
+        Generate forecasts for the given data using a pre-trained model.
+        """
         data = data.dropna(subset=["site_id", "device_id"])
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
 
-        # data["margin_of_error"] = data["adjusted_forecast"] = 0
+        filestorage: FileStorage = GCSFileStorage()
 
         def get_forecasts(df_tmp, forecast_model, frequency, horizon):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
@@ -620,49 +534,18 @@ class ForecastUtils(BaseMlUtils):
                     "timestamp",
                     "latitude",
                     "longitude",
-                    # "margin_of_error",
-                    # "adjusted_forecast",
                 ]
-                # excluded_columns_2 = [
-                #     "timestamp",
-                #     "margin_of_error",
-                #     "adjusted_forecast",
-                # ]
                 df_tmp.loc[df_tmp.index[-1], "pm2_5"] = forecast_model.predict(
                     df_tmp.drop(excluded_columns, axis=1).tail(1).values.reshape(1, -1)
                 )
-                # df_tmp.loc[df_tmp.index[-1], "margin_of_error"] = error_model.predict(
-                #     df_tmp.drop(excluded_columns_2, axis=1)
-                #     .tail(1)
-                #     .values.reshape(1, -1)
-                # )
-                # df_tmp.loc[df_tmp.index[-1], "adjusted_forecast"] = (
-                #     df_tmp.loc[df_tmp.index[-1], "pm2_5"]
-                #     + df_tmp.loc[df_tmp.index[-1], "margin_of_error"]
-                # )
 
             return df_tmp.iloc[-int(horizon) :, :]
 
         forecasts = pd.DataFrame()
-        storage = get_configured_storage()
-        if not storage:
-            raise RuntimeError("Storage adapter not configured")
-
-        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-            storage.download_file(
-                bucket_name, f"{frequency.str}_forecast_model.pkl", tmp.name
-            )
-            with open(tmp.name, "rb") as f:
-                forecast_model = joblib.load(f)
-            try:
-                import os
-
-                os.remove(tmp.name)
-            except:
-                pass
-        # error_model = storage.download_file(
-        #     bucket_name, f"{frequency}_error_model.pkl", tmp.name
-        # )
+        forecast_model = filestorage.load_file_object(
+            bucket=bucket_name,
+            source_file=f"{frequency.str}_forecast_model.pkl",
+        )
 
         df_tmp = data.copy()
         for device in df_tmp["device_id"].unique():
@@ -682,18 +565,9 @@ class ForecastUtils(BaseMlUtils):
             forecasts = pd.concat([forecasts, device_forecasts], ignore_index=True)
 
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
-        # forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
 
         return forecasts[
-            [
-                "site_id",
-                "device_id",
-                "device_number",
-                "timestamp",
-                "pm2_5",
-                # "margin_of_error",
-                # "adjusted_forecast",
-            ]
+            ["site_id", "device_id", "device_number", "timestamp", "pm2_5"]
         ]
 
     @staticmethod
@@ -748,13 +622,13 @@ class ForecastUtils(BaseMlUtils):
                     }
                 }
                 collection.update_one(filter_query, update_query, upsert=True)
-            except Exception as e:
-                logger.exception(
-                    f"Failed to update forecast for device {doc['device_id']}: {e}"
-                )
             except ServerSelectionTimeoutError as e:
                 raise ServerSelectionTimeoutError(
                     "Could not connect to MongoDB server within timeout."
+                ) from e
+            except Exception as e:
+                logger.exception(
+                    f"Failed to update forecast for device {doc['device_id']}: {e}"
                 )
 
 
@@ -852,6 +726,18 @@ class FaultDetectionUtils(BaseMlUtils):
 
     @staticmethod
     def process_faulty_devices_fault_sequence(df: pd.DataFrame):
+        """Identify devices with long consecutive anomaly sequences.
+
+        Groups consecutive anomaly values and returns devices whose longest
+        anomaly run is >= 80 data points.
+
+        Args:
+            df: DataFrame with columns 'device_id' and 'anomaly_value'.
+
+        Returns:
+            DataFrame with 'device_id' and 'fault_count' columns for devices
+            exceeding the anomaly sequence threshold.
+        """
         df["group"] = (df["anomaly_value"] != df["anomaly_value"].shift(1)).cumsum()
         df["anomaly_sequence_length"] = (
             df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
@@ -891,9 +777,9 @@ class FaultDetectionUtils(BaseMlUtils):
             try:
                 db.faulty_devices_1.bulk_write(bulk_ops)
             except Exception as e:
-                print(f"Error saving faulty devices to MongoDB: {e}")
+                logger.error(f"Error saving faulty devices to MongoDB: {e}")
 
-            print("Faulty devices saved/updated to MongoDB")
+            logger.info("Faulty devices saved/updated to MongoDB")
 
 
 class SatelliteUtils(BaseMlUtils):
@@ -999,17 +885,12 @@ class SatelliteUtils(BaseMlUtils):
         #     origin = data.iloc[v_test]
         #     rmse.append(validate(train_v, test_v, 'pm2_5', origin))
 
-        storage = get_configured_storage()
-        if storage:
-            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-                joblib.dump(model, tmp.name)
-                storage.upload_file(bucket, tmp.name, "satellite_prediction_model.pkl")
-                try:
-                    import os
-
-                    os.remove(tmp.name)
-                except:
-                    pass
+        filestorage: FileStorage = GCSFileStorage()
+        filestorage.save_file_object(
+            bucket=bucket,
+            obj=model,
+            destination_file="satellite_prediction_model.pkl",
+        )
 
 
 class ForecastSiteUtils(BaseMlUtils):
@@ -1031,6 +912,30 @@ class ForecastSiteUtils(BaseMlUtils):
         roll_shift: int = 1,
         dropna: bool = True,
     ) -> pd.DataFrame:
+        """Add time-based, lag, and rolling-window features per site.
+
+        Generates day_of_week, day_of_year, and month from the date column,
+        lag features at the specified offsets, and rolling mean/std statistics.
+
+        Args:
+            df: Input DataFrame; must contain *date_col*, *site_col*, and
+                *target_col*.
+            date_col: Name of the date/timestamp column.
+            site_col: Column identifying each site for group-wise operations.
+            target_col: Column on which to compute lags and rolling stats.
+            lags: Sequence of positive integers for lag features.
+            rolling_window: Window sizes (>1) for rolling mean/std.
+            roll_shift: Number of rows to shift before rolling (avoids leakage).
+            dropna: If True, drop rows with NaN in any generated feature.
+
+        Returns:
+            DataFrame with original columns plus engineered features,
+            sorted by (*site_col*, *date_col*).
+
+        Raises:
+            ValueError: On missing columns, invalid lag/window values, or
+                unparseable dates.
+        """
         # ---- validate inputs ----
         required = {site_col, date_col, target_col}
         missing = required - set(df.columns)
@@ -1130,6 +1035,25 @@ class ForecastModelTrainer(BaseMlUtils):
         test_fraction: float,
         min_rows: int = 50,
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Split a DataFrame into train/test sets using a chronological cut.
+
+        Sorts by *date_col*, drops rows with NaN in features/target, and
+        splits at ``(1 - test_fraction)`` of the remaining rows.
+
+        Args:
+            df: Source DataFrame.
+            features: Feature column names.
+            target: Target column name.
+            date_col: Date column used for sorting.
+            test_fraction: Fraction of rows to use for the test set.
+            min_rows: Minimum rows required after cleaning.
+
+        Returns:
+            Tuple of (train_df, test_df).
+
+        Raises:
+            ValueError: If required columns are missing or too few rows remain.
+        """
         missing = sorted(set(features + [target, date_col]) - set(df.columns))
         if missing:
             raise ValueError(f"Missing columns: {missing}")
@@ -1152,6 +1076,7 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _regression_metrics(y_true, y_pred) -> Dict[str, float]:
+        """Compute MAE, RMSE, and R-squared for a set of predictions."""
         return {
             "mae": float(mean_absolute_error(y_true, y_pred)),
             "rmse": float(mean_squared_error(y_true, y_pred, squared=False)),
@@ -1171,6 +1096,14 @@ class ForecastModelTrainer(BaseMlUtils):
         early_stopping_rounds: int,
         log_period: int,
     ) -> Tuple[lgb.LGBMRegressor, Dict]:
+        """Train a LightGBM model and return it with validation metrics.
+
+        Performs a chronological train/test split, fits the model with
+        early stopping, and computes regression metrics on the validation set.
+
+        Returns:
+            Tuple of (fitted model, metrics dict).
+        """
         train_df, val_df = ForecastModelTrainer._prep_time_split(
             df,
             features=features,
@@ -1214,6 +1147,11 @@ class ForecastModelTrainer(BaseMlUtils):
     def _build_candidate_param_sets(
         base_params: Dict, lgb_params: Optional[Dict]
     ) -> List[Tuple[str, Dict]]:
+        """Build a list of (label, params) candidates for model selection.
+
+        Always includes the default parameter set. If *lgb_params* is provided
+        and differs from the default, a 'tuned' candidate is also included.
+        """
         default_params = dict(base_params)
         candidates: List[Tuple[str, Dict]] = [("default", default_params)]
         if lgb_params:
@@ -1228,29 +1166,41 @@ class ForecastModelTrainer(BaseMlUtils):
         candidates: List[Tuple[str, lgb.LGBMRegressor, Dict, Dict]],
         metric_key: str = "mae",
     ) -> Tuple[str, lgb.LGBMRegressor, Dict, Dict]:
+        """Select the candidate with the lowest value for *metric_key*."""
         if not candidates:
             raise ValueError("No trained candidates available for model selection.")
         return min(candidates, key=lambda x: x[2].get(metric_key, float("inf")))
 
     @staticmethod
-    def _upload_model_artifact(bucket_name: str, source_file: str, blob_name: str) -> None:
-        storage = get_configured_storage()
-        if storage and hasattr(storage, "upload_file"):
-            storage.upload_file(bucket_name, source_file, blob_name)
-            return
+    def _upload_model_artifact(bucket_name: str, artifact: Any, blob_name: str) -> None:
+        """Serialize and upload a model artifact dict to GCS.
 
-        GCSFileStorage().upload_file(bucket_name, source_file, blob_name)
+        Args:
+            bucket_name: GCS bucket name.
+            artifact: Python object to serialize (typically a dict with
+                model, features, metrics, etc.).
+            blob_name: Destination path/key in the bucket.
+        """
+        filestorage: FileStorage = GCSFileStorage()
+        filestorage.save_file_object(
+            bucket=bucket_name, obj=artifact, destination_file=blob_name
+        )
 
     @staticmethod
     def _load_existing_artifact_metrics(
         bucket_name: str, blob_name: str
     ) -> Optional[Dict[str, float]]:
-        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-            local_path = tmp.name
+        """Load metrics from a previously deployed model artifact in GCS.
 
+        Returns:
+            The metrics dict if the artifact exists and contains one,
+            otherwise None.
+        """
         try:
-            GCSFileStorage().download_file(bucket_name, blob_name, local_path)
-            artifact = joblib.load(local_path)
+            filestorage: FileStorage = GCSFileStorage()
+            artifact = filestorage.load_file_object(
+                bucket=bucket_name, source_file=blob_name
+            )
             if isinstance(artifact, dict):
                 metrics = artifact.get("metrics")
                 if isinstance(metrics, dict):
@@ -1262,13 +1212,6 @@ class ForecastModelTrainer(BaseMlUtils):
                 f"Failed to load existing model metrics for {blob_name}: {exc}"
             )
             return None
-        finally:
-            try:
-                import os
-
-                os.remove(local_path)
-            except Exception:
-                pass
 
         return None
 
@@ -1276,6 +1219,14 @@ class ForecastModelTrainer(BaseMlUtils):
     def _get_deployment_decision(
         new_metrics: Dict[str, float], old_metrics: Optional[Dict[str, float]]
     ) -> Tuple[bool, str]:
+        """Decide whether to deploy a new model over an existing one.
+
+        Deploys if the new model has strictly better R-squared, MAE, and RMSE,
+        or if no previous metrics are available.
+
+        Returns:
+            Tuple of (should_deploy, reason_string).
+        """
         if not old_metrics:
             return True, "no_previous_model_metrics"
 
@@ -1298,10 +1249,21 @@ class ForecastModelTrainer(BaseMlUtils):
     def _deploy_if_better(
         *,
         bucket_name: str,
-        source_file: str,
+        artifact: Any,
         blob_name: str,
         new_metrics: Dict[str, float],
     ) -> Dict[str, Any]:
+        """Compare new model metrics against the deployed model and upload if better.
+
+        Args:
+            bucket_name: GCS bucket name.
+            artifact: Serializable model artifact dict.
+            blob_name: Destination blob path in the bucket.
+            new_metrics: Metrics from the newly trained model.
+
+        Returns:
+            Dict with 'deployed' (bool), 'reason', and 'old_metrics' keys.
+        """
         old_metrics = ForecastModelTrainer._load_existing_artifact_metrics(
             bucket_name=bucket_name,
             blob_name=blob_name,
@@ -1314,7 +1276,7 @@ class ForecastModelTrainer(BaseMlUtils):
         if deploy_new:
             ForecastModelTrainer._upload_model_artifact(
                 bucket_name=bucket_name,
-                source_file=source_file,
+                artifact=artifact,
                 blob_name=blob_name,
             )
             return {
@@ -1351,6 +1313,29 @@ class ForecastModelTrainer(BaseMlUtils):
         early_stopping_rounds: int = 100,
         log_period: int = 200,
     ) -> Dict:
+        """Train a point-estimate LightGBM model and conditionally deploy to GCS.
+
+        Fits the model, compares metrics against any existing deployed model,
+        and uploads if the new model is strictly better. Logs the run to MLflow.
+
+        Args:
+            df: Featured DataFrame.
+            features: Feature column names.
+            target: Target column (e.g. 'pm25_mean', 'pm25_min', 'pm25_max').
+            model_kind: Label for the model type (e.g. 'mean', 'min', 'max').
+            date_col: Date column for chronological splitting.
+            test_fraction: Fraction of data reserved for validation.
+            random_state: Random seed.
+            lgb_params: Optional LightGBM parameter overrides.
+            project_name: GCP project ID.
+            bucket_name: GCS bucket for model storage.
+            blob_name: Destination blob path.
+            early_stopping_rounds: Early stopping patience.
+            log_period: LightGBM log evaluation period.
+
+        Returns:
+            Dict of validation metrics with deployment decision metadata.
+        """
         params = {
             "n_estimators": 3000,
             "learning_rate": 0.03,
@@ -1395,20 +1380,12 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-            joblib.dump(artifact, tmp.name)
-            deployment = ForecastModelTrainer._deploy_if_better(
-                bucket_name=bucket_name,
-                source_file=tmp.name,
-                blob_name=blob_name,
-                new_metrics=metrics,
-            )
-            try:
-                import os
-
-                os.remove(tmp.name)
-            except:
-                pass
+        deployment = ForecastModelTrainer._deploy_if_better(
+            bucket_name=bucket_name,
+            artifact=artifact,
+            blob_name=blob_name,
+            new_metrics=metrics,
+        )
         metrics["deployed"] = deployment["deployed"]
         metrics["deployment_reason"] = deployment["reason"]
         tracker.log_run(
@@ -1418,7 +1395,6 @@ class ForecastModelTrainer(BaseMlUtils):
             tags={
                 "pipeline": "site_forecast",
                 "model_kind": model_kind,
-                "model_king": model_kind,
                 "target": target,
                 "decision_reason": deployment["reason"],
                 "deployed": str(deployment["deployed"]).lower(),
@@ -1452,6 +1428,32 @@ class ForecastModelTrainer(BaseMlUtils):
         early_stopping_rounds: int = 150,
         log_period: int = 200,
     ) -> Dict:
+        """Train a quantile-regression LightGBM model and conditionally deploy to GCS.
+
+        Same workflow as :meth:`train_point_and_save_to_gcs` but optimises for
+        a specific quantile (*alpha*).
+
+        Args:
+            df: Featured DataFrame.
+            alpha: Quantile level (0 < alpha < 1), e.g. 0.1 for 10th percentile.
+            features: Feature column names.
+            target: Target column name.
+            date_col: Date column for chronological splitting.
+            test_fraction: Fraction of data reserved for validation.
+            random_state: Random seed.
+            lgb_params: Optional LightGBM parameter overrides.
+            project_name: GCP project ID.
+            bucket_name: GCS bucket for model storage.
+            blob_name: Destination blob path.
+            early_stopping_rounds: Early stopping patience.
+            log_period: LightGBM log evaluation period.
+
+        Returns:
+            Dict of validation metrics with deployment decision metadata.
+
+        Raises:
+            ValueError: If *alpha* is not in (0, 1).
+        """
         if not (0.0 < alpha < 1.0):
             raise ValueError(f"alpha must be between 0 and 1, got {alpha}")
 
@@ -1503,20 +1505,12 @@ class ForecastModelTrainer(BaseMlUtils):
             "params": params,
         }
 
-        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tmp:
-            joblib.dump(artifact, tmp.name)
-            deployment = ForecastModelTrainer._deploy_if_better(
-                bucket_name=bucket_name,
-                source_file=tmp.name,
-                blob_name=blob_name,
-                new_metrics=metrics,
-            )
-            try:
-                import os
-
-                os.remove(tmp.name)
-            except:
-                pass
+        deployment = ForecastModelTrainer._deploy_if_better(
+            bucket_name=bucket_name,
+            artifact=artifact,
+            blob_name=blob_name,
+            new_metrics=metrics,
+        )
         metrics["deployed"] = deployment["deployed"]
         metrics["deployment_reason"] = deployment["reason"]
         tracker.log_run(
@@ -1526,7 +1520,6 @@ class ForecastModelTrainer(BaseMlUtils):
             tags={
                 "pipeline": "site_forecast",
                 "model_kind": "quantile",
-                "model_king": "quantile",
                 "target": target,
                 "alpha": str(alpha),
                 "decision_reason": deployment["reason"],
@@ -1573,6 +1566,16 @@ class ForecastModelTrainer(BaseMlUtils):
         blob_name_low: str,  # "models/daily_pm25_low_model.pkl",
         blob_name_high: str,  # = "models/daily_pm25_high_model.pkl",
     ) -> Dict[str, Dict]:
+        """Train mean, min, max point models and optional quantile bands, deploying each to GCS.
+
+        Convenience wrapper that calls :meth:`train_point_and_save_to_gcs`
+        for three targets and optionally :meth:`train_quantile_and_save_to_gcs`
+        for low/high quantile bands.
+
+        Returns:
+            Dict mapping model label ('mean', 'min', 'max', 'low_q', 'high_q')
+            to their respective metrics dicts.
+        """
         out: Dict[str, Dict] = {}
 
         out["mean"] = ForecastModelTrainer.train_point_and_save_to_gcs(
@@ -1647,7 +1650,20 @@ class ForecastModelTrainer(BaseMlUtils):
 
         return out
 
+    @staticmethod
     def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
+        """Run quarterly retraining of site-level PM2.5 forecast models.
+
+        Pulls 90 months of consolidated daily site data from BigQuery,
+        engineers features, and trains mean + quantile (10th/90th) models.
+        Each model is deployed only if it outperforms the existing artifact.
+
+        Returns:
+            Dict mapping model label to metrics with deployment metadata.
+
+        Raises:
+            ValueError: On missing configuration, empty data, or no features.
+        """
         storage_adapter = get_configured_storage()
         if storage_adapter is None:
             raise ValueError(
@@ -1665,11 +1681,11 @@ class ForecastModelTrainer(BaseMlUtils):
         if query_manager.query_exists("consolidated_site_daily_aggregated"):
             query = query_manager.get_query("consolidated_site_daily_aggregated")
 
-        if not Config.BIGQUERY_ANALYTICS_TABLE:
+        if not configuration.BIGQUERY_ANALYTICS_TABLE:
             raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
 
         query = query.format(
-            consolidated_table=Config.BIGQUERY_ANALYTICS_TABLE,
+            consolidated_table=configuration.BIGQUERY_ANALYTICS_TABLE,
             start_date=start_date_str,
             end_date=end_date_str,
             min_hours=18,
@@ -1755,7 +1771,19 @@ class ForecastModelTrainer(BaseMlUtils):
 
         return results
 
+    @staticmethod
     def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:
+        """Engineer time/lag/rolling features and one-hot-encode site IDs.
+
+        Args:
+            raw_data: DataFrame with 'day', 'site_id', and 'pm25_mean' columns.
+
+        Returns:
+            Feature-engineered DataFrame with site dummy columns.
+
+        Raises:
+            ValueError: If feature engineering produces an empty result.
+        """
         featured_data = ForecastSiteUtils.add_time_lag_roll_features(
             raw_data,
             date_col="day",
@@ -1780,7 +1808,15 @@ class ForecastModelTrainer(BaseMlUtils):
 
         return featured_data
 
+    @staticmethod
     def _select_numeric_training_features(featured_data: pd.DataFrame) -> List[str]:
+        """Return numeric column names suitable for model training.
+
+        Excludes date, identifier, and target columns.
+
+        Raises:
+            ValueError: If no numeric features remain.
+        """
         excluded = {
             "day",
             "site_id",
@@ -1801,7 +1837,13 @@ class ForecastModelTrainer(BaseMlUtils):
 
         return features
 
+    @staticmethod
     def _get_model_bucket_config() -> Dict[str, str]:
+        """Return project and bucket names from configuration.
+
+        Raises:
+            ValueError: If either value is missing.
+        """
         project_name = configuration.GOOGLE_CLOUD_PROJECT_ID
         bucket_name = configuration.FORECAST_MODELS_BUCKET
         if not project_name or not bucket_name:

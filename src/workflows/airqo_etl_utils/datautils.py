@@ -27,7 +27,7 @@ from .constants import (
 )
 from .message_broker_utils import MessageBrokerUtils
 
-from .utils import Utils
+from .common_utils import Utils
 from .date import DateUtils
 from .data_validator import DataValidationUtils
 

@@ -6,7 +6,7 @@ from urllib.parse import quote
 import pandas as pd
 
 from .constants import DeviceNetwork
-from .utils import Utils, Result
+from .common_utils import Utils, Result
 from .data_api import DataApi
 from .config import configuration
 import logging

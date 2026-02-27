@@ -19,8 +19,8 @@ from .constants import (
 )
 from .data_validator import DataValidationUtils
 from .date import DateUtils
-from .ml_utils import GCSUtils
-from .utils import Utils
+from airqo_etl_utils.storage import FileStorage, GCSFileStorage
+from .common_utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from .meta_data_utils import MetaDataUtils
@@ -937,15 +937,17 @@ class AirQoDataUtils:
 
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
-        default_rf_model = GCSUtils.get_trained_model_from_gcs(
-            project_name=project_id,
-            bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(models.DEFAULT, "pm2_5"),
+        file_storage: FileStorage = GCSFileStorage()
+
+        default_rf_model = file_storage.load_file_object(
+            bucket=bucket,
+            source_file=Utils.get_calibration_model_path(models.DEFAULT, "pm2_5"),
+            local_cache_path=f"/tmp/default_rf_model_{models.DEFAULT}.pkl",
         )
-        default_lasso_model = GCSUtils.get_trained_model_from_gcs(
-            project_name=project_id,
-            bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(models.DEFAULT, "pm10"),
+        default_lasso_model = file_storage.load_file_object(
+            bucket=bucket,
+            source_file=Utils.get_calibration_model_path(models.DEFAULT, "pm10"),
+            local_cache_path=f"/tmp/default_lasso_model_{models.DEFAULT}.pkl",
         )
         available_models = [c.value for c in models]
 
@@ -960,12 +962,12 @@ class AirQoDataUtils:
                 and groupedby.lower() in available_models
             ):
                 try:
-                    current_rf_model = GCSUtils.get_trained_model_from_gcs(
-                        project_name=project_id,
-                        bucket_name=bucket,
-                        source_blob_name=Utils.get_calibration_model_path(
+                    current_rf_model = file_storage.load_file_object(
+                        bucket=bucket,
+                        source_file=Utils.get_calibration_model_path(
                             groupedby.lower(), "pm2_5"
                         ),
+                        local_cache_path=f"/tmp/rf_model_{groupedby.lower()}.pkl",
                     )
                 except Exception as e:
                     logger.exception(
@@ -973,12 +975,12 @@ class AirQoDataUtils:
                     )
                     current_rf_model = default_rf_model
                 try:
-                    current_lasso_model = GCSUtils.get_trained_model_from_gcs(
-                        project_name=project_id,
-                        bucket_name=bucket,
-                        source_blob_name=Utils.get_calibration_model_path(
+                    current_lasso_model = file_storage.load_file_object(
+                        bucket=bucket,
+                        source_file=Utils.get_calibration_model_path(
                             groupedby.lower(), "pm10"
                         ),
+                        local_cache_path=f"/tmp/lasso_model_{groupedby.lower()}.pkl",
                     )
                 except Exception as e:
                     logger.exception(
