@@ -1298,7 +1298,7 @@ class ForecastModelTrainer(BaseMlUtils):
             return True, "candidate_beats_best_historical"
 
         if improved_metrics >= 2:
-            return False, "candidate_improves_majority_metrics_but_not_r2"
+            return False, "candidate_improves_majority_metrics"
 
         return False, "candidate_not_better_than_best_historical"
 
@@ -1370,6 +1370,7 @@ class ForecastModelTrainer(BaseMlUtils):
         project_name: str,
         bucket_name: str,
         blob_name: str,
+        dataset_source: Optional[str] = None,
         # training behavior
         early_stopping_rounds: int = 100,
         log_period: int = 200,
@@ -1434,6 +1435,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 pass
         metrics["deployed"] = deployment["deployed"]
         metrics["deployment_reason"] = deployment["reason"]
+        dataset_metadata = {
+            "dataset_source": dataset_source or "in_memory_dataframe",
+            "start_date": str(df[date_col].min()),
+            "end_date": str(df[date_col].max()),
+            "row_count": int(len(df)),
+        }
         tracker.log_run(
             run_name=f"site-{model_kind}-{target}",
             params=params,
@@ -1454,6 +1461,7 @@ class ForecastModelTrainer(BaseMlUtils):
             ),
             model=model,
             model_artifact_path="model",
+            dataset_metadata=dataset_metadata,
             input_example=input_example,
         )
 
@@ -1477,6 +1485,7 @@ class ForecastModelTrainer(BaseMlUtils):
         project_name: str,
         bucket_name: str,
         blob_name: str,
+        dataset_source: Optional[str] = None,
         # training behavior
         early_stopping_rounds: int = 150,
         log_period: int = 200,
@@ -1548,6 +1557,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 pass
         metrics["deployed"] = deployment["deployed"]
         metrics["deployment_reason"] = deployment["reason"]
+        dataset_metadata = {
+            "dataset_source": dataset_source or "in_memory_dataframe",
+            "start_date": str(df[date_col].min()),
+            "end_date": str(df[date_col].max()),
+            "row_count": int(len(df)),
+        }
         tracker.log_run(
             run_name=f"site-quantile-{target}-{alpha}",
             params=params,
@@ -1569,6 +1584,7 @@ class ForecastModelTrainer(BaseMlUtils):
             ),
             model=model,
             model_artifact_path="model",
+            dataset_metadata=dataset_metadata,
             input_example=input_example,
         )
 

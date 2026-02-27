@@ -51,6 +51,13 @@ class MlflowTracker:
                 serialized[key] = str(value)
         return serialized
 
+    @staticmethod
+    def _format_date_param(value: Any) -> str:
+        parsed = pd.to_datetime(value, errors="coerce")
+        if pd.isna(parsed):
+            return "unknown"
+        return parsed.strftime("%Y-%m-%d")
+
     def log_run(
         self,
         *,
@@ -61,6 +68,7 @@ class MlflowTracker:
         terminal_status: str = "FINISHED",
         model: Any = None,
         model_artifact_path: str = "model",
+        dataset_metadata: Optional[Dict[str, Any]] = None,
         input_example: Optional[pd.DataFrame] = None,
     ) -> None:
         if not self.enabled:
@@ -78,6 +86,69 @@ class MlflowTracker:
 
         try:
             mlflow.start_run(run_name=run_name)
+            if dataset_metadata:
+                try:
+                    dataset_frame = pd.DataFrame(
+                        [
+                            {
+                                "start_date": pd.to_datetime(
+                                    dataset_metadata.get("start_date"),
+                                    errors="coerce",
+                                ),
+                                "end_date": pd.to_datetime(
+                                    dataset_metadata.get("end_date"),
+                                    errors="coerce",
+                                ),
+                                "row_count": int(dataset_metadata.get("row_count", 0)),
+                            }
+                        ]
+                    )
+                    dataset = mlflow.data.from_pandas(
+                        df=dataset_frame,
+                        source="training_window",
+                        name="training_dataset",
+                    )
+                    mlflow.log_input(dataset, context="training")
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to log MLflow dataset metadata for '{run_name}': {exc}"
+                    )
+                try:
+                    mlflow.log_params(
+                        {
+                            "training_start_date": self._format_date_param(
+                                dataset_metadata.get("start_date")
+                            ),
+                            "training_end_date": self._format_date_param(
+                                dataset_metadata.get("end_date")
+                            ),
+                            "training_row_count": int(
+                                dataset_metadata.get("row_count", 0)
+                            ),
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to log MLflow dataset params for '{run_name}': {exc}"
+                    )
+                try:
+                    mlflow.set_tags(
+                        {
+                            "training_start_date": self._format_date_param(
+                                dataset_metadata.get("start_date")
+                            ),
+                            "training_end_date": self._format_date_param(
+                                dataset_metadata.get("end_date")
+                            ),
+                            "training_row_count": str(
+                                int(dataset_metadata.get("row_count", 0))
+                            ),
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to log MLflow dataset tags for '{run_name}': {exc}"
+                    )
             if safe_params:
                 mlflow.log_params(safe_params)
             if safe_metrics:
