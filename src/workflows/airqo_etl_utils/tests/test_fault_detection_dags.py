@@ -8,11 +8,6 @@ CURRENT_DIR = Path(__file__).resolve().parent
 WORKFLOWS_DIR = CURRENT_DIR.parents[1]
 DAG_FILE = WORKFLOWS_DIR / "dags" / "fault_detection_job.py"
 
-if str(CURRENT_DIR) not in sys.path:
-    sys.path.insert(0, str(CURRENT_DIR))
-if str(WORKFLOWS_DIR) not in sys.path:
-    sys.path.insert(0, str(WORKFLOWS_DIR))
-
 
 def load_fault_detection_module():
     class FakeTaskResult:
@@ -148,12 +143,28 @@ def load_fault_detection_module():
     sys.modules["airqo_etl_utils.workflows_custom_utils"] = workflow_utils_module
     sys.modules["airqo_etl_utils.ml_utils"] = ml_utils_module
 
+    current_dir = str(CURRENT_DIR)
+    workflows_dir = str(WORKFLOWS_DIR)
+    inserted_current_dir = False
+    inserted_workflows_dir = False
+
     try:
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+            inserted_current_dir = True
+        if workflows_dir not in sys.path:
+            sys.path.insert(0, workflows_dir)
+            inserted_workflows_dir = True
+
         spec = importlib.util.spec_from_file_location("test_fault_detection_job", DAG_FILE)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
     finally:
+        if inserted_current_dir:
+            sys.path.remove(current_dir)
+        if inserted_workflows_dir:
+            sys.path.remove(workflows_dir)
         for module_name, previous_module in previous_modules.items():
             if previous_module is None:
                 sys.modules.pop(module_name, None)
