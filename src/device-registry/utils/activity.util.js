@@ -68,14 +68,61 @@ const enrichSiteWithMetadata = async (
         );
         return;
       }
+
+      // Scope the update to only genuine reverse-geocoding metadata fields.
+      // Writing the full metadataResponse.data would clobber fields like
+      // generated_name, description, latitude, and longitude that are already
+      // correctly set on the site document from the batch deployment creation.
+      const {
+        country,
+        district,
+        city,
+        region,
+        town,
+        village,
+        parish,
+        county,
+        sub_county,
+        division,
+        street,
+        formatted_name,
+        geometry,
+        google_place_id,
+        location_name,
+        search_name,
+        altitude,
+        data_provider,
+        site_tags,
+      } = metadataResponse.data;
+
+      const metadataFields = Object.fromEntries(
+        Object.entries({
+          country,
+          district,
+          city,
+          region,
+          town,
+          village,
+          parish,
+          county,
+          sub_county,
+          division,
+          street,
+          formatted_name,
+          geometry,
+          google_place_id,
+          location_name,
+          search_name,
+          altitude,
+          data_provider,
+          site_tags,
+        }).filter(([, v]) => v !== undefined),
+      );
+
       await SiteModel(tenant).findByIdAndUpdate(
         siteId,
-        {
-          $set: metadataResponse.data,
-        },
-        {
-          new: true,
-        },
+        { $set: metadataFields },
+        { new: true },
       );
       logger.info(`Successfully enriched site ${siteId} with metadata.`);
     } else {
