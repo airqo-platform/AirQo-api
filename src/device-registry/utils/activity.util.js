@@ -49,10 +49,18 @@ const enrichSiteWithMetadata = async (
   network,
 ) => {
   try {
-    const metadataResponse = await createSiteUtil.generateMetadata({
-      query: { tenant },
-      body: { latitude, longitude, network },
-    });
+    const metadataResponse = await createSiteUtil.generateMetadata(
+      {
+        query: { tenant },
+        body: { latitude, longitude, network },
+      },
+      // FIX: Pass an explicit error callback so that if generateMetadata
+      // internally calls next(err), it throws into this try/catch rather
+      // than crashing with "next is not a function".
+      (err) => {
+        throw err;
+      },
+    );
 
     if (!metadataResponse) {
       logger.error(
@@ -136,7 +144,6 @@ const enrichSiteWithMetadata = async (
     );
   }
 };
-
 /**
  * Updates the cached activity fields for sites and devices
  * Race-condition safe: Only updates if cache is older than snapshot time

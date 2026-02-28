@@ -11,6 +11,11 @@ const httpStatus = require("http-status");
 
 const BATCH_SIZE = 100;
 
+// Module-level lock to prevent overlapping cron runs. If the job takes longer
+// than its schedule interval (1 hour), the next tick is skipped entirely rather
+// than spawning a concurrent execution that would contend on the same records.
+let isBackfillRunning = false;
+
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
   try {
@@ -27,10 +32,20 @@ const backfillSiteMetadata = async (tenant) => {
     while (true) {
       const sitesToUpdate = await SiteModel(tenant)
         .find({
+          // FIX: Each condition now covers three cases:
+          //   1. Key is entirely absent ({ $exists: false })
+          //   2. Key exists but is null
+          //   3. Key exists but is an empty string ("")
+          // Previously only case 1 was matched, so sites with null or ""
+          // metadata were silently skipped by the backfill.
           $or: [
+            { country: { $in: [null, ""] } },
             { country: { $exists: false } },
+            { district: { $in: [null, ""] } },
             { district: { $exists: false } },
+            { city: { $in: [null, ""] } },
             { city: { $exists: false } },
+            { data_provider: { $in: [null, ""] } },
             { data_provider: { $exists: false } },
           ],
           latitude: { $ne: null },
@@ -159,21 +174,38 @@ const backfillSiteMetadata = async (tenant) => {
 
 const schedule = "0 */1 * * *"; // Every hour
 
-// Gate cron.schedule behind SCHEDULER_ENABLED so only one designated service
-// instance runs the job. Without this, every instance of device-registry
-// schedules an independent cron, causing duplicate backfillSiteMetadata runs
-// on each tick.
-if (process.env.SCHEDULER_ENABLED === "true") {
+// Gate cron.schedule behind BACKFILL_SITE_METADATA_SCHEDULER_ENABLED so only
+// one designated service instance runs the job. Without this, every instance
+// of device-registry schedules an independent cron, causing duplicate
+// backfillSiteMetadata runs on each tick.
+if (process.env.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === "true") {
   logger.info(
-    "SCHEDULER_ENABLED=true — this instance will run the backfill cron job.",
+    "BACKFILL_SITE_METADATA_SCHEDULER_ENABLED=true — this instance will run the backfill cron job.",
   );
   cron.schedule(
     schedule,
     async () => {
+      // FIX: Guard against overlapping runs. If the previous execution is still
+      // in progress when the next tick fires, skip and log rather than spawning
+      // a concurrent run that would contend on the same site records.
+      // Note: this is an in-memory flag and only prevents overlap within a
+      // single process. If device-registry runs on multiple nodes, replace this
+      // with a distributed lock (Redis/DB) keyed to the job name.
+      if (isBackfillRunning) {
+        logger.info(
+          "Backfill job is already running — skipping this tick to prevent overlap.",
+        );
+        return;
+      }
+
+      isBackfillRunning = true;
       try {
         await backfillSiteMetadata("airqo");
+        logger.info("Backfill cron tick completed successfully.");
       } catch (error) {
         logger.error(`Error running scheduled backfill job: ${error.message}`);
+      } finally {
+        isBackfillRunning = false;
       }
     },
     {
@@ -190,7 +222,7 @@ if (process.env.SCHEDULER_ENABLED === "true") {
   });
 } else {
   logger.info(
-    "SCHEDULER_ENABLED is not 'true' — skipping cron registration for backfill job.",
+    "BACKFILL_SITE_METADATA_SCHEDULER_ENABLED is not 'true' — skipping cron registration for backfill job.",
   );
 }
 
