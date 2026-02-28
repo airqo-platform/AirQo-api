@@ -17,7 +17,7 @@ const axiosInstance = () => {
 const { generateFilter, stringify, distance } = require("@utils/common");
 const httpStatus = require("http-status");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- site-util`
+  `${constants.ENVIRONMENT} -- site-util`,
 );
 
 const createAirqloudUtil = require("@utils/airqloud.util");
@@ -105,7 +105,7 @@ const getSiteCountSummary = async (request, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -153,8 +153,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -255,7 +255,7 @@ const createSite = {
       return name.indexOf(" ") >= 0;
     } catch (error) {
       logger.error(
-        `create site util server error -- hasWhiteSpace -- ${error.message}`
+        `create site util server error -- hasWhiteSpace -- ${error.message}`,
       );
     }
   },
@@ -273,7 +273,7 @@ const createSite = {
       return false;
     } catch (error) {
       logger.error(
-        `internal server error -- check string length -- ${error.message}`
+        `internal server error -- check string length -- ${error.message}`,
       );
     }
   },
@@ -298,7 +298,7 @@ const createSite = {
         };
         const responseFromListAirQlouds = await createAirqloudUtil.list(
           requestForAirQlouds,
-          next
+          next,
         );
         if (responseFromListAirQlouds.success === true) {
           const airqlouds = responseFromListAirQlouds.data;
@@ -314,7 +314,7 @@ const createSite = {
             });
             const isSiteInAirQloud = geolib.isPointInPolygon(
               { latitude, longitude },
-              airqloudPolygon
+              airqloudPolygon,
             );
 
             if (isSiteInAirQloud === true) {
@@ -348,8 +348,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -367,12 +367,12 @@ const createSite = {
         }
         const { latitude, longitude } = data[0];
         const responseFromListWeatherStations = await createSite.listWeatherStations(
-          next
+          next,
         );
         if (responseFromListWeatherStations.success === true) {
           const nearestWeatherStation = geolib.findNearest(
             { latitude, longitude },
-            responseFromListWeatherStations.data
+            responseFromListWeatherStations.data,
           );
           return {
             success: true,
@@ -392,8 +392,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -464,8 +464,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -479,7 +479,7 @@ const createSite = {
       return false;
     } catch (error) {
       logger.error(
-        `internal server error -- validate site name -- ${error.message}`
+        `internal server error -- validate site name -- ${error.message}`,
       );
     }
   },
@@ -494,18 +494,18 @@ const createSite = {
       };
 
       const responseFromModifyUniqueIdentifierCounter = await UniqueIdentifierCounterModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify(
         {
           filter,
           update,
         },
-        next
+        next,
       );
 
       if (responseFromModifyUniqueIdentifierCounter.success === false) {
         logger.error(
-          `unable to find the counter document, please first create it`
+          `unable to find the counter document, please first create it`,
         );
         return {
           success: false,
@@ -536,8 +536,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -561,7 +561,7 @@ const createSite = {
 
       const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km },
-        next
+        next,
       );
 
       if (responseFromApproximateCoordinates.success === true) {
@@ -597,7 +597,7 @@ const createSite = {
 
       let responseFromGenerateName = await createSite.generateName(
         tenant,
-        next
+        next,
       );
       logObject("responseFromGenerateName", responseFromGenerateName);
       if (responseFromGenerateName.success === true) {
@@ -609,7 +609,7 @@ const createSite = {
 
       const responseFromGenerateMetadata = await createSite.generateMetadata(
         request,
-        next
+        next,
       );
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
       if (responseFromGenerateMetadata.success === true) {
@@ -620,7 +620,7 @@ const createSite = {
 
       const responseFromCreateSite = await SiteModel(tenant).register(
         requestBodyForCreatingSite,
-        next
+        next,
       );
 
       logObject("responseFromCreateSite in the util", responseFromCreateSite);
@@ -642,11 +642,11 @@ const createSite = {
           };
 
           const responseFromRegisterActivity = await ActivityModel(
-            tenant
+            tenant,
           ).register(siteActivityBody, next);
           if (responseFromRegisterActivity.success === false) {
             logger.error(
-              "Unable to store the site activity for this operation."
+              "Unable to store the site activity for this operation.",
             );
           }
         } catch (error) {
@@ -687,8 +687,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -702,7 +702,7 @@ const createSite = {
           filter,
           update,
         },
-        next
+        next,
       );
 
       return responseFromModifySite;
@@ -712,8 +712,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -731,13 +731,13 @@ const createSite = {
 
       // Create sets for comparison
       const existingSiteIds = new Set(
-        existingSites.map((site) => site._id.toString())
+        existingSites.map((site) => site._id.toString()),
       );
       const providedSiteIds = new Set(siteIds.map((id) => id.toString()));
 
       // Identify non-existent site IDs
       const nonExistentSiteIds = siteIds.filter(
-        (id) => !existingSiteIds.has(id.toString())
+        (id) => !existingSiteIds.has(id.toString()),
       );
 
       // If there are non-existent sites, prepare a detailed error
@@ -749,7 +749,7 @@ const createSite = {
             existingSiteIds: Array.from(existingSiteIds),
             totalProvidedSiteIds: siteIds.length,
             existingSiteCount: existingSites.length,
-          })
+          }),
         );
       }
 
@@ -777,7 +777,7 @@ const createSite = {
           update: updateData,
           opts,
         },
-        next
+        next,
       );
 
       // Attach additional metadata to the response
@@ -795,8 +795,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -847,7 +847,7 @@ const createSite = {
             .catch((error) => {
               try {
                 logger.error(
-                  `internal server error -- ${JSON.stringify(error)}`
+                  `internal server error -- ${JSON.stringify(error)}`,
                 );
               } catch (error) {
                 logger.error(`internal server error -- ${error.message}`);
@@ -858,7 +858,7 @@ const createSite = {
                 message: "Internal Server Error",
                 status: httpStatus.INTERNAL_SERVER_ERROR,
               };
-            })
+            }),
         );
       }
 
@@ -885,14 +885,18 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
   generateMetadata: async (req, next) => {
     try {
       let { query, body } = req;
+      // Work on a shallow copy so we never mutate the caller's body object.
+      // Without this, the `body["site_tags"] = merged_site_tags` assignment
+      // below would modify the caller's reference directly.
+      body = { ...body };
       let { latitude, longitude } = body;
       let { tenant, id } = query;
       let roadResponseData = {};
@@ -902,7 +906,7 @@ const createSite = {
       let responseFromGetAltitude = await createSite.getAltitude(
         latitude,
         longitude,
-        next
+        next,
       );
 
       if (responseFromGetAltitude.success === true) {
@@ -915,42 +919,17 @@ const createSite = {
           logger.error(
             `unable to retrieve the altitude for this site, ${
               responseFromGetAltitude.message
-            } and ${JSON.stringify(errors)}`
+            } and ${JSON.stringify(errors)}`,
           );
         } catch (error) {
           logger.error(`internal server error ${error.message}`);
         }
       }
 
-      // let responseFromGetRoadMetadata = await createSite.getRoadMetadata(
-      //   latitude,
-      //   longitude,
-      //   next
-      // );
-
-      // logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
-
-      // if (responseFromGetRoadMetadata.success === true) {
-      //   roadResponseData = responseFromGetRoadMetadata.data;
-      // } else if (responseFromGetRoadMetadata.success === false) {
-      //   let errors = responseFromGetRoadMetadata.errors
-      //     ? responseFromGetRoadMetadata.errors
-      //     : {message:""};
-      //   try {
-      //     logger.error(
-      //       `unable to retrieve the road metadata, ${
-      //         responseFromGetRoadMetadata.message
-      //       } and ${JSON.stringify(errors)} `
-      //     );
-      //   } catch (error) {
-      //     logger.error(`internal server error -- ${error.message}`);
-      //   }
-      // }
-
       let responseFromReverseGeoCode = await createSite.reverseGeoCode(
         latitude,
         longitude,
-        next
+        next,
       );
 
       if (responseFromReverseGeoCode.success === true) {
@@ -984,8 +963,10 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          {
+            message: error.message,
+          },
+        ),
       );
     }
   },
@@ -1005,19 +986,19 @@ const createSite = {
       const requestBody = createSite.prepareSiteRequestBody(
         siteDetails.data[0],
         tenant,
-        next
+        next,
       );
 
       const airQloudsAndWeatherStations = await createSite.fetchAdditionalSiteDetails(
         tenant,
         id,
-        next
+        next,
       );
       Object.assign(requestBody, airQloudsAndWeatherStations);
 
       const metadataResponse = await createSite.generateMetadata(
         { query: { tenant }, body: requestBody },
-        next
+        next,
       );
 
       if (!metadataResponse.success) return metadataResponse;
@@ -1043,8 +1024,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1063,7 +1044,7 @@ const createSite = {
         {
           filter,
         },
-        next
+        next,
       );
 
       return responseFromRemoveSite;
@@ -1073,8 +1054,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1099,7 +1080,7 @@ const createSite = {
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.min(
         MAX_LIMIT,
-        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT),
       );
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
@@ -1136,7 +1117,7 @@ const createSite = {
             },
           },
           { $project: constants.SITES_INCLUSION_PROJECTION },
-          { $project: constants.SITES_EXCLUSION_PROJECTION("summary") }
+          { $project: constants.SITES_EXCLUSION_PROJECTION("summary") },
         );
       } else {
         // Full detail level
@@ -1164,7 +1145,7 @@ const createSite = {
               foreignField: "_id",
               as: "airqlouds",
             },
-          }
+          },
         );
 
         if (useCache === "true") {
@@ -1334,8 +1315,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1350,7 +1331,7 @@ const createSite = {
           limit,
           skip,
         },
-        next
+        next,
       );
 
       if (responseFromListSite.success === false) {
@@ -1369,8 +1350,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1445,8 +1426,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1461,7 +1442,7 @@ const createSite = {
           if (!isEmpty(responseJSON.results)) {
             const responseFromTransformAddress = createSite.retrieveInformationFromAddress(
               responseJSON,
-              next
+              next,
             );
             return responseFromTransformAddress;
           } else {
@@ -1495,8 +1476,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1511,7 +1492,7 @@ const createSite = {
             },
             timeout: 1000, // milliseconds
           },
-          axiosInstance()
+          axiosInstance(),
         )
         .then((r) => {
           return {
@@ -1540,8 +1521,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1561,7 +1542,7 @@ const createSite = {
       };
       const responseFromListSites = await createSite.listAirQoActive(
         request,
-        next
+        next,
       );
 
       if (responseFromListSites.success === true) {
@@ -1579,7 +1560,7 @@ const createSite = {
                 latitude2: site["latitude"],
                 longitude2: site["longitude"],
               },
-              next
+              next,
             );
 
             if (distanceBetweenTwoPoints < radius) {
@@ -1606,14 +1587,14 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
   createApproximateCoordinates: (
     { latitude, longitude, approximate_distance_in_km, bearing },
-    next
+    next,
   ) => {
     try {
       const responseFromDistanceUtil = distance.createApproximateCoordinates(
@@ -1623,7 +1604,7 @@ const createSite = {
           approximate_distance_in_km,
           bearing,
         },
-        next
+        next,
       );
 
       return {
@@ -1637,8 +1618,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1691,7 +1672,7 @@ const createSite = {
           const { distance: perpendicularDist } = geolib.getDistanceFromLine(
             siteCoords,
             start,
-            end
+            end,
           );
 
           if (perpendicularDist <= radius * 1000) {
@@ -1772,8 +1753,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
