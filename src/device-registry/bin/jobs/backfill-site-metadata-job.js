@@ -68,29 +68,47 @@ const releaseLock = async (tenant) => {
 const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
   if (altitudeCircuitOpen) return true; // already tripped, skip immediately
 
-  // createSiteUtil.getAltitude is the correct reference — getAltitude is
-  // a method exported directly on the site.util object alongside generateMetadata.
-  const testResponse = await createSiteUtil.getAltitude(
-    site.latitude,
-    site.longitude,
-    (err) => err, // swallow — we handle the result below
-  );
+  try {
+    // createSiteUtil.getAltitude is the correct reference — getAltitude is
+    // a method exported directly on the site.util object alongside generateMetadata.
+    const testResponse = await createSiteUtil.getAltitude(
+      site.latitude,
+      site.longitude,
+      (err) => err, // swallow — we handle the result below
+    );
 
-  if (testResponse.success === false) {
+    if (testResponse.success === false) {
+      const safeError = {
+        code: testResponse.errors?.message?.code,
+        message: testResponse.errors?.message?.message,
+      };
+      logger.error(
+        `[${POD_ID}] Altitude API pre-flight check failed — skipping altitude ` +
+          `enrichment for this entire batch to suppress duplicate errors. ` +
+          `Safe error: ${JSON.stringify(safeError)}. ` +
+          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
+      );
+      return true; // circuit open
+    }
+
+    return false; // circuit closed, altitude is working
+  } catch (error) {
+    // Catch any thrown errors (network timeouts, unhandled rejections) so
+    // they do not bubble up and crash the entire backfill job. Treat any
+    // exception as a circuit-open condition — the same conservative approach
+    // as a failed response — and log only safe, minimal details.
     const safeError = {
-      code: testResponse.errors?.message?.code,
-      message: testResponse.errors?.message?.message,
+      code: error.code,
+      message: error.message,
     };
     logger.error(
-      `[${POD_ID}] Altitude API pre-flight check failed — skipping altitude ` +
-        `enrichment for this entire batch to suppress duplicate errors. ` +
+      `[${POD_ID}] Altitude API pre-flight check threw an unexpected error — ` +
+        `opening circuit breaker to suppress duplicate errors for this batch. ` +
         `Safe error: ${JSON.stringify(safeError)}. ` +
         `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
     );
     return true; // circuit open
   }
-
-  return false; // circuit closed, altitude is working
 };
 
 const backfillSiteMetadata = async (tenant) => {
