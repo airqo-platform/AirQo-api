@@ -2247,6 +2247,8 @@ const createActivity = {
         };
       }
 
+      // FIX: Build $push safely to avoid overwriting when both site_id
+      // and grid_id exist on the device being recalled.
       const deviceUpdateData = {
         $set: {
           isActive: false,
@@ -2257,13 +2259,15 @@ const createActivity = {
         },
       };
 
+      const pushFields = {};
       if (device.site_id) {
-        deviceUpdateData.$push = { previous_sites: device.site_id };
+        pushFields.previous_sites = device.site_id;
       }
-
       if (device.grid_id) {
-        deviceUpdateData.$push = deviceUpdateData.$push || {};
-        deviceUpdateData.$push.previous_grids = device.grid_id;
+        pushFields.previous_grids = device.grid_id;
+      }
+      if (Object.keys(pushFields).length > 0) {
+        deviceUpdateData.$push = pushFields;
       }
 
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
@@ -2335,6 +2339,11 @@ const createActivity = {
         });
       });
 
+      // FIX: Use toObject() on both Mongoose documents to ensure clean
+      // JSON serialization. Without this, JSON.stringify() on a Mongoose
+      // document may omit fields or produce unexpected output, which
+      // causes the Kafka consumer to receive an object missing
+      // createdActivity and trigger the "Missing required fields" error.
       (async () => {
         try {
           const recallTopic = constants.RECALL_TOPIC || "recall-topic";
@@ -2347,8 +2356,12 @@ const createActivity = {
             messages: [
               {
                 value: JSON.stringify({
-                  createdActivity,
-                  updatedDevice,
+                  createdActivity: createdActivity.toObject
+                    ? createdActivity.toObject()
+                    : createdActivity,
+                  updatedDevice: updatedDevice.toObject
+                    ? updatedDevice.toObject()
+                    : updatedDevice,
                   user_id: user_id || null,
                 }),
               },
@@ -2549,6 +2562,11 @@ const createActivity = {
         });
       });
 
+      // FIX: Use toObject() on both Mongoose documents — same serialization
+      // risk as the recall function. findOneAndUpdate() returns a Mongoose
+      // document, and ActivityModel.create() also returns one. Without
+      // toObject(), JSON.stringify() may produce incomplete output and the
+      // Kafka consumer would log "Missing required fields".
       (async () => {
         try {
           const maintainTopic = constants.MAINTAIN_TOPIC || "maintain-topic";
@@ -2561,8 +2579,12 @@ const createActivity = {
             messages: [
               {
                 value: JSON.stringify({
-                  createdActivity,
-                  updatedDevice,
+                  createdActivity: createdActivity.toObject
+                    ? createdActivity.toObject()
+                    : createdActivity,
+                  updatedDevice: updatedDevice.toObject
+                    ? updatedDevice.toObject()
+                    : updatedDevice,
                   user_id: user_id || null,
                 }),
               },
