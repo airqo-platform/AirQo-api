@@ -11,6 +11,8 @@ const httpStatus = require("http-status");
 
 const BATCH_SIZE = 100;
 
+const MAX_METADATA_FAILURES = 3;
+
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
   try {
@@ -18,13 +20,32 @@ const backfillSiteMetadata = async (tenant) => {
     let sitesProcessed = 0;
 
     while (true) {
+      // The two $or conditions must be combined under $and so both apply.
+      // Without $and, the second $or would silently override the first in
+      // MongoDB's query parser, meaning the "missing metadata" condition
+      // would be dropped entirely.
       const sitesToUpdate = await SiteModel(tenant)
         .find({
-          $or: [
-            { country: { $exists: false } },
-            { district: { $exists: false } },
-            { city: { $exists: false } },
-            { data_provider: { $exists: false } },
+          $and: [
+            {
+              $or: [
+                { country: { $exists: false } },
+                { district: { $exists: false } },
+                { city: { $exists: false } },
+                { data_provider: { $exists: false } },
+              ],
+            },
+            {
+              // Exclude sites that have repeatedly failed enrichment.
+              // Without this, sites whose reverse geocoding always fails
+              // (e.g. coordinates in an area with no Google address data)
+              // are fetched on every cron run, causing an endless
+              // "reverseGeoCode..........." log stream and burning API quota.
+              $or: [
+                { metadata_backfill_failures: { $exists: false } },
+                { metadata_backfill_failures: { $lt: MAX_METADATA_FAILURES } },
+              ],
+            },
           ],
           latitude: { $ne: null },
           longitude: { $ne: null },
@@ -59,8 +80,63 @@ const backfillSiteMetadata = async (tenant) => {
           );
 
           if (metadataResponse.success) {
+            // Scope the $set to only genuine reverse-geocoding metadata fields.
+            // Writing the full metadataResponse.data would clobber fields like
+            // generated_name, description, latitude, and longitude that are
+            // already correctly set on the site document.
+            const {
+              country,
+              district,
+              city,
+              region,
+              town,
+              village,
+              parish,
+              county,
+              sub_county,
+              division,
+              street,
+              formatted_name,
+              geometry,
+              google_place_id,
+              location_name,
+              search_name,
+              altitude,
+              data_provider,
+              site_tags,
+            } = metadataResponse.data;
+
+            const metadataFields = Object.fromEntries(
+              Object.entries({
+                country,
+                district,
+                city,
+                region,
+                town,
+                village,
+                parish,
+                county,
+                sub_county,
+                division,
+                street,
+                formatted_name,
+                geometry,
+                google_place_id,
+                location_name,
+                search_name,
+                altitude,
+                data_provider,
+                site_tags,
+                // Reset failure counter on success so temporarily-failing
+                // sites (e.g. during a Google API outage) are not permanently
+                // blacklisted once the underlying issue resolves.
+                metadata_backfill_failures: 0,
+                metadata_backfill_last_success: new Date(),
+              }).filter(([, v]) => v !== undefined),
+            );
+
             await SiteModel(tenant).findByIdAndUpdate(site._id, {
-              $set: metadataResponse.data,
+              $set: metadataFields,
             });
             logger.info(
               `Successfully backfilled metadata for site ${site.name}`,
@@ -70,10 +146,20 @@ const backfillSiteMetadata = async (tenant) => {
             logger.error(
               `Failed to generate metadata for site ${site.name}: ${metadataResponse.message}`,
             );
+            // Increment failure counter to eventually exclude this site from
+            // future runs once MAX_METADATA_FAILURES is reached.
+            await SiteModel(tenant).findByIdAndUpdate(site._id, {
+              $inc: { metadata_backfill_failures: 1 },
+              $set: { metadata_backfill_last_attempted: new Date() },
+            });
             return { success: false, siteId: site._id };
           }
         } catch (error) {
           logger.error(`Error processing site ${site._id}: ${error.message}`);
+          await SiteModel(tenant).findByIdAndUpdate(site._id, {
+            $inc: { metadata_backfill_failures: 1 },
+            $set: { metadata_backfill_last_attempted: new Date() },
+          });
           return { success: false, siteId: site._id };
         }
       });
