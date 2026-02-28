@@ -77,6 +77,19 @@ const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
       (err) => err, // swallow — we handle the result below
     );
 
+    // Defensive guard: if getAltitude returns undefined or a non-object
+    // (e.g. an internal throw resolves before the Promise completes),
+    // treat it as a failure and open the circuit rather than letting
+    // testResponse.success throw "Cannot read property 'success' of undefined".
+    if (!testResponse || typeof testResponse !== "object") {
+      logger.error(
+        `[${POD_ID}] Altitude API pre-flight check returned an unexpected value — ` +
+          `opening circuit breaker for this batch. ` +
+          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
+      );
+      return true; // circuit open
+    }
+
     if (testResponse.success === false) {
       const safeError = {
         code: testResponse.errors?.message?.code,
@@ -95,8 +108,7 @@ const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
   } catch (error) {
     // Catch any thrown errors (network timeouts, unhandled rejections) so
     // they do not bubble up and crash the entire backfill job. Treat any
-    // exception as a circuit-open condition — the same conservative approach
-    // as a failed response — and log only safe, minimal details.
+    // exception as a circuit-open condition and log only safe, minimal details.
     const safeError = {
       code: error.code,
       message: error.message,
