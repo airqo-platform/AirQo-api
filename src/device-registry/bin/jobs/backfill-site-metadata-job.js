@@ -172,7 +172,7 @@ const backfillSiteMetadata = async (tenant) => {
   }
 };
 
-const schedule = "0 */1 * * *"; // Every hour
+const schedule = "20 * * * *"; // Every hour at minute 20
 
 // Gate cron.schedule behind BACKFILL_SITE_METADATA_SCHEDULER_ENABLED so only
 // one designated service instance runs the job. Without this, every instance
