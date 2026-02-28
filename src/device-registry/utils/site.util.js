@@ -897,32 +897,40 @@ const createSite = {
       // Without this, the `body["site_tags"] = merged_site_tags` assignment
       // below modifies the caller's reference directly.
       body = { ...body };
-      let { latitude, longitude } = body;
+      let { latitude, longitude, skipAltitude } = body;
       let { tenant, id } = query;
       let roadResponseData = {};
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      let responseFromGetAltitude = await createSite.getAltitude(
-        latitude,
-        longitude,
-        next,
-      );
+      // Skip the altitude call entirely if the caller has flagged that the
+      // Elevation API is known to be unavailable for this run (e.g. the
+      // circuit breaker in the backfill job was tripped by ERR_INVALID_CHAR
+      // on a previous site). This prevents flooding logs with identical
+      // errors across an entire batch when the failure is configuration-level
+      // and affects every site equally.
+      if (!skipAltitude) {
+        let responseFromGetAltitude = await createSite.getAltitude(
+          latitude,
+          longitude,
+          next,
+        );
 
-      if (responseFromGetAltitude.success === true) {
-        altitudeResponseData["altitude"] = responseFromGetAltitude.data;
-      } else if (responseFromGetAltitude.success === false) {
-        let errors = responseFromGetAltitude.errors
-          ? responseFromGetAltitude.errors
-          : { message: "" };
-        try {
-          logger.error(
-            `unable to retrieve the altitude for this site, ${
-              responseFromGetAltitude.message
-            } and ${JSON.stringify(errors)}`,
-          );
-        } catch (error) {
-          logger.error(`internal server error ${error.message}`);
+        if (responseFromGetAltitude.success === true) {
+          altitudeResponseData["altitude"] = responseFromGetAltitude.data;
+        } else if (responseFromGetAltitude.success === false) {
+          let errors = responseFromGetAltitude.errors
+            ? responseFromGetAltitude.errors
+            : { message: "" };
+          try {
+            logger.error(
+              `unable to retrieve the altitude for this site, ${
+                responseFromGetAltitude.message
+              } and ${JSON.stringify(errors)}`,
+            );
+          } catch (error) {
+            logger.error(`internal server error ${error.message}`);
+          }
         }
       }
 
@@ -1504,7 +1512,27 @@ const createSite = {
         })
         .catch((e) => {
           try {
-            logger.error(`internal server error -- ${JSON.stringify(e)}`);
+            // Include lat/lng and error code/message in the log so it is
+            // clear which coordinates triggered the failure and to provide
+            // enough context to diagnose issues such as invalid
+            // configuration, malformed requests, network problems, or
+            // quota exhaustion.
+            //
+            // Only log curated, safe fields — avoid JSON.stringify(e)
+            // which would serialize the full Axios error including
+            // e.config and request headers, potentially leaking sensitive
+            // data such as the Google Maps API key.
+            const safeError = {
+              code: e.code,
+              message: e.message,
+              responseStatus: e.response?.status,
+              responseData: e.response?.data?.error_message || e.response?.data,
+            };
+            logger.error(
+              `getAltitude failed for lat=${lat}, lng=${long} — ${JSON.stringify(
+                safeError,
+              )}`,
+            );
           } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
           }

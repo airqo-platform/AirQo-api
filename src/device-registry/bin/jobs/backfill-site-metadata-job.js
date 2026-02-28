@@ -13,42 +13,17 @@ const os = require("os");
 
 const BATCH_SIZE = 100;
 const JOB_NAME = "backfill-site-metadata";
-
-// How long the lock is valid for. If the pod crashes without releasing
-// the lock, MongoDB TTL will clean it up after this many seconds,
-// unblocking the next cron tick.
-const LOCK_TTL_SECONDS = 90 * 60; // 90 minutes — comfortably longer than one run
-
-// Unique identifier for this pod so logs clearly show which instance
-// holds the lock at any given time.
+const LOCK_TTL_SECONDS = 90 * 60; // 90 minutes
 const POD_ID = process.env.HOSTNAME || os.hostname();
 
-/**
- * Attempts to acquire a distributed lock in MongoDB.
- * Uses findOneAndUpdate with upsert so the operation is atomic —
- * only one pod can win even when multiple pods fire simultaneously.
- *
- * @param {string} tenant
- * @returns {boolean} true if this pod acquired the lock, false otherwise
- */
 const acquireLock = async (tenant) => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + LOCK_TTL_SECONDS * 1000);
 
   try {
-    // This is the atomic operation:
-    // - Find a joblock document where jobName matches AND it does not
-    //   already exist (i.e. no current lock held by anyone).
-    // - If found (or created via upsert), set acquiredBy and expiresAt.
-    // - If the document already exists, the $setOnInsert only fires on
-    //   insert — a competing pod's existing lock document is left untouched
-    //   and the upsert is a no-op, returning null.
     const result = await JobLockModel(tenant).findOneAndUpdate(
       {
         jobName: JOB_NAME,
-        // Only match if the lock is not currently held by any pod.
-        // expiresAt being in the past means MongoDB TTL hasn't cleaned
-        // it yet but it's logically expired — treat as available.
         $or: [{ jobName: { $exists: false } }, { expiresAt: { $lte: now } }],
       },
       {
@@ -62,34 +37,20 @@ const acquireLock = async (tenant) => {
       {
         upsert: true,
         new: true,
-        // Return null if no document was found (lock already held)
-        // rather than throwing
         rawResult: false,
       },
     );
 
-    // If the returned document was acquired by this pod, we won
     return result && result.acquiredBy === POD_ID;
   } catch (error) {
-    // A duplicate key error (code 11000) means another pod won the race
-    // and inserted the document first — this is expected and not an error.
     if (error.code === 11000) {
       return false;
     }
-    // Any other error is unexpected — log and treat as failed to acquire
     logger.error(`🐛🐛 Lock acquisition error: ${error.message}`);
     return false;
   }
 };
 
-/**
- * Releases the distributed lock held by this pod.
- * Only deletes the document if this pod is still the owner —
- * prevents a slow pod from releasing a lock that another pod
- * legitimately re-acquired after TTL expiry.
- *
- * @param {string} tenant
- */
 const releaseLock = async (tenant) => {
   try {
     await JobLockModel(tenant).findOneAndDelete({
@@ -105,8 +66,6 @@ const releaseLock = async (tenant) => {
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
 
-  // Attempt to acquire the distributed lock before doing any work.
-  // If another pod is already running the job, skip this tick entirely.
   const lockAcquired = await acquireLock(tenant);
   if (!lockAcquired) {
     logger.info(
@@ -119,21 +78,19 @@ const backfillSiteMetadata = async (tenant) => {
 
   try {
     let sitesProcessed = 0;
-
-    // Track every site ID dispatched in this run so that failing sites are
-    // excluded from subsequent batches. Without this, sites whose reverse
-    // geocoding always fails are re-selected on every loop iteration, creating
-    // an infinite loop and an endless stream of "reverseGeoCode..........."
-    // log lines.
     const attemptedIds = [];
+
+    // Circuit breaker for the Google Maps Elevation API.
+    // ERR_INVALID_CHAR and similar configuration-level errors affect every
+    // site identically — there is no point making 100 failing calls when
+    // the first failure already tells us altitude enrichment is broken for
+    // this entire run. Once tripped, altitude calls are skipped for all
+    // remaining sites and a single summary error is logged at the end.
+    let altitudeCircuitOpen = false;
 
     while (true) {
       const sitesToUpdate = await SiteModel(tenant)
         .find({
-          // Each condition covers three cases:
-          //   1. Key is entirely absent ({ $exists: false })
-          //   2. Key exists but is null
-          //   3. Key exists but is an empty string ("")
           $or: [
             { country: { $in: [null, ""] } },
             { country: { $exists: false } },
@@ -146,8 +103,6 @@ const backfillSiteMetadata = async (tenant) => {
           ],
           latitude: { $ne: null },
           longitude: { $ne: null },
-          // Exclude all sites already attempted in this run so the same
-          // failing site is never re-selected within a single execution.
           ...(attemptedIds.length > 0 && { _id: { $nin: attemptedIds } }),
         })
         .limit(BATCH_SIZE)
@@ -161,8 +116,6 @@ const backfillSiteMetadata = async (tenant) => {
 
       logger.info(`Processing batch of ${sitesToUpdate.length} sites`);
 
-      // Collect this batch's IDs and append to attemptedIds before dispatching
-      // so that even sites whose promise rejects are excluded from the next query.
       const batchIds = sitesToUpdate.map((s) => s._id);
       attemptedIds.push(...batchIds);
 
@@ -174,21 +127,39 @@ const backfillSiteMetadata = async (tenant) => {
               latitude: site.latitude,
               longitude: site.longitude,
               network: site.network || "airqo",
+              // Signal to generateMetadata to skip the altitude call for
+              // this run if the circuit breaker has already been tripped.
+              skipAltitude: altitudeCircuitOpen,
             },
           };
 
           const metadataResponse = await createSiteUtil.generateMetadata(
             request,
             (err) => {
+              // Trip the circuit breaker if this looks like a
+              // configuration-level error that will affect all sites.
+              if (
+                err &&
+                (err.code === "ERR_INVALID_CHAR" ||
+                  err.code === "ERR_INVALID_URL" ||
+                  err.response?.status === 403)
+              ) {
+                altitudeCircuitOpen = true;
+              }
               throw err;
             },
           );
 
+          // If generateMetadata itself flagged an altitude failure via
+          // the response, trip the circuit breaker for subsequent sites.
+          if (
+            metadataResponse.success === false &&
+            metadataResponse.altitudeError
+          ) {
+            altitudeCircuitOpen = true;
+          }
+
           if (metadataResponse.success) {
-            // Scope the $set to only genuine reverse-geocoding metadata fields.
-            // Writing the full metadataResponse.data would clobber fields like
-            // generated_name, description, latitude, and longitude that are
-            // already correctly set on the site document.
             const {
               country,
               district,
@@ -260,15 +231,22 @@ const backfillSiteMetadata = async (tenant) => {
       ).length;
     }
 
+    // Log a single summary if the altitude circuit was tripped during
+    // this run, rather than one error per site.
+    if (altitudeCircuitOpen) {
+      logger.error(
+        `[${POD_ID}] Altitude enrichment was skipped for this run due to a ` +
+          `configuration-level error on the first call (e.g. ERR_INVALID_CHAR). ` +
+          `Check GOOGLE_MAPS_API_KEY — run: kubectl exec -it <pod> -- printenv GOOGLE_MAPS_API_KEY`,
+      );
+    }
+
     logger.info(
       `[${POD_ID}] ${jobName} finished. Total sites updated: ${sitesProcessed}`,
     );
   } catch (error) {
     logger.error(`🐛🐛 Error in ${jobName}: ${error.message}`);
   } finally {
-    // Always release the lock when done, whether the job succeeded or
-    // threw. This allows the next pod to acquire it on the next tick
-    // rather than waiting for TTL expiry.
     await releaseLock(tenant);
   }
 };
@@ -282,8 +260,6 @@ if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
   cron.schedule(
     schedule,
     async () => {
-      // Each pod attempts to acquire the DB lock on every tick.
-      // Only the winning pod runs the job — the others log and return.
       await backfillSiteMetadata("airqo");
     },
     {
