@@ -5,7 +5,6 @@ from google.cloud import bigquery
 from google.api_core import exceptions as google_api_exceptions
 
 from airqo_etl_utils.constants import JobAction
-from airqo_etl_utils.utils import Utils
 from .schema_registry import validate_dataframe as validate_against_schema
 from .base import StorageAdapter
 

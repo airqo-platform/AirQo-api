@@ -20,7 +20,7 @@ const stageConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   GROUPS_TOPIC: process.env.GROUPS_TOPIC_STAGE || "groups-topic",
@@ -52,6 +52,7 @@ const stageConfig = {
   DEPLOYMENT_URL: process.env.STAGE_DEPLOYMENT_URL,
   SERVICE_JWT_TOKEN: process.env.STAGE_SERVICE_JWT_TOKEN,
   ADMIN_SETUP_SECRET: process.env.STAGE_ADMIN_SETUP_SECRET,
+  BACKFILL_SITE_METADATA_SCHEDULER_ENABLED: false,
 };
 
 module.exports = stageConfig;

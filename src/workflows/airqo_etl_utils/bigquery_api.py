@@ -15,7 +15,7 @@ from .constants import (
     Frequency,
 )
 from .date import DateUtils
-from .utils import Utils
+from .common_utils import Utils
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -1322,7 +1322,6 @@ class BigQueryApi:
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
-    
     def fetch_site_data_for_forecast_jobs(
         self,
         start_date_time: str,
@@ -1331,15 +1330,15 @@ class BigQueryApi:
         min_hours: int = 18,
     ) -> pd.DataFrame:
 
-    # fetch data for forecast jobs
+        # fetch data for forecast jobs
         """
         Fetch daily aggregated PM2.5 stats per site for forecast jobs.
 
         Notes:
         - Filters to rows with non-null pm2_5_calibrated_value
         - Requires at least `min_hours` hourly points per day (default 18)
-        - Aggregate 
-    """
+        - Aggregate
+        """
         if min_hours <= 0:
             raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
 
@@ -1371,7 +1370,7 @@ class BigQueryApi:
             AVG(pm2_5_calibrated_value) AS pm25_mean,
             MIN(pm2_5_calibrated_value) AS pm25_min,
             MAX(pm2_5_calibrated_value) AS pm25_max,
-            COUNT(pm2_5_calibrated_value) AS n_hours             
+            COUNT(pm2_5_calibrated_value) AS n_hours
         """
         query = f"""
             SELECT {select_fields}
@@ -1393,8 +1392,7 @@ class BigQueryApi:
             )
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
-            
-        
+
     def fetch_device_data_for_satellite_job(
         self,
         start_date_time: str,
@@ -1776,6 +1774,3 @@ class BigQueryApi:
             return "BYTES"
         else:
             raise ValueError(f"Unsupported type for value {value}: {type(value)}")
-
-
-    

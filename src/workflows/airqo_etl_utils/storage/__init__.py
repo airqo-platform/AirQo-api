@@ -1,21 +1,46 @@
-"""Storage package for data warehouse adapters.
+"""Storage package for data warehouse adapters and file storage.
 
 This module provides:
-- a `StorageAdapter` ABC for implementations
-- a registry (`register_storage`, `get_storage`) for pluggable backends
-- a small convenience factory that will register a default backend based on
-  an environment variable or configuration (falls back to BigQuery).
+- `StorageAdapter` ABC and implementations for data warehouse backends
+- `FileStorage` ABC and implementations for cloud file storage (GCS, S3, Azure, Google Drive)
+- Registry (`register_storage`, `get_storage`) for pluggable backends
+- Factory function (`get_configured_storage`) to get default backend from config
+- `load_file_object()` method on FileStorage for loading serialized objects from cloud storage (models, configs, etc.)
 
-Callers can either import and instantiate an adapter directly:
+Callers can instantiate and use storage providers directly:
 
-    from airqo_etl_utils.storage.bigquery_adapter import BigQueryAdapter
-    adapter = BigQueryAdapter()
+    from airqo_etl_utils.storage import GCSFileStorage
+    storage = GCSFileStorage()
 
-Or use the registry / config-driven default via `get_storage`.
+    # Download a file
+    storage.download_file(bucket="my-bucket", source_file="data.csv", destination_file="/tmp/data.csv")
+
+    # Load a model/object from cloud storage
+    model = storage.load_file_object(
+        bucket="my-bucket",
+        source_file="models/rf_model.pkl",
+        local_cache_path="/tmp/rf_model.pkl"
+    )
+
+    # Upload a dataframe
+    storage.upload_dataframe(
+        bucket="my-bucket",
+        dataframe=df,
+        destination_file="output/results.csv",
+        format="csv"
+    )
+
+Or use the registry for data warehouse operations:
+
+    from airqo_etl_utils.storage import get_configured_storage
+    adapter = get_configured_storage()
 """
 
 import os
 from typing import Optional
+import logging
+
+logger = logging.getLogger("airflow.task")
 
 from .registry import register_storage, get_storage, get_default_storage  # re-export
 from .bigquery_adapter import BigQueryAdapter
@@ -26,7 +51,6 @@ from .cloud_storage import (
     AzureBlobFileStorage,
     GoogleDriveFileStorage,
 )
-from .mlflow_tracker import MlflowTracker
 
 __all__ = [
     "register_storage",
@@ -39,7 +63,6 @@ __all__ = [
     "AWSFileStorage",
     "AzureBlobFileStorage",
     "GoogleDriveFileStorage",
-    "MlflowTracker",
     "get_configured_storage",
 ]
 
