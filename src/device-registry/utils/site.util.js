@@ -1504,7 +1504,16 @@ const createSite = {
         })
         .catch((e) => {
           try {
-            logger.error(`internal server error -- ${JSON.stringify(e)}`);
+            // Include lat/long and error code in the log so it is clear
+            // which coordinates triggered the failure and whether the cause
+            // is a bad API key (ERR_INVALID_CHAR), network issue, or quota
+            // exhaustion — the previous log swallowed all of this context.
+            logger.error(
+              `getAltitude failed for [${lat}, ${long}] — code: ${e.code ||
+                "unknown"}, message: ${e.message || "none"} — ${JSON.stringify(
+                e,
+              )}`,
+            );
           } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
           }
