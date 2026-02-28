@@ -34,6 +34,37 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 /**
+ * Asynchronously enriches a site with metadata. This is a "fire and forget" function.
+ * @param {string} tenant - The tenant identifier.
+ * @param {ObjectId} siteId - The ID of the site to enrich.
+ * @param {number} latitude - The site's latitude.
+ * @param {number} longitude - The site's longitude.
+ */
+const enrichSiteWithMetadata = async (tenant, siteId, latitude, longitude) => {
+  try {
+    const metadataResponse = await createSiteUtil.generateMetadata({
+      query: { tenant },
+      body: { latitude, longitude },
+    });
+
+    if (metadataResponse.success) {
+      await SiteModel(tenant).findByIdAndUpdate(siteId, {
+        $set: metadataResponse.data,
+      });
+      logger.info(`Successfully enriched site ${siteId} with metadata.`);
+    } else {
+      logger.error(
+        `Metadata enrichment failed for site ${siteId}: ${metadataResponse.message}`,
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `Error during background site enrichment for ${siteId}: ${error.message}`,
+    );
+  }
+};
+
+/**
  * Updates the cached activity fields for sites and devices
  * Race-condition safe: Only updates if cache is older than snapshot time
  * @param {string} tenant - The tenant identifier
@@ -1655,6 +1686,14 @@ const createActivity = {
                       approxResult.approximate_distance_in_km || 0,
                     bearing_in_radians: approxResult.bearing_in_radians || 0,
                   });
+
+                  // Fire and forget: enrich the site in the background
+                  enrichSiteWithMetadata(
+                    tenant,
+                    site._id,
+                    site.latitude,
+                    site.longitude,
+                  );
                 } catch (createError) {
                   // Handle race condition: another process may have
                   // created the site between Phase A's existence check
