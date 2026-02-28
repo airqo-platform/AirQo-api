@@ -895,7 +895,7 @@ const createSite = {
       let { query, body } = req;
       // Work on a shallow copy so we never mutate the caller's body object.
       // Without this, the `body["site_tags"] = merged_site_tags` assignment
-      // below would modify the caller's reference directly.
+      // below modifies the caller's reference directly.
       body = { ...body };
       let { latitude, longitude } = body;
       let { tenant, id } = query;

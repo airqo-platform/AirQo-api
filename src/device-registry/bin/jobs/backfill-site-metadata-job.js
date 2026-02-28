@@ -11,44 +11,33 @@ const httpStatus = require("http-status");
 
 const BATCH_SIZE = 100;
 
-const MAX_METADATA_FAILURES = 3;
-
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
   try {
     logger.info(`*** Starting ${jobName}...`);
     let sitesProcessed = 0;
 
+    // Track every site ID dispatched in this run so that failing sites are
+    // excluded from subsequent batches. Without this, sites whose reverse
+    // geocoding always fails are re-selected on every loop iteration, creating
+    // an infinite loop and an endless stream of "reverseGeoCode..........."
+    // log lines.
+    const attemptedIds = [];
+
     while (true) {
-      // The two $or conditions must be combined under $and so both apply.
-      // Without $and, the second $or would silently override the first in
-      // MongoDB's query parser, meaning the "missing metadata" condition
-      // would be dropped entirely.
       const sitesToUpdate = await SiteModel(tenant)
         .find({
-          $and: [
-            {
-              $or: [
-                { country: { $exists: false } },
-                { district: { $exists: false } },
-                { city: { $exists: false } },
-                { data_provider: { $exists: false } },
-              ],
-            },
-            {
-              // Exclude sites that have repeatedly failed enrichment.
-              // Without this, sites whose reverse geocoding always fails
-              // (e.g. coordinates in an area with no Google address data)
-              // are fetched on every cron run, causing an endless
-              // "reverseGeoCode..........." log stream and burning API quota.
-              $or: [
-                { metadata_backfill_failures: { $exists: false } },
-                { metadata_backfill_failures: { $lt: MAX_METADATA_FAILURES } },
-              ],
-            },
+          $or: [
+            { country: { $exists: false } },
+            { district: { $exists: false } },
+            { city: { $exists: false } },
+            { data_provider: { $exists: false } },
           ],
           latitude: { $ne: null },
           longitude: { $ne: null },
+          // Exclude all sites already attempted in this run so the same
+          // failing site is never re-selected within a single execution.
+          ...(attemptedIds.length > 0 && { _id: { $nin: attemptedIds } }),
         })
         .limit(BATCH_SIZE)
         .select("_id latitude longitude name network")
@@ -60,6 +49,11 @@ const backfillSiteMetadata = async (tenant) => {
       }
 
       logger.info(`Processing batch of ${sitesToUpdate.length} sites`);
+
+      // Collect this batch's IDs and append to attemptedIds before dispatching
+      // so that even sites whose promise rejects are excluded from the next query.
+      const batchIds = sitesToUpdate.map((s) => s._id);
+      attemptedIds.push(...batchIds);
 
       const updatePromises = sitesToUpdate.map(async (site) => {
         try {
@@ -127,11 +121,6 @@ const backfillSiteMetadata = async (tenant) => {
                 altitude,
                 data_provider,
                 site_tags,
-                // Reset failure counter on success so temporarily-failing
-                // sites (e.g. during a Google API outage) are not permanently
-                // blacklisted once the underlying issue resolves.
-                metadata_backfill_failures: 0,
-                metadata_backfill_last_success: new Date(),
               }).filter(([, v]) => v !== undefined),
             );
 
@@ -146,20 +135,10 @@ const backfillSiteMetadata = async (tenant) => {
             logger.error(
               `Failed to generate metadata for site ${site.name}: ${metadataResponse.message}`,
             );
-            // Increment failure counter to eventually exclude this site from
-            // future runs once MAX_METADATA_FAILURES is reached.
-            await SiteModel(tenant).findByIdAndUpdate(site._id, {
-              $inc: { metadata_backfill_failures: 1 },
-              $set: { metadata_backfill_last_attempted: new Date() },
-            });
             return { success: false, siteId: site._id };
           }
         } catch (error) {
           logger.error(`Error processing site ${site._id}: ${error.message}`);
-          await SiteModel(tenant).findByIdAndUpdate(site._id, {
-            $inc: { metadata_backfill_failures: 1 },
-            $set: { metadata_backfill_last_attempted: new Date() },
-          });
           return { success: false, siteId: site._id };
         }
       });
@@ -180,19 +159,39 @@ const backfillSiteMetadata = async (tenant) => {
 
 const schedule = "0 */1 * * *"; // Every hour
 
-cron.schedule(
-  schedule,
-  async () => {
-    try {
-      await backfillSiteMetadata("airqo");
-    } catch (error) {
-      logger.error(`Error running scheduled backfill job: ${error.message}`);
-    }
-  },
-  {
-    scheduled: true,
-    timezone: "Africa/Nairobi",
-  },
-);
+// Gate cron.schedule behind SCHEDULER_ENABLED so only one designated service
+// instance runs the job. Without this, every instance of device-registry
+// schedules an independent cron, causing duplicate backfillSiteMetadata runs
+// on each tick.
+if (process.env.SCHEDULER_ENABLED === "true") {
+  logger.info(
+    "SCHEDULER_ENABLED=true — this instance will run the backfill cron job.",
+  );
+  cron.schedule(
+    schedule,
+    async () => {
+      try {
+        await backfillSiteMetadata("airqo");
+      } catch (error) {
+        logger.error(`Error running scheduled backfill job: ${error.message}`);
+      }
+    },
+    {
+      scheduled: true,
+      timezone: "Africa/Nairobi",
+    },
+  );
+
+  process.on("SIGTERM", () => {
+    logger.info("SIGTERM received — scheduler shutting down.");
+  });
+  process.on("SIGINT", () => {
+    logger.info("SIGINT received — scheduler shutting down.");
+  });
+} else {
+  logger.info(
+    "SCHEDULER_ENABLED is not 'true' — skipping cron registration for backfill job.",
+  );
+}
 
 module.exports = backfillSiteMetadata;

@@ -1766,7 +1766,7 @@ const createActivity = {
                     site._id,
                     site.latitude,
                     site.longitude,
-                    siteData.network,
+                    site.network,
                   );
                 } catch (createError) {
                   // Handle race condition: another process may have
