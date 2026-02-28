@@ -32,12 +32,10 @@ const backfillSiteMetadata = async (tenant) => {
     while (true) {
       const sitesToUpdate = await SiteModel(tenant)
         .find({
-          // FIX: Each condition now covers three cases:
+          // Each condition covers three cases:
           //   1. Key is entirely absent ({ $exists: false })
           //   2. Key exists but is null
           //   3. Key exists but is an empty string ("")
-          // Previously only case 1 was matched, so sites with null or ""
-          // metadata were silently skipped by the backfill.
           $or: [
             { country: { $in: [null, ""] } },
             { country: { $exists: false } },
@@ -174,23 +172,20 @@ const backfillSiteMetadata = async (tenant) => {
 
 const schedule = "20 * * * *"; // Every hour at minute 20
 
-// Gate cron.schedule behind BACKFILL_SITE_METADATA_SCHEDULER_ENABLED so only
-// one designated service instance runs the job. Without this, every instance
-// of device-registry schedules an independent cron, causing duplicate
-// backfillSiteMetadata runs on each tick.
-if (process.env.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === "true") {
+// Read from constants (which merges the per-environment config files) rather
+// than process.env directly. The BACKFILL_SITE_METADATA_SCHEDULER_ENABLED
+// value is a boolean set in each environment config, not a process.env string,
+// so reading process.env here would always return undefined.
+if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
   logger.info(
     "BACKFILL_SITE_METADATA_SCHEDULER_ENABLED=true — this instance will run the backfill cron job.",
   );
   cron.schedule(
     schedule,
     async () => {
-      // FIX: Guard against overlapping runs. If the previous execution is still
+      // Guard against overlapping runs. If the previous execution is still
       // in progress when the next tick fires, skip and log rather than spawning
       // a concurrent run that would contend on the same site records.
-      // Note: this is an in-memory flag and only prevents overlap within a
-      // single process. If device-registry runs on multiple nodes, replace this
-      // with a distributed lock (Redis/DB) keyed to the job name.
       if (isBackfillRunning) {
         logger.info(
           "Backfill job is already running — skipping this tick to prevent overlap.",
@@ -222,7 +217,7 @@ if (process.env.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === "true") {
   });
 } else {
   logger.info(
-    "BACKFILL_SITE_METADATA_SCHEDULER_ENABLED is not 'true' — skipping cron registration for backfill job.",
+    "BACKFILL_SITE_METADATA_SCHEDULER_ENABLED is not true — skipping cron registration for backfill job.",
   );
 }
 
