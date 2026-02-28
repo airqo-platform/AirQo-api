@@ -65,6 +65,32 @@ Required `.env` values for this test:
 - `BIGQUERY_ANALYTICS_TABLE`
 - `FORECAST_MODELS_BUCKET`
 
+### Run fault detection locally
+
+After setting up `.env` and credentials, you can run the fault-detection utility script directly from the tests folder:
+
+```bash
+cd src/workflows/airqo_etl_utils/tests
+python test_fault_detection_utils.py train
+python test_fault_detection_utils.py detect
+```
+
+What each command does:
+
+- `python test_fault_detection_utils.py train` trains the fault-detection model, logs it to MLflow using `MLFLOW_FAULT_NAME`, and deploys it only if it is better than the currently deployed model.
+- `python test_fault_detection_utils.py detect` runs rule-based and pattern-based fault detection, then applies the deployed fault model if it exists. If no deployed model exists yet, ML scoring is skipped and the run still completes.
+
+Required `.env` values for this flow:
+
+- `GOOGLE_APPLICATION_CREDENTIALS`
+- `GOOGLE_CLOUD_PROJECT_ID`
+- `BIGQUERY_RAW_EVENTS_TABLE`
+- `FORECAST_MODELS_BUCKET`
+- `MONGO_URI`
+- `MONGO_DATABASE_NAME`
+- `MLFLOW_TRACKING_URI`
+- `MLFLOW_FAULT_NAME`
+
 ## 2. Running using Docker
 
 ### Prerequisites
