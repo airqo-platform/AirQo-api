@@ -1504,14 +1504,25 @@ const createSite = {
         })
         .catch((e) => {
           try {
-            // Include lat/long and error code in the log so it is clear
-            // which coordinates triggered the failure and whether the cause
-            // is a bad API key (ERR_INVALID_CHAR), network issue, or quota
-            // exhaustion — the previous log swallowed all of this context.
+            // Include lat/lng and error code/message in the log so it is
+            // clear which coordinates triggered the failure and to provide
+            // enough context to diagnose issues such as invalid
+            // configuration, malformed requests, network problems, or
+            // quota exhaustion.
+            //
+            // Only log curated, safe fields — avoid JSON.stringify(e)
+            // which would serialize the full Axios error including
+            // e.config and request headers, potentially leaking sensitive
+            // data such as the Google Maps API key.
+            const safeError = {
+              code: e.code,
+              message: e.message,
+              responseStatus: e.response?.status,
+              responseData: e.response?.data?.error_message || e.response?.data,
+            };
             logger.error(
-              `getAltitude failed for [${lat}, ${long}] — code: ${e.code ||
-                "unknown"}, message: ${e.message || "none"} — ${JSON.stringify(
-                e,
+              `getAltitude failed for lat=${lat}, lng=${long} — ${JSON.stringify(
+                safeError,
               )}`,
             );
           } catch (error) {
