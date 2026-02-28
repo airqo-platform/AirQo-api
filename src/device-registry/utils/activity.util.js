@@ -49,25 +49,34 @@ const enrichSiteWithMetadata = async (
   network,
 ) => {
   try {
-    const metadataResponse = await createSiteUtil.generateMetadata(
-      {
-        query: { tenant },
-        body: { latitude, longitude, network },
-      },
-      (error) => {
-        // Ensure errors in generateMetadata do not cause a secondary TypeError
-        // and are handled consistently by the outer try/catch.
-        logger.error(
-          `Error generating metadata for site ${siteId}: ${error.message}`,
-        );
-        throw error;
-      },
-    );
+    const metadataResponse = await createSiteUtil.generateMetadata({
+      query: { tenant },
+      body: { latitude, longitude, network },
+    });
+
+    if (!metadataResponse) {
+      logger.error(
+        `Metadata generation returned a falsy value for site ${siteId} in tenant ${tenant}. Aborting enrichment.`,
+      );
+      return;
+    }
 
     if (metadataResponse.success) {
-      await SiteModel(tenant).findByIdAndUpdate(siteId, {
-        $set: metadataResponse.data,
-      });
+      if (!metadataResponse.data) {
+        logger.error(
+          `Metadata generation succeeded but returned no data for site ${siteId}.`,
+        );
+        return;
+      }
+      await SiteModel(tenant).findByIdAndUpdate(
+        siteId,
+        {
+          $set: metadataResponse.data,
+        },
+        {
+          new: true,
+        },
+      );
       logger.info(`Successfully enriched site ${siteId} with metadata.`);
     } else {
       logger.error(
