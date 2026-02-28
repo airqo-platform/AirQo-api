@@ -15,7 +15,6 @@ const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
   try {
     logger.info(`*** Starting ${jobName}...`);
-    let skip = 0;
     let sitesProcessed = 0;
 
     while (true) {
@@ -31,8 +30,7 @@ const backfillSiteMetadata = async (tenant) => {
           longitude: { $ne: null },
         })
         .limit(BATCH_SIZE)
-        .skip(skip)
-        .select("_id latitude longitude name")
+        .select("_id latitude longitude name network")
         .lean();
 
       if (sitesToUpdate.length === 0) {
@@ -40,9 +38,7 @@ const backfillSiteMetadata = async (tenant) => {
         break;
       }
 
-      logger.info(
-        `Processing batch of ${sitesToUpdate.length} sites (skip: ${skip})`,
-      );
+      logger.info(`Processing batch of ${sitesToUpdate.length} sites`);
 
       const updatePromises = sitesToUpdate.map(async (site) => {
         try {
@@ -86,8 +82,6 @@ const backfillSiteMetadata = async (tenant) => {
       sitesProcessed += results.filter(
         (r) => r.status === "fulfilled" && r.value.success,
       ).length;
-
-      skip += BATCH_SIZE;
     }
 
     logger.info(

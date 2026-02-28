@@ -39,13 +39,30 @@ const ObjectId = mongoose.Types.ObjectId;
  * @param {ObjectId} siteId - The ID of the site to enrich.
  * @param {number} latitude - The site's latitude.
  * @param {number} longitude - The site's longitude.
+ * @param {string} network - The network of the site.
  */
-const enrichSiteWithMetadata = async (tenant, siteId, latitude, longitude) => {
+const enrichSiteWithMetadata = async (
+  tenant,
+  siteId,
+  latitude,
+  longitude,
+  network,
+) => {
   try {
-    const metadataResponse = await createSiteUtil.generateMetadata({
-      query: { tenant },
-      body: { latitude, longitude },
-    });
+    const metadataResponse = await createSiteUtil.generateMetadata(
+      {
+        query: { tenant },
+        body: { latitude, longitude, network },
+      },
+      (error) => {
+        // Ensure errors in generateMetadata do not cause a secondary TypeError
+        // and are handled consistently by the outer try/catch.
+        logger.error(
+          `Error generating metadata for site ${siteId}: ${error.message}`,
+        );
+        throw error;
+      },
+    );
 
     if (metadataResponse.success) {
       await SiteModel(tenant).findByIdAndUpdate(siteId, {
@@ -1693,6 +1710,7 @@ const createActivity = {
                     site._id,
                     site.latitude,
                     site.longitude,
+                    siteData.network,
                   );
                 } catch (createError) {
                   // Handle race condition: another process may have
@@ -2263,6 +2281,7 @@ const createActivity = {
       if (device.site_id) {
         pushFields.previous_sites = device.site_id;
       }
+
       if (device.grid_id) {
         pushFields.previous_grids = device.grid_id;
       }
@@ -3058,7 +3077,7 @@ const createActivity = {
 
         return {
           success: true,
-          message: "Dry run completed - no changes made",
+          message: "Dry run completed - no changes were made",
           data: {
             total_activities_needing_backfill: totalCount,
             sample_device_names: sampleDeviceNames,
