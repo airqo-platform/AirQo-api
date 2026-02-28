@@ -51,6 +51,41 @@ class MlflowTracker:
                 serialized[key] = str(value)
         return serialized
 
+    @staticmethod
+    def _log_model_with_fallback(
+        *,
+        model: Any,
+        model_artifact_path: str,
+        input_example: Optional[pd.DataFrame] = None,
+    ) -> None:
+        """Log a model artifact without failing the whole run on serializer issues."""
+        try:
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                name=model_artifact_path,
+                input_example=input_example,
+                serialization_format="skops",
+            )
+            return
+        except Exception as exc:
+            logger.warning(
+                f"MLflow skops model logging failed for '{model_artifact_path}': {exc}. "
+                "Retrying with cloudpickle."
+            )
+
+        try:
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                name=model_artifact_path,
+                input_example=input_example,
+                serialization_format="cloudpickle",
+            )
+        except Exception as exc:
+            logger.warning(
+                f"MLflow model artifact logging failed for '{model_artifact_path}': {exc}. "
+                "Metrics and tags were logged, but the model artifact was skipped."
+            )
+
     def log_run(
         self,
         *,
@@ -84,11 +119,10 @@ class MlflowTracker:
                 if safe_tags:
                     mlflow.set_tags(safe_tags)
                 if model is not None:
-                    mlflow.sklearn.log_model(
-                        sk_model=model,
-                        name=model_artifact_path,
+                    self._log_model_with_fallback(
+                        model=model,
+                        model_artifact_path=model_artifact_path,
                         input_example=input_example,
-                        serialization_format="skops",
                     )
         except Exception as exc:
             logger.warning(f"Failed to log MLflow run '{run_name}': {exc}")

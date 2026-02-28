@@ -847,6 +847,7 @@ class Config:
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
     MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME")
+    MLFLOW_FAULT_NAME = os.getenv("MLFLOW_FAULT_NAME")
     MLFLOW_ENABLE_MODEL_GATING = (
         str(os.getenv("MLFLOW_ENABLE_MODEL_GATING", "false")).lower() == "true"
     )
