@@ -897,32 +897,40 @@ const createSite = {
       // Without this, the `body["site_tags"] = merged_site_tags` assignment
       // below modifies the caller's reference directly.
       body = { ...body };
-      let { latitude, longitude } = body;
+      let { latitude, longitude, skipAltitude } = body;
       let { tenant, id } = query;
       let roadResponseData = {};
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      let responseFromGetAltitude = await createSite.getAltitude(
-        latitude,
-        longitude,
-        next,
-      );
+      // Skip the altitude call entirely if the caller has flagged that the
+      // Elevation API is known to be unavailable for this run (e.g. the
+      // circuit breaker in the backfill job was tripped by ERR_INVALID_CHAR
+      // on a previous site). This prevents flooding logs with identical
+      // errors across an entire batch when the failure is configuration-level
+      // and affects every site equally.
+      if (!skipAltitude) {
+        let responseFromGetAltitude = await createSite.getAltitude(
+          latitude,
+          longitude,
+          next,
+        );
 
-      if (responseFromGetAltitude.success === true) {
-        altitudeResponseData["altitude"] = responseFromGetAltitude.data;
-      } else if (responseFromGetAltitude.success === false) {
-        let errors = responseFromGetAltitude.errors
-          ? responseFromGetAltitude.errors
-          : { message: "" };
-        try {
-          logger.error(
-            `unable to retrieve the altitude for this site, ${
-              responseFromGetAltitude.message
-            } and ${JSON.stringify(errors)}`,
-          );
-        } catch (error) {
-          logger.error(`internal server error ${error.message}`);
+        if (responseFromGetAltitude.success === true) {
+          altitudeResponseData["altitude"] = responseFromGetAltitude.data;
+        } else if (responseFromGetAltitude.success === false) {
+          let errors = responseFromGetAltitude.errors
+            ? responseFromGetAltitude.errors
+            : { message: "" };
+          try {
+            logger.error(
+              `unable to retrieve the altitude for this site, ${
+                responseFromGetAltitude.message
+              } and ${JSON.stringify(errors)}`,
+            );
+          } catch (error) {
+            logger.error(`internal server error ${error.message}`);
+          }
         }
       }
 
