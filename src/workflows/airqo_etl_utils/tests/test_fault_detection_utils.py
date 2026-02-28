@@ -30,9 +30,20 @@ class FakeStorage:
         return FakeStorage.artifact
 
 
+@pytest.fixture(autouse=True)
+def reset_fake_storage_artifact():
+    FakeStorage.artifact = None
+    yield
+    FakeStorage.artifact = None
+
+
 @pytest.fixture
 def sample_fault_detection_df():
-    timestamps = pd.date_range("2025-01-01", periods=120, freq="h", tz="UTC")
+    timestamps = pd.date_range(
+        end=pd.Timestamp.now(tz="UTC").floor("h"),
+        periods=120,
+        freq="h",
+    )
     rows = []
 
     for index, timestamp in enumerate(timestamps):
@@ -97,7 +108,7 @@ def test_fault_model_can_train_and_score(sample_fault_detection_df, monkeypatch)
     )
     ml_faults = FaultDetectionUtils.flag_ml_based_faults(sample_fault_detection_df)
 
-    assert metrics["rows_used"] >= 50
+    assert 0 < metrics["rows_used"] < len(sample_fault_detection_df)
     assert 0 <= metrics["f1_score"] <= 1
     assert metrics["deployed"] is True
     assert "faulty-device" in ml_faults["device_id"].tolist()

@@ -22,6 +22,7 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
 )
+from sklearn.model_selection import train_test_split
 
 from .config import configuration, db
 from .constants import Frequency
@@ -1081,32 +1082,64 @@ class FaultDetectionUtils(BaseMlUtils):
         model_df, feature_columns = FaultDetectionUtils.prepare_fault_model_matrix(
             training_df
         )
-        if model_df["weak_fault_label"].nunique() < 2:
-            raise ValueError("Fault model training requires both faulty and non-faulty samples.")
+        labels = model_df["weak_fault_label"]
+        if labels.nunique() < 2:
+            raise ValueError(
+                "Fault model training requires both faulty and non-faulty samples."
+            )
+        if (labels.value_counts() < 2).any():
+            raise ValueError(
+                "Fault model training requires at least two samples in each class "
+                "for holdout evaluation."
+            )
 
-        classifier = LGBMClassifier(
-            objective="binary",
-            n_estimators=250,
-            learning_rate=0.05,
-            num_leaves=31,
+        classifier_params = {
+            "objective": "binary",
+            "n_estimators": 250,
+            "learning_rate": 0.05,
+            "num_leaves": 31,
+            "random_state": 42,
+            "class_weight": "balanced",
+            "verbosity": -1,
+        }
+        validation_rows = max(2, int(round(len(model_df) * 0.2)))
+        validation_rows = min(validation_rows, len(model_df) - 2)
+
+        (
+            training_features,
+            validation_features,
+            training_labels,
+            validation_labels,
+        ) = train_test_split(
+            model_df[feature_columns],
+            labels,
+            test_size=validation_rows,
             random_state=42,
-            class_weight="balanced",
-            verbosity=-1,
+            stratify=labels,
         )
-        classifier.fit(model_df[feature_columns], model_df["weak_fault_label"])
 
-        predictions = classifier.predict(model_df[feature_columns])
-        probabilities = classifier.predict_proba(model_df[feature_columns])[:, 1]
+        evaluation_classifier = LGBMClassifier(
+            **classifier_params,
+        )
+        evaluation_classifier.fit(training_features, training_labels)
+
+        predictions = evaluation_classifier.predict(validation_features)
+        probabilities = evaluation_classifier.predict_proba(validation_features)[:, 1]
         metrics = {
             "precision": float(
-                precision_score(model_df["weak_fault_label"], predictions)
+                precision_score(validation_labels, predictions, zero_division=0)
             ),
-            "recall": float(recall_score(model_df["weak_fault_label"], predictions)),
-            "f1_score": float(f1_score(model_df["weak_fault_label"], predictions)),
-            "positive_rate": float(model_df["weak_fault_label"].mean()),
+            "recall": float(
+                recall_score(validation_labels, predictions, zero_division=0)
+            ),
+            "f1_score": float(f1_score(validation_labels, predictions, zero_division=0)),
+            "positive_rate": float(validation_labels.mean()),
             "mean_probability": float(probabilities.mean()),
-            "rows_used": int(len(model_df)),
+            "rows_used": int(len(validation_labels)),
         }
+
+        classifier = LGBMClassifier(**classifier_params)
+        classifier.fit(model_df[feature_columns], labels)
         artifact = {
             "model": classifier,
             "feature_columns": feature_columns,
