@@ -852,6 +852,7 @@ class Config:
         str(os.getenv("MLFLOW_ENABLE_MODEL_GATING", "false")).lower() == "true"
     )
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
+    FAULT_MODEL_BUCKET = os.getenv("FAULT_MODEL_BUCKET")
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")

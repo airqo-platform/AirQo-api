@@ -39,6 +39,7 @@ logger = logging.getLogger("airflow.task")
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
+fault_model_bucket = configuration.FAULT_MODEL_BUCKET or configuration.FORECAST_MODELS_BUCKET
 environment = configuration.ENVIRONMENT
 additional_columns = ["site_id"]
 
@@ -682,6 +683,16 @@ class FaultDetectionUtils(BaseMlUtils):
     MIN_TRAINING_ROWS = 200
 
     @staticmethod
+    def get_fault_model_bucket() -> str:
+        """Return the configured bucket for fault model artifacts."""
+        if not fault_model_bucket:
+            raise ValueError(
+                "Missing required config: FAULT_MODEL_BUCKET. "
+                "Set FAULT_MODEL_BUCKET in the workflows .env file."
+            )
+        return fault_model_bucket
+
+    @staticmethod
     def _validate_fault_input(df: pd.DataFrame) -> pd.DataFrame:
         """Validate and standardize raw fault-detection input."""
         if not isinstance(df, pd.DataFrame):
@@ -1146,7 +1157,7 @@ class FaultDetectionUtils(BaseMlUtils):
             "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "metrics": metrics,
         }
-        target_bucket = bucket_name or bucket
+        target_bucket = bucket_name or FaultDetectionUtils.get_fault_model_bucket()
         target_path = model_path or FaultDetectionUtils.DEFAULT_FAULT_MODEL_PATH
 
         deployment = FaultDetectionUtils._deploy_if_better(
@@ -1202,25 +1213,29 @@ class FaultDetectionUtils(BaseMlUtils):
         """Apply the persisted fault-classification model to raw readings."""
         featured = FaultDetectionUtils.prepare_fault_features(df)
         filestorage: FileStorage = GCSFileStorage()
+        target_bucket = FaultDetectionUtils.get_fault_model_bucket()
         resolved_model_path = model_path or FaultDetectionUtils.DEFAULT_FAULT_MODEL_PATH
         try:
             artifact = filestorage.load_file_object(
-                bucket=bucket,
+                bucket=target_bucket,
                 source_file=resolved_model_path,
             )
         except FileNotFoundError:
             logger.warning(
                 "Fault detection model not found at "
-                f"{bucket}/{resolved_model_path}. Skipping ML-based fault scoring."
+                f"{target_bucket}/{resolved_model_path}. Skipping ML-based fault scoring."
             )
             return pd.DataFrame(
                 columns=["device_id", "ml_fault_probability", "ml_fault"]
             )
         feature_columns = artifact["feature_columns"]
-
-        for column in feature_columns:
-            if column not in featured.columns:
-                featured[column] = 0.0
+        missing_features = sorted(set(feature_columns).difference(featured.columns))
+        if missing_features:
+            raise ValueError(
+                "Missing required fault-model features at inference for "
+                f"'{resolved_model_path}': {missing_features}. "
+                f"Expected feature schema: {feature_columns}"
+            )
 
         inference_df, _ = FaultDetectionUtils.prepare_fault_model_matrix(featured)
         if inference_df.empty:
