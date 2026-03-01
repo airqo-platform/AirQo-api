@@ -37,20 +37,14 @@ class SourceMetadataModel:
         pollutants_key: Tuple[str, ...],
     ) -> Tuple[Dict[str, float], Dict[str, str]]:
         model = Sentinel5PModel()
-        try:
-            means = model.get_aggregated_pollutant_means(
-                longitude=longitude,
-                latitude=latitude,
-                start_date=start_date,
-                end_date=end_date,
-                pollutants=list(pollutants_key),
-            )
-            return means, {}
-        except Exception as ex:
-            return (
-                {pollutant: None for pollutant in pollutants_key},
-                {"satellite": str(ex)},
-            )
+        means = model.get_aggregated_pollutant_means(
+            longitude=longitude,
+            latitude=latitude,
+            start_date=start_date,
+            end_date=end_date,
+            pollutants=list(pollutants_key),
+        )
+        return means, {}
 
     @staticmethod
     def _clean_numeric(value, default=0.0):
@@ -203,13 +197,19 @@ class SourceMetadataModel:
         rounded_longitude = round(longitude, 5)
         rounded_latitude = round(latitude, 5)
         pollutants_key = tuple(pollutants)
-        aggregated, fetch_issues = self._cached_satellite_means(
-            rounded_longitude,
-            rounded_latitude,
-            start_date,
-            end_date,
-            pollutants_key,
-        )
+        try:
+            aggregated, fetch_issues = self._cached_satellite_means(
+                rounded_longitude,
+                rounded_latitude,
+                start_date,
+                end_date,
+                pollutants_key,
+            )
+        except Exception as ex:
+            return (
+                {pollutant: None for pollutant in pollutants_key},
+                {"satellite": str(ex)},
+            )
         cleaned = {}
         for pollutant, value in aggregated.items():
             numeric_value = self._clean_numeric(value, default=None)
