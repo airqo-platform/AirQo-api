@@ -15,7 +15,9 @@ if (isDevelopment()) {
     },
   };
 } else {
-  console.log("📝 [DEVICE-REGISTRY] Log4js configured with basic Slack alerts");
+  console.log(
+    "📝 [DEVICE-REGISTRY] Log4js configured (Slack alerts for ERROR only when configured)",
+  );
 
   const hasSlackConfig =
     constants.SLACK_TOKEN &&
