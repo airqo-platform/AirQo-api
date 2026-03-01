@@ -6,9 +6,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- backfill-site-metadata-job`,
 );
-const { HttpError } = require("@utils/shared");
 const createSiteUtil = require("@utils/site.util");
-const httpStatus = require("http-status");
 const os = require("os");
 
 const BATCH_SIZE = 100;
@@ -19,7 +17,6 @@ const POD_ID = process.env.HOSTNAME || os.hostname();
 const acquireLock = async (tenant) => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + LOCK_TTL_SECONDS * 1000);
-
   try {
     const result = await JobLockModel(tenant).findOneAndUpdate(
       {
@@ -34,18 +31,11 @@ const acquireLock = async (tenant) => {
           expiresAt,
         },
       },
-      {
-        upsert: true,
-        new: true,
-        rawResult: false,
-      },
+      { upsert: true, new: true, rawResult: false },
     );
-
     return result && result.acquiredBy === POD_ID;
   } catch (error) {
-    if (error.code === 11000) {
-      return false;
-    }
+    if (error.code === 11000) return false;
     logger.error(`🐛🐛 Lock acquisition error: ${error.message}`);
     return false;
   }
@@ -60,6 +50,76 @@ const releaseLock = async (tenant) => {
     logger.info(`[${POD_ID}] Lock released for job: ${JOB_NAME}`);
   } catch (error) {
     logger.error(`🐛🐛 Lock release error: ${error.message}`);
+  }
+};
+
+/**
+ * Runs a single altitude call before each batch fires.
+ * If it fails, sets altitudeCircuitOpen = true so that all 100
+ * concurrent promises in the batch already have skipAltitude = true
+ * before they start — guaranteeing at most ONE altitude error log
+ * per batch rather than one per site.
+ *
+ * Without this, Promise.allSettled fires all 100 promises simultaneously.
+ * By the time the first one trips the circuit breaker flag, the other 99
+ * have already called generateMetadata with skipAltitude = false,
+ * producing 100 identical error logs.
+ */
+const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
+  if (altitudeCircuitOpen) return true; // already tripped, skip immediately
+
+  try {
+    // createSiteUtil.getAltitude is the correct reference — getAltitude is
+    // a method exported directly on the site.util object alongside generateMetadata.
+    const testResponse = await createSiteUtil.getAltitude(
+      site.latitude,
+      site.longitude,
+      (err) => err, // swallow — we handle the result below
+    );
+
+    // Defensive guard: if getAltitude returns undefined or a non-object
+    // (e.g. an internal throw resolves before the Promise completes),
+    // treat it as a failure and open the circuit rather than letting
+    // testResponse.success throw "Cannot read property 'success' of undefined".
+    if (!testResponse || typeof testResponse !== "object") {
+      logger.error(
+        `[${POD_ID}] Altitude API pre-flight check returned an unexpected value — ` +
+          `opening circuit breaker for this batch. ` +
+          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
+      );
+      return true; // circuit open
+    }
+
+    if (testResponse.success === false) {
+      const safeError = {
+        code: testResponse.errors?.message?.code,
+        message: testResponse.errors?.message?.message,
+      };
+      logger.error(
+        `[${POD_ID}] Altitude API pre-flight check failed — skipping altitude ` +
+          `enrichment for this entire batch to suppress duplicate errors. ` +
+          `Safe error: ${JSON.stringify(safeError)}. ` +
+          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
+      );
+      return true; // circuit open
+    }
+
+    return false; // circuit closed, altitude is working
+  } catch (error) {
+    // Catch any thrown errors (network timeouts, unhandled rejections) so
+    // they do not bubble up and crash the entire backfill job. Treat any
+    // exception as a circuit-open condition and log only safe, minimal details.
+    const safeError = {
+      code: error.code,
+      message: error.message,
+    };
+    logger.error(
+      `[${POD_ID}] Altitude API pre-flight check threw an unexpected error — ` +
+        `opening circuit breaker to suppress duplicate errors for this batch. ` +
+        `Safe error: ${JSON.stringify(safeError)}. ` +
+        `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
+    );
+    return true; // circuit open
   }
 };
 
@@ -81,11 +141,10 @@ const backfillSiteMetadata = async (tenant) => {
     const attemptedIds = [];
 
     // Circuit breaker for the Google Maps Elevation API.
-    // ERR_INVALID_CHAR and similar configuration-level errors affect every
-    // site identically — there is no point making 100 failing calls when
-    // the first failure already tells us altitude enrichment is broken for
-    // this entire run. Once tripped, altitude calls are skipped for all
-    // remaining sites and a single summary error is logged at the end.
+    // Scoped to this job run — resets automatically on the next cron tick.
+    // Tripped by the pre-flight check at the start of each batch so that
+    // all concurrent promises skip altitude before they even start,
+    // guaranteeing at most one error log per batch instead of one per site.
     let altitudeCircuitOpen = false;
 
     while (true) {
@@ -119,6 +178,16 @@ const backfillSiteMetadata = async (tenant) => {
       const batchIds = sitesToUpdate.map((s) => s._id);
       attemptedIds.push(...batchIds);
 
+      // Run the pre-flight check BEFORE firing Promise.allSettled so that
+      // the circuit breaker state is fully resolved before any of the 100
+      // concurrent promises read it. This is the key guarantee — without
+      // awaiting this first, all promises read altitudeCircuitOpen = false
+      // simultaneously and all 100 make failing altitude calls.
+      altitudeCircuitOpen = await runAltitudePreflightCheck(
+        sitesToUpdate[0],
+        altitudeCircuitOpen,
+      );
+
       const updatePromises = sitesToUpdate.map(async (site) => {
         try {
           const request = {
@@ -127,8 +196,6 @@ const backfillSiteMetadata = async (tenant) => {
               latitude: site.latitude,
               longitude: site.longitude,
               network: site.network || "airqo",
-              // Signal to generateMetadata to skip the altitude call for
-              // this run if the circuit breaker has already been tripped.
               skipAltitude: altitudeCircuitOpen,
             },
           };
@@ -136,28 +203,9 @@ const backfillSiteMetadata = async (tenant) => {
           const metadataResponse = await createSiteUtil.generateMetadata(
             request,
             (err) => {
-              // Trip the circuit breaker if this looks like a
-              // configuration-level error that will affect all sites.
-              if (
-                err &&
-                (err.code === "ERR_INVALID_CHAR" ||
-                  err.code === "ERR_INVALID_URL" ||
-                  err.response?.status === 403)
-              ) {
-                altitudeCircuitOpen = true;
-              }
               throw err;
             },
           );
-
-          // If generateMetadata itself flagged an altitude failure via
-          // the response, trip the circuit breaker for subsequent sites.
-          if (
-            metadataResponse.success === false &&
-            metadataResponse.altitudeError
-          ) {
-            altitudeCircuitOpen = true;
-          }
 
           if (metadataResponse.success) {
             const {
@@ -231,13 +279,10 @@ const backfillSiteMetadata = async (tenant) => {
       ).length;
     }
 
-    // Log a single summary if the altitude circuit was tripped during
-    // this run, rather than one error per site.
     if (altitudeCircuitOpen) {
       logger.error(
-        `[${POD_ID}] Altitude enrichment was skipped for this run due to a ` +
-          `configuration-level error on the first call (e.g. ERR_INVALID_CHAR). ` +
-          `Check GOOGLE_MAPS_API_KEY — run: kubectl exec -it <pod> -- printenv GOOGLE_MAPS_API_KEY`,
+        `[${POD_ID}] Altitude enrichment was skipped for this entire run. ` +
+          `Fix GOOGLE_MAPS_API_KEY and altitude data will be populated on the next run.`,
       );
     }
 
