@@ -62,28 +62,22 @@ if (isDevelopment()) {
 
   if (hasSlackConfig) {
     try {
-      config.appenders.alerts = {
+      // Renamed from "alerts" to "slack" to match auth-service naming convention.
+      config.appenders.slack = {
         type: "@log4js-node/slack",
         token: constants.SLACK_TOKEN,
         channel_id: constants.SLACK_CHANNEL,
         username: constants.SLACK_USERNAME,
       };
 
-      // Wrap the Slack appender in a logLevelFilter so only ERROR and above
-      // is forwarded to Slack. Previously the alerts appender was added
-      // directly to the default category (level: "info"), meaning INFO,
-      // WARN, and ERROR all triggered Slack notifications — flooding the
-      // channel with non-actionable messages like altitude warnings and
-      // routine job logs.
+      // logLevelFilter wrapping "slack" (updated from "alerts") so only
+      // ERROR and above is forwarded to Slack.
       config.appenders.slackErrors = {
         type: "logLevelFilter",
         level: "ERROR",
-        appender: "alerts",
+        appender: "slack",
       };
 
-      // Only attach the filtered Slack appender — not the raw alerts appender.
-      // The error category already has level: "error" but we still use the
-      // filter wrapper for consistency and to be explicit about intent.
       config.categories.default.appenders.push("slackErrors");
       config.categories.error.appenders.push("slackErrors");
 
