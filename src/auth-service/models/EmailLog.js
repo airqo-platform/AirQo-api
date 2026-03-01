@@ -11,13 +11,13 @@ const EmailLogSchema = new mongoose.Schema(
     /**
      * Time-bucketed deduplication key for atomic exactly-once rate limiting.
      * Format: "<email>:<emailType>:<windowBucket>"
-     * The unique index on this field is what prevents concurrent pods from
-     * both claiming the same rate-limit slot. sparse:true allows legacy
-     * records that predate this field to coexist without conflict.
+     *
+     * The unique sparse index on this field (defined below) is what enforces
+     * first-writer-wins across all Kubernetes pods. The field itself carries
+     * no special options — sparse is an index option, not a field option.
      */
     bucketKey: {
       type: String,
-      sparse: true,
     },
     email: {
       type: String,
@@ -53,7 +53,9 @@ const EmailLogSchema = new mongoose.Schema(
 /**
  * PRIMARY index: bucketKey uniqueness enforces atomic exactly-once semantics
  * per time window per (email, emailType) pair across all Kubernetes pods.
- * The unique constraint is what turns our upsert into a distributed lock.
+ * sparse: true means documents where bucketKey is absent (legacy records
+ * created before this field existed) are excluded from the index entirely,
+ * so they never produce spurious duplicate key errors.
  */
 EmailLogSchema.index({ bucketKey: 1 }, { unique: true, sparse: true });
 
@@ -72,161 +74,212 @@ EmailLogSchema.index(
   { expireAfterSeconds: 60 * 60 * 24 * 90 },
 );
 
-EmailLogSchema.statics = {
-  async canSendEmail({ email, emailType, cooldownDays = 30, ip } = {}) {
-    try {
-      if (!email || typeof email !== "string") {
-        return {
-          canSend: true,
-          error: "Invalid email parameter",
-        };
-      }
+/**
+ * Startup/readiness guard: verifies that the unique sparse bucketKey index
+ * is present and correctly configured before the service starts serving
+ * traffic. Without this index the distributed rate-limiting semantics
+ * silently degrade — concurrent pods would all be allowed through.
+ *
+ * Call this once during auth-service initialization:
+ *   await EmailLogModel(tenant).verifyIndexes();
+ *
+ * Throws if the index is missing or misconfigured, so the missing migration
+ * surfaces immediately as a startup failure rather than a silent correctness bug.
+ */
+EmailLogSchema.statics.verifyIndexes = async function () {
+  try {
+    const indexes = await this.collection.indexes();
+    const bucketKeyIndex = indexes.find(
+      (idx) =>
+        idx.key &&
+        idx.key.bucketKey === 1 &&
+        idx.unique === true &&
+        idx.sparse === true,
+    );
 
-      const now = new Date();
-      let cooldownDate;
-      let cooldownMs;
-      const isDailyLimitEmail =
-        emailType === "expiringToken" || emailType === "compromisedToken";
+    if (!bucketKeyIndex) {
+      const errorMsg =
+        "[EmailLog] CRITICAL: The unique sparse index on `bucketKey` is missing or misconfigured. " +
+        "Distributed rate-limiting will NOT work correctly across Kubernetes pods. " +
+        "Run the migration to create this index before serving traffic:\n" +
+        '  db.email_logs.createIndex({ bucketKey: 1 }, { unique: true, sparse: true, name: "bucketKey_unique" })';
+
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    logger.info(
+      "[EmailLog] bucketKey index verified — distributed rate-limiting is operational.",
+    );
+    return true;
+  } catch (err) {
+    // Re-throw so the service startup/readiness check fails loudly
+    throw err;
+  }
+};
+
+EmailLogSchema.statics.canSendEmail = async function ({
+  email,
+  emailType,
+  cooldownDays = 30,
+  ip,
+} = {}) {
+  try {
+    if (!email || typeof email !== "string") {
+      return {
+        canSend: true,
+        error: "Invalid email parameter",
+      };
+    }
+
+    const now = new Date();
+    let cooldownDate;
+    let cooldownMs;
+    const isDailyLimitEmail =
+      emailType === "expiringToken" || emailType === "compromisedToken";
+
+    if (isDailyLimitEmail) {
+      const todayEAT = moment().tz("Africa/Nairobi").startOf("day");
+      cooldownDate = todayEAT.toDate();
+      cooldownMs = now.getTime() - cooldownDate.getTime();
+    } else {
+      cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+      cooldownDate = new Date(now.getTime() - cooldownMs);
+    }
+
+    let query = {
+      email: email.toLowerCase().trim(),
+      emailType,
+      lastSentAt: { $gte: cooldownDate },
+    };
+
+    if (emailType === "compromisedToken" && ip) {
+      query["metadata.ip"] = ip;
+    }
+
+    const lastLog = await this.findOne(query).sort({ lastSentAt: -1 }).lean();
+
+    if (lastLog) {
+      let daysRemaining;
+      let nextAvailableDate;
 
       if (isDailyLimitEmail) {
-        const todayEAT = moment().tz("Africa/Nairobi").startOf("day");
-        cooldownDate = todayEAT.toDate();
-        cooldownMs = now.getTime() - cooldownDate.getTime();
+        const tomorrowEAT = moment(lastLog.lastSentAt)
+          .tz("Africa/Nairobi")
+          .startOf("day")
+          .add(1, "day");
+        nextAvailableDate = tomorrowEAT.toDate();
+        daysRemaining = Math.ceil(
+          (nextAvailableDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+        );
       } else {
-        cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
-        cooldownDate = new Date(now.getTime() - cooldownMs);
-      }
-
-      let query = {
-        email: email.toLowerCase().trim(),
-        emailType,
-        lastSentAt: { $gte: cooldownDate },
-      };
-
-      if (emailType === "compromisedToken" && ip) {
-        query["metadata.ip"] = ip;
-      }
-
-      const lastLog = await this.findOne(query).sort({ lastSentAt: -1 }).lean();
-
-      if (lastLog) {
-        let daysRemaining;
-        let nextAvailableDate;
-
-        if (isDailyLimitEmail) {
-          const tomorrowEAT = moment(lastLog.lastSentAt)
-            .tz("Africa/Nairobi")
-            .startOf("day")
-            .add(1, "day");
-          nextAvailableDate = tomorrowEAT.toDate();
-          daysRemaining = Math.ceil(
-            (nextAvailableDate.getTime() - now.getTime()) /
-              (24 * 60 * 60 * 1000),
-          );
-        } else {
-          const timeSinceLastEmail = now - new Date(lastLog.lastSentAt);
-          daysRemaining = Math.ceil(
-            (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000),
-          );
-          nextAvailableDate = new Date(
-            new Date(lastLog.lastSentAt).getTime() + cooldownMs,
-          );
-        }
-
-        return {
-          canSend: false,
-          reason: isDailyLimitEmail ? "daily_limit_reached" : "cooldown_active",
-          lastSentAt: lastLog.lastSentAt,
-          daysRemaining,
-          nextAvailableDate,
-        };
+        const timeSinceLastEmail = now - new Date(lastLog.lastSentAt);
+        daysRemaining = Math.ceil(
+          (cooldownMs - timeSinceLastEmail) / (24 * 60 * 60 * 1000),
+        );
+        nextAvailableDate = new Date(
+          new Date(lastLog.lastSentAt).getTime() + cooldownMs,
+        );
       }
 
       return {
-        canSend: true,
-      };
-    } catch (error) {
-      logger.error(
-        `Error checking email cooldown for ${emailType}/${email}: ${error.message}`,
-      );
-      return {
-        canSend: true,
-        error: error.message,
+        canSend: false,
+        reason: isDailyLimitEmail ? "daily_limit_reached" : "cooldown_active",
+        lastSentAt: lastLog.lastSentAt,
+        daysRemaining,
+        nextAvailableDate,
       };
     }
-  },
 
-  async logEmailSent({ email, emailType, ip, metadata = {} } = {}) {
-    try {
-      if (!email || typeof email !== "string") {
-        return {
-          success: false,
-          error: "Invalid email parameter",
-        };
-      }
+    return {
+      canSend: true,
+    };
+  } catch (error) {
+    logger.error(
+      `Error checking email cooldown for ${emailType}/${email}: ${error.message}`,
+    );
+    return {
+      canSend: true,
+      error: error.message,
+    };
+  }
+};
 
-      const logMetadata = { ...metadata };
-      if (emailType === "compromisedToken" && ip) {
-        logMetadata.ip = ip;
-      }
-
-      const filter = {
-        email: email.toLowerCase().trim(),
-        emailType,
-      };
-
-      const update = {
-        $set: {
-          lastSentAt: new Date(),
-          metadata: logMetadata,
-        },
-        $inc: {
-          sentCount: 1,
-        },
-      };
-
-      let result;
-      try {
-        result = await this.findOneAndUpdate(filter, update, {
-          upsert: true,
-          new: true,
-        });
-      } catch (upsertErr) {
-        const isDuplicateKey =
-          upsertErr.code === 11000 ||
-          (upsertErr.message && upsertErr.message.includes("E11000"));
-
-        if (!isDuplicateKey) {
-          throw upsertErr;
-        }
-
-        result = await this.findOneAndUpdate(filter, update, {
-          upsert: false,
-          new: true,
-        });
-
-        if (!result) {
-          logger.warn(
-            `logEmailSent: failed to find document after E11000 retry for ${emailType}/${email}`,
-          );
-        }
-      }
-
-      return {
-        success: true,
-        data: result,
-      };
-    } catch (error) {
-      logger.error(
-        `Error logging email send for ${emailType}/${email}: ${error.message}`,
-      );
-
+EmailLogSchema.statics.logEmailSent = async function ({
+  email,
+  emailType,
+  ip,
+  metadata = {},
+} = {}) {
+  try {
+    if (!email || typeof email !== "string") {
       return {
         success: false,
-        error: error.message,
+        error: "Invalid email parameter",
       };
     }
-  },
+
+    const logMetadata = { ...metadata };
+    if (emailType === "compromisedToken" && ip) {
+      logMetadata.ip = ip;
+    }
+
+    const filter = {
+      email: email.toLowerCase().trim(),
+      emailType,
+    };
+
+    const update = {
+      $set: {
+        lastSentAt: new Date(),
+        metadata: logMetadata,
+      },
+      $inc: {
+        sentCount: 1,
+      },
+    };
+
+    let result;
+    try {
+      result = await this.findOneAndUpdate(filter, update, {
+        upsert: true,
+        new: true,
+      });
+    } catch (upsertErr) {
+      const isDuplicateKey =
+        upsertErr.code === 11000 ||
+        (upsertErr.message && upsertErr.message.includes("E11000"));
+
+      if (!isDuplicateKey) {
+        throw upsertErr;
+      }
+
+      result = await this.findOneAndUpdate(filter, update, {
+        upsert: false,
+        new: true,
+      });
+
+      if (!result) {
+        logger.warn(
+          `logEmailSent: failed to find document after E11000 retry for ${emailType}/${email}`,
+        );
+      }
+    }
+
+    return {
+      success: true,
+      data: result,
+    };
+  } catch (error) {
+    logger.error(
+      `Error logging email send for ${emailType}/${email}: ${error.message}`,
+    );
+
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
 };
 
 const EmailLogModel = (tenant) => {

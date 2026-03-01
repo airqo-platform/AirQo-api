@@ -21,7 +21,6 @@ const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const createGroupUtil = require("@utils/group.util.js");
-const registrationLocks = new Map();
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
@@ -284,14 +283,23 @@ const getCache = async (request, next) => {
 };
 
 /**
- * Atomically checks and claims a rate-limit slot using a time-bucketed
- * unique key. The unique index on EmailLog.bucketKey ensures that across
- * all Kubernetes pods, only ONE pod can claim a given (email, emailType,
- * timeWindow) slot. The winning pod gets { allowed: true }; all others
- * get { allowed: false } via the E11000 duplicate key error.
+ * Atomically claims a rate-limit slot using a time-bucketed unique MongoDB key.
  *
- * This replaces the previous two-step check-then-act pattern which had
- * a TOCTOU race condition between pods.
+ * DESIGN — First-writer-wins via upsertedCount inspection:
+ *   We use updateOne() with upsert:true and inspect writeResult.upsertedCount.
+ *   - upsertedCount === 1  → this pod performed the INSERT → allowed
+ *   - upsertedCount === 0  → document already existed → UPDATE ran → rate-limited
+ *
+ *   This correctly handles the case where a second concurrent request reaches
+ *   the same bucket after the first pod's INSERT. The second pod's updateOne
+ *   will succeed (no E11000 because we match on bucketKey) but upsertedCount
+ *   will be 0, returning { allowed: false }. This is the key fix over the
+ *   previous findOneAndUpdate approach which always returned { allowed: true }
+ *   for any successful operation, including updates of existing documents.
+ *
+ *   We keep the E11000 catch as a defence-in-depth fallback for any edge case
+ *   where two pods submit their upserts at exactly the same millisecond and
+ *   MongoDB's duplicate-key detection fires before one of them can match.
  *
  * SECURITY NOTE: Fails open on non-duplicate DB errors — rate limiting is
  * disabled if MongoDB is unreachable. The unique index on UserModel.email
@@ -309,21 +317,21 @@ const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
     const now = new Date();
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Compute which time bucket we are currently in.
-    // All requests within the same windowMs period share the same bucket number,
-    // so they all produce the same bucketKey and compete for the same unique slot.
-    // Example: windowMs=30000 (30s), requests at t=0 and t=15s share bucket 0,
-    // request at t=31s falls into bucket 1 and is allowed again.
+    // Compute the time bucket. All requests within the same windowMs period
+    // produce the same windowBucket number → same bucketKey → compete for the
+    // same unique slot.
+    // Example: windowMs=30000, t=0 → bucket 0; t=15s → bucket 0 (same slot);
+    // t=31s → bucket 1 (new slot, allowed again).
     const windowBucket = Math.floor(now.getTime() / windowMs);
     const bucketKey = `${normalizedEmail}:${emailType}:${windowBucket}`;
 
     try {
-      // Single atomic upsert: insert the bucket record if it doesn't exist.
-      // $setOnInsert only runs on INSERT (not on update), so if another pod
-      // already claimed this bucket, this operation becomes a no-op update
-      // that still succeeds — but the E11000 catch below handles the true
-      // first-writer-wins case via the unique index on bucketKey.
-      await EmailLog.findOneAndUpdate(
+      // Use updateOne so we get a raw WriteResult we can inspect.
+      // - Filter matches the bucket if it already exists (→ UPDATE path).
+      // - If no match, upsert inserts a new document (→ INSERT path).
+      // $setOnInsert only runs on the INSERT path; $inc runs on both paths
+      // to keep sentCount accurate for observability.
+      const writeResult = await EmailLog.updateOne(
         { bucketKey },
         {
           $setOnInsert: {
@@ -336,21 +344,34 @@ const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
           },
           $inc: { sentCount: 1 },
         },
-        { upsert: true, new: true },
+        { upsert: true },
       );
 
-      // If we reach here without an E11000, we successfully claimed this slot.
-      return { allowed: true, remainingMs: 0 };
+      // upsertedCount === 1 means we performed the INSERT → we are the first
+      // writer for this bucket → allowed.
+      // upsertedCount === 0 means the document already existed and we only
+      // did an UPDATE → another pod (or a prior request in this pod) already
+      // claimed this bucket → rate-limited.
+      if (writeResult.upsertedCount === 1) {
+        return { allowed: true, remainingMs: 0 };
+      }
+
+      // Document existed — compute how long until the next bucket opens.
+      const bucketStartMs = windowBucket * windowMs;
+      const bucketEndMs = bucketStartMs + windowMs;
+      const remainingMs = Math.max(0, bucketEndMs - now.getTime());
+      return { allowed: false, remainingMs };
     } catch (err) {
+      // Defence-in-depth: if two pods hit the upsert at exactly the same
+      // millisecond, MongoDB may fire a duplicate key error before one of
+      // them can match. Treat this as rate-limited.
       if (err.code === 11000) {
-        // Another pod already claimed this time bucket — we are rate-limited.
-        // Calculate how many ms remain until the next bucket opens.
         const bucketStartMs = windowBucket * windowMs;
         const bucketEndMs = bucketStartMs + windowMs;
         const remainingMs = Math.max(0, bucketEndMs - now.getTime());
         return { allowed: false, remainingMs };
       }
-      // Re-throw unexpected errors to be caught by the outer try/catch below.
+      // Re-throw unexpected errors to the outer catch (fail-open handler).
       throw err;
     }
   } catch (err) {
@@ -2426,7 +2447,7 @@ const createUserModule = {
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
       // ── STEP 1: Enhanced input validation ─────────────────────────────────────
-      if (!email || !firstName || !password) {
+      if (!email || typeof email !== "string" || !firstName || !password) {
         return {
           success: false,
           message: "Missing required fields for mobile registration",
@@ -2441,9 +2462,6 @@ const createUserModule = {
       const normalizedEmail = email.toLowerCase().trim();
 
       // ── STEP 2: Distributed flood protection ──────────────────────────────────
-      // dbRateLimiter now uses a time-bucketed unique index (see dbRateLimiter
-      // function) which is atomic across all Kubernetes pods. This replaces the
-      // previous two-step check-then-act which had a TOCTOU race condition.
       const floodCheck = await dbRateLimiter(
         dbTenant,
         normalizedEmail,
@@ -2490,9 +2508,7 @@ const createUserModule = {
           };
         } else {
           // Unverified user exists — attempt to send a reminder but do NOT
-          // surface rate-limiting internals to the end user. Whether the
-          // reminder was sent or was rate-limited (because another pod just
-          // sent one), the user-facing message is the same.
+          // surface rate-limiting internals to the end user.
           let reminderSent = false;
           try {
             const reminderResult =
@@ -2502,7 +2518,6 @@ const createUserModule = {
               );
             reminderSent = !!(reminderResult && reminderResult.success);
           } catch (emailError) {
-            // Log but do not re-throw — reminder failure is non-blocking
             logger.error(
               `Failed to send mobile verification reminder: ${emailError.message}`,
               { email: normalizedEmail, tenant: dbTenant },
@@ -2545,18 +2560,18 @@ const createUserModule = {
           request.headers["user-agent"].substring(0, 200),
       };
 
-      // ── STEP 5: Create user — handle race-condition duplicate explicitly ────────
+      // ── STEP 5: Create user ────────────────────────────────────────────────────
       // Even after passing Steps 2 and 3, a concurrent pod may have created this
-      // user between our findOne and now. We detect the E11000 duplicate key error
-      // and return a safe "already registered" response rather than incorrectly
-      // calling mobileVerificationReminder (which would trigger a rate-limit log).
+      // user between our findOne and now. We detect the E11000 duplicate key
+      // response and return a safe "already registered" response rather than
+      // calling mobileVerificationReminder (which would cause concurrent calls
+      // that trip the rate limiter and produce spurious log entries).
       let newUserResponse;
       try {
         newUserResponse = await UserModel(dbTenant).register(userData, next, {
           sendDuplicateEmail: false,
         });
       } catch (registrationThrow) {
-        // Unexpected throw from register() — not a normal code path
         logger.error(
           `Mobile registration unexpected throw: ${registrationThrow.message}`,
           {
@@ -2572,28 +2587,35 @@ const createUserModule = {
         };
       }
 
-      // ── STEP 5B: Detect race-condition duplicate ───────────────────────────────
+      // ── STEP 5B: Detect race-condition duplicate precisely ─────────────────────
       if (newUserResponse && newUserResponse.success === false) {
+        // Only treat as a duplicate-key race if the error explicitly signals a
+        // uniqueness violation. Do NOT use CONFLICT status alone — UserModel.register()
+        // may return CONFLICT for non-duplicate errors too, and treating those as
+        // success would mask real failures.
+        const hasUniqueConstraintMessage =
+          newUserResponse.errors &&
+          Object.values(newUserResponse.errors).some(
+            (v) => typeof v === "string" && v.includes("must be unique"),
+          );
         const isDuplicateKeyError =
-          newUserResponse.status === httpStatus.CONFLICT ||
-          (newUserResponse.errors &&
-            Object.values(newUserResponse.errors).some(
-              (v) => typeof v === "string" && v.includes("must be unique"),
-            ));
+          newUserResponse.status === httpStatus.CONFLICT &&
+          hasUniqueConstraintMessage;
 
         if (isDuplicateKeyError) {
-          // We lost the creation race to another pod. That pod is already
-          // handling the verification email — do NOT call mobileVerificationReminder
-          // here, as doing so would cause concurrent calls that trip the rate limiter
-          // and produce the spurious "Verification reminder rate-limited (DB)" log.
+          // Lost the creation race — the winning pod is already handling the
+          // verification email. Return a safe response without calling
+          // mobileVerificationReminder.
           logger.info(
             `registerMobileUser: lost creation race for ${normalizedEmail} — returning safe response`,
             { email: normalizedEmail, tenant: dbTenant },
           );
           return {
-            success: true, // From the user's perspective, registration "succeeded"
+            success: true,
             message:
               "Mobile user registered successfully. Please verify your email.",
+            // top-level `user` preserved for backward compatibility with controller
+            user: null,
             data: {
               verificationEmailSent: true,
               nextStep: "Check your email for a 5-digit verification code",
@@ -2661,6 +2683,8 @@ const createUserModule = {
       }
 
       // ── STEP 7: Send verification email ───────────────────────────────────────
+      const userDoc = newUser._doc;
+
       try {
         const emailResult = await mailer.sendVerificationEmail({
           email: normalizedEmail,
@@ -2673,14 +2697,16 @@ const createUserModule = {
             success: true,
             message:
               "Mobile user registered successfully. Please verify your email.",
+            // top-level `user` preserved for backward compatibility with controller
+            user: userDoc,
             data: {
               user: {
-                _id: newUser._doc._id,
-                email: newUser._doc.email,
-                firstName: newUser._doc.firstName,
-                lastName: newUser._doc.lastName,
-                verified: newUser._doc.verified,
-                analyticsVersion: newUser._doc.analyticsVersion,
+                _id: userDoc._id,
+                email: userDoc.email,
+                firstName: userDoc.firstName,
+                lastName: userDoc.lastName,
+                verified: userDoc.verified,
+                analyticsVersion: userDoc.analyticsVersion,
               },
               verificationEmailSent: true,
               nextStep: "Check your email for a 5-digit verification code",
@@ -2698,12 +2724,14 @@ const createUserModule = {
           return {
             success: false,
             message: "User created but verification email failed",
+            // top-level `user` preserved for backward compatibility with controller
+            user: userDoc,
             data: {
               user: {
-                _id: newUser._doc._id,
-                email: newUser._doc.email,
-                firstName: newUser._doc.firstName,
-                lastName: newUser._doc.lastName,
+                _id: userDoc._id,
+                email: userDoc.email,
+                firstName: userDoc.firstName,
+                lastName: userDoc.lastName,
                 verified: false,
               },
               verificationEmailSent: false,
@@ -2722,12 +2750,14 @@ const createUserModule = {
         return {
           success: false,
           message: "User created but email delivery failed",
+          // top-level `user` preserved for backward compatibility with controller
+          user: userDoc,
           data: {
             user: {
-              _id: newUser._doc._id,
-              email: newUser._doc.email,
-              firstName: newUser._doc.firstName,
-              lastName: newUser._doc.lastName,
+              _id: userDoc._id,
+              email: userDoc.email,
+              firstName: userDoc.firstName,
+              lastName: userDoc.lastName,
               verified: false,
             },
             verificationEmailSent: false,
@@ -3793,10 +3823,29 @@ const createUserModule = {
       };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      // ── STEP 1: Distributed flood protection ──────────────────────────────────
+      // ── STEP 1: Email validation before calling dbRateLimiter ─────────────────
+      // Guard against calling email.toLowerCase() on a non-string/empty value.
+      if (!email || typeof email !== "string" || !email.trim()) {
+        return {
+          success: false,
+          message: "Email is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: [
+            {
+              param: "email",
+              message: "A valid email address is required.",
+              location: "body",
+            },
+          ],
+        };
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ── STEP 2: Distributed flood protection ──────────────────────────────────
       const floodCheck = await dbRateLimiter(
         dbTenant,
-        email.toLowerCase(),
+        normalizedEmail,
         "web_registration_attempt",
         RATE_LIMIT_WINDOWS.WEB_REGISTRATION_MS,
       );
@@ -3805,7 +3854,7 @@ const createUserModule = {
         const remainingSecs =
           Math.ceil(floodCheck.remainingMs / 10000) * 10 || 30;
         logger.warn(
-          `Duplicate web registration attempt blocked (DB) for ${email}`,
+          `Duplicate web registration attempt blocked (DB) for ${normalizedEmail}`,
         );
         return {
           success: false,
@@ -3821,13 +3870,15 @@ const createUserModule = {
         };
       }
 
-      // ── STEP 2: Check for existing user ───────────────────────────────────────
+      // ── STEP 3: Check for existing user ───────────────────────────────────────
       const existingUser = await UserModel(dbTenant)
-        .findOne({ email: email.toLowerCase() })
+        .findOne({ email: normalizedEmail })
         .lean();
 
       if (!isEmpty(existingUser)) {
         if (existingUser.verified) {
+          // Preserve loginUrl and forgotPasswordUrl for backward compatibility
+          // with existing API clients. See BACKWARD COMPATIBILITY NOTE above.
           return {
             success: false,
             message:
@@ -3844,11 +3895,13 @@ const createUserModule = {
             data: {
               accountExists: true,
               verified: true,
+              loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
+              forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
             },
           };
         } else {
-          // Unverified user exists — attempt reminder but do NOT surface
-          // rate-limiting internals to the end user.
+          // Unverified user — attempt reminder but do NOT surface rate-limiting
+          // internals to the end user.
           let reminderSent = false;
           try {
             const reminderResult = await createUserModule.verificationReminder(
@@ -3886,11 +3939,11 @@ const createUserModule = {
         }
       }
 
-      // ── STEP 3: Proceed with user creation ────────────────────────────────────
+      // ── STEP 4: Proceed with user creation ────────────────────────────────────
       const userBody = request.body;
       const newRequest = Object.assign(
         {
-          userName: email,
+          userName: normalizedEmail,
           password,
           analyticsVersion: 3,
           ...(userBody.interests && { interests: userBody.interests }),
@@ -3900,6 +3953,8 @@ const createUserModule = {
           ...(userBody.country && { country: userBody.country }),
         },
         userBody,
+        // Override email with normalised version to be safe
+        { email: normalizedEmail },
       );
 
       const responseFromCreateUser = await UserModel(dbTenant).register(
@@ -3917,30 +3972,36 @@ const createUserModule = {
         };
       }
 
-      // ── STEP 3B: Detect race-condition duplicate ───────────────────────────────
-      // Another pod may have created this user between our findOne and now.
+      // ── STEP 4B: Detect race-condition duplicate precisely ─────────────────────
+      // Only treat as a duplicate-key race if the error explicitly signals a
+      // uniqueness violation. Do NOT use CONFLICT status alone.
       if (responseFromCreateUser.success === false) {
+        const errors = responseFromCreateUser.errors;
+        const errorValues = Array.isArray(errors)
+          ? errors.map((e) => (typeof e === "string" ? e : e?.message || ""))
+          : errors && typeof errors === "object"
+            ? Object.values(errors)
+            : [];
+
+        const hasUniqueConstraintMessage = errorValues.some(
+          (v) => typeof v === "string" && v.includes("must be unique"),
+        );
         const isDuplicateKeyError =
-          responseFromCreateUser.status === httpStatus.CONFLICT ||
-          (responseFromCreateUser.errors &&
-            Object.values(responseFromCreateUser.errors).some(
-              (v) => typeof v === "string" && v.includes("must be unique"),
-            ));
+          responseFromCreateUser.status === httpStatus.CONFLICT &&
+          hasUniqueConstraintMessage;
 
         if (isDuplicateKeyError) {
           // Lost the creation race — the winning pod is handling verification.
-          // Return a user-friendly response without calling verificationReminder
-          // (which would produce concurrent reminder calls and rate-limit logs).
           logger.info(
-            `create: lost creation race for ${email} — returning safe response`,
-            { email, tenant: dbTenant },
+            `create: lost creation race for ${normalizedEmail} — returning safe response`,
+            { email: normalizedEmail, tenant: dbTenant },
           );
           return {
             success: true,
             message:
               "Registration successful! Please check your email for verification instructions.",
             data: {
-              email: email.toLowerCase(),
+              email: normalizedEmail,
               verificationEmailSent: true,
             },
             status: httpStatus.OK,
@@ -3999,7 +4060,7 @@ const createUserModule = {
         return responseFromCreateToken;
       }
 
-      // ── STEP 4: Send verification email ───────────────────────────────────────
+      // ── STEP 5: Send verification email ───────────────────────────────────────
       const responseFromSendEmail = await mailer.verifyEmail(
         {
           user_id,
@@ -4082,7 +4143,7 @@ const createUserModule = {
       };
 
       // ── STEP 1: Input validation ───────────────────────────────────────────────
-      if (!email || !firstName || !lastName) {
+      if (!email || typeof email !== "string" || !firstName || !lastName) {
         return {
           success: false,
           message: "Missing required fields",
@@ -4097,10 +4158,11 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ── STEP 2: Distributed flood protection via DB-backed rate limiter ────────
+      // ── STEP 2: Distributed flood protection ──────────────────────────────────
       // Replaces the previous in-memory registrationLocks Map which provided
-      // zero protection across multiple Kubernetes pods. The dbRateLimiter uses
-      // a time-bucketed unique index in MongoDB for true cross-pod atomicity.
+      // zero cross-pod protection in Kubernetes (each pod had its own Map).
+      // dbRateLimiter uses a time-bucketed unique MongoDB index for true
+      // distributed atomicity.
       const floodCheck = await dbRateLimiter(
         tenant,
         normalizedEmail,
@@ -4129,7 +4191,7 @@ const createUserModule = {
         };
       }
 
-      // ── STEP 3: Enhanced duplicate user checking ───────────────────────────────
+      // ── STEP 3: Check for existing user ───────────────────────────────────────
       const existingUser = await UserModel(tenant)
         .findOne({ email: normalizedEmail })
         .lean();
@@ -4267,7 +4329,6 @@ const createUserModule = {
                 loginUrl: `${constants.LOGIN_PAGE}`,
                 tempPassword: "Sent via email",
               },
-              status: responseFromSendEmail.status || httpStatus.OK,
             };
           } else {
             logger.error("Admin registration email failed", {
@@ -4297,7 +4358,6 @@ const createUserModule = {
               email: normalizedEmail,
               userId: createdUser._doc && createdUser._doc._id,
               tenant,
-              error: emailError.message,
             },
           );
           return {
@@ -4320,12 +4380,10 @@ const createUserModule = {
           email: normalizedEmail,
           tenant,
           error: responseFromCreateUser.message,
-          errors: responseFromCreateUser.errors,
         });
         return responseFromCreateUser;
       }
 
-      // Fallback for unexpected null/undefined response
       return {
         success: false,
         message: "Failed to create user — unexpected response from database",
@@ -4337,7 +4395,6 @@ const createUserModule = {
         email: request.body && request.body.email,
         tenant: request.query && request.query.tenant,
         requestedBy: (request.user && request.user.email) || "unknown",
-        stack: error.stack,
       });
 
       return {
