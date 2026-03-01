@@ -113,6 +113,27 @@ const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
   }
 };
 
+/**
+ * Filters the metadata returned by generateMetadata down to only the fields
+ * that are currently absent (missing, null, or empty string) on the site
+ * document. Fields that already have a value are intentionally skipped.
+ *
+ * This prevents the backfill job from overwriting fields like search_name,
+ * location_name, and formatted_name that may have been carefully renamed by
+ * check-duplicate-site-fields-job or update-duplicate-site-fields-job to
+ * resolve uniqueness conflicts.
+ */
+const buildMissingFieldsUpdate = (site, metadataFields) => {
+  return Object.fromEntries(
+    Object.entries(metadataFields).filter(([key, value]) => {
+      if (value === undefined) return false;
+      const existing = site[key];
+      // Only include if the field is missing, null, or empty string on the site
+      return existing === undefined || existing === null || existing === "";
+    }),
+  );
+};
+
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
 
@@ -151,7 +172,14 @@ const backfillSiteMetadata = async (tenant) => {
           ...(attemptedIds.length > 0 && { _id: { $nin: attemptedIds } }),
         })
         .limit(BATCH_SIZE)
-        .select("_id latitude longitude name network")
+        // Include all metadata fields in the projection so
+        // buildMissingFieldsUpdate can check which ones are already set.
+        .select(
+          "_id latitude longitude name network country district city region " +
+            "town village parish county sub_county division street formatted_name " +
+            "geometry google_place_id location_name search_name altitude " +
+            "data_provider site_tags",
+        )
         .lean();
 
       if (sitesToUpdate.length === 0) {
@@ -213,32 +241,44 @@ const backfillSiteMetadata = async (tenant) => {
               site_tags,
             } = metadataResponse.data;
 
-            const metadataFields = Object.fromEntries(
-              Object.entries({
-                country,
-                district,
-                city,
-                region,
-                town,
-                village,
-                parish,
-                county,
-                sub_county,
-                division,
-                street,
-                formatted_name,
-                geometry,
-                google_place_id,
-                location_name,
-                search_name,
-                altitude,
-                data_provider,
-                site_tags,
-              }).filter(([, v]) => v !== undefined),
+            const allMetadataFields = {
+              country,
+              district,
+              city,
+              region,
+              town,
+              village,
+              parish,
+              county,
+              sub_county,
+              division,
+              street,
+              formatted_name,
+              geometry,
+              google_place_id,
+              location_name,
+              search_name,
+              altitude,
+              data_provider,
+              site_tags,
+            };
+
+            // Only write fields that are currently missing on this site.
+            // This prevents overwriting search_name, location_name, or
+            // formatted_name that update-duplicate-site-fields-job has
+            // already carefully renamed to resolve uniqueness conflicts.
+            const missingFields = buildMissingFieldsUpdate(
+              site,
+              allMetadataFields,
             );
 
+            if (Object.keys(missingFields).length === 0) {
+              // All metadata fields already populated — nothing to write
+              return { success: true };
+            }
+
             await SiteModel(tenant).findByIdAndUpdate(site._id, {
-              $set: metadataFields,
+              $set: missingFields,
             });
             return { success: true };
           } else {
