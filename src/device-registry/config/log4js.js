@@ -53,7 +53,11 @@ if (isDevelopment()) {
       },
     },
     categories: {
-      default: { appenders: [], level: "info" },
+      // "app" is always present so INFO and WARN logs are written to file
+      // regardless of whether the Slack appender is configured. Previously
+      // default only received slackErrors (filtered at ERROR), meaning all
+      // INFO and WARN logs were silently discarded.
+      default: { appenders: ["app"], level: "info" },
       error: { appenders: ["errors"], level: "error" },
       http: { appenders: ["access"], level: "DEBUG" },
       "api-usage-logger": { appenders: [], level: "info" },
@@ -62,7 +66,6 @@ if (isDevelopment()) {
 
   if (hasSlackConfig) {
     try {
-      // Renamed from "alerts" to "slack" to match auth-service naming convention.
       config.appenders.slack = {
         type: "@log4js-node/slack",
         token: constants.SLACK_TOKEN,
@@ -70,8 +73,9 @@ if (isDevelopment()) {
         username: constants.SLACK_USERNAME,
       };
 
-      // logLevelFilter wrapping "slack" (updated from "alerts") so only
-      // ERROR and above is forwarded to Slack.
+      // logLevelFilter wrapping "slack" so only ERROR and above is
+      // forwarded to Slack. INFO and WARN continue to write to "app"
+      // file appender which is always present in the default category.
       config.appenders.slackErrors = {
         type: "logLevelFilter",
         level: "ERROR",

@@ -53,19 +53,17 @@ if (isDevelopment()) {
       },
     },
     categories: {
-      default: { appenders: [], level: "info" },
+      // "app" is always present so INFO and WARN logs are written to file
+      // regardless of whether the Slack appender is configured. Previously
+      // default only received slackErrors (filtered at ERROR), meaning all
+      // INFO and WARN logs were silently discarded.
+      default: { appenders: ["app"], level: "info" },
       error: { appenders: ["errors"], level: "error" },
       http: { appenders: ["access"], level: "DEBUG" },
       "api-usage-logger": { appenders: [], level: "info" },
     },
   };
 
-  // Only add Slack appender if configuration is complete.
-  // The slack appender and its logLevelFilter wrapper (slackErrors) are
-  // both defined here so the filter never references a non-existent appender
-  // — previously slackAlerts was defined in the base config before the slack
-  // appender existed, risking a log4js initialisation error when hasSlackConfig
-  // was false.
   if (hasSlackConfig) {
     try {
       config.appenders.slack = {
@@ -75,20 +73,15 @@ if (isDevelopment()) {
         username: constants.SLACK_USERNAME,
       };
 
-      // Wrap the Slack appender in a logLevelFilter so only ERROR and above
-      // is forwarded to Slack. Previously the filter level was WARN, meaning
-      // logger.warn calls also triggered Slack notifications. Alerts should
-      // only fire for genuine errors that need immediate attention.
+      // logLevelFilter wrapping "slack" so only ERROR and above is
+      // forwarded to Slack. INFO and WARN continue to write to "app"
+      // file appender which is always present in the default category.
       config.appenders.slackErrors = {
         type: "logLevelFilter",
         level: "ERROR",
         appender: "slack",
       };
 
-      // Attach the filtered Slack appender to both default and error categories
-      // so all loggers regardless of their category name send errors to Slack.
-      // Previously only default had the Slack appender, meaning loggers using
-      // the error category would write to file but never alert Slack.
       config.categories.default.appenders.push("slackErrors");
       config.categories.error.appenders.push("slackErrors");
 

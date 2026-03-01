@@ -919,19 +919,24 @@ const createSite = {
         if (responseFromGetAltitude.success === true) {
           altitudeResponseData["altitude"] = responseFromGetAltitude.data;
         } else if (responseFromGetAltitude.success === false) {
-          let errors = responseFromGetAltitude.errors
-            ? responseFromGetAltitude.errors
-            : { message: "" };
           try {
-            // Downgraded from logger.error to logger.warn — altitude failure
-            // is non-fatal. The site continues to be enriched with all other
-            // metadata from reverseGeoCode. Logging as error was flooding Slack
-            // with one alert per site per batch when GOOGLE_MAPS_API_KEY is
-            // misconfigured, making it impossible to spot genuine errors.
+            // Log only curated, safe fields — avoid stringifying
+            // responseFromGetAltitude.errors directly since errors.message
+            // is the raw Axios error object which contains e.config and
+            // request headers, potentially leaking GOOGLE_MAPS_API_KEY.
+            const rawError = responseFromGetAltitude.errors?.message;
+            const safeError = {
+              code: rawError?.code,
+              message: rawError?.message,
+              responseStatus: rawError?.response?.status,
+              responseData:
+                rawError?.response?.data?.error_message ||
+                rawError?.response?.data,
+            };
             logger.warn(
               `unable to retrieve the altitude for this site, ${
                 responseFromGetAltitude.message
-              } and ${JSON.stringify(errors)}`,
+              } — ${JSON.stringify(safeError)}`,
             );
           } catch (error) {
             logger.warn(`getAltitude internal error ${error.message}`);
