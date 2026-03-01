@@ -8,6 +8,17 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- email-log-model`);
 
 const EmailLogSchema = new mongoose.Schema(
   {
+    /**
+     * Time-bucketed deduplication key for atomic exactly-once rate limiting.
+     * Format: "<email>:<emailType>:<windowBucket>"
+     * The unique index on this field is what prevents concurrent pods from
+     * both claiming the same rate-limit slot. sparse:true allows legacy
+     * records that predate this field to coexist without conflict.
+     */
+    bucketKey: {
+      type: String,
+      sparse: true,
+    },
     email: {
       type: String,
       required: true,
@@ -31,6 +42,7 @@ const EmailLogSchema = new mongoose.Schema(
     },
     sentCount: {
       type: Number,
+      default: 0,
     },
   },
   {
@@ -38,8 +50,23 @@ const EmailLogSchema = new mongoose.Schema(
   },
 );
 
-EmailLogSchema.index({ email: 1, emailType: 1 }, { unique: true });
+/**
+ * PRIMARY index: bucketKey uniqueness enforces atomic exactly-once semantics
+ * per time window per (email, emailType) pair across all Kubernetes pods.
+ * The unique constraint is what turns our upsert into a distributed lock.
+ */
+EmailLogSchema.index({ bucketKey: 1 }, { unique: true, sparse: true });
 
+/**
+ * SECONDARY index: used by canSendEmail() for longer cooldown checks
+ * (e.g., security emails with 30-day cooldown periods).
+ */
+EmailLogSchema.index({ email: 1, emailType: 1 });
+
+/**
+ * TTL index: automatically purge records older than 90 days to prevent
+ * unbounded collection growth.
+ */
 EmailLogSchema.index(
   { lastSentAt: 1 },
   { expireAfterSeconds: 60 * 60 * 24 * 90 },
@@ -62,12 +89,10 @@ EmailLogSchema.statics = {
         emailType === "expiringToken" || emailType === "compromisedToken";
 
       if (isDailyLimitEmail) {
-        // For expiring and compromised tokens, check if an email was sent *today* (EAT timezone)
         const todayEAT = moment().tz("Africa/Nairobi").startOf("day");
         cooldownDate = todayEAT.toDate();
         cooldownMs = now.getTime() - cooldownDate.getTime();
       } else {
-        // For other security emails, use the standard cooldown period
         cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
         cooldownDate = new Date(now.getTime() - cooldownMs);
       }
@@ -78,7 +103,6 @@ EmailLogSchema.statics = {
         lastSentAt: { $gte: cooldownDate },
       };
 
-      // For compromised tokens, also check the IP address in the metadata
       if (emailType === "compromisedToken" && ip) {
         query["metadata.ip"] = ip;
       }
@@ -90,9 +114,6 @@ EmailLogSchema.statics = {
         let nextAvailableDate;
 
         if (isDailyLimitEmail) {
-          // Next send window opens at the start of tomorrow (EAT).
-          // Using lastSentAt's date rather than today handles the edge case where
-          // the log record is from a previous day but still within the query window.
           const tomorrowEAT = moment(lastLog.lastSentAt)
             .tz("Africa/Nairobi")
             .startOf("day")

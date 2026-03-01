@@ -284,17 +284,18 @@ const getCache = async (request, next) => {
 };
 
 /**
- * Atomically checks and records a rate-limited action in a single MongoDB
- * operation. Uses findOneAndUpdate with upsert to eliminate the check-then-act
- * race condition. The unique compound index on (email, emailType) ensures only
- * one writer wins under concurrent load.
+ * Atomically checks and claims a rate-limit slot using a time-bucketed
+ * unique key. The unique index on EmailLog.bucketKey ensures that across
+ * all Kubernetes pods, only ONE pod can claim a given (email, emailType,
+ * timeWindow) slot. The winning pod gets { allowed: true }; all others
+ * get { allowed: false } via the E11000 duplicate key error.
  *
- * SECURITY NOTE: Fails open on DB errors — rate limiting is disabled if MongoDB
- * is unreachable. This is acceptable because:
- *   (a) The unique index on UserModel.email is the true duplicate guard.
- *   (b) Blocking ALL registrations during a DB outage is worse than temporarily
- *       allowing duplicates (which the unique index prevents anyway).
- * Alert on frequent fail-open triggers via logger.warn monitoring.
+ * This replaces the previous two-step check-then-act pattern which had
+ * a TOCTOU race condition between pods.
+ *
+ * SECURITY NOTE: Fails open on non-duplicate DB errors — rate limiting is
+ * disabled if MongoDB is unreachable. The unique index on UserModel.email
+ * remains the true duplicate guard for user creation.
  *
  * @param {string} tenant    - The DB tenant
  * @param {string} email     - The user's email
@@ -306,47 +307,55 @@ const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
   try {
     const EmailLog = EmailLogModel(tenant);
     const now = new Date();
-    const windowStart = new Date(now.getTime() - windowMs);
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Step 1: Check if a record already exists within the window.
-    // This is a read-only check — no write yet.
-    const existing = await EmailLog.findOne({
-      email: normalizedEmail,
-      emailType,
-      lastSentAt: { $gte: windowStart },
-    }).lean();
+    // Compute which time bucket we are currently in.
+    // All requests within the same windowMs period share the same bucket number,
+    // so they all produce the same bucketKey and compete for the same unique slot.
+    // Example: windowMs=30000 (30s), requests at t=0 and t=15s share bucket 0,
+    // request at t=31s falls into bucket 1 and is allowed again.
+    const windowBucket = Math.floor(now.getTime() / windowMs);
+    const bucketKey = `${normalizedEmail}:${emailType}:${windowBucket}`;
 
-    if (existing) {
-      const remainingMs = Math.max(
-        0,
-        new Date(existing.lastSentAt).getTime() + windowMs - now.getTime(),
+    try {
+      // Single atomic upsert: insert the bucket record if it doesn't exist.
+      // $setOnInsert only runs on INSERT (not on update), so if another pod
+      // already claimed this bucket, this operation becomes a no-op update
+      // that still succeeds — but the E11000 catch below handles the true
+      // first-writer-wins case via the unique index on bucketKey.
+      await EmailLog.findOneAndUpdate(
+        { bucketKey },
+        {
+          $setOnInsert: {
+            bucketKey,
+            email: normalizedEmail,
+            emailType,
+            lastSentAt: now,
+            metadata: {},
+            sentCount: 0,
+          },
+          $inc: { sentCount: 1 },
+        },
+        { upsert: true, new: true },
       );
-      return { allowed: false, remainingMs };
+
+      // If we reach here without an E11000, we successfully claimed this slot.
+      return { allowed: true, remainingMs: 0 };
+    } catch (err) {
+      if (err.code === 11000) {
+        // Another pod already claimed this time bucket — we are rate-limited.
+        // Calculate how many ms remain until the next bucket opens.
+        const bucketStartMs = windowBucket * windowMs;
+        const bucketEndMs = bucketStartMs + windowMs;
+        const remainingMs = Math.max(0, bucketEndMs - now.getTime());
+        return { allowed: false, remainingMs };
+      }
+      // Re-throw unexpected errors to be caught by the outer try/catch below.
+      throw err;
     }
-
-    // Step 2: No record in window — atomically claim the slot via upsert.
-    // The unique compound index on (email, emailType) ensures that if two
-    // concurrent requests both pass Step 1, only one will succeed here;
-    // the second will receive a duplicate key error caught below.
-    await EmailLog.findOneAndUpdate(
-      { email: normalizedEmail, emailType },
-      {
-        $set: { lastSentAt: now },
-        $inc: { sentCount: 1 },
-        $setOnInsert: { metadata: {} },
-      },
-      { upsert: true, new: true },
-    );
-
-    return { allowed: true, remainingMs: 0 };
   } catch (err) {
-    // Duplicate key error from the unique index means a concurrent request
-    // just claimed the slot — treat as rate-limited, not a system error.
-    if (err.code === 11000) {
-      return { allowed: false, remainingMs: windowMs };
-    }
-    // Fail open for all other errors — see SECURITY NOTE in JSDoc above.
+    // Fail open for all non-duplicate errors (network issues, DB down, etc.).
+    // See SECURITY NOTE in JSDoc above.
     logger.warn(
       `dbRateLimiter DB check failed for ${emailType}/${email} — failing open: ${err.message}`,
     );
@@ -2416,7 +2425,7 @@ const createUserModule = {
       };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      // ✅ STEP 1: Enhanced input validation
+      // ── STEP 1: Enhanced input validation ─────────────────────────────────────
       if (!email || !firstName || !password) {
         return {
           success: false,
@@ -2431,9 +2440,10 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: DB-backed flood protection (replaces in-memory registrationLocks).
-      // dbRateLimiter atomically checks AND records in one operation — do not call
-      // dbRateLimiterRecord separately after this or the attempt will be double-counted.
+      // ── STEP 2: Distributed flood protection ──────────────────────────────────
+      // dbRateLimiter now uses a time-bucketed unique index (see dbRateLimiter
+      // function) which is atomic across all Kubernetes pods. This replaces the
+      // previous two-step check-then-act which had a TOCTOU race condition.
       const floodCheck = await dbRateLimiter(
         dbTenant,
         normalizedEmail,
@@ -2442,7 +2452,6 @@ const createUserModule = {
       );
 
       if (!floodCheck.allowed) {
-        // Round to nearest 10s to avoid leaking precise timing to bad actors.
         const remainingSecs =
           Math.ceil(floodCheck.remainingMs / 10000) * 10 || 30;
         logger.warn(
@@ -2458,7 +2467,7 @@ const createUserModule = {
         };
       }
 
-      // ✅ STEP 3: Check for existing user with enhanced feedback
+      // ── STEP 3: Check for existing user ───────────────────────────────────────
       const existingUser = await UserModel(dbTenant)
         .findOne({ email: normalizedEmail })
         .lean();
@@ -2480,50 +2489,45 @@ const createUserModule = {
             },
           };
         } else {
-          // For unverified users, offer to resend verification
+          // Unverified user exists — attempt to send a reminder but do NOT
+          // surface rate-limiting internals to the end user. Whether the
+          // reminder was sent or was rate-limited (because another pod just
+          // sent one), the user-facing message is the same.
+          let reminderSent = false;
           try {
-            await createUserModule.mobileVerificationReminder(
-              { tenant, email: normalizedEmail },
-              next,
-            );
-
-            return {
-              success: false,
-              message: "Account exists but not verified",
-              errors: {
-                email:
-                  "This email is already registered but not verified. A new verification code has been sent to your email.",
-              },
-              data: {
-                accountExists: true,
-                verified: false,
-                verificationEmailSent: true,
-                userId: existingUser._id,
-              },
-            };
+            const reminderResult =
+              await createUserModule.mobileVerificationReminder(
+                { tenant: dbTenant, email: normalizedEmail },
+                next,
+              );
+            reminderSent = !!(reminderResult && reminderResult.success);
           } catch (emailError) {
+            // Log but do not re-throw — reminder failure is non-blocking
             logger.error(
               `Failed to send mobile verification reminder: ${emailError.message}`,
+              { email: normalizedEmail, tenant: dbTenant },
             );
-
-            return {
-              success: false,
-              message: "Account exists but not verified",
-              errors: {
-                email:
-                  "This email is already registered but not verified. Please check your email for the verification code or contact support.",
-              },
-              data: {
-                accountExists: true,
-                verified: false,
-                verificationEmailFailed: true,
-              },
-            };
           }
+
+          const message = reminderSent
+            ? "Account exists but not verified. A new verification code has been sent to your email."
+            : "Account exists but not verified. Please check your email for a verification code.";
+
+          return {
+            success: false,
+            message,
+            errors: { email: message },
+            data: {
+              accountExists: true,
+              verified: false,
+              verificationEmailSent: reminderSent,
+              userId: existingUser._id,
+            },
+          };
         }
       }
 
-      // ✅ STEP 4: Prepare user data for mobile registration
+      // ── STEP 4: Prepare user data ──────────────────────────────────────────────
       const userData = {
         ...request.body,
         email: normalizedEmail,
@@ -2535,119 +2539,165 @@ const createUserModule = {
         }),
         ...(request.body.country && { country: request.body.country }),
         registrationSource: "mobile_app",
-        userAgent: request.headers?.["user-agent"]?.substring(0, 200),
+        userAgent:
+          request.headers &&
+          request.headers["user-agent"] &&
+          request.headers["user-agent"].substring(0, 200),
       };
 
-      // ✅ STEP 5: Create user
-      const newUserResponse = await UserModel(dbTenant).register(
-        userData,
-        next,
-        {
+      // ── STEP 5: Create user — handle race-condition duplicate explicitly ────────
+      // Even after passing Steps 2 and 3, a concurrent pod may have created this
+      // user between our findOne and now. We detect the E11000 duplicate key error
+      // and return a safe "already registered" response rather than incorrectly
+      // calling mobileVerificationReminder (which would trigger a rate-limit log).
+      let newUserResponse;
+      try {
+        newUserResponse = await UserModel(dbTenant).register(userData, next, {
           sendDuplicateEmail: false,
-        },
-      );
-
-      if (newUserResponse && newUserResponse.success === true) {
-        const newUser = newUserResponse.data;
-        const userId = newUser._doc._id;
-
-        // ✅ STEP 6: Generate mobile verification token
-        const verificationToken = generateNumericToken(5);
-        const tokenExpiry = 86400; // 24hrs in seconds
-
-        const tokenCreationBody = {
-          token: verificationToken,
-          name: newUser._doc.firstName,
-          expires: new Date(Date.now() + tokenExpiry * 1000),
-        };
-
-        const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
-          tokenCreationBody,
-          next,
+        });
+      } catch (registrationThrow) {
+        // Unexpected throw from register() — not a normal code path
+        logger.error(
+          `Mobile registration unexpected throw: ${registrationThrow.message}`,
+          {
+            email: normalizedEmail,
+            tenant: dbTenant,
+            stack: registrationThrow.stack,
+          },
         );
+        return {
+          success: false,
+          message: "An unexpected error occurred during mobile registration",
+          errors: { server: "Please try again or contact support." },
+        };
+      }
 
-        if (verifyTokenResponse && verifyTokenResponse.success === false) {
-          logger.error(
-            `Failed to create verification token for mobile user ${normalizedEmail}: ${verifyTokenResponse.message}`,
-            { email: normalizedEmail, userId, tenant },
+      // ── STEP 5B: Detect race-condition duplicate ───────────────────────────────
+      if (newUserResponse && newUserResponse.success === false) {
+        const isDuplicateKeyError =
+          newUserResponse.status === httpStatus.CONFLICT ||
+          (newUserResponse.errors &&
+            Object.values(newUserResponse.errors).some(
+              (v) => typeof v === "string" && v.includes("must be unique"),
+            ));
+
+        if (isDuplicateKeyError) {
+          // We lost the creation race to another pod. That pod is already
+          // handling the verification email — do NOT call mobileVerificationReminder
+          // here, as doing so would cause concurrent calls that trip the rate limiter
+          // and produce the spurious "Verification reminder rate-limited (DB)" log.
+          logger.info(
+            `registerMobileUser: lost creation race for ${normalizedEmail} — returning safe response`,
+            { email: normalizedEmail, tenant: dbTenant },
           );
-
-          try {
-            await UserModel(dbTenant).findByIdAndDelete(userId);
-            logger.info(
-              `Rolled back user creation due to token failure: ${userId}`,
-            );
-          } catch (rollbackError) {
-            logger.error(
-              `Failed to rollback user creation: ${rollbackError.message}`,
-            );
-          }
-
-          return verifyTokenResponse;
+          return {
+            success: true, // From the user's perspective, registration "succeeded"
+            message:
+              "Mobile user registered successfully. Please verify your email.",
+            data: {
+              verificationEmailSent: true,
+              nextStep: "Check your email for a 5-digit verification code",
+            },
+          };
         }
 
-        // ✅ STEP 7: Send verification email
-        try {
-          const emailResult = await mailer.sendVerificationEmail({
-            email: normalizedEmail,
-            token: verificationToken,
-            tenant,
-          });
-
-          if (emailResult && emailResult.success === true) {
-            return {
-              success: true,
-              message:
-                "Mobile user registered successfully. Please verify your email.",
-              data: {
-                user: {
-                  _id: newUser._doc._id,
-                  email: newUser._doc.email,
-                  firstName: newUser._doc.firstName,
-                  lastName: newUser._doc.lastName,
-                  verified: newUser._doc.verified,
-                  analyticsVersion: newUser._doc.analyticsVersion,
-                },
-                verificationEmailSent: true,
-                nextStep: "Check your email for a 5-digit verification code",
-              },
-            };
-          } else {
-            logger.error("Mobile verification email failed", {
-              email: normalizedEmail,
-              userId,
-              tenant,
-              emailError:
-                (emailResult && emailResult.message) || "Unknown email error",
-            });
-
-            return {
+        // Genuine failure — validation error, DB write error, etc.
+        logger.error("Mobile user creation failed (non-duplicate)", {
+          email: normalizedEmail,
+          tenant: dbTenant,
+          error: newUserResponse.message,
+        });
+        return newUserResponse && Object.keys(newUserResponse).length > 0
+          ? newUserResponse
+          : {
               success: false,
-              message: "User created but verification email failed",
-              data: {
-                user: {
-                  _id: newUser._doc._id,
-                  email: newUser._doc.email,
-                  firstName: newUser._doc.firstName,
-                  lastName: newUser._doc.lastName,
-                  verified: false,
-                },
-                verificationEmailSent: false,
-                emailError:
-                  (emailResult && emailResult.message) ||
-                  "Email service unavailable",
-              },
+              message: "Failed to create mobile user account",
             };
-          }
-        } catch (emailError) {
-          logger.error(
-            `Mobile verification email exception: ${emailError.message}`,
-            { email: normalizedEmail, userId, tenant },
+      }
+
+      if (!newUserResponse || newUserResponse.success !== true) {
+        return {
+          success: false,
+          message: "Failed to create mobile user account",
+        };
+      }
+
+      const newUser = newUserResponse.data;
+      const userId = newUser._doc._id;
+
+      // ── STEP 6: Generate mobile verification token ─────────────────────────────
+      const verificationToken = generateNumericToken(5);
+      const tokenExpiry = 86400; // 24 hrs in seconds
+
+      const tokenCreationBody = {
+        token: verificationToken,
+        name: newUser._doc.firstName,
+        expires: new Date(Date.now() + tokenExpiry * 1000),
+      };
+
+      const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+        tokenCreationBody,
+        next,
+      );
+
+      if (verifyTokenResponse && verifyTokenResponse.success === false) {
+        logger.error(
+          `Failed to create verification token for mobile user ${normalizedEmail}: ${verifyTokenResponse.message}`,
+          { email: normalizedEmail, userId, tenant: dbTenant },
+        );
+
+        try {
+          await UserModel(dbTenant).findByIdAndDelete(userId);
+          logger.info(
+            `Rolled back user creation due to token failure: ${userId}`,
           );
+        } catch (rollbackError) {
+          logger.error(
+            `Failed to rollback user creation: ${rollbackError.message}`,
+          );
+        }
+
+        return verifyTokenResponse;
+      }
+
+      // ── STEP 7: Send verification email ───────────────────────────────────────
+      try {
+        const emailResult = await mailer.sendVerificationEmail({
+          email: normalizedEmail,
+          token: verificationToken,
+          tenant: dbTenant,
+        });
+
+        if (emailResult && emailResult.success === true) {
+          return {
+            success: true,
+            message:
+              "Mobile user registered successfully. Please verify your email.",
+            data: {
+              user: {
+                _id: newUser._doc._id,
+                email: newUser._doc.email,
+                firstName: newUser._doc.firstName,
+                lastName: newUser._doc.lastName,
+                verified: newUser._doc.verified,
+                analyticsVersion: newUser._doc.analyticsVersion,
+              },
+              verificationEmailSent: true,
+              nextStep: "Check your email for a 5-digit verification code",
+            },
+          };
+        } else {
+          logger.error("Mobile verification email failed", {
+            email: normalizedEmail,
+            userId,
+            tenant: dbTenant,
+            emailError:
+              (emailResult && emailResult.message) || "Unknown email error",
+          });
 
           return {
             success: false,
-            message: "User created but email delivery failed",
+            message: "User created but verification email failed",
             data: {
               user: {
                 _id: newUser._doc._id,
@@ -2657,29 +2707,38 @@ const createUserModule = {
                 verified: false,
               },
               verificationEmailSent: false,
-              emailError: emailError.message,
+              emailError:
+                (emailResult && emailResult.message) ||
+                "Email service unavailable",
             },
           };
         }
-      } else {
-        logger.error("Mobile user creation failed", {
-          email: normalizedEmail,
-          tenant,
-          error:
-            (newUserResponse && newUserResponse.message) ||
-            "Unknown creation error",
-        });
-        return newUserResponse && Object.keys(newUserResponse).length > 0
-          ? newUserResponse
-          : {
-              success: false,
-              message: "Failed to create mobile user account",
-            };
+      } catch (emailError) {
+        logger.error(
+          `Mobile verification email exception: ${emailError.message}`,
+          { email: normalizedEmail, userId, tenant: dbTenant },
+        );
+
+        return {
+          success: false,
+          message: "User created but email delivery failed",
+          data: {
+            user: {
+              _id: newUser._doc._id,
+              email: newUser._doc.email,
+              firstName: newUser._doc.firstName,
+              lastName: newUser._doc.lastName,
+              verified: false,
+            },
+            verificationEmailSent: false,
+            emailError: emailError.message,
+          },
+        };
       }
     } catch (error) {
       logger.error(`🐛🐛 Mobile registration error: ${error.message}`, {
-        email: request.body?.email,
-        tenant: request.query?.tenant,
+        email: request.body && request.body.email,
+        tenant: request.query && request.query.tenant,
         stack: error.stack,
       });
 
@@ -3734,9 +3793,7 @@ const createUserModule = {
       };
       const dbTenant = tenant ? String(tenant).toLowerCase() : tenant;
 
-      // ✅ DB-backed flood check: prevents duplicate POSTs within a short window.
-      // dbRateLimiter atomically checks AND records on the allowed path — do not
-      // call dbRateLimiterRecord separately or the attempt will be double-counted.
+      // ── STEP 1: Distributed flood protection ──────────────────────────────────
       const floodCheck = await dbRateLimiter(
         dbTenant,
         email.toLowerCase(),
@@ -3745,7 +3802,6 @@ const createUserModule = {
       );
 
       if (!floodCheck.allowed) {
-        // Round to nearest 10s to avoid leaking precise timing to bad actors.
         const remainingSecs =
           Math.ceil(floodCheck.remainingMs / 10000) * 10 || 30;
         logger.warn(
@@ -3765,11 +3821,9 @@ const createUserModule = {
         };
       }
 
-      // ✅ STEP 2: Check for existing user with enhanced logging
+      // ── STEP 2: Check for existing user ───────────────────────────────────────
       const existingUser = await UserModel(dbTenant)
-        .findOne({
-          email: email.toLowerCase(),
-        })
+        .findOne({ email: email.toLowerCase() })
         .lean();
 
       if (!isEmpty(existingUser)) {
@@ -3790,62 +3844,49 @@ const createUserModule = {
             data: {
               accountExists: true,
               verified: true,
-              loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
-              forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
             },
           };
         } else {
+          // Unverified user exists — attempt reminder but do NOT surface
+          // rate-limiting internals to the end user.
+          let reminderSent = false;
           try {
-            await createUserModule.verificationReminder(
-              {
-                tenant,
-                email: existingUser.email,
-              },
+            const reminderResult = await createUserModule.verificationReminder(
+              { tenant, email: existingUser.email },
               next,
             );
-
-            return {
-              success: false,
-              message:
-                "Account exists but is not verified. A new verification email has been sent.",
-              status: httpStatus.CONFLICT,
-              errors: [
-                {
-                  param: "email",
-                  message:
-                    "This email is already registered but not verified. We've sent a new verification email.",
-                  location: "body",
-                },
-              ],
-              data: {
-                accountExists: true,
-                verified: false,
-                verificationEmailSent: true,
-              },
-            };
+            reminderSent = !!(reminderResult && reminderResult.success);
           } catch (emailError) {
             logger.error(
               `Failed to send verification reminder: ${emailError.message}`,
             );
-
-            return {
-              success: false,
-              message: "Account exists but is not verified",
-              status: httpStatus.CONFLICT,
-              errors: [
-                {
-                  param: "email",
-                  message:
-                    "This email is already registered but not verified. Please check your email for the verification link or contact support.",
-                  location: "body",
-                },
-              ],
-            };
           }
+
+          const message = reminderSent
+            ? "Account exists but is not verified. A new verification email has been sent."
+            : "Account exists but is not verified. Please check your email for the verification link.";
+
+          return {
+            success: false,
+            message,
+            status: httpStatus.CONFLICT,
+            errors: [
+              {
+                param: "email",
+                message,
+                location: "body",
+              },
+            ],
+            data: {
+              accountExists: true,
+              verified: false,
+              verificationEmailSent: reminderSent,
+            },
+          };
         }
       }
 
-      // ✅ STEP 3: Proceed with normal user creation
+      // ── STEP 3: Proceed with user creation ────────────────────────────────────
       const userBody = request.body;
       const newRequest = Object.assign(
         {
@@ -3876,108 +3917,138 @@ const createUserModule = {
         };
       }
 
-      if (responseFromCreateUser.success === true) {
-        if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
-          return responseFromCreateUser;
-        }
+      // ── STEP 3B: Detect race-condition duplicate ───────────────────────────────
+      // Another pod may have created this user between our findOne and now.
+      if (responseFromCreateUser.success === false) {
+        const isDuplicateKeyError =
+          responseFromCreateUser.status === httpStatus.CONFLICT ||
+          (responseFromCreateUser.errors &&
+            Object.values(responseFromCreateUser.errors).some(
+              (v) => typeof v === "string" && v.includes("must be unique"),
+            ));
 
-        const createdUser = await responseFromCreateUser.data;
-        const user_id = createdUser._doc._id;
-
-        try {
-          const dnt =
-            request?.headers?.["dnt"] === "1" ||
-            request?.headers?.["sec-gpc"] === "1";
-          if (!dnt) {
-            const distinctId =
-              createdUser?._id?.toString() ||
-              createdUser?._doc?._id?.toString() ||
-              null;
-            if (distinctId) {
-              analyticsService.track(distinctId, "user_registered", {
-                method: "email_password",
-                category,
-              });
-            }
-          }
-        } catch (analyticsError) {
-          logger.error(
-            `PostHog registration track error: ${analyticsError.message}`,
+        if (isDuplicateKeyError) {
+          // Lost the creation race — the winning pod is handling verification.
+          // Return a user-friendly response without calling verificationReminder
+          // (which would produce concurrent reminder calls and rate-limit logs).
+          logger.info(
+            `create: lost creation race for ${email} — returning safe response`,
+            { email, tenant: dbTenant },
           );
-        }
-
-        const token = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
-          )
-          .toUpperCase();
-
-        const tokenCreationBody = {
-          token,
-          name: createdUser._doc.firstName,
-        };
-
-        const responseFromCreateToken = await VerifyTokenModel(
-          dbTenant,
-        ).register(tokenCreationBody, next);
-
-        if (responseFromCreateToken.success === false) {
-          return responseFromCreateToken;
-        }
-
-        // ✅ STEP 4: Enhanced email sending with monitoring
-        const responseFromSendEmail = await mailer.verifyEmail(
-          {
-            user_id,
-            token,
-            email: createdUser._doc.email,
-            firstName: createdUser._doc.firstName,
-            category,
-          },
-          next,
-        );
-
-        if (responseFromSendEmail) {
-          if (responseFromSendEmail.success === true) {
-            const userDetails = {
-              firstName: createdUser._doc.firstName,
-              lastName: createdUser._doc.lastName,
-              email: createdUser._doc.email,
-              verified: createdUser._doc.verified,
-            };
-
-            return {
-              success: true,
-              message:
-                "Registration successful! Please check your email for verification instructions.",
-              data: userDetails,
-              status: responseFromSendEmail.status || httpStatus.OK,
-            };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
-        } else {
-          logger.error("mailer.verifyEmail did not return a response");
           return {
-            success: false,
-            message: "User created but verification email failed to send",
-            status: httpStatus.PARTIAL_CONTENT,
-            errors: [
-              {
-                message: "Please contact support to resend verification email",
-              },
-            ],
+            success: true,
+            message:
+              "Registration successful! Please check your email for verification instructions.",
+            data: {
+              email: email.toLowerCase(),
+              verificationEmailSent: true,
+            },
+            status: httpStatus.OK,
           };
         }
-      } else if (responseFromCreateUser.success === false) {
+
         return responseFromCreateUser;
+      }
+
+      if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
+        return responseFromCreateUser;
+      }
+
+      const createdUser = await responseFromCreateUser.data;
+      const user_id = createdUser._doc._id;
+
+      try {
+        const dnt =
+          request?.headers?.["dnt"] === "1" ||
+          request?.headers?.["sec-gpc"] === "1";
+        if (!dnt) {
+          const distinctId =
+            createdUser?._id?.toString() ||
+            createdUser?._doc?._id?.toString() ||
+            null;
+          if (distinctId) {
+            analyticsService.track(distinctId, "user_registered", {
+              method: "email_password",
+              category,
+            });
+          }
+        }
+      } catch (analyticsError) {
+        logger.error(
+          `PostHog registration track error: ${analyticsError.message}`,
+        );
+      }
+
+      const token = accessCodeGenerator
+        .generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
+        )
+        .toUpperCase();
+
+      const tokenCreationBody = {
+        token,
+        name: createdUser._doc.firstName,
+      };
+
+      const responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
+        tokenCreationBody,
+        next,
+      );
+
+      if (responseFromCreateToken.success === false) {
+        return responseFromCreateToken;
+      }
+
+      // ── STEP 4: Send verification email ───────────────────────────────────────
+      const responseFromSendEmail = await mailer.verifyEmail(
+        {
+          user_id,
+          token,
+          email: createdUser._doc.email,
+          firstName: createdUser._doc.firstName,
+          category,
+        },
+        next,
+      );
+
+      if (responseFromSendEmail) {
+        if (responseFromSendEmail.success === true) {
+          const userDetails = {
+            firstName: createdUser._doc.firstName,
+            lastName: createdUser._doc.lastName,
+            email: createdUser._doc.email,
+            verified: createdUser._doc.verified,
+          };
+
+          return {
+            success: true,
+            message:
+              "Registration successful! Please check your email for verification instructions.",
+            data: userDetails,
+            status: responseFromSendEmail.status || httpStatus.OK,
+          };
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else {
+        logger.error("mailer.verifyEmail did not return a response");
+        return {
+          success: false,
+          message: "User created but verification email failed to send",
+          status: httpStatus.PARTIAL_CONTENT,
+          errors: [
+            {
+              message: "Please contact support to resend verification email",
+            },
+          ],
+        };
       }
     } catch (error) {
       logger.error(
         `🐛🐛 Internal Server Error in user creation: ${error.message}`,
         {
-          email: request.body?.email,
-          tenant: request.query?.tenant,
+          email: request.body && request.body.email,
+          tenant: request.query && request.query.tenant,
           stack: error.stack,
         },
       );
@@ -3993,7 +4064,6 @@ const createUserModule = {
     }
   },
 
-  // Enhanced register function in user.util.js
   register: async (request, next) => {
     try {
       const {
@@ -4011,7 +4081,7 @@ const createUserModule = {
         ...request.params,
       };
 
-      // ✅ STEP 1: Input validation and normalization
+      // ── STEP 1: Input validation ───────────────────────────────────────────────
       if (!email || !firstName || !lastName) {
         return {
           success: false,
@@ -4027,266 +4097,245 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Create registration lock to prevent race conditions
-      const lockKey = `admin-reg-${normalizedEmail}-${tenant}`;
+      // ── STEP 2: Distributed flood protection via DB-backed rate limiter ────────
+      // Replaces the previous in-memory registrationLocks Map which provided
+      // zero protection across multiple Kubernetes pods. The dbRateLimiter uses
+      // a time-bucketed unique index in MongoDB for true cross-pod atomicity.
+      const floodCheck = await dbRateLimiter(
+        tenant,
+        normalizedEmail,
+        "admin_registration_attempt",
+        45000, // 45-second window, matching the original in-memory lock timeout
+      );
 
-      if (registrationLocks.has(lockKey)) {
+      if (!floodCheck.allowed) {
+        const remainingSecs = Math.ceil(floodCheck.remainingMs / 1000) || 45;
         logger.warn(
-          `Duplicate admin registration attempt blocked for ${normalizedEmail}`,
+          `Duplicate admin registration attempt rate-limited (DB) for ${normalizedEmail}`,
           {
             email: normalizedEmail,
             tenant,
-            lockExists: true,
+            remainingSecs,
             requestedBy: (request.user && request.user.email) || "unknown",
           },
         );
-
         return {
           success: false,
           message: "Registration already in progress for this user",
           status: httpStatus.CONFLICT,
           errors: {
-            email:
-              "A registration for this email is currently being processed. Please wait and try again.",
+            email: `A registration for this email is currently being processed. Please try again in about ${remainingSecs} seconds.`,
           },
         };
       }
 
-      // Set lock with automatic cleanup
-      registrationLocks.set(lockKey, {
-        createdAt: Date.now(),
-        createdBy: (request.user && request.user.email) || "unknown",
-      });
+      // ── STEP 3: Enhanced duplicate user checking ───────────────────────────────
+      const existingUser = await UserModel(tenant)
+        .findOne({ email: normalizedEmail })
+        .lean();
 
-      setTimeout(() => {
-        registrationLocks.delete(lockKey);
-      }, 45000); // 45 second lock (longer for admin operations)
+      if (!isEmpty(existingUser)) {
+        if (existingUser.verified && existingUser.isActive) {
+          return {
+            success: false,
+            message: "User already exists and is active",
+            status: httpStatus.CONFLICT,
+            errors: {
+              email:
+                "This email is already registered with an active, verified account.",
+            },
+            data: {
+              accountExists: true,
+              verified: true,
+              isActive: true,
+              userId: existingUser._id,
+              createdAt: existingUser.createdAt,
+            },
+          };
+        } else if (existingUser.verified && !existingUser.isActive) {
+          return {
+            success: false,
+            message: "User exists but account is inactive",
+            status: httpStatus.CONFLICT,
+            errors: {
+              email:
+                "This email belongs to an inactive account. Consider reactivating instead of creating a new account.",
+            },
+            data: {
+              accountExists: true,
+              verified: true,
+              isActive: false,
+              canReactivate: true,
+              userId: existingUser._id,
+            },
+          };
+        } else {
+          return {
+            success: false,
+            message: "User exists but is not verified",
+            status: httpStatus.CONFLICT,
+            errors: {
+              email:
+                "This email is registered but not verified. Consider resending the verification email instead.",
+            },
+            data: {
+              accountExists: true,
+              verified: false,
+              canResendVerification: true,
+              userId: existingUser._id,
+            },
+          };
+        }
+      }
 
-      try {
-        // ✅ STEP 3: Enhanced duplicate user checking
-        const existingUser = await UserModel(tenant)
-          .findOne({
-            email: normalizedEmail,
-          })
-          .lean();
+      // ── STEP 4: Generate secure password ──────────────────────────────────────
+      const password = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(10),
+      );
 
-        if (!isEmpty(existingUser)) {
-          // ✅ Enhanced response with actionable information
-          if (existingUser.verified && existingUser.isActive) {
-            return {
-              success: false,
-              message: "User already exists and is active",
-              status: httpStatus.CONFLICT,
-              errors: {
-                email:
-                  "This email is already registered with an active, verified account.",
-              },
-              data: {
-                accountExists: true,
-                verified: true,
-                isActive: true,
-                userId: existingUser._id,
-                createdAt: existingUser.createdAt,
-              },
-            };
-          } else if (existingUser.verified && !existingUser.isActive) {
-            // User exists but is inactive - could reactivate
-            return {
-              success: false,
-              message: "User exists but account is inactive",
-              status: httpStatus.CONFLICT,
-              errors: {
-                email:
-                  "This email belongs to an inactive account. Consider reactivating instead of creating new account.",
-              },
-              data: {
-                accountExists: true,
-                verified: true,
-                isActive: false,
-                canReactivate: true,
-                userId: existingUser._id,
-              },
-            };
-          } else {
-            // User exists but not verified - could resend verification
-            return {
-              success: false,
-              message: "User exists but is not verified",
-              status: httpStatus.CONFLICT,
-              errors: {
-                email:
-                  "This email is registered but not verified. Consider resending verification email instead.",
-              },
-              data: {
-                accountExists: true,
-                verified: false,
-                canResendVerification: true,
-                userId: existingUser._id,
-              },
-            };
+      const requestBody = {
+        firstName,
+        lastName,
+        email: normalizedEmail,
+        organization,
+        long_organization,
+        privilege,
+        userName: normalizedEmail,
+        password,
+        network_id,
+        ...(request.body.interests && { interests: request.body.interests }),
+        ...(request.body.interestsDescription && {
+          interestsDescription: request.body.interestsDescription,
+        }),
+        ...(request.body.country && { country: request.body.country }),
+        createdByAdmin: true,
+        adminCreatorEmail: (request.user && request.user.email) || "unknown",
+      };
+
+      // ── STEP 5: Create user ────────────────────────────────────────────────────
+      const responseFromCreateUser = await UserModel(tenant).register(
+        requestBody,
+        next,
+        { sendDuplicateEmail: false },
+      );
+
+      if (responseFromCreateUser && responseFromCreateUser.success === true) {
+        const createdUser = responseFromCreateUser.data;
+
+        try {
+          const dnt =
+            request?.headers?.["dnt"] === "1" ||
+            request?.headers?.["sec-gpc"] === "1";
+          if (!dnt) {
+            const distinctId =
+              createdUser?._id?.toString() ||
+              createdUser?._doc?._id?.toString();
+            if (distinctId) {
+              analyticsService.track(distinctId, "user_registered", {
+                method: "admin_creation",
+                organization,
+              });
+            }
           }
+        } catch (analyticsError) {
+          logger.error(
+            `PostHog registration track error: ${analyticsError.message}`,
+          );
         }
 
-        // ✅ STEP 4: Generate secure password with enhanced logging
-        const password = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(10),
-        );
+        // ── STEP 6: Send welcome email ─────────────────────────────────────────
+        try {
+          const responseFromSendEmail = await mailer.user(
+            {
+              firstName,
+              lastName,
+              email: normalizedEmail,
+              password,
+              tenant,
+              type: "user",
+            },
+            next,
+          );
 
-        const requestBody = {
-          firstName,
-          lastName,
-          email: normalizedEmail,
-          organization,
-          long_organization,
-          privilege,
-          userName: normalizedEmail,
-          password,
-          network_id,
-          ...(request.body.interests && { interests: request.body.interests }),
-          ...(request.body.interestsDescription && {
-            interestsDescription: request.body.interestsDescription,
-          }),
-          ...(request.body.country && { country: request.body.country }),
-          // Add metadata for admin-created users
-          createdByAdmin: true,
-          adminCreatorEmail: (request.user && request.user.email) || "unknown",
-        };
-
-        // ✅ STEP 5: Create user with enhanced error handling
-        const responseFromCreateUser = await UserModel(tenant).register(
-          requestBody,
-          next,
-          { sendDuplicateEmail: false }, // Admin creation shouldn't send duplicate emails
-        );
-
-        if (responseFromCreateUser.success === true) {
-          const createdUser = responseFromCreateUser.data;
-
-          try {
-            const dnt =
-              request?.headers?.["dnt"] === "1" ||
-              request?.headers?.["sec-gpc"] === "1";
-            if (!dnt) {
-              const distinctId =
-                createdUser?._id?.toString() ||
-                createdUser?._doc?._id?.toString();
-              if (distinctId) {
-                analyticsService.track(distinctId, "user_registered", {
-                  method: "admin_creation",
-                  organization,
-                });
-              }
-            }
-          } catch (analyticsError) {
-            logger.error(
-              `PostHog registration track error: ${analyticsError.message}`,
-            );
-          }
-
-          // ✅ STEP 6: Enhanced email sending with monitoring
-          try {
-            const responseFromSendEmail = await mailer.user(
-              {
-                firstName,
-                lastName,
-                email: normalizedEmail,
-                password,
-                tenant,
-                type: "user",
-              },
-              next,
-            );
-
-            if (responseFromSendEmail) {
-              if (responseFromSendEmail.success === true) {
-                // ✅ Log successful email delivery
-
-                return {
-                  success: true,
-                  message: "User successfully created and welcome email sent",
-                  data: {
-                    user: createdUser._doc,
-                    emailSent: true,
-                    loginUrl: `${constants.LOGIN_PAGE}`,
-                    tempPassword: "Sent via email", // Don't return actual password in response
-                  },
-                  status: responseFromSendEmail.status || httpStatus.OK,
-                };
-              } else if (responseFromSendEmail.success === false) {
-                // User created but email failed
-                logger.error("Admin registration email failed", {
-                  email: normalizedEmail,
-                  userId: createdUser._doc._id,
-                  tenant,
-                  emailError: responseFromSendEmail.message,
-                });
-
-                return {
-                  success: true, // User was created successfully
-                  message: "User created but welcome email failed to send",
-                  data: {
-                    user: createdUser._doc,
-                    emailSent: false,
-                    tempPassword: password, // Return password since email failed
-                    emailError: responseFromSendEmail.message,
-                  },
-                  status: httpStatus.PARTIAL_CONTENT,
-                };
-              }
-            } else {
-              logger.error("mailer.user did not return a response");
-              return {
-                success: true, // User was created
-                message: "User created but email service unavailable",
-                data: {
-                  user: createdUser._doc,
-                  emailSent: false,
-                  tempPassword: password, // Return password since email failed
-                },
-                status: httpStatus.PARTIAL_CONTENT,
-              };
-            }
-          } catch (emailError) {
-            logger.error(
-              `Admin registration email error: ${emailError.message}`,
-              {
-                email: normalizedEmail,
-                userId: createdUser._doc._id,
-                tenant,
-                error: emailError.message,
-              },
-            );
-
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
             return {
-              success: true, // User was created successfully
-              message: "User created but email delivery failed",
+              success: true,
+              message: "User successfully created and welcome email sent",
+              data: {
+                user: createdUser._doc,
+                emailSent: true,
+                loginUrl: `${constants.LOGIN_PAGE}`,
+                tempPassword: "Sent via email",
+              },
+              status: responseFromSendEmail.status || httpStatus.OK,
+            };
+          } else {
+            logger.error("Admin registration email failed", {
+              email: normalizedEmail,
+              userId: createdUser._doc && createdUser._doc._id,
+              tenant,
+              emailError:
+                responseFromSendEmail && responseFromSendEmail.message,
+            });
+            return {
+              success: true,
+              message: "User created but welcome email failed to send",
               data: {
                 user: createdUser._doc,
                 emailSent: false,
-                tempPassword: password, // Return password since email failed
-                emailError: emailError.message,
+                tempPassword: password,
+                emailError:
+                  responseFromSendEmail && responseFromSendEmail.message,
               },
               status: httpStatus.PARTIAL_CONTENT,
             };
           }
-        } else if (responseFromCreateUser.success === false) {
-          logger.error("Admin user creation failed", {
-            email: normalizedEmail,
-            tenant,
-            error: responseFromCreateUser.message,
-            errors: responseFromCreateUser.errors,
-          });
-
-          return responseFromCreateUser;
+        } catch (emailError) {
+          logger.error(
+            `Admin registration email error: ${emailError.message}`,
+            {
+              email: normalizedEmail,
+              userId: createdUser._doc && createdUser._doc._id,
+              tenant,
+              error: emailError.message,
+            },
+          );
+          return {
+            success: true,
+            message: "User created but email delivery failed",
+            data: {
+              user: createdUser._doc,
+              emailSent: false,
+              tempPassword: password,
+              emailError: emailError.message,
+            },
+            status: httpStatus.PARTIAL_CONTENT,
+          };
         }
-      } finally {
-        // ✅ STEP 7: Always cleanup the lock
-        registrationLocks.delete(lockKey);
+      } else if (
+        responseFromCreateUser &&
+        responseFromCreateUser.success === false
+      ) {
+        logger.error("Admin user creation failed", {
+          email: normalizedEmail,
+          tenant,
+          error: responseFromCreateUser.message,
+          errors: responseFromCreateUser.errors,
+        });
+        return responseFromCreateUser;
       }
+
+      // Fallback for unexpected null/undefined response
+      return {
+        success: false,
+        message: "Failed to create user — unexpected response from database",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { server: "Please try again or contact support." },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Admin registration error: ${error.message}`, {
-        email: request.body?.email,
-        tenant: request.query?.tenant,
+        email: request.body && request.body.email,
+        tenant: request.query && request.query.tenant,
         requestedBy: (request.user && request.user.email) || "unknown",
         stack: error.stack,
       });

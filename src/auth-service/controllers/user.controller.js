@@ -498,34 +498,12 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // PostHog Analytics: Track logout event
-      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track logout event
-      // try {
-      //   analyticsService.track(req.analyticsUserId, "user_logged_out");
-      // } catch (analyticsError) {
-      //   logger.error(`PostHog logout track error: ${analyticsError.message}`);
-      // }
-
+      // Logout is not yet implemented. The dead code block that previously
+      // appeared below the NOT_IMPLEMENTED response has been removed to
+      // prevent confusion when this endpoint is eventually built out.
       return res
         .status(httpStatus.NOT_IMPLEMENTED)
         .json({ success: false, message: "not yet implemented" });
-
-      req.logout((err) => {
-        if (err) {
-          logger.error(`Error during logout: ${JSON.stringify(err)}`);
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: err.message },
-            ),
-          );
-        }
-        return res
-          .status(httpStatus.OK)
-          .json({ message: "logout successful", success: true });
-        // res.redirect("https://analytics.airqo.net/user/login");
-      });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       handleError(error, next);
