@@ -2,7 +2,7 @@ require("module-alias/register");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- daily-compromise-summary-job`,
+  `${constants.ENVIRONMENT} -- /bin/jobs/daily-compromise-summary-job -- ops-alerts`,
 );
 const cron = require("node-cron");
 const CompromisedTokenLogModel = require("@models/CompromisedTokenLog");
@@ -18,9 +18,6 @@ const JOB_SCHEDULE = "0 8 * * *"; // At 8:00 AM every day
 const generateAndSendSummaries = async (tenant = "airqo") => {
   try {
     if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
-      logger.info(
-        `${JOB_NAME} is disabled for the ${constants.ENVIRONMENT} environment.`,
-      );
       return;
     }
 
@@ -142,7 +139,6 @@ const job = cron.schedule(
 
 if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
   job.start();
-  logger.info(`✨ ${JOB_NAME} scheduled to run at ${JOB_SCHEDULE}`);
 }
 
 module.exports = {

@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-unassigned-sites-job`,
+  `${constants.ENVIRONMENT} -- check-unassigned-sites-job -- ops-alerts`,
 );
 const SitesModel = require("@models/Site");
 const cron = require("node-cron");
@@ -70,7 +70,7 @@ const checkUnassignedSites = async () => {
         ", ",
       )})`;
       logText(message);
-      logger.info(message);
+      logger.warn(message);
     }
   } catch (error) {
     logText(`🐛🐛 Error checking unassigned sites: ${error.message}`);

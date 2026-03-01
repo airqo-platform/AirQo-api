@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-duplicate-site-fields-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-duplicate-site-fields-job -- ops-alerts`,
 );
 const SitesModel = require("@models/Site");
 const cron = require("node-cron");
@@ -54,7 +54,7 @@ const checkDuplicateSiteFields = async () => {
     ]).join(" ");
     const sites = await SitesModel("airqo").find(
       { isOnline: true },
-      fieldsToProject
+      fieldsToProject,
     );
 
     logObject("Total sites checked", sites.length);
@@ -104,7 +104,7 @@ const startJob = () => {
     checkDuplicateSiteFields,
     {
       scheduled: true,
-    }
+    },
   );
 
   // Initialize global registry
