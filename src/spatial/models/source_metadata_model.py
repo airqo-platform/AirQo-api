@@ -321,6 +321,11 @@ class SourceMetadataModel:
         ]
 
         data_sources = ["OpenStreetMap (Overpass)"]
+        if any(
+            info == "Reverse geocoder provider: LocationIQ"
+            for info in (debug_info or [])
+        ):
+            data_sources.append("LocationIQ")
         if include_satellite and satellite_error is None:
             data_sources.append("Google Earth Engine Sentinel-5P")
 

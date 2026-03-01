@@ -1,15 +1,14 @@
 import overpy
 from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from functools import lru_cache
-import time
+
+from utils.reverse_geocoder import ReverseGeocoder
 
 
 # Initialize the Overpass API
 api = overpy.Overpass(read_chunk_size=65535)
-# Initialize Nominatim geocoder
-geolocator = Nominatim(user_agent="site_categorization_app")
+# Initialize reverse geocoder with Nominatim primary and LocationIQ fallback
+reverse_geocoder = ReverseGeocoder(user_agent="site_categorization_app")
 
 
 class SiteCategoryModel:
@@ -19,28 +18,33 @@ class SiteCategoryModel:
 
     def get_location_name(self, latitude, longitude, retries=3, delay=2):
         """
-        Use Nominatim to get a human-readable name for the location.
-        Retries a few times in case of timeout or service error.
+        Use Nominatim to get a human-readable name for the location and
+        fall back to LocationIQ when Nominatim is unavailable.
         """
-        for attempt in range(retries):
-            try:
-                location = geolocator.reverse((latitude, longitude), exactly_one=True)
-                if location:
-                    return location.address
-                return None
-            except (GeocoderTimedOut, GeocoderServiceError) as e:
-                print(f"Geocoding error: {e}, retry {attempt+1}/{retries}")
-                time.sleep(delay * (2**attempt))  # exponential backoff
-            except Exception as e:
-                print(f"Unexpected geocoding error: {e}")
-                return None
-        return None
+        result = self.get_location_details(
+            latitude=latitude, longitude=longitude, retries=retries, delay=delay
+        )
+        return result.get("display_name") if result else None
+
+    def get_location_details(self, latitude, longitude, retries=3, delay=2):
+        """
+        Return reverse-geocoded location details, including the provider used.
+        """
+        result = reverse_geocoder.reverse(
+            latitude=latitude,
+            longitude=longitude,
+            retries=retries,
+            delay=delay,
+            exactly_one=True,
+            require_display_name=True,
+        )
+        return result
 
     @staticmethod
     @lru_cache(maxsize=256)
-    def _cached_location_name(latitude, longitude):
+    def _cached_location_details(latitude, longitude):
         model = SiteCategoryModel()
-        return model.get_location_name(latitude, longitude)
+        return model.get_location_details(latitude, longitude)
 
     @staticmethod
     @lru_cache(maxsize=256)
@@ -85,13 +89,19 @@ class SiteCategoryModel:
         debug_info = []
 
         # Cache for reverse-geocoded name
-        location_name_cache = {"value": None}
+        location_name_cache = {"resolved": False, "value": None, "provider": None}
 
         def fallback_name():
-            if location_name_cache["value"] is None:
-                location_name_cache["value"] = self._cached_location_name(
+            if not location_name_cache["resolved"]:
+                result = self._cached_location_details(
                     round(latitude, 5), round(longitude, 5)
                 )
+                location_name_cache["resolved"] = True
+                if result:
+                    location_name_cache["value"] = result.get("display_name")
+                    location_name_cache["provider"] = result.get("provider")
+                    if result.get("provider") == "locationiq":
+                        debug_info.append("Reverse geocoder provider: LocationIQ")
             return location_name_cache["value"]
 
         # Loop through search radii

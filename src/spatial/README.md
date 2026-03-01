@@ -26,6 +26,7 @@ GOOGLE_CLOUD_PROJECT_ID=your-project-id
 GOOGLE_APPLICATION_CREDENTIALS_EMAIL=service-account@project.iam.gserviceaccount.com
 PROJECT_BUCKET=your-gcs-bucket
 SPATIAL_PROJECT_BUCKET=your-spatial-gcs-bucket
+LOCATIONIQ_ACCESS_TOKEN=your-locationiq-access-token
 BIGQUERY_HOURLY_CONSOLIDATED=project.dataset.hourly_consolidated
 BIGQUERY_SATELLITE_MODEL_PREDICTIONS=project.dataset.satellite_predictions
 REDIS_HOST=localhost
@@ -183,3 +184,4 @@ curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 - `must_have_locations` must fall inside the supplied polygon for site selection.
 - BigQuery/Earth Engine operations require valid service account credentials and access to the configured datasets and buckets.
 - Redis is optional; if unavailable the heatmap endpoints still work but skip caching.
+- Reverse geocoding uses OpenStreetMap Nominatim first and falls back to LocationIQ when `LOCATIONIQ_ACCESS_TOKEN` is configured.
