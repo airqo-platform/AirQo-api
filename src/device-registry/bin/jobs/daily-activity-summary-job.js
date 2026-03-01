@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- daily-activity-summary-job`,
+  `${constants.ENVIRONMENT} -- daily-activity-summary-job -- ops-alerts`,
 );
 const ActivityLogModel = require("@models/ActivityLog");
 const cron = require("node-cron");
@@ -163,7 +163,7 @@ ${Object.entries(operationBreakdown)
     `;
 
     logText(summaryMessage);
-    logger.info(summaryMessage);
+    logger.warn(summaryMessage);
 
     // If success rate is below threshold, log as warning
     if (parseFloat(successRate) < 90) {

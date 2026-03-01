@@ -3,7 +3,7 @@ const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/jobs/incomplete-profile-job`,
+  `${constants.ENVIRONMENT} -- bin/jobs/incomplete-profile-job -- ops-alerts`,
 );
 const {
   winstonLogger,
