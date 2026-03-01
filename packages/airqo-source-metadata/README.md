@@ -1,12 +1,18 @@
-# airqo-source-metadata
+# airqosm
 
-`airqo-source-metadata` is a lightweight Python package for inferring likely air pollution source metadata from:
+`airqosm` is a lightweight Python package for:
+- fetching source metadata from the AirQo Platform spatial API
+- normalizing the platform response into a stable `{message, data}` shape
+- inferring likely air pollution source metadata locally from features when needed
+
+The local inference engine works from:
 - site context (`category`, `landuse`, `natural`, `highway`)
 - satellite pollutant summary means (`SO2`, `HCHO`, `CO`, `NO2`, `O3`, `AOD`)
 
 It can run as:
+- a Python client (`SourceMetadataClient`)
 - a Python library (`SourceMetadataEngine`)
-- a Flask API (`airqo-source-metadata-api`)
+- an optional Flask API (`airqosm-api`)
 
 ## Requirements
 
@@ -25,7 +31,13 @@ Use `requirements.txt` only if you specifically want a separate pinned file for 
 From PyPI:
 
 ```bash
-pip install airqo-source-metadata
+pip install airqosm
+```
+
+Install with API server support:
+
+```bash
+pip install "airqosm[api]"
 ```
 
 From this monorepo (editable mode):
@@ -35,10 +47,75 @@ cd packages/airqo-source-metadata
 pip install -e .
 ```
 
+## Authentication
+
+This package uses an AirQo API token to call protected AirQo platform endpoints.
+
+Generate your token from AirQo Analytics:
+- Log in at `https://analytics.airqo.net/`
+- Open your account settings
+- Under the API tab, register a client and generate an access token
+
+You can then pass the token directly or set `AIRQO_PLATFORM_TOKEN` / `AIRQO_API_TOKEN`.
+
 ## Library Quick Start
 
+Simple import style:
+
 ```python
-from airqo_source_metadata import SourceMetadataEngine
+import airqosm
+
+result = airqosm.source_metadata(
+    latitude=5.798044,
+    longitude=-0.8212,
+    token="your-airqo-api-token",
+)
+
+print(result["data"]["primary_source"])
+```
+
+Direct helper imports:
+
+```python
+from airqosm import candidate_sources, primary_source
+
+print(primary_source(5.798044, -0.8212, token="your-airqo-api-token"))
+print(candidate_sources(5.798044, -0.8212, token="your-airqo-api-token"))
+```
+
+Fetch from AirQo Platform:
+
+```python
+from airqosm import SourceMetadataClient
+
+client = SourceMetadataClient(token="your-airqo-api-token")
+
+response = client.fetch(
+    latitude=5.798044,
+    longitude=-0.8212,
+    include_satellite=True,
+)
+
+print(response["data"]["primary_source"])
+```
+
+The client automatically unwraps singleton list wrappers such as `[[{...}]]` and returns:
+
+```python
+{
+    "message": "Operation successful",
+    "data": {
+        "primary_source": {...},
+        "candidate_sources": [...],
+        ...
+    },
+}
+```
+
+Run local inference from features:
+
+```python
+from airqosm import SourceMetadataEngine
 
 engine = SourceMetadataEngine()
 
@@ -71,7 +148,13 @@ print(result["primary_source"])
 ## Run API
 
 ```bash
-airqo-source-metadata-api --host 0.0.0.0 --port 8010
+airqosm-api --host 0.0.0.0 --port 8010 --platform-token your-airqo-api-token
+```
+
+The API command requires the optional API extra:
+
+```bash
+pip install "airqosm[api]"
 ```
 
 Base URL: `http://127.0.0.1:8010`
@@ -79,10 +162,17 @@ Base URL: `http://127.0.0.1:8010`
 ### Endpoints
 
 - `GET /healthz`
+- `GET /api/v2/spatial/source_metadata`
 - `POST /api/v1/source-metadata/from-features`
 - `POST /api/v1/source-metadata/batch-from-features`
 
 ## API Examples
+
+Coordinate lookup through the platform client:
+
+```bash
+curl "http://127.0.0.1:8010/api/v2/spatial/source_metadata?latitude=5.798044&longitude=-0.8212&include_satellite=true&token=your-airqo-api-token"
+```
 
 Single request:
 

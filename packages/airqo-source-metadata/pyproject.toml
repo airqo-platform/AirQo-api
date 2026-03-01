@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "airqo-source-metadata"
-version = "0.1.0"
-description = "Air pollution source metadata inference engine and optional API"
+name = "airqosm"
+version = "0.2.1"
+description = "Air pollution source metadata client, inference engine, and optional API"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -22,9 +22,11 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-  "Framework :: Flask",
 ]
-dependencies = [
+dependencies = []
+
+[project.optional-dependencies]
+api = [
   "flask>=2.2,<4",
 ]
 
@@ -34,7 +36,7 @@ Repository = "https://github.com/airqo-platform/AirQo-api"
 Issues = "https://github.com/airqo-platform/AirQo-api/issues"
 
 [project.scripts]
-airqo-source-metadata-api = "airqo_source_metadata.cli:main"
+airqosm-api = "airqo_source_metadata.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
