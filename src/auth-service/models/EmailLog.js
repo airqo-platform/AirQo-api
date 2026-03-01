@@ -66,7 +66,10 @@ EmailLogSchema.index({ bucketKey: 1 }, { unique: true, sparse: true });
  * SECONDARY index: used by canSendEmail() for longer cooldown checks
  * (e.g., security emails with 30-day cooldown periods).
  */
-EmailLogSchema.index({ email: 1, emailType: 1 });
+// lastSentAt: -1 added so canSendEmail() filter+sort is fully index-covered:
+//   { email, emailType, lastSentAt: { $gte: ... } }.sort({ lastSentAt: -1 })
+// Without lastSentAt in the index, MongoDB sorts matched docs in memory.
+EmailLogSchema.index({ email: 1, emailType: 1, lastSentAt: -1 });
 
 /**
  * TTL index: automatically purge records older than 90 days to prevent

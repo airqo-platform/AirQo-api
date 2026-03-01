@@ -301,17 +301,29 @@ const getCache = async (request, next) => {
  *   where two pods submit their upserts at exactly the same millisecond and
  *   MongoDB's duplicate-key detection fires before one of them can match.
  *
- * SECURITY NOTE: Fails open on non-duplicate DB errors — rate limiting is
- * disabled if MongoDB is unreachable. The unique index on UserModel.email
- * remains the true duplicate guard for user creation.
+ * FAIL BEHAVIOUR on DB errors (non-duplicate):
+ *   - failClosed: false (default) — fails OPEN: returns { allowed: true }.
+ *     Use for registration flows where blocking a legitimate new user on a
+ *     transient DB hiccup is worse than briefly skipping rate-limiting.
+ *   - failClosed: true — fails CLOSED: returns { allowed: false }.
+ *     Use for security-sensitive flows (e.g. mobile_email_verify_attempt)
+ *     where a DB outage must not disable brute-force protection.
  *
- * @param {string} tenant    - The DB tenant
- * @param {string} email     - The user's email
- * @param {string} emailType - Action identifier (e.g. 'mobile_registration_attempt')
- * @param {number} windowMs  - Cooldown window in milliseconds
+ * @param {string}  tenant                    - The DB tenant
+ * @param {string}  email                     - The user's email
+ * @param {string}  emailType                 - Action identifier
+ * @param {number}  windowMs                  - Cooldown window in milliseconds
+ * @param {object}  [options]
+ * @param {boolean} [options.failClosed=false] - If true, DB errors deny access
  * @returns {{ allowed: boolean, remainingMs: number }}
  */
-const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
+const dbRateLimiter = async (
+  tenant,
+  email,
+  emailType,
+  windowMs,
+  { failClosed = false } = {},
+) => {
   try {
     // Guard: windowMs must be a finite positive number. Division by zero or
     // NaN would make Math.floor(now / windowMs) produce Infinity or NaN,
@@ -387,10 +399,18 @@ const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
       throw err;
     }
   } catch (err) {
-    // Fail open for all non-duplicate errors (network issues, DB down, etc.).
-    // See SECURITY NOTE in JSDoc above.
+    // Non-duplicate DB error (network issue, DB down, etc.).
+    // Behaviour is controlled by the failClosed option:
+    //   false (default) → fail open  (allow) — safe for registration flows
+    //   true            → fail closed (deny) — required for verify/login flows
+    if (failClosed) {
+      logger.warn(
+        `dbRateLimiter DB error for ${emailType}/${email} — failing CLOSED (strict mode): ${err.message}`,
+      );
+      return { allowed: false, remainingMs: windowMs };
+    }
     logger.warn(
-      `dbRateLimiter DB check failed for ${emailType}/${email} — failing open: ${err.message}`,
+      `dbRateLimiter DB error for ${emailType}/${email} — failing open: ${err.message}`,
     );
     return { allowed: true, remainingMs: 0 };
   }
@@ -434,6 +454,8 @@ const RATE_LIMIT_WINDOWS = {
   /** Short flood guard: prevents double-tap POSTs from impatient users or retry logic. */
   MOBILE_REGISTRATION_MS: 30 * 1000, // 30 seconds
   WEB_REGISTRATION_MS: 30 * 1000, // 30 seconds
+
+  ADMIN_REGISTRATION_MS: 45000,
 
   /** Long enough to prevent spam, short enough for a legitimate user to retry. */
   MOBILE_VERIFICATION_REMINDER_MS: 3 * 60 * 1000, // 3 minutes
