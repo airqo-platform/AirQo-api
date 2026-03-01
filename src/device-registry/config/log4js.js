@@ -15,10 +15,8 @@ if (isDevelopment()) {
     },
   };
 } else {
-  // SAFE production configuration - back to basic Slack (NO custom appenders)
   console.log("📝 [DEVICE-REGISTRY] Log4js configured with basic Slack alerts");
 
-  // Validate Slack configuration before using it
   const hasSlackConfig =
     constants.SLACK_TOKEN &&
     constants.SLACK_CHANNEL &&
@@ -26,7 +24,7 @@ if (isDevelopment()) {
 
   if (!hasSlackConfig) {
     console.warn(
-      "⚠️  Slack configuration incomplete - some alerts may be disabled"
+      "⚠️  Slack configuration incomplete - some alerts may be disabled",
     );
   }
 
@@ -62,7 +60,6 @@ if (isDevelopment()) {
     },
   };
 
-  // Only add Slack appender if configuration is complete
   if (hasSlackConfig) {
     try {
       config.appenders.alerts = {
@@ -72,11 +69,27 @@ if (isDevelopment()) {
         username: constants.SLACK_USERNAME,
       };
 
-      // Add alerts to relevant categories
-      config.categories.default.appenders.push("alerts");
-      config.categories.error.appenders.push("alerts");
+      // Wrap the Slack appender in a logLevelFilter so only ERROR and above
+      // is forwarded to Slack. Previously the alerts appender was added
+      // directly to the default category (level: "info"), meaning INFO,
+      // WARN, and ERROR all triggered Slack notifications — flooding the
+      // channel with non-actionable messages like altitude warnings and
+      // routine job logs.
+      config.appenders.slackErrors = {
+        type: "logLevelFilter",
+        level: "ERROR",
+        appender: "alerts",
+      };
 
-      console.log("✅ Slack appender configured successfully");
+      // Only attach the filtered Slack appender — not the raw alerts appender.
+      // The error category already has level: "error" but we still use the
+      // filter wrapper for consistency and to be explicit about intent.
+      config.categories.default.appenders.push("slackErrors");
+      config.categories.error.appenders.push("slackErrors");
+
+      console.log(
+        "✅ Slack appender configured successfully (ERROR and above only)",
+      );
     } catch (error) {
       console.error("❌ Failed to configure Slack appender:", error.message);
       console.log("📝 Continuing without Slack notifications");

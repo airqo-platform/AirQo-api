@@ -923,13 +923,18 @@ const createSite = {
             ? responseFromGetAltitude.errors
             : { message: "" };
           try {
-            logger.error(
+            // Downgraded from logger.error to logger.warn — altitude failure
+            // is non-fatal. The site continues to be enriched with all other
+            // metadata from reverseGeoCode. Logging as error was flooding Slack
+            // with one alert per site per batch when GOOGLE_MAPS_API_KEY is
+            // misconfigured, making it impossible to spot genuine errors.
+            logger.warn(
               `unable to retrieve the altitude for this site, ${
                 responseFromGetAltitude.message
               } and ${JSON.stringify(errors)}`,
             );
           } catch (error) {
-            logger.error(`internal server error ${error.message}`);
+            logger.warn(`getAltitude internal error ${error.message}`);
           }
         }
       }
@@ -1512,29 +1517,23 @@ const createSite = {
         })
         .catch((e) => {
           try {
-            // Include lat/lng and error code/message in the log so it is
-            // clear which coordinates triggered the failure and to provide
-            // enough context to diagnose issues such as invalid
-            // configuration, malformed requests, network problems, or
-            // quota exhaustion.
-            //
-            // Only log curated, safe fields — avoid JSON.stringify(e)
-            // which would serialize the full Axios error including
-            // e.config and request headers, potentially leaking sensitive
-            // data such as the Google Maps API key.
+            // Downgraded from logger.error to logger.warn — altitude failure
+            // is non-fatal. Sites continue to receive all other metadata from
+            // reverseGeoCode. Logging as error was flooding Slack with alerts
+            // for every site in every batch when GOOGLE_MAPS_API_KEY is misconfigured.
             const safeError = {
               code: e.code,
               message: e.message,
               responseStatus: e.response?.status,
               responseData: e.response?.data?.error_message || e.response?.data,
             };
-            logger.error(
+            logger.warn(
               `getAltitude failed for lat=${lat}, lng=${long} — ${JSON.stringify(
                 safeError,
               )}`,
             );
           } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
+            logger.warn(`getAltitude internal error -- ${error.message}`);
           }
           return {
             success: false,
