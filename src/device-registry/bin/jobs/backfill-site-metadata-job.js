@@ -47,7 +47,6 @@ const releaseLock = async (tenant) => {
       jobName: JOB_NAME,
       acquiredBy: POD_ID,
     });
-    logger.info(`[${POD_ID}] Lock released for job: ${JOB_NAME}`);
   } catch (error) {
     logger.error(`🐛🐛 Lock release error: ${error.message}`);
   }
@@ -66,28 +65,22 @@ const releaseLock = async (tenant) => {
  * producing 100 identical error logs.
  */
 const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
-  if (altitudeCircuitOpen) return true; // already tripped, skip immediately
+  if (altitudeCircuitOpen) return true;
 
   try {
-    // createSiteUtil.getAltitude is the correct reference — getAltitude is
-    // a method exported directly on the site.util object alongside generateMetadata.
     const testResponse = await createSiteUtil.getAltitude(
       site.latitude,
       site.longitude,
-      (err) => err, // swallow — we handle the result below
+      (err) => err,
     );
 
-    // Defensive guard: if getAltitude returns undefined or a non-object
-    // (e.g. an internal throw resolves before the Promise completes),
-    // treat it as a failure and open the circuit rather than letting
-    // testResponse.success throw "Cannot read property 'success' of undefined".
     if (!testResponse || typeof testResponse !== "object") {
       logger.error(
         `[${POD_ID}] Altitude API pre-flight check returned an unexpected value — ` +
           `opening circuit breaker for this batch. ` +
           `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
       );
-      return true; // circuit open
+      return true;
     }
 
     if (testResponse.success === false) {
@@ -101,14 +94,11 @@ const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
           `Safe error: ${JSON.stringify(safeError)}. ` +
           `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
       );
-      return true; // circuit open
+      return true;
     }
 
-    return false; // circuit closed, altitude is working
+    return false;
   } catch (error) {
-    // Catch any thrown errors (network timeouts, unhandled rejections) so
-    // they do not bubble up and crash the entire backfill job. Treat any
-    // exception as a circuit-open condition and log only safe, minimal details.
     const safeError = {
       code: error.code,
       message: error.message,
@@ -119,7 +109,7 @@ const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
         `Safe error: ${JSON.stringify(safeError)}. ` +
         `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
     );
-    return true; // circuit open
+    return true;
   }
 };
 
@@ -128,16 +118,12 @@ const backfillSiteMetadata = async (tenant) => {
 
   const lockAcquired = await acquireLock(tenant);
   if (!lockAcquired) {
-    logger.info(
-      `[${POD_ID}] Could not acquire lock for ${jobName} — another pod is already running it. Skipping this tick.`,
-    );
     return;
   }
 
-  logger.info(`[${POD_ID}] Lock acquired — starting ${jobName}...`);
-
   try {
     let sitesProcessed = 0;
+    let sitesFailedCount = 0;
     const attemptedIds = [];
 
     // Circuit breaker for the Google Maps Elevation API.
@@ -169,11 +155,8 @@ const backfillSiteMetadata = async (tenant) => {
         .lean();
 
       if (sitesToUpdate.length === 0) {
-        logger.info("No more sites to backfill. Job complete.");
         break;
       }
-
-      logger.info(`Processing batch of ${sitesToUpdate.length} sites`);
 
       const batchIds = sitesToUpdate.map((s) => s._id);
       attemptedIds.push(...batchIds);
@@ -257,26 +240,35 @@ const backfillSiteMetadata = async (tenant) => {
             await SiteModel(tenant).findByIdAndUpdate(site._id, {
               $set: metadataFields,
             });
-            logger.info(
-              `Successfully backfilled metadata for site ${site.name}`,
-            );
             return { success: true };
           } else {
             logger.error(
-              `Failed to generate metadata for site ${site.name}: ${metadataResponse.message}`,
+              `[${POD_ID}] Failed to generate metadata for site ${site.name}: ${metadataResponse.message}`,
             );
             return { success: false, siteId: site._id };
           }
         } catch (error) {
-          logger.error(`Error processing site ${site._id}: ${error.message}`);
+          logger.error(
+            `[${POD_ID}] Error processing site ${site._id}: ${error.message}`,
+          );
           return { success: false, siteId: site._id };
         }
       });
 
       const results = await Promise.allSettled(updatePromises);
-      sitesProcessed += results.filter(
+      const batchSuccesses = results.filter(
         (r) => r.status === "fulfilled" && r.value.success,
       ).length;
+      const batchFailures = results.length - batchSuccesses;
+      sitesProcessed += batchSuccesses;
+      sitesFailedCount += batchFailures;
+    }
+
+    // Single summary log at the end — one line instead of one per site.
+    if (sitesFailedCount > 0) {
+      logger.error(
+        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
+      );
     }
 
     if (altitudeCircuitOpen) {
@@ -285,10 +277,6 @@ const backfillSiteMetadata = async (tenant) => {
           `Fix GOOGLE_MAPS_API_KEY and altitude data will be populated on the next run.`,
       );
     }
-
-    logger.info(
-      `[${POD_ID}] ${jobName} finished. Total sites updated: ${sitesProcessed}`,
-    );
   } catch (error) {
     logger.error(`🐛🐛 Error in ${jobName}: ${error.message}`);
   } finally {
@@ -299,9 +287,6 @@ const backfillSiteMetadata = async (tenant) => {
 const schedule = "20 * * * *"; // Every hour at minute 20
 
 if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
-  logger.info(
-    `[${POD_ID}] BACKFILL_SITE_METADATA_SCHEDULER_ENABLED=true — this instance will participate in the backfill cron job.`,
-  );
   cron.schedule(
     schedule,
     async () => {
@@ -314,22 +299,18 @@ if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
   );
 
   process.on("SIGTERM", async () => {
-    logger.info(
+    logger.error(
       `[${POD_ID}] SIGTERM received — releasing lock and shutting down.`,
     );
     await releaseLock("airqo");
   });
 
   process.on("SIGINT", async () => {
-    logger.info(
+    logger.error(
       `[${POD_ID}] SIGINT received — releasing lock and shutting down.`,
     );
     await releaseLock("airqo");
   });
-} else {
-  logger.info(
-    "BACKFILL_SITE_METADATA_SCHEDULER_ENABLED is not true — skipping cron registration for backfill job.",
-  );
 }
 
 module.exports = backfillSiteMetadata;
