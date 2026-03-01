@@ -264,7 +264,6 @@ const backfillSiteMetadata = async (tenant) => {
       sitesFailedCount += batchFailures;
     }
 
-    // Single summary log at the end — one line instead of one per site.
     if (sitesFailedCount > 0) {
       logger.error(
         `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
@@ -298,15 +297,18 @@ if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
     },
   );
 
+  // SIGTERM and SIGINT are normal Kubernetes lifecycle events (rolling
+  // deployments, scaling down) — log as warn rather than error to avoid
+  // triggering false alerts in monitoring.
   process.on("SIGTERM", async () => {
-    logger.error(
+    logger.warn(
       `[${POD_ID}] SIGTERM received — releasing lock and shutting down.`,
     );
     await releaseLock("airqo");
   });
 
   process.on("SIGINT", async () => {
-    logger.error(
+    logger.warn(
       `[${POD_ID}] SIGINT received — releasing lock and shutting down.`,
     );
     await releaseLock("airqo");
