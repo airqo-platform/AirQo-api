@@ -9,7 +9,7 @@ const httpStatus = require("http-status");
 const cron = require("node-cron");
 
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- subscription-utils`
+  `${constants.ENVIRONMENT} -- bin/jobs/check-subscription-status -- ops-alerts`,
 );
 
 const checkSubscriptionStatuses = async () => {
@@ -35,7 +35,7 @@ const checkSubscriptionStatuses = async () => {
         try {
           // Fetch subscription status from Paddle
           const subscriptionStatus = await paddleClient.subscriptions.get(
-            user.currentSubscriptionId
+            user.currentSubscriptionId,
           );
 
           // Update local user record based on Paddle subscription status
@@ -58,7 +58,7 @@ const checkSubscriptionStatuses = async () => {
           logger.error(
             `Failed to check subscription for user ${
               user.email
-            } --- ${stringify(error)}`
+            } --- ${stringify(error)}`,
           );
         }
       }

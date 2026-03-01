@@ -10,7 +10,7 @@ const cron = require("node-cron");
 const { mailer, stringify } = require("@utils/common");
 
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- subscription-renewal-utils`
+  `${constants.ENVIRONMENT} -- subscription-renewal-utils -- ops-alerts`,
 );
 
 const subscriptionRenewalUtils = {
@@ -42,7 +42,7 @@ const subscriptionRenewalUtils = {
           try {
             // Fetch current subscription details
             const subscriptionDetails = await paddleClient.subscriptions.get(
-              user.currentSubscriptionId
+              user.currentSubscriptionId,
             );
 
             // Prepare transaction data
@@ -58,9 +58,8 @@ const subscriptionRenewalUtils = {
             };
 
             // Create renewal transaction
-            const renewalTransaction = await paddleClient.transactions.create(
-              transactionData
-            );
+            const renewalTransaction =
+              await paddleClient.transactions.create(transactionData);
 
             // Record transaction in local database
             const transactionRecord = await TransactionModel("airqo").register({
@@ -102,8 +101,8 @@ const subscriptionRenewalUtils = {
             // Handle renewal failure
             logger.error(
               `Automatic renewal failed for user ${user.email} --- ${stringify(
-                error
-              )}`
+                error,
+              )}`,
             );
 
             // Send failure notification
@@ -127,7 +126,7 @@ const subscriptionRenewalUtils = {
       }
     } catch (error) {
       logger.error(
-        `Subscription renewal process error --- ${stringify(error)}`
+        `Subscription renewal process error --- ${stringify(error)}`,
       );
     }
   },
@@ -174,7 +173,7 @@ const subscriptionRenewalUtils = {
       }
     } catch (error) {
       logger.error(
-        `Upcoming renewal notifications error --- ${stringify(error)}`
+        `Upcoming renewal notifications error --- ${stringify(error)}`,
       );
     }
   },
@@ -188,7 +187,7 @@ cron.schedule(
   {
     scheduled: true,
     timezone: "Africa/Nairobi",
-  }
+  },
 );
 
 global.cronJobs = global.cronJobs || {};
@@ -200,7 +199,7 @@ global.cronJobs[jobName] = cron.schedule(
   {
     scheduled: true,
     timezone: "Africa/Nairobi",
-  }
+  },
 );
 
 module.exports = subscriptionRenewalUtils;

@@ -63,6 +63,14 @@ if (isDevelopment()) {
       error: { appenders: ["errors"], level: "error" },
       http: { appenders: ["access"], level: "DEBUG" },
       "api-usage-logger": { appenders: [], level: "info" },
+
+      // Dedicated category for operational jobs that need WARN visibility
+      // in Slack. Unlike the default category which is restricted to ERROR
+      // only for Slack, ops-alerts forwards WARN and above to Slack so
+      // actionable operational messages reach the team without opening up
+      // the entire codebase to warn-level Slack noise.
+      // Usage: const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- <job-name> -- ops-alerts`);
+      "ops-alerts": { appenders: ["app"], level: "info" },
     },
   };
 
@@ -75,20 +83,29 @@ if (isDevelopment()) {
         username: constants.SLACK_USERNAME,
       };
 
-      // logLevelFilter wrapping "slack" so only ERROR and above is
-      // forwarded to Slack. INFO and WARN continue to write to "app"
-      // file appender which is always present in the default category.
+      // slackErrors — ERROR and above only. Used by default and error categories.
+      // Keeps routine INFO/WARN logs out of Slack for the general codebase.
       config.appenders.slackErrors = {
         type: "logLevelFilter",
         level: "ERROR",
         appender: "slack",
       };
 
+      // slackWarn — WARN and above. Used only by the ops-alerts category so
+      // specific operational jobs can send WARNING and higher to Slack without
+      // opening up the entire codebase to warn-level Slack noise.
+      config.appenders.slackWarn = {
+        type: "logLevelFilter",
+        level: "WARN",
+        appender: "slack",
+      };
+
       config.categories.default.appenders.push("slackErrors");
       config.categories.error.appenders.push("slackErrors");
+      config.categories["ops-alerts"].appenders.push("slackWarn");
 
       console.log(
-        "✅ Slack appender configured successfully (ERROR and above only)",
+        "✅ Slack appender configured successfully (ERROR and above only, WARN and above for ops-alerts)",
       );
     } catch (error) {
       console.error("❌ Failed to configure Slack appender:", error.message);

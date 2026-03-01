@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-network-status-job`,
+  `${constants.ENVIRONMENT} -- network-status-check-job -- ops-alerts`,
 );
 const deviceUtil = require("@utils/device.util");
 const networkStatusUtil = require("@utils/network-status.util");
@@ -131,7 +131,7 @@ const checkNetworkStatus = async () => {
     } else if (status === "WARNING") {
       logger.warn(message);
     } else {
-      logger.info(message);
+      logger.warn(message);
     }
 
     // Create alert record in database
@@ -235,7 +235,7 @@ Critical Alerts: ${stats.criticalCount}
       `;
 
       logText(summaryMessage);
-      logger.info(summaryMessage);
+      logger.warn(summaryMessage);
     }
   } catch (error) {
     logger.error(
