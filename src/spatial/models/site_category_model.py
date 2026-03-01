@@ -2,11 +2,12 @@ import overpy
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+from functools import lru_cache
 import time
 
 
 # Initialize the Overpass API
-api = overpy.Overpass()
+api = overpy.Overpass(read_chunk_size=65535)
 # Initialize Nominatim geocoder
 geolocator = Nominatim(user_agent="site_categorization_app")
 
@@ -34,6 +35,17 @@ class SiteCategoryModel:
                 print(f"Unexpected geocoding error: {e}")
                 return None
         return None
+
+    @staticmethod
+    @lru_cache(maxsize=256)
+    def _cached_location_name(latitude, longitude):
+        model = SiteCategoryModel()
+        return model.get_location_name(latitude, longitude)
+
+    @staticmethod
+    @lru_cache(maxsize=256)
+    def _cached_query(query):
+        return api.query(query)
 
     def categorize_site_osm(self, latitude, longitude):
         # Define search radii
@@ -77,7 +89,9 @@ class SiteCategoryModel:
 
         def fallback_name():
             if location_name_cache["value"] is None:
-                location_name_cache["value"] = self.get_location_name(latitude, longitude)
+                location_name_cache["value"] = self._cached_location_name(
+                    round(latitude, 5), round(longitude, 5)
+                )
             return location_name_cache["value"]
 
         # Loop through search radii
@@ -102,7 +116,7 @@ class SiteCategoryModel:
             """
 
             try:
-                result = api.query(query)
+                result = self._cached_query(query)
             except Exception as e:
                 debug_info.append(f"Error querying OSM: {e}")
                 continue

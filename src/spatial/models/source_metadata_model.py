@@ -8,8 +8,8 @@ It returns ranked source-type candidates and supporting evidence for downstream 
 """
 
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 import math
-from statistics import mean
 from typing import Dict, List, Tuple
 
 from models.pull_satellite_model import Sentinel5PModel
@@ -26,6 +26,31 @@ class SourceMetadataModel:
 
     MODEL_VERSION = "1.0.0"
     DEFAULT_POLLUTANTS = ["SO2", "HCHO", "CO", "NO2", "O3", "AOD"]
+
+    @staticmethod
+    @lru_cache(maxsize=256)
+    def _cached_satellite_means(
+        longitude: float,
+        latitude: float,
+        start_date: str,
+        end_date: str,
+        pollutants_key: Tuple[str, ...],
+    ) -> Tuple[Dict[str, float], Dict[str, str]]:
+        model = Sentinel5PModel()
+        try:
+            means = model.get_aggregated_pollutant_means(
+                longitude=longitude,
+                latitude=latitude,
+                start_date=start_date,
+                end_date=end_date,
+                pollutants=list(pollutants_key),
+            )
+            return means, {}
+        except Exception as ex:
+            return (
+                {pollutant: None for pollutant in pollutants_key},
+                {"satellite": str(ex)},
+            )
 
     @staticmethod
     def _clean_numeric(value, default=0.0):
@@ -169,36 +194,29 @@ class SourceMetadataModel:
         start_date: str,
         end_date: str,
         pollutants: List[str],
-    ) -> Dict[str, float]:
+    ) -> Tuple[Dict[str, float], Dict[str, str]]:
         """Compute per-pollutant means from Sentinel-5P observations.
 
-        Each pollutant is queried independently to reduce cross-column NaN effects.
+        The aggregation is pushed into a single Earth Engine response to avoid
+        repeated per-day `getInfo()` calls.
         """
-        aggregated = {}
-        model = Sentinel5PModel()
-
-        for pollutant in pollutants:
-            values = []
-            try:
-                # Query each pollutant independently to avoid mixed-frame NaN contamination.
-                df = model.get_pollutant_data(
-                    longitude=longitude,
-                    latitude=latitude,
-                    start_date=start_date,
-                    end_date=end_date,
-                    pollutants=[pollutant],
-                )
-                if pollutant in df.columns:
-                    for raw_value in df[pollutant].tolist():
-                        value = self._clean_numeric(raw_value, default=None)
-                        if value is not None:
-                            values.append(value)
-            except Exception:
-                values = []
-
-            aggregated[pollutant] = round(mean(values), 10) if values else None
-
-        return aggregated
+        rounded_longitude = round(longitude, 5)
+        rounded_latitude = round(latitude, 5)
+        pollutants_key = tuple(pollutants)
+        aggregated, fetch_issues = self._cached_satellite_means(
+            rounded_longitude,
+            rounded_latitude,
+            start_date,
+            end_date,
+            pollutants_key,
+        )
+        cleaned = {}
+        for pollutant, value in aggregated.items():
+            numeric_value = self._clean_numeric(value, default=None)
+            cleaned[pollutant] = (
+                round(numeric_value, 10) if numeric_value is not None else None
+            )
+        return cleaned, fetch_issues
 
     def build_source_metadata(
         self,
@@ -257,10 +275,11 @@ class SourceMetadataModel:
         }
         satellite_evidence = []
         satellite_error = None
+        satellite_fetch_issues = {}
 
         if include_satellite:
             try:
-                satellite_means = self._aggregate_satellite_means(
+                satellite_means, satellite_fetch_issues = self._aggregate_satellite_means(
                     longitude=longitude,
                     latitude=latitude,
                     start_date=start_date,
@@ -270,6 +289,19 @@ class SourceMetadataModel:
                 satellite_scores, satellite_evidence = self._infer_from_satellite(
                     satellite_means
                 )
+                available_satellite_means = {
+                    pollutant: value
+                    for pollutant, value in (satellite_means or {}).items()
+                    if value is not None
+                }
+                if available_satellite_means and not satellite_evidence:
+                    satellite_evidence.append(
+                        "Satellite observations were available, but aggregated pollutant levels stayed below heuristic evidence thresholds."
+                    )
+                elif not available_satellite_means and not satellite_fetch_issues:
+                    satellite_evidence.append(
+                        "No usable satellite observations were returned for the requested date range and location."
+                    )
             except Exception as ex:
                 satellite_error = str(ex)
 
@@ -291,6 +323,9 @@ class SourceMetadataModel:
         data_sources = ["OpenStreetMap (Overpass)"]
         if include_satellite and satellite_error is None:
             data_sources.append("Google Earth Engine Sentinel-5P")
+
+        if satellite_error is None and satellite_fetch_issues:
+            satellite_error = "Partial satellite retrieval failure."
 
         return {
             "location": {"latitude": latitude, "longitude": longitude},
@@ -314,6 +349,7 @@ class SourceMetadataModel:
                 "satellite_reasoning": satellite_evidence,
                 "osm_debug_info": debug_info,
                 "satellite_error": satellite_error,
+                "satellite_fetch_issues": satellite_fetch_issues,
             },
             "metadata": {
                 "model_version": self.MODEL_VERSION,
