@@ -313,6 +313,18 @@ const getCache = async (request, next) => {
  */
 const dbRateLimiter = async (tenant, email, emailType, windowMs) => {
   try {
+    // Guard: windowMs must be a finite positive number. Division by zero or
+    // NaN would make Math.floor(now / windowMs) produce Infinity or NaN,
+    // resulting in a nonsensical bucketKey that either blocks everyone forever
+    // or allows everyone through. We fail open with a warning so a misconfigured
+    // constant never causes persistent false throttling in production.
+    if (!Number.isFinite(windowMs) || windowMs <= 0) {
+      logger.warn(
+        `dbRateLimiter: invalid windowMs (${windowMs}) for ${emailType}/${email} — failing open`,
+      );
+      return { allowed: true, remainingMs: 0 };
+    }
+
     const EmailLog = EmailLogModel(tenant);
     const now = new Date();
     const normalizedEmail = email.toLowerCase().trim();
@@ -4167,7 +4179,7 @@ const createUserModule = {
         tenant,
         normalizedEmail,
         "admin_registration_attempt",
-        45000, // 45-second window, matching the original in-memory lock timeout
+        RATE_LIMIT_WINDOWS.ADMIN_REGISTRATION_MS,
       );
 
       if (!floodCheck.allowed) {
@@ -4408,6 +4420,7 @@ const createUserModule = {
       };
     }
   },
+
   forgotPassword: async (request, next) => {
     try {
       const { query, body } = request;

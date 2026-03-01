@@ -18,6 +18,9 @@ const EmailLogSchema = new mongoose.Schema(
      */
     bucketKey: {
       type: String,
+      // NOTE: Do NOT add `sparse: true` here. `sparse` is an index option,
+      // not a schema path option. It is correctly set on the index below.
+      // Adding it here is a no-op but misleads future readers.
     },
     email: {
       type: String,
@@ -263,6 +266,14 @@ EmailLogSchema.statics.logEmailSent = async function ({
         logger.warn(
           `logEmailSent: failed to find document after E11000 retry for ${emailType}/${email}`,
         );
+        // Return failure rather than masking the problem with success:true.
+        // The email-send cooldown log was not recorded; callers should treat
+        // this as a non-fatal logging failure and continue their own flow.
+        return {
+          success: false,
+          data: null,
+          error: "Email log record not found after concurrent write",
+        };
       }
     }
 
