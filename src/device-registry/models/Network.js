@@ -67,6 +67,13 @@ const NetworkSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Reference to the originating record in the auth-service.
+    // Stored to preserve cross-service traceability without conflicting
+    // with MongoDB's native _id management during upsert operations.
+    auth_service_id: {
+      type: ObjectId,
+      index: true,
+    },
     // Old fields for backward compatibility
     name: {
       type: String,
@@ -81,7 +88,7 @@ const NetworkSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Encrypt API key before saving
@@ -89,7 +96,7 @@ NetworkSchema.pre("save", function(next) {
   if (this.isModified("net_api_key") && this.net_api_key) {
     this.net_api_key = cryptoJS.AES.encrypt(
       this.net_api_key,
-      constants.KEY_ENCRYPTION_KEY
+      constants.KEY_ENCRYPTION_KEY,
     ).toString();
   }
   next();
@@ -145,6 +152,7 @@ NetworkSchema.methods.toJSON = function() {
     net_manager_lastname,
     net_data_source,
     net_api_key,
+    auth_service_id,
   } = this.toObject();
 
   return {
@@ -164,6 +172,7 @@ NetworkSchema.methods.toJSON = function() {
     net_manager_lastname,
     net_data_source,
     net_api_key,
+    auth_service_id,
     // Old fields
     name,
     description,
@@ -188,7 +197,7 @@ NetworkSchema.statics.register = async function(args, next) {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: "network not created despite successful operation",
-      })
+      }),
     );
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
@@ -213,12 +222,12 @@ NetworkSchema.statics.register = async function(args, next) {
 
 NetworkSchema.statics.list = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     const inclusionProjection = constants.NETWORK_INCLUSION_PROJECTION;
     const exclusionProjection = constants.NETWORK_EXCLUSION_PROJECTION(
-      filter.path ? filter.path : "none"
+      filter.path ? filter.path : "none",
     );
 
     delete filter.path;
@@ -253,14 +262,14 @@ NetworkSchema.statics.list = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
 
 NetworkSchema.statics.modify = async function(
   { filter = {}, update = {} } = {},
-  next
+  next,
 ) {
   try {
     const options = {
@@ -276,7 +285,7 @@ NetworkSchema.statics.modify = async function(
     const updatedNetwork = await this.findOneAndUpdate(
       filter,
       modifiedUpdateBody,
-      options
+      options,
     ).exec();
 
     if (!isEmpty(updatedNetwork)) {
@@ -291,14 +300,14 @@ NetworkSchema.statics.modify = async function(
       new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
         ...filter,
         message: "network does not exist, please crosscheck",
-      })
+      }),
     );
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -327,14 +336,14 @@ NetworkSchema.statics.remove = async function({ filter = {} } = {}, next) {
       new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
         ...filter,
         message: "network does not exist, please crosscheck",
-      })
+      }),
     );
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
