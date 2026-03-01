@@ -6,7 +6,6 @@ const logger = log4js.getLogger(
 const NetworkModel = require("@models/Network");
 const cron = require("node-cron");
 const axios = require("axios");
-const { Types } = require("mongoose");
 const { logObject, logText } = require("@utils/shared");
 const { getSchedule } = require("@utils/common");
 
@@ -217,10 +216,7 @@ const reconcileNetworks = async (authNetworks, registryNetworks) => {
           $set: {
             ...updateData,
             name: authNet.net_name, // keep legacy name in sync
-          },
-          $setOnInsert: {
-            // Preserve the original _id from auth-service on first insert
-            _id: Types.ObjectId(authNet._id),
+            auth_service_id: authNet._id, // track auth-service origin without conflicting _id
           },
         },
         upsert: true,
