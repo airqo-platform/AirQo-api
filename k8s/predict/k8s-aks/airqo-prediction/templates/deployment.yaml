@@ -29,7 +29,7 @@ spec:
       containers:
         - name: {{ .Values.api.label }}
           image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.api.label }}

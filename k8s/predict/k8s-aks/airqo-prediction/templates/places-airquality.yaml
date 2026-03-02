@@ -30,7 +30,7 @@ spec:
           containers:
             - name: {{ .predictPlaces.name}}
               image: "{{ $.Values.images.repositories.predictPlaces }}:{{ $.Values.images.tag }}"
-              imagePullPolicy: IfNotPresent
+              imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
               envFrom:
                 - configMapRef:
                     name: {{ .predictPlaces.configmap }}

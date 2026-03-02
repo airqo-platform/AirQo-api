@@ -31,7 +31,7 @@ spec:
               value: dns
           name: {{ .Values.app.name }}
           image: redis:7.2.4
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.app.port }}
           resources:

@@ -16,7 +16,7 @@ spec:
           containers:
             - name: {{ .Values.jobs.reports.name }}
               image: "{{ .Values.images.repositories.reportJob }}:{{ .Values.images.tag }}"
-              imagePullPolicy: IfNotPresent
+              imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
               envFrom:
                 - secretRef:
                     name: {{ .Values.jobs.reports.secret}}

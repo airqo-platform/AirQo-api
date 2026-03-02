@@ -28,7 +28,7 @@ spec:
       containers:
         - name: {{ .Values.api.label }}
           image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           ports:
             - containerPort: 5000
               name: {{ .Values.api.label }}
@@ -47,7 +47,7 @@ spec:
 
         - name: {{ .Values.api.label }}-redis
           image: "{{ .Values.images.repositories.redisContainer }}:latest"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           ports:
             - containerPort: 6379
               name: redis
@@ -67,7 +67,7 @@ spec:
 
         - name: celery-beat
           image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           envFrom:
             - secretRef:
                 name: {{ .Values.api.secret }}
@@ -83,7 +83,7 @@ spec:
 
         - name: celery-worker
           image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           envFrom:
             - secretRef:
                 name: {{ .Values.api.secret }}

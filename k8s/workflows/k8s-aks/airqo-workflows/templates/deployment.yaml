@@ -31,7 +31,7 @@ spec:
       initContainers:
         - name: '{{ .Values.app.name }}-xcom'
           image: "{{ .Values.images.repositories.initContainer }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           resources:
             limits:
               cpu: {{ .Values.resources.initContainer.limits.cpu }}
@@ -49,7 +49,7 @@ spec:
       containers:
         - name: '{{ .Values.app.name }}-scheduler'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           envFrom:
             - secretRef:
                 name: {{ .Values.app.secret }}
@@ -68,7 +68,7 @@ spec:
               memory: {{ .Values.resources.scheduler.requests.memory }}
         - name: '{{ .Values.app.name }}-celery'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           envFrom:
             - secretRef:
                 name: {{ .Values.app.secret }}
@@ -87,7 +87,7 @@ spec:
               memory: {{ .Values.resources.celery.requests.memory }}
         - name: '{{ .Values.app.name }}-webserver'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           {{- $webTargetPort := include "getTargetPortByName" (list . "web-server") }}
           ports:
             - containerPort: {{ $webTargetPort }}
@@ -116,7 +116,7 @@ spec:
               port: {{ $webTargetPort }}
         - name: '{{ .Values.app.name }}-redis'
           image: "{{ .Values.images.repositories.redisContainer }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
           {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
           ports:
             - containerPort: {{ $redisPort }}
