@@ -178,6 +178,13 @@ require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
 require("@bin/jobs/refresh-grids-job");
 try {
+  require("@bin/jobs/find-duplicate-cohorts-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `find-duplicate-cohorts-job failed to start: ${err.message}`,
+  );
+}
+try {
   const syncNetworksJob = require("@bin/jobs/sync-networks-job");
   syncNetworksJob.start();
 } catch (err) {
