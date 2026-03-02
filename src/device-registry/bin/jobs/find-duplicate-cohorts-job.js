@@ -244,7 +244,7 @@ const schedule = "0 */2 * * *";
 // the lock for the tenant that was actually used in the last job run.
 let activeTenant = constants.DEFAULT_TENANT || "airqo";
 
-if (constants.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED !== false) {
+if (constants.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED === true) {
   const task = cron.schedule(
     schedule,
     async () => {
