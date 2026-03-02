@@ -20,7 +20,7 @@ from .constants import (
 from .data_validator import DataValidationUtils
 from .date import DateUtils
 from airqo_etl_utils.storage import FileStorage, GCSFileStorage
-from .common_utils import Utils
+from airqo_etl_utils.utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from .meta_data_utils import MetaDataUtils
