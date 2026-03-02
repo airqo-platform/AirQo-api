@@ -18,7 +18,7 @@ import urllib3
 from urllib.parse import parse_qs
 from urllib3.util.retry import Retry
 
-from airqo_etl_utils.common_utils import Utils
+from airqo_etl_utils.utils import Utils
 from .config import configuration
 from .constants import DeviceCategory, DeviceNetwork, MetaDataType
 

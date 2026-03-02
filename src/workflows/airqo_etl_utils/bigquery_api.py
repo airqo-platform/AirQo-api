@@ -15,7 +15,7 @@ from .constants import (
     Frequency,
 )
 from .date import DateUtils
-from .common_utils import Utils
+from airqo_etl_utils.utils import Utils
 import logging
 
 logger = logging.getLogger("airflow.task")
