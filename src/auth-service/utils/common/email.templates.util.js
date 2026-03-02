@@ -168,7 +168,7 @@ module.exports = {
                                 <br />
                                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                                 <ul>
-                                    <li>YOUR USERAME: ${username}</li>
+                                    <li>YOUR USERNAME: ${username}</li>
                                     <li>ACCESS LINK: <a href="${safeLoginUrl}">${safeLoginUrl}</a></li>
                                 </ul>
                                    
