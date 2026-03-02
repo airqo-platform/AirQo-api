@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "airqosm"
-version = "0.2.1"
+version = "0.2.2"
 description = "Air pollution source metadata client, inference engine, and optional API"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -39,7 +39,7 @@ Issues = "https://github.com/airqo-platform/AirQo-api/issues"
 airqosm-api = "airqo_source_metadata.cli:main"
 
 [tool.setuptools]
-package-dir = { "" = "src" }
+package-dir = { "" = "airqosm" }
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["airqosm"]
