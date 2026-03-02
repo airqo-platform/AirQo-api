@@ -21,6 +21,14 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+const buildDeviceSetKey = (deviceIds) => {
+  // Canonical key for a set of devices, used for grouping
+  return deviceIds
+    .map((id) => id.toString())
+    .sort()
+    .join(",");
+};
+
 function filterOutPrivateIDs(privateIds, randomIds) {
   // Create a Set from the privateIds array
   const privateIdSet = new Set(privateIds);
@@ -1386,6 +1394,127 @@ const createCohort = {
           {
             message: error.message,
           },
+        ),
+      );
+    }
+  },
+  findOriginal: async (request, next) => {
+    try {
+      const { cohort_id } = request.params;
+      const { tenant } = request.query;
+
+      // 1. Find the source cohort and its devices
+      const sourceCohort = await CohortModel(tenant)
+        .findById(cohort_id)
+        .lean();
+      if (!sourceCohort) {
+        return {
+          success: false,
+          message: "Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `Cohort with ID ${cohort_id} not found` },
+        };
+      }
+
+      const devices = await DeviceModel(tenant)
+        .find({ cohorts: cohort_id })
+        .select("_id")
+        .lean();
+
+      if (devices.length === 0) {
+        return {
+          success: true,
+          message: "This cohort has no devices and thus no original.",
+          data: null,
+          status: httpStatus.OK,
+        };
+      }
+
+      const sourceDeviceIds = devices.map((d) => d._id);
+
+      // 2. Find all cohorts that share at least one device with the source cohort
+      const candidateCohorts = await DeviceModel(tenant).distinct("cohorts", {
+        _id: { $in: sourceDeviceIds },
+      });
+
+      if (candidateCohorts.length <= 1) {
+        return {
+          success: true,
+          message: "This cohort is unique and has no duplicates.",
+          data: null,
+          status: httpStatus.OK,
+        };
+      }
+
+      // 3. Group these candidates by their full device set
+      const devicesByCohort = await DeviceModel(tenant).aggregate([
+        { $match: { cohorts: { $in: candidateCohorts } } },
+        { $unwind: "$cohorts" },
+        { $match: { cohorts: { $in: candidateCohorts } } },
+        { $group: { _id: "$cohorts", deviceIds: { $push: "$_id" } } },
+      ]);
+
+      const cohortDeviceSets = new Map();
+      for (const item of devicesByCohort) {
+        cohortDeviceSets.set(
+          item._id.toString(),
+          buildDeviceSetKey(item.deviceIds),
+        );
+      }
+
+      // 4. Identify the group of cohorts with the exact same device set
+      const sourceKey = cohortDeviceSets.get(cohort_id);
+      const duplicateGroupIdSet = new Set();
+      for (const [id, key] of cohortDeviceSets.entries()) {
+        if (key === sourceKey) {
+          duplicateGroupIdSet.add(id);
+        }
+      }
+
+      const duplicateGroupIds = Array.from(duplicateGroupIdSet).map(
+        (id) => new ObjectId(id),
+      );
+
+      if (duplicateGroupIds.length <= 1) {
+        return {
+          success: true,
+          message: "This cohort is unique and has no duplicates.",
+          data: null,
+          status: httpStatus.OK,
+        };
+      }
+
+      // 5. Find the oldest cohort in the group (the "original")
+      const originalCohort = await CohortModel(tenant)
+        .find({ _id: { $in: duplicateGroupIds } })
+        .sort({ createdAt: 1, _id: 1 }) // Sort by creation date, then by ID as a tie-breaker
+        .limit(1)
+        .lean();
+
+      if (originalCohort.length === 0) {
+        // This case should be rare
+        return {
+          success: false,
+          message: "Could not determine the original cohort.",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Original cohort found.",
+        data: originalCohort[0],
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error on findOriginal: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
         ),
       );
     }

@@ -335,6 +335,11 @@ const cohortValidations = {
     ...commonValidations.networkOptional,
     handleValidationErrors,
   ],
+  findOriginal: [
+    ...commonValidations.tenant,
+    commonValidations.paramObjectId("cohort_id"),
+    handleValidationErrors,
+  ],
   listCohorts: [
     ...commonValidations.tenant,
     oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
