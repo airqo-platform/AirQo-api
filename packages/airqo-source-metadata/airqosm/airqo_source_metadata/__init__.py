@@ -9,7 +9,7 @@ from .client import (
 from .engine import SourceMetadataEngine
 
 
-__version__ = "0.2.0"
+__version__ = "0.2.2"
 
 
 def source_metadata(
