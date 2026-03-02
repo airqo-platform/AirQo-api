@@ -1416,25 +1416,10 @@ const createCohort = {
         };
       }
 
-      const devices = await DeviceModel(tenant)
-        .find({ cohorts: cohort_id })
-        .select("_id")
-        .lean();
-
-      if (devices.length === 0) {
-        return {
-          success: true,
-          message: "This cohort has no devices and thus no original.",
-          data: null,
-          status: httpStatus.OK,
-        };
-      }
-
-      const sourceDeviceIds = devices.map((d) => d._id);
-
-      // 2. Find all cohorts that share at least one device with the source cohort
+      // 2. Find all cohorts that share devices with the source cohort.
+      // This is more efficient than fetching all device IDs first.
       const candidateCohorts = await DeviceModel(tenant).distinct("cohorts", {
-        _id: { $in: sourceDeviceIds },
+        cohorts: cohort_id,
       });
 
       if (candidateCohorts.length <= 1) {
@@ -1463,7 +1448,7 @@ const createCohort = {
       }
 
       // 4. Identify the group of cohorts with the exact same device set
-      const sourceKey = cohortDeviceSets.get(cohort_id);
+      const sourceKey = cohortDeviceSets.get(cohort_id.toString());
       const duplicateGroupIdSet = new Set();
       for (const [id, key] of cohortDeviceSets.entries()) {
         if (key === sourceKey) {
