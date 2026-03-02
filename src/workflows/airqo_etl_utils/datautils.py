@@ -819,8 +819,8 @@ class DataUtils:
             lat_fallback = device.get("latitude")
             lon_fallback = device.get("longitude")
         else:
-            lat_fallback = meta_data.get("latitude") or device.get("latitude")
-            lon_fallback = meta_data.get("longitude") or device.get("longitude")
+            lat_fallback = device.get("latitude") or meta_data.get("latitude")
+            lon_fallback = device.get("longitude") or meta_data.get("longitude")
 
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")
