@@ -20,8 +20,14 @@ const acquireLock = async (tenant) => {
   try {
     const result = await JobLockModel(tenant).findOneAndUpdate(
       {
-        jobName: JOB_NAME,
-        $or: [{ expiresAt: { $lte: now } }, { jobName: { $exists: false } }],
+        $or: [
+          // Claim an expired lock for this job (the normal takeover path)
+          { jobName: JOB_NAME, expiresAt: { $lte: now } },
+          // Recover a malformed lock document that is missing expiresAt
+          { jobName: JOB_NAME, expiresAt: { $exists: false } },
+          // Recover a document that is missing jobName entirely (defensive)
+          { jobName: { $exists: false } },
+        ],
       },
       {
         // $set overwrites fields on both insert (upsert) and update (expired doc),
@@ -144,24 +150,37 @@ const findDuplicateCohorts = async (tenant) => {
     let taggedCount = 0;
     let untaggedCount = 0;
 
+    // Collect all tag additions and removals first, then flush in one bulkWrite
+    // to avoid serialising individual awaited writes for every cohort.
+    const bulkOps = [];
+
     for (const [, cohortGroup] of deviceSetGroups) {
       if (cohortGroup.length < 2) {
         // Single cohort with this device set — remove stale duplicate tag if present
         const cohort = cohortGroup[0];
         if (cohort.cohort_tags && cohort.cohort_tags.includes(DUPLICATE_TAG)) {
-          await CohortModel(tenant).findByIdAndUpdate(cohort._id, {
-            $pull: { cohort_tags: DUPLICATE_TAG },
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: cohort._id },
+              update: { $pull: { cohort_tags: DUPLICATE_TAG } },
+            },
           });
           untaggedCount++;
           logger.info(
-            `[${POD_ID}] Removed stale '${DUPLICATE_TAG}' tag from cohort ${cohort.name} (${cohort._id})`,
+            `[${POD_ID}] Queuing removal of stale '${DUPLICATE_TAG}' tag from cohort ${cohort.name} (${cohort._id})`,
           );
         }
         continue;
       }
 
-      // Sort ascending by createdAt: oldest = original, rest = duplicates
-      cohortGroup.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      // Sort ascending by createdAt, with _id as a stable tie-breaker.
+      // ObjectId bytes 0-3 encode creation time, so _id string comparison
+      // produces a deterministic order when two cohorts share an identical timestamp.
+      cohortGroup.sort((a, b) => {
+        const timeDiff = new Date(a.createdAt) - new Date(b.createdAt);
+        if (timeDiff !== 0) return timeDiff;
+        return a._id.toString().localeCompare(b._id.toString());
+      });
 
       const [original, ...duplicates] = cohortGroup;
 
@@ -170,30 +189,41 @@ const findDuplicateCohorts = async (tenant) => {
         original.cohort_tags &&
         original.cohort_tags.includes(DUPLICATE_TAG)
       ) {
-        await CohortModel(tenant).findByIdAndUpdate(original._id, {
-          $pull: { cohort_tags: DUPLICATE_TAG },
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: original._id },
+            update: { $pull: { cohort_tags: DUPLICATE_TAG } },
+          },
         });
         untaggedCount++;
         logger.info(
-          `[${POD_ID}] Removed '${DUPLICATE_TAG}' tag from original cohort ${original.name} (${original._id})`,
+          `[${POD_ID}] Queuing removal of '${DUPLICATE_TAG}' tag from original cohort ${original.name} (${original._id})`,
         );
       }
 
-      // Tag all newer cohorts in the group as duplicates
+      // Queue tag additions for all newer cohorts in the group
       for (const dup of duplicates) {
         const alreadyTagged =
           dup.cohort_tags && dup.cohort_tags.includes(DUPLICATE_TAG);
         if (!alreadyTagged) {
-          await CohortModel(tenant).findByIdAndUpdate(dup._id, {
-            $addToSet: { cohort_tags: DUPLICATE_TAG },
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: dup._id },
+              update: { $addToSet: { cohort_tags: DUPLICATE_TAG } },
+            },
           });
           taggedCount++;
           logger.info(
-            `[${POD_ID}] Tagged cohort ${dup.name} (${dup._id}) as '${DUPLICATE_TAG}' ` +
+            `[${POD_ID}] Queuing '${DUPLICATE_TAG}' tag for cohort ${dup.name} (${dup._id}) ` +
               `(duplicate of original: ${original.name} [${original._id}])`,
           );
         }
       }
+    }
+
+    // Flush all queued updates in a single round-trip
+    if (bulkOps.length > 0) {
+      await CohortModel(tenant).bulkWrite(bulkOps, { ordered: false });
     }
 
     logger.info(
