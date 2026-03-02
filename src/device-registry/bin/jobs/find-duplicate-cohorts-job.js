@@ -10,7 +10,7 @@ const logger = log4js.getLogger(
 const os = require("os");
 
 const JOB_NAME = "find-duplicate-cohorts";
-const LOCK_TTL_SECONDS = 110 * 60; // 110 min (within 2-hour window)
+const LOCK_TTL_SECONDS = 110 * 60; // 110 minutes
 const POD_ID = process.env.HOSTNAME || os.hostname();
 const DUPLICATE_TAG = "duplicate";
 
@@ -21,14 +21,20 @@ const acquireLock = async (tenant) => {
     const result = await JobLockModel(tenant).findOneAndUpdate(
       {
         jobName: JOB_NAME,
-        $or: [{ jobName: { $exists: false } }, { expiresAt: { $lte: now } }],
+        $or: [{ expiresAt: { $lte: now } }, { jobName: { $exists: false } }],
       },
       {
-        $setOnInsert: {
-          jobName: JOB_NAME,
+        // $set overwrites fields on both insert (upsert) and update (expired doc),
+        // so an expired lock held by a crashed pod is correctly taken over.
+        $set: {
           acquiredBy: POD_ID,
           acquiredAt: now,
           expiresAt,
+        },
+        // $setOnInsert only fires when MongoDB creates a new document via upsert,
+        // ensuring jobName is written on first creation without conflicting with $set.
+        $setOnInsert: {
+          jobName: JOB_NAME,
         },
       },
       { upsert: true, new: true, rawResult: false },
@@ -52,12 +58,22 @@ const releaseLock = async (tenant) => {
   }
 };
 
-const buildDeviceSetKey = (deviceIds) =>
-  deviceIds
+/**
+ * Builds a canonical string key for a sorted set of device IDs.
+ * Used to identify cohorts that share the exact same device membership.
+ */
+const buildDeviceSetKey = (deviceIds) => {
+  return deviceIds
     .map((id) => id.toString())
     .sort()
     .join(",");
+};
 
+/**
+ * Main job: scan all cohorts, find duplicate device sets,
+ * and tag newer cohorts with "duplicate". The oldest cohort
+ * in each duplicate group is treated as the original.
+ */
 const findDuplicateCohorts = async (tenant) => {
   const lockAcquired = await acquireLock(tenant);
   if (!lockAcquired) {
@@ -70,6 +86,7 @@ const findDuplicateCohorts = async (tenant) => {
   try {
     logger.info(`[${POD_ID}] Starting ${JOB_NAME} for tenant: ${tenant}`);
 
+    // Fetch all non-user cohorts
     const allCohorts = await CohortModel(tenant)
       .find({ name: { $not: /^coh_user_/i } })
       .select("_id name createdAt cohort_tags")
@@ -80,22 +97,44 @@ const findDuplicateCohorts = async (tenant) => {
       return;
     }
 
-    // Build cohortId -> { cohort, deviceSetKey }
+    // Fetch all device->cohort assignments in a single aggregation to avoid N+1 queries.
+    // Result: [{ _id: cohortId, deviceIds: [ObjectId, ...] }]
+    const cohortIds = allCohorts.map((c) => c._id);
+    const devicesByCohort = await DeviceModel(tenant).aggregate([
+      { $match: { cohorts: { $in: cohortIds } } },
+      { $unwind: "$cohorts" },
+      { $match: { cohorts: { $in: cohortIds } } },
+      {
+        $group: {
+          _id: "$cohorts",
+          deviceIds: { $push: "$_id" },
+        },
+      },
+    ]);
+
+    // Index aggregation results by cohort ID string for O(1) lookup
+    const deviceIdsByCohortId = new Map();
+    for (const row of devicesByCohort) {
+      deviceIdsByCohortId.set(row._id.toString(), row.deviceIds);
+    }
+
+    // Build a map of cohortId -> { cohort, deviceSetKey }
     const cohortDeviceMap = new Map();
+
     for (const cohort of allCohorts) {
-      const devices = await DeviceModel(tenant)
-        .find({ cohorts: cohort._id })
-        .select("_id")
-        .lean();
-      if (devices.length === 0) continue; // empty cohorts are not duplicates
+      const deviceIds = deviceIdsByCohortId.get(cohort._id.toString());
+
+      // Skip cohorts with no devices — empty cohorts are not considered duplicates
+      if (!deviceIds || deviceIds.length === 0) continue;
+
       cohortDeviceMap.set(cohort._id.toString(), {
         cohort,
-        key: buildDeviceSetKey(devices.map((d) => d._id)),
+        key: buildDeviceSetKey(deviceIds),
       });
     }
 
-    // Group cohorts by device set key
-    const deviceSetGroups = new Map();
+    // Group cohorts by their device set key
+    const deviceSetGroups = new Map(); // key -> cohort[]
     for (const [, value] of cohortDeviceMap) {
       const group = deviceSetGroups.get(value.key) || [];
       group.push(value.cohort);
@@ -107,7 +146,7 @@ const findDuplicateCohorts = async (tenant) => {
 
     for (const [, cohortGroup] of deviceSetGroups) {
       if (cohortGroup.length < 2) {
-        // Remove any stale duplicate tag
+        // Single cohort with this device set — remove stale duplicate tag if present
         const cohort = cohortGroup[0];
         if (cohort.cohort_tags && cohort.cohort_tags.includes(DUPLICATE_TAG)) {
           await CohortModel(tenant).findByIdAndUpdate(cohort._id, {
@@ -115,17 +154,18 @@ const findDuplicateCohorts = async (tenant) => {
           });
           untaggedCount++;
           logger.info(
-            `[${POD_ID}] Removed stale '${DUPLICATE_TAG}' tag from ${cohort.name}`,
+            `[${POD_ID}] Removed stale '${DUPLICATE_TAG}' tag from cohort ${cohort.name} (${cohort._id})`,
           );
         }
         continue;
       }
 
-      // Oldest first → oldest is the original
+      // Sort ascending by createdAt: oldest = original, rest = duplicates
       cohortGroup.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
       const [original, ...duplicates] = cohortGroup;
 
-      // Ensure original is NOT tagged
+      // Ensure the original cohort is NOT tagged as duplicate
       if (
         original.cohort_tags &&
         original.cohort_tags.includes(DUPLICATE_TAG)
@@ -135,11 +175,11 @@ const findDuplicateCohorts = async (tenant) => {
         });
         untaggedCount++;
         logger.info(
-          `[${POD_ID}] Removed '${DUPLICATE_TAG}' tag from original ${original.name}`,
+          `[${POD_ID}] Removed '${DUPLICATE_TAG}' tag from original cohort ${original.name} (${original._id})`,
         );
       }
 
-      // Tag newer cohorts
+      // Tag all newer cohorts in the group as duplicates
       for (const dup of duplicates) {
         const alreadyTagged =
           dup.cohort_tags && dup.cohort_tags.includes(DUPLICATE_TAG);
@@ -149,15 +189,16 @@ const findDuplicateCohorts = async (tenant) => {
           });
           taggedCount++;
           logger.info(
-            `[${POD_ID}] Tagged ${dup.name} (${dup._id}) as '${DUPLICATE_TAG}' ` +
-              `(original: ${original.name} [${original._id}])`,
+            `[${POD_ID}] Tagged cohort ${dup.name} (${dup._id}) as '${DUPLICATE_TAG}' ` +
+              `(duplicate of original: ${original.name} [${original._id}])`,
           );
         }
       }
     }
 
     logger.info(
-      `[${POD_ID}] ${JOB_NAME}-${tenant} complete. Tagged: ${taggedCount}, Untagged stale: ${untaggedCount}.`,
+      `[${POD_ID}] ${JOB_NAME}-${tenant} complete. ` +
+        `Newly tagged: ${taggedCount}, Stale tags removed: ${untaggedCount}.`,
     );
   } catch (error) {
     logger.error(`🐛🐛 Error in ${JOB_NAME}-${tenant}: ${error.message}`);
@@ -166,13 +207,19 @@ const findDuplicateCohorts = async (tenant) => {
   }
 };
 
-const schedule = "0 */2 * * *"; // Every 2 hours
+// Every 2 hours at minute 0
+const schedule = "0 */2 * * *";
+
+// Module-scoped tenant variable so SIGTERM/SIGINT handlers always release
+// the lock for the tenant that was actually used in the last job run.
+let activeTenant = constants.DEFAULT_TENANT || "airqo";
 
 if (constants.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED !== false) {
-  cron.schedule(
+  const task = cron.schedule(
     schedule,
     async () => {
-      await findDuplicateCohorts("airqo");
+      activeTenant = constants.DEFAULT_TENANT || "airqo";
+      await findDuplicateCohorts(activeTenant);
     },
     {
       scheduled: true,
@@ -180,18 +227,29 @@ if (constants.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED !== false) {
     },
   );
 
+  // Register with global.cronJobs so the graceful shutdown handler in
+  // server.js can stop this task alongside all other cron jobs.
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+  global.cronJobs[JOB_NAME] = task;
+
   process.on("SIGTERM", async () => {
     logger.warn(
       `[${POD_ID}] SIGTERM received — releasing lock and shutting down.`,
     );
-    await releaseLock("airqo");
+    if (activeTenant) {
+      await releaseLock(activeTenant);
+    }
   });
 
   process.on("SIGINT", async () => {
     logger.warn(
       `[${POD_ID}] SIGINT received — releasing lock and shutting down.`,
     );
-    await releaseLock("airqo");
+    if (activeTenant) {
+      await releaseLock(activeTenant);
+    }
   });
 }
 
