@@ -669,7 +669,7 @@ const generateFilter = {
       tenant,
     } = { ...query, ...params };
 
-    const DEFAULT_TIME_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const DEFAULT_TIME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
     const filter = {};
 
@@ -688,7 +688,6 @@ const generateFilter = {
     } else if (endTime && !isTimeEmpty(endTime)) {
       filter.time = { $lte: new Date(endTime) };
     } else {
-      // Apply a default bounded window to prevent unbounded collection scans
       filter.time = {
         $gte: new Date(Date.now() - DEFAULT_TIME_WINDOW_MS),
         $lte: new Date(),
@@ -707,12 +706,12 @@ const generateFilter = {
     }
 
     if (device_id) {
+      // Readings schema stores device_id as String — no ObjectId conversion
       const deviceIdArray = device_id
         .toString()
         .split(",")
         .map((id) => id.trim())
-        .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
-        .map((id) => ObjectId(id));
+        .filter((id) => id.length > 0);
       if (deviceIdArray.length > 0) {
         filter.device_id = { $in: deviceIdArray };
       }
@@ -723,12 +722,12 @@ const generateFilter = {
     }
 
     if (site_id) {
+      // Readings schema stores site_id as String — no ObjectId conversion
       const siteIdArray = site_id
         .toString()
         .split(",")
         .map((id) => id.trim())
-        .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
-        .map((id) => ObjectId(id));
+        .filter((id) => id.length > 0);
       if (siteIdArray.length > 0) {
         filter.site_id = { $in: siteIdArray };
       }

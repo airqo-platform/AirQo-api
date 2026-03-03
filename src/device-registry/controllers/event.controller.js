@@ -446,7 +446,6 @@ const processAirQloudIds = async (airqloud_ids, request) => {
     : airqloud_ids.toString().split(",");
   logObject("airqloudIdArray", airqloudIdArray);
 
-  // Use Promise.all to concurrently process each airqloud_id
   const siteIdPromises = airqloudIdArray.map(async (airqloud_id) => {
     if (!isEmpty(airqloud_id)) {
       logObject("airqloud_id under processAirQloudIds", airqloud_id);
@@ -476,12 +475,10 @@ const processAirQloudIds = async (airqloud_ids, request) => {
         };
       }
 
-      // Randomly pick one site from the list
       logObject(
         "responseFromGetSitesOfAirQloud.data",
         responseFromGetSitesOfAirQloud.data,
       );
-
       logObject(
         "responseFromGetSitesOfAirQloud.data.split",
         responseFromGetSitesOfAirQloud.data.split(","),
@@ -489,19 +486,14 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 
       const arrayOfSites = responseFromGetSitesOfAirQloud.data.split(",");
       return arrayOfSites;
-      // const randomSite =
-      //   arrayOfSites[Math.floor(Math.random() * arrayOfSites.length)];
-      // logObject("randomSite", randomSite);
-      // return randomSite;
     }
   });
 
-  // Wait for all promises to resolve
   const siteIdResults = await Promise.all(siteIdPromises);
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false,
+    (result) => !result || result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
@@ -509,10 +501,11 @@ const processAirQloudIds = async (airqloud_ids, request) => {
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
+
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false),
+    (result) => result && result.success !== false,
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -1339,6 +1332,9 @@ const createEvent = {
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
         },
       };
+
+      // Prevent public callers from toggling internal behavior
+      delete request.query.internal;
 
       const result = await createEventUtil.listForMap(request, next);
 
