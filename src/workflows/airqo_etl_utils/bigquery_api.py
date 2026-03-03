@@ -1307,18 +1307,13 @@ class BigQueryApi:
         FROM `{self.hourly_measurements_table}` t1
         JOIN `{self.sites_table}` t2
         ON t1.site_id = t2.id
-        WHERE DATE(t1.timestamp) >= @start_date
+        WHERE DATE(t1.timestamp) >= '{start_date}'
         AND t1.device_id IS NOT NULL
         ORDER BY t1.device_id, t1.timestamp
         """
-        query_parameters = [
-            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-        ]
 
         try:
-            return self.execute_data_query(
-                query=query, query_parameters=query_parameters
-            )
+            return self.execute_data_query(query=query)
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
