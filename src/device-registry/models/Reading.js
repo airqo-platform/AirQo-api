@@ -1648,8 +1648,8 @@ ReadingsSchema.statics.listForMap = async function(
   try {
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const DEFAULT_LIMIT = 1000;
-    const safeLimit = limit || DEFAULT_LIMIT;
-    const safeSkip = skip || 0;
+    const safeLimit = parseInt(limit) || DEFAULT_LIMIT;
+    const safeSkip = parseInt(skip) || 0;
 
     const pipeline = [
       {

@@ -1242,15 +1242,14 @@ const createEvent = {
   listForMap: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
-      const filter = generateFilter.readings(request, next);
+      const { tenant } = query;
+      const limit = parseInt(query.limit) || 1000;
+      const skip = parseInt(query.skip) || 0;
+
+      const filter = generateFilter.readingsMap(request, next);
 
       const responseFromListReadings = await ReadingModel(tenant).listForMap(
-        {
-          filter,
-          limit,
-          skip,
-        },
+        { filter, limit, skip },
         next,
       );
 

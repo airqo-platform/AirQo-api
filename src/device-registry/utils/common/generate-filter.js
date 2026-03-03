@@ -656,6 +656,81 @@ const generateFilter = {
 
     return filter;
   },
+  readingsMap: (request, next) => {
+    const { query, params } = request;
+    const {
+      device,
+      device_id,
+      site_id,
+      site,
+      startTime,
+      endTime,
+      network,
+      tenant,
+    } = { ...query, ...params };
+
+    const filter = {};
+
+    // Time range — Readings schema uses flat `time` field, not `values.time`
+    if (startTime && !isTimeEmpty(startTime)) {
+      filter.time = filter.time || {};
+      filter.time.$gte = new Date(startTime);
+    }
+
+    if (endTime && !isTimeEmpty(endTime)) {
+      filter.time = filter.time || {};
+      filter.time.$lte = new Date(endTime);
+    }
+
+    // Device name — Readings schema uses flat `device` field
+    if (device) {
+      const deviceArray = device.toString().split(",");
+      const mergedArray = [
+        ...deviceArray,
+        ...deviceArray.map((v) =>
+          v === v.toLowerCase() ? v.toUpperCase() : v.toLowerCase(),
+        ),
+      ];
+      filter.device = { $in: mergedArray };
+    }
+
+    // Device ID — Readings schema uses flat `device_id` field
+    if (device_id) {
+      const deviceIdArray = device_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter.device_id = { $in: deviceIdArray };
+    }
+
+    // Site name — Readings schema uses flat `site` field
+    if (site) {
+      filter.site = { $in: site.toString().split(",") };
+    }
+
+    // Site ID — Readings schema uses flat `site_id` field
+    if (site_id) {
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter.site_id = { $in: siteIdArray };
+    }
+
+    if (network) {
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true },
+      );
+    }
+
+    if (tenant) {
+      filter.tenant = tenant;
+    }
+
+    return filter;
+  },
   signals: (request, next) => {
     const { query, params } = request;
     const {
