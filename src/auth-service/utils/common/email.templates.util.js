@@ -44,15 +44,11 @@ module.exports = {
 <p> Thank you for signing up for AirQo! We are excited to have you on board.</p>
 <p> Before you can fully access all of the features and services offered by AirQo, we need to verify your account. </p>
 <p> This is a quick and easy process that helps us ensure the security and privacy of our users. </p>
-<br>
 <p> If you are using the AirQo web platform, please click on the following link to verify your account: <a href="${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}">verification link</a></p>
 <p> If you are using the AirQo mobile app, you can verify your account directly within the app.</p>
 <p> This verification link will be valid for ${constants.EMAIL_VERIFICATION_HOURS} hour(s). If you do not verify your email within this time, you will need to request a new verification email.</p>
-<br>
 <p> If you have any questions or need assistance with the verification process, please don't hesitate to reach out to our support team: support@airqo.net.</p>
-<br>
 <p> Thank you for choosing AirQo, and we look forward to helping you achieve your goals</p>
-<br>
 <p> Sincerely,</p>
 <p> The AirQo Data Team</p>
 `;
@@ -118,11 +114,8 @@ module.exports = {
             <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                 <p>Congratulations! Your AirQo account has been successfully verified.</p>
                 <p>You can now fully access all the features and services offered by the AirQo mobile application.</p>
-
                 <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>
-                <br />
-                 <p>Thank you for choosing AirQo.</p>
-                <br />
+                <p>Thank you for choosing AirQo.</p>
                 <p>Sincerely,</p>
                 <p>The AirQo Team</p>
             </td>
@@ -138,14 +131,9 @@ module.exports = {
                     <li>YOUR USERNAME: ${username}</li>
                     <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/user/login</li>
                 </ul>
-                <br />
                 <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>
-                <br />
                 <p>Thank you for choosing AirQo, and we look forward to helping you achieve your goals</p>
-                <br />
-                <br />
                 <p>Sincerely,</p>
-                <br />
                 <p>The AirQo Data Team</p>
             </td>
         </tr>`;
@@ -180,19 +168,15 @@ module.exports = {
                                 <br />
                                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                                 <ul>
-                                    <li>YOUR USERAME: ${username}</li>
+                                    <li>YOUR USERNAME: ${username}</li>
                                     <li>ACCESS LINK: <a href="${safeLoginUrl}">${safeLoginUrl}</a></li>
                                 </ul>
-                                    <br />
-                                If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
-                                team. We are here to help.
-                                <br />
-                                Thank you for choosing AirQo, and we look forward to helping you achieve your goals
-                                <br />
-                                <br />
-                                Sincerely,
-                                <br />
-                                The AirQo Data Team
+                                   
+                                <p>If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
+                                team. We are here to help.</p>
+                                <p>Thank you for choosing AirQo, and we look forward to helping you achieve your goals</p>
+                                <p>Sincerely,</p>
+                                <p>The AirQo Data Team</p>
                                 </td>
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
