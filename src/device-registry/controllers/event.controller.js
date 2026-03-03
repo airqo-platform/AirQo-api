@@ -529,6 +529,46 @@ const extractMapResponseData = (result) => {
   return { measurements, meta };
 };
 
+/**
+ * Normalises the request object for map endpoints — defaults tenant,
+ * strips the internal flag to prevent public callers toggling it.
+ */
+const prepareMapRequest = (req) => {
+  const request = {
+    ...req,
+    query: {
+      ...req.query,
+      tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+    },
+  };
+  delete request.query.internal;
+  return request;
+};
+
+/**
+ * Sends the final HTTP response for map endpoints, handling both
+ * success and error shapes consistently.
+ */
+const respondWithMapResult = (res, result) => {
+  const status = result.status || httpStatus.OK;
+  if (result.success === true) {
+    const { measurements, meta } = extractMapResponseData(result);
+    return res.status(status).json({
+      success: true,
+      message: result.message,
+      measurements,
+      meta,
+    });
+  } else {
+    const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+    return res.status(errorStatus).json({
+      success: false,
+      errors: result.errors || { message: "" },
+      message: result.message,
+    });
+  }
+};
+
 const createEvent = {
   getRepresentativeAirQualityForGrid: async (req, res, next) => {
     try {
@@ -1087,16 +1127,7 @@ const createEvent = {
         return;
       }
 
-      const request = {
-        ...req,
-        query: {
-          ...req.query,
-          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
-        },
-      };
-
-      delete request.query.internal;
-
+      const request = prepareMapRequest(req);
       const { cohort_id } = { ...req.query, ...req.params };
 
       if (cohort_id) {
@@ -1128,23 +1159,7 @@ const createEvent = {
         return;
       }
 
-      const status = result.status || httpStatus.OK;
-      if (result.success === true) {
-        const { measurements, meta } = extractMapResponseData(result);
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          measurements,
-          meta,
-        });
-      } else {
-        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(errorStatus).json({
-          success: false,
-          errors: result.errors || { message: "" },
-          message: result.message,
-        });
-      }
+      return respondWithMapResult(res, result);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1331,39 +1346,14 @@ const createEvent = {
         return;
       }
 
-      const request = {
-        ...req,
-        query: {
-          ...req.query,
-          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
-        },
-      };
-
-      delete request.query.internal;
-
+      const request = prepareMapRequest(req);
       const result = await createEventUtil.listForMap(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
 
-      const status = result.status || httpStatus.OK;
-      if (result.success === true) {
-        const { measurements, meta } = extractMapResponseData(result);
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          measurements,
-          meta,
-        });
-      } else {
-        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(errorStatus).json({
-          success: false,
-          errors: result.errors || { message: "" },
-          message: result.message,
-        });
-      }
+      return respondWithMapResult(res, result);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
