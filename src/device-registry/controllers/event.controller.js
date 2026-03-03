@@ -521,10 +521,14 @@ const processAirQloudIds = async (airqloud_ids, request) => {
  * providing empty defaults so the response shape is always consistent.
  */
 const extractMapResponseData = (result) => {
-  return {
-    measurements: result.data || [],
-    meta: result.meta || {},
-  };
+  const measurements = Array.isArray(result.data) ? result.data : [];
+  const meta =
+    result.meta &&
+    typeof result.meta === "object" &&
+    !Array.isArray(result.meta)
+      ? result.meta
+      : {};
+  return { measurements, meta };
 };
 
 /**

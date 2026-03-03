@@ -1272,11 +1272,23 @@ const createEvent = {
         };
       }
       if (responseFromListReadings.success === true) {
-        const { measurements, meta } = responseFromListReadings.data;
+        const raw = responseFromListReadings.data;
+        let data;
+        let meta;
+        if (Array.isArray(raw)) {
+          data = raw;
+          meta = {};
+        } else if (raw && typeof raw === "object") {
+          data = Array.isArray(raw.measurements) ? raw.measurements : [];
+          meta = raw.meta && typeof raw.meta === "object" ? raw.meta : {};
+        } else {
+          data = [];
+          meta = {};
+        }
         return {
           success: true,
           message: responseFromListReadings.message,
-          data: measurements,
+          data,
           meta,
           status: responseFromListReadings.status || httpStatus.OK,
         };
