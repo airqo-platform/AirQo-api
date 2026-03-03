@@ -1243,30 +1243,23 @@ const createEvent = {
     try {
       const { query } = request;
       const { tenant } = query;
-
       const DEFAULT_LIMIT = 1000;
       const MAX_LIMIT = 5000;
-
       const parsedLimit = parseInt(query.limit);
       const parsedSkip = parseInt(query.skip);
-
       const limit =
         isNaN(parsedLimit) || !isFinite(parsedLimit) || parsedLimit < 1
           ? DEFAULT_LIMIT
           : Math.min(parsedLimit, MAX_LIMIT);
-
       const skip =
         isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
           ? 0
           : parsedSkip;
-
       const filter = generateFilter.readingsMap(request, next);
-
       const responseFromListReadings = await ReadingModel(tenant).listForMap(
         { filter, limit, skip },
         next,
       );
-
       if (
         !responseFromListReadings ||
         typeof responseFromListReadings !== "object"
@@ -1278,12 +1271,28 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
-
       if (responseFromListReadings.success === true) {
+        const raw = responseFromListReadings.data;
+        let data;
+        let meta;
+        if (Array.isArray(raw)) {
+          data = raw;
+          meta = {};
+        } else if (raw && typeof raw === "object") {
+          data = Array.isArray(raw.measurements) ? raw.measurements : [];
+          meta =
+            raw.meta && typeof raw.meta === "object" && !Array.isArray(raw.meta)
+              ? raw.meta
+              : {};
+        } else {
+          data = [];
+          meta = {};
+        }
         return {
           success: true,
           message: responseFromListReadings.message,
-          data: responseFromListReadings.data,
+          data,
+          meta,
           status: responseFromListReadings.status || httpStatus.OK,
         };
       } else {
