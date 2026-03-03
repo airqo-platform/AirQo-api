@@ -1676,9 +1676,9 @@ ReadingsSchema.statics.listForMap = async function(
       { $sort: { time: -1 } },
       {
         $group: {
-          // Use site_id for static deployments, deployment_id for mobile —
-          // prevents all mobile readings collapsing into a single null bucket
-          _id: { $ifNull: ["$site_id", "$deployment_id"] },
+          // Static devices group by site_id; mobile devices fall back to
+          // device_id so each mobile device gets its own latest-reading bucket
+          _id: { $ifNull: ["$site_id", "$device_id"] },
           latestReading: { $first: "$$ROOT" },
         },
       },

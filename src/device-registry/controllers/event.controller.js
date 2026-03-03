@@ -516,6 +516,19 @@ const processAirQloudIds = async (airqloud_ids, request) => {
   }
 };
 
+/**
+ * Safely extracts measurements and meta from a listForMap result,
+ * providing empty defaults so the response shape is always consistent.
+ */
+const extractMapResponseData = (result) => {
+  const data = result.data;
+  const measurements = Array.isArray(data?.measurements)
+    ? data.measurements
+    : [];
+  const meta = data?.meta && typeof data.meta === "object" ? data.meta : {};
+  return { measurements, meta };
+};
+
 const createEvent = {
   getRepresentativeAirQualityForGrid: async (req, res, next) => {
     try {
@@ -1082,7 +1095,6 @@ const createEvent = {
         },
       };
 
-      // Prevent public callers from toggling internal behavior
       delete request.query.internal;
 
       const { cohort_id } = { ...req.query, ...req.params };
@@ -1118,18 +1130,12 @@ const createEvent = {
 
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
-        const data = result.data;
-        const measurements = Array.isArray(data?.measurements)
-          ? data.measurements
-          : [];
-        const meta =
-          data?.meta && typeof data.meta === "object" ? data.meta : {};
-
+        const { measurements, meta } = extractMapResponseData(result);
         return res.status(status).json({
           success: true,
           message: result.message,
-          meta,
           measurements,
+          meta,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
@@ -1333,7 +1339,6 @@ const createEvent = {
         },
       };
 
-      // Prevent public callers from toggling internal behavior
       delete request.query.internal;
 
       const result = await createEventUtil.listForMap(request, next);
@@ -1343,15 +1348,8 @@ const createEvent = {
       }
 
       const status = result.status || httpStatus.OK;
-
       if (result.success === true) {
-        const data = result.data;
-        const measurements = Array.isArray(data?.measurements)
-          ? data.measurements
-          : [];
-        const meta =
-          data?.meta && typeof data.meta === "object" ? data.meta : {};
-
+        const { measurements, meta } = extractMapResponseData(result);
         return res.status(status).json({
           success: true,
           message: result.message,
