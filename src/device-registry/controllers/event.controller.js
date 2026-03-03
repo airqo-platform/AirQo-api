@@ -1121,7 +1121,6 @@ const createEvent = {
             cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
           return res.status(status).json(cohortProcessingResponse);
         } else if (isEmpty(request.query.device_id)) {
-          // No devices found for this cohort, return error consistent with other endpoints
           return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
             errors: {
@@ -1132,16 +1131,7 @@ const createEvent = {
         }
       }
 
-      // Directly create the filter for the 'read' utility
-      const filter = {};
-      if (request.query.device_id) {
-        const deviceIds = request.query.device_id
-          .split(",")
-          .map((id) => id.trim());
-        filter.device_id = { $in: deviceIds };
-      }
-
-      const result = await createEventUtil.read(request, filter, next);
+      const result = await createEventUtil.listForMap(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -1149,14 +1139,22 @@ const createEvent = {
 
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
-        res.status(status).json({
+        const data = result.data;
+        const measurements = Array.isArray(data?.measurements)
+          ? data.measurements
+          : [];
+        const meta =
+          data?.meta && typeof data.meta === "object" ? data.meta : {};
+
+        return res.status(status).json({
           success: true,
           message: result.message,
-          measurements: result.data,
+          meta,
+          measurements,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(errorStatus).json({
+        return res.status(errorStatus).json({
           success: false,
           errors: result.errors || { message: "" },
           message: result.message,
@@ -1363,12 +1361,20 @@ const createEvent = {
       }
 
       const status = result.status || httpStatus.OK;
+
       if (result.success === true) {
+        const data = result.data;
+        const measurements = Array.isArray(data?.measurements)
+          ? data.measurements
+          : [];
+        const meta =
+          data?.meta && typeof data.meta === "object" ? data.meta : {};
+
         return res.status(status).json({
           success: true,
           message: result.message,
-          meta: result.data.meta,
-          measurements: result.data.measurements,
+          measurements,
+          meta,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;

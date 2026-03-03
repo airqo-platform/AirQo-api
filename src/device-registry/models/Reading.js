@@ -1647,6 +1647,9 @@ ReadingsSchema.statics.listForMap = async function(
 ) {
   try {
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const DEFAULT_LIMIT = 1000;
+    const safeLimit = limit || DEFAULT_LIMIT;
+    const safeSkip = skip || 0;
 
     const pipeline = [
       {
@@ -1687,16 +1690,17 @@ ReadingsSchema.statics.listForMap = async function(
       },
       {
         $facet: {
-          paginatedResults: [{ $skip: skip }, { $limit: limit }],
+          paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],
           totalCount: [{ $count: "count" }],
         },
       },
     ];
 
     const results = await this.aggregate(pipeline).allowDiskUse(true);
-    const paginatedResults = results[0].paginatedResults;
-    const total =
-      results[0].totalCount.length > 0 ? results[0].totalCount[0].count : 0;
+
+    const { paginatedResults = [], totalCount = [] } = results[0] || {};
+    const total = totalCount[0]?.count || 0;
+    const pages = Math.ceil(total / safeLimit) || 1;
 
     return {
       success: true,
@@ -1705,10 +1709,10 @@ ReadingsSchema.statics.listForMap = async function(
         measurements: paginatedResults,
         meta: {
           total,
-          limit,
-          skip,
-          page: Math.floor(skip / limit) + 1,
-          pages: Math.ceil(total / limit),
+          limit: safeLimit,
+          skip: safeSkip,
+          page: Math.floor(safeSkip / safeLimit) + 1,
+          pages,
         },
       },
       status: httpStatus.OK,
