@@ -1243,8 +1243,22 @@ const createEvent = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const limit = parseInt(query.limit) || 1000;
-      const skip = parseInt(query.skip) || 0;
+
+      const DEFAULT_LIMIT = 1000;
+      const MAX_LIMIT = 5000;
+
+      const parsedLimit = parseInt(query.limit);
+      const parsedSkip = parseInt(query.skip);
+
+      const limit =
+        isNaN(parsedLimit) || !isFinite(parsedLimit) || parsedLimit < 1
+          ? DEFAULT_LIMIT
+          : Math.min(parsedLimit, MAX_LIMIT);
+
+      const skip =
+        isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
+          ? 0
+          : parsedSkip;
 
       const filter = generateFilter.readingsMap(request, next);
 
@@ -1252,6 +1266,18 @@ const createEvent = {
         { filter, limit, skip },
         next,
       );
+
+      if (
+        !responseFromListReadings ||
+        typeof responseFromListReadings !== "object"
+      ) {
+        return {
+          success: false,
+          message: "No response from model",
+          errors: { message: "Database operation failed" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
 
       if (responseFromListReadings.success === true) {
         return {
@@ -1275,15 +1301,12 @@ const createEvent = {
       logger.error(
         `🐛🐛 Internal Server Error in listForMap util: ${error.message}`,
       );
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
   getMeasurementsFromBigQuery: async (req, next) => {

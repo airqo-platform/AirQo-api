@@ -198,14 +198,16 @@ const averagesSchema = new Schema(
 
 const DeviceCategorySchema = new Schema(
   {
-    primary_category: { type: String, default: "lowcost" },
-    deployment_category: { type: String, default: "static" },
-    is_mobile: { type: Boolean, default: false },
-    is_static: { type: Boolean, default: true },
-    is_lowcost: { type: Boolean, default: true },
-    is_bam: { type: Boolean, default: false },
-    is_gas: { type: Boolean, default: false },
-    all_categories: [{ type: String }],
+    primary_category: { type: String, default: null },
+    deployment_category: { type: String, default: null },
+    mobile_category: { type: String, default: null },
+    ownership_category: { type: String, default: null },
+    all_categories: { type: [String], default: [] },
+    is_mobile: { type: Boolean, default: null },
+    is_static: { type: Boolean, default: null },
+    is_lowcost: { type: Boolean, default: null },
+    is_bam: { type: Boolean, default: null },
+    is_gas: { type: Boolean, default: null },
   },
   { _id: false },
 );
@@ -1648,8 +1650,20 @@ ReadingsSchema.statics.listForMap = async function(
   try {
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const DEFAULT_LIMIT = 1000;
-    const safeLimit = parseInt(limit) || DEFAULT_LIMIT;
-    const safeSkip = parseInt(skip) || 0;
+    const MAX_LIMIT = 5000;
+
+    const parsedLimit = parseInt(limit);
+    const parsedSkip = parseInt(skip);
+
+    const safeLimit =
+      isNaN(parsedLimit) || !isFinite(parsedLimit) || parsedLimit < 1
+        ? DEFAULT_LIMIT
+        : Math.min(parsedLimit, MAX_LIMIT);
+
+    const safeSkip =
+      isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
+        ? 0
+        : parsedSkip;
 
     const pipeline = [
       {

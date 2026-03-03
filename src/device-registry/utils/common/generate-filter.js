@@ -669,20 +669,32 @@ const generateFilter = {
       tenant,
     } = { ...query, ...params };
 
+    const DEFAULT_TIME_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
     const filter = {};
 
-    // Time range — Readings schema uses flat `time` field, not `values.time`
-    if (startTime && !isTimeEmpty(startTime)) {
-      filter.time = filter.time || {};
-      filter.time.$gte = new Date(startTime);
+    if (
+      startTime &&
+      !isTimeEmpty(startTime) &&
+      endTime &&
+      !isTimeEmpty(endTime)
+    ) {
+      filter.time = {
+        $gte: new Date(startTime),
+        $lte: new Date(endTime),
+      };
+    } else if (startTime && !isTimeEmpty(startTime)) {
+      filter.time = { $gte: new Date(startTime) };
+    } else if (endTime && !isTimeEmpty(endTime)) {
+      filter.time = { $lte: new Date(endTime) };
+    } else {
+      // Apply a default bounded window to prevent unbounded collection scans
+      filter.time = {
+        $gte: new Date(Date.now() - DEFAULT_TIME_WINDOW_MS),
+        $lte: new Date(),
+      };
     }
 
-    if (endTime && !isTimeEmpty(endTime)) {
-      filter.time = filter.time || {};
-      filter.time.$lte = new Date(endTime);
-    }
-
-    // Device name — Readings schema uses flat `device` field
     if (device) {
       const deviceArray = device.toString().split(",");
       const mergedArray = [
@@ -694,27 +706,32 @@ const generateFilter = {
       filter.device = { $in: mergedArray };
     }
 
-    // Device ID — Readings schema uses flat `device_id` field
     if (device_id) {
       const deviceIdArray = device_id
         .toString()
         .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
         .map((id) => ObjectId(id));
-      filter.device_id = { $in: deviceIdArray };
+      if (deviceIdArray.length > 0) {
+        filter.device_id = { $in: deviceIdArray };
+      }
     }
 
-    // Site name — Readings schema uses flat `site` field
     if (site) {
       filter.site = { $in: site.toString().split(",") };
     }
 
-    // Site ID — Readings schema uses flat `site_id` field
     if (site_id) {
       const siteIdArray = site_id
         .toString()
         .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
         .map((id) => ObjectId(id));
-      filter.site_id = { $in: siteIdArray };
+      if (siteIdArray.length > 0) {
+        filter.site_id = { $in: siteIdArray };
+      }
     }
 
     if (network) {

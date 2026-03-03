@@ -317,8 +317,9 @@ const processGridIds = async (grid_ids, request) => {
   const gridIdArray = Array.isArray(grid_ids)
     ? grid_ids
     : grid_ids.toString().split(",");
+
   logObject("gridIdArray", gridIdArray);
-  // Use Promise.all to concurrently process each grid_id
+
   const siteIdPromises = gridIdArray.map(async (grid_id) => {
     if (!isEmpty(grid_id)) {
       logObject("grid_id under processGridIds", grid_id);
@@ -342,32 +343,21 @@ const processGridIds = async (grid_ids, request) => {
           message: `The provided Grid ID ${grid_id} does not have any associated Site IDs`,
         };
       }
-      // Randomly pick one site from the list
+
       logObject(
         "responseFromGetSitesOfGrid.data",
         responseFromGetSitesOfGrid.data,
       );
-
-      logObject(
-        "responseFromGetSitesOfGrid.data.split",
-        responseFromGetSitesOfGrid.data.split(","),
-      );
-
       const arrayOfSites = responseFromGetSitesOfGrid.data.split(",");
       return arrayOfSites;
-      // const randomSite =
-      //   arrayOfSites[Math.floor(Math.random() * arrayOfSites.length)];
-      // logObject("randomSite", randomSite);
-      // return randomSite;
     }
   });
 
-  // Wait for all promises to resolve
   const siteIdResults = await Promise.all(siteIdPromises);
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false,
+    (result) => !result || result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
@@ -375,10 +365,11 @@ const processGridIds = async (grid_ids, request) => {
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
+
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false),
+    (result) => result && result.success !== false,
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -393,7 +384,6 @@ const processCohortIds = async (cohort_ids, request) => {
     ? cohort_ids
     : cohort_ids.toString().split(",");
 
-  // Use Promise.all to concurrently process each cohort_id
   const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
     if (!isEmpty(cohort_id)) {
       const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
@@ -423,19 +413,13 @@ const processCohortIds = async (cohort_ids, request) => {
       }
       const arrayOfDevices = responseFromGetDevicesOfCohort.data.split(",");
       return arrayOfDevices;
-      // const randomDevice =
-      //   responseFromGetDevicesOfCohort.data[
-      //     Math.floor(Math.random() * arrayOfDevices.length)
-      //   ];
-      // return randomDevice;
     }
   });
 
-  // Wait for all promises to resolve
   const deviceIdsResults = await Promise.all(deviceIdsPromises);
 
   const invalidDeviceIdResults = deviceIdsResults.filter(
-    (result) => result.success === false,
+    (result) => !result || result.success === false,
   );
 
   if (!isEmpty(invalidDeviceIdResults)) {
@@ -444,16 +428,15 @@ const processCohortIds = async (cohort_ids, request) => {
     );
   }
 
-  // Filter out undefined or null values
   const validDeviceIdResults = deviceIdsResults.filter(
-    (result) => !(result.success === false),
+    (result) => result && result.success !== false,
   );
 
-  // join the array of arrays into a single array
+  // Flatten the array of arrays into a single array before joining
   const flattened = [].concat(...validDeviceIdResults);
 
   if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
-    request.query.device_id = validDeviceIdResults.join(",");
+    request.query.device_id = flattened.join(",");
   }
 };
 const processAirQloudIds = async (airqloud_ids, request) => {
@@ -1105,6 +1088,9 @@ const createEvent = {
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
         },
       };
+
+      // Prevent public callers from toggling internal behavior
+      delete request.query.internal;
 
       const { cohort_id } = { ...req.query, ...req.params };
 
