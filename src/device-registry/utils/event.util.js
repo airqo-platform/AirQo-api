@@ -1280,7 +1280,10 @@ const createEvent = {
           meta = {};
         } else if (raw && typeof raw === "object") {
           data = Array.isArray(raw.measurements) ? raw.measurements : [];
-          meta = raw.meta && typeof raw.meta === "object" ? raw.meta : {};
+          meta =
+            raw.meta && typeof raw.meta === "object" && !Array.isArray(raw.meta)
+              ? raw.meta
+              : {};
         } else {
           data = [];
           meta = {};
