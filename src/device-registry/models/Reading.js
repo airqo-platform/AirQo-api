@@ -12,7 +12,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- reading-model`);
 // Helper function for safe pollutant value conversion
 const createSafePollutantLookup = (
   pollutantField,
-  collectionName = "healthtips"
+  collectionName = "healthtips",
 ) => ({
   $lookup: {
     from: collectionName,
@@ -55,7 +55,7 @@ const LatestPm2_5RawValueSchema = new Schema(
     value: { type: Number, required: false },
     time: { type: Date, required: false },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // New schema for the 'calibrated' part of latest_pm2_5
@@ -66,7 +66,7 @@ const LatestPm2_5CalibratedValueSchema = new Schema(
     uncertainty: { type: Number, required: false },
     standardDeviation: { type: Number, required: false },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // New schema for the top-level latest_pm2_5 object
@@ -75,7 +75,7 @@ const LatestPm2_5Schema = new Schema(
     raw: { type: LatestPm2_5RawValueSchema },
     calibrated: { type: LatestPm2_5CalibratedValueSchema },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const HealthTipsSchema = new Schema(
@@ -85,7 +85,7 @@ const HealthTipsSchema = new Schema(
     tag_line: String,
     image: String,
   },
-  { _id: false }
+  { _id: false },
 );
 
 const categorySchema = new Schema(
@@ -108,7 +108,7 @@ const categorySchema = new Schema(
   },
   {
     _id: false,
-  }
+  },
 );
 
 const SiteDetailsSchema = new Schema(
@@ -135,7 +135,7 @@ const SiteDetailsSchema = new Schema(
     data_provider: String,
     site_category: { type: categorySchema },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const GridDetailsSchema = new Schema(
@@ -149,7 +149,7 @@ const GridDetailsSchema = new Schema(
     approximate_longitude: Number,
     description: String,
   },
-  { _id: false }
+  { _id: false },
 );
 
 const AqiRangeSchema = new Schema(
@@ -179,7 +179,7 @@ const AqiRangeSchema = new Schema(
       max: { type: Number }, // max can be null
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const averagesSchema = new Schema(
@@ -193,7 +193,23 @@ const averagesSchema = new Schema(
   },
   {
     _id: false,
-  }
+  },
+);
+
+const DeviceCategorySchema = new Schema(
+  {
+    primary_category: { type: String, default: null },
+    deployment_category: { type: String, default: null },
+    mobile_category: { type: String, default: null },
+    ownership_category: { type: String, default: null },
+    all_categories: { type: [String], default: [] },
+    is_mobile: { type: Boolean, default: null },
+    is_static: { type: Boolean, default: null },
+    is_lowcost: { type: Boolean, default: null },
+    is_bam: { type: Boolean, default: null },
+    is_gas: { type: Boolean, default: null },
+  },
+  { _id: false },
 );
 
 const ReadingsSchema = new Schema(
@@ -324,6 +340,7 @@ const ReadingsSchema = new Schema(
     latest_pm2_5: LatestPm2_5Schema, // Add this new top-level field
     health_tips: [HealthTipsSchema],
     averages: averagesSchema,
+    device_categories: DeviceCategorySchema,
   },
   {
     timestamps: true,
@@ -333,7 +350,7 @@ const ReadingsSchema = new Schema(
         expireAfterSeconds: 60 * 60 * 24 * 14, // 2 weeks
       },
     ],
-  }
+  },
 );
 
 ReadingsSchema.pre("save", function(next) {
@@ -353,8 +370,8 @@ ReadingsSchema.pre("save", function(next) {
     ) {
       return next(
         new Error(
-          "Mobile readings require either grid_id or location coordinates"
-        )
+          "Mobile readings require either grid_id or location coordinates",
+        ),
       );
     }
     // site_id is optional for mobile devices (they might be at a known site)
@@ -372,14 +389,14 @@ ReadingsSchema.index(
   {
     unique: true,
     partialFilterExpression: { deployment_type: "mobile" },
-  }
+  },
 );
 ReadingsSchema.index(
   { site_id: 1, time: 1 },
   {
     unique: true,
     partialFilterExpression: { deployment_type: "static" },
-  }
+  },
 );
 ReadingsSchema.index({ device_id: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ device: 1, time: 1 }, { unique: true });
@@ -397,7 +414,7 @@ ReadingsSchema.index(
       "location.latitude.value": { $exists: true },
       "location.longitude.value": { $exists: true },
     },
-  }
+  },
 );
 
 // Add after existing indexes
@@ -408,7 +425,7 @@ ReadingsSchema.index(
       deployment_type: "mobile",
       grid_id: { $exists: true },
     },
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -418,7 +435,7 @@ ReadingsSchema.index(
       deployment_type: "mobile",
       "location.latitude.value": { $exists: true },
     },
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -426,7 +443,7 @@ ReadingsSchema.index(
   {
     name: "site_time_latest_idx",
     background: true,
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -434,7 +451,7 @@ ReadingsSchema.index(
   {
     name: "device_time_latest_idx",
     background: true,
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -442,7 +459,7 @@ ReadingsSchema.index(
   {
     name: "deployment_time_idx",
     background: true,
-  }
+  },
 );
 
 // Better TTL index
@@ -451,7 +468,7 @@ ReadingsSchema.index(
   {
     expireAfterSeconds: 60 * 60 * 24 * 14, //  2 weeks
     background: true,
-  }
+  },
 );
 
 // Partial index for active readings only
@@ -462,7 +479,7 @@ ReadingsSchema.index(
       "pm2_5.value": { $exists: true, $ne: null },
     },
     background: true,
-  }
+  },
 );
 
 // Sparse index for non-null coordinates (mobile devices)
@@ -471,7 +488,7 @@ ReadingsSchema.index(
   {
     sparse: true,
     background: true,
-  }
+  },
 );
 
 ReadingsSchema.methods = {
@@ -493,7 +510,8 @@ ReadingsSchema.methods = {
       pm10: this.pm10,
       frequency: this.frequency,
       no2: this.no2,
-      latest_pm2_5: this.latest_pm2_5, // Include in toJSON output
+      latest_pm2_5: this.latest_pm2_5,
+      device_categories: this.device_categories,
     };
 
     // Include location-specific fields based on deployment type
@@ -559,7 +577,7 @@ ReadingsSchema.statics.register = async function(args, next) {
 };
 ReadingsSchema.statics.list = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     logText("we are inside model's list....");
@@ -602,7 +620,7 @@ ReadingsSchema.statics.list = async function(
 };
 ReadingsSchema.statics.latest = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     // Strategy: Use $lookup with pipeline to get only the latest reading per site
@@ -693,7 +711,7 @@ ReadingsSchema.statics.latest = async function(
 };
 ReadingsSchema.statics.latestForMap = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -762,7 +780,7 @@ ReadingsSchema.statics.latestForMap = async function(
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error -- latestForMap -- ${error.message}`
+      `🐛🐛 Internal Server Error -- latestForMap -- ${error.message}`,
     );
     return {
       success: false,
@@ -775,7 +793,7 @@ ReadingsSchema.statics.latestForMap = async function(
 };
 ReadingsSchema.statics.recent = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     let threeDaysAgo = new Date();
@@ -836,7 +854,7 @@ ReadingsSchema.statics.recent = async function(
 };
 ReadingsSchema.statics.getBestAirQualityLocations = async function(
   { threshold = 10, pollutant = "pm2_5", limit = 100, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     const validPollutants = ["pm2_5", "pm10", "no2"];
@@ -846,7 +864,7 @@ ReadingsSchema.statics.getBestAirQualityLocations = async function(
         message: "Bad Request Error",
         errors: {
           message: `Invalid pollutant specified. Valid options are: ${validPollutants.join(
-            ", "
+            ", ",
           )}`,
           validOptions: validPollutants,
           received: pollutant,
@@ -1106,19 +1124,19 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
     const processWeeklyData = (weeklyComparison) => {
       const current = {
         normal: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === false
+          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === false,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
         peak: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === true
+          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === true,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
       };
 
       const last = {
         normal: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === false
+          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === false,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
         peak: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === true
+          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === true,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
       };
 
@@ -1166,29 +1184,29 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
       normal: {
         pm2_5: calculatePercentageDiff(
           weeklyData.current.normal.pm2_5_avg,
-          weeklyData.last.normal.pm2_5_avg
+          weeklyData.last.normal.pm2_5_avg,
         ),
         pm10: calculatePercentageDiff(
           weeklyData.current.normal.pm10_avg,
-          weeklyData.last.normal.pm10_avg
+          weeklyData.last.normal.pm10_avg,
         ),
         no2: calculatePercentageDiff(
           weeklyData.current.normal.no2_avg,
-          weeklyData.last.normal.no2_avg
+          weeklyData.last.normal.no2_avg,
         ),
       },
       peak: {
         pm2_5: calculatePercentageDiff(
           weeklyData.current.peak.pm2_5_avg,
-          weeklyData.last.peak.pm2_5_avg
+          weeklyData.last.peak.pm2_5_avg,
         ),
         pm10: calculatePercentageDiff(
           weeklyData.current.peak.pm10_avg,
-          weeklyData.last.peak.pm10_avg
+          weeklyData.last.peak.pm10_avg,
         ),
         no2: calculatePercentageDiff(
           weeklyData.current.peak.no2_avg,
-          weeklyData.last.peak.no2_avg
+          weeklyData.last.peak.no2_avg,
         ),
       },
     };
@@ -1353,7 +1371,7 @@ ReadingsSchema.statics.getWorstPm2_5Reading = async function({
 };
 ReadingsSchema.statics.listRecent = async function(
   { filter = {}, limit = 1000, skip = 0, page = 1 } = {},
-  next
+  next,
 ) {
   try {
     logText("Using optimized Readings collection for recent data query");
@@ -1460,12 +1478,12 @@ ReadingsSchema.statics.listRecent = async function(
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error -- listRecent -- ${error.message}`
+      `🐛🐛 Internal Server Error -- listRecent -- ${error.message}`,
     );
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -1530,22 +1548,22 @@ ReadingsSchema.statics.viewRecent = async function(filter, next) {
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error -- viewRecent -- ${error.message}`
+      `🐛🐛 Internal Server Error -- viewRecent -- ${error.message}`,
     );
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
 ReadingsSchema.statics.listRecentOptimized = async function(
   { filter = {}, limit = 1000, skip = 0, page = 1 } = {},
-  next
+  next,
 ) {
   try {
     logText(
-      "Using ultra-optimized Readings collection - no aggregations needed!"
+      "Using ultra-optimized Readings collection - no aggregations needed!",
     );
 
     // Simple find with projection - no lookups needed!
@@ -1591,7 +1609,7 @@ ReadingsSchema.statics.listRecentOptimized = async function(
 };
 ReadingsSchema.statics.getLatestByLocation = async function(
   { deployment_type, location_ids, limit = 100 } = {},
-  next
+  next,
 ) {
   try {
     let filter = {};
@@ -1620,6 +1638,110 @@ ReadingsSchema.statics.getLatestByLocation = async function(
       success: false,
       message: "Internal Server Error",
       errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+ReadingsSchema.statics.listForMap = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next,
+) {
+  try {
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const DEFAULT_LIMIT = 1000;
+    const MAX_LIMIT = 5000;
+
+    const parsedLimit = parseInt(limit);
+    const parsedSkip = parseInt(skip);
+
+    const safeLimit =
+      isNaN(parsedLimit) || !isFinite(parsedLimit) || parsedLimit < 1
+        ? DEFAULT_LIMIT
+        : Math.min(parsedLimit, MAX_LIMIT);
+
+    const safeSkip =
+      isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
+        ? 0
+        : parsedSkip;
+
+    const pipeline = [
+      {
+        $match: {
+          time: { $gte: fourteenDaysAgo },
+          "pm2_5.value": { $exists: true, $ne: null },
+          ...filter,
+        },
+      },
+      { $sort: { time: -1 } },
+      {
+        $group: {
+          // Static devices group by site_id; mobile devices fall back to
+          // device_id so each mobile device gets its own latest-reading bucket
+          _id: { $ifNull: ["$site_id", "$device_id"] },
+          latestReading: { $first: "$$ROOT" },
+        },
+      },
+      { $replaceRoot: { newRoot: "$latestReading" } },
+      { $sort: { time: -1 } },
+      {
+        $project: {
+          _id: 0,
+          device: 1,
+          device_id: 1,
+          site_id: 1,
+          time: 1,
+          pm2_5: 1,
+          pm10: 1,
+          no2: 1,
+          siteDetails: 1,
+          aqi_color: 1,
+          aqi_category: 1,
+          aqi_color_name: 1,
+          health_tips: 1,
+          site_image: 1,
+          timeDifferenceHours: 1,
+          device_categories: 1,
+        },
+      },
+      {
+        $facet: {
+          paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const results = await this.aggregate(pipeline).allowDiskUse(true);
+
+    const { paginatedResults = [], totalCount = [] } = results[0] || {};
+    const total = totalCount[0]?.count || 0;
+    const pages = Math.ceil(total / safeLimit) || 1;
+
+    return {
+      success: true,
+      message: "Successfully retrieved latest map readings",
+      data: {
+        measurements: paginatedResults,
+        meta: {
+          total,
+          limit: safeLimit,
+          skip: safeSkip,
+          page: Math.floor(safeSkip / safeLimit) + 1,
+          pages,
+        },
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Internal Server Error -- listForMap -- ${error.message}`,
+    );
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      data: [],
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
   }

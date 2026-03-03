@@ -14,6 +14,7 @@ const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
+const { getDeviceCategoriesAddFieldsStage } = require("@utils/device.util.js");
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`,
@@ -1127,6 +1128,8 @@ async function fetchData(model, filter) {
           pipeline: [{ $unset: "latest_pm2_5.calibrated" }],
         },
       });
+
+      preFacetStages.push(getDeviceCategoriesAddFieldsStage());
 
       if (active === "yes") {
         preFacetStages.push({ $match: { "device_details.isActive": true } });
