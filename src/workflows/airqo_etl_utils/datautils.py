@@ -334,7 +334,6 @@ class DataUtils:
 
         if device_ids:
             devices = devices.loc[devices.device_id.isin(device_ids)]
-
         config = Config.device_config_mapping.get(device_category.str, None)
         if not config:
             logger.warning("Missing device category configuration.")
@@ -822,6 +821,10 @@ class DataUtils:
             lat_fallback = device.get("latitude") or meta_data.get("latitude")
             lon_fallback = device.get("longitude") or meta_data.get("longitude")
 
+        # Ensure latitude and longitude are numeric, coercing errors to NaN for consistent processing
+        data[["latitude", "longitude"]] = pd.to_numeric(
+            data[["latitude", "longitude"]].stack(), errors="coerce"
+        ).unstack()
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")
         data["device_number"] = device.get("device_number")
