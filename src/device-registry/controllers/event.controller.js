@@ -1,7 +1,7 @@
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- event-controller`
+  `${constants.ENVIRONMENT} -- event-controller`,
 );
 const {
   logObject,
@@ -103,7 +103,7 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
 
     if (!airQloud) {
       logger.error(
-        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `
+        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `,
       );
       return {
         success: false,
@@ -329,13 +329,13 @@ const processGridIds = async (grid_ids, request) => {
       if (responseFromGetSitesOfGrid.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfGrid
-          )}`
+            responseFromGetSitesOfGrid,
+          )}`,
         );
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
+          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -345,12 +345,12 @@ const processGridIds = async (grid_ids, request) => {
       // Randomly pick one site from the list
       logObject(
         "responseFromGetSitesOfGrid.data",
-        responseFromGetSitesOfGrid.data
+        responseFromGetSitesOfGrid.data,
       );
 
       logObject(
         "responseFromGetSitesOfGrid.data.split",
-        responseFromGetSitesOfGrid.data.split(",")
+        responseFromGetSitesOfGrid.data.split(","),
       );
 
       const arrayOfSites = responseFromGetSitesOfGrid.data.split(",");
@@ -367,18 +367,18 @@ const processGridIds = async (grid_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false
+    (result) => result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
     logger.error(
-      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false)
+    (result) => !(result.success === false),
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -402,19 +402,19 @@ const processCohortIds = async (cohort_ids, request) => {
 
       logObject(
         "responseFromGetDevicesOfCohort",
-        responseFromGetDevicesOfCohort
+        responseFromGetDevicesOfCohort,
       );
 
       if (responseFromGetDevicesOfCohort.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetDevicesOfCohort
-          )}`
+            responseFromGetDevicesOfCohort,
+          )}`,
         );
         return responseFromGetDevicesOfCohort;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
-          `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`
+          `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
         );
         return {
           success: false,
@@ -435,18 +435,18 @@ const processCohortIds = async (cohort_ids, request) => {
   const deviceIdsResults = await Promise.all(deviceIdsPromises);
 
   const invalidDeviceIdResults = deviceIdsResults.filter(
-    (result) => result.success === false
+    (result) => result.success === false,
   );
 
   if (!isEmpty(invalidDeviceIdResults)) {
     logger.error(
-      `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`,
     );
   }
 
   // Filter out undefined or null values
   const validDeviceIdResults = deviceIdsResults.filter(
-    (result) => !(result.success === false)
+    (result) => !(result.success === false),
   );
 
   // join the array of arrays into a single array
@@ -473,19 +473,19 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 
       logObject(
         "responseFromGetSitesOfAirQloud",
-        responseFromGetSitesOfAirQloud
+        responseFromGetSitesOfAirQloud,
       );
 
       if (responseFromGetSitesOfAirQloud.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfAirQloud
-          )}`
+            responseFromGetSitesOfAirQloud,
+          )}`,
         );
         return responseFromGetSitesOfAirQloud;
       } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
         logger.error(
-          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`
+          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -496,12 +496,12 @@ const processAirQloudIds = async (airqloud_ids, request) => {
       // Randomly pick one site from the list
       logObject(
         "responseFromGetSitesOfAirQloud.data",
-        responseFromGetSitesOfAirQloud.data
+        responseFromGetSitesOfAirQloud.data,
       );
 
       logObject(
         "responseFromGetSitesOfAirQloud.data.split",
-        responseFromGetSitesOfAirQloud.data.split(",")
+        responseFromGetSitesOfAirQloud.data.split(","),
       );
 
       const arrayOfSites = responseFromGetSitesOfAirQloud.data.split(",");
@@ -518,18 +518,18 @@ const processAirQloudIds = async (airqloud_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false
+    (result) => result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
     logger.error(
-      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false)
+    (result) => !(result.success === false),
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -546,7 +546,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -556,7 +556,7 @@ const createEvent = {
       };
       const result = await createEventUtil.getRepresentativeAirQuality(
         request,
-        next
+        next,
       );
       handleResponse({ res, result, key: "data" });
     } catch (error) {
@@ -565,8 +565,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -575,7 +575,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -585,7 +585,7 @@ const createEvent = {
       };
       const result = await createEventUtil.getRepresentativeAirQuality(
         request,
-        next
+        next,
       );
       handleResponse({ res, result, key: "data" });
     } catch (error) {
@@ -594,8 +594,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -608,7 +608,7 @@ const createEvent = {
 
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -621,7 +621,7 @@ const createEvent = {
       const result = await createEventUtil.addValuesWithStats(
         tenant,
         measurements,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -635,8 +635,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -649,7 +649,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -683,8 +683,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -698,7 +698,7 @@ const createEvent = {
 
       const result = await createEventUtil.getDeploymentStats(
         activeTenant,
-        next
+        next,
       );
 
       return res.status(result.status).json(result);
@@ -708,8 +708,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -727,7 +727,7 @@ const createEvent = {
           device_number,
           tenant: activeTenant,
         },
-        next
+        next,
       );
 
       return res.status(result.status).json(result);
@@ -737,8 +737,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -750,14 +750,14 @@ const createEvent = {
 
       if (errors) {
         return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
       }
       if (!startTime || !endTime) {
         return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: "startTime and endTime are required",
-          })
+          }),
         );
       }
       const result = await createEventUtil.deleteEvents(
@@ -766,7 +766,7 @@ const createEvent = {
         endTime,
         device,
         site,
-        next
+        next,
       );
 
       handleResponse({ result, res, key: "events" });
@@ -775,8 +775,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -788,7 +788,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -803,7 +803,7 @@ const createEvent = {
 
       const result = await createEventUtil.getMeasurementsFromBigQuery(
         req,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -845,8 +845,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -856,7 +856,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -901,8 +901,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -912,7 +912,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -972,8 +972,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -983,7 +983,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1026,8 +1026,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1037,7 +1037,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1080,8 +1080,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1093,7 +1093,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1111,7 +1111,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -1168,8 +1168,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1181,7 +1181,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1223,8 +1223,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1234,7 +1234,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1277,8 +1277,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1289,7 +1289,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1331,8 +1331,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1343,7 +1343,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1353,16 +1353,10 @@ const createEvent = {
         query: {
           ...req.query,
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
-          recent: "yes",
-          metadata: "site_id",
-          active: "yes",
-          brief: "yes",
         },
       };
 
-      const result = await createEventUtil.view(request, next);
-
-      // logObject("result", result);
+      const result = await createEventUtil.listForMap(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -1370,16 +1364,15 @@ const createEvent = {
 
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
-          isCache: result.isCache,
           message: result.message,
-          meta: result.data[0].meta,
-          measurements: result.data[0].data,
+          meta: result.data.meta,
+          measurements: result.data.measurements,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(errorStatus).json({
+        return res.status(errorStatus).json({
           success: false,
           errors: result.errors || { message: "" },
           message: result.message,
@@ -1391,8 +1384,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1402,7 +1395,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1451,8 +1444,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1462,7 +1455,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1485,7 +1478,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -1554,8 +1547,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1566,7 +1559,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1592,7 +1585,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -1655,8 +1648,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1667,7 +1660,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1693,7 +1686,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -1756,8 +1749,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1768,7 +1761,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1794,7 +1787,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -1857,8 +1850,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1869,7 +1862,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1889,7 +1882,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -1953,8 +1946,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1965,7 +1958,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2023,8 +2016,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2034,7 +2027,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2084,8 +2077,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2095,7 +2088,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2145,8 +2138,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2156,7 +2149,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2205,8 +2198,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2216,7 +2209,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2264,8 +2257,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2275,7 +2268,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2323,8 +2316,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2334,7 +2327,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2382,8 +2375,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2393,7 +2386,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2433,8 +2426,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2444,7 +2437,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2485,8 +2478,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2496,7 +2489,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2515,7 +2508,7 @@ const createEvent = {
 
       const result = await createEventUtil.transmitMultipleSensorValues(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -2545,8 +2538,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2556,7 +2549,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2574,7 +2567,7 @@ const createEvent = {
 
       const result = await createEventUtil.bulkTransmitMultipleSensorValues(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -2603,8 +2596,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2614,7 +2607,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2656,8 +2649,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2668,7 +2661,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2711,8 +2704,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2722,7 +2715,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2792,8 +2785,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2803,7 +2796,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2873,8 +2866,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2884,7 +2877,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -2956,8 +2949,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2968,7 +2961,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3039,8 +3032,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3051,7 +3044,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3074,7 +3067,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -3135,8 +3128,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3147,7 +3140,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3170,7 +3163,7 @@ const createEvent = {
       if (cohort_id) {
         const cohortProcessingResponse = await createEventUtil.processCohortIds(
           cohort_id,
-          request
+          request,
         );
         if (
           cohortProcessingResponse &&
@@ -3231,8 +3224,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3246,7 +3239,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3319,8 +3312,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3330,7 +3323,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3402,8 +3395,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3413,7 +3406,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3485,8 +3478,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3496,7 +3489,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3538,8 +3531,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3550,7 +3543,7 @@ const createEvent = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -3604,8 +3597,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }

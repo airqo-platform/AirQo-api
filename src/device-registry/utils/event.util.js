@@ -1239,6 +1239,54 @@ const createEvent = {
   processGridIds,
   processCohortIds,
   processAirQloudIds,
+  listForMap: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant, limit, skip } = query;
+      const filter = generateFilter.readings(request, next);
+
+      const responseFromListReadings = await ReadingModel(tenant).listForMap(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next,
+      );
+
+      if (responseFromListReadings.success === true) {
+        return {
+          success: true,
+          message: responseFromListReadings.message,
+          data: responseFromListReadings.data,
+          status: responseFromListReadings.status || httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: responseFromListReadings.message,
+          errors: responseFromListReadings.errors || {
+            message: "Database operation failed",
+          },
+          status:
+            responseFromListReadings.status || httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in listForMap util: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          },
+        ),
+      );
+    }
+  },
   getMeasurementsFromBigQuery: async (req, next) => {
     try {
       const { query } = req;
