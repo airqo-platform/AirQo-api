@@ -77,6 +77,7 @@ spec:
     - name: website
       service: airqo-stage-website-api-svc
       port: 8000
+      client-max-body-size: 20m
   subroutes:
     - path: /website
       action:

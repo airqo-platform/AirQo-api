@@ -30,10 +30,13 @@ class AdminUploadExceptionMiddleware:
     def __call__(self, request):
         try:
             return self.get_response(request)
-        except UPLOAD_EXCEPTIONS:
+        except UPLOAD_EXCEPTIONS as exc:
             if self._should_handle(request):
-                logger.exception("Admin upload failed at %s", request.path)
-                self._add_message(request)
+                if isinstance(exc, ValidationError):
+                    logger.warning("Admin upload validation failed at %s: %s", request.path, exc)
+                else:
+                    logger.exception("Admin upload failed at %s", request.path)
+                self._add_message(request, exc)
                 return HttpResponseRedirect(self._redirect_target(request))
             raise
 
@@ -50,8 +53,12 @@ class AdminUploadExceptionMiddleware:
             bool(getattr(request, "FILES", None))
         )
 
-    def _add_message(self, request) -> None:
+    def _add_message(self, request, exc=None) -> None:
         if hasattr(request, "_messages"):
+            if isinstance(exc, ValidationError):
+                message = "; ".join(str(item) for item in exc.messages) if exc.messages else str(exc)
+                messages.error(request, message)
+                return
             messages.error(
                 request,
                 "Upload failed. Please confirm Cloudinary credentials, file type, and file size, then try again.",

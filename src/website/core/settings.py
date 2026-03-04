@@ -359,8 +359,8 @@ UPLOAD_MAX_FILE_SIZE = 10 * 1024 * 1024
 # Keep in-memory upload buffering low; larger files stream to temp files.
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
-# Limit non-file request data parsing independently from file-size policy.
-DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024
+# Allow multipart request parsing for uploads up to policy size plus form overhead.
+DATA_UPLOAD_MAX_MEMORY_SIZE = UPLOAD_MAX_FILE_SIZE + (2 * 1024 * 1024)
 FILE_UPLOAD_TEMP_DIR = None  # Use system default temp directory
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755

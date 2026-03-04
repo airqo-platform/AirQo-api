@@ -15,7 +15,7 @@ DEFAULT_MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 def _get_max_upload_file_size() -> int:
     value = getattr(settings, "UPLOAD_MAX_FILE_SIZE", DEFAULT_MAX_UPLOAD_FILE_SIZE)
-    return int(value) if value else DEFAULT_MAX_UPLOAD_FILE_SIZE
+    return int(value) if value is not None else DEFAULT_MAX_UPLOAD_FILE_SIZE
 
 
 def validate_image_format(file):
