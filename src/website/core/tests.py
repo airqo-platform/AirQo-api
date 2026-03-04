@@ -1,6 +1,10 @@
+import logging
+from unittest import mock
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, SimpleTestCase
 
+from core.logging_handlers import SlackWebhookHandler
 from core.middleware import AdminUploadExceptionMiddleware
 
 
@@ -37,3 +41,24 @@ class AdminUploadExceptionMiddlewareTests(SimpleTestCase):
 
         with self.assertRaises(RuntimeError):
             middleware(request)
+
+
+class SlackWebhookHandlerTests(SimpleTestCase):
+    def test_slack_handler_sends_and_deduplicates(self):
+        handler = SlackWebhookHandler(
+            webhook_url="https://example.com/webhook",
+            channel="#dev-alerts",
+            dedupe_window_seconds=60,
+        )
+        handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+
+        with mock.patch.object(handler.session, "post") as mocked_post:
+            logger = logging.getLogger("tests.slack")
+            logger.handlers = [handler]
+            logger.propagate = False
+            logger.setLevel(logging.ERROR)
+
+            logger.error("Database connection failed")
+            logger.error("Database connection failed")
+
+            self.assertEqual(mocked_post.call_count, 1)

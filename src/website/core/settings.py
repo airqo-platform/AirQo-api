@@ -380,130 +380,157 @@ USE_X_FORWARDED_HOST = True
 LOG_DIR = BASE_DIR / 'logs'
 LOG_DIR.mkdir(exist_ok=True)  # Ensure log directory exists
 
+SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL', '').strip()
+SLACK_DEV_NOTIFS = get_env_bool('SLACK_DEV_NOTIFS', default=False)
+SLACK_CHANNEL = os.getenv('SLACK_CHANNEL', '').strip()
+ENABLE_SLACK_LOGGING = bool(SLACK_WEBHOOK_URL) and (SLACK_DEV_NOTIFS or not DEBUG)
+
+DEFAULT_APP_HANDLERS = ['console', 'app_file', 'error_file']
+ALERT_HANDLERS = ['console', 'error_file']
+if ENABLE_SLACK_LOGGING:
+    DEFAULT_APP_HANDLERS.append('slack_errors')
+    ALERT_HANDLERS.append('slack_errors')
+
+APP_LOGGER_NAMES = [
+    'apps.event',
+    'apps.cleanair',
+    'apps.africancities',
+    'apps.publications',
+    'apps.press',
+    'apps.impact',
+    'apps.faqs',
+    'apps.highlights',
+    'apps.career',
+    'apps.partners',
+    'apps.board',
+    'apps.team',
+    'apps.externalteams',
+]
+
+LOGGING_HANDLERS = {
+    'console': {
+        'class': 'logging.StreamHandler',
+        'formatter': 'verbose',
+        'level': 'DEBUG' if DEBUG else 'INFO',
+    },
+    'app_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'application.log',
+        'formatter': 'verbose',
+        'level': 'INFO',
+        'maxBytes': 20 * 1024 * 1024,  # 20 MB
+        'backupCount': 5,
+    },
+    'error_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'errors.log',
+        'formatter': 'verbose',
+        'level': 'ERROR',
+        'maxBytes': 20 * 1024 * 1024,  # 20 MB
+        'backupCount': 10,
+    },
+    'security_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'security.log',
+        'formatter': 'verbose',
+        'level': 'WARNING',
+        'maxBytes': 10 * 1024 * 1024,  # 10 MB
+        'backupCount': 10,
+    },
+    'database_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'database.log',
+        'formatter': 'verbose',
+        'level': 'WARNING' if DEBUG else 'ERROR',
+        'maxBytes': 10 * 1024 * 1024,  # 10 MB
+        'backupCount': 5,
+    },
+    'upload_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'uploads.log',
+        'formatter': 'verbose',
+        'level': 'INFO',
+        'maxBytes': 10 * 1024 * 1024,  # 10 MB
+        'backupCount': 5,
+    },
+}
+
+if ENABLE_SLACK_LOGGING:
+    LOGGING_HANDLERS['slack_errors'] = {
+        'class': 'core.logging_handlers.SlackWebhookHandler',
+        'level': 'ERROR',
+        'formatter': 'slack',
+        'webhook_url': SLACK_WEBHOOK_URL,
+        'channel': SLACK_CHANNEL,
+        'environment': 'development' if DEBUG else 'production',
+        'timeout': 3.0,
+        'dedupe_window_seconds': 120,
+    }
+
+LOGGING_LOGGERS = {
+    'django': {
+        'handlers': DEFAULT_APP_HANDLERS,
+        'level': 'INFO',
+        'propagate': True,
+    },
+    'django.request': {
+        'handlers': ALERT_HANDLERS,
+        'level': 'ERROR',
+        'propagate': False,
+    },
+    'django.security': {
+        'handlers': ALERT_HANDLERS + ['security_file'],
+        'level': 'WARNING',
+        'propagate': False,
+    },
+    'django.db.backends': {
+        'handlers': ['database_file'],
+        'level': 'WARNING' if DEBUG else 'ERROR',
+        'propagate': False,
+    },
+    'cloudinary': {
+        'handlers': DEFAULT_APP_HANDLERS + ['upload_file'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    'core.middleware': {
+        'handlers': DEFAULT_APP_HANDLERS + ['upload_file'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+}
+
+for app_logger in APP_LOGGER_NAMES:
+    LOGGING_LOGGERS[app_logger] = {
+        'handlers': DEFAULT_APP_HANDLERS + ['upload_file'],
+        'level': 'DEBUG' if DEBUG else 'INFO',
+        'propagate': False,
+    }
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    # Formatters
     'formatters': {
         'verbose': {
             'format': '[%(asctime)s] %(levelname)s %(name)s [%(filename)s:%(lineno)d] %(message)s',
-            'datefmt': '%Y-%m-%d %H:%M:%S'
+            'datefmt': '%Y-%m-%d %H:%M:%S',
         },
         'simple': {
-            'format': '%(levelname)s %(message)s'
+            'format': '%(levelname)s %(message)s',
+        },
+        'slack': {
+            'format': (
+                '*%(levelname)s* | `%(name)s`\n'
+                '%(message)s\n'
+                '_%(asctime)s_'
+            ),
+            'datefmt': '%Y-%m-%d %H:%M:%S',
         },
     },
-    # Handlers
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-            'level': 'DEBUG' if DEBUG else 'INFO',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': LOG_DIR / 'django.log',
-            'formatter': 'verbose',
-            'level': 'INFO',
-        },
-        'error_file': {
-            'class': 'logging.FileHandler',
-            'filename': LOG_DIR / 'django_errors.log',
-            'formatter': 'verbose',
-            'level': 'ERROR',
-        },
+    'handlers': LOGGING_HANDLERS,
+    'loggers': LOGGING_LOGGERS,
+    'root': {
+        'handlers': ['console', 'app_file'],
+        'level': 'INFO',
     },
-    # Loggers
-    'loggers': {
-        # Django Logs
-        'django': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        # Cloudinary Logs
-        'cloudinary': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        # Event App Logs
-        'apps.event': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # CleanAir App Logs
-        'apps.cleanair': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # AfricanCities App Logs
-        'apps.africancities': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Publications App Logs
-        'apps.publications': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Press App Logs
-        'apps.press': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Impact App Logs
-        'apps.impact': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # FAQs App Logs
-        'apps.faqs': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Highlights App Logs
-        'apps.highlights': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Career App Logs
-        'apps.career': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Partners App Logs
-        'apps.partners': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Board App Logs
-        'apps.board': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Team App Logs
-        'apps.team': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # ExternalTeams App Logs
-        'apps.externalteams': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-    }
 }
