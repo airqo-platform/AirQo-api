@@ -1123,9 +1123,10 @@ const createEvent = {
       logText("the readings for the AirQo Map...");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        return next(
+        next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
+        return;
       }
 
       const request = {
@@ -1135,8 +1136,6 @@ const createEvent = {
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
         },
       };
-
-      delete request.query.internal;
 
       const { cohort_id } = { ...req.query, ...req.params };
 
@@ -1153,6 +1152,7 @@ const createEvent = {
             cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
           return res.status(status).json(cohortProcessingResponse);
         } else if (isEmpty(request.query.device_id)) {
+          // No devices found for this cohort, return error consistent with other endpoints
           return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
             errors: {
@@ -1163,7 +1163,16 @@ const createEvent = {
         }
       }
 
-      const result = await createEventUtil.readRecentWithFilter(request, next);
+      // Directly create the filter for the 'read' utility
+      const filter = {};
+      if (request.query.device_id) {
+        const deviceIds = request.query.device_id
+          .split(",")
+          .map((id) => id.trim());
+        filter.device_id = { $in: deviceIds };
+      }
+
+      const result = await createEventUtil.read(request, filter, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -1171,14 +1180,14 @@ const createEvent = {
 
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
-        return res.status(status).json({
+        res.status(status).json({
           success: true,
           message: result.message,
           measurements: result.data,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(errorStatus).json({
+        res.status(errorStatus).json({
           success: false,
           errors: result.errors || { message: "" },
           message: result.message,
@@ -1371,6 +1380,31 @@ const createEvent = {
       }
 
       const request = prepareMapRequest(req);
+
+      const { cohort_id } = { ...req.query, ...req.params };
+
+      if (cohort_id) {
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request,
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        } else if (isEmpty(request.query.device_id)) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            errors: {
+              message: `Unable to process measurements for the provided Cohort ID ${cohort_id}`,
+            },
+            message: "Bad Request Error",
+          });
+        }
+      }
       const result = await createEventUtil.listForMap(request, next);
 
       if (isEmpty(result) || res.headersSent) {

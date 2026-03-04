@@ -9,7 +9,7 @@ const safeRequire = (modulePath, fallback = null) => {
   } catch (error) {
     console.error(
       `[SAFE_REQUIRE_ERROR] Failed to load module: ${modulePath}`,
-      error.message
+      error.message,
     );
     return fallback;
   }
@@ -51,7 +51,7 @@ const checkValidation = (validationMethod) => {
 
     if (!validation) {
       console.warn(
-        `[VALIDATION_WARNING] Validation method not found: ${validationMethod}`
+        `[VALIDATION_WARNING] Validation method not found: ${validationMethod}`,
       );
       return next(); // Continue without validation
     }
@@ -96,7 +96,7 @@ const checkValidation = (validationMethod) => {
       runNextValidation();
     } else {
       console.warn(
-        `[VALIDATION_WARNING] Validation method ${validationMethod} is neither function nor array`
+        `[VALIDATION_WARNING] Validation method ${validationMethod} is neither function nor array`,
       );
       return next(); // Continue without validation
     }
@@ -117,6 +117,12 @@ const routes = [
     path: "/map",
     middlewares: [checkValidation("map")],
     controller: "readingsForMap",
+  },
+  {
+    method: "get",
+    path: "/map/test",
+    middlewares: [checkValidation("map")],
+    controller: "listForMap",
   },
   {
     method: "get",
@@ -187,7 +193,7 @@ routes.forEach(({ method, path, middlewares, controller }) => {
         } catch (error) {
           console.error(
             `[CONTROLLER_ERROR] Error in ${controller}:`,
-            error.message
+            error.message,
           );
           res.status(500).json({
             error: "Internal server error",
@@ -202,7 +208,7 @@ routes.forEach(({ method, path, middlewares, controller }) => {
   } catch (error) {
     console.error(
       `[ROUTE_REGISTRATION_ERROR] Failed to register route ${method.toUpperCase()} ${path}:`,
-      error.message
+      error.message,
     );
   }
 });
