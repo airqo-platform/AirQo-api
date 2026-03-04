@@ -3,10 +3,12 @@ from unittest import mock
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from core.logging_handlers import SlackWebhookHandler
 from core.middleware import AdminUploadExceptionMiddleware
+from utils.fields import validate_image_format
+from utils.validators import validate_file, validate_image
 
 
 class AdminUploadExceptionMiddlewareTests(SimpleTestCase):
@@ -92,3 +94,40 @@ class SlackWebhookHandlerTests(SimpleTestCase):
             logger.error("Database connection failed")
 
             self.assertEqual(mocked_post.call_count, 1)
+
+
+class UploadValidationTests(SimpleTestCase):
+    class FileWithoutSize:
+        name = "avatar.jpg"
+
+    class InvalidSizeTypeFile:
+        name = "document.pdf"
+        size = "unknown"
+
+    @override_settings(UPLOAD_MAX_FILE_SIZE=10 * 1024 * 1024)
+    def test_validate_image_rejects_files_above_configured_limit(self):
+        oversized_file = SimpleUploadedFile(
+            "avatar.jpg",
+            b"\xff\xd8\xff" + (b"a" * (10 * 1024 * 1024)),
+            content_type="image/jpeg",
+        )
+
+        with self.assertRaises(ValidationError):
+            validate_image(oversized_file)
+
+    @override_settings(UPLOAD_MAX_FILE_SIZE=10 * 1024 * 1024)
+    def test_validate_image_format_rejects_files_above_configured_limit(self):
+        oversized_file = SimpleUploadedFile(
+            "avatar.jpg",
+            b"\xff\xd8\xff" + (b"a" * (10 * 1024 * 1024)),
+            content_type="image/jpeg",
+        )
+
+        with self.assertRaises(ValidationError):
+            validate_image_format(oversized_file)
+
+    def test_validate_image_allows_objects_without_size_attribute(self):
+        validate_image(self.FileWithoutSize())
+
+    def test_validate_file_allows_objects_with_invalid_size_type(self):
+        validate_file(self.InvalidSizeTypeFile())

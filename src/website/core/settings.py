@@ -242,11 +242,18 @@ USE_TZ = True
 STATIC_URL = '/website/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Cloudinary Configuration - Moved to File Upload Settings section above
-# This configuration supports large file uploads up to 30MB
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+if DEBUG or any(cmd in sys.argv for cmd in ('test', 'check')):
+    STORAGES['staticfiles']['BACKEND'] = 'whitenoise.storage.CompressedStaticFilesStorage'
+else:
+    WHITENOISE_MANIFEST_STRICT = False
 
 # ---------------------------------------------------------
 # Default Primary Key Field Type
@@ -346,9 +353,14 @@ QUILL_CONFIGS = {
 # ---------------------------------------------------------
 # File Upload Settings
 # ---------------------------------------------------------
-# Support up to 30MB uploads for images and files
-FILE_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB (30 * 1024 * 1024)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB
+# Unified max upload size for all website file/image uploads (10MB).
+UPLOAD_MAX_FILE_SIZE = 10 * 1024 * 1024
+
+# Keep in-memory upload buffering low; larger files stream to temp files.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+
+# Allow multipart request parsing for uploads up to policy size plus form overhead.
+DATA_UPLOAD_MAX_MEMORY_SIZE = UPLOAD_MAX_FILE_SIZE + (2 * 1024 * 1024)
 FILE_UPLOAD_TEMP_DIR = None  # Use system default temp directory
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
