@@ -1136,6 +1136,8 @@ const createEvent = {
         },
       };
 
+      delete request.query.internal;
+
       const { cohort_id } = { ...req.query, ...req.params };
 
       if (cohort_id) {
