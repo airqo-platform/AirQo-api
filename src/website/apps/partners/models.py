@@ -1,10 +1,7 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
 from utils.models import BaseModel, SlugBaseModel
-import logging
-
-logger = logging.getLogger(__name__)
+from utils.cloudinary import safe_destroy
 
 
 class Partner(SlugBaseModel):
@@ -76,13 +73,7 @@ class Partner(SlugBaseModel):
         Remove associated Cloudinary images before DB deletion; fail-open on errors.
         """
         for field in [self.partner_image, self.partner_logo]:
-            field_id = getattr(field, "public_id", None)
-            if field_id:
-                try:
-                    destroy(field_id, invalidate=True)
-                except Exception:
-                    logger.warning(
-                        "Cloudinary destroy failed for Partner %s (public_id=%s)", self.pk, field_id)
+            safe_destroy(field, invalidate=True)
         return super().delete(*args, **kwargs)
 
 
