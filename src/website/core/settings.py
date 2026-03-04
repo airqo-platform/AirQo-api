@@ -242,11 +242,18 @@ USE_TZ = True
 STATIC_URL = '/website/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Cloudinary Configuration - Moved to File Upload Settings section above
-# Upload policy is enforced at 10MB in this service.
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+if DEBUG or any(cmd in sys.argv for cmd in ('test', 'check')):
+    STORAGES['staticfiles']['BACKEND'] = 'whitenoise.storage.CompressedStaticFilesStorage'
+else:
+    WHITENOISE_MANIFEST_STRICT = False
 
 # ---------------------------------------------------------
 # Default Primary Key Field Type
@@ -349,11 +356,11 @@ QUILL_CONFIGS = {
 # Unified max upload size for all website file/image uploads (10MB).
 UPLOAD_MAX_FILE_SIZE = 10 * 1024 * 1024
 
-# Stream files larger than this threshold to temp files instead of RAM.
-FILE_UPLOAD_MAX_MEMORY_SIZE = UPLOAD_MAX_FILE_SIZE
+# Keep in-memory upload buffering low; larger files stream to temp files.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
-# Keep request-body parsing limit aligned with upload policy.
-DATA_UPLOAD_MAX_MEMORY_SIZE = UPLOAD_MAX_FILE_SIZE
+# Limit non-file request data parsing independently from file-size policy.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024
 FILE_UPLOAD_TEMP_DIR = None  # Use system default temp directory
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755

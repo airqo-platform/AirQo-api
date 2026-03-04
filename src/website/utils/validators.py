@@ -11,6 +11,19 @@ def _max_upload_file_size() -> int:
     return int(value) if value else DEFAULT_MAX_UPLOAD_FILE_SIZE
 
 
+def _safe_file_size(file):
+    if not hasattr(file, "size"):
+        return None
+    try:
+        size = file.size
+    except Exception:
+        return None
+    try:
+        return int(size)
+    except (TypeError, ValueError):
+        return None
+
+
 def validate_image(file):
     """
     Validates the uploaded image for allowed extensions and maximum file size.
@@ -32,8 +45,9 @@ def validate_image(file):
             f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}."
         )
 
+    size = _safe_file_size(file)
     max_size = _max_upload_file_size()
-    if file.size > max_size:
+    if size is not None and size > max_size:
         raise ValidationError(
             f"Image size must not exceed {max_size / (1024 * 1024):.0f} MB."
         )
@@ -61,8 +75,9 @@ def validate_file(file):
             f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}."
         )
 
+    size = _safe_file_size(file)
     max_size = _max_upload_file_size()
-    if file.size > max_size:
+    if size is not None and size > max_size:
         raise ValidationError(
             f"File size must not exceed {max_size / (1024 * 1024):.0f} MB."
         )
