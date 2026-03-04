@@ -1173,7 +1173,6 @@ const createEvent = {
       }
 
       const result = await createEventUtil.read(request, filter, next);
-
       if (isEmpty(result) || res.headersSent) {
         return;
       }

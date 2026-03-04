@@ -1700,9 +1700,8 @@ ReadingsSchema.statics.listForMap = async function(
           aqi_color_name: 1,
           health_tips: 1,
           site_image: 1,
-          "deviceDetails.device_categories": 1,
+          device_categories: "$deviceDetails.device_categories",
           timeDifferenceHours: 1,
-          device_categories: 1,
         },
       },
       {
