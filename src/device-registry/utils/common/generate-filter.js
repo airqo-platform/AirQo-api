@@ -719,12 +719,18 @@ const generateFilter = {
 
     if (device_id) {
       const deviceIdArray = device_id
-        .toString()
-        .split(",")
-        .map((id) => id.trim())
-        .filter((id) => id.length > 0);
-      if (deviceIdArray.length > 0) {
-        filter.device_id = { $in: deviceIdArray };
+        .toString() // Handles both string and array by converting array to comma-separated string
+        .split(",");
+
+      const trimmedDeviceIds = [];
+      for (const id of deviceIdArray) {
+        if (id.trim().length > 0) {
+          trimmedDeviceIds.push(id.trim());
+        }
+      }
+
+      if (trimmedDeviceIds.length > 0) {
+        filter.device_id = { $in: trimmedDeviceIds };
       }
     }
 
