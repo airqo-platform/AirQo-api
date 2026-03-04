@@ -1,6 +1,7 @@
 import logging
 from unittest import mock
 
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, SimpleTestCase
 
@@ -13,11 +14,15 @@ class AdminUploadExceptionMiddlewareTests(SimpleTestCase):
         self.factory = RequestFactory()
 
     @staticmethod
-    def _raise_error(_request):
+    def _raise_runtime_error(_request):
         raise RuntimeError("upload failed")
 
-    def test_admin_upload_exception_redirects_instead_of_500(self):
-        middleware = AdminUploadExceptionMiddleware(self._raise_error)
+    @staticmethod
+    def _raise_validation_error(_request):
+        raise ValidationError("invalid upload")
+
+    def test_admin_upload_validation_error_redirects_instead_of_500(self):
+        middleware = AdminUploadExceptionMiddleware(self._raise_validation_error)
         upload = SimpleUploadedFile(
             "avatar.jpg", b"fake-image-bytes", content_type="image/jpeg"
         )
@@ -33,7 +38,7 @@ class AdminUploadExceptionMiddlewareTests(SimpleTestCase):
         self.assertEqual(response["Location"], "/website/admin/team/member/add/")
 
     def test_non_upload_post_errors_are_not_swallowed(self):
-        middleware = AdminUploadExceptionMiddleware(self._raise_error)
+        middleware = AdminUploadExceptionMiddleware(self._raise_runtime_error)
         request = self.factory.post(
             "/website/admin/team/member/add/",
             {"name": "Member without file"},
@@ -41,6 +46,31 @@ class AdminUploadExceptionMiddlewareTests(SimpleTestCase):
 
         with self.assertRaises(RuntimeError):
             middleware(request)
+
+    def test_non_upload_exception_with_files_is_not_swallowed(self):
+        middleware = AdminUploadExceptionMiddleware(self._raise_runtime_error)
+        upload = SimpleUploadedFile(
+            "avatar.jpg", b"fake-image-bytes", content_type="image/jpeg"
+        )
+        request = self.factory.post(
+            "/website/admin/team/member/add/",
+            {"picture": upload},
+        )
+
+        with self.assertRaises(RuntimeError):
+            middleware(request)
+
+    def test_redirect_target_rejects_external_referer(self):
+        middleware = AdminUploadExceptionMiddleware(lambda request: None)
+        request = self.factory.post(
+            "/website/admin/team/member/add/",
+            HTTP_REFERER="https://evil.example/redirect",
+        )
+
+        self.assertEqual(
+            middleware._redirect_target(request),
+            "/website/admin/team/member/add/",
+        )
 
 
 class SlackWebhookHandlerTests(SimpleTestCase):

@@ -1,9 +1,19 @@
 import logging
 
 from django.contrib import messages
+from django.core.exceptions import SuspiciousOperation, ValidationError
 from django.http import HttpResponseRedirect
+from django.http.multipartparser import MultiPartParserError
+from django.utils.http import url_has_allowed_host_and_scheme
 
 logger = logging.getLogger(__name__)
+
+UPLOAD_EXCEPTIONS = (
+    ValidationError,
+    MultiPartParserError,
+    SuspiciousOperation,
+    OSError,
+)
 
 
 class AdminUploadExceptionMiddleware:
@@ -20,7 +30,7 @@ class AdminUploadExceptionMiddleware:
     def __call__(self, request):
         try:
             return self.get_response(request)
-        except Exception:
+        except UPLOAD_EXCEPTIONS:
             if self._should_handle(request):
                 logger.exception("Admin upload failed at %s", request.path)
                 self._add_message(request)
@@ -28,10 +38,16 @@ class AdminUploadExceptionMiddleware:
             raise
 
     def _should_handle(self, request) -> bool:
+        if request.method != "POST" or not request.path.startswith(self.admin_prefix):
+            return False
+
+        # Trust multipart content-type as upload intent; avoids forcing FILES parse in error paths.
+        content_type = (request.META.get("CONTENT_TYPE") or "").lower()
+        if "multipart/form-data" in content_type:
+            return True
+
         return (
-            request.method == "POST"
-            and request.path.startswith(self.admin_prefix)
-            and bool(getattr(request, "FILES", None))
+            bool(getattr(request, "FILES", None))
         )
 
     def _add_message(self, request) -> None:
@@ -43,4 +59,14 @@ class AdminUploadExceptionMiddleware:
 
     def _redirect_target(self, request) -> str:
         referer = request.META.get("HTTP_REFERER")
-        return referer or request.path
+        if referer:
+            try:
+                if url_has_allowed_host_and_scheme(
+                    referer,
+                    allowed_hosts={request.get_host()},
+                    require_https=request.is_secure(),
+                ):
+                    return referer
+            except Exception:
+                pass
+        return request.path

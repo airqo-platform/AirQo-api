@@ -37,8 +37,21 @@ def safe_destroy(resource: Any, *, invalidate: bool = True, resource_type: Optio
         options = {"invalidate": invalidate}
         if resource_type:
             options["resource_type"] = resource_type
-        destroy(public_id, **options)
-        return True
+        response = destroy(public_id, **options)
+
+        result = ""
+        if isinstance(response, dict):
+            result = str(response.get("result", "")).lower()
+
+        if result in {"ok", "deleted", "not found"}:
+            return True
+
+        logger.warning(
+            "Cloudinary destroy returned non-success result for public_id=%s: %s",
+            public_id,
+            response,
+        )
+        return False
     except Exception:
         logger.warning(
             "Cloudinary destroy failed for public_id=%s (resource_type=%s)",
