@@ -1123,13 +1123,21 @@ const createEvent = {
       logText("the readings for the AirQo Map...");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        next(
+        return next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
-        return;
       }
 
-      const request = prepareMapRequest(req);
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+        },
+      };
+
+      delete request.query.internal;
+
       const { cohort_id } = { ...req.query, ...req.params };
 
       if (cohort_id) {
@@ -1155,13 +1163,27 @@ const createEvent = {
         }
       }
 
-      const result = await createEventUtil.listForMap(request, next);
+      const result = await createEventUtil.readRecentWithFilter(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
 
-      return respondWithMapResult(res, result);
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          measurements: result.data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
