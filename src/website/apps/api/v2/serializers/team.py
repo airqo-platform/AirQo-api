@@ -52,7 +52,7 @@ class MemberListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Member
         fields = [
-            'id', 'name', 'title', 'about', 'picture_url', 'twitter', 'linked_in',
+            'id', 'name', 'title', 'category', 'about', 'picture_url', 'twitter', 'linked_in',
             'order', 'created', 'modified', 'public_identifier', 'api_url', 'has_slug', 'descriptions'
         ]
     ref_name = 'MemberListV2'
@@ -95,7 +95,7 @@ class MemberDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Member
         fields = [
-            'id', 'name', 'title', 'about', 'picture', 'picture_url', 'twitter',
+            'id', 'name', 'title', 'category', 'about', 'picture', 'picture_url', 'twitter',
             'linked_in', 'order', 'descriptions', 'created', 'modified', 'is_deleted',
             'public_identifier', 'api_url', 'has_slug'
         ]
