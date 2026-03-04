@@ -10,24 +10,37 @@ from cloudinary.models import CloudinaryField
 
 logger = logging.getLogger(__name__)
 
-# Maximum size for uploaded images in bytes (30MB)
-MAX_IMAGE_SIZE = 30 * 1024 * 1024
+DEFAULT_MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def _get_max_upload_file_size() -> int:
+    value = getattr(settings, "UPLOAD_MAX_FILE_SIZE", DEFAULT_MAX_UPLOAD_FILE_SIZE)
+    return int(value) if value else DEFAULT_MAX_UPLOAD_FILE_SIZE
 
 
 def validate_image_format(file):
     """
-    Validate that the file is a valid image and does not exceed 30MB.
+    Validate that the file is a valid image and does not exceed the configured max size.
     Allowed extensions are handled by FileExtensionValidator in the field definition.
-    For files >10MB, skip dimension check to avoid memory issues.
+    For larger files, skip deep dimension parsing to avoid unnecessary memory use.
     """
-    if file.size > MAX_IMAGE_SIZE:
+    if not file or not hasattr(file, "size"):
+        return
+
+    max_size = _get_max_upload_file_size()
+    if file.size > max_size:
         raise ValidationError(
-            f"Image size must not exceed 30MB. Current size: {file.size/1024/1024:.2f}MB.")
+            f"Image size must not exceed {max_size / (1024 * 1024):.0f}MB. Current size: {file.size/1024/1024:.2f}MB."
+        )
 
     # Always check magic number first for all files to prevent internal server errors
-    file.seek(0)
-    header = file.read(12)
-    file.seek(0)
+    try:
+        file.seek(0)
+        header = file.read(12)
+        file.seek(0)
+    except Exception as e:
+        logger.error("Failed to inspect upload header for '%s': %s", getattr(file, "name", "unknown"), e)
+        raise ValidationError("Uploaded image could not be processed. Please re-save and try again.")
 
     # Check common image file signatures for all supported formats
     is_valid_format = (
@@ -47,9 +60,9 @@ def validate_image_format(file):
     if not is_valid_format:
         raise ValidationError(f"The file '{file.name}' is not a valid image.")
 
-    # For large files (>10MB), skip dimension check to avoid memory issues
+    # For large files (>5MB), skip dimension check to avoid memory issues
     # Magic number validation above already ensures it's a valid image format
-    if file.size > 10 * 1024 * 1024:
+    if file.size > 5 * 1024 * 1024:
         return
 
     # For smaller files, also validate with get_image_dimensions as additional check
