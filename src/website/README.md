@@ -12,7 +12,7 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 ### API Versions
 
 - **Legacy Endpoints** (`/website/[app-name]/`) - Backward compatibility
-- **V2 Enhanced API** (`/website/api/v2/[resource]/`) - Modern, optimized endpoints with advanced features
+- **V2 Enhanced API** (`/website/api/v2/[resource]/`) - Modern, optimized endpoints with advanced features.
 
 ### Performance Optimizations
 
@@ -606,7 +606,6 @@ docker compose config --services
 Troubleshooting:
 
 - Error: "no such service: web-prod"
-
   - Cause: you likely used the wrong service name. The compose file defines `web`. Run `docker compose config --services` to confirm.
 
 - If ports are already in-use, stop the conflicting service or change the host port mapping in `docker-compose.yml`.
