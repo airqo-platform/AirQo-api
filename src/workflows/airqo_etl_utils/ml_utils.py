@@ -6,9 +6,7 @@ import logging
 
 from dateutil.relativedelta import relativedelta
 from pymongo.errors import ServerSelectionTimeoutError
-import mlflow
 import numpy as np
-import optuna
 import pandas as pd
 import pymongo as pm
 import lightgbm as lgb
@@ -165,12 +163,12 @@ class BaseMlUtils:
                         .agg(f)
                     )
         elif freq.str == "hourly":
-            shifts = [1, 2, 6, 12]
+            shifts = [1, 2, 6, 12, 24, 48, 72, 168]
             for s in shifts:
                 df1[f"pm2_5_last_{s}_hour"] = df1.groupby(["device_id"])[
                     target_col
                 ].shift(s)
-            shifts = [3, 6, 12, 24]
+            shifts = [3, 6, 12, 24, 48, 72, 168]
             functions = ["mean", "std", "median", "skew"]
             for s in shifts:
                 for f in functions:
@@ -318,257 +316,384 @@ class ForecastUtils(BaseMlUtils):
     """Device-level PM2.5 forecast training, prediction, and persistence."""
 
     @staticmethod
+    def _to_frequency(frequency: Any) -> Frequency:
+        if isinstance(frequency, Frequency):
+            return frequency
+
+        label = str(frequency).strip().lower()
+        if label == Frequency.HOURLY.str:
+            return Frequency.HOURLY
+        if label == Frequency.DAILY.str:
+            return Frequency.DAILY
+        raise ValueError(f"Unsupported frequency '{frequency}'")
+
+    @staticmethod
+    def _safe_int(value: Any, default: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def resolve_forecast_horizon(
+        frequency: Frequency, horizon: Optional[int] = None
+    ) -> int:
+        """Resolve horizon with config overrides and safe defaults."""
+        if horizon is not None:
+            candidate = ForecastUtils._safe_int(horizon, 0)
+            if candidate > 0:
+                return candidate
+
+        if frequency.str == Frequency.HOURLY.str:
+            return max(
+                1,
+                ForecastUtils._safe_int(
+                    configuration.HOURLY_FORECAST_HORIZON,
+                    24 * 7,
+                ),
+            )
+
+        return max(
+            1,
+            ForecastUtils._safe_int(
+                configuration.DAILY_FORECAST_HORIZON,
+                7,
+            ),
+        )
+
+    @staticmethod
+    def _regression_metrics(y_true, y_pred, prefix: str = "") -> Dict[str, float]:
+        rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+        metrics = {
+            f"{prefix}mae": float(mean_absolute_error(y_true, y_pred)),
+            f"{prefix}rmse": rmse,
+            f"{prefix}r2": float(r2_score(y_true, y_pred)),
+        }
+        return metrics
+
+    @staticmethod
+    def resolve_mlflow_experiment_name(frequency: Frequency) -> str:
+        """Resolve MLflow experiment name for frequency-specific runs."""
+        if frequency.str == Frequency.HOURLY.str:
+            return (
+                configuration.MLFLOW_HOURLY_EXPERIMENT_NAME
+                or configuration.MLFLOW_EXPERIMENT_NAME
+                or f"{frequency.str}_forecast_model_{environment}"
+            )
+        if frequency.str == Frequency.DAILY.str:
+            return (
+                configuration.MLFLOW_DAILY_EXPERIMENT_NAME
+                or configuration.MLFLOW_EXPERIMENT_NAME
+                or f"{frequency.str}_forecast_model_{environment}"
+            )
+        return configuration.MLFLOW_EXPERIMENT_NAME or f"{frequency.str}_forecast_model_{environment}"
+
+    @staticmethod
+    def _build_chronological_splits(
+        training_data: pd.DataFrame,
+        *,
+        val_fraction: float = 0.15,
+        test_fraction: float = 0.15,
+        min_device_rows: int = 72,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Build train/validation/test splits per device in chronological order."""
+        train_parts: List[pd.DataFrame] = []
+        val_parts: List[pd.DataFrame] = []
+        test_parts: List[pd.DataFrame] = []
+
+        grouped = training_data.sort_values("timestamp").groupby("device_id")
+        for _, device_df in grouped:
+            device_df = device_df.sort_values("timestamp").reset_index(drop=True)
+            if len(device_df) < min_device_rows:
+                continue
+
+            n = len(device_df)
+            n_val = max(1, int(n * val_fraction))
+            n_test = max(1, int(n * test_fraction))
+            n_train = n - n_val - n_test
+            if n_train < 1:
+                continue
+
+            train_parts.append(device_df.iloc[:n_train].copy())
+            val_parts.append(device_df.iloc[n_train : n_train + n_val].copy())
+            test_parts.append(device_df.iloc[n_train + n_val :].copy())
+
+        if not train_parts or not val_parts or not test_parts:
+            raise ValueError(
+                "Not enough data to build train/validation/test splits for forecast training."
+            )
+
+        return (
+            pd.concat(train_parts, ignore_index=True),
+            pd.concat(val_parts, ignore_index=True),
+            pd.concat(test_parts, ignore_index=True),
+        )
+
+    @staticmethod
     def train_and_save_forecast_models(training_data, frequency):
-        """Train a LightGBM forecast model via Optuna hyperparameter search and save to GCS.
+        """Train and save forecast model artifact with MLflow logging."""
+        freq = ForecastUtils._to_frequency(frequency)
+        frequency_label = freq.str
+        target_col = "pm2_5"
 
-        Uses Optuna TPE sampler with successive halving pruner across 15 trials.
-        The best hyperparameters train a final LGBMRegressor, serialized and
-        uploaded to the configured GCS bucket. MLflow autologging tracks the run.
+        required_columns = {"device_id", "timestamp", target_col}
+        missing_columns = sorted(required_columns - set(training_data.columns))
+        if missing_columns:
+            raise ValueError(
+                "Provided dataframe missing necessary columns: "
+                + ", ".join(missing_columns)
+            )
 
-        Args:
-            training_data: DataFrame with device_id, timestamp, pm2_5, and
-                pre-computed feature columns.
-            frequency: Model frequency label (e.g. 'hourly', 'daily') used
-                for artifact naming and MLflow experiment.
-        """
-        filestorage: FileStorage = GCSFileStorage()
-        training_data.dropna(subset=["device_id"], inplace=True)
-        training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
+        training_data = training_data.copy()
+        training_data = training_data.dropna(subset=["device_id"])
+        training_data["timestamp"] = pd.to_datetime(
+            training_data["timestamp"], errors="coerce"
+        )
+        training_data[target_col] = pd.to_numeric(
+            training_data[target_col], errors="coerce"
+        )
+        training_data = training_data.dropna(subset=["timestamp", target_col])
+
+        excluded_columns = {
+            "timestamp",
+            target_col,
+            "latitude",
+            "longitude",
+            "device_id",
+            "site_id",
+        }
         features = [
             c
             for c in training_data.columns
-            if c not in ["timestamp", "pm2_5", "latitude", "longitude", "device_id"]
+            if c not in excluded_columns and pd.api.types.is_numeric_dtype(training_data[c])
         ]
-        logger.info(features)
+        if not features:
+            raise ValueError("No numeric features available for forecast training.")
 
-        target_col = "pm2_5"
-        train_data = validation_data = test_data = pd.DataFrame()
-        for device in training_data["device_id"].unique():
-            device_df = training_data[training_data["device_id"] == device]
-            months = device_df["timestamp"].dt.month.unique()
-            train_months = months[:8]
-            val_months = months[8:9]
-            test_months = months[9:]
+        train_data, validation_data, test_data = ForecastUtils._build_chronological_splits(
+            training_data
+        )
 
-            train_df = device_df[device_df["timestamp"].dt.month.isin(train_months)]
-            val_df = device_df[device_df["timestamp"].dt.month.isin(val_months)]
-            test_df = device_df[device_df["timestamp"].dt.month.isin(test_months)]
+        split_columns = features + [target_col]
+        train_data = train_data.dropna(subset=split_columns).reset_index(drop=True)
+        validation_data = validation_data.dropna(subset=split_columns).reset_index(
+            drop=True
+        )
+        test_data = test_data.dropna(subset=split_columns).reset_index(drop=True)
+        if train_data.empty or validation_data.empty or test_data.empty:
+            raise ValueError(
+                "Insufficient non-null data for training after applying feature filters."
+            )
 
-            train_data = pd.concat([train_data, train_df])
-            validation_data = pd.concat([validation_data, val_df])
-            test_data = pd.concat([test_data, test_df])
+        params = {
+            "objective": "regression",
+            "random_state": 42,
+            "n_estimators": 2000,
+            "learning_rate": 0.03,
+            "num_leaves": 64,
+            "max_depth": 8,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "reg_alpha": 0.1,
+            "reg_lambda": 0.1,
+            "verbosity": -1,
+        }
 
-        train_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-        validation_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-        test_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-
-        train_target, validation_target, test_target = (
+        clf = LGBMRegressor(**params)
+        clf.fit(
+            train_data[features],
             train_data[target_col],
-            validation_data[target_col],
-            test_data[target_col],
+            eval_set=[(validation_data[features], validation_data[target_col])],
+            eval_metric="rmse",
+            callbacks=[early_stopping(stopping_rounds=150), lgb.log_evaluation(200)],
         )
 
-        sampler = optuna.samplers.TPESampler()
-        pruner = optuna.pruners.SuccessiveHalvingPruner(
-            min_resource=10, reduction_factor=2, min_early_stopping_rate=0
-        )
-        study = optuna.create_study(
-            direction="minimize", study_name="LGBM", sampler=sampler, pruner=pruner
-        )
-
-        def objective(trial):
-            param_grid = {
-                "colsample_bytree": trial.suggest_float("colsample_bytree", 0.1, 1),
-                "reg_alpha": trial.suggest_float("reg_alpha", 0, 10),
-                "reg_lambda": trial.suggest_float("reg_lambda", 0, 10),
-                "n_estimators": trial.suggest_categorical("n_estimators", [50]),
-                "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3),
-                "num_leaves": trial.suggest_int("num_leaves", 20, 50),
-                "max_depth": trial.suggest_int("max_depth", 4, 7),
-            }
-            score = 0
-            for step in range(4):
-                lgb_reg = LGBMRegressor(
-                    objective="regression",
-                    random_state=42,
-                    **param_grid,
-                    verbosity=2,
-                )
-                lgb_reg.fit(
-                    train_data[features],
-                    train_target,
-                    eval_set=[(test_data[features], test_target)],
-                    eval_metric="rmse",
-                    callbacks=[early_stopping(stopping_rounds=150)],
-                )
-
-                val_preds = lgb_reg.predict(validation_data[features])
-                score = mean_squared_error(validation_target, val_preds)
-                if trial.should_prune():
-                    raise optuna.TrialPruned()
-
-            return score
-
-        study.optimize(objective, n_trials=15)
-
-        mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
-        mlflow.set_experiment(f"{frequency}_forecast_model_{environment}")
-        registered_model_name = f"{frequency}_forecast_model_{environment}"
-
-        mlflow.lightgbm.autolog(
-            registered_model_name=registered_model_name, log_datasets=False
-        )
-        with mlflow.start_run():
-            best_params = study.best_params
-            logger.info(f"Best params: {best_params}")
-            clf = LGBMRegressor(
-                n_estimators=best_params["n_estimators"],
-                learning_rate=best_params["learning_rate"],
-                colsample_bytree=best_params["colsample_bytree"],
-                reg_alpha=best_params["reg_alpha"],
-                reg_lambda=best_params["reg_lambda"],
-                max_depth=best_params["max_depth"],
-                random_state=42,
-                verbosity=2,
+        val_predictions = clf.predict(validation_data[features])
+        test_predictions = clf.predict(test_data[features])
+        metrics: Dict[str, Any] = {}
+        metrics.update(
+            ForecastUtils._regression_metrics(
+                validation_data[target_col], val_predictions, prefix="val_"
             )
+        )
+        metrics.update(
+            ForecastUtils._regression_metrics(
+                test_data[target_col], test_predictions, prefix="test_"
+            )
+        )
+        metrics["n_train"] = int(len(train_data))
+        metrics["n_val"] = int(len(validation_data))
+        metrics["n_test"] = int(len(test_data))
+        metrics["n_features"] = int(len(features))
+        metrics["horizon"] = int(ForecastUtils.resolve_forecast_horizon(freq))
+        metrics["best_iteration"] = int(
+            getattr(clf, "best_iteration_", params["n_estimators"])
+        )
+        # Use validation metrics as the deployment gate, consistent with
+        # summary/daily model training.
+        metrics["mae"] = float(metrics["val_mae"])
+        metrics["rmse"] = float(metrics["val_rmse"])
+        metrics["r2"] = float(metrics["val_r2"])
 
-            clf.fit(
-                train_data[features],
-                train_target,
-                eval_set=[(test_data[features], test_target)],
-                eval_metric="rmse",
-                callbacks=[early_stopping(stopping_rounds=150)],
-            )
-            filestorage.save_file_object(
-                bucket=bucket,
-                obj=clf,
-                destination_file=f"{frequency}_forecast_model.pkl",
-            )
+        artifact = {
+            "kind": "point",
+            "model": clf,
+            "features": features,
+            "target": target_col,
+            "frequency": frequency_label,
+            "horizon": metrics["horizon"],
+            "metrics": metrics,
+            "params": params,
+            "trained_at": datetime.utcnow().isoformat(timespec="seconds"),
+        }
+
+        bucket_name = configuration.FORECAST_MODELS_BUCKET or bucket
+        if not bucket_name:
+            raise ValueError("Missing required config: FORECAST_MODELS_BUCKET.")
+
+        deployment = ForecastModelTrainer._deploy_if_better(
+            bucket_name=bucket_name,
+            artifact=artifact,
+            blob_name=f"{frequency_label}_forecast_model.pkl",
+            new_metrics={"r2": metrics["r2"], "mae": metrics["mae"], "rmse": metrics["rmse"]},
+        )
+        metrics["deployed"] = deployment["deployed"]
+        metrics["deployment_reason"] = deployment["reason"]
+
+        tracker = MlflowTracker(
+            tracking_uri=configuration.MLFLOW_TRACKING_URI,
+            registry_uri=configuration.MLFLOW_REGISTRY_URI,
+            experiment_name=ForecastUtils.resolve_mlflow_experiment_name(freq),
+            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
+            enabled=True,
+        )
+        input_example = train_data[features].head(5)
+        if input_example.empty:
+            input_example = None
+        tracker.log_run(
+            run_name=f"{frequency_label}-device-forecast-training",
+            params={**params, "horizon": metrics["horizon"]},
+            metrics=metrics,
+            tags={
+                "pipeline": "device_forecast",
+                "frequency": frequency_label,
+                "artifact": "forecast_model",
+                "deployed": str(deployment["deployed"]).lower(),
+                "decision_reason": deployment["reason"],
+            },
+            model=clf,
+            model_artifact_path="model",
+            input_example=input_example,
+            fail_run=not deployment["deployed"],
+            fail_reason=f"Model not deployed: {deployment['reason']}",
+        )
+
+        return metrics
 
     @staticmethod
     def generate_forecasts(
-        data: pd.DataFrame, project_name: str, bucket_name: str, frequency: Frequency
+        data: pd.DataFrame,
+        project_name: str,
+        bucket_name: str,
+        frequency: Frequency,
+        horizon: Optional[int] = None,
     ) -> pd.DataFrame:
         """
         Generate forecasts for the given data using a pre-trained model.
         """
-        data = data.dropna(subset=["site_id", "device_id"])
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        required_columns = {
+            "site_id",
+            "device_id",
+            "device_number",
+            "timestamp",
+            "pm2_5",
+            "latitude",
+            "longitude",
+        }
+        missing_columns = sorted(required_columns - set(data.columns))
+        if missing_columns:
+            raise ValueError(
+                "Provided dataframe missing necessary columns: "
+                + ", ".join(missing_columns)
+            )
+
+        freq = ForecastUtils._to_frequency(frequency)
+        frequency_label = freq.str
+        horizon_steps = ForecastUtils.resolve_forecast_horizon(freq, horizon)
+
+        data = data.copy()
+        data = data.dropna(subset=["site_id", "device_id", "timestamp"])
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+        data["pm2_5"] = pd.to_numeric(data["pm2_5"], errors="coerce")
+        data = data.dropna(subset=["timestamp", "pm2_5"])
+        data = data.sort_values(["device_id", "timestamp"]).reset_index(drop=True)
         data.columns = data.columns.str.strip()
 
         filestorage: FileStorage = GCSFileStorage()
-
-        def get_forecasts(df_tmp, forecast_model, frequency, horizon):
-            """This method generates forecasts for a given device dataframe basing on horizon provided"""
-            for i in range(int(horizon)):
-                df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]], ignore_index=True)
-                df_tmp_no_ts = df_tmp.drop(
-                    columns=["timestamp", "device_id", "site_id"], axis=1, inplace=False
-                )
-                # daily frequency
-                if frequency == "daily":
-                    df_tmp.tail(1)["timestamp"] += timedelta(days=1)
-                    shifts1 = [1, 2, 3, 7]
-                    for s in shifts1:
-                        df_tmp[f"pm2_5_last_{s}_day"] = df_tmp.shift(s, axis=0)["pm2_5"]
-                    # rolling features
-                    shifts2 = [2, 3, 7]
-                    functions = ["mean", "std", "max", "min"]
-                    for s in shifts2:
-                        for f in functions:
-                            df_tmp[f"pm2_5_{f}_{s}_day"] = (
-                                df_tmp_no_ts.shift(1, axis=0).rolling(s).agg(f)
-                            )["pm2_5"]
-
-                elif frequency == "hourly":
-                    df_tmp.iloc[-1, df_tmp.columns.get_loc("timestamp")] = df_tmp.iloc[
-                        -2, df_tmp.columns.get_loc("timestamp")
-                    ] + pd.Timedelta(hours=1)
-
-                    # lag features
-                    shifts1 = [1, 2, 6, 12]
-                    for s in shifts1:
-                        df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.shift(s, axis=0)[
-                            "pm2_5"
-                        ]
-
-                    # rolling features
-                    shifts2 = [3, 6, 12, 24]
-                    functions = ["mean", "std", "median", "skew"]
-                    for s in shifts2:
-                        for f in functions:
-                            df_tmp[f"pm2_5_{f}_{s}_hour"] = (
-                                df_tmp_no_ts.shift(1, axis=0).rolling(s).agg(f)
-                            )["pm2_5"]
-
-                attributes = ["year", "month", "day", "dayofweek"]
-                max_vals = [2023, 12, 30, 7]
-                if frequency == "hourly":
-                    attributes.append("hour")
-                    max_vals.append(23)
-                for a, m in zip(attributes, max_vals):
-                    df_tmp.tail(1)[f"{a}_sin"] = np.sin(
-                        2
-                        * np.pi
-                        * df_tmp.tail(1)["timestamp"].dt.__getattribute__(a)
-                        / m
-                    )
-                    df_tmp.tail(1)[f"{a}_cos"] = np.cos(
-                        2
-                        * np.pi
-                        * df_tmp.tail(1)["timestamp"].dt.__getattribute__(a)
-                        / m
-                    )
-                df_tmp.tail(1)["week_sin"] = np.sin(
-                    2 * np.pi * df_tmp.tail(1)["timestamp"].dt.isocalendar().week / 52
-                )
-                df_tmp.tail(1)["week_cos"] = np.cos(
-                    2 * np.pi * df_tmp.tail(1)["timestamp"].dt.isocalendar().week / 52
-                )
-
-                excluded_columns = [
-                    "device_id",
-                    "site_id",
-                    "device_number",
-                    "pm2_5",
-                    "timestamp",
-                    "latitude",
-                    "longitude",
-                ]
-                df_tmp.loc[df_tmp.index[-1], "pm2_5"] = forecast_model.predict(
-                    df_tmp.drop(excluded_columns, axis=1).tail(1).values.reshape(1, -1)
-                )
-
-            return df_tmp.iloc[-int(horizon) :, :]
-
-        forecasts = pd.DataFrame()
-        forecast_model = filestorage.load_file_object(
+        loaded_artifact = filestorage.load_file_object(
             bucket=bucket_name,
-            source_file=f"{frequency.str}_forecast_model.pkl",
+            source_file=f"{frequency_label}_forecast_model.pkl",
         )
 
-        df_tmp = data.copy()
-        for device in df_tmp["device_id"].unique():
-            test_copy = df_tmp[df_tmp["device_id"] == device]
-            horizon = (
-                configuration.HOURLY_FORECAST_HORIZON
-                if frequency.str == "hourly"
-                else configuration.DAILY_FORECAST_HORIZON
-            )
-            device_forecasts = get_forecasts(
-                test_copy,
-                forecast_model,
-                frequency.str,
-                horizon,
-            )
+        if isinstance(loaded_artifact, dict) and "model" in loaded_artifact:
+            forecast_model = loaded_artifact["model"]
+            trained_features = loaded_artifact.get("features") or []
+        else:
+            forecast_model = loaded_artifact
+            trained_features = []
 
-            forecasts = pd.concat([forecasts, device_forecasts], ignore_index=True)
-
-        forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
-
-        return forecasts[
-            ["site_id", "device_id", "device_number", "timestamp", "pm2_5"]
+        excluded_columns = [
+            "device_id",
+            "site_id",
+            "device_number",
+            "pm2_5",
+            "timestamp",
+            "latitude",
+            "longitude",
         ]
+
+        def build_latest_features(device_frame: pd.DataFrame) -> pd.DataFrame:
+            featured = BaseMlUtils.get_lag_and_roll_features(
+                device_frame.copy(), "pm2_5", freq
+            )
+            featured = BaseMlUtils.get_cyclic_features(featured, freq)
+            featured = BaseMlUtils.get_location_features(featured)
+            latest_row = featured.tail(1).copy()
+
+            if trained_features:
+                for feature in trained_features:
+                    if feature not in latest_row.columns:
+                        latest_row[feature] = 0.0
+                latest_row = latest_row[trained_features]
+            else:
+                cols_to_drop = [col for col in excluded_columns if col in latest_row]
+                latest_row = latest_row.drop(columns=cols_to_drop)
+
+            return latest_row.apply(pd.to_numeric, errors="coerce").fillna(0.0)
+
+        device_forecast_frames: List[pd.DataFrame] = []
+        step_delta = timedelta(hours=1) if frequency_label == "hourly" else timedelta(days=1)
+        for _, device_data in data.groupby("device_id"):
+            device_data = device_data.sort_values("timestamp").reset_index(drop=True)
+            for _ in range(horizon_steps):
+                next_row = device_data.iloc[-1:].copy()
+                next_row["timestamp"] = next_row["timestamp"] + step_delta
+                device_data = pd.concat([device_data, next_row], ignore_index=True)
+
+                feature_input = build_latest_features(device_data)
+                prediction = float(forecast_model.predict(feature_input)[0])
+                device_data.loc[device_data.index[-1], "pm2_5"] = prediction
+
+            device_forecast_frames.append(device_data.tail(horizon_steps).copy())
+
+        if not device_forecast_frames:
+            return pd.DataFrame(
+                columns=["site_id", "device_id", "device_number", "timestamp", "pm2_5"]
+            )
+
+        forecasts = pd.concat(device_forecast_frames, ignore_index=True)
+        forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
+        return forecasts[["site_id", "device_id", "device_number", "timestamp", "pm2_5"]]
 
     @staticmethod
     def save_forecasts_to_mongo(data: pd.DataFrame, frequency: Frequency):

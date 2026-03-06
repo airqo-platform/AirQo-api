@@ -65,6 +65,46 @@ Required `.env` values for this test:
 - `BIGQUERY_ANALYTICS_TABLE`
 - `FORECAST_MODELS_BUCKET`
 
+### Test hourly forecast training locally
+
+After setting up `.env` and credentials, run:
+
+```bash
+python src/workflows/airqo_etl_utils/tests/hourly_forecast_training.py
+```
+
+This runner imports and executes the shared hourly training pipeline from
+`src/workflows/dags/forecast_training_jobs.py`, so local runs stay aligned with DAG logic.
+
+Required `.env` values for hourly training:
+
+- `GOOGLE_APPLICATION_CREDENTIALS`
+- `GOOGLE_CLOUD_PROJECT_ID`
+- `BIGQUERY_HOURLY_EVENTS_TABLE`
+- `BIGQUERY_SITES_TABLE`
+- `FORECAST_MODELS_BUCKET`
+- `HOURLY_FORECAST_TRAINING_JOB_SCOPE`
+
+If using Databricks MLflow:
+
+- `MLFLOW_TRACKING_URI=databricks`
+- `MLFLOW_REGISTRY_URI=databricks-uc`
+- `MLFLOW_HOURLY_EXPERIMENT_NAME`
+
+### Test hourly 7-day forecast workflow changes
+
+Run focused unit tests for hourly feature engineering, 7-day recursive inference, MLflow logging, and forecast query compatibility:
+
+```bash
+pytest src/workflows/airqo_etl_utils/tests/test_ml_utils.py -k "hourly or forecast" -q
+pytest src/workflows/airqo_etl_utils/tests/test_bigquery_api.py -k "forecast_job_type_prediction_alias" -q
+```
+
+Recommended `.env` values for hourly 7-day forecasting:
+
+- `HOURLY_FORECAST_HORIZON=168`
+- `HOURLY_FORECAST_PREDICTION_JOB_SCOPE=336`
+
 ## 2. Running using Docker
 
 ### Prerequisites

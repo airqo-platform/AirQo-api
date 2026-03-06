@@ -1,8 +1,9 @@
 import pandas as pd
 import pytest
+import numpy as np
 from unittest.mock import MagicMock
 
-from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils
+from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastUtils
 from airqo_etl_utils.tests.conftest import ForecastFixtures
 from airqo_etl_utils.constants import Frequency
 
@@ -57,9 +58,9 @@ class TestsForecasts(ForecastFixtures):
         hourly_df = FUtils.get_lag_and_roll_features(
             feat_eng_sample_df_hourly, "pm2_5", Frequency.HOURLY
         )
-        for s in [1, 2, 6, 12]:
+        for s in [1, 2, 6, 12, 24, 48, 72, 168]:
             assert f"pm2_5_last_{s}_hour" in hourly_df.columns
-        for s in [3, 6, 12, 24]:
+        for s in [3, 6, 12, 24, 48, 72, 168]:
             for f in ["mean", "std", "median", "skew"]:
                 assert f"pm2_5_{f}_{s}_hour" in hourly_df.columns
 
@@ -171,3 +172,229 @@ class TestsForecasts(ForecastFixtures):
             FUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
             mock_collection = getattr(mock_db, collection_name)
             assert mock_collection.update_one.call_count == 0
+
+    def test_generate_hourly_forecasts_for_next_7_days(self, monkeypatch):
+        timestamps = pd.date_range("2025-01-01", periods=24 * 12, freq="h")
+        historical_data = pd.DataFrame(
+            {
+                "site_id": ["site-a"] * len(timestamps),
+                "device_id": ["device-a"] * len(timestamps),
+                "device_number": [12345] * len(timestamps),
+                "timestamp": timestamps,
+                "pm2_5": np.linspace(10, 20, len(timestamps)),
+                "latitude": [0.234] * len(timestamps),
+                "longitude": [32.564] * len(timestamps),
+            }
+        )
+
+        featured = FUtils.get_lag_and_roll_features(
+            historical_data.copy(), "pm2_5", Frequency.HOURLY
+        )
+        featured = FUtils.get_cyclic_features(featured, Frequency.HOURLY)
+        featured = FUtils.get_location_features(featured)
+        excluded = {
+            "device_id",
+            "site_id",
+            "device_number",
+            "pm2_5",
+            "timestamp",
+            "latitude",
+            "longitude",
+        }
+        trained_features = [col for col in featured.columns if col not in excluded]
+
+        class DummyModel:
+            def predict(self, X):
+                return np.full(len(X), 23.5, dtype=float)
+
+        class MockStorage:
+            def load_file_object(self, bucket, source_file):
+                return {"model": DummyModel(), "features": trained_features}
+
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.GCSFileStorage", lambda: MockStorage()
+        )
+
+        forecasts = ForecastUtils.generate_forecasts(
+            data=historical_data,
+            project_name="demo-project",
+            bucket_name="demo-bucket",
+            frequency=Frequency.HOURLY,
+            horizon=24 * 7,
+        )
+
+        assert len(forecasts) == 24 * 7
+        assert forecasts["timestamp"].is_monotonic_increasing
+        assert (
+            forecasts["timestamp"].diff().dropna() == pd.Timedelta(hours=1)
+        ).all()
+        assert forecasts["timestamp"].iloc[0] == historical_data["timestamp"].max() + pd.Timedelta(hours=1)
+        assert (forecasts["pm2_5"] == 23.5).all()
+
+    def test_train_and_save_hourly_forecast_model_logs_mlflow(self, monkeypatch):
+        def _device_rows(device_id: str, device_number: int) -> pd.DataFrame:
+            ts = pd.date_range("2025-01-01", periods=24 * 30, freq="h")
+            values = np.sin(np.linspace(0, 18, len(ts))) * 7 + 24
+            return pd.DataFrame(
+                {
+                    "device_id": [device_id] * len(ts),
+                    "device_number": [device_number] * len(ts),
+                    "timestamp": ts,
+                    "pm2_5": values,
+                    "latitude": [0.234] * len(ts),
+                    "longitude": [32.564] * len(ts),
+                }
+            )
+
+        raw_training_data = pd.concat(
+            [_device_rows("device-a", 12345), _device_rows("device-b", 67890)],
+            ignore_index=True,
+        )
+        featured_training_data = FUtils.get_lag_and_roll_features(
+            raw_training_data, "pm2_5", Frequency.HOURLY
+        )
+        featured_training_data = FUtils.get_cyclic_features(
+            featured_training_data, Frequency.HOURLY
+        )
+        featured_training_data = FUtils.get_location_features(featured_training_data)
+
+        class DummyRegressor:
+            def __init__(self, **kwargs):
+                self.best_iteration_ = 15
+
+            def fit(self, X, y, eval_set=None, eval_metric=None, callbacks=None):
+                return self
+
+            def predict(self, X):
+                return np.full(len(X), 24.0, dtype=float)
+
+        saved_artifact = {}
+        logged_run = {}
+
+        class MockStorage:
+            def save_file_object(self, bucket, obj, destination_file):
+                saved_artifact["bucket"] = bucket
+                saved_artifact["obj"] = obj
+                saved_artifact["destination_file"] = destination_file
+
+        class MockTracker:
+            def __init__(self, **kwargs):
+                logged_run["tracker_init"] = kwargs
+
+            def log_run(self, **kwargs):
+                logged_run["run"] = kwargs
+
+        monkeypatch.setattr("airqo_etl_utils.ml_utils.LGBMRegressor", DummyRegressor)
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.GCSFileStorage", lambda: MockStorage()
+        )
+        monkeypatch.setattr("airqo_etl_utils.ml_utils.MlflowTracker", MockTracker)
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.configuration.HOURLY_FORECAST_HORIZON",
+            "168",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.configuration.FORECAST_MODELS_BUCKET",
+            "test-forecast-bucket",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.configuration.MLFLOW_HOURLY_EXPERIMENT_NAME",
+            "/Shared/hourly_forecast_model_development",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.configuration.MLFLOW_EXPERIMENT_NAME",
+            "/Shared/fallback_experiment",
+            raising=False,
+        )
+
+        metrics = ForecastUtils.train_and_save_forecast_models(
+            featured_training_data, Frequency.HOURLY
+        )
+
+        assert saved_artifact["destination_file"] == "hourly_forecast_model.pkl"
+        assert saved_artifact["obj"]["horizon"] == 168
+        assert metrics["horizon"] == 168
+        assert metrics["deployed"] is True
+        assert logged_run["run"]["tags"]["frequency"] == "hourly"
+        assert logged_run["run"]["fail_run"] is False
+        assert (
+            logged_run["tracker_init"]["experiment_name"]
+            == "/Shared/hourly_forecast_model_development"
+        )
+
+    def test_hourly_training_marks_mlflow_failed_when_not_deployed(self, monkeypatch):
+        def _device_rows(device_id: str, device_number: int) -> pd.DataFrame:
+            ts = pd.date_range("2025-01-01", periods=24 * 30, freq="h")
+            values = np.sin(np.linspace(0, 18, len(ts))) * 7 + 24
+            return pd.DataFrame(
+                {
+                    "device_id": [device_id] * len(ts),
+                    "device_number": [device_number] * len(ts),
+                    "timestamp": ts,
+                    "pm2_5": values,
+                    "latitude": [0.234] * len(ts),
+                    "longitude": [32.564] * len(ts),
+                }
+            )
+
+        raw_training_data = pd.concat(
+            [_device_rows("device-a", 12345), _device_rows("device-b", 67890)],
+            ignore_index=True,
+        )
+        featured_training_data = FUtils.get_lag_and_roll_features(
+            raw_training_data, "pm2_5", Frequency.HOURLY
+        )
+        featured_training_data = FUtils.get_cyclic_features(
+            featured_training_data, Frequency.HOURLY
+        )
+        featured_training_data = FUtils.get_location_features(featured_training_data)
+
+        class DummyRegressor:
+            def __init__(self, **kwargs):
+                self.best_iteration_ = 15
+
+            def fit(self, X, y, eval_set=None, eval_metric=None, callbacks=None):
+                return self
+
+            def predict(self, X):
+                return np.full(len(X), 24.0, dtype=float)
+
+        logged_run = {}
+
+        class MockTracker:
+            def __init__(self, **kwargs):
+                logged_run["tracker_init"] = kwargs
+
+            def log_run(self, **kwargs):
+                logged_run["run"] = kwargs
+
+        monkeypatch.setattr("airqo_etl_utils.ml_utils.LGBMRegressor", DummyRegressor)
+        monkeypatch.setattr("airqo_etl_utils.ml_utils.MlflowTracker", MockTracker)
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.ForecastModelTrainer._deploy_if_better",
+            lambda **kwargs: {
+                "deployed": False,
+                "reason": "candidate_not_better_than_best_historical",
+                "old_metrics": {"r2": 0.5, "mae": 1.0, "rmse": 1.2},
+            },
+        )
+        monkeypatch.setattr(
+            "airqo_etl_utils.ml_utils.configuration.FORECAST_MODELS_BUCKET",
+            "test-forecast-bucket",
+            raising=False,
+        )
+
+        metrics = ForecastUtils.train_and_save_forecast_models(
+            featured_training_data, Frequency.HOURLY
+        )
+
+        assert metrics["deployed"] is False
+        assert metrics["deployment_reason"] == "candidate_not_better_than_best_historical"
+        assert logged_run["run"]["fail_run"] is True
+        assert (
+            logged_run["run"]["tags"]["decision_reason"]
+            == "candidate_not_better_than_best_historical"
+        )

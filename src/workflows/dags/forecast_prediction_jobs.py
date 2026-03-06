@@ -20,17 +20,19 @@ from airqo_etl_utils.date import DateUtils
 def make_forecasts():
     bucket = Config.FORECAST_MODELS_BUCKET
     project_id = Config.GOOGLE_CLOUD_PROJECT_ID
+    hourly_horizon = 24 * 7
 
     ### Hourly forecast tasks
     @task()
     def get_historical_data_for_hourly_forecasts():
-        start_date = datetime.now(timezone.utc) - timedelta(
-            hours=int(Config.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
+        lookback_hours = max(
+            int(Config.HOURLY_FORECAST_PREDICTION_JOB_SCOPE), 24 * 14
         )
+        start_date = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
 
         start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(
-            start_date, "prediction"
+            start_date, "predict"
         )
 
     @task()
@@ -62,6 +64,7 @@ def make_forecasts():
             project_name=project_id,
             bucket_name=bucket,
             frequency=Frequency.HOURLY,
+            horizon=hourly_horizon,
         )
 
     @task()
@@ -78,13 +81,14 @@ def make_forecasts():
     def get_historical_data_for_daily_forecasts(**kwargs):
 
         execution_date = kwargs["dag_run"].execution_date
+        daily_lookback_days = int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         start_date = execution_date - timedelta(
-            days=int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
+            days=daily_lookback_days
         )
 
         start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(
-            start_date, "prediction"
+            start_date, "predict"
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
