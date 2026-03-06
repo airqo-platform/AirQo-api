@@ -216,19 +216,36 @@ const ReadingsSchema = new Schema(
   {
     // **CORE IDENTIFICATION**
     device: String,
-    device_id: String,
+    device_id: {
+      type: String,
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Same rationale as site_id above. Do not wrap values in ObjectId()
+      // when querying this collection.
+    },
     site: String, // Site name
     site_id: {
       type: String,
       required: function() {
         return this.deployment_type === "static";
       },
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Readings are written directly from device telemetry payloads which
+      // transmit IDs as strings. Converting to ObjectId at ingest would add
+      // latency on the hot write path and require a Sites collection lookup.
+      //
+      // When building a filter for this collection (e.g. in generateFilter,
+      // a util, or a test), always use a plain string:
+      //   ✅  filter.site_id = "kampala_road_ug"
+      //   ✅  filter.site_id = { $in: ["site_a", "site_b"] }
+      //   ❌  filter.site_id = ObjectId("...")   ← silent zero-result bug
     },
     grid_id: {
       type: String,
       required: function() {
         return this.deployment_type === "mobile" && !this.location;
       },
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Same rationale as site_id above.
     },
     device_number: Number,
 
@@ -244,8 +261,19 @@ const ReadingsSchema = new Schema(
       default: "static",
       required: true,
     },
-    tenant: { type: String, default: "airqo" },
-    network: { type: String, default: "airqo" },
+    tenant: {
+      type: String,
+      default: "airqo",
+      // Stored as a plain lowercase string (e.g. "airqo", "kcca").
+      // Always match against a string, never an ObjectId.
+    },
+    network: {
+      type: String,
+      default: "airqo",
+      // Stored as a plain lowercase string (e.g. "airqo", "kcca").
+      // handlePredefinedValueMatch returns a { $in: [...] } of strings —
+      // that is the correct form for querying this field.
+    },
 
     // **PRIMARY PM SENSORS**
     pm1: { value: Number },
@@ -1648,6 +1676,62 @@ ReadingsSchema.statics.listForMap = async function(
   next,
 ) {
   try {
+    const STRING_FILTER_FIELDS = [
+      "site_id",
+      "device_id",
+      "grid_id",
+      "network",
+      "tenant",
+    ];
+
+    const isObjectId = (v) =>
+      v !== null &&
+      v !== undefined &&
+      (v instanceof require("mongoose").Types.ObjectId ||
+        // Also catch plain objects that have been serialised from an ObjectId
+        // (they have a _bsontype property set by the driver).
+        (typeof v === "object" && v._bsontype === "ObjectId"));
+
+    const findObjectIdViolation = (fieldName, fieldValue) => {
+      if (isObjectId(fieldValue)) {
+        return fieldName;
+      }
+      // Check inside $in / $nin arrays
+      if (
+        fieldValue !== null &&
+        typeof fieldValue === "object" &&
+        !Array.isArray(fieldValue)
+      ) {
+        for (const op of ["$in", "$nin", "$eq", "$ne"]) {
+          const operand = fieldValue[op];
+          if (Array.isArray(operand) && operand.some(isObjectId)) {
+            return `${fieldName}.${op}[]`;
+          }
+          if (!Array.isArray(operand) && isObjectId(operand)) {
+            return `${fieldName}.${op}`;
+          }
+        }
+      }
+      return null;
+    };
+
+    for (const field of STRING_FILTER_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(filter, field)) {
+        const violation = findObjectIdViolation(field, filter[field]);
+        if (violation) {
+          // Throw synchronously — this is a programming error, not a
+          // runtime condition, so we want a hard failure with a clear trace.
+          const msg =
+            `listForMap: filter field "${violation}" contains an ObjectId, ` +
+            `but the Readings collection stores "${field}" as a String. ` +
+            `Pass a plain string value instead. ` +
+            `See the schema definition in Reading.js for details.`;
+          logger.error(`🐛🐛 ${msg}`);
+          throw new Error(msg);
+        }
+      }
+    }
+    // ── End guard ───────────────────────────────────────────────────────────────
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const DEFAULT_LIMIT = 1000;
     const MAX_LIMIT = 5000;
@@ -1666,24 +1750,64 @@ ReadingsSchema.statics.listForMap = async function(
         : parsedSkip;
 
     const pipeline = [
+      // ── STAGE 1: match ────────────────────────────────────────────────────
+      // The `filter` object from generateFilter.readingsMap already contains
+      // a `time` range (defaulting to the last 24 hours when no query params
+      // are supplied). We apply an additional 14-day floor here as a hard
+      // safety ceiling so the aggregation never scans unbounded history.
+      //
+      // BUG 2 FIX: use $gt: 0 — semantically correct and avoids the
+      // ambiguity of { $exists: true, $ne: null } for zero-value readings.
       {
         $match: {
           time: { $gte: fourteenDaysAgo },
-          "pm2_5.value": { $exists: true, $ne: null },
+          "pm2_5.value": { $exists: true, $gt: 0 },
           ...filter,
         },
       },
+
+      // Sort descending so $first in $group picks the most recent reading.
       { $sort: { time: -1 } },
+
+      // ── STAGE 2: deduplicate — one reading per location ───────────────────
+      // BUG 1 FIX: compound grouping key prevents null-bucket collapse.
+      //
+      // Logic:
+      //   • site_id present  → static device  → group key = { site: site_id, device: null }
+      //   • site_id absent   → mobile device  → group key = { site: null,    device: device_id }
+      //
+      // Previously: _id: { $ifNull: ["$site_id", "$device_id"] }
+      //   - When site_id is null/absent AND device_id is null/absent,
+      //     all such documents share _id: null and collapse into one bucket.
+      //   - The compound key below avoids this: each mobile device has its
+      //     own { site: null, device: <device_id> } bucket.
       {
         $group: {
-          // Static devices group by site_id; mobile devices fall back to
-          // device_id so each mobile device gets its own latest-reading bucket
-          _id: { $ifNull: ["$site_id", "$device_id"] },
+          _id: {
+            site: { $ifNull: ["$site_id", null] },
+            device: {
+              $cond: {
+                // If site_id is truthy, this is a static device — don't
+                // sub-key by device (multiple devices can share a site).
+                if: { $ifNull: ["$site_id", false] },
+                then: null,
+                // Otherwise it's a mobile device — key by device_id so
+                // each device retains its own latest reading.
+                else: "$device_id",
+              },
+            },
+          },
           latestReading: { $first: "$$ROOT" },
         },
       },
+
+      // Promote the winning document back to the root level.
       { $replaceRoot: { newRoot: "$latestReading" } },
+
+      // Re-sort the deduplicated results so the response is time-ordered.
       { $sort: { time: -1 } },
+
+      // ── STAGE 3: project only the fields the map UI needs ─────────────────
       {
         $project: {
           _id: 0,
@@ -1700,10 +1824,14 @@ ReadingsSchema.statics.listForMap = async function(
           aqi_color_name: 1,
           health_tips: 1,
           site_image: 1,
+          // Preserve device_categories when present, null otherwise so the
+          // map client can always rely on the field being in the response.
           device_categories: { $ifNull: ["$device_categories", null] },
           timeDifferenceHours: 1,
         },
       },
+
+      // ── STAGE 4: paginate ─────────────────────────────────────────────────
       {
         $facet: {
           paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],

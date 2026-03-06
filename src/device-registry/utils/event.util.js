@@ -1243,23 +1243,33 @@ const createEvent = {
     try {
       const { query } = request;
       const { tenant } = query;
+
       const DEFAULT_LIMIT = 1000;
       const MAX_LIMIT = 5000;
+
       const parsedLimit = parseInt(query.limit);
       const parsedSkip = parseInt(query.skip);
+
       const limit =
         isNaN(parsedLimit) || !isFinite(parsedLimit) || parsedLimit < 1
           ? DEFAULT_LIMIT
           : Math.min(parsedLimit, MAX_LIMIT);
+
       const skip =
         isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
           ? 0
           : parsedSkip;
+
+      // generateFilter.readingsMap already returns plain-string values for all
+      // fields (site_id, device_id, network, tenant, etc.) — no sanitization
+      // is required before passing to the model.
       const filter = generateFilter.readingsMap(request, next);
+
       const responseFromListReadings = await ReadingModel(tenant).listForMap(
         { filter, limit, skip },
         next,
       );
+
       if (
         !responseFromListReadings ||
         typeof responseFromListReadings !== "object"
@@ -1271,23 +1281,31 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
+
       if (responseFromListReadings.success === true) {
+        // The model returns: { success, message, data: { measurements, meta }, status }
+        // The controller expects the util to return: { success, data, meta, status }
         const raw = responseFromListReadings.data;
+
         let data;
         let meta;
-        if (Array.isArray(raw)) {
-          data = raw;
-          meta = {};
-        } else if (raw && typeof raw === "object") {
+
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          // Normal model shape: { measurements: [...], meta: {...} }
           data = Array.isArray(raw.measurements) ? raw.measurements : [];
           meta =
             raw.meta && typeof raw.meta === "object" && !Array.isArray(raw.meta)
               ? raw.meta
               : {};
+        } else if (Array.isArray(raw)) {
+          // Fallback: model returned a bare array
+          data = raw;
+          meta = {};
         } else {
           data = [];
           meta = {};
         }
+
         return {
           success: true,
           message: responseFromListReadings.message,
