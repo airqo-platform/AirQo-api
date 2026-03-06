@@ -152,15 +152,13 @@ class ReadingsBatchProcessor {
       if (doc.deviceDetails) {
         updateDoc.deviceDetails = doc.deviceDetails;
       }
-      // --- START: Ensure all pre-computed fields are preserved ---
-      // This is the key change to ensure the flat structure is complete.
+      // Preserve pre-computed fields from the 'events' view
       if (doc.device_categories) {
         updateDoc.device_categories = doc.device_categories;
       }
       if (doc.health_tips) {
         updateDoc.health_tips = doc.health_tips;
       }
-      // --- END: Ensure all pre-computed fields are preserved ---
 
       // Save reading
       try {
