@@ -1700,7 +1700,7 @@ ReadingsSchema.statics.listForMap = async function(
           aqi_color_name: 1,
           health_tips: 1,
           site_image: 1,
-          device_categories: "$deviceDetails.device_categories",
+          device_categories: { $ifNull: ["$device_categories", null] },
           timeDifferenceHours: 1,
         },
       },
