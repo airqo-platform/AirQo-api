@@ -182,7 +182,7 @@ jobs:
     if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -258,7 +258,7 @@ jobs:
     if: needs.check.outputs.run_beacon_api == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -334,7 +334,7 @@ jobs:
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -410,7 +410,7 @@ jobs:
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -486,7 +486,7 @@ jobs:
     if: needs.check.outputs.run_meta_data == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -562,7 +562,7 @@ jobs:
     if: needs.check.outputs.run_view == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -638,7 +638,7 @@ jobs:
     if: needs.check.outputs.run_calibrate == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -714,7 +714,7 @@ jobs:
     if: needs.check.outputs.run_spatial == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -790,7 +790,7 @@ jobs:
     if: needs.check.outputs.run_superset == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -866,7 +866,7 @@ jobs:
     if: needs.check.outputs.run_website_api == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({

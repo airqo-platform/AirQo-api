@@ -1,4 +1,4 @@
-name: remove-api-deploy-previews
+name: remove-api-deploy-previews-azure
 
 on:
   pull_request:

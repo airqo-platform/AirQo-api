@@ -1,4 +1,4 @@
-name: deploy-apis-to-production
+name: deploy-apis-to-azure-production
 
 on:
   workflow_dispatch:
@@ -115,7 +115,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/auth-service/values-prod.yaml"
+            valueFile: "k8s/auth-service/k8s-aks/auth-service/values-prod.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -181,7 +181,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/workflows/values-prod.yaml"
+            valueFile: "k8s/workflows/k8s-aks/airqo-workflows/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -219,7 +219,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/device-registry/values-prod.yaml"
+            valueFile: "k8s/device-registry/k8s-aks/airqo-device-registry-api/values-prod.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -257,7 +257,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/beacon-api/values-prod.yaml"
+            valueFile: "k8s/beacon-api/k8s-aks/airqo-beacon-api/values-prod.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -337,7 +337,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/analytics/values-prod.yaml"
+            valueFile: "k8s/analytics/k8s-aks/analytics/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -439,7 +439,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/view/values-prod.yaml"
+            valueFile: "k8s/view/k8s-aks/view-api/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -495,7 +495,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/calibrate/values-prod.yaml"
+            valueFile: "k8s/calibrate/k8s-aks/airqo-calibrate-api/values-prod.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update calibrate production tags to ${{ needs.image-tag.outputs.build_id }}"
@@ -553,7 +553,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/predict/values-prod.yaml"
+            valueFile: "k8s/predict/k8s-aks/airqo-prediction/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -623,7 +623,7 @@ jobs:
       - name: Apply Deployment Files
         run: |
           echo "Applying Kubernetes manifest files for Superset deployment"
-          kubectl apply -f k8s/superset/superset-deployment.yaml -n superset
+          kubectl apply -f k8s/superset/aks-superset-deployment.yaml -n superset
 
       - name: Restart the deployments
         run: |
@@ -683,7 +683,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/spatial/values-prod.yaml"
+            valueFile: "k8s/spatial/k8s-aks/airqo-spatial-api/values-prod.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -721,7 +721,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/website/values-prod.yaml"
+            valueFile: "k8s/website/k8s-aks/airqo-website-api/values-prod.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -751,6 +751,6 @@ jobs:
       - name: Deploy Redis via Helm
         run: |
           echo "Deploying Redis to production..."
-          helm upgrade --install redis k8s/redis \
+          helm upgrade --install redis k8s/redis/k8s-aks/redis-server \
             --namespace production \
-            --values k8s/redis/values-prod.yaml
+            --values k8s/redis/k8s-aks/redis-server/values-prod.yaml

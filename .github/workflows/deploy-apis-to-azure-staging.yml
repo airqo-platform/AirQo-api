@@ -1,4 +1,4 @@
-name: deploy-apis-to-staging
+name: deploy-apis-to-azure-staging
 
 on:
   pull_request_target:
@@ -230,7 +230,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/auth-service/values-stage.yaml"
+            valueFile: "k8s/auth-service/k8s-aks/airqo-auth-service/values-stage.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -273,7 +273,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/device-registry/values-stage.yaml"
+            valueFile: "k8s/device-registry/k8s-aks/airqo-device-registry-api/values-stage.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -356,7 +356,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/analytics/values-stage.yaml"
+            valueFile: "k8s/analytics/k8s-aks/analytics/values-stage.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -399,7 +399,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/beacon-api/values-stage.yaml"
+            valueFile: "k8s/beacon-api/k8s-aks/airqo-beacon-api/values-stage.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -457,7 +457,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/predict/values-stage.yaml"
+            valueFile: "k8s/predict/k8s-aks/airqo-prediction/values-stage.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -565,7 +565,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/view/values-stage.yaml"
+            valueFile: "k8s/view/k8s-aks/airqo-view-api/values-stage.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -624,7 +624,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/calibrate/values-stage.yaml"
+            valueFile: "k8s/calibrate/k8s-aks/airqo-calibrate-api/values-stage.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
@@ -696,7 +696,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/workflows/values-stage.yaml"
+            valueFile: "k8s/workflows/k8s-aks/airqo-workflows/values-stage.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -739,7 +739,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/spatial/values-stage.yaml"
+            valueFile: "k8s/spatial/k8s-aks/airqo-spatial-api/values-stage.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -781,7 +781,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/website/values-stage.yaml"
+            valueFile: "k8s/website/k8s-aks/airqo-website-api/values-stage.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
