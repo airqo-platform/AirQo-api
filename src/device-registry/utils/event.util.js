@@ -29,7 +29,9 @@ const {
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-util`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- event-util -- ops-alerts`,
+);
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
@@ -1260,10 +1262,17 @@ const createEvent = {
           ? 0
           : parsedSkip;
 
-      // generateFilter.readingsMap already returns plain-string values for all
-      // fields (site_id, device_id, network, tenant, etc.) — no sanitization
-      // is required before passing to the model.
       const filter = generateFilter.readingsMap(request, next);
+
+      // DIAGNOSTIC WARN — non-fatal: log the effective filter before it reaches
+      // MongoDB so any stray tenant/ObjectId contamination is immediately visible
+      // in Slack without waiting for a zero-result symptom.
+      logger.warn(
+        `[listForMap] tenant=${tenant} limit=${limit} skip=${skip} ` +
+          `filter=${JSON.stringify(filter, (_, v) =>
+            v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
+          )}`,
+      );
 
       const responseFromListReadings = await ReadingModel(tenant).listForMap(
         { filter, limit, skip },
@@ -1274,6 +1283,9 @@ const createEvent = {
         !responseFromListReadings ||
         typeof responseFromListReadings !== "object"
       ) {
+        logger.error(
+          `🐛🐛 Internal Server Error in listForMap util: model returned null/undefined for tenant=${tenant}`,
+        );
         return {
           success: false,
           message: "No response from model",
@@ -1283,22 +1295,18 @@ const createEvent = {
       }
 
       if (responseFromListReadings.success === true) {
-        // The model returns: { success, message, data: { measurements, meta }, status }
-        // The controller expects the util to return: { success, data, meta, status }
         const raw = responseFromListReadings.data;
 
         let data;
         let meta;
 
         if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-          // Normal model shape: { measurements: [...], meta: {...} }
           data = Array.isArray(raw.measurements) ? raw.measurements : [];
           meta =
             raw.meta && typeof raw.meta === "object" && !Array.isArray(raw.meta)
               ? raw.meta
               : {};
         } else if (Array.isArray(raw)) {
-          // Fallback: model returned a bare array
           data = raw;
           meta = {};
         } else {
@@ -1306,14 +1314,40 @@ const createEvent = {
           meta = {};
         }
 
+        // DIAGNOSTIC WARN — non-fatal: pipeline ran but matched zero documents.
+        // Use meta.total as the single source of truth — data.length can be 0
+        // on a paginated request where skip >= total (pagination miss, not empty).
+        if (meta.total === 0) {
+          logger.warn(
+            `[listForMap] ⚠️  pipeline succeeded but returned 0 measurements. ` +
+              `tenant=${tenant} meta=${JSON.stringify(meta)} ` +
+              `filter=${JSON.stringify(filter, (_, v) =>
+                v && typeof v === "object" && v._bsontype
+                  ? `ObjectId(${v})`
+                  : v,
+              )}`,
+          );
+        }
+
         return {
           success: true,
-          message: responseFromListReadings.message,
+          // Use meta.total === 0 as the single source of truth for the message,
+          // not data.length — a pagination miss (skip >= total) gives data=[] but
+          // total > 0 and should not produce "no measurements for this search".
+          message:
+            meta.total === 0
+              ? "no measurements for this search"
+              : responseFromListReadings.message,
           data,
           meta,
           status: responseFromListReadings.status || httpStatus.OK,
         };
       } else {
+        logger.error(
+          `🐛🐛 Internal Server Error in listForMap util: model returned success=false. ` +
+            `tenant=${tenant} status=${responseFromListReadings.status} ` +
+            `message=${responseFromListReadings.message}`,
+        );
         return {
           success: false,
           message: responseFromListReadings.message,
@@ -1325,6 +1359,7 @@ const createEvent = {
         };
       }
     } catch (error) {
+      // Genuine exception — must remain logger.error, not warn.
       logger.error(
         `🐛🐛 Internal Server Error in listForMap util: ${error.message}`,
       );
@@ -4014,10 +4049,50 @@ const createEvent = {
         };
       }
 
+      // Extract the real measurement payload from `data`.
+      // `data` may be any of:
+      //   (a) a bare array                          → from read(), readingsForMap
+      //   (b) [{ meta:{}, data:[...] }]             → from list() list shape
+      //   (c) { success, message, data:[...] }      → model response wrapper
+      //   (d) null / undefined                      → error / no data
+      //
+      // We check against `payload` for emptiness so wrapper objects with keys
+      // are not misclassified as non-empty when their inner data array is [].
+      // cacheData.data still stores the original `data` so cache-hit callers
+      // receive the same shape the non-cache path would have returned.
+      const payload =
+        data &&
+        typeof data === "object" &&
+        !Array.isArray(data) &&
+        data.data !== undefined
+          ? data.data // unwrap model response wrapper or similar
+          : data; // bare array, null, or undefined — use as-is
+
+      const isEmpty_data =
+        payload === null ||
+        payload === undefined ||
+        (Array.isArray(payload) && payload.length === 0) ||
+        (typeof payload === "object" &&
+          !Array.isArray(payload) &&
+          Object.keys(payload).length === 0);
+
+      // list() shape: [{ meta:{}, data:[] }]
+      const isEmptyListShape =
+        Array.isArray(payload) &&
+        payload.length === 1 &&
+        payload[0] &&
+        Array.isArray(payload[0].data) &&
+        payload[0].data.length === 0;
+
+      const accurateMessage =
+        isEmpty_data || isEmptyListShape
+          ? "no measurements for this search"
+          : "Successfully retrieved the measurements";
+
       const cacheData = {
         isCache: true,
         success: true,
-        message: "Successfully retrieved the measurements",
+        message: accurateMessage,
         data,
       };
 
@@ -4033,8 +4108,7 @@ const createEvent = {
         };
       }
 
-      // Simple timeout for cache operations
-      const cacheTimeout = 5000; // 5 seconds
+      const cacheTimeout = 5000;
       const expirationTime = parseInt(constants.EVENTS_CACHE_LIMIT) || 300;
 
       try {

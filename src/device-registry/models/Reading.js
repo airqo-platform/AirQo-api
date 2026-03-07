@@ -7,7 +7,9 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- reading-model`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- reading-model -- ops-alerts`,
+);
 
 // Helper function for safe pollutant value conversion
 const createSafePollutantLookup = (
@@ -1676,6 +1678,7 @@ ReadingsSchema.statics.listForMap = async function(
   next,
 ) {
   try {
+    // ── String-field ObjectId guard (unchanged from v3) ───────────────────
     const STRING_FILTER_FIELDS = [
       "site_id",
       "device_id",
@@ -1693,9 +1696,7 @@ ReadingsSchema.statics.listForMap = async function(
           typeof v.toHexString === "function"));
 
     const findObjectIdViolation = (fieldName, fieldValue) => {
-      if (isObjectId(fieldValue)) {
-        return fieldName;
-      }
+      if (isObjectId(fieldValue)) return fieldName;
       if (
         fieldValue !== null &&
         typeof fieldValue === "object" &&
@@ -1714,65 +1715,44 @@ ReadingsSchema.statics.listForMap = async function(
       return null;
     };
 
-    // Recursively walk the entire filter object so ObjectId values
-    // nested inside $or, $and, $not, or any arbitrary nesting depth are caught,
-    // not just top-level keys. The same STRING_FILTER_FIELDS set,
-    // findObjectIdViolation helper, logger.error call, and HttpError shape are
-    // reused so error text and behaviour remain consistent with the top-level
-    // check that existed before.
     const validateFilterRecursively = (node) => {
       if (node === null || typeof node !== "object") return;
-
       if (Array.isArray(node)) {
-        // e.g. the array value of $or / $and — recurse into each element
-        for (const element of node) {
-          validateFilterRecursively(element);
-        }
+        for (const element of node) validateFilterRecursively(element);
         return;
       }
-
       for (const [key, value] of Object.entries(node)) {
         if (STRING_FILTER_FIELDS.includes(key)) {
-          // This key is a known String field — check its value for ObjectIds
           const violation = findObjectIdViolation(key, value);
           if (violation) {
             const msg =
               `listForMap: filter field "${violation}" contains an ObjectId, ` +
               `but the Readings collection stores "${key}" as a String. ` +
-              `Pass a plain string value instead. ` +
-              `See the schema definition in Reading.js for details.`;
+              `Pass a plain string value instead.`;
             logger.error(`🐛🐛 ${msg}`);
-            throw new HttpError(msg, httpStatus.BAD_REQUEST, {
-              message: msg,
-            });
+            throw new HttpError(msg, httpStatus.BAD_REQUEST, { message: msg });
           }
         } else if (key.startsWith("$") && Array.isArray(value)) {
-          // Operator with array value: $or, $and, $nor — recurse into each
-          // element of the array
-          for (const element of value) {
-            validateFilterRecursively(element);
-          }
+          for (const element of value) validateFilterRecursively(element);
         } else if (
           key.startsWith("$") &&
           value !== null &&
           typeof value === "object" &&
           !Array.isArray(value)
         ) {
-          // Operator with object value: $not, $elemMatch — recurse into it
           validateFilterRecursively(value);
         } else if (
           value !== null &&
           typeof value === "object" &&
           !Array.isArray(value)
         ) {
-          // Plain nested object — recurse into it
           validateFilterRecursively(value);
         }
       }
     };
 
     validateFilterRecursively(filter);
-    // ── End guard ────────────────────────────────────────────────────────────
+    // ── End guard ─────────────────────────────────────────────────────────
 
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const DEFAULT_LIMIT = 1000;
@@ -1800,26 +1780,50 @@ ReadingsSchema.statics.listForMap = async function(
       $gte: effectiveGte,
     };
 
-    const { time: _discardedTime, ...filterWithoutTime } = filter;
+    // Strip time, tenant, and network before spreading into $match.
+    //
+    // - time:    handled explicitly via timeConstraint above.
+    // - tenant:  the caller already selected the correct MongoDB database via
+    //            ReadingModel(tenant). Adding tenant to $match requires every
+    //            document to carry a matching tenant field, which is not
+    //            guaranteed — many documents were ingested before this field
+    //            was added, making the $match silently return zero rows.
+    // - network: same reasoning as tenant; field is unreliably populated on
+    //            Readings documents ingested from older pipelines.
+    const {
+      time: _t,
+      tenant: _tenant,
+      network: _network,
+      ...safeFilterForMatch
+    } = filter;
+
+    // DIAGNOSTIC WARN — non-fatal: log what actually reaches $match so any
+    // stray ObjectId or unexpected field is immediately Slack-visible.
+    logger.warn(
+      `[ReadingModel.listForMap] $match preview: ` +
+        `effectiveGte=${effectiveGte.toISOString()} ` +
+        `safeFilter=${JSON.stringify(safeFilterForMatch, (_, v) =>
+          v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
+        )}`,
+    );
 
     const pipeline = [
-      // ── STAGE 1: match ────────────────────────────────────────────────────
+      // ── STAGE 1: match ──────────────────────────────────────────────────
       {
         $match: {
-          ...filterWithoutTime,
+          ...safeFilterForMatch,
           time: timeConstraint,
           // pm2_5.value === 0 is physically implausible for an outdoor sensor
-          // and almost always indicates a fault or an uninitialized register.
-          // $gt: 0 is intentional — zero readings are treated as invalid and
-          // excluded from the map. If a legitimate zero is ever expected from a
-          // specific sensor type, relax this at the ingestion point, not here.
+          // and almost always indicates a fault or uninitialized register.
+          // Zero readings are excluded from the map. Relax at ingestion if
+          // a specific sensor type legitimately reads zero.
           "pm2_5.value": { $exists: true, $gt: 0 },
         },
       },
 
       { $sort: { time: -1 } },
 
-      // ── STAGE 2: deduplicate — one reading per location ───────────────────
+      // ── STAGE 2: deduplicate — one reading per location ─────────────────
       // Branch on deployment_type, not site_id presence — mobile devices can
       // optionally carry a site_id and must not be bucketed as static.
       {
@@ -1848,7 +1852,7 @@ ReadingsSchema.statics.listForMap = async function(
 
       { $sort: { time: -1 } },
 
-      // ── STAGE 3: project only the fields the map UI needs ─────────────────
+      // ── STAGE 3: project only the fields the map UI needs ───────────────
       {
         $project: {
           _id: 0,
@@ -1874,7 +1878,7 @@ ReadingsSchema.statics.listForMap = async function(
         },
       },
 
-      // ── STAGE 4: paginate ─────────────────────────────────────────────────
+      // ── STAGE 4: paginate ────────────────────────────────────────────────
       {
         $facet: {
           paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],
@@ -1888,6 +1892,19 @@ ReadingsSchema.statics.listForMap = async function(
     const { paginatedResults = [], totalCount = [] } = results[0] || {};
     const total = totalCount[0]?.count || 0;
     const pages = Math.ceil(total / safeLimit) || 1;
+
+    // DIAGNOSTIC WARN — non-fatal: aggregation succeeded but matched nothing.
+    // Surfaces data gaps in Slack without requiring a manual MongoDB query.
+    if (total === 0) {
+      logger.warn(
+        `[ReadingModel.listForMap] ⚠️  aggregation succeeded but matched 0 documents. ` +
+          `effectiveGte=${effectiveGte.toISOString()} ` +
+          `safeFilter=${JSON.stringify(safeFilterForMatch, (_, v) =>
+            v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
+          )} ` +
+          `collection=${this.collection.name}`,
+      );
+    }
 
     return {
       success: true,
@@ -1914,8 +1931,10 @@ ReadingsSchema.statics.listForMap = async function(
         status: error.statusCode || httpStatus.BAD_REQUEST,
       };
     }
+    // Genuine exception — must remain logger.error, not warn.
+    // Standardised prefix aids downstream alerting filters.
     logger.error(
-      `🐛🐛 Internal Server Error -- listForMap -- ${error.message}`,
+      `🐛🐛 [ReadingModel.listForMap] Internal Server Error: ${error.message}`,
     );
     return {
       success: false,
