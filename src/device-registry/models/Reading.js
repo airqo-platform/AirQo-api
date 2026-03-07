@@ -1746,18 +1746,16 @@ ReadingsSchema.statics.listForMap = async function(
       isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
         ? 0
         : parsedSkip;
+
     const callerGte = filter.time?.$gte;
     const effectiveGte =
       callerGte && callerGte > fourteenDaysAgo ? callerGte : fourteenDaysAgo;
 
-    // Build a clean time constraint — start from the caller's filter.time
-    // (which may also carry a $lte) and enforce the 14-day floor on $gte.
     const timeConstraint = {
       ...(filter.time || {}),
       $gte: effectiveGte,
     };
 
-    // Spread filter first so our explicit keys win where they overlap.
     const { time: _discardedTime, ...filterWithoutTime } = filter;
 
     const pipeline = [
@@ -1766,38 +1764,33 @@ ReadingsSchema.statics.listForMap = async function(
         $match: {
           ...filterWithoutTime,
           time: timeConstraint,
+          // pm2_5.value === 0 is physically implausible for an outdoor sensor
+          // and almost always indicates a fault or an uninitialized register.
+          // $gt: 0 (not $gte: 0) is intentional — zero readings are treated as
+          // invalid and excluded from the map. If a legitimate zero is ever
+          // expected from a specific sensor type, this constraint should be
+          // relaxed at that ingestion point rather than here.
           "pm2_5.value": { $exists: true, $gt: 0 },
         },
       },
 
-      // Sort descending so $first in $group picks the most recent reading.
       { $sort: { time: -1 } },
 
       // ── STAGE 2: deduplicate — one reading per location ───────────────────
-      // Compound key rationale:
-      //   • site_id present → static device  → { site: site_id, device: null }
-      //   • site_id absent  → mobile device  → { site: null, device: device_id }
       {
         $group: {
           _id: {
             site: { $ifNull: ["$site_id", null] },
             device: {
-              // Array-form $cond: [condition, then, else]
-              $cond: [
-                { $ifNull: ["$site_id", false] }, // condition: site_id is truthy
-                null, // then: static device — no device sub-key
-                "$device_id", // else: mobile device — key by device_id
-              ],
+              $cond: [{ $ifNull: ["$site_id", false] }, null, "$device_id"],
             },
           },
           latestReading: { $first: "$$ROOT" },
         },
       },
 
-      // Promote the winning document back to the root level.
       { $replaceRoot: { newRoot: "$latestReading" } },
 
-      // Re-sort the deduplicated results so the response is time-ordered.
       { $sort: { time: -1 } },
 
       // ── STAGE 3: project only the fields the map UI needs ─────────────────
@@ -1856,6 +1849,15 @@ ReadingsSchema.statics.listForMap = async function(
     logger.error(
       `🐛🐛 Internal Server Error -- listForMap -- ${error.message}`,
     );
+    if (error instanceof HttpError) {
+      return {
+        success: false,
+        message: error.message,
+        errors: error.errors || { message: error.message },
+        data: [],
+        status: error.statusCode || httpStatus.BAD_REQUEST,
+      };
+    }
     return {
       success: false,
       message: "Internal Server Error",
