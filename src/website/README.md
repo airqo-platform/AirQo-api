@@ -12,7 +12,7 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 ### API Versions
 
 - **Legacy Endpoints** (`/website/[app-name]/`) - Backward compatibility
-- **V2 Enhanced API** (`/website/api/v2/[resource]/`) - Modern, optimized endpoints with advanced features
+- **V2 Enhanced API** (`/website/api/v2/[resource]/`) - Modern, optimized endpoints with advanced features.
 
 ### Performance Optimizations
 
@@ -248,6 +248,11 @@ DATABASE_URL=postgres://user:password@localhost/airqo_website
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
+
+# Slack Error Notifications
+SLACK_WEBHOOK_URL=
+SLACK_DEV_NOTIFS=false
+SLACK_CHANNEL=
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
@@ -496,12 +501,6 @@ The admin interface provides enhanced organization for Clean Air content:
 Run the comprehensive test suite to verify all V2 endpoints:
 
 ```bash
-# Test all V2 API endpoints
-python test_api_endpoints.py
-
-# Test endpoints with external requests
-python test_enhanced_endpoints.py
-
 # Run Django test suite
 python manage.py test
 
@@ -537,9 +536,10 @@ Current test coverage includes:
 ### Logging Configuration
 
 - **Development**: Console logging with DEBUG level
-- **Production**: File-based logging with structured format
-- **Error Tracking**: Dedicated error log files
-- **App-specific Logs**: Individual logging for each app
+- **Production**: Rotating file handlers with categorized logs
+- **Error Tracking**: Dedicated files for application, errors, uploads, security, and database issues
+- **Slack Alerts**: Error-level notifications to Slack webhook (prod by default, opt-in for dev via `SLACK_DEV_NOTIFS=true`)
+- **App-specific Logs**: Individual app loggers plus middleware/cloudinary categorization
 
 ### Health Check
 
@@ -606,7 +606,6 @@ docker compose config --services
 Troubleshooting:
 
 - Error: "no such service: web-prod"
-
   - Cause: you likely used the wrong service name. The compose file defines `web`. Run `docker compose config --services` to confirm.
 
 - If ports are already in-use, stop the conflicting service or change the host port mapping in `docker-compose.yml`.

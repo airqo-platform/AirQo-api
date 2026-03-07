@@ -1077,9 +1077,10 @@ class ForecastModelTrainer(BaseMlUtils):
     @staticmethod
     def _regression_metrics(y_true, y_pred) -> Dict[str, float]:
         """Compute MAE, RMSE, and R-squared for a set of predictions."""
+        rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
         return {
             "mae": float(mean_absolute_error(y_true, y_pred)),
-            "rmse": float(mean_squared_error(y_true, y_pred, squared=False)),
+            "rmse": rmse,
             "r2": float(r2_score(y_true, y_pred)),
         }
 

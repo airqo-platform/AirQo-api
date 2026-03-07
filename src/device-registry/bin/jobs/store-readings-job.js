@@ -2,7 +2,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job`,
 );
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
@@ -91,7 +91,7 @@ class ReadingsBatchProcessor {
       const validationResult = validateTimestamp(doc.time);
       if (!validationResult.isValid) {
         logger.debug(
-          `⚠️ Skipping reading due to invalid timestamp: ${validationResult.reason} - ${doc.time}`
+          `⚠️ Skipping reading due to invalid timestamp: ${validationResult.reason} - ${doc.time}`,
         );
         this.processingMetrics.timestampValidationFailures++;
         return;
@@ -105,11 +105,11 @@ class ReadingsBatchProcessor {
         try {
           averages = await this.getOrQueueAverages(
             doc.site_id.toString(),
-            bulkAverages
+            bulkAverages,
           );
         } catch (error) {
           logger.debug(
-            `Failed to get averages for site ${doc.site_id}: ${error.message}`
+            `Failed to get averages for site ${doc.site_id}: ${error.message}`,
           );
           this.processingMetrics.averageCalculationFailures++;
           // Continue without averages
@@ -130,7 +130,7 @@ class ReadingsBatchProcessor {
 
       if (!filter) {
         logger.debug(
-          `⚠️ Skipping reading: missing identity (no site_id, grid_id+device_id, or device_id)`
+          `⚠️ Skipping reading: missing identity (no site_id, grid_id+device_id, or device_id)`,
         );
         this.processingMetrics.readingsFailed++;
         return;
@@ -152,13 +152,20 @@ class ReadingsBatchProcessor {
       if (doc.deviceDetails) {
         updateDoc.deviceDetails = doc.deviceDetails;
       }
+      // Preserve pre-computed fields from the 'events' view
+      if (doc.device_categories) {
+        updateDoc.device_categories = doc.device_categories;
+      }
+      if (doc.health_tips) {
+        updateDoc.health_tips = doc.health_tips;
+      }
 
       // Save reading
       try {
         await ReadingModel("airqo").updateOne(
           filter,
           { $set: updateDoc },
-          { upsert: true }
+          { upsert: true },
         );
         this.processingMetrics.readingsProcessed++;
       } catch (error) {
@@ -215,7 +222,7 @@ class ReadingsBatchProcessor {
     } catch (error) {
       if (!isDuplicateKeyError(error)) {
         logger.debug(
-          `Error calculating averages for site ${siteId}: ${error.message}`
+          `Error calculating averages for site ${siteId}: ${error.message}`,
         );
       }
       return null;
@@ -231,7 +238,7 @@ class ReadingsBatchProcessor {
     const successRate =
       totalAttempted > 0
         ? Math.round(
-            (this.processingMetrics.readingsProcessed / totalAttempted) * 10000
+            (this.processingMetrics.readingsProcessed / totalAttempted) * 10000,
           ) / 100
         : 0;
 
@@ -330,9 +337,9 @@ async function fetchAndStoreReadings() {
               retries: 2,
               minTimeout: 500,
               factor: 2,
-            }
-          )
-        )
+            },
+          ),
+        ),
       );
     }
 
@@ -342,18 +349,18 @@ async function fetchAndStoreReadings() {
     // Simple success logging
     if (report.summary.successRate >= 95) {
       logText(
-        `✅ Readings processed successfully: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
+        `✅ Readings processed successfully: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`,
       );
     } else {
       logger.warn(
-        `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
+        `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`,
       );
       logger.info(`📊 Processing details: ${stringify(report.details)}`);
     }
   } catch (error) {
     if (isDuplicateKeyError(error)) {
       logText(
-        "Readings processing completed with some duplicate entries (ignored)"
+        "Readings processing completed with some duplicate entries (ignored)",
       );
     } else {
       logger.error(`🐛 Error in readings processing: ${stringify(error)}`);
@@ -412,7 +419,7 @@ const startJob = () => {
         }
       } catch (e) {
         logger.error(
-          `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${e.message}`
+          `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${e.message}`,
         );
       }
       delete global.cronJobs[JOB_NAME];
