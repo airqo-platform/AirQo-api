@@ -216,19 +216,36 @@ const ReadingsSchema = new Schema(
   {
     // **CORE IDENTIFICATION**
     device: String,
-    device_id: String,
+    device_id: {
+      type: String,
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Same rationale as described below for site_id. Do not wrap values in ObjectId()
+      // when querying this collection.
+    },
     site: String, // Site name
     site_id: {
       type: String,
       required: function() {
         return this.deployment_type === "static";
       },
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Readings are written directly from device telemetry payloads which
+      // transmit IDs as strings. Converting to ObjectId at ingest would add
+      // latency on the hot write path and require a Sites collection lookup.
+      //
+      // When building a filter for this collection (e.g. in generateFilter,
+      // a util, or a test), always use a plain string:
+      //   ✅  filter.site_id = "kampala_road_ug"
+      //   ✅  filter.site_id = { $in: ["site_a", "site_b"] }
+      //   ❌  filter.site_id = ObjectId("...")   ← silent zero-result bug
     },
     grid_id: {
       type: String,
       required: function() {
         return this.deployment_type === "mobile" && !this.location;
       },
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Same rationale as site_id above.
     },
     device_number: Number,
 
@@ -244,8 +261,19 @@ const ReadingsSchema = new Schema(
       default: "static",
       required: true,
     },
-    tenant: { type: String, default: "airqo" },
-    network: { type: String, default: "airqo" },
+    tenant: {
+      type: String,
+      default: "airqo",
+      // Stored as a plain lowercase string (e.g. "airqo", "kcca").
+      // Always match against a string, never an ObjectId.
+    },
+    network: {
+      type: String,
+      default: "airqo",
+      // Stored as a plain lowercase string (e.g. "airqo", "kcca").
+      // handlePredefinedValueMatch returns a { $in: [...] } of strings —
+      // that is the correct form for querying this field.
+    },
 
     // **PRIMARY PM SENSORS**
     pm1: { value: Number },
@@ -1648,6 +1676,104 @@ ReadingsSchema.statics.listForMap = async function(
   next,
 ) {
   try {
+    const STRING_FILTER_FIELDS = [
+      "site_id",
+      "device_id",
+      "grid_id",
+      "network",
+      "tenant",
+    ];
+
+    const isObjectId = (v) =>
+      v !== null &&
+      v !== undefined &&
+      (v instanceof mongoose.Types.ObjectId ||
+        (typeof v === "object" &&
+          (v._bsontype === "ObjectId" || v._bsontype === "ObjectID") &&
+          typeof v.toHexString === "function"));
+
+    const findObjectIdViolation = (fieldName, fieldValue) => {
+      if (isObjectId(fieldValue)) {
+        return fieldName;
+      }
+      if (
+        fieldValue !== null &&
+        typeof fieldValue === "object" &&
+        !Array.isArray(fieldValue)
+      ) {
+        for (const op of ["$in", "$nin", "$eq", "$ne"]) {
+          const operand = fieldValue[op];
+          if (Array.isArray(operand) && operand.some(isObjectId)) {
+            return `${fieldName}.${op}[]`;
+          }
+          if (!Array.isArray(operand) && isObjectId(operand)) {
+            return `${fieldName}.${op}`;
+          }
+        }
+      }
+      return null;
+    };
+
+    // Recursively walk the entire filter object so ObjectId values
+    // nested inside $or, $and, $not, or any arbitrary nesting depth are caught,
+    // not just top-level keys. The same STRING_FILTER_FIELDS set,
+    // findObjectIdViolation helper, logger.error call, and HttpError shape are
+    // reused so error text and behaviour remain consistent with the top-level
+    // check that existed before.
+    const validateFilterRecursively = (node) => {
+      if (node === null || typeof node !== "object") return;
+
+      if (Array.isArray(node)) {
+        // e.g. the array value of $or / $and — recurse into each element
+        for (const element of node) {
+          validateFilterRecursively(element);
+        }
+        return;
+      }
+
+      for (const [key, value] of Object.entries(node)) {
+        if (STRING_FILTER_FIELDS.includes(key)) {
+          // This key is a known String field — check its value for ObjectIds
+          const violation = findObjectIdViolation(key, value);
+          if (violation) {
+            const msg =
+              `listForMap: filter field "${violation}" contains an ObjectId, ` +
+              `but the Readings collection stores "${key}" as a String. ` +
+              `Pass a plain string value instead. ` +
+              `See the schema definition in Reading.js for details.`;
+            logger.error(`🐛🐛 ${msg}`);
+            throw new HttpError(msg, httpStatus.BAD_REQUEST, {
+              message: msg,
+            });
+          }
+        } else if (key.startsWith("$") && Array.isArray(value)) {
+          // Operator with array value: $or, $and, $nor — recurse into each
+          // element of the array
+          for (const element of value) {
+            validateFilterRecursively(element);
+          }
+        } else if (
+          key.startsWith("$") &&
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
+          // Operator with object value: $not, $elemMatch — recurse into it
+          validateFilterRecursively(value);
+        } else if (
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
+          // Plain nested object — recurse into it
+          validateFilterRecursively(value);
+        }
+      }
+    };
+
+    validateFilterRecursively(filter);
+    // ── End guard ────────────────────────────────────────────────────────────
+
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const DEFAULT_LIMIT = 1000;
     const MAX_LIMIT = 5000;
@@ -1665,36 +1791,79 @@ ReadingsSchema.statics.listForMap = async function(
         ? 0
         : parsedSkip;
 
+    const callerGte = filter.time?.$gte;
+    const effectiveGte =
+      callerGte && callerGte > fourteenDaysAgo ? callerGte : fourteenDaysAgo;
+
+    const timeConstraint = {
+      ...(filter.time || {}),
+      $gte: effectiveGte,
+    };
+
+    const { time: _discardedTime, ...filterWithoutTime } = filter;
+
     const pipeline = [
+      // ── STAGE 1: match ────────────────────────────────────────────────────
       {
         $match: {
-          time: { $gte: fourteenDaysAgo },
-          "pm2_5.value": { $exists: true, $ne: null },
-          ...filter,
+          ...filterWithoutTime,
+          time: timeConstraint,
+          // pm2_5.value === 0 is physically implausible for an outdoor sensor
+          // and almost always indicates a fault or an uninitialized register.
+          // $gt: 0 is intentional — zero readings are treated as invalid and
+          // excluded from the map. If a legitimate zero is ever expected from a
+          // specific sensor type, relax this at the ingestion point, not here.
+          "pm2_5.value": { $exists: true, $gt: 0 },
         },
       },
+
       { $sort: { time: -1 } },
+
+      // ── STAGE 2: deduplicate — one reading per location ───────────────────
+      // Branch on deployment_type, not site_id presence — mobile devices can
+      // optionally carry a site_id and must not be bucketed as static.
       {
         $group: {
-          // Static devices group by site_id; mobile devices fall back to
-          // device_id so each mobile device gets its own latest-reading bucket
-          _id: { $ifNull: ["$site_id", "$device_id"] },
+          _id: {
+            site: {
+              $cond: [
+                { $eq: ["$deployment_type", "mobile"] },
+                null,
+                "$site_id",
+              ],
+            },
+            device: {
+              $cond: [
+                { $eq: ["$deployment_type", "mobile"] },
+                "$device_id",
+                null,
+              ],
+            },
+          },
           latestReading: { $first: "$$ROOT" },
         },
       },
+
       { $replaceRoot: { newRoot: "$latestReading" } },
+
       { $sort: { time: -1 } },
+
+      // ── STAGE 3: project only the fields the map UI needs ─────────────────
       {
         $project: {
           _id: 0,
           device: 1,
           device_id: 1,
           site_id: 1,
+          grid_id: 1,
+          deployment_type: 1,
           time: 1,
           pm2_5: 1,
           pm10: 1,
           no2: 1,
+          location: 1,
           siteDetails: 1,
+          gridDetails: 1,
           aqi_color: 1,
           aqi_category: 1,
           aqi_color_name: 1,
@@ -1704,6 +1873,8 @@ ReadingsSchema.statics.listForMap = async function(
           timeDifferenceHours: 1,
         },
       },
+
+      // ── STAGE 4: paginate ─────────────────────────────────────────────────
       {
         $facet: {
           paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],
@@ -1734,6 +1905,15 @@ ReadingsSchema.statics.listForMap = async function(
       status: httpStatus.OK,
     };
   } catch (error) {
+    if (error instanceof HttpError) {
+      return {
+        success: false,
+        message: error.message,
+        errors: error.errors || { message: error.message },
+        data: [],
+        status: error.statusCode || httpStatus.BAD_REQUEST,
+      };
+    }
     logger.error(
       `🐛🐛 Internal Server Error -- listForMap -- ${error.message}`,
     );
