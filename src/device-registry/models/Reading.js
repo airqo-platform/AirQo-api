@@ -1714,22 +1714,64 @@ ReadingsSchema.statics.listForMap = async function(
       return null;
     };
 
-    for (const field of STRING_FILTER_FIELDS) {
-      if (Object.prototype.hasOwnProperty.call(filter, field)) {
-        const violation = findObjectIdViolation(field, filter[field]);
-        if (violation) {
-          const msg =
-            `listForMap: filter field "${violation}" contains an ObjectId, ` +
-            `but the Readings collection stores "${field}" as a String. ` +
-            `Pass a plain string value instead. ` +
-            `See the schema definition in Reading.js for details.`;
-          logger.error(`🐛🐛 ${msg}`);
-          throw new HttpError(msg, httpStatus.BAD_REQUEST, {
-            message: msg,
-          });
+    // Recursively walk the entire filter object so ObjectId values
+    // nested inside $or, $and, $not, or any arbitrary nesting depth are caught,
+    // not just top-level keys. The same STRING_FILTER_FIELDS set,
+    // findObjectIdViolation helper, logger.error call, and HttpError shape are
+    // reused so error text and behaviour remain consistent with the top-level
+    // check that existed before.
+    const validateFilterRecursively = (node) => {
+      if (node === null || typeof node !== "object") return;
+
+      if (Array.isArray(node)) {
+        // e.g. the array value of $or / $and — recurse into each element
+        for (const element of node) {
+          validateFilterRecursively(element);
+        }
+        return;
+      }
+
+      for (const [key, value] of Object.entries(node)) {
+        if (STRING_FILTER_FIELDS.includes(key)) {
+          // This key is a known String field — check its value for ObjectIds
+          const violation = findObjectIdViolation(key, value);
+          if (violation) {
+            const msg =
+              `listForMap: filter field "${violation}" contains an ObjectId, ` +
+              `but the Readings collection stores "${key}" as a String. ` +
+              `Pass a plain string value instead. ` +
+              `See the schema definition in Reading.js for details.`;
+            logger.error(`🐛🐛 ${msg}`);
+            throw new HttpError(msg, httpStatus.BAD_REQUEST, {
+              message: msg,
+            });
+          }
+        } else if (key.startsWith("$") && Array.isArray(value)) {
+          // Operator with array value: $or, $and, $nor — recurse into each
+          // element of the array
+          for (const element of value) {
+            validateFilterRecursively(element);
+          }
+        } else if (
+          key.startsWith("$") &&
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
+          // Operator with object value: $not, $elemMatch — recurse into it
+          validateFilterRecursively(value);
+        } else if (
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
+          // Plain nested object — recurse into it
+          validateFilterRecursively(value);
         }
       }
-    }
+    };
+
+    validateFilterRecursively(filter);
     // ── End guard ────────────────────────────────────────────────────────────
 
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -1778,12 +1820,12 @@ ReadingsSchema.statics.listForMap = async function(
       { $sort: { time: -1 } },
 
       // ── STAGE 2: deduplicate — one reading per location ───────────────────
+      // Branch on deployment_type, not site_id presence — mobile devices can
+      // optionally carry a site_id and must not be bucketed as static.
       {
         $group: {
           _id: {
             site: {
-              // Static devices are keyed by site_id; mobile devices get null
-              // here so the device field below carries the distinguishing key.
               $cond: [
                 { $eq: ["$deployment_type", "mobile"] },
                 null,
@@ -1791,9 +1833,6 @@ ReadingsSchema.statics.listForMap = async function(
               ],
             },
             device: {
-              // Mobile devices are keyed by device_id; static devices get null
-              // because multiple devices can share a site and we want one
-              // reading per site, not one per device.
               $cond: [
                 { $eq: ["$deployment_type", "mobile"] },
                 "$device_id",
@@ -1816,11 +1855,15 @@ ReadingsSchema.statics.listForMap = async function(
           device: 1,
           device_id: 1,
           site_id: 1,
+          grid_id: 1,
+          deployment_type: 1,
           time: 1,
           pm2_5: 1,
           pm10: 1,
           no2: 1,
+          location: 1,
           siteDetails: 1,
+          gridDetails: 1,
           aqi_color: 1,
           aqi_category: 1,
           aqi_color_name: 1,
