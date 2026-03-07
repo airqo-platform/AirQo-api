@@ -5,12 +5,12 @@ app:
 replicaCount: 2
 
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-api
+  repository: airqoacr.azurecr.io/airqo-stage-calibrate-api
   tag: latest
 
 initContainer:
   image:
-    repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
+    repository: airqoacr.azurecr.io/airqo-stage-calibrate-pickle-file
     tag: latest
 
 secret:

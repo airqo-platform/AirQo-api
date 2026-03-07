@@ -5,7 +5,7 @@ app:
   namespace: staging           # still used for Helm label generation only
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-auth-api
+  repository: airqoacr.azurecr.io/airqo-stage-auth-api
   tag: latest
   pullPolicy: IfNotPresent
 resources:

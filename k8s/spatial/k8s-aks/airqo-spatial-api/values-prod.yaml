@@ -5,7 +5,7 @@ app:
   namespace: production
 replicaCount: 3
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-spatial-api
+  repository: airqoacr.azurecr.io/airqo-spatial-api
   tag: latest
 resources:
   limits:

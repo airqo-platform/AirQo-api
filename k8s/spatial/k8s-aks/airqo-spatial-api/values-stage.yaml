@@ -5,7 +5,7 @@ app:
   namespace: staging
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-spatial-api
+  repository: airqoacr.azurecr.io/airqo-stage-spatial-api
   tag: latest
 resources:
   limits:

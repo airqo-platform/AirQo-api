@@ -7,9 +7,9 @@ app:
 replicaCount: 2
 images:
   repositories:
-    initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
-    redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
-    containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
+    initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
+    redisContainer: airqoacr.azurecr.io/airqo-stage-redis
+    containers: airqoacr.azurecr.io/airqo-stage-workflows
   tag: stage-ad45ae09-1771331319
 resources:
   initContainer:

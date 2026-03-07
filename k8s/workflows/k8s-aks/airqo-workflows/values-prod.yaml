@@ -7,9 +7,9 @@ app:
 replicaCount: 3
 images:
   repositories:
-    initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
-    redisContainer: eu.gcr.io/airqo-250220/airqo-redis
-    containers: eu.gcr.io/airqo-250220/airqo-workflows
+    initContainer: airqoacr.azurecr.io/airqo-workflows-xcom
+    redisContainer: airqoacr.azurecr.io/airqo-redis
+    containers: airqoacr.azurecr.io/airqo-workflows
   tag: prod-21ac388a-1771331489
 resources:
   initContainer:

@@ -6,7 +6,7 @@ app:
   namespace: staging           # still used for Helm label generation only
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-beacon-api
+  repository: airqoacr.azurecr.io/airqo-stage-beacon-api
   tag: latest
 resources:
   limits:

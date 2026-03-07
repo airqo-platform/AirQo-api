@@ -6,7 +6,7 @@ app:
   namespace: production
 replicaCount: 3
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-beacon-api
+  repository: airqoacr.azurecr.io/airqo-beacon-api
   tag: latest
 resources:
   limits:

@@ -5,7 +5,7 @@ app:
   namespace: production
 replicaCount: 3
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-website-api
+  repository: airqoacr.azurecr.io/airqo-website-api
   tag: latest
 resources:
   limits:

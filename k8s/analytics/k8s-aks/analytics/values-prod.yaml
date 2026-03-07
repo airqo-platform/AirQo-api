@@ -3,12 +3,12 @@ fullnameOverride: ''
 
 images:
   repositories:
-    api: eu.gcr.io/airqo-250220/airqo-analytics-api
-    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
-    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
-    redisContainer: eu.gcr.io/airqo-250220/airqo-redis
-    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
+    api: airqoacr.azurecr.io/airqo-analytics-api
+    celeryBeat: airqoacr.azurecr.io/airqo-analytics-celery-beat
+    celeryWorker: airqoacr.azurecr.io/airqo-analytics-celery-worker
+    reportJob: airqoacr.azurecr.io/airqo-analytics-report-job
+    redisContainer: airqoacr.azurecr.io/airqo-redis
+    devicesSummaryJob: airqoacr.azurecr.io/airqo-analytics-devices-summary-job
   tag: latest
 
 externalSecret:

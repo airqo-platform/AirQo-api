@@ -1,0 +1,756 @@
+name: deploy-apis-to-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      auth_service:
+        description: "Deploy Auth service"
+        required: false
+        type: boolean
+      workflows:
+        description: "Deploy workflows"
+        required: false
+        type: boolean
+      device_registry:
+        description: "Deploy Device Registry"
+        required: false
+        type: boolean
+      beacon_api:
+        description: "Deploy Beacon api"
+        required: false
+        type: boolean
+      analytics:
+        description: "Deploy analytics"
+        required: false
+        type: boolean
+      meta_data:
+        description: "Deploy meta data"
+        required: false
+        type: boolean
+      view:
+        description: "Deploy view"
+        required: false
+        type: boolean
+      calibrate:
+        description: "Deploy calibrate"
+        required: false
+        type: boolean
+      predict_service:
+        description: "Deploy predict service"
+        required: false
+        type: boolean
+      superset:
+        description: "Deploy superset"
+        required: false
+        type: boolean
+      nginx:
+        description: "Deploy nginx"
+        required: false
+        type: boolean
+      spatial:
+        description: "Deploy spatial"
+        required: false
+        type: boolean
+      website:
+        description: "Deploy website"
+        required: false
+        type: boolean
+      redis:
+        description: "redis"
+        required: false
+        type: boolean
+
+env:
+  REGISTRY_URL: airqoacr.azurecr.io
+  ACR_NAME: airqoacr
+  DEPLOY_BRANCH: staging
+
+jobs:
+
+  image-tag:
+    name: create image tag
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.prep.outputs.build_id }}
+      datetime: ${{ steps.prep.outputs.datetime }}
+    if: github.triggering_actor == 'Baalmart'
+    steps:
+      - name: generate build ID
+        id: prep
+        run: |
+          sha=${GITHUB_SHA::8}
+          timestamp=$(date +%s)
+          datetime=$(date)
+          echo "build_id=prod-${sha}-${timestamp}" >>$GITHUB_OUTPUT
+          echo "datetime=${datetime}" >>$GITHUB_OUTPUT
+
+  ### auth service ###
+  auth-service:
+    name: build-push-deploy-auth
+    needs: [image-tag]
+    if: inputs.auth_service == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/auth-service/
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/airqo-auth-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-auth-api:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/auth-service/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update auth service production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  ### workflows ###
+  workflows:
+    name: build-push-deploy-workflows
+    needs: [image-tag]
+    if: inputs.workflows == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push app
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: deployment
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-workflows:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-workflows:latest
+
+      - name: Build and push Redis
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: redis
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-redis:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-redis:latest
+
+      - name: Build and push XCom
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: xcom-setup
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-workflows-xcom:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-workflows-xcom:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/workflows/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update workflows prod image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #### Device Registry ######
+  device-registry:
+    name: build-push-deploy-device-registry
+    needs: [image-tag]
+    if: inputs.device_registry == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/device-registry/
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/airqo-device-registry-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-device-registry-api:latest
+
+      - name: Update corresponding helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/device-registry/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update device registry production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #### Beacon API ######
+  beacon-api:
+    name: build-push-deploy-beacon-api
+    needs: [image-tag]
+    if: inputs.beacon_api == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/beacon-api/
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/airqo-beacon-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-beacon-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/airqo-beacon-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-beacon-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-beacon-api:latest
+
+      - name: Update corresponding helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/beacon-api/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update Beacon API production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  ### analytics ###
+  analytics:
+    name: build-push-deploy-analytics
+    needs: [image-tag]
+    if: inputs.analytics == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: production
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-analytics-api:latest
+
+      - name: Build and push Celery beat Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-beat
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-analytics-celery-beat:latest
+
+      - name: Build and push Celery worker Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-worker
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-analytics-celery-worker:latest
+
+      - name: Build and push device summary job Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: devices-summary-job
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-analytics-devices-summary-job:latest
+
+      - name: Build and push reports job Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/jobs/reports
+          target: production
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-analytics-report-job:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/analytics/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update analytics production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  ### meta-data ###
+  meta-data:
+    name: build-push-deploy-meta-data
+    needs: [image-tag]
+    if: inputs.meta_data == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/meta-data
+          target: api
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-meta-data-api:latest
+
+      - name: Build and push sites consumer
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/meta-data
+          target: sites-consumer
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-meta-data-sites-consumer:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/meta-data/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update meta-data production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  ### view ###
+  view:
+    name: build-push-deploy-view
+    needs: [image-tag]
+    if: inputs.view == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/view
+          target: api
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-view-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-view-api:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/view/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update view production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #### Calibrate ######
+  calibrate:
+    name: build-push-deploy-calibrate
+    needs: [image-tag]
+    if: inputs.calibrate == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push calibrate API
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/calibrate
+          target: production
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-calibrate-api:latest
+
+      - name: Build and push calibrate pickle file
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/calibrate
+          target: pickle-file
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-calibrate-pickle-file:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/calibrate/values-prod.yaml"
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update calibrate production tags to ${{ needs.image-tag.outputs.build_id }}"
+            changes: |
+              {
+                "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+                "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+              }
+
+  ### predict api and jobs ###
+  predict-service:
+    name: build-push-deploy-predict-service
+    needs: [image-tag]
+    if: inputs.predict_service == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/predict/api
+          target: production
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-prediction-api:latest
+
+      - name: Build and push predict places image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/predict/jobs/predict_places_air_quality
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-predict-places-air-quality:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/predict/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update predict production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  ### Superset ###
+  superset:
+    name: build-push-deploy-superset
+    needs: [image-tag]
+    if: inputs.superset == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_PROD }}
+
+      - name: Build and push Superset-Init Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/superset
+          target: init-superset
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-prod-superset-init:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-prod-superset-init:latest
+
+      - name: Build and push Superset-Redis
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/superset
+          target: redis
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-prod-superset-redis:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-prod-superset-redis:latest
+
+      - name: Build and push Superset Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/superset
+          target: superset
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-prod-superset:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-prod-superset:latest
+
+      - name: Apply Deployment Files
+        run: |
+          echo "Applying Kubernetes manifest files for Superset deployment"
+          kubectl apply -f k8s/superset/superset-deployment.yaml -n superset
+
+      - name: Restart the deployments
+        run: |
+          kubectl rollout restart deployment/superset -n superset
+
+  ### apply nginx ###
+  nginx:
+    name: apply-nginx
+    if: inputs.nginx == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_PROD }}
+
+      - name: Apply nginx changes
+        run: kubectl apply -f k8s/nginx/production/
+
+  ### spatial ###
+  spatial:
+    name: build-push-deploy-spatial
+    needs: [image-tag]
+    if: inputs.spatial == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/spatial/
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/airqo-spatial-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-spatial-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/airqo-spatial-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-spatial-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-spatial-api:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/spatial/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update spatial production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  ### website ###
+  website:
+    name: build-push-deploy-website
+    needs: [image-tag]
+    if: inputs.website == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/website/
+          docker build --tag ${{ env.REGISTRY_URL }}/airqo-website-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-website-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/airqo-website-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-website-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-website-api:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/website/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update website production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  ### Redis Production ###
+  redis:
+    name: build-push-deploy-redis
+    if: inputs.redis == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_PROD }}
+
+      - name: Deploy Redis via Helm
+        run: |
+          echo "Deploying Redis to production..."
+          helm upgrade --install redis k8s/redis \
+            --namespace production \
+            --values k8s/redis/values-prod.yaml
