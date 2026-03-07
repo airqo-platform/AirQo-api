@@ -1283,7 +1283,6 @@ const createEvent = {
         !responseFromListReadings ||
         typeof responseFromListReadings !== "object"
       ) {
-        // Model returned nothing at all — treat as an internal error.
         logger.error(
           `🐛🐛 Internal Server Error in listForMap util: model returned null/undefined for tenant=${tenant}`,
         );
@@ -1315,10 +1314,10 @@ const createEvent = {
           meta = {};
         }
 
-        // DIAGNOSTIC WARN — non-fatal: pipeline ran successfully but matched
-        // zero documents. Surface in Slack so the on-call engineer can spot a
-        // data gap without needing to query MongoDB manually.
-        if (meta.total === 0 || data.length === 0) {
+        // DIAGNOSTIC WARN — non-fatal: pipeline ran but matched zero documents.
+        // Use meta.total as the single source of truth — data.length can be 0
+        // on a paginated request where skip >= total (pagination miss, not empty).
+        if (meta.total === 0) {
           logger.warn(
             `[listForMap] ⚠️  pipeline succeeded but returned 0 measurements. ` +
               `tenant=${tenant} meta=${JSON.stringify(meta)} ` +
@@ -1332,14 +1331,18 @@ const createEvent = {
 
         return {
           success: true,
-          message: responseFromListReadings.message,
+          // Use meta.total === 0 as the single source of truth for the message,
+          // not data.length — a pagination miss (skip >= total) gives data=[] but
+          // total > 0 and should not produce "no measurements for this search".
+          message:
+            meta.total === 0
+              ? "no measurements for this search"
+              : responseFromListReadings.message,
           data,
           meta,
           status: responseFromListReadings.status || httpStatus.OK,
         };
       } else {
-        // Model returned success=false — log as error since something went wrong
-        // at the database layer.
         logger.error(
           `🐛🐛 Internal Server Error in listForMap util: model returned success=false. ` +
             `tenant=${tenant} status=${responseFromListReadings.status} ` +
@@ -4046,24 +4049,40 @@ const createEvent = {
         };
       }
 
-      // Derive the message that accurately reflects the data being stored.
-      // Mirrors the same isEmpty check used in every util return path so that
-      // a cache hit always replays the same message the caller would have seen.
-      const isEmpty_data =
-        data === null ||
-        data === undefined ||
-        (Array.isArray(data) && data.length === 0) ||
-        (typeof data === "object" &&
-          !Array.isArray(data) &&
-          Object.keys(data).length === 0);
+      // Extract the real measurement payload from `data`.
+      // `data` may be any of:
+      //   (a) a bare array                          → from read(), readingsForMap
+      //   (b) [{ meta:{}, data:[...] }]             → from list() list shape
+      //   (c) { success, message, data:[...] }      → model response wrapper
+      //   (d) null / undefined                      → error / no data
+      //
+      // We check against `payload` for emptiness so wrapper objects with keys
+      // are not misclassified as non-empty when their inner data array is [].
+      // cacheData.data still stores the original `data` so cache-hit callers
+      // receive the same shape the non-cache path would have returned.
+      const payload =
+        data &&
+        typeof data === "object" &&
+        !Array.isArray(data) &&
+        data.data !== undefined
+          ? data.data // unwrap model response wrapper or similar
+          : data; // bare array, null, or undefined — use as-is
 
-      // Also handle the list() shape where data is [{meta, data:[...]}]
+      const isEmpty_data =
+        payload === null ||
+        payload === undefined ||
+        (Array.isArray(payload) && payload.length === 0) ||
+        (typeof payload === "object" &&
+          !Array.isArray(payload) &&
+          Object.keys(payload).length === 0);
+
+      // list() shape: [{ meta:{}, data:[] }]
       const isEmptyListShape =
-        Array.isArray(data) &&
-        data.length === 1 &&
-        data[0] &&
-        Array.isArray(data[0].data) &&
-        data[0].data.length === 0;
+        Array.isArray(payload) &&
+        payload.length === 1 &&
+        payload[0] &&
+        Array.isArray(payload[0].data) &&
+        payload[0].data.length === 0;
 
       const accurateMessage =
         isEmpty_data || isEmptyListShape
