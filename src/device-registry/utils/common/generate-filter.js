@@ -16,7 +16,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- generate-filter-util`,
+  `${constants.ENVIRONMENT} -- generate-filter-util -- ops-alerts`,
 );
 
 if (
@@ -658,21 +658,16 @@ const generateFilter = {
   },
   readingsMap: (request, next) => {
     const { query, params } = request;
-    const {
-      device,
-      device_id,
-      site_id,
-      site,
-      startTime,
-      endTime,
-      network,
-      tenant,
-    } = { ...query, ...params };
+    const { device, device_id, site_id, site, startTime, endTime } = {
+      ...query,
+      ...params,
+    };
 
     const DEFAULT_TIME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
     const filter = {};
 
+    // ── time ────────────────────────────────────────────────────────────────
     if (
       startTime &&
       !isTimeEmpty(startTime) &&
@@ -684,13 +679,11 @@ const generateFilter = {
         $lte: new Date(endTime),
       };
     } else if (startTime && !isTimeEmpty(startTime)) {
-      // Bound the upper end to prevent unbounded forward scans
       filter.time = {
         $gte: new Date(startTime),
         $lte: new Date(new Date(startTime).getTime() + DEFAULT_TIME_WINDOW_MS),
       };
     } else if (endTime && !isTimeEmpty(endTime)) {
-      // Bound the lower end to prevent unbounded backward scans
       filter.time = {
         $gte: new Date(new Date(endTime).getTime() - DEFAULT_TIME_WINDOW_MS),
         $lte: new Date(endTime),
@@ -702,6 +695,7 @@ const generateFilter = {
       };
     }
 
+    // ── device name ──────────────────────────────────────────────────────────
     if (device) {
       const deviceArray = device
         .toString()
@@ -717,23 +711,20 @@ const generateFilter = {
       filter.device = { $in: mergedArray };
     }
 
+    // ── device_id (plain strings — Readings stores as String, not ObjectId) ──
     if (device_id) {
-      const deviceIdArray = device_id
-        .toString() // Handles both string and array by converting array to comma-separated string
-        .split(",");
-
-      const trimmedDeviceIds = [];
-      for (const id of deviceIdArray) {
-        if (id.trim().length > 0) {
-          trimmedDeviceIds.push(id.trim());
-        }
-      }
+      const trimmedDeviceIds = device_id
+        .toString()
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
 
       if (trimmedDeviceIds.length > 0) {
         filter.device_id = { $in: trimmedDeviceIds };
       }
     }
 
+    // ── site name ────────────────────────────────────────────────────────────
     if (site) {
       const trimmedSiteArray = site
         .toString()
@@ -745,6 +736,7 @@ const generateFilter = {
       }
     }
 
+    // ── site_id (plain strings — Readings stores as String, not ObjectId) ────
     if (site_id) {
       const siteIdArray = site_id
         .toString()
@@ -754,18 +746,6 @@ const generateFilter = {
       if (siteIdArray.length > 0) {
         filter.site_id = { $in: siteIdArray };
       }
-    }
-
-    if (network) {
-      filter.network = handlePredefinedValueMatch(
-        network,
-        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true },
-      );
-    }
-
-    if (tenant) {
-      filter.tenant = tenant;
     }
 
     return filter;

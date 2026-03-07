@@ -29,7 +29,9 @@ const {
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-util`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- event-util -- ops-alerts`,
+);
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
@@ -1260,10 +1262,16 @@ const createEvent = {
           ? 0
           : parsedSkip;
 
-      // generateFilter.readingsMap already returns plain-string values for all
-      // fields (site_id, device_id, network, tenant, etc.) — no sanitization
-      // is required before passing to the model.
       const filter = generateFilter.readingsMap(request, next);
+
+      // ── DIAGNOSTIC WARN: log what filter reaches the model ─────────────────
+      // Visible in Slack. Helps catch tenant/ObjectId contamination immediately.
+      logger.warn(
+        `[listForMap] tenant=${tenant} limit=${limit} skip=${skip} ` +
+          `filter=${JSON.stringify(filter, (_, v) =>
+            v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
+          )}`,
+      );
 
       const responseFromListReadings = await ReadingModel(tenant).listForMap(
         { filter, limit, skip },
@@ -1274,6 +1282,9 @@ const createEvent = {
         !responseFromListReadings ||
         typeof responseFromListReadings !== "object"
       ) {
+        logger.warn(
+          `[listForMap] ❌ model returned null/undefined for tenant=${tenant}`,
+        );
         return {
           success: false,
           message: "No response from model",
@@ -1283,27 +1294,38 @@ const createEvent = {
       }
 
       if (responseFromListReadings.success === true) {
-        // The model returns: { success, message, data: { measurements, meta }, status }
-        // The controller expects the util to return: { success, data, meta, status }
         const raw = responseFromListReadings.data;
 
         let data;
         let meta;
 
         if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-          // Normal model shape: { measurements: [...], meta: {...} }
           data = Array.isArray(raw.measurements) ? raw.measurements : [];
           meta =
             raw.meta && typeof raw.meta === "object" && !Array.isArray(raw.meta)
               ? raw.meta
               : {};
         } else if (Array.isArray(raw)) {
-          // Fallback: model returned a bare array
           data = raw;
           meta = {};
         } else {
           data = [];
           meta = {};
+        }
+
+        // ── DIAGNOSTIC WARN: zero results after a successful pipeline run ────
+        // If total === 0 the pipeline ran fine but matched nothing. This is the
+        // silent-failure mode we want Slack to surface immediately.
+        if (meta.total === 0 || data.length === 0) {
+          logger.warn(
+            `[listForMap] ⚠️  pipeline succeeded but returned 0 measurements. ` +
+              `tenant=${tenant} meta=${JSON.stringify(meta)} ` +
+              `filter=${JSON.stringify(filter, (_, v) =>
+                v && typeof v === "object" && v._bsontype
+                  ? `ObjectId(${v})`
+                  : v,
+              )}`,
+          );
         }
 
         return {
@@ -1314,6 +1336,13 @@ const createEvent = {
           status: responseFromListReadings.status || httpStatus.OK,
         };
       } else {
+        // ── DIAGNOSTIC WARN: model returned success=false ───────────────────
+        logger.warn(
+          `[listForMap] ❌ model returned success=false. ` +
+            `tenant=${tenant} status=${responseFromListReadings.status} ` +
+            `message=${responseFromListReadings.message} ` +
+            `errors=${JSON.stringify(responseFromListReadings.errors)}`,
+        );
         return {
           success: false,
           message: responseFromListReadings.message,
@@ -1325,8 +1354,9 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(
-        `🐛🐛 Internal Server Error in listForMap util: ${error.message}`,
+      logger.warn(
+        `[listForMap] 🐛 exception caught: ${error.message} ` +
+          `tenant=${request?.query?.tenant}`,
       );
       return {
         success: false,
@@ -4014,10 +4044,34 @@ const createEvent = {
         };
       }
 
+      // Derive the message that accurately reflects the data being stored.
+      // Mirrors the same isEmpty check used in every util return path so that
+      // a cache hit always replays the same message the caller would have seen.
+      const isEmpty_data =
+        data === null ||
+        data === undefined ||
+        (Array.isArray(data) && data.length === 0) ||
+        (typeof data === "object" &&
+          !Array.isArray(data) &&
+          Object.keys(data).length === 0);
+
+      // Also handle the list() shape where data is [{meta, data:[...]}]
+      const isEmptyListShape =
+        Array.isArray(data) &&
+        data.length === 1 &&
+        data[0] &&
+        Array.isArray(data[0].data) &&
+        data[0].data.length === 0;
+
+      const accurateMessage =
+        isEmpty_data || isEmptyListShape
+          ? "no measurements for this search"
+          : "Successfully retrieved the measurements";
+
       const cacheData = {
         isCache: true,
         success: true,
-        message: "Successfully retrieved the measurements",
+        message: accurateMessage,
         data,
       };
 
@@ -4033,8 +4087,7 @@ const createEvent = {
         };
       }
 
-      // Simple timeout for cache operations
-      const cacheTimeout = 5000; // 5 seconds
+      const cacheTimeout = 5000;
       const expirationTime = parseInt(constants.EVENTS_CACHE_LIMIT) || 300;
 
       try {
