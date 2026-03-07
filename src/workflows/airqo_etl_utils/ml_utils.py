@@ -1674,7 +1674,7 @@ class ForecastModelTrainer(BaseMlUtils):
 
         query: str = ""
         current_date = datetime.today()
-        start_date = current_date - relativedelta(months=90)
+        start_date = current_date - relativedelta(months=12)
 
         start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
