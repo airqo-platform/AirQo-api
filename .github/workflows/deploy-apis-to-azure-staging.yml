@@ -230,7 +230,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/auth-service/k8s-aks/airqo-auth-service/values-stage.yaml"
+            valueFile: "k8s/auth-service/k8s-aks/auth-service/values-stage.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}

@@ -439,7 +439,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/view/k8s-aks/view-api/values-prod.yaml"
+            valueFile: "k8s/view/k8s-aks/airqo-view-api/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -751,6 +751,6 @@ jobs:
       - name: Deploy Redis via Helm
         run: |
           echo "Deploying Redis to production..."
-          helm upgrade --install redis k8s/redis/k8s-aks/redis-server \
+          helm upgrade --install redis k8s/redis/k8s-aks/airqo-redis-server \
             --namespace production \
-            --values k8s/redis/k8s-aks/redis-server/values-prod.yaml
+            --values k8s/redis/k8s-aks/airqo-redis-server/values-prod.yaml
