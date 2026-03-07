@@ -1688,7 +1688,9 @@ ReadingsSchema.statics.listForMap = async function(
       v !== null &&
       v !== undefined &&
       (v instanceof mongoose.Types.ObjectId ||
-        (typeof v === "object" && v._bsontype === "ObjectId"));
+        (typeof v === "object" &&
+          (v._bsontype === "ObjectId" || v._bsontype === "ObjectID") &&
+          typeof v.toHexString === "function"));
 
     const findObjectIdViolation = (fieldName, fieldValue) => {
       if (isObjectId(fieldValue)) {
@@ -1766,10 +1768,9 @@ ReadingsSchema.statics.listForMap = async function(
           time: timeConstraint,
           // pm2_5.value === 0 is physically implausible for an outdoor sensor
           // and almost always indicates a fault or an uninitialized register.
-          // $gt: 0 (not $gte: 0) is intentional — zero readings are treated as
-          // invalid and excluded from the map. If a legitimate zero is ever
-          // expected from a specific sensor type, this constraint should be
-          // relaxed at that ingestion point rather than here.
+          // $gt: 0 is intentional — zero readings are treated as invalid and
+          // excluded from the map. If a legitimate zero is ever expected from a
+          // specific sensor type, relax this at the ingestion point, not here.
           "pm2_5.value": { $exists: true, $gt: 0 },
         },
       },
@@ -1780,9 +1781,24 @@ ReadingsSchema.statics.listForMap = async function(
       {
         $group: {
           _id: {
-            site: { $ifNull: ["$site_id", null] },
+            site: {
+              // Static devices are keyed by site_id; mobile devices get null
+              // here so the device field below carries the distinguishing key.
+              $cond: [
+                { $eq: ["$deployment_type", "mobile"] },
+                null,
+                "$site_id",
+              ],
+            },
             device: {
-              $cond: [{ $ifNull: ["$site_id", false] }, null, "$device_id"],
+              // Mobile devices are keyed by device_id; static devices get null
+              // because multiple devices can share a site and we want one
+              // reading per site, not one per device.
+              $cond: [
+                { $eq: ["$deployment_type", "mobile"] },
+                "$device_id",
+                null,
+              ],
             },
           },
           latestReading: { $first: "$$ROOT" },
@@ -1846,9 +1862,6 @@ ReadingsSchema.statics.listForMap = async function(
       status: httpStatus.OK,
     };
   } catch (error) {
-    logger.error(
-      `🐛🐛 Internal Server Error -- listForMap -- ${error.message}`,
-    );
     if (error instanceof HttpError) {
       return {
         success: false,
@@ -1858,6 +1871,9 @@ ReadingsSchema.statics.listForMap = async function(
         status: error.statusCode || httpStatus.BAD_REQUEST,
       };
     }
+    logger.error(
+      `🐛🐛 Internal Server Error -- listForMap -- ${error.message}`,
+    );
     return {
       success: false,
       message: "Internal Server Error",
