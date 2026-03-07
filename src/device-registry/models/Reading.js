@@ -1797,9 +1797,8 @@ ReadingsSchema.statics.listForMap = async function(
       ...safeFilterForMatch
     } = filter;
 
-    // ── DIAGNOSTIC WARN: log what actually reaches $match ─────────────────
-    // Visible in Slack. Lets us immediately spot any stray ObjectId or
-    // unexpected field that would cause a silent-zero result.
+    // DIAGNOSTIC WARN — non-fatal: log what actually reaches $match so any
+    // stray ObjectId or unexpected field is immediately Slack-visible.
     logger.warn(
       `[ReadingModel.listForMap] $match preview: ` +
         `effectiveGte=${effectiveGte.toISOString()} ` +
@@ -1812,7 +1811,7 @@ ReadingsSchema.statics.listForMap = async function(
       // ── STAGE 1: match ──────────────────────────────────────────────────
       {
         $match: {
-          ...safeFilterForMatch, // no tenant, no network, no time
+          ...safeFilterForMatch,
           time: timeConstraint,
           // pm2_5.value === 0 is physically implausible for an outdoor sensor
           // and almost always indicates a fault or uninitialized register.
@@ -1894,7 +1893,8 @@ ReadingsSchema.statics.listForMap = async function(
     const total = totalCount[0]?.count || 0;
     const pages = Math.ceil(total / safeLimit) || 1;
 
-    // ── DIAGNOSTIC WARN: zero results after successful pipeline run ────────
+    // DIAGNOSTIC WARN — non-fatal: aggregation succeeded but matched nothing.
+    // Surfaces data gaps in Slack without requiring a manual MongoDB query.
     if (total === 0) {
       logger.warn(
         `[ReadingModel.listForMap] ⚠️  aggregation succeeded but matched 0 documents. ` +
@@ -1931,8 +1931,10 @@ ReadingsSchema.statics.listForMap = async function(
         status: error.statusCode || httpStatus.BAD_REQUEST,
       };
     }
-    logger.warn(
-      `[ReadingModel.listForMap] 🐛 Internal Server Error: ${error.message}`,
+    // Genuine exception — must remain logger.error, not warn.
+    // Standardised prefix aids downstream alerting filters.
+    logger.error(
+      `🐛🐛 [ReadingModel.listForMap] Internal Server Error: ${error.message}`,
     );
     return {
       success: false,

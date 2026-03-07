@@ -1264,8 +1264,9 @@ const createEvent = {
 
       const filter = generateFilter.readingsMap(request, next);
 
-      // ── DIAGNOSTIC WARN: log what filter reaches the model ─────────────────
-      // Visible in Slack. Helps catch tenant/ObjectId contamination immediately.
+      // DIAGNOSTIC WARN — non-fatal: log the effective filter before it reaches
+      // MongoDB so any stray tenant/ObjectId contamination is immediately visible
+      // in Slack without waiting for a zero-result symptom.
       logger.warn(
         `[listForMap] tenant=${tenant} limit=${limit} skip=${skip} ` +
           `filter=${JSON.stringify(filter, (_, v) =>
@@ -1282,8 +1283,9 @@ const createEvent = {
         !responseFromListReadings ||
         typeof responseFromListReadings !== "object"
       ) {
-        logger.warn(
-          `[listForMap] ❌ model returned null/undefined for tenant=${tenant}`,
+        // Model returned nothing at all — treat as an internal error.
+        logger.error(
+          `🐛🐛 Internal Server Error in listForMap util: model returned null/undefined for tenant=${tenant}`,
         );
         return {
           success: false,
@@ -1313,9 +1315,9 @@ const createEvent = {
           meta = {};
         }
 
-        // ── DIAGNOSTIC WARN: zero results after a successful pipeline run ────
-        // If total === 0 the pipeline ran fine but matched nothing. This is the
-        // silent-failure mode we want Slack to surface immediately.
+        // DIAGNOSTIC WARN — non-fatal: pipeline ran successfully but matched
+        // zero documents. Surface in Slack so the on-call engineer can spot a
+        // data gap without needing to query MongoDB manually.
         if (meta.total === 0 || data.length === 0) {
           logger.warn(
             `[listForMap] ⚠️  pipeline succeeded but returned 0 measurements. ` +
@@ -1336,12 +1338,12 @@ const createEvent = {
           status: responseFromListReadings.status || httpStatus.OK,
         };
       } else {
-        // ── DIAGNOSTIC WARN: model returned success=false ───────────────────
-        logger.warn(
-          `[listForMap] ❌ model returned success=false. ` +
+        // Model returned success=false — log as error since something went wrong
+        // at the database layer.
+        logger.error(
+          `🐛🐛 Internal Server Error in listForMap util: model returned success=false. ` +
             `tenant=${tenant} status=${responseFromListReadings.status} ` +
-            `message=${responseFromListReadings.message} ` +
-            `errors=${JSON.stringify(responseFromListReadings.errors)}`,
+            `message=${responseFromListReadings.message}`,
         );
         return {
           success: false,
@@ -1354,9 +1356,9 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.warn(
-        `[listForMap] 🐛 exception caught: ${error.message} ` +
-          `tenant=${request?.query?.tenant}`,
+      // Genuine exception — must remain logger.error, not warn.
+      logger.error(
+        `🐛🐛 Internal Server Error in listForMap util: ${error.message}`,
       );
       return {
         success: false,
