@@ -12,6 +12,7 @@ const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 const NodeCache = require("node-cache");
+const TIMEZONE = moment.tz.guess();
 
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
@@ -152,9 +153,18 @@ class ReadingsBatchProcessor {
       if (doc.deviceDetails) {
         updateDoc.deviceDetails = doc.deviceDetails;
       }
-      // Preserve pre-computed fields from the 'events' view
+      // Preserve pre-computed fields from the 'events' view.
       if (doc.device_categories) {
-        updateDoc.device_categories = doc.device_categories;
+        const dc = { ...doc.device_categories };
+        // Mongoose splits a string assigned to a [String] field into individual
+        // characters (e.g. "airqo" → ["a","i","r","q","o"]). Rather than
+        // guessing at the string format, discard any non-array value entirely.
+        // The document will self-heal on the next cron upsert when the live
+        // aggregation pipeline recomputes the correct array.
+        if (!Array.isArray(dc.all_categories)) {
+          dc.all_categories = [];
+        }
+        updateDoc.device_categories = dc;
       }
       if (doc.health_tips) {
         updateDoc.health_tips = doc.health_tips;
@@ -368,7 +378,6 @@ async function fetchAndStoreReadings() {
   }
 }
 
-const TIMEZONE = moment.tz.guess();
 const JOB_NAME = "store-readings-job";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 
