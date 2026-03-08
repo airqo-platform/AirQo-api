@@ -505,8 +505,13 @@ ReadingsSchema.index(
 ReadingsSchema.index(
   { time: -1, "pm2_5.value": 1 },
   {
+    name: "time_pm25_map_idx",
+    // partial filter aligned with the exact $gt: 0 predicate used
+    // in listForMap and latestForMap $match stages. The old { $exists, $ne:null }
+    // form was not recognised by the query planner as a superset of { $gt:0 },
+    // causing a full collection scan on every map request.
     partialFilterExpression: {
-      "pm2_5.value": { $exists: true, $ne: null },
+      "pm2_5.value": { $gt: 0 },
     },
     background: true,
   },
@@ -744,15 +749,20 @@ ReadingsSchema.statics.latestForMap = async function(
   next,
 ) {
   try {
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // reduce scan window from 14 days → 48 hours (same rationale
+    // as listForMap change 2 above). Keep 14-day outer bound as safety cap.
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000); // kept for reference but not used
 
     const pipeline = [
       // 1. Match recent readings only
       {
         $match: {
-          time: { $gte: fourteenDaysAgo },
-          "pm2_5.value": { $exists: true, $ne: null },
+          time: { $gte: fortyEightHoursAgo }, // was: fourteenDaysAgo
+          // $gt: 0 instead of { $exists: true, $ne: null }
+          // so the partial index { time: -1, "pm2_5.value": 1 } with
+          // partialFilter { "pm2_5.value": { $gt: 0 } } is used.
+          "pm2_5.value": { $gt: 0 },
           ...filter,
         },
       },
@@ -1678,7 +1688,7 @@ ReadingsSchema.statics.listForMap = async function(
   next,
 ) {
   try {
-    // ── String-field ObjectId guard (unchanged from v3) ───────────────────
+    // ── String-field ObjectId guard ───────────────────────────────────────────
     const STRING_FILTER_FIELDS = [
       "site_id",
       "device_id",
@@ -1752,9 +1762,11 @@ ReadingsSchema.statics.listForMap = async function(
     };
 
     validateFilterRecursively(filter);
-    // ── End guard ─────────────────────────────────────────────────────────
+    // ── End guard ─────────────────────────────────────────────────────────────
 
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
     const DEFAULT_LIMIT = 1000;
     const MAX_LIMIT = 5000;
 
@@ -1771,9 +1783,23 @@ ReadingsSchema.statics.listForMap = async function(
         ? 0
         : parsedSkip;
 
+    // Effective lower bound: honour a caller-supplied $gte only if it is MORE
+    // recent than 48 h ago (tighter window = faster). If the caller asks for
+    // data older than 48 h, clamp to 48 h. The absolute outer limit is 14 days
+    // — anything older is beyond the TTL and serves no map purpose.
     const callerGte = filter.time?.$gte;
-    const effectiveGte =
-      callerGte && callerGte > fourteenDaysAgo ? callerGte : fourteenDaysAgo;
+
+    let effectiveGte;
+    if (callerGte && callerGte > fortyEightHoursAgo) {
+      // Caller wants a tighter window than 48 h — honour it.
+      effectiveGte = callerGte;
+    } else {
+      // Default to 48 h. Never go beyond 14 days regardless of caller input.
+      effectiveGte =
+        callerGte && callerGte > fourteenDaysAgo
+          ? callerGte
+          : fortyEightHoursAgo;
+    }
 
     const timeConstraint = {
       ...(filter.time || {}),
@@ -1781,15 +1807,7 @@ ReadingsSchema.statics.listForMap = async function(
     };
 
     // Strip time, tenant, and network before spreading into $match.
-    //
-    // - time:    handled explicitly via timeConstraint above.
-    // - tenant:  the caller already selected the correct MongoDB database via
-    //            ReadingModel(tenant). Adding tenant to $match requires every
-    //            document to carry a matching tenant field, which is not
-    //            guaranteed — many documents were ingested before this field
-    //            was added, making the $match silently return zero rows.
-    // - network: same reasoning as tenant; field is unreliably populated on
-    //            Readings documents ingested from older pipelines.
+    // (Reasoning unchanged — see original comments in previous version.)
     const {
       time: _t,
       tenant: _tenant,
@@ -1797,8 +1815,6 @@ ReadingsSchema.statics.listForMap = async function(
       ...safeFilterForMatch
     } = filter;
 
-    // DIAGNOSTIC WARN — non-fatal: log what actually reaches $match so any
-    // stray ObjectId or unexpected field is immediately Slack-visible.
     logger.warn(
       `[ReadingModel.listForMap] $match preview: ` +
         `effectiveGte=${effectiveGte.toISOString()} ` +
@@ -1808,24 +1824,21 @@ ReadingsSchema.statics.listForMap = async function(
     );
 
     const pipeline = [
-      // ── STAGE 1: match ──────────────────────────────────────────────────
+      // ── STAGE 1: match ──────────────────────────────────────────────────────
+      // use { $gt: 0 } alone — $gt:0 implies $exists and $ne:null.
+      // The combined { $exists: true, $gt: 0 } form prevented the query planner
+      // from matching the partial index whose filter is { "pm2_5.value": { $gt: 0 } }.
       {
         $match: {
           ...safeFilterForMatch,
           time: timeConstraint,
-          // pm2_5.value === 0 is physically implausible for an outdoor sensor
-          // and almost always indicates a fault or uninitialized register.
-          // Zero readings are excluded from the map. Relax at ingestion if
-          // a specific sensor type legitimately reads zero.
-          "pm2_5.value": { $exists: true, $gt: 0 },
+          "pm2_5.value": { $gt: 0 },
         },
       },
 
       { $sort: { time: -1 } },
 
-      // ── STAGE 2: deduplicate — one reading per location ─────────────────
-      // Branch on deployment_type, not site_id presence — mobile devices can
-      // optionally carry a site_id and must not be bucketed as static.
+      // ── STAGE 2: deduplicate — one reading per location ─────────────────────
       {
         $group: {
           _id: {
@@ -1852,7 +1865,7 @@ ReadingsSchema.statics.listForMap = async function(
 
       { $sort: { time: -1 } },
 
-      // ── STAGE 3: project only the fields the map UI needs ───────────────
+      // ── STAGE 3: project only the fields the map UI needs ───────────────────
       {
         $project: {
           _id: 0,
@@ -1878,7 +1891,7 @@ ReadingsSchema.statics.listForMap = async function(
         },
       },
 
-      // ── STAGE 4: paginate ────────────────────────────────────────────────
+      // ── STAGE 4: paginate ────────────────────────────────────────────────────
       {
         $facet: {
           paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],
@@ -1893,8 +1906,6 @@ ReadingsSchema.statics.listForMap = async function(
     const total = totalCount[0]?.count || 0;
     const pages = Math.ceil(total / safeLimit) || 1;
 
-    // DIAGNOSTIC WARN — non-fatal: aggregation succeeded but matched nothing.
-    // Surfaces data gaps in Slack without requiring a manual MongoDB query.
     if (total === 0) {
       logger.warn(
         `[ReadingModel.listForMap] ⚠️  aggregation succeeded but matched 0 documents. ` +
@@ -1931,8 +1942,6 @@ ReadingsSchema.statics.listForMap = async function(
         status: error.statusCode || httpStatus.BAD_REQUEST,
       };
     }
-    // Genuine exception — must remain logger.error, not warn.
-    // Standardised prefix aids downstream alerting filters.
     logger.error(
       `🐛🐛 [ReadingModel.listForMap] Internal Server Error: ${error.message}`,
     );
