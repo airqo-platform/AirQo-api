@@ -1,21 +1,26 @@
-namespace: staging
 nameOverride: ''
 fullnameOverride: ''
+
 images:
   repositories:
-    api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
-    celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
-    celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
-    reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
-    redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
-    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-db2017ff-1771918648
+    api: airqoacr.azurecr.io/airqo-stage-analytics-api
+    celeryBeat: airqoacr.azurecr.io/airqo-stage-analytics-celery-beat
+    celeryWorker: airqoacr.azurecr.io/airqo-stage-analytics-celery-worker
+    reportJob: airqoacr.azurecr.io/airqo-stage-analytics-report-job
+    redisContainer: airqoacr.azurecr.io/airqo-stage-redis
+    devicesSummaryJob: airqoacr.azurecr.io/airqo-stage-analytics-devices-summary-job
+  tag: latest
+
+externalSecret:
+  enabled: true
+
 api:
   name: airqo-stage-analytics-api
-  label: sta-alytics-api
-  configmap: env-analytics-staging
+  label: sta-analytics-api
+  secret: sta-env-analytics
   replicaCount: 2
   podAnnotations: {}
+
   resources:
     common:
       limits:
@@ -31,36 +36,25 @@ api:
       limits:
         cpu: 300m
         memory: 50Mi
-  nodeSelector:
-    role: moderate-usage
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - preference:
-            matchExpressions:
-              - key: role
-                operator: In
-                values:
-                  - moderate-usage
-          weight: 1
+
 jobs:
   reports:
     name: stage-analytics-report
-    configmap: env-analytics-report-staging
+    secret: sta-env-analytics-report-job
   resources:
     limits:
       cpu: 1000m
-      memory: 3000Mi
-    requests:
-      cpu: 100m
-      memory: 500Mi
+      memory: 4000Mi
+
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
+
 volumes:
   - name: config-volume
     configMap:
       name: stage-analytics-config-files
+
 service:
   type: NodePort
   ports:
@@ -74,9 +68,13 @@ service:
       targetPort: 6379
       nodePort: 31114
       protocol: TCP
+
 ingress:
   enabled: false
+
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetMemoryUtilizationPercentage: 85
+
+
