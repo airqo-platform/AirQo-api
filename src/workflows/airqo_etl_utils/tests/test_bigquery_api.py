@@ -38,16 +38,16 @@ def mock_bigquery_client():
     def fake_query(query, job_config):
         fake_job = mock.Mock()
 
-        if "2023-01-01" in query:
-            fake_job.result.return_value.to_dataframe.return_value = sample_df
-        elif "2023-01-02" in query:
+        if "2023-01-02" in query:
             fake_job.result.return_value.to_dataframe.return_value = (
                 fake_data_empty_result
             )
         elif "2023-01-03" in query:
             fake_job.result.side_effect = fake_error
         else:
-            raise ValueError("Invalid date")
+            # Return sample data for any other valid date to avoid over-coupling tests
+            # to one specific literal date.
+            fake_job.result.return_value.to_dataframe.return_value = sample_df
 
         return fake_job
 
@@ -123,6 +123,16 @@ def test_fetch_raw_readings_empty(mock_bigquery_client):
     with pytest.raises(Exception) as e:
         df = api.fetch_raw_readings()
         assert "No data found" in str(e.value)
+
+
+def test_forecast_job_type_prediction_alias(mock_bigquery_client):
+    bq_api = BigQueryApi()
+    bq_api.client = mock_bigquery_client
+
+    start_date = pd.Timestamp.utcnow().date().isoformat()
+    actual_df = bq_api.fetch_device_data_for_forecast_job(start_date, "prediction")
+    assert isinstance(actual_df, pd.DataFrame)
+    assert "site_id" in actual_df.columns
 
 
 class TestFetchMaxMinValues(unittest.TestCase):
