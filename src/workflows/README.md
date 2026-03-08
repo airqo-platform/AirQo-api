@@ -65,6 +65,52 @@ Required `.env` values for this test:
 - `BIGQUERY_ANALYTICS_TABLE`
 - `FORECAST_MODELS_BUCKET`
 
+### Run fault detection locally
+
+After setting up `.env` and credentials, you can run the fault-detection utility script directly from the tests folder:
+
+```bash
+cd src/workflows/airqo_etl_utils/tests
+python test_fault_detection_utils.py train
+python test_fault_detection_utils.py detect
+```
+
+What each command does:
+
+- `python test_fault_detection_utils.py train` trains the fault-detection model, logs it to MLflow using `MLFLOW_FAULT_NAME`, and deploys it only if it is better than the currently deployed model.
+- `python test_fault_detection_utils.py detect` runs rule-based and pattern-based fault detection, then applies the deployed fault model if it exists. If no deployed model exists yet, ML scoring is skipped and the run still completes.
+
+Fault types used by the workflow:
+
+- `missing_data_fault`: One of the two PM2.5 sensor readings is missing for that row.
+- `negative_value_fault`: Either PM2.5 sensor reports a value below `0`.
+- `out_of_range_fault`: Either PM2.5 sensor reports a value above `1000`.
+- `sensor_divergence_fault`: The two PM2.5 sensors disagree too much. This is triggered when the absolute gap is greater than `35` or the relative difference is greater than `0.6`.
+- `correlation_fault`: The rolling 24-point correlation between `s1_pm2_5` and `s2_pm2_5` falls below `0.75` (with at least 6 points before the correlation is considered).
+- `battery_low_fault`: Device battery is below `3.3`.
+- `stuck_value_fault`: The device appears flatlined. This is triggered when the sensor mean stays unchanged for at least 6 consecutive rows.
+- `spike_fault`: The PM2.5 mean changes too abruptly compared with recent behavior. This is triggered when the row-to-row change is greater than `3 x` the rolling 6-point standard deviation, or greater than `80`.
+- `missing_streak_fault`: Missing readings persist for 6 consecutive rows.
+
+Other fault outputs:
+
+- Rule-based faults: The explicit checks above are summed into `rule_fault_score`, and any row with a positive score is treated as `rule_based_fault`.
+- Pattern-based faults: An `IsolationForest` model scores row-level anomalies using the engineered numeric features.
+- `faulty_devices_percentage`: A device is flagged when more than `45%` of its rows are anomaly rows from the pattern-based stage.
+- `faulty_devices_sequence`: A device is flagged when it has an anomaly run of at least `80` consecutive rows.
+- ML-based faults: A supervised classifier is trained from the engineered features plus weak labels derived from the rule-based and anomaly outputs, then used during detection to score devices with `ml_fault_probability` and `ml_fault`.
+
+Required `.env` values for this flow:
+
+- `GOOGLE_APPLICATION_CREDENTIALS`
+- `GOOGLE_CLOUD_PROJECT_ID`
+- `BIGQUERY_RAW_EVENTS_TABLE`
+- `FAULT_MODEL_BUCKET`
+- `MONGO_URI`
+- `MONGO_DATABASE_NAME`
+- `MLFLOW_TRACKING_URI`
+- `MLFLOW_FAULT_NAME`
+
 ## 2. Running using Docker
 
 ### Prerequisites

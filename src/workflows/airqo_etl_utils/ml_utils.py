@@ -1,7 +1,7 @@
 """Utility functions and classes for ML training, forecasting, and fault detection."""
 
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Sequence, Optional, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Any, Sequence, Optional, Tuple, Union
 import logging
 
 from dateutil.relativedelta import relativedelta
@@ -12,9 +12,17 @@ import optuna
 import pandas as pd
 import pymongo as pm
 import lightgbm as lgb
-from lightgbm import LGBMRegressor, early_stopping
+from lightgbm import LGBMRegressor, LGBMClassifier, early_stopping
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
+from sklearn.model_selection import train_test_split
 
 from .config import configuration, db
 from .constants import Frequency
@@ -31,6 +39,7 @@ logger = logging.getLogger("airflow.task")
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
+fault_model_bucket = configuration.FAULT_MODEL_BUCKET or configuration.FORECAST_MODELS_BUCKET
 environment = configuration.ENVIRONMENT
 additional_columns = ["site_id"]
 
@@ -43,8 +52,34 @@ class BaseMlUtils:
     # TODO: need to review this, may need to make better abstractions
 
     @staticmethod
+    def normalize_frequency(
+        frequency: Union[Frequency, str], *, param_name: str = "frequency"
+    ) -> Frequency:
+        """Coerce a frequency enum or string to :class:`Frequency`."""
+        if isinstance(frequency, Frequency):
+            return frequency
+
+        if isinstance(frequency, str):
+            normalized = frequency.strip().upper()
+            try:
+                return Frequency[normalized]
+            except KeyError as exc:
+                raise ValueError(
+                    f"Invalid {param_name} '{frequency}', must map to a Frequency enum."
+                ) from exc
+
+        if hasattr(frequency, "str"):
+            return BaseMlUtils.normalize_frequency(
+                getattr(frequency, "str"), param_name=param_name
+            )
+
+        raise ValueError(
+            f"Invalid {param_name} type '{type(frequency).__name__}', expected Frequency or str."
+        )
+
+    @staticmethod
     def preprocess_data(
-        data: pd.DataFrame, data_frequency: Frequency, job_type: str
+        data: pd.DataFrame, data_frequency: Union[Frequency, str], job_type: str
     ) -> pd.DataFrame:
         """
         Preprocess the input DataFrame for time series analysis or prediction.
@@ -68,6 +103,10 @@ class BaseMlUtils:
             - When the frequency is daily, the function resamples the data to daily frequency and takes the mean of the numeric columns.
             - After preprocessing, rows with NaN values in 'pm2_5' are dropped to ensure data integrity.
         """
+        data_frequency = BaseMlUtils.normalize_frequency(
+            data_frequency, param_name="data_frequency"
+        )
+
         required_columns = {
             "device_id",
             "pm2_5",
@@ -107,7 +146,7 @@ class BaseMlUtils:
 
     @staticmethod
     def get_lag_and_roll_features(
-        df: pd.DataFrame, target_col: str, freq: Frequency
+        df: pd.DataFrame, target_col: str, freq: Union[Frequency, str]
     ) -> pd.DataFrame:
         """
         Generate lag and rolling statistical features for a specified target column in a DataFrame.
@@ -135,6 +174,8 @@ class BaseMlUtils:
                 - Lag features for the last 1, 2, 6, and 12 hours.
                 - Rolling statistics (mean, standard deviation, median, skew) for the last 3, 6, 12, and 24 hours.
         """
+        freq = BaseMlUtils.normalize_frequency(freq)
+
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -185,7 +226,9 @@ class BaseMlUtils:
         return df1
 
     @staticmethod
-    def get_time_features(df: pd.DataFrame, freq: Frequency) -> pd.DataFrame:
+    def get_time_features(
+        df: pd.DataFrame, freq: Union[Frequency, str]
+    ) -> pd.DataFrame:
         """
         Extracts time-based features from a timestamp column in a DataFrame.
 
@@ -207,6 +250,8 @@ class BaseMlUtils:
             >>> df.columns
             Index(['timestamp', 'year', 'month', 'day', 'dayofweek', 'hour', 'week'], dtype='object')
         """
+        freq = BaseMlUtils.normalize_frequency(freq)
+
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -240,7 +285,7 @@ class BaseMlUtils:
         return df
 
     @staticmethod
-    def get_cyclic_features(df: pd.DataFrame, freq: Frequency):
+    def get_cyclic_features(df: pd.DataFrame, freq: Union[Frequency, str]):
         """
         Generate cyclic features for time-based attributes in a DataFrame.
 
@@ -259,6 +304,7 @@ class BaseMlUtils:
             - The function drops the original time attributes after creating the cyclic features.
             - The week attribute is also dropped after feature generation.
         """
+        freq = BaseMlUtils.normalize_frequency(freq)
         df1 = BaseMlUtils.get_time_features(df, freq)
 
         attributes = ["year", "month", "day", "dayofweek"]
@@ -633,6 +679,304 @@ class ForecastUtils(BaseMlUtils):
 
 
 class FaultDetectionUtils(BaseMlUtils):
+    DEFAULT_FAULT_MODEL_PATH = "fault_detection_model.pkl"
+    MIN_TRAINING_ROWS = 200
+
+    @staticmethod
+    def get_fault_model_bucket() -> str:
+        """Return the configured bucket for fault model artifacts."""
+        if not fault_model_bucket:
+            raise ValueError(
+                "Missing required config: FAULT_MODEL_BUCKET. "
+                "Set FAULT_MODEL_BUCKET in the workflows .env file."
+            )
+        return fault_model_bucket
+
+    @staticmethod
+    def _validate_fault_input(df: pd.DataFrame) -> pd.DataFrame:
+        """Validate and standardize raw fault-detection input."""
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        required_columns = ["device_id", "timestamp", "s1_pm2_5", "s2_pm2_5"]
+        missing_columns = set(required_columns).difference(df.columns.to_list())
+        if missing_columns:
+            raise ValueError(
+                f"Input must have the following columns: {required_columns}"
+            )
+
+        validated = df.copy()
+        validated["timestamp"] = pd.to_datetime(validated["timestamp"], utc=True)
+        for column in ["s1_pm2_5", "s2_pm2_5", "battery"]:
+            if column in validated.columns:
+                validated[column] = pd.to_numeric(validated[column], errors="coerce")
+
+        if "battery" not in validated.columns:
+            validated["battery"] = np.nan
+
+        validated.sort_values(["device_id", "timestamp"], inplace=True)
+        validated.reset_index(drop=True, inplace=True)
+        return validated
+
+    @staticmethod
+    def prepare_fault_features(df: pd.DataFrame) -> pd.DataFrame:
+        """Build row-level features and rule flags for fault detection."""
+        featured = FaultDetectionUtils._validate_fault_input(df)
+        device_group = featured.groupby("device_id", sort=False)
+
+        featured["sensor_mean"] = featured[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        featured["sensor_abs_diff"] = (
+            featured["s1_pm2_5"] - featured["s2_pm2_5"]
+        ).abs()
+        featured["sensor_rel_diff"] = featured["sensor_abs_diff"] / (
+            featured["sensor_mean"].abs() + 1
+        )
+        featured["hour"] = featured["timestamp"].dt.hour
+        featured["day_of_week"] = featured["timestamp"].dt.dayofweek
+
+        featured["pm25_rate_change"] = device_group["sensor_mean"].diff().abs()
+        rolling_mean = (
+            device_group["sensor_mean"]
+            .transform(lambda series: series.shift(1).rolling(6, min_periods=2).mean())
+        )
+        rolling_std = (
+            device_group["sensor_mean"]
+            .transform(lambda series: series.shift(1).rolling(6, min_periods=2).std())
+        )
+        rolling_min = (
+            device_group["sensor_mean"]
+            .transform(lambda series: series.shift(1).rolling(6, min_periods=2).min())
+        )
+        rolling_max = (
+            device_group["sensor_mean"]
+            .transform(lambda series: series.shift(1).rolling(6, min_periods=2).max())
+        )
+        rolling_diff_mean = (
+            device_group["sensor_abs_diff"]
+            .transform(lambda series: series.shift(1).rolling(6, min_periods=2).mean())
+        )
+
+        featured["rolling_mean_6"] = rolling_mean
+        featured["rolling_std_6"] = rolling_std.fillna(0)
+        featured["rolling_min_6"] = rolling_min
+        featured["rolling_max_6"] = rolling_max
+        featured["rolling_abs_diff_6"] = rolling_diff_mean.fillna(0)
+        sensor_corr_series = []
+        for _, device_df in featured.groupby("device_id", sort=False):
+            sensor_corr_series.append(
+                device_df["s1_pm2_5"]
+                .rolling(24, min_periods=6)
+                .corr(device_df["s2_pm2_5"])
+            )
+        featured["sensor_corr_24"] = pd.concat(sensor_corr_series).sort_index()
+
+        featured["missing_data_fault"] = featured[
+            ["s1_pm2_5", "s2_pm2_5"]
+        ].isna().any(axis=1).astype(int)
+        featured["negative_value_fault"] = (
+            featured[["s1_pm2_5", "s2_pm2_5"]] < 0
+        ).any(axis=1).astype(int)
+        featured["out_of_range_fault"] = (
+            featured[["s1_pm2_5", "s2_pm2_5"]] > 1000
+        ).any(axis=1).astype(int)
+        featured["sensor_divergence_fault"] = (
+            (featured["sensor_abs_diff"] > 35) | (featured["sensor_rel_diff"] > 0.6)
+        ).astype(int)
+        featured["correlation_fault"] = (
+            featured["sensor_corr_24"].fillna(1) < 0.75
+        ).astype(int)
+        featured["battery_low_fault"] = (
+            featured["battery"].fillna(5) < 3.3
+        ).astype(int)
+
+        sensor_mean_filled = featured["sensor_mean"].ffill()
+        same_as_previous = (
+            sensor_mean_filled.eq(sensor_mean_filled.groupby(featured["device_id"]).shift())
+        )
+        featured["flatline_streak"] = (
+            same_as_previous.groupby(
+                [featured["device_id"], (~same_as_previous).cumsum()]
+            ).cumcount()
+            + 1
+        )
+        featured.loc[~same_as_previous, "flatline_streak"] = 0
+        featured["stuck_value_fault"] = (featured["flatline_streak"] >= 6).astype(int)
+
+        std_guard = featured["rolling_std_6"].replace(0, np.nan)
+        spike_mask = (
+            (featured["pm25_rate_change"] > (3 * std_guard))
+            | (featured["pm25_rate_change"] > 80)
+        )
+        featured["spike_fault"] = spike_mask.fillna(False).astype(int)
+
+        missing_run = device_group["missing_data_fault"].transform(
+            lambda series: series.rolling(6, min_periods=1).sum()
+        )
+        featured["missing_streak_fault"] = (missing_run >= 6).astype(int)
+
+        fault_columns = FaultDetectionUtils.get_rule_fault_columns()
+        featured["rule_fault_score"] = featured[fault_columns].sum(axis=1)
+        featured["rule_based_fault"] = (featured["rule_fault_score"] > 0).astype(int)
+
+        featured.replace([np.inf, -np.inf], np.nan, inplace=True)
+        return featured
+
+    @staticmethod
+    def get_rule_fault_columns() -> List[str]:
+        return [
+            "correlation_fault",
+            "missing_data_fault",
+            "negative_value_fault",
+            "out_of_range_fault",
+            "sensor_divergence_fault",
+            "battery_low_fault",
+            "stuck_value_fault",
+            "spike_fault",
+            "missing_streak_fault",
+        ]
+
+    @staticmethod
+    def get_fault_feature_columns(featured_df: pd.DataFrame) -> List[str]:
+        excluded = {
+            "device_id",
+            "timestamp",
+            "anomaly_value",
+            "ml_fault",
+            "ml_fault_probability",
+            "weak_fault_label",
+            "rule_based_fault",
+        }
+        return [
+            column
+            for column in featured_df.columns
+            if column not in excluded
+            and pd.api.types.is_numeric_dtype(featured_df[column])
+        ]
+
+    @staticmethod
+    def prepare_fault_model_matrix(featured_df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+        """Return a feature-complete dataframe for anomaly scoring or model training."""
+        prepared = featured_df.copy()
+        feature_columns = FaultDetectionUtils.get_fault_feature_columns(prepared)
+        prepared[feature_columns] = prepared[feature_columns].replace(
+            [np.inf, -np.inf], np.nan
+        )
+        prepared[feature_columns] = prepared.groupby("device_id")[feature_columns].transform(
+            lambda frame: frame.ffill().bfill()
+        )
+        prepared[feature_columns] = prepared[feature_columns].fillna(0)
+        return prepared, feature_columns
+
+    @staticmethod
+    def _load_existing_artifact_metrics(
+        *, bucket_name: str, blob_name: str
+    ) -> Optional[Dict[str, float]]:
+        """Load metrics from a previously deployed fault model artifact."""
+        try:
+            filestorage: FileStorage = GCSFileStorage()
+            artifact = filestorage.load_file_object(
+                bucket=bucket_name, source_file=blob_name
+            )
+            if isinstance(artifact, dict):
+                metrics = artifact.get("metrics")
+                if isinstance(metrics, dict):
+                    return metrics
+        except FileNotFoundError:
+            return None
+        except Exception as exc:
+            logger.warning(
+                f"Failed to load existing fault model metrics for {blob_name}: {exc}"
+            )
+            return None
+
+        return None
+
+    @staticmethod
+    def _get_deployment_decision(
+        new_metrics: Dict[str, float], old_metrics: Optional[Dict[str, float]]
+    ) -> Tuple[bool, str]:
+        """Deploy only when the candidate meaningfully improves classification quality."""
+        if not old_metrics:
+            return True, "no_previous_model_metrics"
+
+        required = {"f1_score", "precision", "recall"}
+        if not required.issubset(new_metrics.keys()):
+            return False, "new_model_metrics_incomplete"
+        if not required.issubset(old_metrics.keys()):
+            return True, "previous_model_metrics_incomplete"
+
+        if (
+            float(new_metrics["f1_score"]) > float(old_metrics["f1_score"])
+            and float(new_metrics["precision"]) >= float(old_metrics["precision"])
+            and float(new_metrics["recall"]) >= float(old_metrics["recall"])
+        ):
+            return True, "candidate_beats_best_historical"
+
+        return False, "candidate_not_better_than_best_historical"
+
+    @staticmethod
+    def _deploy_if_better(
+        *,
+        bucket_name: str,
+        artifact: Dict[str, Any],
+        blob_name: str,
+        new_metrics: Dict[str, float],
+    ) -> Dict[str, Any]:
+        """Upload the fault model artifact only if it outperforms the deployed one."""
+        old_metrics = FaultDetectionUtils._load_existing_artifact_metrics(
+            bucket_name=bucket_name,
+            blob_name=blob_name,
+        )
+        deploy_new, decision_reason = FaultDetectionUtils._get_deployment_decision(
+            new_metrics=new_metrics,
+            old_metrics=old_metrics,
+        )
+
+        if deploy_new:
+            filestorage: FileStorage = GCSFileStorage()
+            filestorage.save_file_object(
+                bucket=bucket_name,
+                obj=artifact,
+                destination_file=blob_name,
+            )
+            return {
+                "deployed": True,
+                "reason": decision_reason,
+                "old_metrics": old_metrics,
+            }
+
+        logger.info(
+            f"Keeping existing fault model for {blob_name}; candidate did not improve deployment metrics."
+        )
+        return {
+            "deployed": False,
+            "reason": decision_reason,
+            "old_metrics": old_metrics,
+        }
+
+    @staticmethod
+    def summarize_rule_faults(featured_df: pd.DataFrame) -> pd.DataFrame:
+        """Aggregate rule-based row faults to device-level weekly summaries."""
+        fault_columns = FaultDetectionUtils.get_rule_fault_columns()
+        summary = (
+            featured_df.groupby("device_id")[fault_columns + ["rule_fault_score"]]
+            .max()
+            .reset_index()
+        )
+        summary["rule_fault_rows"] = (
+            featured_df.groupby("device_id")["rule_based_fault"].sum().values
+        )
+        summary["fault_severity"] = (
+            featured_df.groupby("device_id")["rule_fault_score"].max().values
+        )
+        summary["fault_types"] = summary[fault_columns].apply(
+            lambda row: ",".join([column for column, value in row.items() if value > 0]),
+            axis=1,
+        )
+        return summary[
+            (summary[fault_columns].sum(axis=1) > 0) | (summary["rule_fault_rows"] > 0)
+        ]
+
     @staticmethod
     def flag_rule_based_faults(df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -642,48 +986,8 @@ class FaultDetectionUtils(BaseMlUtils):
         Outputs:
             pandas dataframe
         """
-
-        if not isinstance(df, pd.DataFrame):
-            raise ValueError("Input must be a dataframe")
-
-        required_columns = ["device_id", "s1_pm2_5", "s2_pm2_5"]
-        if not set(required_columns).issubset(set(df.columns.to_list())):
-            raise ValueError(
-                f"Input must have the following columns: {required_columns}"
-            )
-
-        result = pd.DataFrame(
-            columns=[
-                "device_id",
-                "correlation_fault",
-                "correlation_value",
-                "missing_data_fault",
-            ]
-        )
-        for device in df["device_id"].unique():
-            device_df = df[df["device_id"] == device]
-            corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
-            correlation_fault = 1 if corr < 0.9 else 0
-            missing_data_fault = 0
-            for col in ["s1_pm2_5", "s2_pm2_5"]:
-                null_series = device_df[col].isna()
-                if (null_series.rolling(window=60).sum() >= 60).any():
-                    missing_data_fault = 1
-                    break
-
-            temp = pd.DataFrame(
-                {
-                    "device_id": [device],
-                    "correlation_fault": [correlation_fault],
-                    "correlation_value": [corr],
-                    "missing_data_fault": [missing_data_fault],
-                }
-            )
-            result = pd.concat([result, temp], ignore_index=True)
-        result = result[
-            (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
-        ]
-        return result
+        featured = FaultDetectionUtils.prepare_fault_features(df)
+        return FaultDetectionUtils.summarize_rule_faults(featured)
 
     @staticmethod
     def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
@@ -694,18 +998,19 @@ class FaultDetectionUtils(BaseMlUtils):
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Input must be a dataframe")
 
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        columns_to_ignore = ["device_id", "timestamp"]
-        df.dropna(inplace=True)
+        prepared = FaultDetectionUtils.prepare_fault_features(df)
+        scoring_df, feature_columns = FaultDetectionUtils.prepare_fault_model_matrix(
+            prepared
+        )
+        if scoring_df.empty:
+            raise ValueError("No fault features available for anomaly detection")
 
         isolation_forest = IsolationForest(contamination=0.37)
-        isolation_forest.fit(df.drop(columns=columns_to_ignore))
+        isolation_forest.fit(scoring_df[feature_columns])
 
-        df["anomaly_value"] = isolation_forest.predict(
-            df.drop(columns=columns_to_ignore)
-        )
+        scoring_df["anomaly_value"] = isolation_forest.predict(scoring_df[feature_columns])
 
-        return df
+        return scoring_df
 
     @staticmethod
     def process_faulty_devices_percentage(df: pd.DataFrame):
@@ -754,6 +1059,209 @@ class FaultDetectionUtils(BaseMlUtils):
         return faulty_devices_df
 
     @staticmethod
+    def train_fault_detection_model(
+        df: pd.DataFrame,
+        *,
+        min_rows: Optional[int] = None,
+        model_path: Optional[str] = None,
+        bucket_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Train and persist a weekly fault-classification model."""
+        featured = FaultDetectionUtils.prepare_fault_features(df)
+        anomaly_scored = FaultDetectionUtils.flag_pattern_based_faults(df)
+        weak_labels = anomaly_scored[["device_id", "timestamp", "anomaly_value"]].copy()
+        weak_labels["weak_fault_label"] = (
+            weak_labels["anomaly_value"].eq(-1).astype(int)
+        )
+        training_df = featured.merge(
+            weak_labels[["device_id", "timestamp", "weak_fault_label"]],
+            on=["device_id", "timestamp"],
+            how="left",
+        )
+        training_df["weak_fault_label"] = training_df["weak_fault_label"].fillna(0)
+        training_df["weak_fault_label"] = (
+            (training_df["rule_based_fault"] == 1)
+            | (training_df["weak_fault_label"] == 1)
+        ).astype(int)
+
+        min_rows = min_rows or FaultDetectionUtils.MIN_TRAINING_ROWS
+        if len(training_df) < min_rows:
+            raise ValueError(
+                f"Insufficient data for training fault model. Need at least {min_rows} rows."
+            )
+
+        model_df, feature_columns = FaultDetectionUtils.prepare_fault_model_matrix(
+            training_df
+        )
+        labels = model_df["weak_fault_label"]
+        if labels.nunique() < 2:
+            raise ValueError(
+                "Fault model training requires both faulty and non-faulty samples."
+            )
+        if (labels.value_counts() < 2).any():
+            raise ValueError(
+                "Fault model training requires at least two samples in each class "
+                "for holdout evaluation."
+            )
+
+        classifier_params = {
+            "objective": "binary",
+            "n_estimators": 250,
+            "learning_rate": 0.05,
+            "num_leaves": 31,
+            "random_state": 42,
+            "class_weight": "balanced",
+            "verbosity": -1,
+        }
+        validation_rows = max(2, int(round(len(model_df) * 0.2)))
+        validation_rows = min(validation_rows, len(model_df) - 2)
+
+        (
+            training_features,
+            validation_features,
+            training_labels,
+            validation_labels,
+        ) = train_test_split(
+            model_df[feature_columns],
+            labels,
+            test_size=validation_rows,
+            random_state=42,
+            stratify=labels,
+        )
+
+        evaluation_classifier = LGBMClassifier(
+            **classifier_params,
+        )
+        evaluation_classifier.fit(training_features, training_labels)
+
+        predictions = evaluation_classifier.predict(validation_features)
+        probabilities = evaluation_classifier.predict_proba(validation_features)[:, 1]
+        metrics = {
+            "precision": float(
+                precision_score(validation_labels, predictions, zero_division=0)
+            ),
+            "recall": float(
+                recall_score(validation_labels, predictions, zero_division=0)
+            ),
+            "f1_score": float(f1_score(validation_labels, predictions, zero_division=0)),
+            "positive_rate": float(validation_labels.mean()),
+            "mean_probability": float(probabilities.mean()),
+            "rows_used": int(len(validation_labels)),
+        }
+
+        classifier = LGBMClassifier(**classifier_params)
+        classifier.fit(model_df[feature_columns], labels)
+        artifact = {
+            "model": classifier,
+            "feature_columns": feature_columns,
+            "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "metrics": metrics,
+        }
+        target_bucket = bucket_name or FaultDetectionUtils.get_fault_model_bucket()
+        target_path = model_path or FaultDetectionUtils.DEFAULT_FAULT_MODEL_PATH
+
+        deployment = FaultDetectionUtils._deploy_if_better(
+            bucket_name=target_bucket,
+            artifact=artifact,
+            blob_name=target_path,
+            new_metrics=metrics,
+        )
+        metrics["deployed"] = deployment["deployed"]
+        metrics["deployment_reason"] = deployment["reason"]
+
+        tracker = MlflowTracker(
+            tracking_uri=configuration.MLFLOW_TRACKING_URI,
+            registry_uri=configuration.MLFLOW_REGISTRY_URI,
+            experiment_name=configuration.MLFLOW_FAULT_NAME
+            or f"fault_detection_{environment}",
+            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
+            enabled=True,
+        )
+        input_example = model_df[feature_columns].head(5)
+        if input_example.empty:
+            input_example = None
+        tracker.log_run(
+            run_name="fault-detection-weekly-training",
+            params={
+                "model_type": "LGBMClassifier",
+                "n_estimators": 250,
+                "learning_rate": 0.05,
+                "num_leaves": 31,
+                "min_rows": min_rows,
+                "feature_count": len(feature_columns),
+                "model_path": target_path,
+            },
+            metrics=metrics,
+            tags={
+                "pipeline": "fault_detection",
+                "model_kind": "classification",
+                "decision_reason": deployment["reason"],
+                "deployed": str(deployment["deployed"]).lower(),
+                "bucket_name": target_bucket,
+            },
+            model=classifier,
+            model_artifact_path="model",
+            input_example=input_example,
+        )
+
+        return metrics
+
+    @staticmethod
+    def flag_ml_based_faults(
+        df: pd.DataFrame, *, model_path: Optional[str] = None
+    ) -> pd.DataFrame:
+        """Apply the persisted fault-classification model to raw readings."""
+        featured = FaultDetectionUtils.prepare_fault_features(df)
+        filestorage: FileStorage = GCSFileStorage()
+        target_bucket = FaultDetectionUtils.get_fault_model_bucket()
+        resolved_model_path = model_path or FaultDetectionUtils.DEFAULT_FAULT_MODEL_PATH
+        try:
+            artifact = filestorage.load_file_object(
+                bucket=target_bucket,
+                source_file=resolved_model_path,
+            )
+        except FileNotFoundError:
+            logger.warning(
+                "Fault detection model not found at "
+                f"{target_bucket}/{resolved_model_path}. Skipping ML-based fault scoring."
+            )
+            return pd.DataFrame(
+                columns=["device_id", "ml_fault_probability", "ml_fault"]
+            )
+        feature_columns = artifact["feature_columns"]
+        missing_features = sorted(set(feature_columns).difference(featured.columns))
+        if missing_features:
+            raise ValueError(
+                "Missing required fault-model features at inference for "
+                f"'{resolved_model_path}': {missing_features}. "
+                f"Expected feature schema: {feature_columns}"
+            )
+
+        inference_df, _ = FaultDetectionUtils.prepare_fault_model_matrix(featured)
+        if inference_df.empty:
+            return pd.DataFrame(
+                columns=["device_id", "ml_fault_probability", "ml_fault"]
+            )
+
+        model = artifact["model"]
+        inference_df["ml_fault_probability"] = model.predict_proba(
+            inference_df[feature_columns]
+        )[:, 1]
+        inference_df["ml_fault"] = (
+            inference_df["ml_fault_probability"] >= 0.6
+        ).astype(int)
+
+        summary = (
+            inference_df.groupby("device_id")
+            .agg(
+                ml_fault_probability=("ml_fault_probability", "max"),
+                ml_fault=("ml_fault", "max"),
+            )
+            .reset_index()
+        )
+        return summary[summary["ml_fault"] == 1]
+
+    @staticmethod
     def save_faulty_devices(*dataframes):
         """Save or update faulty devices to MongoDB"""
         dataframes = list(dataframes)
@@ -780,6 +1288,45 @@ class FaultDetectionUtils(BaseMlUtils):
                 logger.error(f"Error saving faulty devices to MongoDB: {e}")
 
             logger.info("Faulty devices saved/updated to MongoDB")
+
+    @staticmethod
+    def run_weekly_fault_detection() -> Dict[str, pd.DataFrame]:
+        """Run the weekly fault-detection workflow from raw readings."""
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        raw_data = BigQueryApi().fetch_raw_readings()
+        rule_based_faults = FaultDetectionUtils.flag_rule_based_faults(raw_data)
+        pattern_based_faults = FaultDetectionUtils.flag_pattern_based_faults(raw_data)
+        faulty_devices_percentage = FaultDetectionUtils.process_faulty_devices_percentage(
+            pattern_based_faults.copy()
+        )
+        faulty_devices_sequence = (
+            FaultDetectionUtils.process_faulty_devices_fault_sequence(
+                pattern_based_faults.copy()
+            )
+        )
+        ml_faults = FaultDetectionUtils.flag_ml_based_faults(raw_data)
+        FaultDetectionUtils.save_faulty_devices(
+            rule_based_faults,
+            faulty_devices_percentage,
+            faulty_devices_sequence,
+            ml_faults,
+        )
+        return {
+            "rule_based_faults": rule_based_faults,
+            "pattern_based_faults": pattern_based_faults,
+            "faulty_devices_percentage": faulty_devices_percentage,
+            "faulty_devices_sequence": faulty_devices_sequence,
+            "ml_faults": ml_faults,
+        }
+
+    @staticmethod
+    def run_weekly_fault_model_training() -> Dict[str, Any]:
+        """Fetch weekly raw readings and retrain the fault model."""
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        raw_data = BigQueryApi().fetch_raw_readings()
+        return FaultDetectionUtils.train_fault_detection_model(raw_data)
 
 
 class SatelliteUtils(BaseMlUtils):
