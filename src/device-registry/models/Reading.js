@@ -51,6 +51,41 @@ const createSafePollutantLookup = (
   },
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED HELPER — clampMapTimeWindow
+//
+// Single source of truth for the time-window clamping rules used by both
+// listForMap and latestForMap. Extracted to eliminate the duplicated
+// fortyEightHoursAgo / fourteenDaysAgo / effectiveGte blocks (finding 2).
+//
+//   • No callerGte              → 48 h default (fast path, partial index hit)
+//   • callerGte within 48 h    → honour as-is
+//   • callerGte within 14 d    → honour as-is
+//   • callerGte older than 14 d → clamp to fourteenDaysAgo (TTL boundary),
+//                                  NOT fortyEightHoursAgo so data between
+//                                  48 h–14 d is never silently discarded
+//
+// @param {Date|undefined} callerGte
+// @returns {{ effectiveGte: Date, fourteenDaysAgo: Date }}
+// ═══════════════════════════════════════════════════════════════════════════════
+const clampMapTimeWindow = (callerGte) => {
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  let effectiveGte;
+  if (!callerGte) {
+    effectiveGte = fortyEightHoursAgo;
+  } else if (callerGte >= fortyEightHoursAgo) {
+    effectiveGte = callerGte;
+  } else if (callerGte >= fourteenDaysAgo) {
+    effectiveGte = callerGte;
+  } else {
+    effectiveGte = fourteenDaysAgo;
+  }
+
+  return { effectiveGte, fourteenDaysAgo };
+};
+
 // New schema for the 'raw' part of latest_pm2_5
 const LatestPm2_5RawValueSchema = new Schema(
   {
@@ -745,32 +780,21 @@ ReadingsSchema.statics.latestForMap = async function(
   next,
 ) {
   try {
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    //  strip time and pm2_5 from caller filter before
-    // building $match, then merge time back using the same effectiveGte logic
-    // as listForMap. This prevents ...filter from overwriting the enforced
-    // time floor and defeating the partial index.
+    // Strip time and pm2_5 from caller filter before building $match so
+    // ...safeFilterForMatch cannot overwrite the enforced time floor or pm2_5
+    // predicate (finding 2 fix — carried forward from previous review round).
     const {
       time: callerTime,
-      "pm2_5.value": _pm25, // strip any caller pm2_5 override
+      "pm2_5.value": _pm25,
       ...safeFilterForMatch
     } = filter;
 
+    // Resolve callerGte — handle both { $gte: Date } and a bare Date instance.
     const callerGte =
       callerTime?.$gte ?? (callerTime instanceof Date ? callerTime : undefined);
 
-    let effectiveGte;
-    if (!callerGte) {
-      effectiveGte = fortyEightHoursAgo;
-    } else if (callerGte >= fortyEightHoursAgo) {
-      effectiveGte = callerGte;
-    } else if (callerGte >= fourteenDaysAgo) {
-      effectiveGte = callerGte;
-    } else {
-      // Clamp to 14-day TTL boundary — NOT to 48 h (finding 1 fix mirrored).
-      effectiveGte = fourteenDaysAgo;
-    }
+    // Delegate to shared helper — eliminates duplication with listForMap.
+    const { effectiveGte } = clampMapTimeWindow(callerGte);
 
     // Preserve any caller-supplied upper bound ($lte / $lt) while enforcing
     // the clamped lower bound. Mirror the listForMap timeConstraint pattern:
@@ -1783,9 +1807,6 @@ ReadingsSchema.statics.listForMap = async function(
     validateFilterRecursively(filter);
     // ── End guard ─────────────────────────────────────────────────────────────
 
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-
     const DEFAULT_LIMIT = 1000;
     const MAX_LIMIT = 5000;
 
@@ -1802,33 +1823,8 @@ ReadingsSchema.statics.listForMap = async function(
         ? 0
         : parsedSkip;
 
-    // effectiveGte clamping logic.
-    //
-    // Priority / intended behaviour:
-    //   • No caller time   → default 48 h window (fastest path, uses partial index)
-    //   • Caller within 48 h → honour the tighter window as-is
-    //   • Caller between 48 h and 14 d → honour it (caller explicitly asked for
-    //     older data; we allow it within the TTL window)
-    //   • Caller older than 14 d → clamp to fourteenDaysAgo (data beyond TTL
-    //     is unreliable; do NOT fall back to 48 h — that would silently discard
-    //     data the caller expected to receive between 48 h and 14 d)
-    const callerGte = filter.time?.$gte;
-
-    let effectiveGte;
-    if (!callerGte) {
-      // No caller time supplied — use the fast 48 h default.
-      effectiveGte = fortyEightHoursAgo;
-    } else if (callerGte >= fortyEightHoursAgo) {
-      // Caller wants a window at most 48 h wide — honour it exactly.
-      effectiveGte = callerGte;
-    } else if (callerGte >= fourteenDaysAgo) {
-      // Caller is between 48 h and 14 d — allowed, honour it.
-      effectiveGte = callerGte;
-    } else {
-      // Caller is older than the 14-day TTL — clamp to fourteenDaysAgo,
-      // NOT to fortyEightHoursAgo (which would silently drop valid recent data).
-      effectiveGte = fourteenDaysAgo;
-    }
+    // Delegate to shared helper — see clampMapTimeWindow defined above.
+    const { effectiveGte } = clampMapTimeWindow(filter.time?.$gte);
 
     const timeConstraint = {
       ...(filter.time || {}),
