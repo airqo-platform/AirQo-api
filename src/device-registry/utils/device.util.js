@@ -76,34 +76,21 @@ const getDeviceCategoriesAddFieldsStage = () => {
         primary_category: { $ifNull: ["$category", "lowcost"] },
         deployment_category: { $ifNull: ["$deployment_type", "static"] },
 
+        // Returns the raw network value so the frontend can display it directly.
+        // null when network is missing or empty string.
         ownership_category: {
-          $switch: {
-            branches: [
-              {
-                case: {
-                  $eq: [{ $toLower: { $ifNull: ["$network", ""] } }, "airqo"],
-                },
-                then: "AirQo-owned",
-              },
-              {
-                case: {
-                  $and: [
-                    { $ne: [{ $ifNull: ["$network", ""] }, ""] },
-                    {
-                      $ne: [
-                        { $toLower: { $ifNull: ["$network", ""] } },
-                        "airqo",
-                      ],
-                    },
-                  ],
-                },
-                then: "third-party",
-              },
-            ],
-            default: null,
+          $cond: {
+            if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+            then: "$network",
+            else: null,
           },
         },
 
+        // Only meaningful for mobile devices — null for static.
+        // Priority: movement_pattern (most descriptive) → route_id → coverage_area → "mobile".
+        // Note: when called from Event.js pipelines, ensure mobility_metadata is
+        // promoted to the root document after the device_details $lookup, otherwise
+        // this will always fall back to the default "mobile".
         mobile_category: {
           $cond: {
             if: {
@@ -203,6 +190,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
             { $eq: ["$deployment_type", "mobile"] },
           ],
         },
+        // Strict negation of is_mobile — mirrors computeDeviceCategories() JS logic
         is_static: {
           $not: [
             {
@@ -217,8 +205,8 @@ const getDeviceCategoriesAddFieldsStage = () => {
         is_bam: { $eq: ["$category", "bam"] },
         is_gas: { $eq: ["$category", "gas"] },
 
-        // wrap in $setUnion to deduplicate (e.g. deployment_category and
-        // mobile_category both resolving to "mobile")
+        // $setUnion guarantees uniqueness — prevents duplicates when
+        // deployment_category and mobile_category resolve to the same value (e.g. "mobile")
         all_categories: {
           $setUnion: [
             [],
@@ -228,26 +216,15 @@ const getDeviceCategoriesAddFieldsStage = () => {
                   $concatArrays: [
                     [{ $ifNull: ["$category", "lowcost"] }],
                     [{ $ifNull: ["$deployment_type", "static"] }],
+                    // Include network value when present
                     {
                       $cond: {
                         if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
-                        then: [
-                          {
-                            $cond: {
-                              if: {
-                                $eq: [
-                                  { $toLower: { $ifNull: ["$network", ""] } },
-                                  "airqo",
-                                ],
-                              },
-                              then: "AirQo-owned",
-                              else: "third-party",
-                            },
-                          },
-                        ],
+                        then: ["$network"],
                         else: [],
                       },
                     },
+                    // Include mobile_category when device is mobile
                     {
                       $cond: {
                         if: {

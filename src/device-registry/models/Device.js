@@ -89,14 +89,12 @@ function computeDeviceCategories(deviceDoc) {
 
   const isMobile = doc.mobility === true || doc.deployment_type === "mobile";
 
-  // ownership_category — derived from network
-  //   "airqo" (case-insensitive) → "AirQo-owned"
-  //   any other non-empty network → "third-party"
-  //   null / undefined / ""       → null
+  // ownership_category — return raw network value
+  //   non-empty network → the network value itself
+  //   null / ""         → null
   let ownership_category = null;
   if (doc.network && doc.network.trim() !== "") {
-    ownership_category =
-      doc.network.toLowerCase() === "airqo" ? "AirQo-owned" : "third-party";
+    ownership_category = doc.network;
   }
 
   // mobile_category — derived from mobility_metadata
@@ -189,6 +187,7 @@ const deviceSchema = new mongoose.Schema(
     network: {
       type: String,
       trim: true,
+      lowercase: true,
       required: [true, "the network is required!"],
     },
     groups: {
@@ -1164,37 +1163,18 @@ deviceSchema.statics = {
             primary_category: { $ifNull: ["$category", "lowcost"] },
             deployment_category: { $ifNull: ["$deployment_type", "static"] },
 
+            // Returns the raw network value so the frontend can display it directly.
+            // null when network is missing or empty string.
             ownership_category: {
-              $switch: {
-                branches: [
-                  {
-                    case: {
-                      $eq: [
-                        { $toLower: { $ifNull: ["$network", ""] } },
-                        "airqo",
-                      ],
-                    },
-                    then: "AirQo-owned",
-                  },
-                  {
-                    case: {
-                      $and: [
-                        { $ne: [{ $ifNull: ["$network", ""] }, ""] },
-                        {
-                          $ne: [
-                            { $toLower: { $ifNull: ["$network", ""] } },
-                            "airqo",
-                          ],
-                        },
-                      ],
-                    },
-                    then: "third-party",
-                  },
-                ],
-                default: null,
+              $cond: {
+                if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+                then: "$network",
+                else: null,
               },
             },
 
+            // Only meaningful for mobile devices — null for static.
+            // Priority: movement_pattern → route_id → coverage_area → "mobile"
             mobile_category: {
               $cond: {
                 if: {
@@ -1304,6 +1284,7 @@ deviceSchema.statics = {
                 { $eq: ["$deployment_type", "mobile"] },
               ],
             },
+            // Strict negation of is_mobile — $not requires array form in aggregation expressions
             is_static: {
               $not: [
                 {
@@ -1318,8 +1299,8 @@ deviceSchema.statics = {
             is_bam: { $eq: ["$category", "bam"] },
             is_gas: { $eq: ["$category", "gas"] },
 
-            // wrap in $setUnion to deduplicate
-            // (e.g. deployment_category and mobile_category both "mobile")
+            // $setUnion guarantees uniqueness — prevents duplicates when
+            // deployment_category and mobile_category resolve to the same value (e.g. "mobile")
             all_categories: {
               $setUnion: [
                 [],
@@ -1329,28 +1310,15 @@ deviceSchema.statics = {
                       $concatArrays: [
                         [{ $ifNull: ["$category", "lowcost"] }],
                         [{ $ifNull: ["$deployment_type", "static"] }],
+                        // Include network value when present
                         {
                           $cond: {
                             if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
-                            then: [
-                              {
-                                $cond: {
-                                  if: {
-                                    $eq: [
-                                      {
-                                        $toLower: { $ifNull: ["$network", ""] },
-                                      },
-                                      "airqo",
-                                    ],
-                                  },
-                                  then: "AirQo-owned",
-                                  else: "third-party",
-                                },
-                              },
-                            ],
+                            then: ["$network"],
                             else: [],
                           },
                         },
+                        // Include mobile_category when device is mobile
                         {
                           $cond: {
                             if: {
@@ -1616,7 +1584,9 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
+          {
+            message: error.message,
+          },
         ),
       );
     }
