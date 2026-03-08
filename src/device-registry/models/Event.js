@@ -1795,27 +1795,6 @@ async function signalData(model, filter) {
       foreignField: "_id",
       as: "device_details",
     })
-    .addFields({
-      category: {
-        $ifNull: [{ $arrayElemAt: ["$device_details.category", 0] }, "lowcost"],
-      },
-      mobility: {
-        $ifNull: [{ $arrayElemAt: ["$device_details.mobility", 0] }, false],
-      },
-      deployment_type: {
-        $ifNull: [
-          "$deployment_type",
-          {
-            $ifNull: [
-              { $arrayElemAt: ["$device_details.deployment_type", 0] },
-              "static",
-            ],
-          },
-        ],
-      },
-    })
-    // Now compute device_categories from the promoted fields + device_details.
-    .addFields(getDeviceCategoriesAddFieldsStage().$addFields)
     .lookup({
       from: "cohorts",
       localField: "device_details.cohorts",
