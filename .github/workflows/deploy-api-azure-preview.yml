@@ -193,7 +193,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Auth-service azure changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
             })
 
 #########################################
@@ -273,7 +273,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Beacon API changes in this PR available for preview [here](${{ needs.beacon-api.outputs.url }})'
+              body: 'Beacon API azure changes in this PR available for preview [here](${{ needs.beacon-api.outputs.url }})'
             })
 
 #########################################
@@ -353,7 +353,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Device registry changes in this PR available for preview [here](${{ needs.device-registry.outputs.url }})'
+              body: 'Device registry azure changes in this PR available for preview [here](${{ needs.device-registry.outputs.url }})'
             })
 
 #########################################
@@ -433,7 +433,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Predict service changes in this PR available for preview [here](${{ needs.predict-service.outputs.url }})'
+              body: 'Predict service azure changes in this PR available for preview [here](${{ needs.predict-service.outputs.url }})'
             })
 
 #########################################
@@ -513,7 +513,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Meta-data changes in this PR available for preview [here](${{ needs.meta-data.outputs.url }})'
+              body: 'Meta-data azure changes in this PR available for preview [here](${{ needs.meta-data.outputs.url }})'
             })
 
 #########################################
@@ -593,7 +593,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'View API changes in this PR available for preview [here](${{ needs.view.outputs.url }})'
+              body: 'View API azure changes in this PR available for preview [here](${{ needs.view.outputs.url }})'
             })
 
 #########################################
@@ -673,7 +673,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Calibrate API changes in this PR available for preview [here](${{ needs.calibrate.outputs.url }})'
+              body: 'Calibrate API azure changes in this PR available for preview [here](${{ needs.calibrate.outputs.url }})'
             })
 
 #########################################
@@ -753,7 +753,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Spatial changes in this PR available for preview [here](${{ needs.spatial.outputs.url }})'
+              body: 'Spatial azure changes in this PR available for preview [here](${{ needs.spatial.outputs.url }})'
             })
 
 #########################################
@@ -833,7 +833,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Superset changes in this PR available for preview [here](${{ needs.superset.outputs.url }})'
+              body: 'Superset azure changes in this PR available for preview [here](${{ needs.superset.outputs.url }})'
             })
 
 #########################################
@@ -913,5 +913,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Website API changes in this PR available for preview [here](${{ needs.website-api.outputs.url }})'
+              body: 'Website API azure changes in this PR available for preview [here](${{ needs.website-api.outputs.url }})'
             })
