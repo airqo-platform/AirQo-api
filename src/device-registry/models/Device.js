@@ -1165,6 +1165,7 @@ deviceSchema.statics = {
 
             // Returns the raw network value so the frontend can display it directly.
             // null when network is missing or empty string.
+            // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
             ownership_category: {
               $cond: {
                 if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
@@ -1175,6 +1176,7 @@ deviceSchema.statics = {
 
             // Only meaningful for mobile devices — null for static.
             // Priority: movement_pattern → route_id → coverage_area → "mobile"
+            // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
             mobile_category: {
               $cond: {
                 if: {

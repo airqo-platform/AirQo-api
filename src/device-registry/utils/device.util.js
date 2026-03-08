@@ -78,6 +78,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
 
         // Returns the raw network value so the frontend can display it directly.
         // null when network is missing or empty string.
+        // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
         ownership_category: {
           $cond: {
             if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
@@ -91,6 +92,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
         // Note: when called from Event.js pipelines, ensure mobility_metadata is
         // promoted to the root document after the device_details $lookup, otherwise
         // this will always fall back to the default "mobile".
+        // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
         mobile_category: {
           $cond: {
             if: {
@@ -190,7 +192,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
             { $eq: ["$deployment_type", "mobile"] },
           ],
         },
-        // Strict negation of is_mobile — mirrors computeDeviceCategories() JS logic
+        // Strict negation of is_mobile — $not requires array form in aggregation expressions
         is_static: {
           $not: [
             {
