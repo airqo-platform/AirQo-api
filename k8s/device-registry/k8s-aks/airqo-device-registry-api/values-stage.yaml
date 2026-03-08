@@ -1,12 +1,12 @@
 app:
   name: airqo-stage-device-registry-api
   label: sta-device-reg
-  secret: sta-env-device-registry  # used by ExternalSecret
-  namespace: staging           # still used for Helm label generation only
+  secret: sta-env-device-registry
+  namespace: staging
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-device-registry-api
-  tag: latest
+  tag: stage-f3c821d3-1772960893
 resources:
   limits:
     cpu: 300m
