@@ -89,17 +89,15 @@ function computeDeviceCategories(deviceDoc) {
 
   const isMobile = doc.mobility === true || doc.deployment_type === "mobile";
 
-  // ownership_category — return raw network value
-  //   non-empty network → the network value itself
-  //   null / ""         → null
+  // ownership_category — returns raw network value for frontend display
+  // null when network is missing or empty string
   let ownership_category = null;
   if (doc.network && doc.network.trim() !== "") {
     ownership_category = doc.network;
   }
 
-  // mobile_category — derived from mobility_metadata
-  //   null for static devices
-  //   priority: movement_pattern → route_id → coverage_area → generic "mobile"
+  // mobile_category — only meaningful for mobile devices, null for static
+  // priority: movement_pattern (most descriptive) → route_id → coverage_area → "mobile"
   let mobile_category = null;
   if (isMobile) {
     const mm = doc.mobility_metadata || {};
@@ -130,9 +128,11 @@ function computeDeviceCategories(deviceDoc) {
     mobile_category,
     is_mobile: isMobile,
     is_static: !isMobile,
-    is_lowcost: doc.category === "lowcost",
-    is_bam: doc.category === "bam",
-    is_gas: doc.category === "gas",
+    // Use primary_category (resolved) not doc.category (raw) so flags are
+    // consistent when category is missing and defaults to "lowcost"
+    is_lowcost: primary_category === "lowcost",
+    is_bam: primary_category === "bam",
+    is_gas: primary_category === "gas",
     all_categories,
     category_hierarchy: [
       {
@@ -1297,9 +1297,13 @@ deviceSchema.statics = {
                 },
               ],
             },
-            is_lowcost: { $eq: ["$category", "lowcost"] },
-            is_bam: { $eq: ["$category", "bam"] },
-            is_gas: { $eq: ["$category", "gas"] },
+            // Compare against resolved primary_category (via $ifNull) not raw $category,
+            // so a device with no category correctly gets is_lowcost: true
+            is_lowcost: {
+              $eq: [{ $ifNull: ["$category", "lowcost"] }, "lowcost"],
+            },
+            is_bam: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "bam"] },
+            is_gas: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "gas"] },
 
             // $setUnion guarantees uniqueness — prevents duplicates when
             // deployment_category and mobile_category resolve to the same value (e.g. "mobile")
@@ -1593,6 +1597,7 @@ deviceSchema.statics = {
       );
     }
   },
+
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");

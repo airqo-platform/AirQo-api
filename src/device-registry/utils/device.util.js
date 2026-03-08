@@ -203,9 +203,11 @@ const getDeviceCategoriesAddFieldsStage = () => {
             },
           ],
         },
-        is_lowcost: { $eq: ["$category", "lowcost"] },
-        is_bam: { $eq: ["$category", "bam"] },
-        is_gas: { $eq: ["$category", "gas"] },
+        // Compare against resolved primary_category (via $ifNull) not raw $category,
+        // so a device with no category correctly gets is_lowcost: true
+        is_lowcost: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "lowcost"] },
+        is_bam: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "bam"] },
+        is_gas: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "gas"] },
 
         // $setUnion guarantees uniqueness — prevents duplicates when
         // deployment_category and mobile_category resolve to the same value (e.g. "mobile")
