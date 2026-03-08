@@ -1129,6 +1129,39 @@ async function fetchData(model, filter) {
         },
       });
 
+      // Promote category, mobility, and deployment_type from the joined device
+      // document onto the root before getDeviceCategoriesAddFieldsStage() runs.
+      // These fields are absent from the value/event document (they live only on
+      // Device) and are stripped by buildEarlyProjection, so the stage must read
+      // them from device_details[0] explicitly.
+      // deployment_type: prefer the root value (present in valueSchema) and fall
+      // back to the device document — keeps mobile readings correct when the event
+      // itself carries the field.
+      preFacetStages.push({
+        $addFields: {
+          category: {
+            $ifNull: [
+              { $arrayElemAt: ["$device_details.category", 0] },
+              "lowcost",
+            ],
+          },
+          mobility: {
+            $ifNull: [{ $arrayElemAt: ["$device_details.mobility", 0] }, false],
+          },
+          deployment_type: {
+            $ifNull: [
+              "$deployment_type",
+              {
+                $ifNull: [
+                  { $arrayElemAt: ["$device_details.deployment_type", 0] },
+                  "static",
+                ],
+              },
+            ],
+          },
+        },
+      });
+
       preFacetStages.push(getDeviceCategoriesAddFieldsStage());
 
       if (active === "yes") {
@@ -1241,6 +1274,7 @@ async function fetchData(model, filter) {
           $first: { $arrayElemAt: ["$device_details.isPrimaryInLocation", 0] },
         };
         groupStage.health_tips = { $first: "$healthTips" };
+        groupStage.device_categories = { $first: "$device_categories" };
       }
 
       if (search.grid_id) {
@@ -1798,6 +1832,30 @@ async function signalData(model, filter) {
       foreignField: "_id",
       as: "device_details",
     })
+    // Promote category, mobility, deployment_type from device_details onto
+    // the root document so getDeviceCategoriesAddFieldsStage() has accurate
+    // inputs. These fields only exist on Device, not on the value document.
+    .addFields({
+      category: {
+        $ifNull: [{ $arrayElemAt: ["$device_details.category", 0] }, "lowcost"],
+      },
+      mobility: {
+        $ifNull: [{ $arrayElemAt: ["$device_details.mobility", 0] }, false],
+      },
+      deployment_type: {
+        $ifNull: [
+          "$deployment_type",
+          {
+            $ifNull: [
+              { $arrayElemAt: ["$device_details.deployment_type", 0] },
+              "static",
+            ],
+          },
+        ],
+      },
+    })
+    // Compute device_categories from the promoted fields + device_details.
+    .addFields(getDeviceCategoriesAddFieldsStage().$addFields)
     .lookup({
       from: "cohorts",
       localField: "device_details.cohorts",
@@ -1822,12 +1880,8 @@ async function signalData(model, filter) {
           $match: {
             $expr: {
               $and: [
-                {
-                  $lte: ["$aqi_category.min", "$$pollutantValue"],
-                },
-                {
-                  $gte: ["$aqi_category.max", "$$pollutantValue"],
-                },
+                { $lte: ["$aqi_category.min", "$$pollutantValue"] },
+                { $gte: ["$aqi_category.max", "$$pollutantValue"] },
               ],
             },
           },
@@ -1850,6 +1904,7 @@ async function signalData(model, filter) {
       },
       device_number: { $first: "$device_number" },
       health_tips: { $first: "$healthTips" },
+      device_categories: { $first: "$device_categories" }, // ← carries computed value through $group
       site: { $first: "$site" },
       site_id: { $first: "$site_id" },
       time: { $first: "$time" },
@@ -1919,7 +1974,6 @@ async function signalData(model, filter) {
       aqi_ranges: AQI_RANGES,
     })
     .addFields(generateAqiAddFields().$addFields)
-    // Apply pagination here to prevent memory overflow
     .skip(skip)
     .limit(limit)
     .allowDiskUse(true);

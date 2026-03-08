@@ -2,4 +2,3 @@
 ./configMaps
 .env/
 *config*
-*secret*
