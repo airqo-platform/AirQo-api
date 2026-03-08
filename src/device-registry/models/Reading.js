@@ -55,22 +55,35 @@ const createSafePollutantLookup = (
 // SHARED HELPER — clampMapTimeWindow
 //
 // Single source of truth for the time-window clamping rules used by both
-// listForMap and latestForMap. Extracted to eliminate the duplicated
-// fortyEightHoursAgo / fourteenDaysAgo / effectiveGte blocks (finding 2).
+// listForMap and latestForMap. Accepts the raw filter.time value directly
+// (either a { $gte: Date, ... } object or a bare Date instance) and
+// normalises it internally so both callers behave identically regardless
+// of how filter.time was passed.
 //
-//   • No callerGte              → 48 h default (fast path, partial index hit)
-//   • callerGte within 48 h    → honour as-is
-//   • callerGte within 14 d    → honour as-is
-//   • callerGte older than 14 d → clamp to fourteenDaysAgo (TTL boundary),
-//                                  NOT fortyEightHoursAgo so data between
-//                                  48 h–14 d is never silently discarded
+//   • No callerTime / no resolvable $gte → 48 h default (partial index hit)
+//   • resolved $gte within 48 h          → honour as-is
+//   • resolved $gte within 14 d          → honour as-is
+//   • resolved $gte older than 14 d      → clamp to fourteenDaysAgo (TTL),
+//                                           NOT fortyEightHoursAgo so data
+//                                           between 48 h–14 d is preserved
 //
-// @param {Date|undefined} callerGte
+// @param {Date|{ $gte?: Date, $lte?: Date, $lt?: Date }|undefined} callerTime
+//   The raw filter.time value — pass filter.time (listForMap) or callerTime
+//   (latestForMap after destructuring) directly; no pre-extraction needed.
 // @returns {{ effectiveGte: Date, fourteenDaysAgo: Date }}
 // ═══════════════════════════════════════════════════════════════════════════════
-const clampMapTimeWindow = (callerGte) => {
+const clampMapTimeWindow = (callerTime) => {
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  // Normalise: a plain Date is treated as a lower bound; an object may carry
+  // $gte; anything else (null/undefined) resolves to undefined → default 48 h.
+  const callerGte =
+    callerTime instanceof Date
+      ? callerTime
+      : callerTime?.$gte instanceof Date
+      ? callerTime.$gte
+      : undefined;
 
   let effectiveGte;
   if (!callerGte) {
@@ -789,12 +802,10 @@ ReadingsSchema.statics.latestForMap = async function(
       ...safeFilterForMatch
     } = filter;
 
-    // Resolve callerGte — handle both { $gte: Date } and a bare Date instance.
-    const callerGte =
-      callerTime?.$gte ?? (callerTime instanceof Date ? callerTime : undefined);
-
-    // Delegate to shared helper — eliminates duplication with listForMap.
-    const { effectiveGte } = clampMapTimeWindow(callerGte);
+    // Delegate to shared helper — pass callerTime directly; normalisation of
+    // bare Date vs { $gte } object is handled inside clampMapTimeWindow,
+    // making this identical to the listForMap call path.
+    const { effectiveGte } = clampMapTimeWindow(callerTime);
 
     // Preserve any caller-supplied upper bound ($lte / $lt) while enforcing
     // the clamped lower bound. Mirror the listForMap timeConstraint pattern:
@@ -1823,8 +1834,9 @@ ReadingsSchema.statics.listForMap = async function(
         ? 0
         : parsedSkip;
 
-    // Delegate to shared helper — see clampMapTimeWindow defined above.
-    const { effectiveGte } = clampMapTimeWindow(filter.time?.$gte);
+    // Delegate to shared helper — pass filter.time directly; the helper
+    // normalises bare Date vs { $gte } object identically to latestForMap.
+    const { effectiveGte } = clampMapTimeWindow(filter.time);
 
     const timeConstraint = {
       ...(filter.time || {}),
