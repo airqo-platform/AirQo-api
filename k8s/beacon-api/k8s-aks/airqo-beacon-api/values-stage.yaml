@@ -1,13 +1,13 @@
 app:
   name: airqo-stage-beacon-api
   label: sta-beacon-api
-  azureSecret: sta-env-beacon  
-  k8sSecret: sta-beacon-api # used by ExternalSecret
-  namespace: staging           # still used for Helm label generation only
+  azureSecret: sta-env-beacon
+  k8sSecret: sta-beacon-api
+  namespace: staging
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-beacon-api
-  tag: latest
+  tag: stage-d46631d7-1772989600
 resources:
   limits:
     cpu: 300m
