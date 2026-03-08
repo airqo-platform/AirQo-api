@@ -154,7 +154,21 @@ class ReadingsBatchProcessor {
       }
       // Preserve pre-computed fields from the 'events' view
       if (doc.device_categories) {
-        updateDoc.device_categories = doc.device_categories;
+        const dc = { ...doc.device_categories };
+        // Mongoose casts a string assigned to a [String] field into individual
+        // characters. Guard against that by ensuring all_categories is always
+        // a proper array before writing to the Readings collection.
+        if (!Array.isArray(dc.all_categories)) {
+          dc.all_categories =
+            typeof dc.all_categories === "string" &&
+            dc.all_categories.length > 0
+              ? dc.all_categories
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : [];
+        }
+        updateDoc.device_categories = dc;
       }
       if (doc.health_tips) {
         updateDoc.health_tips = doc.health_tips;

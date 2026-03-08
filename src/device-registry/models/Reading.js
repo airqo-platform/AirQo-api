@@ -458,6 +458,24 @@ ReadingsSchema.pre("save", function(next) {
   next();
 });
 
+ReadingsSchema.pre("validate", function(next) {
+  if (
+    this.device_categories &&
+    this.device_categories.all_categories !== undefined &&
+    !Array.isArray(this.device_categories.all_categories)
+  ) {
+    const raw = this.device_categories.all_categories;
+    this.device_categories.all_categories =
+      typeof raw === "string" && raw.length > 0
+        ? raw
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+  }
+  next();
+});
+
 ReadingsSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
