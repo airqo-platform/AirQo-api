@@ -252,7 +252,24 @@ const DeviceCategorySchema = new Schema(
     deployment_category: { type: String, default: null },
     mobile_category: { type: String, default: null },
     ownership_category: { type: String, default: null },
-    all_categories: { type: [String], default: [] },
+    all_categories: {
+      type: [String],
+      default: [],
+      set(value) {
+        // Setter runs BEFORE Mongoose's own [String] casting on .save()/.create(),
+        // intercepting the value while it is still in its original form.
+        // Mongoose coerces [String] paths before pre("validate") fires, so a setter
+        // is the only reliable hook for .save() paths.
+        if (Array.isArray(value)) return value;
+        if (typeof value === "string" && value.length > 0) {
+          return value
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+        return [];
+      },
+    },
     is_mobile: { type: Boolean, default: null },
     is_static: { type: Boolean, default: null },
     is_lowcost: { type: Boolean, default: null },
@@ -458,21 +475,65 @@ ReadingsSchema.pre("save", function(next) {
   next();
 });
 
-ReadingsSchema.pre("validate", function(next) {
-  if (
-    this.device_categories &&
-    this.device_categories.all_categories !== undefined &&
-    !Array.isArray(this.device_categories.all_categories)
-  ) {
-    const raw = this.device_categories.all_categories;
-    this.device_categories.all_categories =
-      typeof raw === "string" && raw.length > 0
-        ? raw
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [];
+function _normalizeAllCategoriesInUpdate(update) {
+  const payload = update.$set || update;
+
+  // Flat path: { "device_categories.all_categories": <value> }
+  const flatKey = "device_categories.all_categories";
+  if (Object.prototype.hasOwnProperty.call(payload, flatKey)) {
+    const raw = payload[flatKey];
+    if (!Array.isArray(raw)) {
+      payload[flatKey] =
+        typeof raw === "string" && raw.length > 0
+          ? raw
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+    }
   }
+
+  // Nested path: { device_categories: { all_categories: <value> } }
+  if (
+    payload.device_categories &&
+    typeof payload.device_categories === "object" &&
+    !Array.isArray(payload.device_categories) &&
+    Object.prototype.hasOwnProperty.call(
+      payload.device_categories,
+      "all_categories",
+    )
+  ) {
+    const raw = payload.device_categories.all_categories;
+    if (!Array.isArray(raw)) {
+      payload.device_categories.all_categories =
+        typeof raw === "string" && raw.length > 0
+          ? raw
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+    }
+  }
+}
+
+ReadingsSchema.pre("updateOne", function(next) {
+  try {
+    _normalizeAllCategoriesInUpdate(this.getUpdate());
+  } catch (_) {}
+  next();
+});
+
+ReadingsSchema.pre("updateMany", function(next) {
+  try {
+    _normalizeAllCategoriesInUpdate(this.getUpdate());
+  } catch (_) {}
+  next();
+});
+
+ReadingsSchema.pre("findOneAndUpdate", function(next) {
+  try {
+    _normalizeAllCategoriesInUpdate(this.getUpdate());
+  } catch (_) {}
   next();
 });
 

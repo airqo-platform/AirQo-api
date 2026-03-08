@@ -12,6 +12,7 @@ const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 const NodeCache = require("node-cache");
+const TIMEZONE = moment.tz.guess();
 
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
@@ -377,7 +378,6 @@ async function fetchAndStoreReadings() {
   }
 }
 
-const TIMEZONE = moment.tz.guess();
 const JOB_NAME = "store-readings-job";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 
