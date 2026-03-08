@@ -25,3 +25,5 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetCPUUtilizationPercentage: 80
+images:
+  tag: stage-f3c821d3-1772960893
