@@ -506,10 +506,6 @@ ReadingsSchema.index(
   { time: -1, "pm2_5.value": 1 },
   {
     name: "time_pm25_map_idx",
-    // partial filter aligned with the exact $gt: 0 predicate used
-    // in listForMap and latestForMap $match stages. The old { $exists, $ne:null }
-    // form was not recognised by the query planner as a superset of { $gt:0 },
-    // causing a full collection scan on every map request.
     partialFilterExpression: {
       "pm2_5.value": { $gt: 0 },
     },
@@ -749,28 +745,46 @@ ReadingsSchema.statics.latestForMap = async function(
   next,
 ) {
   try {
-    // reduce scan window from 14 days → 48 hours (same rationale
-    // as listForMap change 2 above). Keep 14-day outer bound as safety cap.
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000); // kept for reference but not used
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    // strip time and pm2_5 from caller filter before
+    // building $match, then merge time back using the same effectiveGte logic
+    // as listForMap. This prevents ...filter from overwriting the enforced
+    // time floor and defeating the partial index.
+    const {
+      time: callerTime,
+      "pm2_5.value": _pm25, // strip any caller pm2_5 override
+      ...safeFilterForMatch
+    } = filter;
+
+    const callerGte =
+      callerTime?.$gte ?? (callerTime instanceof Date ? callerTime : undefined);
+
+    let effectiveGte;
+    if (!callerGte) {
+      effectiveGte = fortyEightHoursAgo;
+    } else if (callerGte >= fortyEightHoursAgo) {
+      effectiveGte = callerGte;
+    } else if (callerGte >= fourteenDaysAgo) {
+      effectiveGte = callerGte;
+    } else {
+      // Clamp to 14-day TTL boundary — NOT to 48 h (finding 1 fix mirrored).
+      effectiveGte = fourteenDaysAgo;
+    }
 
     const pipeline = [
-      // 1. Match recent readings only
+      // FIX (finding 2): spread safeFilterForMatch FIRST so time and pm2_5.value
+      // are always set by us, not overwritten by the caller.
       {
         $match: {
-          time: { $gte: fortyEightHoursAgo }, // was: fourteenDaysAgo
-          // $gt: 0 instead of { $exists: true, $ne: null }
-          // so the partial index { time: -1, "pm2_5.value": 1 } with
-          // partialFilter { "pm2_5.value": { $gt: 0 } } is used.
+          ...safeFilterForMatch,
+          time: { $gte: effectiveGte },
           "pm2_5.value": { $gt: 0 },
-          ...filter,
         },
       },
 
-      // 2. Sort by time descending
       { $sort: { time: -1 } },
 
-      // 3. Group by site_id and take first (latest) reading
       {
         $group: {
           _id: "$site_id",
@@ -778,17 +792,13 @@ ReadingsSchema.statics.latestForMap = async function(
         },
       },
 
-      // 4. Replace root with the latest reading
       { $replaceRoot: { newRoot: "$latestReading" } },
 
-      // 5. Sort again by time for consistent output
       { $sort: { time: -1 } },
 
-      // 6. Apply pagination
       { $skip: skip || 0 },
       { $limit: limit || 1000 },
 
-      // 7. Project only necessary fields for map
       {
         $project: {
           _id: 0,
@@ -1688,7 +1698,7 @@ ReadingsSchema.statics.listForMap = async function(
   next,
 ) {
   try {
-    // ── String-field ObjectId guard ───────────────────────────────────────────
+    // ── String-field ObjectId guard ───────────────────────────────
     const STRING_FILTER_FIELDS = [
       "site_id",
       "device_id",
@@ -1783,22 +1793,30 @@ ReadingsSchema.statics.listForMap = async function(
         ? 0
         : parsedSkip;
 
-    // Effective lower bound: honour a caller-supplied $gte only if it is MORE
-    // recent than 48 h ago (tighter window = faster). If the caller asks for
-    // data older than 48 h, clamp to 48 h. The absolute outer limit is 14 days
-    // — anything older is beyond the TTL and serves no map purpose.
+    // Priority / intended behaviour:
+    //   • No caller time   → default 48 h window (fastest path, uses partial index)
+    //   • Caller within 48 h → honour the tighter window as-is
+    //   • Caller between 48 h and 14 d → honour it (caller explicitly asked for
+    //     older data; we allow it within the TTL window)
+    //   • Caller older than 14 d → clamp to fourteenDaysAgo (data beyond TTL
+    //     is unreliable; do NOT fall back to 48 h — that would silently discard
+    //     data the caller expected to receive between 48 h and 14 d)
     const callerGte = filter.time?.$gte;
 
     let effectiveGte;
-    if (callerGte && callerGte > fortyEightHoursAgo) {
-      // Caller wants a tighter window than 48 h — honour it.
+    if (!callerGte) {
+      // No caller time supplied — use the fast 48 h default.
+      effectiveGte = fortyEightHoursAgo;
+    } else if (callerGte >= fortyEightHoursAgo) {
+      // Caller wants a window at most 48 h wide — honour it exactly.
+      effectiveGte = callerGte;
+    } else if (callerGte >= fourteenDaysAgo) {
+      // Caller is between 48 h and 14 d — allowed, honour it.
       effectiveGte = callerGte;
     } else {
-      // Default to 48 h. Never go beyond 14 days regardless of caller input.
-      effectiveGte =
-        callerGte && callerGte > fourteenDaysAgo
-          ? callerGte
-          : fortyEightHoursAgo;
+      // Caller is older than the 14-day TTL — clamp to fourteenDaysAgo,
+      // NOT to fortyEightHoursAgo (which would silently drop valid recent data).
+      effectiveGte = fourteenDaysAgo;
     }
 
     const timeConstraint = {
@@ -1807,7 +1825,6 @@ ReadingsSchema.statics.listForMap = async function(
     };
 
     // Strip time, tenant, and network before spreading into $match.
-    // (Reasoning unchanged — see original comments in previous version.)
     const {
       time: _t,
       tenant: _tenant,
@@ -1824,10 +1841,6 @@ ReadingsSchema.statics.listForMap = async function(
     );
 
     const pipeline = [
-      // ── STAGE 1: match ──────────────────────────────────────────────────────
-      // use { $gt: 0 } alone — $gt:0 implies $exists and $ne:null.
-      // The combined { $exists: true, $gt: 0 } form prevented the query planner
-      // from matching the partial index whose filter is { "pm2_5.value": { $gt: 0 } }.
       {
         $match: {
           ...safeFilterForMatch,
@@ -1838,7 +1851,6 @@ ReadingsSchema.statics.listForMap = async function(
 
       { $sort: { time: -1 } },
 
-      // ── STAGE 2: deduplicate — one reading per location ─────────────────────
       {
         $group: {
           _id: {
@@ -1865,7 +1877,6 @@ ReadingsSchema.statics.listForMap = async function(
 
       { $sort: { time: -1 } },
 
-      // ── STAGE 3: project only the fields the map UI needs ───────────────────
       {
         $project: {
           _id: 0,
@@ -1891,7 +1902,6 @@ ReadingsSchema.statics.listForMap = async function(
         },
       },
 
-      // ── STAGE 4: paginate ────────────────────────────────────────────────────
       {
         $facet: {
           paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],
