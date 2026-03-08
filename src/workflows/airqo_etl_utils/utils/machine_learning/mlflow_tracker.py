@@ -61,6 +61,8 @@ class MlflowTracker:
         model: Any = None,
         model_artifact_path: str = "model",
         input_example: Optional[pd.DataFrame] = None,
+        fail_run: bool = False,
+        fail_reason: Optional[str] = None,
     ) -> None:
         if not self.enabled:
             return
@@ -77,18 +79,31 @@ class MlflowTracker:
 
         try:
             with mlflow.start_run(run_name=run_name):
-                if safe_params:
-                    mlflow.log_params(safe_params)
-                if safe_metrics:
-                    mlflow.log_metrics(safe_metrics)
-                if safe_tags:
-                    mlflow.set_tags(safe_tags)
-                if model is not None:
-                    mlflow.sklearn.log_model(
-                        sk_model=model,
-                        name=model_artifact_path,
-                        input_example=input_example,
-                        serialization_format="skops",
+                try:
+                    if safe_params:
+                        mlflow.log_params(safe_params)
+                    if safe_metrics:
+                        mlflow.log_metrics(safe_metrics)
+                    if safe_tags:
+                        mlflow.set_tags(safe_tags)
+                    if model is not None:
+                        mlflow.sklearn.log_model(
+                            sk_model=model,
+                            name=model_artifact_path,
+                            input_example=input_example,
+                            serialization_format="skops",
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        f"MLflow logging warning for run '{run_name}': {exc}"
+                    )
+                if fail_run:
+                    raise RuntimeError(
+                        fail_reason
+                        or "Run marked as failed by model deployment gate."
                     )
         except Exception as exc:
+            if fail_run:
+                logger.info(f"MLflow run '{run_name}' marked as failed: {exc}")
+                return
             logger.warning(f"Failed to log MLflow run '{run_name}': {exc}")

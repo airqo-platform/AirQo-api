@@ -1,9 +1,10 @@
 ## This DAG contains jobs for all training jobs for machine learning models.
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime
 
 from airflow.decorators import dag, task
 from dateutil.relativedelta import relativedelta
+
 
 import pandas as pd
 from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -11,6 +12,27 @@ from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.ml_utils import ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.constants import Frequency
+
+
+def get_hourly_training_start_date(current_date: Optional[datetime] = None) -> str:
+    current_date = current_date or datetime.today()
+    start_date = current_date - relativedelta(
+        months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE or 5)
+    )
+    return DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
+
+
+def run_hourly_forecast_training_pipeline(start_date: Optional[str] = None) -> Dict:
+    """Reusable hourly forecast training pipeline used by local tests and DAGs."""
+    start_date = start_date or get_hourly_training_start_date()
+    data = BigQueryApi().fetch_device_data_for_forecast_job(start_date, "train")
+    data = ForecastUtils.preprocess_data(data, Frequency.HOURLY, "train")
+    data = ForecastUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.HOURLY)
+    data = ForecastUtils.get_time_features(data, Frequency.HOURLY)
+    data = ForecastUtils.get_cyclic_features(data, Frequency.HOURLY)
+    data = ForecastUtils.get_location_features(data)
+    return ForecastUtils.train_and_save_forecast_models(data, frequency=Frequency.HOURLY)
 
 
 @dag(
@@ -24,43 +46,38 @@ def train_forecasting_models():
     # Tasks for training hourly forecast job
     @task()
     def fetch_training_data_for_hourly_forecast_model():
-        current_date = datetime.today()
-        start_date = current_date - relativedelta(
-            months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
-        )
-        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
+        start_date = get_hourly_training_start_date()
         return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "train")
 
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
-        return ForecastUtils.preprocess_data(data, "hourly", "train")
+        return ForecastUtils.preprocess_data(data, Frequency.HOURLY, "train")
 
     @task()
     def get_hourly_lag_and_rolling_features(data):
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
+        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.HOURLY)
 
     @task()
     def get_hourly_time_features(data):
-        return ForecastUtils.get_time_features(data, "hourly")
+        return ForecastUtils.get_time_features(data, Frequency.HOURLY)
 
     @task()
     def get_hourly_cyclic_features(data):
-        return ForecastUtils.get_cyclic_features(data, "hourly")
+        return ForecastUtils.get_cyclic_features(data, Frequency.HOURLY)
 
     @task()
-    def get_location_features(data):
+    def get_location_features_hourly(data):
         return ForecastUtils.get_location_features(data)
 
     @task()
     def train_and_save_hourly_forecast_model(train_data):
         return ForecastUtils.train_and_save_forecast_models(
-            train_data, frequency="hourly"
+            train_data, frequency=Frequency.HOURLY
         )
 
     # Daily forecast tasks
     @task()
     def fetch_training_data_for_daily_forecast_model():
-        from dateutil.relativedelta import relativedelta
 
         current_date = datetime.today()
         start_date = current_date - relativedelta(
@@ -71,28 +88,28 @@ def train_forecasting_models():
 
     @task()
     def preprocess_training_data_for_daily_forecast_model(data):
-        return ForecastUtils.preprocess_data(data, "daily", job_type="train")
+        return ForecastUtils.preprocess_data(data, Frequency.DAILY, job_type="train")
 
     @task()
     def get_daily_lag_and_rolling_features(data):
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
+        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.DAILY)
 
     @task()
     def get_daily_time_features(data):
-        return ForecastUtils.get_time_features(data, "daily")
+        return ForecastUtils.get_time_features(data, Frequency.DAILY)
 
     @task()
     def get_daily_cyclic_features(data):
-        return ForecastUtils.get_cyclic_features(data, "daily")
+        return ForecastUtils.get_cyclic_features(data, Frequency.DAILY)
 
     @task()
-    def get_location_features(data):
+    def get_location_features_daily(data):
         return ForecastUtils.get_location_features(data)
 
     @task()
     def train_and_save_daily_model(train_data):
         return ForecastUtils.train_and_save_forecast_models(
-            train_data, frequency="daily"
+            train_data, frequency=Frequency.DAILY
         )
 
     hourly_data = fetch_training_data_for_hourly_forecast_model()
@@ -102,7 +119,7 @@ def train_forecasting_models():
     hourly_lag_data = get_hourly_lag_and_rolling_features(hourly_preprocessed_data)
     hourly_time_data = get_hourly_time_features(hourly_lag_data)
     hourly_cyclic_data = get_hourly_cyclic_features(hourly_time_data)
-    hourly_loc_data = get_location_features(hourly_cyclic_data)
+    hourly_loc_data = get_location_features_hourly(hourly_cyclic_data)
     train_and_save_hourly_forecast_model(hourly_loc_data)
 
     daily_data = fetch_training_data_for_daily_forecast_model()
@@ -112,7 +129,7 @@ def train_forecasting_models():
     daily_lag_data = get_daily_lag_and_rolling_features(daily_preprocessed_data)
     daily_time_data = get_daily_time_features(daily_lag_data)
     daily_cyclic_data = get_daily_cyclic_features(daily_time_data)
-    daily_loc_data = get_location_features(daily_cyclic_data)
+    daily_loc_data = get_location_features_daily(daily_cyclic_data)
     train_and_save_daily_model(daily_loc_data)
 
 

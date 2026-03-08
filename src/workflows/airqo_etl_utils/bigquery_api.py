@@ -1279,11 +1279,13 @@ class BigQueryApi:
             ValueError: If the provided start_date_time is invalid.
             RuntimeError: If there is an error fetching data from BigQuery.
         """
-        valid_job_types = {"train", "predict"}
+        valid_job_types = {"train", "predict", "prediction"}
         if job_type not in valid_job_types:
             raise ValueError(
                 f"Invalid job_type '{job_type}'. Expected one of {sorted(valid_job_types)}."
             )
+        if job_type == "prediction":
+            job_type = "predict"
 
         try:
             start_date = pd.to_datetime(start_date_time).date()
