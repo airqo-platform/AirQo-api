@@ -1,6 +1,5 @@
 nameOverride: ''
 fullnameOverride: ''
-
 images:
   repositories:
     api: airqoacr.azurecr.io/airqo-stage-analytics-api
@@ -9,18 +8,15 @@ images:
     reportJob: airqoacr.azurecr.io/airqo-stage-analytics-report-job
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     devicesSummaryJob: airqoacr.azurecr.io/airqo-stage-analytics-devices-summary-job
-  tag: latest
-
+  tag: stage-f3c821d3-1772960893
 externalSecret:
   enabled: true
-
 api:
   name: airqo-stage-analytics-api
   label: sta-analytics-api
   secret: sta-env-analytics
   replicaCount: 2
   podAnnotations: {}
-
   resources:
     common:
       limits:
@@ -36,7 +32,6 @@ api:
       limits:
         cpu: 300m
         memory: 50Mi
-
 jobs:
   reports:
     name: stage-analytics-report
@@ -45,16 +40,13 @@ jobs:
     limits:
       cpu: 1000m
       memory: 4000Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:
       name: stage-analytics-config-files
-
 service:
   type: NodePort
   ports:
@@ -68,13 +60,9 @@ service:
       targetPort: 6379
       nodePort: 31114
       protocol: TCP
-
 ingress:
   enabled: false
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetMemoryUtilizationPercentage: 85
-
-
