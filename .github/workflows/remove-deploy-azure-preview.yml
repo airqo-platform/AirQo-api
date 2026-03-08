@@ -1,4 +1,4 @@
-name: remove-api-deploy-previews-azure
+name: remove-api-deploy-previews
 
 on:
   pull_request:
@@ -39,8 +39,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+            --name "${BRANCH:0:18}-auth-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -60,8 +61,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-beacon-api-preview \
+            --name "${BRANCH:0:18}-beacon-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -81,8 +83,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-device-registry-preview \
+            --name "${BRANCH:0:18}-device-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -102,8 +105,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-predict-service-preview \
+            --name "${BRANCH:0:18}-predict-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -123,8 +127,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-meta-data-preview \
+            --name "${BRANCH:0:18}-meta-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -144,8 +149,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-view-preview \
+            --name "${BRANCH:0:18}-view-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -165,8 +171,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-calibrate-api-preview \
+            --name "${BRANCH:0:18}-cal-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -186,8 +193,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-spatial-preview \
+            --name "${BRANCH:0:18}-spatial-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -207,8 +215,9 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-superset-preview \
+            --name "${BRANCH:0:18}-super-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -228,7 +237,8 @@ jobs:
 
       - name: Delete Container App
         run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name ${{ needs.branch-name.outputs.lowercase }}-website-api-preview \
+            --name "${BRANCH:0:18}-web-api-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
