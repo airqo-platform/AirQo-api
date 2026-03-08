@@ -747,7 +747,7 @@ ReadingsSchema.statics.latestForMap = async function(
   try {
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    // strip time and pm2_5 from caller filter before
+    //  strip time and pm2_5 from caller filter before
     // building $match, then merge time back using the same effectiveGte logic
     // as listForMap. This prevents ...filter from overwriting the enforced
     // time floor and defeating the partial index.
@@ -772,13 +772,22 @@ ReadingsSchema.statics.latestForMap = async function(
       effectiveGte = fourteenDaysAgo;
     }
 
+    // Preserve any caller-supplied upper bound ($lte / $lt) while enforcing
+    // the clamped lower bound. Mirror the listForMap timeConstraint pattern:
+    // spread the full callerTime object first (which may carry $lte/$lt), then
+    // overwrite only $gte so the enforced floor is always applied.
+    const timeConstraint = {
+      ...(callerTime && typeof callerTime === "object" ? callerTime : {}),
+      $gte: effectiveGte,
+    };
+
     const pipeline = [
       // FIX (finding 2): spread safeFilterForMatch FIRST so time and pm2_5.value
       // are always set by us, not overwritten by the caller.
       {
         $match: {
           ...safeFilterForMatch,
-          time: { $gte: effectiveGte },
+          time: timeConstraint,
           "pm2_5.value": { $gt: 0 },
         },
       },
@@ -1793,6 +1802,8 @@ ReadingsSchema.statics.listForMap = async function(
         ? 0
         : parsedSkip;
 
+    // effectiveGte clamping logic.
+    //
     // Priority / intended behaviour:
     //   • No caller time   → default 48 h window (fastest path, uses partial index)
     //   • Caller within 48 h → honour the tighter window as-is
