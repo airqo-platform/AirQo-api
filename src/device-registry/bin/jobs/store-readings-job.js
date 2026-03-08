@@ -152,21 +152,16 @@ class ReadingsBatchProcessor {
       if (doc.deviceDetails) {
         updateDoc.deviceDetails = doc.deviceDetails;
       }
-      // Preserve pre-computed fields from the 'events' view
+      // Preserve pre-computed fields from the 'events' view.
       if (doc.device_categories) {
         const dc = { ...doc.device_categories };
-        // Mongoose casts a string assigned to a [String] field into individual
-        // characters. Guard against that by ensuring all_categories is always
-        // a proper array before writing to the Readings collection.
+        // Mongoose splits a string assigned to a [String] field into individual
+        // characters (e.g. "airqo" → ["a","i","r","q","o"]). Rather than
+        // guessing at the string format, discard any non-array value entirely.
+        // The document will self-heal on the next cron upsert when the live
+        // aggregation pipeline recomputes the correct array.
         if (!Array.isArray(dc.all_categories)) {
-          dc.all_categories =
-            typeof dc.all_categories === "string" &&
-            dc.all_categories.length > 0
-              ? dc.all_categories
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-              : [];
+          dc.all_categories = [];
         }
         updateDoc.device_categories = dc;
       }
