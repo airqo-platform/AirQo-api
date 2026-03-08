@@ -88,7 +88,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
               {
                 case: {
                   $and: [
-                    { $gt: [{ $ifNull: ["$network", null] }, null] },
+                    { $ne: [{ $ifNull: ["$network", ""] }, ""] },
                     {
                       $ne: [
                         { $toLower: { $ifNull: ["$network", ""] } },
@@ -203,158 +203,228 @@ const getDeviceCategoriesAddFieldsStage = () => {
             { $eq: ["$deployment_type", "mobile"] },
           ],
         },
-        // Strict negation of is_mobile — mirrors computeDeviceCategories() JS logic
         is_static: {
-          $not: {
-            $or: [
-              { $eq: ["$mobility", true] },
-              { $eq: ["$deployment_type", "mobile"] },
-            ],
-          },
+          $not: [
+            {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
+          ],
         },
         is_lowcost: { $eq: ["$category", "lowcost"] },
         is_bam: { $eq: ["$category", "bam"] },
         is_gas: { $eq: ["$category", "gas"] },
 
+        // wrap in $setUnion to deduplicate (e.g. deployment_category and
+        // mobile_category both resolving to "mobile")
         all_categories: {
-          $filter: {
-            input: {
-              $concatArrays: [
-                [{ $ifNull: ["$category", "lowcost"] }],
-                [{ $ifNull: ["$deployment_type", "static"] }],
-                {
-                  $cond: {
-                    if: { $gt: [{ $ifNull: ["$network", null] }, null] },
-                    then: [
-                      {
-                        $cond: {
-                          if: {
-                            $eq: [
-                              { $toLower: { $ifNull: ["$network", ""] } },
-                              "airqo",
-                            ],
+          $setUnion: [
+            [],
+            {
+              $filter: {
+                input: {
+                  $concatArrays: [
+                    [{ $ifNull: ["$category", "lowcost"] }],
+                    [{ $ifNull: ["$deployment_type", "static"] }],
+                    {
+                      $cond: {
+                        if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+                        then: [
+                          {
+                            $cond: {
+                              if: {
+                                $eq: [
+                                  { $toLower: { $ifNull: ["$network", ""] } },
+                                  "airqo",
+                                ],
+                              },
+                              then: "AirQo-owned",
+                              else: "third-party",
+                            },
                           },
-                          then: "AirQo-owned",
-                          else: "third-party",
-                        },
+                        ],
+                        else: [],
                       },
-                    ],
-                    else: [],
-                  },
-                },
-                {
-                  $cond: {
-                    if: {
-                      $or: [
-                        { $eq: ["$mobility", true] },
-                        { $eq: ["$deployment_type", "mobile"] },
-                      ],
                     },
-                    then: [
-                      {
-                        $switch: {
-                          branches: [
-                            {
-                              case: {
-                                $and: [
-                                  {
-                                    $gt: [
-                                      {
-                                        $ifNull: [
-                                          "$mobility_metadata.movement_pattern",
-                                          null,
-                                        ],
-                                      },
-                                      null,
-                                    ],
-                                  },
-                                  {
-                                    $ne: [
-                                      {
-                                        $ifNull: [
-                                          "$mobility_metadata.movement_pattern",
-                                          "",
-                                        ],
-                                      },
-                                      "",
-                                    ],
-                                  },
-                                ],
-                              },
-                              then: "$mobility_metadata.movement_pattern",
-                            },
-                            {
-                              case: {
-                                $and: [
-                                  {
-                                    $gt: [
-                                      {
-                                        $ifNull: [
-                                          "$mobility_metadata.route_id",
-                                          null,
-                                        ],
-                                      },
-                                      null,
-                                    ],
-                                  },
-                                  {
-                                    $ne: [
-                                      {
-                                        $ifNull: [
-                                          "$mobility_metadata.route_id",
-                                          "",
-                                        ],
-                                      },
-                                      "",
-                                    ],
-                                  },
-                                ],
-                              },
-                              then: "fixed-route",
-                            },
-                            {
-                              case: {
-                                $and: [
-                                  {
-                                    $gt: [
-                                      {
-                                        $ifNull: [
-                                          "$mobility_metadata.coverage_area",
-                                          null,
-                                        ],
-                                      },
-                                      null,
-                                    ],
-                                  },
-                                  {
-                                    $ne: [
-                                      {
-                                        $ifNull: [
-                                          "$mobility_metadata.coverage_area",
-                                          "",
-                                        ],
-                                      },
-                                      "",
-                                    ],
-                                  },
-                                ],
-                              },
-                              then: "area-coverage",
-                            },
+                    {
+                      $cond: {
+                        if: {
+                          $or: [
+                            { $eq: ["$mobility", true] },
+                            { $eq: ["$deployment_type", "mobile"] },
                           ],
-                          default: "mobile",
                         },
+                        then: [
+                          {
+                            $switch: {
+                              branches: [
+                                {
+                                  case: {
+                                    $and: [
+                                      {
+                                        $gt: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.movement_pattern",
+                                              null,
+                                            ],
+                                          },
+                                          null,
+                                        ],
+                                      },
+                                      {
+                                        $ne: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.movement_pattern",
+                                              "",
+                                            ],
+                                          },
+                                          "",
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                  then: "$mobility_metadata.movement_pattern",
+                                },
+                                {
+                                  case: {
+                                    $and: [
+                                      {
+                                        $gt: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.route_id",
+                                              null,
+                                            ],
+                                          },
+                                          null,
+                                        ],
+                                      },
+                                      {
+                                        $ne: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.route_id",
+                                              "",
+                                            ],
+                                          },
+                                          "",
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                  then: "fixed-route",
+                                },
+                                {
+                                  case: {
+                                    $and: [
+                                      {
+                                        $gt: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.coverage_area",
+                                              null,
+                                            ],
+                                          },
+                                          null,
+                                        ],
+                                      },
+                                      {
+                                        $ne: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.coverage_area",
+                                              "",
+                                            ],
+                                          },
+                                          "",
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                  then: "area-coverage",
+                                },
+                              ],
+                              default: "mobile",
+                            },
+                          },
+                        ],
+                        else: [],
                       },
-                    ],
-                    else: [],
-                  },
+                    },
+                  ],
                 },
-              ],
+                as: "cat",
+                cond: {
+                  $and: [{ $gt: ["$$cat", null] }, { $ne: ["$$cat", ""] }],
+                },
+              },
             },
-            as: "cat",
-            cond: {
-              $and: [{ $gt: ["$$cat", null] }, { $ne: ["$$cat", ""] }],
+          ],
+        },
+
+        category_hierarchy: [
+          {
+            level: "equipment",
+            category: { $ifNull: ["$category", "lowcost"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$category", "lowcost"] },
+                    then: "Low-cost sensor device",
+                  },
+                  {
+                    case: { $eq: ["$category", "bam"] },
+                    then: "Beta Attenuation Monitor (reference-grade)",
+                  },
+                  {
+                    case: { $eq: ["$category", "gas"] },
+                    then: "Gas sensor device",
+                  },
+                ],
+                default: "Low-cost sensor device",
+              },
             },
+          },
+          {
+            level: "deployment",
+            category: { $ifNull: ["$deployment_type", "static"] },
+            description: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "Mobile deployment (vehicle-mounted, grid-based)",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "Static deployment (fixed location, site-based)",
+                  },
+                ],
+                default: "Static deployment (fixed location, site-based)",
+              },
+            },
+          },
+        ],
+
+        category_relationships: {
+          note:
+            "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+          mobile_is_subcategory_of: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ["$mobility", true] },
+                  { $eq: ["$deployment_type", "mobile"] },
+                ],
+              },
+              { $ifNull: ["$category", "lowcost"] },
+              null,
+            ],
           },
         },
       },
@@ -1330,7 +1400,7 @@ const deviceUtil = {
         ? results[0].totalCount[0].count
         : 0;
 
-      // **CRITICAL FIX: Post-process for BOTH cached and non-cached results**
+      // Post-process for BOTH cached and non-cached results**
       if (!isEmpty(paginatedResults) && detailLevel === "full") {
         paginatedResults.forEach((device) => {
           // Process activities for non-cached (real-time) results
@@ -1360,7 +1430,7 @@ const deviceUtil = {
             }
           }
 
-          // **FIX: Ensure total_activities is set correctly for cached results**
+          // Ensure total_activities is set correctly for cached results**
           // This handles cases where projection might have modified the field
           if (useCache === "true") {
             // Ensure the field exists and has the right value
@@ -1387,7 +1457,7 @@ const deviceUtil = {
             }
           }
 
-          // **FIX: Process assigned_grid for BOTH cached and non-cached**
+          // Process assigned_grid for BOTH cached and non-cached**
           if (device.assigned_grid && device.assigned_grid.length > 0) {
             const grid = device.assigned_grid[0];
             device.assigned_grid = {
@@ -4119,7 +4189,6 @@ const deviceUtil = {
         );
       } else {
         // When NO specific devices, use flexible preparation filters
-        // This is the KEY FIX - use $or to handle both legacy and new devices
 
         switch (queryMode) {
           case "strict":
@@ -4886,7 +4955,6 @@ const deviceUtil = {
 
           device.conflicts.forEach((conflict) => {
             switch (conflict.type) {
-              // MOBILE DEVICE FIXES
               case "mobile_mount_type_invalid":
                 updateData.mountType = "vehicle";
                 fixes.push("Set mountType to 'vehicle' for mobile device");
@@ -4912,7 +4980,6 @@ const deviceUtil = {
                 fixes.push("Set mobility to true for mobile device");
                 break;
 
-              // STATIC DEVICE FIXES
               case "static_vehicle_mount":
                 // This is ambiguous - could fix by making mobile OR changing mount
                 requiresManualReview = true;
@@ -4943,7 +5010,6 @@ const deviceUtil = {
                 fixes.push("Set mobility to false for static device");
                 break;
 
-              // CROSS-VALIDATION FIXES
               case "vehicle_mount_not_mobile":
                 // Convert to mobile since vehicle mount strongly indicates mobile
                 updateData.deployment_type = "mobile";
