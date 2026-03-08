@@ -1241,6 +1241,7 @@ async function fetchData(model, filter) {
           $first: { $arrayElemAt: ["$device_details.isPrimaryInLocation", 0] },
         };
         groupStage.health_tips = { $first: "$healthTips" };
+        groupStage.device_categories = { $first: "$device_categories" };
       }
 
       if (search.grid_id) {
