@@ -177,6 +177,7 @@ require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
 require("@bin/jobs/refresh-grids-job");
+require("@bin/jobs/regenerate-missing-site-fields-job");
 try {
   require("@bin/jobs/find-duplicate-cohorts-job");
 } catch (err) {
