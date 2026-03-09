@@ -13,7 +13,7 @@ externalSecret:
   enabled: true
 api:
   name: airqo-stage-analytics-api
-  label: sta-analytics-api
+  label: analytics-api
   secret: sta-env-analytics
   replicaCount: 2
   podAnnotations: {}
