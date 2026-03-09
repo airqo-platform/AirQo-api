@@ -110,8 +110,15 @@ const updateDuplicateSiteFields = async () => {
         {
           $match: {
             isOnline: true,
-            generated_name: { $exists: true, $nin: [null, ""] },
-            [field]: { $nin: [null, ""] },
+            generated_name: {
+              $exists: true,
+              $nin: [null, ""],
+              $type: "string",
+            },
+            [field]: {
+              $nin: [null, ""],
+              $type: "string",
+            },
           },
         },
         {
