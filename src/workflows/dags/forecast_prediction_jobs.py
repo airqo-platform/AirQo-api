@@ -33,9 +33,7 @@ def make_forecasts():
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
-        return BaseMlUtils.preprocess_data(
-            data, Frequency.HOURLY, job_type="prediction"
-        )
+        return BaseMlUtils.preprocess_data(data, Frequency.HOURLY, job_type="predict")
 
     @task
     def generate_lag_and_rolling_features_hourly_forecast(data):
@@ -85,7 +83,7 @@ def make_forecasts():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def preprocess_historical_data_daily_forecast(data):
-        return BaseMlUtils.preprocess_data(data, Frequency.DAILY, job_type="prediction")
+        return BaseMlUtils.preprocess_data(data, Frequency.DAILY, job_type="predict")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def generate_lag_and_rolling_features_daily_forecast(data):
