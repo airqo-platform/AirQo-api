@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-f3c821d3-1772960893
+  tag: stage-90525ba7-1773038782
 resources:
   initContainer:
     requests:
