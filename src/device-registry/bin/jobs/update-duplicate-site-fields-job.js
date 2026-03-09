@@ -50,6 +50,14 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
       // Update all sites except the first one (keep original for the first occurrence)
       for (let i = 1; i < sites.length; i++) {
         const site = sites[i];
+
+        if (!site.generated_name || typeof site.generated_name !== "string") {
+          logger.warn(
+            `Skipping site with missing or non-string generated_name: ${site._id}`,
+          );
+          continue;
+        }
+
         const siteNumber = extractSiteNumber(site.generated_name);
 
         if (siteNumber) {
@@ -65,7 +73,7 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
             },
           });
           updateLogs.add(
-            `${site.generated_name}: ${fieldValue} -> ${newValue}`,
+            `${site.generated_name}: ${group.fieldValue} -> ${newValue}`,
           );
         }
       }
