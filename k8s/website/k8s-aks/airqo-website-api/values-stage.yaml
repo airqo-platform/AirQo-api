@@ -1,12 +1,12 @@
 app:
   name: airqo-stage-website-api
-  label: sta-website-api
+  label: stawebsite-api
   secret: sta-env-website-backend
   namespace: staging
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-website-api
-  tag: stage-d46631d7-1772989600
+  tag: stage-621e0075-1773066565
 resources:
   limits:
     cpu: 100m

@@ -1,6 +1,6 @@
 app:
   name: airqo-stage-spatial-api
-  label: sta-spatial-api
+  label: staspatial-api
   secret: sta-env-spatial
   namespace: staging
 replicaCount: 2

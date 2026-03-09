@@ -42,6 +42,9 @@ jobs:
     name: analytics-report
     secret: prod-env-analytics-report-job
   resources:
+    requests:
+      cpu: 500m
+      memory: 1000Mi
     limits:
       cpu: 1000m
       memory: 4000Mi
