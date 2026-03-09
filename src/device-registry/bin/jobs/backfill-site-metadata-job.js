@@ -164,15 +164,19 @@ const repairGeneratedName = async (tenant, site) => {
 
     const generatedName = response.data;
 
-    const updated = await SiteModel(tenant).findByIdAndUpdate(
-      site._id,
+    // Use collection.updateOne to bypass the Mongoose pre-hook on
+    // findOneAndUpdate, which strips generated_name from $set because it is
+    // listed in the hook's restrictedFields array. Going directly to the
+    // driver-level collection skips all middleware and guarantees the field
+    // is actually written to MongoDB.
+    const writeResult = await SiteModel(tenant).collection.updateOne(
+      { _id: site._id },
       { $set: { generated_name: generatedName } },
-      { overwriteImmutable: true, new: true },
     );
 
-    if (!updated) {
+    if (!writeResult || writeResult.modifiedCount === 0) {
       logger.error(
-        `[${POD_ID}] findByIdAndUpdate returned no result for site ${site._id} — generated_name not persisted`,
+        `[${POD_ID}] collection.updateOne modified 0 documents for site ${site._id} — generated_name not persisted`,
       );
       return null;
     }
@@ -296,12 +300,21 @@ const backfillSiteMetadata = async (tenant) => {
 
           // Repair description locally if missing — mirrors Site.statics.register.
           if ((!site.description || site.description === "") && site.name) {
-            await SiteModel(tenant).findByIdAndUpdate(
+            const descUpdated = await SiteModel(tenant).findByIdAndUpdate(
               site._id,
               { $set: { description: site.name } },
               { new: true },
             );
-            site.description = site.name;
+            // Only mutate in-memory site after confirmed persistence so that
+            // buildMissingFieldsUpdate does not skip description when the
+            // DB write failed.
+            if (descUpdated && descUpdated.description) {
+              site.description = descUpdated.description;
+            } else {
+              logger.error(
+                `[${POD_ID}] findByIdAndUpdate returned no result for description on site ${site._id} — description not persisted`,
+              );
+            }
           }
 
           // ----------------------------------------------------------------
@@ -408,7 +421,10 @@ const backfillSiteMetadata = async (tenant) => {
               altitude,
               data_provider,
               site_tags,
-              // Fallback in case generateMetadata did not return a description.
+              // retrieveInformationFromAddress in site.util.js never sets a
+              // description field on its return object, so the destructured
+              // description above will always be undefined here and the
+              // site.name fallback will always be exercised.
               description: description || site.name || undefined,
             };
 
