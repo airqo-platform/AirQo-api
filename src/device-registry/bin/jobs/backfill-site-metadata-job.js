@@ -169,16 +169,41 @@ const repairGeneratedName = async (tenant, site) => {
     // listed in the hook's restrictedFields array. Going directly to the
     // driver-level collection skips all middleware and guarantees the field
     // is actually written to MongoDB.
+    //
+    // The filter includes the "still missing" predicate so the write is a
+    // no-op if a concurrent process already repaired generated_name between
+    // our query and this write. matchedCount === 0 in that case means
+    // "already repaired elsewhere" and is treated as success.
     const writeResult = await SiteModel(tenant).collection.updateOne(
-      { _id: site._id },
+      {
+        _id: site._id,
+        $or: [
+          { generated_name: { $exists: false } },
+          { generated_name: null },
+          { generated_name: "" },
+        ],
+      },
       { $set: { generated_name: generatedName } },
     );
 
-    if (!writeResult || writeResult.modifiedCount === 0) {
+    if (!writeResult) {
       logger.error(
-        `[${POD_ID}] collection.updateOne modified 0 documents for site ${site._id} — generated_name not persisted`,
+        `[${POD_ID}] collection.updateOne returned no result for site ${site._id}`,
       );
       return null;
+    }
+
+    if (writeResult.matchedCount === 0) {
+      // Another process already repaired generated_name — treat as success.
+      logger.info(
+        `[${POD_ID}] generated_name already repaired by another process for site ${site._id}`,
+      );
+      // Re-fetch so the caller has the current value.
+      const current = await SiteModel(tenant)
+        .findById(site._id)
+        .select("generated_name")
+        .lean();
+      return current ? current.generated_name : null;
     }
 
     logger.info(
@@ -215,7 +240,48 @@ const backfillSiteMetadata = async (tenant) => {
     let altitudeCircuitOpen = false;
 
     while (true) {
-      const sitesToUpdate = await SiteModel(tenant)
+      // -----------------------------------------------------------------
+      // Two-query fetch strategy:
+      //
+      // Query A — local-only candidates: sites missing generated_name,
+      // search_name, or description. These fields can be repaired without
+      // coordinates, so the latitude/longitude gate is intentionally absent.
+      //
+      // Query B — geocoding candidates: sites missing geocoded-dependent
+      // fields (country, district, city, data_provider). These REQUIRE valid
+      // coordinates, so the latitude/longitude gate is applied here only.
+      //
+      // The two result sets are merged and deduplicated by _id before
+      // processing so a site missing both local and geocoded fields is only
+      // processed once.
+      // -----------------------------------------------------------------
+      const idFilter =
+        attemptedIds.length > 0 ? { _id: { $nin: attemptedIds } } : {};
+      const selectFields =
+        "_id latitude longitude name network country district city region " +
+        "town village parish county sub_county division street formatted_name " +
+        "geometry google_place_id location_name search_name altitude " +
+        "data_provider site_tags generated_name description";
+
+      // Query A: local-only — no coordinate requirement.
+      const localOnlySites = await SiteModel(tenant)
+        .find({
+          $or: [
+            { generated_name: { $in: [null, ""] } },
+            { generated_name: { $exists: false } },
+            { search_name: { $in: [null, ""] } },
+            { search_name: { $exists: false } },
+            { description: { $in: [null, ""] } },
+            { description: { $exists: false } },
+          ],
+          ...idFilter,
+        })
+        .limit(BATCH_SIZE)
+        .select(selectFields)
+        .lean();
+
+      // Query B: geocoding candidates — coordinate gate required.
+      const geocodingSites = await SiteModel(tenant)
         .find({
           $or: [
             { country: { $in: [null, ""] } },
@@ -226,31 +292,28 @@ const backfillSiteMetadata = async (tenant) => {
             { city: { $exists: false } },
             { data_provider: { $in: [null, ""] } },
             { data_provider: { $exists: false } },
-            // NEW: also pick up sites missing generated_name, search_name,
-            // or description — these were previously excluded from backfill
-            // and caused the update-duplicate-site-fields-job to crash.
-            { generated_name: { $in: [null, ""] } },
-            { generated_name: { $exists: false } },
             { search_name: { $in: [null, ""] } },
             { search_name: { $exists: false } },
-            { description: { $in: [null, ""] } },
-            { description: { $exists: false } },
           ],
-          latitude: { $ne: null },
-          longitude: { $ne: null },
-          ...(attemptedIds.length > 0 && { _id: { $nin: attemptedIds } }),
+          latitude: { $exists: true, $ne: null },
+          longitude: { $exists: true, $ne: null },
+          ...idFilter,
         })
         .limit(BATCH_SIZE)
-        // Include all metadata fields in the projection so
-        // buildMissingFieldsUpdate can check which ones are already set.
-        // generated_name added so repairGeneratedName can detect its absence.
-        .select(
-          "_id latitude longitude name network country district city region " +
-            "town village parish county sub_county division street formatted_name " +
-            "geometry google_place_id location_name search_name altitude " +
-            "data_provider site_tags generated_name description",
-        )
+        .select(selectFields)
         .lean();
+
+      // Merge and deduplicate by _id — a site appearing in both queries
+      // (missing local AND geocoded fields) is processed only once.
+      const seenIds = new Set();
+      const sitesToUpdate = [];
+      for (const site of [...localOnlySites, ...geocodingSites]) {
+        const id = site._id.toString();
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          sitesToUpdate.push(site);
+        }
+      }
 
       if (sitesToUpdate.length === 0) {
         break;
@@ -299,21 +362,41 @@ const backfillSiteMetadata = async (tenant) => {
           }
 
           // Repair description locally if missing — mirrors Site.statics.register.
+          // The filter includes the "still missing" predicate so the write is
+          // a no-op if another process already set description between our
+          // query and this write. matchedCount === 0 means "already repaired
+          // elsewhere" and is treated as success — re-fetch to get the value.
           if ((!site.description || site.description === "") && site.name) {
-            const descUpdated = await SiteModel(tenant).findByIdAndUpdate(
-              site._id,
+            const descWriteResult = await SiteModel(
+              tenant,
+            ).collection.updateOne(
+              {
+                _id: site._id,
+                $or: [
+                  { description: { $exists: false } },
+                  { description: null },
+                  { description: "" },
+                ],
+              },
               { $set: { description: site.name } },
-              { new: true },
             );
             // Only mutate in-memory site after confirmed persistence so that
             // buildMissingFieldsUpdate does not skip description when the
             // DB write failed.
-            if (descUpdated && descUpdated.description) {
-              site.description = descUpdated.description;
-            } else {
+            if (!descWriteResult) {
               logger.error(
-                `[${POD_ID}] findByIdAndUpdate returned no result for description on site ${site._id} — description not persisted`,
+                `[${POD_ID}] collection.updateOne returned no result for description on site ${site._id}`,
               );
+            } else if (descWriteResult.matchedCount === 0) {
+              // Already repaired by another process — re-fetch current value.
+              const current = await SiteModel(tenant)
+                .findById(site._id)
+                .select("description")
+                .lean();
+              if (current && current.description)
+                site.description = current.description;
+            } else {
+              site.description = site.name;
             }
           }
 
