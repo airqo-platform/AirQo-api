@@ -1652,18 +1652,17 @@ class ForecastModelTrainer(BaseMlUtils):
         return out
 
     @staticmethod
-    def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
-        """Run quarterly retraining of site-level PM2.5 forecast models.
+    def fetch_site_forecast_training_data() -> pd.DataFrame:
+        """Fetch site-level daily aggregates for quarterly forecast retraining.
 
-        Pulls 12 months of consolidated daily site data from BigQuery,
-        engineers features, and trains mean + quantile (10th/90th) models.
-        Each model is deployed only if it outperforms the existing artifact.
+        Uses a configurable month lookback window to keep the dataset size
+        aligned with Airflow task memory/XCom limits.
 
         Returns:
-            Dict mapping model label to metrics with deployment metadata.
+            Raw site-level daily aggregates.
 
         Raises:
-            ValueError: On missing configuration, empty data, or no features.
+            ValueError: On missing configuration, invalid scope, or empty data.
         """
         storage_adapter = get_configured_storage()
         if storage_adapter is None:
@@ -1674,7 +1673,21 @@ class ForecastModelTrainer(BaseMlUtils):
 
         query: str = ""
         current_date = datetime.today()
-        start_date = current_date - relativedelta(months=12)
+        try:
+            lookback_months = int(
+                configuration.SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be a valid integer."
+            ) from exc
+
+        if lookback_months < 1:
+            raise ValueError(
+                "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be greater than 0."
+            )
+
+        start_date = current_date - relativedelta(months=lookback_months)
 
         start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
@@ -1699,6 +1712,24 @@ class ForecastModelTrainer(BaseMlUtils):
                 "No site forecast training data found in the selected period."
             )
 
+        return raw_data
+
+    @staticmethod
+    def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
+        """Run quarterly retraining of site-level PM2.5 forecast models.
+
+        Pulls site-level consolidated daily data from BigQuery using the
+        configured lookback window, engineers features, and trains mean +
+        quantile (10th/90th) models. Each model is deployed only if it
+        outperforms the existing artifact.
+
+        Returns:
+            Dict mapping model label to metrics with deployment metadata.
+
+        Raises:
+            ValueError: On missing configuration, empty data, or no features.
+        """
+        raw_data = ForecastModelTrainer.fetch_site_forecast_training_data()
         featured_data = ForecastSiteUtils.add_time_lag_roll_features(
             raw_data,
             date_col="day",

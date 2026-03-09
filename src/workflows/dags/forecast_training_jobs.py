@@ -128,7 +128,7 @@ def train_site_forecast_models_quarterly():
 
     @task()
     def fetch_training_data() -> pd.DataFrame:
-        return ForecastModelTrainer.run_site_forecast_quarterly_training()
+        return ForecastModelTrainer.fetch_site_forecast_training_data()
 
     @task()
     def build_features(raw_data: pd.DataFrame) -> pd.DataFrame:
