@@ -1730,24 +1730,7 @@ class ForecastModelTrainer(BaseMlUtils):
             ValueError: On missing configuration, empty data, or no features.
         """
         raw_data = ForecastModelTrainer.fetch_site_forecast_training_data()
-        featured_data = ForecastSiteUtils.add_time_lag_roll_features(
-            raw_data,
-            date_col="day",
-            site_col="site_id",
-            target_col="pm25_mean",
-            lags=(1, 2, 3, 7, 14),
-            rolling_window=(7, 14),
-            roll_shift=1,
-            dropna=True,
-        )
-
-        if featured_data.empty:
-            raise ValueError("Feature engineering produced an empty dataframe.")
-
-        featured_data = featured_data.copy()
-        featured_data["site_id_code"] = (
-            featured_data["site_id"].astype("category").cat.codes
-        )
+        featured_data = ForecastModelTrainer._build_site_forecast_features(raw_data)
 
         excluded = {"day", "site_id", "site_name", "pm25_mean", "pm25_min", "pm25_max"}
         features = [
@@ -1805,13 +1788,13 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:
-        """Engineer time/lag/rolling features and one-hot-encode site IDs.
+        """Engineer time/lag/rolling features and compactly encode site IDs.
 
         Args:
             raw_data: DataFrame with 'day', 'site_id', and 'pm25_mean' columns.
 
         Returns:
-            Feature-engineered DataFrame with site dummy columns.
+            Feature-engineered DataFrame with numeric site codes.
 
         Raises:
             ValueError: If feature engineering produces an empty result.
@@ -1831,11 +1814,8 @@ class ForecastModelTrainer(BaseMlUtils):
             raise ValueError("Feature engineering produced an empty dataframe.")
 
         featured_data = featured_data.copy()
-        featured_data = pd.get_dummies(
-            featured_data,
-            columns=["site_id"],
-            prefix="site",
-            dtype="int64",
+        featured_data["site_id_code"] = (
+            featured_data["site_id"].astype("category").cat.codes
         )
 
         return featured_data
