@@ -34,7 +34,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     sys.exit(0 if resp.getcode() == 200 else 1)"
 
 # Run with reload for staging
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --reload
 
 # Production stage
 FROM python:3.11-slim AS production
@@ -72,4 +72,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     sys.exit(0 if resp.getcode() == 200 else 1)"
 
 # Run without reload for production
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
