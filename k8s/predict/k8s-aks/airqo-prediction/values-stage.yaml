@@ -10,7 +10,7 @@ images:
   tag: stage-d46631d7-1772989600
 api:
   name: airqo-stage-prediction-api
-  label: prediction-api
+  label: predict-api
   secret: sta-env-predict
   replicaCount: 2
   podAnnotations: {}

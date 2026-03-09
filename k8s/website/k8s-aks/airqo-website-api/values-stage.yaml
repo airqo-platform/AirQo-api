@@ -1,6 +1,6 @@
 app:
   name: airqo-stage-website-api
-  label: sta-website-api
+  label: stawebsite-api
   secret: sta-env-website-backend
   namespace: staging
 replicaCount: 2
