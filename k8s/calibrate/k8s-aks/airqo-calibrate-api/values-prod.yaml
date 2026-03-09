@@ -1,21 +1,16 @@
 app:
   name: airqo-prod-calibrate-api
   label: prod-calibrate
-
 replicaCount: 3
-
 image:
   repository: airqoacr.azurecr.io/airqo-prod-calibrate-api
-  tag: latest
-
+  tag: prod-b1e15408-1773067011
 initContainer:
   image:
     repository: airqoacr.azurecr.io/airqo-prod-calibrate-pickle-file
-    tag: latest
-
+    tag: prod-b1e15408-1773067011
 secret:
   name: prod-env-calibrate-api
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -27,7 +22,6 @@ volumes:
       name: prod-calibrate-api-config-files
   - name: shared-data
     emptyDir: {}
-
 ingress:
   enabled: false
 service:
@@ -40,7 +34,6 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetMemoryUtilizationPercentage: 70
-
 resources:
   limits:
     cpu: 1
@@ -48,4 +41,3 @@ resources:
   requests:
     cpu: 200m
     memory: 256Mi
-
