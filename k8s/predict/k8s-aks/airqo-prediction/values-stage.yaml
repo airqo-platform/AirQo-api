@@ -7,7 +7,7 @@ images:
     predictJob: airqoacr.azurecr.io/stage-airqo-predict-job
     trainJob: airqoacr.azurecr.io/stage-airqo-train-job
     predictPlaces: airqoacr.azurecr.io/stage-airqo-predict-places-air-quality
-  tag: stage-d46631d7-1772989600
+  tag: stage-621e0075-1773066565
 api:
   name: airqo-stage-prediction-api
   label: predict-api
