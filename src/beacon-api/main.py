@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
-from app.db.session import engine, Base
+from app.db.session import Base
 from app.models import sync  # Import models to register them with Base
 from app.models import device_performance  # noqa: F401 — register with Alembic
 from app.services.scheduler_service import start_scheduler, stop_scheduler
@@ -33,7 +33,10 @@ app = FastAPI(
 
 @app.on_event("startup")
 def on_startup():
-    start_scheduler()
+    try:
+        start_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
 
 
 @app.on_event("shutdown")
