@@ -1655,7 +1655,7 @@ class ForecastModelTrainer(BaseMlUtils):
     def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         """Run quarterly retraining of site-level PM2.5 forecast models.
 
-        Pulls 90 months of consolidated daily site data from BigQuery,
+        Pulls 12 months of consolidated daily site data from BigQuery,
         engineers features, and trains mean + quantile (10th/90th) models.
         Each model is deployed only if it outperforms the existing artifact.
 
