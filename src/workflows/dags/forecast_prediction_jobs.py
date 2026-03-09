@@ -29,9 +29,7 @@ def make_forecasts():
         )
 
         start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_device_data_for_forecast_job(
-            start_date, "prediction"
-        )
+        return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "predict")
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
@@ -83,9 +81,7 @@ def make_forecasts():
         )
 
         start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_device_data_for_forecast_job(
-            start_date, "prediction"
-        )
+        return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "predict")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def preprocess_historical_data_daily_forecast(data):
