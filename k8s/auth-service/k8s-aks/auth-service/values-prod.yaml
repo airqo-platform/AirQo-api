@@ -21,6 +21,8 @@ volumes:
   - name: config-volume
     configMap:
       name: prod-auth-api-config-files
+ingress:
+  enabled: false
 service:
   type: NodePort
   port: 3000

@@ -21,6 +21,8 @@ volumes:
   - name: config-volume
     configMap:
       name: device-registry-config-files
+ingress:
+  enabled: false
 service:
   type: NodePort
   port: 3000
