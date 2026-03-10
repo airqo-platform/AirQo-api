@@ -110,6 +110,92 @@ const getSiteCountSummary = async (request, next) => {
   }
 };
 
+/**
+ * Derives a display-ready data_provider string from the networks of all
+ * devices currently deployed at a given site.
+ *
+ * Rules:
+ *   - No devices at the site → returns null (callers such as refreshSiteDataProvider() should clear any stale stored value)
+ *   - Single network       → e.g. "AIRQO"
+ *   - Multiple networks    → e.g. "AIRQO / METONE" (sorted for determinism)
+ *
+ * @param {string}   tenant  - The tenant identifier
+ * @param {ObjectId} siteId  - The site whose devices will be queried
+ * @returns {Promise<string|null>}
+ */
+const computeSiteDataProvider = async (tenant, siteId) => {
+  try {
+    const DeviceModel = require("@models/Device");
+    const devices = await DeviceModel(tenant)
+      .find({ site_id: siteId, isActive: true })
+      .select("network")
+      .lean();
+
+    if (!devices || devices.length === 0) return null;
+
+    // Step 1: map raw network ids → display labels via the mapping fn.
+    // Step 2: filter out any unmappable values.
+    // Step 3: deduplicate labels (Set) — catches alias variants that map to
+    //         the same display label (e.g. "us_embassy" and "usembassy" both
+    //         become "US EMBASSY").
+    // Step 4: sort labels so the joined string is always deterministic.
+    const uniqueLabels = [
+      ...new Set(
+        devices
+          .map((d) =>
+            constants.DATA_PROVIDER_MAPPINGS((d.network || "").trim()),
+          )
+          .filter(Boolean),
+      ),
+    ].sort();
+
+    if (uniqueLabels.length === 0) return null;
+
+    return uniqueLabels.join(" / ");
+  } catch (error) {
+    logger.error(
+      `computeSiteDataProvider failed for site ${siteId}: ${error.message}`,
+    );
+    // Rethrow so callers (e.g. refreshSiteDataProvider) can distinguish a
+    // transient failure from a confirmed "zero active devices" case.
+    // Only a clean empty-devices result should ever clear data_provider.
+    throw error;
+  }
+};
+
+/**
+ * Recomputes and persists data_provider on the given site document.
+ * Safe to call fire-and-forget — all errors are caught and logged.
+ *
+ * @param {string}   tenant  - The tenant identifier
+ * @param {ObjectId} siteId  - The site to update
+ */
+const refreshSiteDataProvider = async (tenant, siteId) => {
+  try {
+    if (!siteId) return;
+    const SiteModel = require("@models/Site");
+    const dataProvider = await computeSiteDataProvider(tenant, siteId);
+
+    // Write the result unconditionally:
+    // - non-null  → sets the correct derived value
+    // - null      → clears a stale value when the last device is recalled
+    await SiteModel(tenant).findByIdAndUpdate(
+      siteId,
+      { $set: { data_provider: dataProvider } },
+      { new: false },
+    );
+    logger.info(
+      `refreshSiteDataProvider: site ${siteId} → data_provider=${
+        dataProvider === null ? "null (cleared)" : `"${dataProvider}"`
+      }`,
+    );
+  } catch (error) {
+    logger.error(
+      `refreshSiteDataProvider failed for site ${siteId}: ${error.message}`,
+    );
+  }
+};
+
 const createSite = {
   getSiteById: async (req, next) => {
     try {
@@ -893,9 +979,6 @@ const createSite = {
   generateMetadata: async (req, next) => {
     try {
       let { query, body } = req;
-      // Work on a shallow copy so we never mutate the caller's body object.
-      // Without this, the `body["site_tags"] = merged_site_tags` assignment
-      // below modifies the caller's reference directly.
       body = { ...body };
       let { latitude, longitude, skipAltitude } = body;
       let { tenant, id } = query;
@@ -903,12 +986,10 @@ const createSite = {
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      // Skip the altitude call entirely if the caller has flagged that the
-      // Elevation API is known to be unavailable for this run (e.g. the
-      // circuit breaker in the backfill job was tripped by ERR_INVALID_CHAR
-      // on a previous site). This prevents flooding logs with identical
-      // errors across an entire batch when the failure is configuration-level
-      // and affects every site equally.
+      // Resolve the site id from either the fire-and-forget enrichment path
+      // (body.siteId) or the refresh/backfill path (query.id).
+      const resolvedSiteId = id || body.siteId || null;
+
       if (!skipAltitude) {
         let responseFromGetAltitude = await createSite.getAltitude(
           latitude,
@@ -920,10 +1001,6 @@ const createSite = {
           altitudeResponseData["altitude"] = responseFromGetAltitude.data;
         } else if (responseFromGetAltitude.success === false) {
           try {
-            // Log only curated, safe fields — avoid stringifying
-            // responseFromGetAltitude.errors directly since errors.message
-            // is the raw Axios error object which contains e.config and
-            // request headers, potentially leaking GOOGLE_MAPS_API_KEY.
             const rawError = responseFromGetAltitude.errors?.message;
             const safeError = {
               code: rawError?.code,
@@ -956,13 +1033,42 @@ const createSite = {
         let existing_site_tags = body.site_tags ? body.site_tags : [];
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
+
+        // Resolve data_provider separately so a transient lookup failure does
+        // not abort the rest of the metadata path. reverse-geocode data is
+        // already in hand at this point and must not be discarded.
+        // - resolvedSiteId present + devices found  → mapped label string
+        // - resolvedSiteId present + no devices     → null (field cleared)
+        // - resolvedSiteId absent (new site)        → undefined (field omitted)
+        // - resolvedSiteId present + lookup throws  → undefined (field omitted,
+        //   existing stored value preserved until next successful activity)
+        let resolvedDataProvider = undefined;
+        if (resolvedSiteId) {
+          try {
+            resolvedDataProvider = await computeSiteDataProvider(
+              tenant,
+              resolvedSiteId,
+            );
+          } catch (error) {
+            logger.error(
+              `generateMetadata: data_provider lookup failed for site ${resolvedSiteId}: ${error.message}`,
+            );
+          }
+        }
+
+        // Strip siteId — it is an internal routing hint, not a site schema field.
+        const { siteId: _siteId, ...safeBody } = body;
+
         let finalResponseBody = {
           ...reverseGeoCodeResponseData,
-          ...body,
+          ...safeBody,
           ...roadResponseData,
           ...altitudeResponseData,
-          data_provider: constants.DATA_PROVIDER_MAPPINGS(body.network),
+          ...(resolvedDataProvider !== undefined && {
+            data_provider: resolvedDataProvider,
+          }),
         };
+
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
           : "";
@@ -1014,8 +1120,10 @@ const createSite = {
       );
       Object.assign(requestBody, airQloudsAndWeatherStations);
 
+      // Pass the site's id in body so generateMetadata can resolve the
+      // correct data_provider from deployed devices rather than body.network.
       const metadataResponse = await createSite.generateMetadata(
-        { query: { tenant }, body: requestBody },
+        { query: { tenant }, body: { ...requestBody, siteId: id } },
         next,
       );
 
@@ -1796,4 +1904,6 @@ const createSite = {
 module.exports = {
   ...createSite,
   getSiteCountSummary,
+  computeSiteDataProvider,
+  refreshSiteDataProvider,
 };

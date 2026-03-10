@@ -54,7 +54,7 @@ const enrichSiteWithMetadata = async (
         query: { tenant },
         body: { latitude, longitude, network },
       },
-      // FIX: Pass an explicit error callback so that if generateMetadata
+      // Pass an explicit error callback so that if generateMetadata
       // internally calls next(err), it throws into this try/catch rather
       // than crashing with "next is not a function".
       (err) => {
@@ -99,7 +99,6 @@ const enrichSiteWithMetadata = async (
         location_name,
         search_name,
         altitude,
-        data_provider,
         site_tags,
       } = metadataResponse.data;
 
@@ -122,7 +121,6 @@ const enrichSiteWithMetadata = async (
           location_name,
           search_name,
           altitude,
-          data_provider,
           site_tags,
         }).filter(([, v]) => v !== undefined),
       );
@@ -1070,6 +1068,15 @@ const createActivity = {
             activityBody.device,
             next,
           );
+
+          // **STEP 5**: Refresh site data_provider (fire and forget)
+          // Runs after the device is deployed, so it picks up the new device's network.
+          if (activityBody.site_id) {
+            createSiteUtil.refreshSiteDataProvider(
+              tenant,
+              activityBody.site_id,
+            );
+          }
 
           const data = {
             createdActivity: {
@@ -2213,6 +2220,21 @@ const createActivity = {
         }
       });
 
+      // Refresh data_provider for each newly deployed site (fire-and-forget).
+      // Deduplicate site_ids so we call once per site regardless of how many
+      // devices were deployed to it in this batch.
+      // NOTE: mirrors the single-deploy refresh in _processDeployment (Step 5).
+      const deployedSiteIds = [
+        ...new Set(
+          createdActivities
+            .filter((a) => a.site_id)
+            .map((a) => a.site_id.toString()),
+        ),
+      ];
+      deployedSiteIds.forEach((siteId) => {
+        createSiteUtil.refreshSiteDataProvider(tenant, siteId);
+      });
+
       // PHASE 7: Send Kafka notifications (fire and forget)
       if (successful_deployments.length > 0) {
         (async () => {
@@ -2328,7 +2350,7 @@ const createActivity = {
         };
       }
 
-      // FIX: Build $push safely to avoid overwriting when both site_id
+      // Build $push safely to avoid overwriting when both site_id
       // and grid_id exist on the device being recalled.
       const deviceUpdateData = {
         $set: {
@@ -2421,7 +2443,13 @@ const createActivity = {
         });
       });
 
-      // FIX: Use toObject() on both Mongoose documents to ensure clean
+      // Refresh site data_provider now that a device has been removed.
+      // Use the site_id captured before the device was recalled.
+      if (device.site_id) {
+        createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+      }
+
+      // Use toObject() on both Mongoose documents to ensure clean
       // JSON serialization. Without this, JSON.stringify() on a Mongoose
       // document may omit fields or produce unexpected output, which
       // causes the Kafka consumer to receive an object missing
@@ -2644,7 +2672,13 @@ const createActivity = {
         });
       });
 
-      // FIX: Use toObject() on both Mongoose documents — same serialization
+      // Refresh site data_provider — maintenance doesn't change device
+      // assignment but is a good opportunity to correct any stale value.
+      if (effectiveSiteId) {
+        createSiteUtil.refreshSiteDataProvider(tenant, effectiveSiteId);
+      }
+
+      // Use toObject() on both Mongoose documents — same serialization
       // risk as the recall function. findOneAndUpdate() returns a Mongoose
       // document, and ActivityModel.create() also returns one. Without
       // toObject(), JSON.stringify() may produce incomplete output and the
