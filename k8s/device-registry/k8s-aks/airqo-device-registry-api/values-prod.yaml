@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-device-registry-api
-  tag: prod-b1e15408-1773067011
+  tag: prod-3cdefbae-1773088967
 resources:
   limits:
     cpu: 400m
@@ -21,6 +21,8 @@ volumes:
   - name: config-volume
     configMap:
       name: device-registry-config-files
+ingress:
+  enabled: false
 service:
   type: NodePort
   port: 3000

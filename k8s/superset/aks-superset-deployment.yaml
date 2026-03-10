@@ -14,9 +14,10 @@ spec:
         app: superset
     spec:
       restartPolicy: Always
+      serviceAccountName: superset-sa
       initContainers:
         - name: superset-init
-          image: eu.gcr.io/airqo-250220/airqo-prod-superset-init:latest
+          image: airqoacr.azurecr.io/airqo-prod-superset-init:latest
           resources:
             requests:
               cpu: 100m
@@ -36,7 +37,7 @@ spec:
             requests:
               cpu: 100m
               memory: 128Mi
-          image: eu.gcr.io/airqo-250220/airqo-prod-superset:latest
+          image: airqoacr.azurecr.io/airqo-prod-superset:latest
           ports:
             - containerPort: 8088
           envFrom:
@@ -50,7 +51,7 @@ spec:
             requests:
               cpu: 50m
               memory: 10Mi
-          image: eu.gcr.io/airqo-250220/airqo-prod-superset-redis:latest
+          image: airqoacr.azurecr.io/airqo-prod-superset-redis:latest
           ports:
             - containerPort: 6379
 
