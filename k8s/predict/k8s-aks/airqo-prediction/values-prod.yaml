@@ -11,7 +11,7 @@ images:
 api:
   name: airqo-prediction-api
   label: predict-api
-  secret: prod-env-predict
+  secret: prod-env-predict-api
   replicaCount: 3
   podAnnotations: {}
   resources:
