@@ -1,6 +1,7 @@
 app:
   name: airqo-prod-calibrate-api
   label: prod-calibrate
+  secret: prod-env-calibrate-api
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-prod-calibrate-api
@@ -9,8 +10,6 @@ initContainer:
   image:
     repository: airqoacr.azurecr.io/airqo-prod-calibrate-pickle-file
     tag: prod-b1e15408-1773067011
-secret:
-  name: prod-env-calibrate-api
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
