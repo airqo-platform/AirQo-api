@@ -137,16 +137,11 @@ const mappings = {
   SITE_MAPPINGS: {},
   PHOTO_MAPPINGS: {},
   DATA_PROVIDER_MAPPINGS: (network) => {
-    switch (network) {
-      case "airqo":
-        return "AirQo";
-        break;
-      case "usembassy":
-        return "US Embassy";
-        break;
-      default:
-        return "AirQo";
-    }
+    if (!network || typeof network !== "string") return null;
+    return network
+      .trim()
+      .replace(/[_-]/g, " ")
+      .toUpperCase();
   },
   EVENT_MAPPINGS: {
     item: {

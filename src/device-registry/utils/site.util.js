@@ -110,6 +110,79 @@ const getSiteCountSummary = async (request, next) => {
   }
 };
 
+/**
+ * Derives a display-ready data_provider string from the networks of all
+ * devices currently deployed at a given site.
+ *
+ * Rules:
+ *   - No devices at the site → returns null (caller should leave field as-is)
+ *   - Single network       → e.g. "Airqo"
+ *   - Multiple networks    → e.g. "Airqo / Metone" (sorted for determinism)
+ *
+ * @param {string}   tenant  - The tenant identifier
+ * @param {ObjectId} siteId  - The site whose devices will be queried
+ * @returns {Promise<string|null>}
+ */
+const computeSiteDataProvider = async (tenant, siteId) => {
+  try {
+    const DeviceModel = require("@models/Device");
+    const devices = await DeviceModel(tenant)
+      .find({ site_id: siteId, isActive: true })
+      .select("network")
+      .lean();
+
+    if (!devices || devices.length === 0) return null;
+
+    const uniqueNetworks = [
+      ...new Set(
+        devices
+          .map((d) => (d.network || "").trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ].sort(); // sort so "airqo / metone" is always consistent regardless of insert order
+
+    if (uniqueNetworks.length === 0) return null;
+
+    return uniqueNetworks
+      .map((n) => constants.DATA_PROVIDER_MAPPINGS(n))
+      .filter(Boolean)
+      .join(" / ");
+  } catch (error) {
+    logger.error(
+      `computeSiteDataProvider failed for site ${siteId}: ${error.message}`,
+    );
+    return null;
+  }
+};
+
+/**
+ * Recomputes and persists data_provider on the given site document.
+ * Safe to call fire-and-forget — all errors are caught and logged.
+ *
+ * @param {string}   tenant  - The tenant identifier
+ * @param {ObjectId} siteId  - The site to update
+ */
+const refreshSiteDataProvider = async (tenant, siteId) => {
+  try {
+    if (!siteId) return;
+    const SiteModel = require("@models/Site");
+    const dataProvider = await computeSiteDataProvider(tenant, siteId);
+    if (dataProvider === null) return; // no devices → leave field untouched
+    await SiteModel(tenant).findByIdAndUpdate(
+      siteId,
+      { $set: { data_provider: dataProvider } },
+      { new: false },
+    );
+    logger.info(
+      `refreshSiteDataProvider: site ${siteId} → data_provider="${dataProvider}"`,
+    );
+  } catch (error) {
+    logger.error(
+      `refreshSiteDataProvider failed for site ${siteId}: ${error.message}`,
+    );
+  }
+};
+
 const createSite = {
   getSiteById: async (req, next) => {
     try {
@@ -961,7 +1034,10 @@ const createSite = {
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
-          data_provider: constants.DATA_PROVIDER_MAPPINGS(body.network),
+          data_provider: body.siteId
+            ? (await computeSiteDataProvider(tenant, body.siteId)) ||
+              constants.DATA_PROVIDER_MAPPINGS(body.network)
+            : constants.DATA_PROVIDER_MAPPINGS(body.network),
         };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
@@ -1796,4 +1872,6 @@ const createSite = {
 module.exports = {
   ...createSite,
   getSiteCountSummary,
+  computeSiteDataProvider,
+  refreshSiteDataProvider,
 };
