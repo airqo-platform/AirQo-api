@@ -127,11 +127,11 @@ def train_site_forecast_models_quarterly():
     from airqo_etl_utils.ml_utils import ForecastModelTrainer
 
     @task()
-    def fetch_training_data_for_mean_model() -> pd.DataFrame:
+    def fetch_training_data() -> pd.DataFrame:
         return ForecastModelTrainer.fetch_site_forecast_training_data()
 
     @task()
-    def build_features_for_mean_model(raw_data: pd.DataFrame) -> pd.DataFrame:
+    def build_features(raw_data: pd.DataFrame) -> pd.DataFrame:
         return ForecastModelTrainer._build_site_forecast_features(raw_data)
 
     @task()
@@ -155,14 +155,6 @@ def train_site_forecast_models_quarterly():
         return training_metrics
 
     @task()
-    def fetch_training_data_for_min_model() -> pd.DataFrame:
-        return ForecastModelTrainer.fetch_site_forecast_training_data()
-
-    @task()
-    def build_features_for_min_model(raw_data: pd.DataFrame) -> pd.DataFrame:
-        return ForecastModelTrainer._build_site_forecast_features(raw_data)
-
-    @task()
     def train_min_model(featured_data: pd.DataFrame) -> Dict:
         features = ForecastModelTrainer._select_numeric_training_features(featured_data)
         bucket_config = ForecastModelTrainer._get_model_bucket_config()
@@ -181,14 +173,6 @@ def train_site_forecast_models_quarterly():
     def deploy_min_model(training_metrics: Dict) -> Dict:
         # Training already performs conditional deployment to GCS.
         return training_metrics
-
-    @task()
-    def fetch_training_data_for_max_model() -> pd.DataFrame:
-        return ForecastModelTrainer.fetch_site_forecast_training_data()
-
-    @task()
-    def build_features_for_max_model(raw_data: pd.DataFrame) -> pd.DataFrame:
-        return ForecastModelTrainer._build_site_forecast_features(raw_data)
 
     @task()
     def train_max_model(featured_data: pd.DataFrame) -> Dict:
@@ -210,19 +194,16 @@ def train_site_forecast_models_quarterly():
         # Training already performs conditional deployment to GCS.
         return training_metrics
 
-    mean_raw_data = fetch_training_data_for_mean_model()
-    mean_featured_data = build_features_for_mean_model(mean_raw_data)
-    mean_metrics = train_mean_model(mean_featured_data)
+    raw_data = fetch_training_data()
+    featured_data = build_features(raw_data)
+
+    mean_metrics = train_mean_model(featured_data)
     deploy_mean_model(mean_metrics)
 
-    min_raw_data = fetch_training_data_for_min_model()
-    min_featured_data = build_features_for_min_model(min_raw_data)
-    min_metrics = train_min_model(min_featured_data)
+    min_metrics = train_min_model(featured_data)
     deploy_min_model(min_metrics)
 
-    max_raw_data = fetch_training_data_for_max_model()
-    max_featured_data = build_features_for_max_model(max_raw_data)
-    max_metrics = train_max_model(max_featured_data)
+    max_metrics = train_max_model(featured_data)
     deploy_max_model(max_metrics)
 
 
