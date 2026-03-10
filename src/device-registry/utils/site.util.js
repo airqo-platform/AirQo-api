@@ -115,7 +115,7 @@ const getSiteCountSummary = async (request, next) => {
  * devices currently deployed at a given site.
  *
  * Rules:
- *   - No devices at the site → returns null (caller should leave field as-is)
+ *   - No devices at the site → returns null (callers such as refreshSiteDataProvider() should clear any stale stored value)
  *   - Single network       → e.g. "AIRQO"
  *   - Multiple networks    → e.g. "AIRQO / METONE" (sorted for determinism)
  *
@@ -988,7 +988,7 @@ const createSite = {
 
       // Resolve the site id from either the fire-and-forget enrichment path
       // (body.siteId) or the refresh/backfill path (query.id).
-      const resolvedSiteId = body.siteId || id || null;
+      const resolvedSiteId = id || body.siteId || null;
 
       if (!skipAltitude) {
         let responseFromGetAltitude = await createSite.getAltitude(
@@ -1056,9 +1056,12 @@ const createSite = {
           }
         }
 
+        // Strip siteId — it is an internal routing hint, not a site schema field.
+        const { siteId: _siteId, ...safeBody } = body;
+
         let finalResponseBody = {
           ...reverseGeoCodeResponseData,
-          ...body,
+          ...safeBody,
           ...roadResponseData,
           ...altitudeResponseData,
           ...(resolvedDataProvider !== undefined && {
