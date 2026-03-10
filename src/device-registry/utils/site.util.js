@@ -116,8 +116,8 @@ const getSiteCountSummary = async (request, next) => {
  *
  * Rules:
  *   - No devices at the site → returns null (caller should leave field as-is)
- *   - Single network       → e.g. "Airqo"
- *   - Multiple networks    → e.g. "Airqo / Metone" (sorted for determinism)
+ *   - Single network       → e.g. "AIRQO"
+ *   - Multiple networks    → e.g. "AIRQO / METONE" (sorted for determinism)
  *
  * @param {string}   tenant  - The tenant identifier
  * @param {ObjectId} siteId  - The site whose devices will be queried
@@ -133,20 +133,25 @@ const computeSiteDataProvider = async (tenant, siteId) => {
 
     if (!devices || devices.length === 0) return null;
 
-    const uniqueNetworks = [
+    // Step 1: map raw network ids → display labels via the mapping fn.
+    // Step 2: filter out any unmappable values.
+    // Step 3: deduplicate labels (Set) — catches alias variants that map to
+    //         the same display label (e.g. "us_embassy" and "usembassy" both
+    //         become "US EMBASSY").
+    // Step 4: sort labels so the joined string is always deterministic.
+    const uniqueLabels = [
       ...new Set(
         devices
-          .map((d) => (d.network || "").trim().toLowerCase())
+          .map((d) =>
+            constants.DATA_PROVIDER_MAPPINGS((d.network || "").trim()),
+          )
           .filter(Boolean),
       ),
-    ].sort(); // sort so "airqo / metone" is always consistent regardless of insert order
+    ].sort();
 
-    if (uniqueNetworks.length === 0) return null;
+    if (uniqueLabels.length === 0) return null;
 
-    return uniqueNetworks
-      .map((n) => constants.DATA_PROVIDER_MAPPINGS(n))
-      .filter(Boolean)
-      .join(" / ");
+    return uniqueLabels.join(" / ");
   } catch (error) {
     logger.error(
       `computeSiteDataProvider failed for site ${siteId}: ${error.message}`,
@@ -167,14 +172,19 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
     if (!siteId) return;
     const SiteModel = require("@models/Site");
     const dataProvider = await computeSiteDataProvider(tenant, siteId);
-    if (dataProvider === null) return; // no devices → leave field untouched
+
+    // Write the result unconditionally:
+    // - non-null  → sets the correct derived value
+    // - null      → clears a stale value when the last device is recalled
     await SiteModel(tenant).findByIdAndUpdate(
       siteId,
       { $set: { data_provider: dataProvider } },
       { new: false },
     );
     logger.info(
-      `refreshSiteDataProvider: site ${siteId} → data_provider="${dataProvider}"`,
+      `refreshSiteDataProvider: site ${siteId} → data_provider=${
+        dataProvider === null ? "null (cleared)" : `"${dataProvider}"`
+      }`,
     );
   } catch (error) {
     logger.error(
@@ -972,6 +982,11 @@ const createSite = {
       body = { ...body };
       let { latitude, longitude, skipAltitude } = body;
       let { tenant, id } = query;
+      // Resolve the site id: callers may pass it either as query.id (the
+      // refresh/backfill paths) or as body.siteId (the enrichSiteWithMetadata
+      // fire-and-forget path). Prefer body.siteId to avoid breaking the
+      // enrichment path; fall back to query.id for the refresh path.
+      const resolvedSiteId = body.siteId || id || null;
       let roadResponseData = {};
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
@@ -1034,9 +1049,8 @@ const createSite = {
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
-          data_provider: body.siteId
-            ? (await computeSiteDataProvider(tenant, body.siteId)) ||
-              constants.DATA_PROVIDER_MAPPINGS(body.network)
+          data_provider: resolvedSiteId
+            ? await computeSiteDataProvider(tenant, resolvedSiteId)
             : constants.DATA_PROVIDER_MAPPINGS(body.network),
         };
         let status = responseFromReverseGeoCode.status
@@ -1090,8 +1104,10 @@ const createSite = {
       );
       Object.assign(requestBody, airQloudsAndWeatherStations);
 
+      // Pass the site's id in body so generateMetadata can resolve the
+      // correct data_provider from deployed devices rather than body.network.
       const metadataResponse = await createSite.generateMetadata(
-        { query: { tenant }, body: requestBody },
+        { query: { tenant }, body: { ...requestBody, siteId: id } },
         next,
       );
 

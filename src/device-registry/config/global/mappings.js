@@ -138,10 +138,27 @@ const mappings = {
   PHOTO_MAPPINGS: {},
   DATA_PROVIDER_MAPPINGS: (network) => {
     if (!network || typeof network !== "string") return null;
-    return network
-      .trim()
-      .replace(/[_-]/g, " ")
-      .toUpperCase();
+
+    const normalised = network.trim().toLowerCase();
+
+    // Override map for known ids where the generic replace-and-uppercase
+    // would produce an unreadable label (no underscore/hyphen separator).
+    const knownCollapsedMap = {
+      usembassy: "US EMBASSY",
+      urbanbetter: "URBAN BETTER",
+      airbeam: "AIRBEAM",
+      metone: "METONE",
+      kcca: "KCCA",
+      clarity: "CLARITY",
+      airqo: "AIRQO",
+    };
+
+    if (knownCollapsedMap[normalised] !== undefined) {
+      return knownCollapsedMap[normalised];
+    }
+
+    // Generic fallback: replace underscores/hyphens with spaces, uppercase.
+    return normalised.replace(/[_-]/g, " ").toUpperCase();
   },
   EVENT_MAPPINGS: {
     item: {

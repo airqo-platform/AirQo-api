@@ -2220,6 +2220,21 @@ const createActivity = {
         }
       });
 
+      // Refresh data_provider for each newly deployed site (fire-and-forget).
+      // Deduplicate site_ids so we call once per site regardless of how many
+      // devices were deployed to it in this batch.
+      // NOTE: mirrors the single-deploy refresh in _processDeployment (Step 5).
+      const deployedSiteIds = [
+        ...new Set(
+          createdActivities
+            .filter((a) => a.site_id)
+            .map((a) => a.site_id.toString()),
+        ),
+      ];
+      deployedSiteIds.forEach((siteId) => {
+        createSiteUtil.refreshSiteDataProvider(tenant, siteId);
+      });
+
       // PHASE 7: Send Kafka notifications (fire and forget)
       if (successful_deployments.length > 0) {
         (async () => {

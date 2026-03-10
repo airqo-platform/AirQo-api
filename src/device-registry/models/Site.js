@@ -472,19 +472,6 @@ siteSchema.pre(
     if (this.getUpdate) {
       const updates = this.getUpdate();
       if (updates) {
-        // Handle data_provider update based on groups
-        const hasExplicitDataProvider =
-          updates.data_provider || (updates.$set && updates.$set.data_provider);
-
-        // Check for groups in different possible update operations
-        const groupsUpdate =
-          updates.groups ||
-          (updates.$set && updates.$set.groups) ||
-          (updates.$addToSet &&
-            updates.$addToSet.groups &&
-            updates.$addToSet.groups.$each) ||
-          (updates.$push && updates.$push.groups && updates.$push.groups.$each);
-
         // Prevent modification of restricted fields
         const restrictedFields = [
           "latitude",
