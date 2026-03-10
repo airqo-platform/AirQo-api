@@ -1,7 +1,7 @@
 app:
   name: airqo-stage-calibrate-api
   label: sta-calibrate
-  secret: prod-env-calibrate-api
+  secret: sta-env-calibrate-api
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-calibrate-api
