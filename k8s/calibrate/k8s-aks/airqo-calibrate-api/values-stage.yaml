@@ -5,11 +5,11 @@ app:
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-calibrate-api
-  tag: stage-d46631d7-1772989600
+  tag: stage-fd9fad4d-1773145644
 initContainer:
   image:
     repository: airqoacr.azurecr.io/airqo-stage-calibrate-pickle-file
-    tag: stage-d46631d7-1772989600
+    tag: stage-fd9fad4d-1773145644
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
