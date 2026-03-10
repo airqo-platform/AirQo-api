@@ -156,7 +156,10 @@ const computeSiteDataProvider = async (tenant, siteId) => {
     logger.error(
       `computeSiteDataProvider failed for site ${siteId}: ${error.message}`,
     );
-    return null;
+    // Rethrow so callers (e.g. refreshSiteDataProvider) can distinguish a
+    // transient failure from a confirmed "zero active devices" case.
+    // Only a clean empty-devices result should ever clear data_provider.
+    throw error;
   }
 };
 
@@ -1049,9 +1052,13 @@ const createSite = {
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
+          // When resolvedSiteId is present, derive from active devices.
+          // When absent (new site creation — no devices exist yet), omit the field
+          // entirely rather than guessing from body.network. data_provider will be
+          // populated on first deploy via refreshSiteDataProvider.
           data_provider: resolvedSiteId
             ? await computeSiteDataProvider(tenant, resolvedSiteId)
-            : constants.DATA_PROVIDER_MAPPINGS(body.network),
+            : undefined,
         };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
