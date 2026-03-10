@@ -979,27 +979,17 @@ const createSite = {
   generateMetadata: async (req, next) => {
     try {
       let { query, body } = req;
-      // Work on a shallow copy so we never mutate the caller's body object.
-      // Without this, the `body["site_tags"] = merged_site_tags` assignment
-      // below modifies the caller's reference directly.
       body = { ...body };
       let { latitude, longitude, skipAltitude } = body;
       let { tenant, id } = query;
-      // Resolve the site id: callers may pass it either as query.id (the
-      // refresh/backfill paths) or as body.siteId (the enrichSiteWithMetadata
-      // fire-and-forget path). Prefer body.siteId to avoid breaking the
-      // enrichment path; fall back to query.id for the refresh path.
-      const resolvedSiteId = body.siteId || id || null;
       let roadResponseData = {};
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      // Skip the altitude call entirely if the caller has flagged that the
-      // Elevation API is known to be unavailable for this run (e.g. the
-      // circuit breaker in the backfill job was tripped by ERR_INVALID_CHAR
-      // on a previous site). This prevents flooding logs with identical
-      // errors across an entire batch when the failure is configuration-level
-      // and affects every site equally.
+      // Resolve the site id from either the fire-and-forget enrichment path
+      // (body.siteId) or the refresh/backfill path (query.id).
+      const resolvedSiteId = body.siteId || id || null;
+
       if (!skipAltitude) {
         let responseFromGetAltitude = await createSite.getAltitude(
           latitude,
@@ -1011,10 +1001,6 @@ const createSite = {
           altitudeResponseData["altitude"] = responseFromGetAltitude.data;
         } else if (responseFromGetAltitude.success === false) {
           try {
-            // Log only curated, safe fields — avoid stringifying
-            // responseFromGetAltitude.errors directly since errors.message
-            // is the raw Axios error object which contains e.config and
-            // request headers, potentially leaking GOOGLE_MAPS_API_KEY.
             const rawError = responseFromGetAltitude.errors?.message;
             const safeError = {
               code: rawError?.code,
@@ -1047,19 +1033,39 @@ const createSite = {
         let existing_site_tags = body.site_tags ? body.site_tags : [];
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
+
+        // Resolve data_provider separately so a transient lookup failure does
+        // not abort the rest of the metadata path. reverse-geocode data is
+        // already in hand at this point and must not be discarded.
+        // - resolvedSiteId present + devices found  → mapped label string
+        // - resolvedSiteId present + no devices     → null (field cleared)
+        // - resolvedSiteId absent (new site)        → undefined (field omitted)
+        // - resolvedSiteId present + lookup throws  → undefined (field omitted,
+        //   existing stored value preserved until next successful activity)
+        let resolvedDataProvider = undefined;
+        if (resolvedSiteId) {
+          try {
+            resolvedDataProvider = await computeSiteDataProvider(
+              tenant,
+              resolvedSiteId,
+            );
+          } catch (error) {
+            logger.error(
+              `generateMetadata: data_provider lookup failed for site ${resolvedSiteId}: ${error.message}`,
+            );
+          }
+        }
+
         let finalResponseBody = {
           ...reverseGeoCodeResponseData,
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
-          // When resolvedSiteId is present, derive from active devices.
-          // When absent (new site creation — no devices exist yet), omit the field
-          // entirely rather than guessing from body.network. data_provider will be
-          // populated on first deploy via refreshSiteDataProvider.
-          data_provider: resolvedSiteId
-            ? await computeSiteDataProvider(tenant, resolvedSiteId)
-            : undefined,
+          ...(resolvedDataProvider !== undefined && {
+            data_provider: resolvedDataProvider,
+          }),
         };
+
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
           : "";
