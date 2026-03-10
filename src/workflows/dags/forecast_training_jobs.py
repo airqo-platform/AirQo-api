@@ -127,11 +127,11 @@ def train_site_forecast_models_quarterly():
     from airqo_etl_utils.ml_utils import ForecastModelTrainer
 
     @task()
-    def fetch_training_data() -> pd.DataFrame:
+    def fetch_training_data_for_mean_model() -> pd.DataFrame:
         return ForecastModelTrainer.fetch_site_forecast_training_data()
 
     @task()
-    def build_features(raw_data: pd.DataFrame) -> pd.DataFrame:
+    def build_features_for_mean_model(raw_data: pd.DataFrame) -> pd.DataFrame:
         return ForecastModelTrainer._build_site_forecast_features(raw_data)
 
     @task()
@@ -149,54 +149,81 @@ def train_site_forecast_models_quarterly():
             blob_name="daily_pm25_mean_model.pkl",
         )
 
+    @task(task_id="deploy_mean_model")
+    def deploy_mean_model(training_metrics: Dict) -> Dict:
+        # Training already performs conditional deployment to GCS.
+        return training_metrics
+
     @task()
-    def train_low_q10_model(featured_data: pd.DataFrame) -> Dict:
+    def fetch_training_data_for_min_model() -> pd.DataFrame:
+        return ForecastModelTrainer.fetch_site_forecast_training_data()
+
+    @task()
+    def build_features_for_min_model(raw_data: pd.DataFrame) -> pd.DataFrame:
+        return ForecastModelTrainer._build_site_forecast_features(raw_data)
+
+    @task()
+    def train_min_model(featured_data: pd.DataFrame) -> Dict:
         features = ForecastModelTrainer._select_numeric_training_features(featured_data)
         bucket_config = ForecastModelTrainer._get_model_bucket_config()
-        return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+        return ForecastModelTrainer.train_point_and_save_to_gcs(
             featured_data,
-            alpha=0.1,
             features=features,
-            target="pm25_mean",
+            target="pm25_min",
+            model_kind="min",
             date_col="day",
             project_name=bucket_config["project_name"],
             bucket_name=bucket_config["bucket_name"],
-            blob_name="daily_pm25_low_model.pkl",
+            blob_name="daily_pm25_min_model.pkl",
         )
 
+    @task(task_id="deploy_min_model")
+    def deploy_min_model(training_metrics: Dict) -> Dict:
+        # Training already performs conditional deployment to GCS.
+        return training_metrics
+
     @task()
-    def train_high_q90_model(featured_data: pd.DataFrame) -> Dict:
+    def fetch_training_data_for_max_model() -> pd.DataFrame:
+        return ForecastModelTrainer.fetch_site_forecast_training_data()
+
+    @task()
+    def build_features_for_max_model(raw_data: pd.DataFrame) -> pd.DataFrame:
+        return ForecastModelTrainer._build_site_forecast_features(raw_data)
+
+    @task()
+    def train_max_model(featured_data: pd.DataFrame) -> Dict:
         features = ForecastModelTrainer._select_numeric_training_features(featured_data)
         bucket_config = ForecastModelTrainer._get_model_bucket_config()
-        return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+        return ForecastModelTrainer.train_point_and_save_to_gcs(
             featured_data,
-            alpha=0.9,
             features=features,
-            target="pm25_mean",
+            target="pm25_max",
+            model_kind="max",
             date_col="day",
             project_name=bucket_config["project_name"],
             bucket_name=bucket_config["bucket_name"],
-            blob_name="daily_pm25_high_model.pkl",
+            blob_name="daily_pm25_max_model.pkl",
         )
 
-    @task(task_id="inserting_model_in_bucket")
-    def inserting_model_in_bucket(
-        mean_metrics: Dict,
-        low_q10_metrics: Dict,
-        high_q90_metrics: Dict,
-    ) -> Dict[str, Dict]:
-        return {
-            "mean": mean_metrics,
-            "low_q10": low_q10_metrics,
-            "high_q90": high_q90_metrics,
-        }
+    @task(task_id="deploy_max_model")
+    def deploy_max_model(training_metrics: Dict) -> Dict:
+        # Training already performs conditional deployment to GCS.
+        return training_metrics
 
-    raw_data = fetch_training_data()
-    featured_data = build_features(raw_data)
-    mean_metrics = train_mean_model(featured_data)
-    low_q10_metrics = train_low_q10_model(featured_data)
-    high_q90_metrics = train_high_q90_model(featured_data)
-    inserting_model_in_bucket(mean_metrics, low_q10_metrics, high_q90_metrics)
+    mean_raw_data = fetch_training_data_for_mean_model()
+    mean_featured_data = build_features_for_mean_model(mean_raw_data)
+    mean_metrics = train_mean_model(mean_featured_data)
+    deploy_mean_model(mean_metrics)
+
+    min_raw_data = fetch_training_data_for_min_model()
+    min_featured_data = build_features_for_min_model(min_raw_data)
+    min_metrics = train_min_model(min_featured_data)
+    deploy_min_model(min_metrics)
+
+    max_raw_data = fetch_training_data_for_max_model()
+    max_featured_data = build_features_for_max_model(max_raw_data)
+    max_metrics = train_max_model(max_featured_data)
+    deploy_max_model(max_metrics)
 
 
 train_site_forecast_models_quarterly()
