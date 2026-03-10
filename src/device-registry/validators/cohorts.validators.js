@@ -113,18 +113,6 @@ const commonValidations = {
         "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ],
-  nameOptional: [
-    body("name")
-      .optional()
-      .notEmpty()
-      .withMessage("the name should not be empty if provided")
-      .bail()
-      .trim()
-      .matches(/^[a-zA-Z0-9\s\-_]+$/)
-      .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores",
-      ),
-  ],
   description: [
     body("description")
       .optional()
@@ -317,7 +305,12 @@ const cohortValidations = {
   updateCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-    ...commonValidations.nameOptional,
+    body("name")
+      .not()
+      .exists()
+      .withMessage(
+        "name cannot be updated via this endpoint; use PUT /:cohort_id/name instead",
+      ),
     ...commonValidations.description,
     ...commonValidations.visibility,
     ...commonValidations.cohort_tags,
