@@ -309,7 +309,7 @@ const cohortValidations = {
       .not()
       .exists()
       .withMessage(
-        "name cannot be updated via this endpoint; use PUT /:cohort_id/name instead",
+        "name cannot be updated via this endpoint; use PUT /cohorts/:cohort_id/name instead",
       ),
     ...commonValidations.description,
     ...commonValidations.visibility,
