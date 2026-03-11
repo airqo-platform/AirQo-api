@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 import mlflow
 import pandas as pd
+from airqo_etl_utils.date import DateUtils
 
 logger = logging.getLogger("airflow.task")
 
@@ -55,8 +56,8 @@ class MlflowTracker:
     def _format_date_param(value: Any) -> str:
         parsed = pd.to_datetime(value, errors="coerce")
         if pd.isna(parsed):
-            return "unknown"
-        return parsed.strftime("%Y-%m-%d")
+            return "invalid_date"
+        return DateUtils.date_to_str(parsed.to_pydatetime(), str_format="%Y-%m-%d")
 
     @staticmethod
     def build_dataset_metadata(
@@ -125,35 +126,6 @@ class MlflowTracker:
             started_run_id = started_run.info.run_id
 
             if resolved_dataset_metadata:
-                try:
-                    dataset_frame = pd.DataFrame(
-                        [
-                            {
-                                "start_date": pd.to_datetime(
-                                    resolved_dataset_metadata.get("start_date"),
-                                    errors="coerce",
-                                ),
-                                "end_date": pd.to_datetime(
-                                    resolved_dataset_metadata.get("end_date"),
-                                    errors="coerce",
-                                ),
-                                "row_count": int(
-                                    resolved_dataset_metadata.get("row_count", 0)
-                                ),
-                            }
-                        ]
-                    )
-                    dataset = mlflow.data.from_pandas(
-                        df=dataset_frame,
-                        source="training_window",
-                        name="training_dataset",
-                    )
-                    mlflow.log_input(dataset, context="training")
-                except Exception as exc:
-                    logger.warning(
-                        f"Failed to log MLflow dataset metadata for '{run_name}': {exc}"
-                    )
-
                 try:
                     mlflow.log_params(
                         {

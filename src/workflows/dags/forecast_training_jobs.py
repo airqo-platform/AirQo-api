@@ -19,7 +19,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 @dag(
     "AirQo-forecast-models-training-job",
-    schedule="0 1 * * 0",  # Runs every Sunday at 01:00
+    schedule="0 2 3 */3 *",  # Runs at 02:00 on day 3 of every 3rd month
     default_args={
         **AirflowUtils.dag_default_configs(),
         "retries": 3,  # Retry failed tasks up to 3 times
