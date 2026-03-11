@@ -33,6 +33,7 @@ const imagePath = path.join(projectRoot, "config", "images");
  * START: MongoDB-based Email Queue for Throttling
  */
 const EMAIL_INTERVAL = constants.EMAIL_QUEUE_INTERVAL_MS || 3000; // 3 seconds between each email send attempt (configurable)
+const MAX_ATTEMPTS = 3;
 let isProcessingQueue = false;
 let queueIntervalId = null;
 
@@ -69,55 +70,65 @@ const processEmailQueue = async () => {
     return;
   }
 
-  try {
-    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-    const EmailQueueForFinding = EmailQueueModel(defaultTenant);
-
-    // Reset stale "processing" jobs
+  const tenants = constants.TENANTS || ["airqo"];
+  for (const tenant of tenants) {
     try {
-      const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
-      await EmailQueueForFinding.updateMany(
-        { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
-        { $set: { status: "pending" } },
-      );
-    } catch (error) {
-      logger.warn(`Error resetting stale email jobs: ${error.message}`);
-    }
+      const EmailQueueForTenant = EmailQueueModel(tenant);
 
-    const emailJob = await EmailQueueForFinding.findOneAndUpdate(
-      { status: "pending" },
-      { $set: { status: "processing", lastAttemptAt: new Date() } },
-      { sort: { createdAt: 1 } },
-    );
-
-    if (emailJob) {
-      // Use the tenant from the job to get the correct model for deletion
-      const tenant = emailJob.tenant || defaultTenant;
-      const EmailQueueForDeleting = EmailQueueModel(tenant);
-
+      // Reset stale "processing" jobs for this tenant
       try {
-        await queueTransporter.sendMail(emailJob.mailOptions);
-        await EmailQueueForDeleting.findByIdAndDelete(emailJob._id);
-        logger.info(`Email sent successfully to: ${emailJob.mailOptions.to}`);
+        const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
+        await EmailQueueForTenant.updateMany(
+          { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
+          { $set: { status: "pending" } },
+        );
       } catch (error) {
-        logger.error(`Failed to send email from queue: ${error.message}`);
-        await EmailQueueForDeleting.findByIdAndUpdate(emailJob._id, {
-          $set: { status: "failed", errorMessage: error.message },
-          $inc: { attempts: 1 },
-        });
+        logger.warn(
+          `Error resetting stale email jobs for tenant ${tenant}: ${error.message}`,
+        );
       }
+
+      const emailJob = await EmailQueueForTenant.findOneAndUpdate(
+        { status: "pending", attempts: { $lt: MAX_ATTEMPTS } },
+        { $set: { status: "processing", lastAttemptAt: new Date() } },
+        { sort: { createdAt: 1 } },
+      );
+
+      if (emailJob) {
+        try {
+          await queueTransporter.sendMail(emailJob.mailOptions);
+          await EmailQueueForTenant.findByIdAndDelete(emailJob._id);
+          logger.info(
+            `Email sent successfully to: ${emailJob.mailOptions.to} for tenant ${tenant}`,
+          );
+        } catch (error) {
+          logger.error(
+            `Failed to send email from queue for tenant ${tenant}: ${error.message}`,
+          );
+          const nextAttempt = emailJob.attempts + 1;
+          const newStatus =
+            nextAttempt >= MAX_ATTEMPTS ? "failed" : "pending";
+
+          await EmailQueueForTenant.findByIdAndUpdate(emailJob._id, {
+            $set: { status: newStatus, errorMessage: error.message },
+            $inc: { attempts: 1 },
+          });
+        }
+      }
+    } catch (error) {
+      logger.error(
+        `Error processing email queue for tenant ${tenant}: ${error.message}`,
+      );
     }
-  } catch (error) {
-    logger.error(`Error processing email queue: ${error.message}`);
-  } finally {
-    isProcessingQueue = false;
   }
+
+  isProcessingQueue = false;
 };
 
 const startEmailQueue = () => {
   if (!queueIntervalId) {
     queueIntervalId = setInterval(processEmailQueue, EMAIL_INTERVAL);
-    logger.info("Email queue processor started.");
+    logger.info("Email queue processor has been started.");
   }
 };
 
@@ -125,12 +136,9 @@ const stopEmailQueue = () => {
   if (queueIntervalId) {
     clearInterval(queueIntervalId);
     queueIntervalId = null;
-    logger.info("Email queue processor stopped.");
+    logger.info("Email queue processor has been stopped.");
   }
 };
-
-// Start the queue processor
-startEmailQueue();
 
 /** END: MongoDB-based Email Queue */
 
@@ -427,9 +435,8 @@ const createMailerFunction = (
                 );
                 // If even queuing fails, we must throw.
                 throw new HttpError(
-                  "Internal Server Error",
+                  "High-priority email send and queue fallback failed.",
                   httpStatus.INTERNAL_SERVER_ERROR,
-                  { message: "High-priority email send and queue fallback failed." },
                 );
               }
               emailResult = {
@@ -451,9 +458,8 @@ const createMailerFunction = (
                 `Deduplication key for ${mailOptions.to} removed after queue insertion failure.`,
               );
               throw new HttpError(
-                "Internal Server Error",
+                queueResult.error || "Failed to queue email.",
                 httpStatus.INTERNAL_SERVER_ERROR,
-                { message: queueResult.error || "Failed to queue email." },
               );
             }
             emailResult = {
@@ -488,15 +494,14 @@ const createMailerFunction = (
         );
         const retryQueueResult = await addToEmailQueue(mailOptions, tenant);
         if (!retryQueueResult.success) {
-          throw new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message:
-                retryQueueResult.error ||
-                "Failed to queue email after deduplication step.",
-            },
-          );
+          // If even the retry fails, clear the dedup key
+          await emailDeduplicator.removeEmailKey(mailOptions);
+          const errorMessage =
+            retryQueueResult.error ||
+            "Failed to queue email after deduplication step.";
+          throw new HttpError(errorMessage, httpStatus.INTERNAL_SERVER_ERROR, {
+            message: errorMessage,
+          });
         }
         emailResult = {
           success: true,
@@ -513,11 +518,12 @@ const createMailerFunction = (
       // not the direct sending action. The background processor handles the actual sending.
       if (!emailResult.success && !emailResult.duplicate) {
         // This would happen if adding to the MongoDB queue itself failed.
-        throw new HttpError(
-          "Internal Server Error",
+        const err = new HttpError(
+          "Failed to queue email for sending.",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: "Failed to queue email for sending." },
         );
+        if (next) return next(err);
+        throw err;
       }
 
       // ✅ STEP 4e: Handle email queuing results
@@ -2149,6 +2155,12 @@ const mailer = {
           operation: "sendReport",
         },
       );
+
+      // Preserve HttpError instances, wrap others
+      if (error instanceof HttpError) {
+        if (next) return next(error);
+        throw error;
+      }
 
       const httpError = new HttpError(
         "Internal Server Error",

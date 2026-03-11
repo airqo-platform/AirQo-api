@@ -1,4 +1,4 @@
-const mailer = require("./mailer.util");
+const { mailer, startEmailQueue, stopEmailQueue } = require("./mailer.util");
 const stringify = require("./stringify.util");
 const {
   generateDateFormat,
@@ -37,7 +37,9 @@ module.exports = {
   hasValidTheme,
   mergeWithDefaults,
   winstonLogger,
-  mailer,
+  ...mailer,
+  startEmailQueue,
+  stopEmailQueue,
   stringify,
   generateDateFormat,
   threeMonthsFromNow,
