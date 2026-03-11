@@ -1398,10 +1398,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 "model_kind": model_kind,
                 "target": target,
                 "decision_reason": deployment["reason"],
-                "deployed": str(deployment["deployed"]).lower(),
             },
+            deployed=deployment["deployed"],
             model=model,
             model_artifact_path="model",
+            dataset=df,
+            dataset_date_col=date_col,
             input_example=input_example,
         )
 
@@ -1524,10 +1526,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 "target": target,
                 "alpha": str(alpha),
                 "decision_reason": deployment["reason"],
-                "deployed": str(deployment["deployed"]).lower(),
             },
+            deployed=deployment["deployed"],
             model=model,
             model_artifact_path="model",
+            dataset=df,
+            dataset_date_col=date_col,
             input_example=input_example,
         )
 
