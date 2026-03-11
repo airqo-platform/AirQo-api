@@ -1,0 +1,846 @@
+name: deploy-apis-to-azure-staging
+
+on:
+  pull_request_target:
+    branches:
+      - staging
+    types:
+      - closed
+
+env:
+  REGISTRY_URL: airqoacr.azurecr.io
+  ACR_NAME: airqoacr
+  DEPLOY_BRANCH: staging
+
+jobs:
+
+  #########################################
+  # CREATE IMAGE TAG
+  #########################################
+
+  image-tag:
+    if: github.event.pull_request.merged == true
+    name: create image tag
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.prep.outputs.build_id }}
+      datetime: ${{ steps.prep.outputs.datetime }}
+    steps:
+      - name: generate build ID
+        id: prep
+        run: |
+          sha=${GITHUB_SHA::8}
+          timestamp=$(date +%s)
+          datetime=$(date)
+          echo "build_id=stage-${sha}-${timestamp}" >>$GITHUB_OUTPUT
+          echo "datetime=${datetime}" >>$GITHUB_OUTPUT
+
+  #########################################
+  # DETECT CHANGED SERVICES
+  #########################################
+
+  check:
+    if: github.event.pull_request.merged == true
+    name: check changed microservice(s)
+    outputs:
+      run_auth_service: ${{ steps.check_files.outputs.run_auth_service }}
+      run_device_registry: ${{ steps.check_files.outputs.run_device_registry }}
+      run_analytics: ${{ steps.check_files.outputs.run_analytics }}
+      run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }}
+      run_predict: ${{ steps.check_files.outputs.run_predict }}
+      run_meta_data: ${{ steps.check_files.outputs.run_meta_data }}
+      run_view: ${{ steps.check_files.outputs.run_view }}
+      run_calibrate: ${{ steps.check_files.outputs.run_calibrate }}
+      run_workflows: ${{ steps.check_files.outputs.run_workflows }}
+      run_spatial: ${{ steps.check_files.outputs.run_spatial }}
+      run_website_api: ${{ steps.check_files.outputs.run_website_api }}
+      run_nginx: ${{ steps.check_files.outputs.run_nginx }}
+      run_redis: ${{ steps.check_files.outputs.run_redis }}
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: check modified microservices
+        id: check_files
+        run: |
+          echo "=============== list modified files ==============="
+          git diff --name-only HEAD^ HEAD
+
+          echo "========== check paths of modified files =========="
+          git diff --name-only HEAD^ HEAD > files.txt
+
+          echo "run_auth_service=false" >>$GITHUB_OUTPUT
+          echo "run_device_registry=false" >>$GITHUB_OUTPUT
+          echo "run_analytics=false" >>$GITHUB_OUTPUT
+          echo "run_beacon_api=false" >>$GITHUB_OUTPUT
+          echo "run_predict=false" >>$GITHUB_OUTPUT
+          echo "run_meta_data=false" >>$GITHUB_OUTPUT
+          echo "run_view=false" >>$GITHUB_OUTPUT
+          echo "run_calibrate=false" >>$GITHUB_OUTPUT
+          echo "run_workflows=false" >>$GITHUB_OUTPUT
+          echo "run_spatial=false" >>$GITHUB_OUTPUT
+          echo "run_website_api=false" >>$GITHUB_OUTPUT
+          echo "run_nginx=false" >>$GITHUB_OUTPUT
+          echo "run_redis=false" >>$GITHUB_OUTPUT
+
+          while IFS= read -r file
+          do
+            echo $file
+
+            if [[ $file == src/auth-service/* ]]; then
+              echo "run_auth_service=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/auth-service/* ]]; then
+              echo "run_auth_service=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/device-registry/* ]]; then
+              echo "run_device_registry=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/device-registry/* ]]; then
+              echo "run_device_registry=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/analytics/* ]]; then
+              echo "run_analytics=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/analytics/* ]]; then
+              echo "run_analytics=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/beacon-api/* ]]; then
+              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/beacon-api/* ]]; then
+              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/predict/* ]]; then
+              echo "run_predict=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/predict/* ]]; then
+              echo "run_predict=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/meta-data/* ]]; then
+              echo "run_meta_data=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/meta-data/* ]]; then
+              echo "run_meta_data=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/view/* ]]; then
+              echo "run_view=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/view/* ]]; then
+              echo "run_view=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/calibrate/* ]]; then
+              echo "run_calibrate=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/calibrate/* ]]; then
+              echo "run_calibrate=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/workflows/* ]]; then
+              echo "run_workflows=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/workflows/* ]]; then
+              echo "run_workflows=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/spatial/* ]]; then
+              echo "run_spatial=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/spatial/* ]]; then
+              echo "run_spatial=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/website/* ]]; then
+              echo "run_website_api=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == k8s/website/* ]]; then
+              echo "run_website_api=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == k8s/nginx/staging/* ]]; then
+              echo "run_nginx=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == k8s/redis/* ]]; then
+              echo "run_redis=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == workflow-trigger ]]; then
+              echo "run_auth_service=true" >>$GITHUB_OUTPUT
+              echo "run_device_registry=true" >>$GITHUB_OUTPUT
+              echo "run_analytics=true" >>$GITHUB_OUTPUT
+              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
+              echo "run_predict=true" >>$GITHUB_OUTPUT
+              echo "run_meta_data=true" >>$GITHUB_OUTPUT
+              echo "run_view=true" >>$GITHUB_OUTPUT
+              echo "run_calibrate=true" >>$GITHUB_OUTPUT
+              echo "run_workflows=true" >>$GITHUB_OUTPUT
+              echo "run_spatial=true" >>$GITHUB_OUTPUT
+              echo "run_website_api=true" >>$GITHUB_OUTPUT
+              echo "run_nginx=true" >>$GITHUB_OUTPUT
+              echo "run_redis=true" >>$GITHUB_OUTPUT
+            fi
+
+          done < files.txt
+
+  #########################################
+  # AUTH SERVICE
+  #########################################
+
+  auth-service:
+    name: build-push-auth-service
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_auth_service == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/auth-service/
+          docker build --target=staging \
+            --tag ${{ env.REGISTRY_URL }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} \
+            ${{ env.REGISTRY_URL }}/airqo-stage-auth-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-auth-api:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/auth-service/k8s-aks/auth-service/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # DEVICE REGISTRY
+  #########################################
+
+  device-registry:
+    name: build-push-device-registry
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_device_registry == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/device-registry/
+          docker build --target=staging \
+            --tag ${{ env.REGISTRY_URL }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} \
+            ${{ env.REGISTRY_URL }}/airqo-stage-device-registry-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-device-registry-api:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/device-registry/k8s-aks/airqo-device-registry-api/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # ANALYTICS
+  #########################################
+
+  analytics:
+    name: build-push-analytics
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_analytics == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: staging
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-api:latest
+
+      - name: Build and push Celery beat Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-beat
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-celery-beat:latest
+
+      - name: Build and push Celery worker Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-worker
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-celery-worker:latest
+
+      - name: Build and push device summary job Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/
+          target: devices-summary-job
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-devices-summary-job:latest
+
+      - name: Build and push reports job Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/analytics/jobs/reports
+          target: staging
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-analytics-report-job:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/analytics/k8s-aks/analytics/values-stage.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update analytics staging images tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # BEACON API
+  #########################################
+
+  beacon-api:
+    name: build-push-beacon-api
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_beacon_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/beacon-api/
+          docker build --target=staging \
+            --tag ${{ env.REGISTRY_URL }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} \
+            ${{ env.REGISTRY_URL }}/airqo-stage-beacon-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-beacon-api:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/beacon-api/k8s-aks/airqo-beacon-api/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update beacon-api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # PREDICT SERVICE
+  #########################################
+
+  predict-service:
+    name: build-push-predict-service
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_predict == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/predict/api
+          target: staging
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-prediction-api:latest
+
+      - name: Build and push predict places image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/predict/jobs/predict_places_air_quality
+          tags: |
+            ${{ env.REGISTRY_URL }}/stage-airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/stage-airqo-predict-places-air-quality:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/predict/k8s-aks/airqo-prediction/values-stage.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update predict staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # META DATA
+  #########################################
+
+  meta-data:
+    name: build-push-meta-data
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_meta_data == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/meta-data
+          target: api
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-meta-data-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-meta-data-api:latest
+
+      - name: Build and push sites consumer
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/meta-data
+          target: sites-consumer
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-meta-data-sites-consumer:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/meta-data/values-stage.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update meta-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # VIEW
+  #########################################
+
+  view:
+    name: build-push-view
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_view == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push API
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/view
+          target: api
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-view-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-view-api:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/view/k8s-aks/airqo-view-api/values-stage.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update view staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # CALIBRATE
+  #########################################
+
+  calibrate:
+    name: build-push-calibrate
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_calibrate == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push calibrate API
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/calibrate
+          target: staging
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-api:latest
+
+      - name: Build and push calibrate pickle file
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/calibrate
+          target: pickle-file
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-pickle-file:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/calibrate/k8s-aks/airqo-calibrate-api/values-stage.yaml"
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
+            changes: |
+              {
+                "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+                "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+              }
+
+  #########################################
+  # WORKFLOWS
+  #########################################
+
+  workflows:
+    name: build-push-workflows
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.7.0
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push app
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: deployment
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-workflows:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-workflows:latest
+
+      - name: Build and push Redis
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: redis
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-redis:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-redis:latest
+
+      - name: Build and push XCom
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: xcom-setup
+          tags: |
+            ${{ env.REGISTRY_URL }}/airqo-stage-workflows-xcom:${{ needs.image-tag.outputs.build_id }}
+            ${{ env.REGISTRY_URL }}/airqo-stage-workflows-xcom:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/workflows/k8s-aks/airqo-workflows/values-stage.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update workflows staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # SPATIAL
+  #########################################
+
+  spatial:
+    name: build-push-spatial
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_spatial == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/spatial/
+          docker build --target=staging \
+            --tag ${{ env.REGISTRY_URL }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }} \
+            ${{ env.REGISTRY_URL }}/airqo-stage-spatial-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-spatial-api:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/spatial/k8s-aks/airqo-spatial-api/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update spatial staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # WEBSITE API
+  #########################################
+
+  website-api:
+    name: build-push-website-api
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_website_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          cd src/website/
+          docker build --tag ${{ env.REGISTRY_URL }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }} \
+            ${{ env.REGISTRY_URL }}/airqo-stage-website-api:latest
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/airqo-stage-website-api:latest
+
+      - name: Update helm values file
+        uses: Wandalen/wretry.action@v1.2.0
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/website/k8s-aks/airqo-website-api/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update website-api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+  #########################################
+  # REDIS
+  #########################################
+
+  redis:
+    name: deploy-redis
+    needs: [check]
+    if: needs.check.outputs.run_redis == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_STAGE }}
+
+      - name: Deploy Redis via Helm
+        run: |
+          helm upgrade --install redis k8s/redis \
+            --namespace staging \
+            --values k8s/redis/values-stage.yaml
+
+  #########################################
+  # NGINX
+  #########################################
+
+  nginx:
+    name: apply-nginx
+    needs: [check]
+    if: needs.check.outputs.run_nginx == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_STAGE }}
+
+      - name: Apply nginx changes
+        run: kubectl apply -f k8s/nginx/staging/

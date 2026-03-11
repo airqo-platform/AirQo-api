@@ -86,7 +86,7 @@ class BaseMlUtils:
             )
         group_columns = (
             ["device_id"] + additional_columns
-            if job_type == "prediction"
+            if job_type == "predict"
             else ["device_id"]
         )
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(

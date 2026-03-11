@@ -821,12 +821,20 @@ class DataUtils:
             lat_fallback = device.get("latitude") or meta_data.get("latitude")
             lon_fallback = device.get("longitude") or meta_data.get("longitude")
 
-        # Ensure latitude and longitude are numeric, coercing errors to NaN for consistent processing
-        # If both columns exist, convert both at once; otherwise convert any that exist
-        if "latitude" in data.columns and "longitude" in data.columns:
-            data[["latitude", "longitude"]] = pd.to_numeric(
-                data[["latitude", "longitude"]].stack(), errors="coerce"
-            ).unstack()
+        # Ensure latitude and longitude are numeric, coercing errors to NaN for consistent processing.
+        # Avoid stacking/unstacking (which drops all-NaN rows by default) as that can
+        # change the length/shape and trigger "Columns must be same length as key".
+        to_convert = [c for c in ("latitude", "longitude") if c in data.columns]
+        if to_convert:
+            try:
+                # apply(pd.to_numeric) preserves shape and is robust.
+                data[to_convert] = data[to_convert].apply(
+                    pd.to_numeric, errors="coerce"
+                )
+            except Exception:
+                # Fallback: coerce columns individually to be extra-safe.
+                for c in to_convert:
+                    data[c] = pd.to_numeric(data[c], errors="coerce")
 
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")

@@ -134,6 +134,91 @@ const buildMissingFieldsUpdate = (site, metadataFields) => {
   );
 };
 
+/**
+ * Attempts to assign a generated_name to a site that is missing one.
+ * generated_name comes from the UniqueIdentifierCounter — it is completely
+ * independent of geocoding and must therefore be handled before
+ * generateMetadata() is called.
+ *
+ * Writes the generated_name directly to the database and returns it so the
+ * in-memory site object can be updated before buildMissingFieldsUpdate runs.
+ *
+ * @param {string} tenant
+ * @param {Object} site  — lean MongoDB site document
+ * @returns {string|null}  — the newly assigned generated_name, or null on failure
+ */
+const repairGeneratedName = async (tenant, site) => {
+  try {
+    const response = await createSiteUtil.generateName(tenant, (err) => {
+      throw err;
+    });
+
+    if (!response || response.success === false) {
+      logger.error(
+        `[${POD_ID}] Failed to generate name for site ${
+          site._id
+        }: ${response?.message || "unknown error"}`,
+      );
+      return null;
+    }
+
+    const generatedName = response.data;
+
+    // Use collection.updateOne to bypass the Mongoose pre-hook on
+    // findOneAndUpdate, which strips generated_name from $set because it is
+    // listed in the hook's restrictedFields array. Going directly to the
+    // driver-level collection skips all middleware and guarantees the field
+    // is actually written to MongoDB.
+    //
+    // The filter includes the "still missing" predicate so the write is a
+    // no-op if a concurrent process already repaired generated_name between
+    // our query and this write. matchedCount === 0 in that case means
+    // "already repaired elsewhere" and is treated as success.
+    const writeResult = await SiteModel(tenant).collection.updateOne(
+      {
+        _id: site._id,
+        $or: [
+          { generated_name: { $exists: false } },
+          { generated_name: null },
+          { generated_name: "" },
+        ],
+      },
+      { $set: { generated_name: generatedName } },
+    );
+
+    if (!writeResult) {
+      logger.error(
+        `[${POD_ID}] collection.updateOne returned no result for site ${site._id}`,
+      );
+      return null;
+    }
+
+    if (writeResult.matchedCount === 0) {
+      // Another process already repaired generated_name — treat as success.
+      logger.info(
+        `[${POD_ID}] generated_name already repaired by another process for site ${site._id}`,
+      );
+      // Re-fetch so the caller has the current value.
+      const current = await SiteModel(tenant)
+        .findById(site._id)
+        .select("generated_name")
+        .lean();
+      return current ? current.generated_name : null;
+    }
+
+    logger.info(
+      `[${POD_ID}] Assigned generated_name "${generatedName}" to site ${site._id}`,
+    );
+
+    return generatedName;
+  } catch (error) {
+    logger.error(
+      `[${POD_ID}] Error repairing generated_name for site ${site._id}: ${error.message}`,
+    );
+    return null;
+  }
+};
+
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
 
@@ -155,7 +240,48 @@ const backfillSiteMetadata = async (tenant) => {
     let altitudeCircuitOpen = false;
 
     while (true) {
-      const sitesToUpdate = await SiteModel(tenant)
+      // -----------------------------------------------------------------
+      // Two-query fetch strategy:
+      //
+      // Query A — local-only candidates: sites missing generated_name,
+      // search_name, or description. These fields can be repaired without
+      // coordinates, so the latitude/longitude gate is intentionally absent.
+      //
+      // Query B — geocoding candidates: sites missing geocoded-dependent
+      // fields (country, district, city, data_provider). These REQUIRE valid
+      // coordinates, so the latitude/longitude gate is applied here only.
+      //
+      // The two result sets are merged and deduplicated by _id before
+      // processing so a site missing both local and geocoded fields is only
+      // processed once.
+      // -----------------------------------------------------------------
+      const idFilter =
+        attemptedIds.length > 0 ? { _id: { $nin: attemptedIds } } : {};
+      const selectFields =
+        "_id latitude longitude name network country district city region " +
+        "town village parish county sub_county division street formatted_name " +
+        "geometry google_place_id location_name search_name altitude " +
+        "data_provider site_tags generated_name description";
+
+      // Query A: local-only — no coordinate requirement.
+      const localOnlySites = await SiteModel(tenant)
+        .find({
+          $or: [
+            { generated_name: { $in: [null, ""] } },
+            { generated_name: { $exists: false } },
+            { search_name: { $in: [null, ""] } },
+            { search_name: { $exists: false } },
+            { description: { $in: [null, ""] } },
+            { description: { $exists: false } },
+          ],
+          ...idFilter,
+        })
+        .limit(BATCH_SIZE)
+        .select(selectFields)
+        .lean();
+
+      // Query B: geocoding candidates — coordinate gate required.
+      const geocodingSites = await SiteModel(tenant)
         .find({
           $or: [
             { country: { $in: [null, ""] } },
@@ -166,21 +292,28 @@ const backfillSiteMetadata = async (tenant) => {
             { city: { $exists: false } },
             { data_provider: { $in: [null, ""] } },
             { data_provider: { $exists: false } },
+            { search_name: { $in: [null, ""] } },
+            { search_name: { $exists: false } },
           ],
-          latitude: { $ne: null },
-          longitude: { $ne: null },
-          ...(attemptedIds.length > 0 && { _id: { $nin: attemptedIds } }),
+          latitude: { $exists: true, $ne: null },
+          longitude: { $exists: true, $ne: null },
+          ...idFilter,
         })
         .limit(BATCH_SIZE)
-        // Include all metadata fields in the projection so
-        // buildMissingFieldsUpdate can check which ones are already set.
-        .select(
-          "_id latitude longitude name network country district city region " +
-            "town village parish county sub_county division street formatted_name " +
-            "geometry google_place_id location_name search_name altitude " +
-            "data_provider site_tags",
-        )
+        .select(selectFields)
         .lean();
+
+      // Merge and deduplicate by _id — a site appearing in both queries
+      // (missing local AND geocoded fields) is processed only once.
+      const seenIds = new Set();
+      const sitesToUpdate = [];
+      for (const site of [...localOnlySites, ...geocodingSites]) {
+        const id = site._id.toString();
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          sitesToUpdate.push(site);
+        }
+      }
 
       if (sitesToUpdate.length === 0) {
         break;
@@ -201,6 +334,115 @@ const backfillSiteMetadata = async (tenant) => {
 
       const updatePromises = sitesToUpdate.map(async (site) => {
         try {
+          // ----------------------------------------------------------------
+          // Step 1: Local-only repairs — no external API calls.
+          //
+          // generated_name comes from UniqueIdentifierCounter (not geocoding).
+          // description is derived from site.name by convention (see
+          // Site.statics.register). Both are resolved and persisted here
+          // so that sites needing only these repairs never reach the
+          // generateMetadata() call below and incur unnecessary geocoding.
+          //
+          // The in-memory site object is only mutated AFTER each write is
+          // confirmed, so buildMissingFieldsUpdate always reflects the true
+          // persisted state.
+          // ----------------------------------------------------------------
+
+          // Repair generated_name if missing.
+          if (!site.generated_name) {
+            const repairedName = await repairGeneratedName(tenant, site);
+            if (repairedName) {
+              // Mutate only after confirmed persistence (repairGeneratedName
+              // returns null if findByIdAndUpdate found no document).
+              site.generated_name = repairedName;
+            } else {
+              // Cannot proceed without a generated_name — skip this site.
+              return { success: false, siteId: site._id };
+            }
+          }
+
+          // Repair description locally if missing — mirrors Site.statics.register.
+          // The filter includes the "still missing" predicate so the write is
+          // a no-op if another process already set description between our
+          // query and this write. matchedCount === 0 means "already repaired
+          // elsewhere" and is treated as success — re-fetch to get the value.
+          if ((!site.description || site.description === "") && site.name) {
+            const descWriteResult = await SiteModel(
+              tenant,
+            ).collection.updateOne(
+              {
+                _id: site._id,
+                $or: [
+                  { description: { $exists: false } },
+                  { description: null },
+                  { description: "" },
+                ],
+              },
+              { $set: { description: site.name } },
+            );
+            // Only mutate in-memory site after confirmed persistence so that
+            // buildMissingFieldsUpdate does not skip description when the
+            // DB write failed.
+            if (!descWriteResult) {
+              logger.error(
+                `[${POD_ID}] collection.updateOne returned no result for description on site ${site._id}`,
+              );
+            } else if (descWriteResult.matchedCount === 0) {
+              // Already repaired by another process — re-fetch current value.
+              const current = await SiteModel(tenant)
+                .findById(site._id)
+                .select("description")
+                .lean();
+              if (current && current.description)
+                site.description = current.description;
+            } else {
+              site.description = site.name;
+            }
+          }
+
+          // ----------------------------------------------------------------
+          // Step 2: Check whether geocoding is still needed.
+          //
+          // If the only missing fields were generated_name and/or description
+          // and both are now repaired, skip the Google Maps call entirely.
+          // ----------------------------------------------------------------
+          const GEOCODED_FIELDS = [
+            "country",
+            "district",
+            "city",
+            "region",
+            "town",
+            "village",
+            "parish",
+            "county",
+            "sub_county",
+            "division",
+            "street",
+            "formatted_name",
+            "geometry",
+            "google_place_id",
+            "location_name",
+            "search_name",
+            "altitude",
+            "data_provider",
+            "site_tags",
+          ];
+
+          const needsGeocoding = GEOCODED_FIELDS.some((field) => {
+            const v = site[field];
+            return v === undefined || v === null || v === "";
+          });
+
+          if (!needsGeocoding) {
+            // All remaining missing fields were local — already resolved above.
+            return { success: true };
+          }
+
+          // ----------------------------------------------------------------
+          // Step 3: Generate geocoding metadata (reverse geocode + altitude).
+          // Only reached by sites that still have missing geocoded fields
+          // after local repairs have been applied.
+          // ----------------------------------------------------------------
           const request = {
             query: { tenant },
             body: {
@@ -239,6 +481,7 @@ const backfillSiteMetadata = async (tenant) => {
               altitude,
               data_provider,
               site_tags,
+              description,
             } = metadataResponse.data;
 
             const allMetadataFields = {
@@ -261,6 +504,11 @@ const backfillSiteMetadata = async (tenant) => {
               altitude,
               data_provider,
               site_tags,
+              // retrieveInformationFromAddress in site.util.js never sets a
+              // description field on its return object, so the destructured
+              // description above will always be undefined here and the
+              // site.name fallback will always be exercised.
+              description: description || site.name || undefined,
             };
 
             // Only write fields that are currently missing on this site.
@@ -273,7 +521,6 @@ const backfillSiteMetadata = async (tenant) => {
             );
 
             if (Object.keys(missingFields).length === 0) {
-              // All metadata fields already populated — nothing to write
               return { success: true };
             }
 
