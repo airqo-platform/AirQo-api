@@ -1,4 +1,4 @@
-const transporter = require("@config/mailer.config");
+const { directTransporter, queueTransporter } = require("@config/mailer.config");
 const isEmpty = require("is-empty");
 const { getIsConnected, getQueryConnection } = require("@config/database");
 const mongoose = require("mongoose");
@@ -96,7 +96,7 @@ const processEmailQueue = async () => {
       const EmailQueueForDeleting = EmailQueueModel(tenant);
 
       try {
-        await transporter.sendMail(emailJob.mailOptions);
+        await queueTransporter.sendMail(emailJob.mailOptions);
         await EmailQueueForDeleting.findByIdAndDelete(emailJob._id);
         logger.info(`Email sent successfully to: ${emailJob.mailOptions.to}`);
       } catch (error) {
@@ -407,7 +407,7 @@ const createMailerFunction = (
               `Sending high-priority email directly to: ${mailOptions.to}`,
             );
             try {
-              const info = await transporter.sendMail(mailOptions);
+              const info = await directTransporter.sendMail(mailOptions);
               emailResult = {
                 success: true,
                 duplicate: false,
@@ -420,6 +420,11 @@ const createMailerFunction = (
               // Fallback to queueing if direct send fails
               const queueResult = await addToEmailQueue(mailOptions, tenant);
               if (!queueResult.success) {
+                // CRITICAL: Both direct send and queueing failed. Remove the dedup key.
+                await emailDeduplicator.removeEmailKey(mailOptions);
+                logger.error(
+                  `Deduplication key for ${mailOptions.to} removed after complete send/queue failure.`,
+                );
                 // If even queuing fails, we must throw.
                 throw new HttpError(
                   "Internal Server Error",
@@ -440,6 +445,11 @@ const createMailerFunction = (
             // Queue normal-priority emails
             const queueResult = await addToEmailQueue(mailOptions, tenant);
             if (!queueResult.success) {
+              // CRITICAL: Queuing failed. Remove the dedup key before throwing.
+              await emailDeduplicator.removeEmailKey(mailOptions);
+              logger.error(
+                `Deduplication key for ${mailOptions.to} removed after queue insertion failure.`,
+              );
               throw new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
