@@ -63,7 +63,7 @@ const processEmailQueue = async () => {
     !queryConnection ||
     queryConnection.readyState !== 1
   ) {
-    logger.warn(
+    logger.debug(
       "Email queue processing skipped: No active database connection.",
     );
     isProcessingQueue = false;
@@ -131,7 +131,7 @@ const stopEmailQueue = () => {
 };
 
 // Start the queue processor
-setInterval(processEmailQueue, EMAIL_INTERVAL);
+startEmailQueue();
 
 /** END: MongoDB-based Email Queue */
 
@@ -179,12 +179,12 @@ const createMailerFunction = (
     let otherParams = {};
     let tenant = "";
     try {
-      // Fix: Use contact_email as a fallback for email
-      ({
+      const {
         email = params.contact_email,
         tenant = "airqo",
+        priority = "normal",
         ...otherParams
-      } = params);
+      } = params;
 
       // ✅ STEP 1: Input validation
       if (!email) {
@@ -404,24 +404,67 @@ const createMailerFunction = (
           await emailDeduplicator.checkAndMarkEmail(mailOptions);
 
         if (shouldSend) {
-          const queueResult = await addToEmailQueue(mailOptions, tenant);
-          if (!queueResult.success) {
-            throw new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: queueResult.error || "Failed to queue email." },
+          if (priority === "high") {
+            // Send high-priority emails directly
+            logText(
+              `Sending high-priority email directly to: ${mailOptions.to}`,
             );
+            try {
+              const info = await transporter.sendMail(mailOptions);
+              emailResult = {
+                success: true,
+                duplicate: false,
+                data: info,
+              };
+            } catch (sendError) {
+              logger.error(
+                `High-priority email send failed for ${mailOptions.to}. Falling back to queue. Error: ${sendError.message}`,
+              );
+              // Fallback to queueing if direct send fails
+              const queueResult = await addToEmailQueue(mailOptions, tenant);
+              if (!queueResult.success) {
+                // If even queuing fails, we must throw.
+                throw new HttpError(
+                  "Internal Server Error",
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                  {
+                    message:
+                      "High-priority email send and queue fallback failed.",
+                  },
+                );
+              }
+              emailResult = {
+                success: true, // The operation is a success because it's now queued.
+                message: "Email successfully queued after direct send failed.",
+                duplicate: false,
+                data: {
+                  accepted: [mailOptions.to],
+                  rejected: [],
+                  messageId: `queued_fallback_${Date.now()}`,
+                },
+              };
+            }
+          } else {
+            // Queue normal-priority emails
+            const queueResult = await addToEmailQueue(mailOptions, tenant);
+            if (!queueResult.success) {
+              throw new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: queueResult.error || "Failed to queue email." },
+              );
+            }
+            emailResult = {
+              success: true,
+              message: "Email successfully queued for sending.",
+              duplicate: false,
+              data: {
+                accepted: [mailOptions.to],
+                rejected: [],
+                messageId: `queued_${Date.now()}`,
+              },
+            };
           }
-          emailResult = {
-            success: true,
-            message: "Email successfully queued for sending.",
-            duplicate: false,
-            data: {
-              accepted: [mailOptions.to],
-              rejected: [],
-              messageId: `queued_${Date.now()}`,
-            },
-          };
         } else {
           logger.info(
             `Duplicate email prevented: ${mailOptions.to} — ${mailOptions.subject}`,
@@ -528,7 +571,10 @@ const createMailerFunction = (
       if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
         return {
           success: true,
-          message: `${functionName} email successfully queued`,
+          message:
+            priority === "high"
+              ? `${functionName} email sent successfully`
+              : `${functionName} email successfully queued`,
           data: {
             email,
             functionName,
@@ -1320,27 +1366,15 @@ const mailer = {
         rejection_reason: params.rejection_reason,
       }),
   ),
-  candidate: createMailerFunction(
-    "candidate",
-    "USER_MANAGEMENT",
-    (
-      params, //
-    ) => msgs.joinRequest(params.firstName, params.lastName, params.email),
+  candidate: createMailerFunction("candidate", "USER_MANAGEMENT", (params) =>
+    msgs.joinRequest(params.firstName, params.lastName, params.email),
   ),
-  request: createMailerFunction(
-    "request",
-    "USER_MANAGEMENT",
-    (
-      params, //
-    ) => msgs.joinEntityRequest(params.email, params.entity_title),
+  request: createMailerFunction("request", "USER_MANAGEMENT", (params) =>
+    msgs.joinEntityRequest(params.email, params.entity_title),
   ),
 
-  yearEndEmail: createMailerFunction(
-    "yearEndEmail",
-    "OPTIONAL",
-    (
-      params, //
-    ) => msgs.yearEndSummary(params.userStat),
+  yearEndEmail: createMailerFunction("yearEndEmail", "OPTIONAL", (params) =>
+    msgs.yearEndSummary(params.userStat),
   ),
   requestToJoinGroupByEmail: createMailerFunction(
     "requestToJoinGroupByEmail", //
@@ -1362,18 +1396,13 @@ const mailer = {
       bcc: params.inviterEmail,
     }),
   ),
-  inquiry: createMailerFunction(
-    "inquiry",
-    "OPTIONAL",
-    (
-      params, //
-    ) =>
-      msgs.inquiry(
-        params.fullName,
-        params.email,
-        params.category,
-        params.message,
-      ),
+  inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
+    msgs.inquiry(
+      params.fullName,
+      params.email,
+      params.category,
+      params.message,
+    ),
   ),
   clientActivationRequest: createMailerFunction(
     "clientActivationRequest", //
@@ -1404,19 +1433,14 @@ const mailer = {
       );
     }
   }),
-  verifyEmail: createMailerFunction(
-    "verifyEmail",
-    "CORE_CRITICAL",
-    (
-      params, //
-    ) =>
-      msgTemplates.composeEmailVerificationMessage({
-        email: params.email,
-        firstName: params.firstName,
-        user_id: params.user_id,
-        token: params.token,
-        category: params.category,
-      }),
+  verifyEmail: createMailerFunction("verifyEmail", "CORE_CRITICAL", (params) =>
+    msgTemplates.composeEmailVerificationMessage({
+      email: params.email,
+      firstName: params.firstName,
+      user_id: params.user_id,
+      token: params.token,
+      category: params.category,
+    }),
   ),
   clearEmailDeduplication: async (email, subject, content = "") => {
     try {
@@ -1552,31 +1576,21 @@ const mailer = {
     (params) => msgs.authenticate_email(params.token, params.email),
   ),
 
-  update: createMailerFunction(
-    "update",
-    "USER_MANAGEMENT",
-    (
-      params, //
-    ) =>
-      msgs.user_updated({
-        firstName: params.firstName,
-        lastName: params.lastName,
-        updatedUserDetails: params.updatedUserDetails,
-        email: params.email,
-      }),
+  update: createMailerFunction("update", "USER_MANAGEMENT", (params) =>
+    msgs.user_updated({
+      firstName: params.firstName,
+      lastName: params.lastName,
+      updatedUserDetails: params.updatedUserDetails,
+      email: params.email,
+    }),
   ),
-  assign: createMailerFunction(
-    "assign",
-    "USER_MANAGEMENT",
-    (
-      params, //
-    ) =>
-      msgs.user_assigned(
-        params.firstName,
-        params.lastName,
-        params.assignedTo,
-        params.email,
-      ),
+  assign: createMailerFunction("assign", "USER_MANAGEMENT", (params) =>
+    msgs.user_assigned(
+      params.firstName,
+      params.lastName,
+      params.assignedTo,
+      params.email,
+    ),
   ),
   updateForgottenPassword: createMailerFunction(
     "updateForgottenPassword", //
@@ -2168,35 +2182,25 @@ const mailer = {
       }
     }
   },
-  siteActivity: createMailerFunction(
-    "siteActivity",
-    "OPTIONAL",
-    (
-      params, //
-    ) =>
-      msgs.site_activity({
-        firstName: params.firstName,
-        lastName: params.lastName,
-        siteActivityDetails: params.siteActivityDetails,
-        email: params.email,
-        activityDetails: params.activityDetails,
-        deviceDetails: params.deviceDetails,
-      }),
+  siteActivity: createMailerFunction("siteActivity", "OPTIONAL", (params) =>
+    msgs.site_activity({
+      firstName: params.firstName,
+      lastName: params.lastName,
+      siteActivityDetails: params.siteActivityDetails,
+      email: params.email,
+      activityDetails: params.activityDetails,
+      deviceDetails: params.deviceDetails,
+    }),
   ),
-  fieldActivity: createMailerFunction(
-    "fieldActivity",
-    "OPTIONAL",
-    (
-      params, //
-    ) =>
-      msgs.field_activity({
-        firstName: params.firstName,
-        lastName: params.lastName,
-        activityDetails: params.activityDetails,
-        deviceDetails: params.deviceDetails,
-        activityType: params.activityType,
-        email: params.email,
-      }),
+  fieldActivity: createMailerFunction("fieldActivity", "OPTIONAL", (params) =>
+    msgs.field_activity({
+      firstName: params.firstName,
+      lastName: params.lastName,
+      activityDetails: params.activityDetails,
+      deviceDetails: params.deviceDetails,
+      activityType: params.activityType,
+      email: params.email,
+    }),
   ),
   compromisedToken: createSecurityEmailFunction(
     "compromisedToken", //
