@@ -60,10 +60,9 @@ const processEmailQueue = async () => {
   const queryConnection = getQueryConnection();
   if (
     !getIsConnected() ||
-    !queryConnection ||
-    queryConnection.readyState !== 1
+    !queryConnection || queryConnection.readyState !== 1
   ) {
-    logger.debug(
+    logger.warn(
       "Email queue processing skipped: No active database connection.",
     );
     isProcessingQueue = false;
@@ -175,16 +174,14 @@ const createMailerFunction = (
   customMailOptionsModifier = null,
 ) => {
   return async (params, next) => {
-    let email = "";
-    let otherParams = {};
-    let tenant = "";
+    let email, otherParams, tenant, priority;
     try {
-      const {
+      ({
         email = params.contact_email,
         tenant = "airqo",
         priority = "normal",
         ...otherParams
-      } = params;
+      } = params);
 
       // ✅ STEP 1: Input validation
       if (!email) {
@@ -427,10 +424,7 @@ const createMailerFunction = (
                 throw new HttpError(
                   "Internal Server Error",
                   httpStatus.INTERNAL_SERVER_ERROR,
-                  {
-                    message:
-                      "High-priority email send and queue fallback failed.",
-                  },
+                  { message: "High-priority email send and queue fallback failed." },
                 );
               }
               emailResult = {
@@ -438,9 +432,7 @@ const createMailerFunction = (
                 message: "Email successfully queued after direct send failed.",
                 duplicate: false,
                 data: {
-                  accepted: [mailOptions.to],
-                  rejected: [],
-                  messageId: `queued_fallback_${Date.now()}`,
+                  accepted: [mailOptions.to], rejected: [], messageId: `queued_fallback_${Date.now()}`,
                 },
               };
             }
@@ -571,18 +563,13 @@ const createMailerFunction = (
       if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
         return {
           success: true,
-          message:
-            priority === "high"
-              ? `${functionName} email sent successfully`
-              : `${functionName} email successfully queued`,
+          message: emailResult.message || `${functionName} email sent successfully`,
           data: {
             email,
             functionName,
             messageId: emailData.messageId,
             emailResults: emailData,
-            bccCount: subscribedBccEmails
-              ? subscribedBccEmails.split(",").length
-              : 0,
+            bccCount: subscribedBccEmails ? subscribedBccEmails.split(",").length : 0,
             duplicate: false,
             sentAt: new Date(),
             ...otherParams,
