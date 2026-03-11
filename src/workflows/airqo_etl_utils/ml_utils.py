@@ -1838,7 +1838,9 @@ class ForecastModelTrainer(BaseMlUtils):
             "site_id",
             "site_name",
             "pm25_mean",
+            "pm25_low",
             "pm25_min",
+            "pm25_high",
             "pm25_max",
             "n_hours",
         }
