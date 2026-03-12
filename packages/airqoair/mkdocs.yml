@@ -1,6 +1,6 @@
 site_name: The airqoair book
 site_description: Documentation for the airqoair Python library
-site_url: https://airqoair-project.github.io/book/
+site_url: https://airqoair-project.github.io/book
 repo_url: https://github.com/airqo-platform/AirQo-api
 repo_name: airqo-platform/AirQo-api
 edit_uri: edit/main/packages/airqoair/docs/
