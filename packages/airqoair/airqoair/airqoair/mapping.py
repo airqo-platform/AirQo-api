@@ -68,8 +68,10 @@ def station_map(
         marker_parent = folium.FeatureGroup(name="Stations").add_to(fmap)
 
     color_scale = None
-    if value and legend:
-        color_scale = add_value_legend(fmap, working[value], caption=value)
+    if value:
+        color_scale = create_value_color_scale(working[value], caption=value)
+        if legend and color_scale is not None:
+            color_scale.add_to(fmap)
 
     size_series = working[radius_col] if radius_col else None
     heat_group = None
@@ -149,7 +151,7 @@ def create_base_map(
     return fmap
 
 
-def add_value_legend(fmap, series: pd.Series, *, caption: str):
+def create_value_color_scale(series: pd.Series, *, caption: str):
     import branca.colormap as cm
 
     clean = pd.to_numeric(series, errors="coerce").dropna()
@@ -162,6 +164,13 @@ def add_value_legend(fmap, series: pd.Series, *, caption: str):
         value_max = value_min + 1.0
     scale = cm.linear.YlOrRd_09.scale(value_min, value_max)
     scale.caption = caption
+    return scale
+
+
+def add_value_legend(fmap, series: pd.Series, *, caption: str):
+    scale = create_value_color_scale(series, caption=caption)
+    if scale is None:
+        return None
     scale.add_to(fmap)
     return scale
 

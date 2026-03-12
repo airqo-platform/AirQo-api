@@ -62,3 +62,19 @@ def test_station_map_supports_grouping_clustering_and_heatmap():
     assert result.metadata["cluster"] is True
     assert result.metadata["heatmap"] is True
     assert set(result.data["site_name"]) == {"A", "B"}
+
+
+def test_station_map_keeps_value_based_coloring_when_legend_is_disabled():
+    frame = pd.DataFrame(
+        {
+            "site_id": ["A", "B"],
+            "latitude": [0.3476, 0.3136],
+            "longitude": [32.5825, 32.5811],
+            "pm2_5": [12.4, 18.7],
+        }
+    )
+
+    result = station_map(frame, value="pm2_5", legend=False)
+    html = result.map.get_root().render()
+
+    assert "#2a9d8f" not in html
