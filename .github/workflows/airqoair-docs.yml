@@ -2,7 +2,6 @@ name: airqoair-docs
 
 on:
   push:
-    branches: ["main"]
     paths:
       - "packages/airqoair/docs/**"
       - "packages/airqoair/mkdocs.yml"
@@ -17,7 +16,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: airqoair-docs
+  group: airqoair-docs-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -52,6 +51,7 @@ jobs:
           path: packages/airqoair/site
 
   deploy:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
