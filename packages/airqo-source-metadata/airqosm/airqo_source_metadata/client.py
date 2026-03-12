@@ -56,10 +56,14 @@ class SourceMetadataClient:
         base_url: str = DEFAULT_PLATFORM_BASE_URL,
         token: Optional[str] = None,
         timeout: int = 30,
+        use_query_token: bool = False,
+        use_x_auth_token: bool = False,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
+        self.use_query_token = use_query_token
+        self.use_x_auth_token = use_x_auth_token
 
     @staticmethod
     def _validate_coordinates(latitude: float, longitude: float) -> None:
@@ -85,13 +89,15 @@ class SourceMetadataClient:
         return resolved
 
     @staticmethod
-    def _build_headers(token: str) -> Dict[str, str]:
-        return {
+    def _build_headers(token: str, *, use_x_auth_token: bool = False) -> Dict[str, str]:
+        headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {token}",
             "User-Agent": "airqosm/0.2.3",
-            "X-Auth-Token": token,
         }
+        if use_x_auth_token:
+            headers["X-Auth-Token"] = token
+        return headers
 
     def fetch(
         self,
@@ -101,16 +107,25 @@ class SourceMetadataClient:
         include_satellite: bool = True,
         token: Optional[str] = None,
         extra_params: Optional[Dict[str, Any]] = None,
+        use_query_token: Optional[bool] = None,
+        use_x_auth_token: Optional[bool] = None,
     ) -> Dict[str, Any]:
         self._validate_coordinates(latitude, longitude)
         resolved_token = self._resolve_token(token)
+        should_use_query_token = (
+            self.use_query_token if use_query_token is None else use_query_token
+        )
+        should_use_x_auth_token = (
+            self.use_x_auth_token if use_x_auth_token is None else use_x_auth_token
+        )
 
         params: Dict[str, Any] = {
             "latitude": latitude,
             "longitude": longitude,
             "include_satellite": str(bool(include_satellite)).lower(),
-            "token": resolved_token,
         }
+        if should_use_query_token:
+            params["token"] = resolved_token
 
         if extra_params:
             params.update({key: value for key, value in extra_params.items() if value is not None})
@@ -119,7 +134,10 @@ class SourceMetadataClient:
         url = f"{self.base_url}/api/v2/spatial/source_metadata?{query}"
         request = Request(
             url,
-            headers=self._build_headers(resolved_token),
+            headers=self._build_headers(
+                resolved_token,
+                use_x_auth_token=should_use_x_auth_token,
+            ),
         )
 
         try:

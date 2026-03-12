@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Mapping, Optional
 
 from .client import (
@@ -6,6 +7,9 @@ from .client import (
     SourceMetadataClientError,
 )
 from .engine import SourceMetadataEngine
+
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_bool(value: Any) -> bool:
@@ -26,14 +30,19 @@ def _extract_token(request: Any) -> str:
     return request.args.get("token", "")
 
 
+def _extract_token_transport(request: Any) -> tuple[bool, bool]:
+    auth_header = request.headers.get("Authorization", "").strip()
+    if auth_header.lower().startswith("bearer "):
+        return False, False
+    if request.headers.get("X-Auth-Token", "").strip():
+        return False, True
+    if request.args.get("token", "").strip():
+        return True, False
+    return False, False
+
+
 def _build_client_error_body(ex: SourceMetadataClientError) -> dict[str, Any]:
-    payload = ex.payload if isinstance(ex.payload, dict) else {}
-    body = dict(payload)
-    if not body:
-        return {"error": str(ex)}
-    if "error" not in body and "message" not in body:
-        body["error"] = str(ex)
-    return body
+    return {"error": "upstream service error"}
 
 
 def _build_from_payload(
@@ -95,16 +104,24 @@ def create_app(
             )
 
         try:
+            use_query_token, use_x_auth_token = _extract_token_transport(request)
             response = client.fetch(
                 latitude=latitude,
                 longitude=longitude,
                 include_satellite=_parse_bool(request.args.get("include_satellite")),
                 token=_extract_token(request) or None,
+                use_query_token=use_query_token,
+                use_x_auth_token=use_x_auth_token,
             )
             return jsonify(response), 200
         except ValueError as ex:
             return jsonify({"error": str(ex)}), 400
         except SourceMetadataClientError as ex:
+            logger.exception(
+                "Source metadata upstream request failed: %s; payload=%r",
+                ex,
+                ex.payload,
+            )
             return jsonify(_build_client_error_body(ex)), ex.status_code or 502
 
     @app.post("/api/v1/source-metadata/from-features")

@@ -21,11 +21,15 @@ def source_metadata(
     base_url: str = DEFAULT_PLATFORM_BASE_URL,
     timeout: int = 30,
     extra_params: Optional[Dict[str, Any]] = None,
+    use_query_token: bool = False,
+    use_x_auth_token: bool = False,
 ) -> Dict[str, Any]:
     client = SourceMetadataClient(
         base_url=base_url,
         token=token,
         timeout=timeout,
+        use_query_token=use_query_token,
+        use_x_auth_token=use_x_auth_token,
     )
     return client.fetch(
         latitude=latitude,
@@ -44,6 +48,8 @@ def primary_source(
     base_url: str = DEFAULT_PLATFORM_BASE_URL,
     timeout: int = 30,
     extra_params: Optional[Dict[str, Any]] = None,
+    use_query_token: bool = False,
+    use_x_auth_token: bool = False,
 ) -> Dict[str, Any]:
     response = source_metadata(
         latitude=latitude,
@@ -53,6 +59,8 @@ def primary_source(
         base_url=base_url,
         timeout=timeout,
         extra_params=extra_params,
+        use_query_token=use_query_token,
+        use_x_auth_token=use_x_auth_token,
     )
     return response.get("data", {}).get("primary_source", {})
 
@@ -66,6 +74,8 @@ def candidate_sources(
     base_url: str = DEFAULT_PLATFORM_BASE_URL,
     timeout: int = 30,
     extra_params: Optional[Dict[str, Any]] = None,
+    use_query_token: bool = False,
+    use_x_auth_token: bool = False,
 ) -> List[Dict[str, Any]]:
     response = source_metadata(
         latitude=latitude,
@@ -75,6 +85,8 @@ def candidate_sources(
         base_url=base_url,
         timeout=timeout,
         extra_params=extra_params,
+        use_query_token=use_query_token,
+        use_x_auth_token=use_x_auth_token,
     )
     return response.get("data", {}).get("candidate_sources", [])
 
