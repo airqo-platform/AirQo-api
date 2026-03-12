@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">airqoair hero mark</title>
+  <desc id="desc">A stylised airflow plume in teal, cyan, yellow, and amber.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0b3b47"/>
+    </linearGradient>
+    <linearGradient id="plume" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="22%" stop-color="#facc15"/>
+      <stop offset="55%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="520" rx="28" fill="url(#bg)"/>
+  <path d="M150 260 C220 190, 350 140, 820 90 L820 430 C350 380, 220 330, 150 260 Z" fill="url(#plume)"/>
+  <circle cx="150" cy="260" r="10" fill="#ffffff" fill-opacity="0.9"/>
+  <text x="78" y="410" fill="#e2e8f0" font-size="78" font-family="Segoe UI, Arial, sans-serif" font-weight="700">airqoair</text>
+  <text x="80" y="452" fill="#bae6fd" font-size="24" font-family="Segoe UI, Arial, sans-serif">Air-quality analysis, trends, roses, reports, and maps</text>
+</svg>
