@@ -19,6 +19,7 @@ dist/
 *.egg-info/
 pip-wheel-metadata/
 site/
+*.mkdocs.yml
 
 outputs/
 reports/

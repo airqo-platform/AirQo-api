@@ -65,3 +65,4 @@ nav:
       - Evaluation and diagnostics: evaluation/model-evaluation.md
   - Appendix:
       - API reference: api-reference.md
+      - Example assets: assets/images/examples/README.md

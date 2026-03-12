@@ -420,7 +420,8 @@ To build it locally:
 ```bash
 cd packages/airqoair
 pip install -e ".[docs]"
-mkdocs serve
+python -m mkdocs serve
+
 ```
 
 Images for the docs can be stored in:
@@ -428,6 +429,7 @@ Images for the docs can be stored in:
 ```text
 packages/airqoair/docs/assets/images/
 ```
+
 
 ## .gitignore
 
