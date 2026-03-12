@@ -1,12 +1,15 @@
 import logging
+import json
 from unittest import mock
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.utils import InterfaceError, OperationalError
+from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from core.logging_handlers import SlackWebhookHandler
-from core.middleware import AdminUploadExceptionMiddleware
+from core.middleware import AdminUploadExceptionMiddleware, DatabaseConnectionRecoveryMiddleware
 from utils.fields import validate_image_format
 from utils.validators import validate_file, validate_image
 
@@ -73,6 +76,55 @@ class AdminUploadExceptionMiddlewareTests(SimpleTestCase):
             middleware._redirect_target(request),
             "/website/admin/team/member/add/",
         )
+
+
+class DatabaseConnectionRecoveryMiddlewareTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_retries_safe_request_once_after_transient_db_error(self):
+        call_count = {'value': 0}
+
+        def flaky_handler(_request):
+            call_count['value'] += 1
+            if call_count['value'] == 1:
+                raise InterfaceError("connection already closed")
+            return HttpResponse("ok", status=200)
+
+        middleware = DatabaseConnectionRecoveryMiddleware(flaky_handler)
+        request = self.factory.get("/website/api/v2/events/")
+
+        with mock.patch("core.middleware.connections.close_all"):
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode(), "ok")
+        self.assertEqual(call_count['value'], 2)
+
+    def test_returns_503_for_api_when_db_remains_unavailable(self):
+        def always_closed(_request):
+            raise OperationalError("SSL connection has been closed unexpectedly")
+
+        middleware = DatabaseConnectionRecoveryMiddleware(always_closed)
+        request = self.factory.get("/website/api/v2/impact-numbers/")
+
+        with mock.patch("core.middleware.connections.close_all"):
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response["Retry-After"], "5")
+        payload = json.loads(response.content.decode())
+        self.assertEqual(payload["detail"], "Database temporarily unavailable. Please retry shortly.")
+
+    def test_non_transient_database_error_is_not_swallowed(self):
+        def non_transient_error(_request):
+            raise OperationalError("column does not exist")
+
+        middleware = DatabaseConnectionRecoveryMiddleware(non_transient_error)
+        request = self.factory.get("/website/api/v2/events/")
+
+        with self.assertRaises(OperationalError):
+            middleware(request)
 
 
 class SlackWebhookHandlerTests(SimpleTestCase):
