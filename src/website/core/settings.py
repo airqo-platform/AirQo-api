@@ -37,6 +37,19 @@ def get_env_bool(env_var: str, default: bool = False) -> bool:
     return os.getenv(env_var, str(default)).lower() in ['true', '1', 't', 'yes']
 
 
+def get_env_int(env_var: str, default: int) -> int:
+    """
+    Convert an environment variable to integer with safe fallback.
+    """
+    raw_value = os.getenv(env_var)
+    if raw_value is None or raw_value == "":
+        return default
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
+
 def require_env_var(env_var: str) -> str:
     """
     Ensure an environment variable is set. Raise ValueError if not.
@@ -102,6 +115,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'core.middleware.DatabaseConnectionRecoveryMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -157,6 +171,13 @@ TEMPLATES = [
 # Database Configuration
 # ---------------------------------------------------------
 DATABASE_URL = os.getenv('DATABASE_URL')
+DB_CONN_MAX_AGE = get_env_int('DB_CONN_MAX_AGE', default=300)
+DB_CONNECT_TIMEOUT = get_env_int('DB_CONNECT_TIMEOUT', default=10)
+DB_KEEPALIVES_IDLE = get_env_int('DB_KEEPALIVES_IDLE', default=30)
+DB_KEEPALIVES_INTERVAL = get_env_int('DB_KEEPALIVES_INTERVAL', default=10)
+DB_KEEPALIVES_COUNT = get_env_int('DB_KEEPALIVES_COUNT', default=5)
+DB_TCP_KEEPALIVES = get_env_bool('DB_TCP_KEEPALIVES', default=True)
+DB_CONN_HEALTH_CHECKS = get_env_bool('DB_CONN_HEALTH_CHECKS', default=True)
 
 if DATABASE_URL:
     # if DEBUG is True, disable SSL; otherwise require SSL
@@ -165,10 +186,11 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
-            conn_max_age=600,
+            conn_max_age=DB_CONN_MAX_AGE,
             ssl_require=ssl_is_required
         )
     }
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = DB_CONN_HEALTH_CHECKS
 
     # PostgreSQL-specific connection options: set sslmode to match behavior
     # Use the detected ENGINE from dj_database_url.parse to decide
@@ -177,6 +199,12 @@ if DATABASE_URL:
         # Use a local variable and cast to avoid TypedDict access errors by static checkers
         options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
         options['sslmode'] = 'require' if ssl_is_required else 'disable'
+        options.setdefault('connect_timeout', DB_CONNECT_TIMEOUT)
+        if DB_TCP_KEEPALIVES:
+            options.setdefault('keepalives', 1)
+            options.setdefault('keepalives_idle', DB_KEEPALIVES_IDLE)
+            options.setdefault('keepalives_interval', DB_KEEPALIVES_INTERVAL)
+            options.setdefault('keepalives_count', DB_KEEPALIVES_COUNT)
     elif 'mysql' in DATABASE_URL:
         options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
         options.update({
@@ -193,6 +221,7 @@ else:
             'OPTIONS': {'timeout': 600},
         }
     }
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = DB_CONN_HEALTH_CHECKS
 
 # ---------------------------------------------------------
 # Cache Configuration
@@ -389,13 +418,20 @@ USE_X_FORWARDED_HOST = True
 # ---------------------------------------------------------
 # Logging Configuration
 # ---------------------------------------------------------
-LOG_DIR = BASE_DIR / 'logs'
-LOG_DIR.mkdir(exist_ok=True)  # Ensure log directory exists
+IS_TEST_RUN = any(cmd in sys.argv for cmd in ('test', 'pytest'))
+LOG_DIR = (BASE_DIR / '.tmp_logs') if IS_TEST_RUN else (BASE_DIR / 'logs')
+try:
+    LOG_DIR.mkdir(exist_ok=True, parents=True)  # Ensure log directory exists
+except PermissionError:
+    LOG_DIR = Path(os.getenv('TEMP', str(BASE_DIR))) / 'airqo-website-logs'
+    LOG_DIR.mkdir(exist_ok=True, parents=True)
 
 SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL', '').strip()
 SLACK_DEV_NOTIFS = get_env_bool('SLACK_DEV_NOTIFS', default=False)
 SLACK_CHANNEL = os.getenv('SLACK_CHANNEL', '').strip()
 ENABLE_SLACK_LOGGING = bool(SLACK_WEBHOOK_URL) and (SLACK_DEV_NOTIFS or not DEBUG)
+if IS_TEST_RUN:
+    ENABLE_SLACK_LOGGING = False
 
 DEFAULT_APP_HANDLERS = ['console', 'app_file', 'error_file']
 ALERT_HANDLERS = ['console', 'error_file']
