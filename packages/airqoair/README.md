@@ -448,6 +448,13 @@ The package-local `.gitignore` excludes:
 - build artifacts and editable-install metadata
 - generated plots, HTML maps, markdown reports, and temporary outputs
 
+## 
+```
+python -m pip install -U "setuptools>=68" wheel build twine
+python -m build
+python -m twine upload dist/*
+
+```
 ## License
 
 MIT
