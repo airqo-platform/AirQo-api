@@ -84,6 +84,15 @@ class SourceMetadataClient:
             )
         return resolved
 
+    @staticmethod
+    def _build_headers(token: str) -> Dict[str, str]:
+        return {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "airqosm/0.2.3",
+            "X-Auth-Token": token,
+        }
+
     def fetch(
         self,
         *,
@@ -94,12 +103,13 @@ class SourceMetadataClient:
         extra_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         self._validate_coordinates(latitude, longitude)
+        resolved_token = self._resolve_token(token)
 
         params: Dict[str, Any] = {
             "latitude": latitude,
             "longitude": longitude,
             "include_satellite": str(bool(include_satellite)).lower(),
-            "token": self._resolve_token(token),
+            "token": resolved_token,
         }
 
         if extra_params:
@@ -109,10 +119,7 @@ class SourceMetadataClient:
         url = f"{self.base_url}/api/v2/spatial/source_metadata?{query}"
         request = Request(
             url,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "airqosm/0.2.0",
-            },
+            headers=self._build_headers(resolved_token),
         )
 
         try:
