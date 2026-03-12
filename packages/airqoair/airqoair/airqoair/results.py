@@ -13,6 +13,18 @@ class AirQoFigure:
     figure: Any
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def ax(self) -> Any:
+        axes = getattr(self.figure, "axes", [])
+        if not axes:
+            raise ValueError("This AirQoFigure does not contain any matplotlib axes")
+        return axes[0]
+
+    @property
+    def axes(self) -> list[Any]:
+        axes = getattr(self.figure, "axes", [])
+        return list(axes)
+
     def show(self) -> None:
         self.figure.show()
 

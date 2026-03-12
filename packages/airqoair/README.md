@@ -373,6 +373,8 @@ aq.station_map(
 Plotting functions return `AirQoFigure`.
 - `.data` contains the processed table behind the plot
 - `.figure` is the underlying Matplotlib figure
+- `.ax` returns the first Matplotlib axis for single-axis convenience
+- `.axes` returns all Matplotlib axes on the figure
 - `.show()` displays the plot
 - `.save(path)` writes the plot to disk
 
