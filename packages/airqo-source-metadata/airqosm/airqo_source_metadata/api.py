@@ -1,11 +1,15 @@
 from typing import Any, Mapping, Optional
 
+import logging
+
 from .client import (
     DEFAULT_PLATFORM_BASE_URL,
     SourceMetadataClient,
     SourceMetadataClientError,
 )
 from .engine import SourceMetadataEngine
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_bool(value: Any) -> bool:
@@ -30,9 +34,13 @@ def _build_client_error_body(ex: SourceMetadataClientError) -> dict[str, Any]:
     payload = ex.payload if isinstance(ex.payload, dict) else {}
     body = dict(payload)
     if not body:
-        return {"error": str(ex)}
+        # Log detailed error information server-side, but return a generic message to the client
+        logger.exception("Source metadata client error without payload: %s", ex)
+        return {"error": "Upstream service error"}
     if "error" not in body and "message" not in body:
-        body["error"] = str(ex)
+        # Preserve existing payload, but avoid exposing raw exception details
+        logger.exception("Source metadata client error with payload but no message: %s", ex)
+        body["error"] = "Upstream service error"
     return body
 
 
