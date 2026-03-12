@@ -216,6 +216,19 @@ weekday = aq.weekday_profile("kampala.csv", pollutant="pm2_5")
 monthly = aq.monthly_profile("kampala.csv", pollutant="pm2_5")
 ```
 
+```python
+import airqoair as aq
+
+df = aq.load_data("/content/kampala.csv")
+
+daily = aq.time_average(df, avg="D")
+print(daily.head())
+
+diurnal = aq.diurnal_plot(df, pollutant="pm2_5")
+monthly = aq.monthly_plot(df, pollutant="pm2_5")
+trend = aq.trend_level(df, pollutant="pm2_5", x="month", y="hour")
+```
+
 ### Grouped Site Comparison
 
 ```python
