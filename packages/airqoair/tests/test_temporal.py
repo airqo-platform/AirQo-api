@@ -2,7 +2,10 @@ import math
 import json
 from pathlib import Path
 
+import matplotlib
 import pandas as pd
+
+matplotlib.use("Agg")
 
 from airqoair import load_data, time_average, time_variation
 
@@ -72,6 +75,9 @@ def test_time_variation_returns_hour_weekday_month_panels():
 
     assert set(result.data["period"]) == {"hour", "weekday", "month"}
     assert result.figure is not None
+    assert result.ax is result.figure.axes[0]
+    assert result.axes == list(result.figure.axes)
+    assert len(result.axes) == 5
 
 
 def test_time_average_raises_for_missing_requested_pollutant():

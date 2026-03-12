@@ -2,6 +2,17 @@
 
 This appendix is a compact list of the main public functions. For explanations, examples, and interpretation, use the chapter pages.
 
+## Returned Objects
+
+Plotting functions return `AirQoFigure`.
+
+- `.data` gives the processed data behind the plot
+- `.figure` gives the underlying Matplotlib figure
+- `.ax` gives the first Matplotlib axis
+- `.axes` gives all Matplotlib axes
+
+Map functions return `AirQoMap`.
+
 ## Data utilities
 
 - `load_data()`

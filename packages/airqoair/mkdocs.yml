@@ -48,6 +48,7 @@ nav:
       - Why airqoair: introduction.md
       - Installation: getting-started/installation.md
       - Input data: getting-started/input-data.md
+      - Matplotlib access: getting-started/matplotlib-access.md
   - Chapter 2. Directional Analysis:
       - Wind and pollution roses: directional/wind-and-pollution-roses.md
       - Polar plots and annulus: directional/polar-plots.md

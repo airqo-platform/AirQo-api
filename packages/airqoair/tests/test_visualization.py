@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import matplotlib
 import pandas as pd
+
+matplotlib.use("Agg")
 
 from airqoair import distribution_plot, time_series_plot
 
@@ -20,6 +23,7 @@ def test_time_series_plot_accepts_csv_path(tmp_path: Path):
 
     assert result.metadata["kind"] == "time_series_plot"
     assert result.figure is not None
+    assert result.ax is result.figure.axes[0]
 
 
 def test_distribution_plot_accepts_dataframe_without_date():
@@ -29,3 +33,5 @@ def test_distribution_plot_accepts_dataframe_without_date():
 
     assert result.metadata["kind"] == "distribution_plot"
     assert result.figure is not None
+    assert result.ax is result.figure.axes[0]
+    assert result.axes == list(result.figure.axes)
