@@ -1,15 +1,14 @@
 import logging
 from typing import Any, Mapping, Optional
 
+import logging
+
 from .client import (
     DEFAULT_PLATFORM_BASE_URL,
     SourceMetadataClient,
     SourceMetadataClientError,
 )
 from .engine import SourceMetadataEngine
-
-
-logger = logging.getLogger(__name__)
 
 
 def _parse_bool(value: Any) -> bool:
@@ -42,7 +41,13 @@ def _extract_token_transport(request: Any) -> tuple[bool, bool]:
 
 
 def _build_client_error_body(ex: SourceMetadataClientError) -> dict[str, Any]:
-    return {"error": "upstream service error"}
+    payload = ex.payload if isinstance(ex.payload, dict) else {}
+    body = dict(payload)
+    if not body:
+        return {"error": str(ex)}
+    if "error" not in body and "message" not in body:
+        body["error"] = str(ex)
+    return body
 
 
 def _build_from_payload(
