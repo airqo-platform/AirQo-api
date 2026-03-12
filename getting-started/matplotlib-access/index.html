@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://airqoair-project.github.io/book/maps/interactive-maps/">
+        <link rel="canonical" href="https://airqoair-project.github.io/book/getting-started/matplotlib-access/">
       
       
-        <link rel="prev" href="../../trends/theil-sen-trends/">
+        <link rel="prev" href="../input-data/">
       
       
-        <link rel="next" href="../../evaluation/model-evaluation/">
+        <link rel="next" href="../../directional/wind-and-pollution-roses/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Mapping and networks - The airqoair book</title>
+        <title>Matplotlib access - The airqoair book</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#mapping-and-networks" class="md-skip">
+        <a href="#matplotlib-access" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Mapping and networks
+              Matplotlib access
             
           </span>
         </div>
@@ -316,8 +316,10 @@
       
   
   
+    
   
   
+  
     
     
       
@@ -338,13 +340,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
@@ -365,7 +365,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -411,7 +411,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/installation/" class="md-nav__link">
+      <a href="../installation/" class="md-nav__link">
         
   
   
@@ -439,7 +439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/input-data/" class="md-nav__link">
+      <a href="../input-data/" class="md-nav__link">
         
   
   
@@ -464,10 +464,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../getting-started/matplotlib-access/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matplotlib access
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -483,6 +510,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-airqofigure-provides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What AirQoFigure Provides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#single-axis-plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-Axis Plots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-axis-plots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Axis Plots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-figure-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Figure Control
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maps-are-different" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maps Are Different
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -895,10 +997,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -913,11 +1013,13 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
         
           
           <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
@@ -938,7 +1040,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -953,37 +1055,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Mapping and networks
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../maps/interactive-maps/" class="md-nav__link">
         
   
   
@@ -999,103 +1074,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#reading-this-chapter" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reading This Chapter
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#core-functions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Core functions
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#station-maps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Station maps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#network-maps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Network maps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#directional-maps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Directional maps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#polar-maps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Polar maps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#trajectories" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Trajectories
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1334,10 +1312,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#reading-this-chapter" class="md-nav__link">
+  <a href="#what-airqofigure-provides" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reading This Chapter
+        What AirQoFigure Provides
       
     </span>
   </a>
@@ -1345,10 +1323,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#core-functions" class="md-nav__link">
+  <a href="#single-axis-plots" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core functions
+        Single-Axis Plots
       
     </span>
   </a>
@@ -1356,10 +1334,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#station-maps" class="md-nav__link">
+  <a href="#multi-axis-plots" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Station maps
+        Multi-Axis Plots
       
     </span>
   </a>
@@ -1367,10 +1345,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#network-maps" class="md-nav__link">
+  <a href="#full-figure-control" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Network maps
+        Full Figure Control
       
     </span>
   </a>
@@ -1378,32 +1356,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#directional-maps" class="md-nav__link">
+  <a href="#maps-are-different" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Directional maps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#polar-maps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Polar maps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#trajectories" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Trajectories
+        Maps Are Different
       
     </span>
   </a>
@@ -1427,7 +1383,7 @@
 
 
   
-    <a href="https://github.com/airqo-platform/AirQo-api/edit/airqoAIRpackage/packages/airqoair/docs/maps/interactive-maps.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/airqo-platform/AirQo-api/edit/airqoAIRpackage/packages/airqoair/docs/getting-started/matplotlib-access.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1435,83 +1391,63 @@
   
 
 
-<h1 id="mapping-and-networks">Mapping and networks<a class="headerlink" href="#mapping-and-networks" title="Permanent link">&para;</a></h1>
-<p>Interactive map functions return HTML outputs backed by <code>folium</code>.</p>
-<p><img alt="Map example" src="../../assets/images/examples/network-map.png" width="460" /></p>
-<p>The mapping layer in <code>airqoair</code> is designed around a few recurring needs:</p>
+<h1 id="matplotlib-access">Matplotlib Access<a class="headerlink" href="#matplotlib-access" title="Permanent link">&para;</a></h1>
+<p>Every plotting function in <code>airqoair</code> returns an <code>AirQoFigure</code>.</p>
+<p>That wrapper keeps the processed data table and the underlying Matplotlib figure together so you can both inspect the result and customise the plot before saving it.</p>
+<h2 id="what-airqofigure-provides">What <code>AirQoFigure</code> Provides<a class="headerlink" href="#what-airqofigure-provides" title="Permanent link">&para;</a></h2>
 <ul>
-<li>show stations with pollutant-aware colour scales</li>
-<li>aggregate repeated observations by site</li>
-<li>switch between base maps</li>
-<li>add clustering and heat-map layers</li>
-<li>map connections, directional vectors, polar plots, and trajectories</li>
+<li><code>.data</code> for the processed data behind the plot</li>
+<li><code>.figure</code> for the raw Matplotlib <code>Figure</code></li>
+<li><code>.ax</code> for the first axis on the figure</li>
+<li><code>.axes</code> for all axes on the figure</li>
+<li><code>.show()</code> to display the figure</li>
+<li><code>.save(path)</code> to save it to disk</li>
 </ul>
-<h2 id="reading-this-chapter">Reading This Chapter<a class="headerlink" href="#reading-this-chapter" title="Permanent link">&para;</a></h2>
-<p>The mapping functions are complementary rather than interchangeable:</p>
+<h2 id="single-axis-plots">Single-Axis Plots<a class="headerlink" href="#single-axis-plots" title="Permanent link">&para;</a></h2>
+<p>Functions such as <code>diurnal_plot()</code>, <code>weekday_plot()</code>, <code>monthly_plot()</code>, <code>time_series_plot()</code>, and <code>distribution_plot()</code> create a single main axis.</p>
+<p>Use <code>.ax</code> when you want a quick Matplotlib handle:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">aq</span><span class="o">.</span><span class="n">diurnal_plot</span><span class="p">(</span><span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span> <span class="n">pollutant</span><span class="o">=</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">)</span>
+
+<span class="n">ax</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">ax</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Diurnal PM2.5 Variation&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Hour of Day&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;PM2.5 (ug/m3)&quot;</span><span class="p">)</span>
+
+<span class="n">result</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;outputs/diurnal_customised.png&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="multi-axis-plots">Multi-Axis Plots<a class="headerlink" href="#multi-axis-plots" title="Permanent link">&para;</a></h2>
+<p>Some functions create multiple panels, for example <code>time_variation()</code>, <code>run_regression()</code>, and several grouped trend diagnostics.</p>
+<p>Use <code>.axes</code> when you need access to every subplot:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">aq</span><span class="o">.</span><span class="n">time_variation</span><span class="p">(</span><span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span> <span class="n">pollutant</span><span class="o">=</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">axis</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">axes</span><span class="p">:</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.15</span><span class="p">)</span>
+
+<span class="n">result</span><span class="o">.</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Hourly pattern&quot;</span><span class="p">)</span>
+<span class="n">result</span><span class="o">.</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Weekday pattern&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><code>.ax</code> still works for multi-axis figures, but it always returns the first axis only.</p>
+<h2 id="full-figure-control">Full Figure Control<a class="headerlink" href="#full-figure-control" title="Permanent link">&para;</a></h2>
+<p>If you need direct figure-level operations such as <code>suptitle</code>, <code>tight_layout</code>, or custom colorbars, use <code>.figure</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">aq</span><span class="o">.</span><span class="n">time_series_plot</span><span class="p">(</span><span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span> <span class="n">pollutant</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">,</span> <span class="s2">&quot;pm10&quot;</span><span class="p">])</span>
+
+<span class="n">result</span><span class="o">.</span><span class="n">figure</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s2">&quot;Kampala time series overview&quot;</span><span class="p">)</span>
+<span class="n">result</span><span class="o">.</span><span class="n">figure</span><span class="o">.</span><span class="n">set_facecolor</span><span class="p">(</span><span class="s2">&quot;white&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="maps-are-different">Maps Are Different<a class="headerlink" href="#maps-are-different" title="Permanent link">&para;</a></h2>
+<p>Interactive mapping functions return <code>AirQoMap</code>, not <code>AirQoFigure</code>.</p>
+<p>For maps, use:</p>
 <ul>
-<li><code>station_map()</code> for point observations or aggregated sites</li>
-<li><code>network_visualization()</code> for links or flows between locations</li>
-<li><code>directional_map()</code> for vector-like directional information</li>
-<li><code>polar_map()</code> for site-level directional summaries placed on a map</li>
-<li><code>trajectory_analysis()</code> for ordered paths through space</li>
+<li><code>.data</code> for the mapped rows</li>
+<li><code>.map</code> for the underlying <code>folium.Map</code></li>
+<li><code>.save(path)</code> to write the HTML output</li>
 </ul>
-<h2 id="core-functions">Core functions<a class="headerlink" href="#core-functions" title="Permanent link">&para;</a></h2>
-<ul>
-<li><code>station_map()</code></li>
-<li><code>map_primer()</code></li>
-<li><code>network_visualization()</code></li>
-<li><code>directional_map()</code></li>
-<li><code>polar_map()</code></li>
-<li><code>trajectory_analysis()</code></li>
-</ul>
-<h2 id="station-maps">Station maps<a class="headerlink" href="#station-maps" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
-
-<span class="n">aq</span><span class="o">.</span><span class="n">station_map</span><span class="p">(</span>
-    <span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span>
-    <span class="n">value</span><span class="o">=</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">,</span>
-    <span class="n">group_by</span><span class="o">=</span><span class="s2">&quot;site_name&quot;</span><span class="p">,</span>
-    <span class="n">radius_col</span><span class="o">=</span><span class="s2">&quot;device_count&quot;</span><span class="p">,</span>
-    <span class="n">cluster</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="n">heatmap</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="n">tiles</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;CartoDB positron&quot;</span><span class="p">,</span> <span class="s2">&quot;OpenStreetMap&quot;</span><span class="p">],</span>
-<span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;outputs/stations_grouped.html&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="network-maps">Network maps<a class="headerlink" href="#network-maps" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
-
-<span class="n">aq</span><span class="o">.</span><span class="n">network_visualization</span><span class="p">(</span>
-    <span class="s2">&quot;site_links.csv&quot;</span><span class="p">,</span>
-    <span class="n">weight</span><span class="o">=</span><span class="s2">&quot;weight&quot;</span><span class="p">,</span>
-    <span class="n">control</span><span class="o">=</span><span class="s2">&quot;network_group&quot;</span><span class="p">,</span>
-<span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;outputs/network.html&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="directional-maps">Directional maps<a class="headerlink" href="#directional-maps" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
-
-<span class="n">aq</span><span class="o">.</span><span class="n">directional_map</span><span class="p">(</span>
-    <span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span>
-    <span class="n">value</span><span class="o">=</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">,</span>
-<span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;outputs/directional_map.html&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="polar-maps">Polar maps<a class="headerlink" href="#polar-maps" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
-
-<span class="n">aq</span><span class="o">.</span><span class="n">polar_map</span><span class="p">(</span>
-    <span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span>
-    <span class="n">site_col</span><span class="o">=</span><span class="s2">&quot;site_name&quot;</span><span class="p">,</span>
-    <span class="n">pollutant</span><span class="o">=</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">,</span>
-    <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;polar_plot&quot;</span><span class="p">,</span>
-<span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;outputs/polar_map.html&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="trajectories">Trajectories<a class="headerlink" href="#trajectories" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
-
-<span class="n">aq</span><span class="o">.</span><span class="n">trajectory_analysis</span><span class="p">(</span>
-    <span class="s2">&quot;trajectories.json&quot;</span><span class="p">,</span>
-    <span class="n">date_col</span><span class="o">=</span><span class="s2">&quot;date&quot;</span><span class="p">,</span>
-<span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;outputs/trajectories.html&quot;</span><span class="p">)</span>
-</code></pre></div>
 
 
 

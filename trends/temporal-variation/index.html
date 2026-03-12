@@ -327,6 +327,8 @@
       
         
       
+        
+      
     
     
     
@@ -445,6 +447,34 @@
     
   
     Input data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/matplotlib-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matplotlib access
   
 
     
@@ -751,6 +781,17 @@
     <span class="md-ellipsis">
       
         Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#customising-the-matplotlib-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customising The Matplotlib Output
       
     </span>
   </a>
@@ -1292,6 +1333,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#customising-the-matplotlib-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customising The Matplotlib Output
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1359,6 +1411,25 @@
     <span class="n">group_by</span><span class="o">=</span><span class="s2">&quot;site_name&quot;</span><span class="p">,</span>
 <span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;outputs/time_variation_by_site.png&quot;</span><span class="p">)</span>
 </code></pre></div>
+<h2 id="customising-the-matplotlib-output">Customising The Matplotlib Output<a class="headerlink" href="#customising-the-matplotlib-output" title="Permanent link">&para;</a></h2>
+<p>Temporal plotting functions return <code>AirQoFigure</code>, so you can customise the underlying Matplotlib objects before saving.</p>
+<p>For a single-axis plot:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">aq</span><span class="o">.</span><span class="n">diurnal_plot</span><span class="p">(</span><span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span> <span class="n">pollutant</span><span class="o">=</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;season&quot;</span><span class="p">)</span>
+<span class="n">result</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Diurnal PM2.5 by season&quot;</span><span class="p">)</span>
+<span class="n">result</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Hour of day&quot;</span><span class="p">)</span>
+<span class="n">result</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;PM2.5 (ug/m3)&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>For a multi-panel figure:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">airqoair</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">aq</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">aq</span><span class="o">.</span><span class="n">time_variation</span><span class="p">(</span><span class="s2">&quot;kampala.csv&quot;</span><span class="p">,</span> <span class="n">pollutant</span><span class="o">=</span><span class="s2">&quot;pm2_5&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">axis</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">axes</span><span class="p">:</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.15</span><span class="p">)</span>
+</code></pre></div>
+<p>The full figure is available as <code>result.figure</code> when you need figure-level control.</p>
 
 
 

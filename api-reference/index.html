@@ -327,6 +327,8 @@
       
         
       
+        
+      
     
     
     
@@ -445,6 +447,34 @@
     
   
     Input data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/matplotlib-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matplotlib access
   
 
     
@@ -1183,6 +1213,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#returned-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returned Objects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#data-utilities" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1282,6 +1323,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#returned-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returned Objects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#data-utilities" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1363,6 +1415,15 @@
 
 <h1 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
 <p>This appendix is a compact list of the main public functions. For explanations, examples, and interpretation, use the chapter pages.</p>
+<h2 id="returned-objects">Returned Objects<a class="headerlink" href="#returned-objects" title="Permanent link">&para;</a></h2>
+<p>Plotting functions return <code>AirQoFigure</code>.</p>
+<ul>
+<li><code>.data</code> gives the processed data behind the plot</li>
+<li><code>.figure</code> gives the underlying Matplotlib figure</li>
+<li><code>.ax</code> gives the first Matplotlib axis</li>
+<li><code>.axes</code> gives all Matplotlib axes</li>
+</ul>
+<p>Map functions return <code>AirQoMap</code>.</p>
 <h2 id="data-utilities">Data utilities<a class="headerlink" href="#data-utilities" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>load_data()</code></li>
