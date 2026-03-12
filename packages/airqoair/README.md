@@ -17,6 +17,12 @@ From PyPI:
 pip install airqoair
 ```
 
+Documentation:
+
+```text
+https://airqoair-project.github.io/book
+```
+
 From this monorepo for development:
 
 ```bash

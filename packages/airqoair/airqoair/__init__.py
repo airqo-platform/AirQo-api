@@ -1,6 +1,7 @@
 """Compatibility wrapper for the public airqoair package API."""
 
 from .airqoair import (
+    __version__,
     AirQoFigure,
     AirQoMap,
     AirQoReport,
@@ -44,6 +45,7 @@ from .airqoair import (
 )
 
 __all__ = [
+    "__version__",
     "AirQoFigure",
     "AirQoMap",
     "AirQoReport",

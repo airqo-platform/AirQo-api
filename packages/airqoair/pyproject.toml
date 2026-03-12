@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "airqoair"
-version = "0.1.0"
+version = "0.1.1"
 description = "Openair-inspired Python tools for air quality analysis, visualisation, and mapping"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -48,6 +48,7 @@ docs = [
 Homepage = "https://github.com/airqo-platform/AirQo-api"
 Repository = "https://github.com/airqo-platform/AirQo-api"
 Issues = "https://github.com/airqo-platform/AirQo-api/issues"
+Documentation = "https://airqoair-project.github.io/book"
 
 [tool.setuptools]
 package-dir = { "" = "airqoair" }

@@ -1,5 +1,7 @@
 """Openair-inspired tools for air-quality analysis in Python."""
 
+__version__ = "0.1.1"
+
 from .directional import (
     percentile_rose,
     polar_annulus,
@@ -38,6 +40,7 @@ from .utils import load_data, summary
 from .visualization import distribution_plot, time_series_plot
 
 __all__ = [
+    "__version__",
     "AirQoFigure",
     "AirQoMap",
     "AirQoReport",
