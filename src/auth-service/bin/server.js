@@ -15,6 +15,7 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
+const { mailer } = require("@utils/common");
 require("@config/firebase-admin");
 
 const morgan = require("morgan");
@@ -346,6 +347,9 @@ const createServer = () => {
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+
+    // Start the email queue processor
+    mailer.startEmailQueue();
   });
 
   // Graceful shutdown handler
@@ -358,6 +362,14 @@ const createServer = () => {
     // Close the server first to stop accepting new connections
     server.close(async () => {
       console.log("HTTP server closed");
+
+      // Stop the email queue processor
+      try {
+        mailer.stopEmailQueue();
+        console.log("✅ Email queue processor stopped.");
+      } catch (error) {
+        console.error("❌ Error stopping email queue:", error.message);
+      }
 
       // Enhanced cron job shutdown handling
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
