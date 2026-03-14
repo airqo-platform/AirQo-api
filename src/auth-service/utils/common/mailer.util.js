@@ -98,16 +98,22 @@ const processEmailQueue = async () => {
         try {
           // Attempt to send the email
           await queueTransporter.sendMail(emailJob.mailOptions);
-          try {
-            await EmailQueueForTenant.findByIdAndDelete(emailJob._id);
-            logger.info(
-              `Email sent and job deleted for: ${emailJob.mailOptions.to} in tenant ${tenant}`
-            );
-          } catch (deleteError) {
-            logger.error(
-              `CRITICAL: Failed to delete job ${emailJob._id} after successful send: ${deleteError.message}`
-            );
-          }
+          logger.info(
+            `Email sent successfully to: ${emailJob.mailOptions.to} for tenant ${tenant}`
+          );
+
+          // Atomically update status to 'sent' before attempting deletion
+          await EmailQueueForTenant.updateOne(
+            { _id: emailJob._id, status: "processing" },
+            { $set: { status: "sent", sentAt: new Date() } }
+          );
+
+          // Optional: attempt to delete the job now that it's sent.
+          // A failure here is not critical as the job is marked 'sent'.
+          await EmailQueueForTenant.findByIdAndDelete(emailJob._id).catch(
+            (delErr) =>
+              logger.warn(`Failed to delete sent job ${emailJob._id}: ${delErr.message}`)
+          );
         } catch (error) {
           logger.error(
             `Failed to send email from queue for tenant ${tenant}: ${error.message}`
@@ -487,10 +493,6 @@ const createMailerFunction = (
           await emailDeduplicator.removeEmailKey(mailOptions, {
             tenant,
           });
-          // If even the retry fails, clear the dedup key
-          await emailDeduplicator.removeEmailKey(mailOptions, {
-            tenant,
-          });
           const errorMessage =
             retryQueueResult.error ||
             "Failed to queue email after deduplication step.";
@@ -550,12 +552,6 @@ const createMailerFunction = (
             },
           );
 
-      // Preserve HttpError instances, wrap others
-      if (error instanceof HttpError) {
-        if (next) return next(error);
-        throw error;
-      }
-
           const error = new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -603,6 +599,12 @@ const createMailerFunction = (
           params: otherParams,
         });
 
+      // Preserve HttpError instances, wrap others
+      if (error instanceof HttpError) {
+        if (next) return next(error);
+        throw error;
+      }
+
         const error = new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -629,6 +631,12 @@ const createMailerFunction = (
         functionName,
         params: otherParams,
       });
+
+      // Preserve HttpError instances, wrap others
+      if (error instanceof HttpError) {
+        if (next) return next(error);
+        throw error;
+      }
 
       const httpError = new HttpError(
         "Internal Server Error",

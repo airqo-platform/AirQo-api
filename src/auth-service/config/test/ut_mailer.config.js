@@ -8,8 +8,6 @@ const {
   queueTransporter,
 } = require("@config/mailer.config");
 
-// Replace "path/to" with the actual path to the required modules and files.
-
 describe("Nodemailer Configuration", () => {
   describe("Direct Transporter", () => {
     it("should create a direct transporter with the correct service", () => {
