@@ -15,7 +15,7 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
-const { startEmailQueue, stopEmailQueue } = require("@utils/common");
+const { mailer } = require("@utils/common");
 require("@config/firebase-admin");
 
 const morgan = require("morgan");
@@ -349,7 +349,7 @@ const createServer = () => {
     debug("Listening on " + bind);
 
     // Start the email queue processor
-    startEmailQueue();
+    mailer.startEmailQueue();
   });
 
   // Graceful shutdown handler
@@ -365,7 +365,7 @@ const createServer = () => {
 
       // Stop the email queue processor
       try {
-        stopEmailQueue();
+        mailer.stopEmailQueue();
         console.log("✅ Email queue processor stopped.");
       } catch (error) {
         console.error("❌ Error stopping email queue:", error.message);
