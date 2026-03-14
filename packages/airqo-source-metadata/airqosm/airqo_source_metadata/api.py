@@ -1,10 +1,17 @@
-from typing import Optional
+import logging
+from typing import Any, Mapping, Optional
 
-from .client import SourceMetadataClient, SourceMetadataClientError
+import logging
+
+from .client import (
+    DEFAULT_PLATFORM_BASE_URL,
+    SourceMetadataClient,
+    SourceMetadataClientError,
+)
 from .engine import SourceMetadataEngine
 
 
-def _parse_bool(value):
+def _parse_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     if value is None:
@@ -12,16 +19,61 @@ def _parse_bool(value):
     return str(value).strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _extract_token() -> str:
+def _extract_token(request: Any) -> str:
     auth_header = request.headers.get("Authorization", "").strip()
     if auth_header.lower().startswith("bearer "):
         return auth_header.split(" ", 1)[1].strip()
-    return request.args.get("token") or ""
+    x_auth_token = request.headers.get("X-Auth-Token", "").strip()
+    if x_auth_token:
+        return x_auth_token
+    return request.args.get("token", "")
+
+
+def _extract_token_transport(request: Any) -> tuple[bool, bool]:
+    auth_header = request.headers.get("Authorization", "").strip()
+    if auth_header.lower().startswith("bearer "):
+        return False, False
+    if request.headers.get("X-Auth-Token", "").strip():
+        return False, True
+    if request.args.get("token", "").strip():
+        return True, False
+    return False, False
+
+
+def _build_client_error_body(ex: SourceMetadataClientError) -> dict[str, Any]:
+    payload = ex.payload if isinstance(ex.payload, dict) else {}
+    body = dict(payload)
+    if not body:
+        return {"error": str(ex)}
+    if "error" not in body and "message" not in body:
+        body["error"] = str(ex)
+    return body
+
+
+def _build_from_payload(
+    engine: SourceMetadataEngine,
+    payload: Mapping[str, Any],
+    *,
+    pollutants: Any = None,
+    include_satellite: Optional[bool] = None,
+) -> dict[str, Any]:
+    return engine.build_from_features(
+        latitude=payload.get("latitude"),
+        longitude=payload.get("longitude"),
+        site_category=payload.get("site_category"),
+        satellite_pollutants_mean=payload.get("satellite_pollutants_mean"),
+        pollutants=payload.get("pollutants") if pollutants is None else pollutants,
+        include_satellite=(
+            payload.get("include_satellite", True)
+            if include_satellite is None
+            else include_satellite
+        ),
+    )
 
 
 def create_app(
     *,
-    platform_base_url: str = "https://platform.airqo.net",
+    platform_base_url: str = DEFAULT_PLATFORM_BASE_URL,
     platform_token: Optional[str] = None,
     platform_timeout: int = 30,
 ) -> "Flask":
@@ -57,23 +109,25 @@ def create_app(
             )
 
         try:
+            use_query_token, use_x_auth_token = _extract_token_transport(request)
             response = client.fetch(
                 latitude=latitude,
                 longitude=longitude,
                 include_satellite=_parse_bool(request.args.get("include_satellite")),
-                token=_extract_token() or None,
+                token=_extract_token(request) or None,
+                use_query_token=use_query_token,
+                use_x_auth_token=use_x_auth_token,
             )
             return jsonify(response), 200
         except ValueError as ex:
             return jsonify({"error": str(ex)}), 400
         except SourceMetadataClientError as ex:
-            payload = ex.payload if isinstance(ex.payload, dict) else {}
-            body = dict(payload)
-            if not body:
-                body = {"error": str(ex)}
-            elif "error" not in body and "message" not in body:
-                body["error"] = str(ex)
-            return jsonify(body), ex.status_code or 502
+            logger.exception(
+                "Source metadata upstream request failed: %s; payload=%r",
+                ex,
+                ex.payload,
+            )
+            return jsonify(_build_client_error_body(ex)), ex.status_code or 502
 
     @app.post("/api/v1/source-metadata/from-features")
     def from_features():
@@ -82,14 +136,7 @@ def create_app(
 
         payload = request.get_json() or {}
         try:
-            data = engine.build_from_features(
-                latitude=payload.get("latitude"),
-                longitude=payload.get("longitude"),
-                site_category=payload.get("site_category"),
-                satellite_pollutants_mean=payload.get("satellite_pollutants_mean"),
-                pollutants=payload.get("pollutants"),
-                include_satellite=payload.get("include_satellite", True),
-            )
+            data = _build_from_payload(engine, payload)
             return jsonify({"message": "Operation successful", "data": data}), 200
         except Exception as ex:
             return jsonify({"error": str(ex)}), 400
@@ -111,11 +158,9 @@ def create_app(
         failures = []
         for idx, item in enumerate(items):
             try:
-                result = engine.build_from_features(
-                    latitude=item.get("latitude"),
-                    longitude=item.get("longitude"),
-                    site_category=item.get("site_category"),
-                    satellite_pollutants_mean=item.get("satellite_pollutants_mean"),
+                result = _build_from_payload(
+                    engine,
+                    item,
                     pollutants=pollutants,
                     include_satellite=include_satellite,
                 )
