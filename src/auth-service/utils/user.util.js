@@ -2723,6 +2723,7 @@ const createUserModule = {
         const emailResult = await mailer.sendVerificationEmail({
           email: normalizedEmail,
           token: verificationToken,
+          priority: "high", // Set as high priority
           tenant: dbTenant,
         });
 
@@ -4491,6 +4492,7 @@ const createUserModule = {
               tenant,
               version,
               slug,
+              priority: "high",
             },
             next,
           );
@@ -4871,6 +4873,7 @@ const createUserModule = {
           email: updatedUser.email,
           token,
           tenant,
+          priority: "high",
         });
       } else {
         // Log that the user was not found, but do not throw an error to the client.
