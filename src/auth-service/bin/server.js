@@ -15,6 +15,7 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
+const { startEmailQueue } = require("@utils/common");
 require("@config/firebase-admin");
 
 const morgan = require("morgan");
@@ -346,6 +347,9 @@ const createServer = () => {
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+
+    // Start the email queue processor
+    startEmailQueue();
   });
 
   // Graceful shutdown handler

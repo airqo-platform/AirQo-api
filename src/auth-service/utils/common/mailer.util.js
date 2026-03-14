@@ -96,23 +96,38 @@ const processEmailQueue = async () => {
 
       if (emailJob) {
         try {
+          // Attempt to send the email
           await queueTransporter.sendMail(emailJob.mailOptions);
-          await EmailQueueForTenant.findByIdAndDelete(emailJob._id);
-          logger.info(
-            `Email sent successfully to: ${emailJob.mailOptions.to} for tenant ${tenant}`,
-          );
+          try {
+            await EmailQueueForTenant.findByIdAndDelete(emailJob._id);
+            logger.info(
+              `Email sent and job deleted for: ${emailJob.mailOptions.to} in tenant ${tenant}`
+            );
+          } catch (deleteError) {
+            logger.error(
+              `CRITICAL: Failed to delete job ${emailJob._id} after successful send: ${deleteError.message}`
+            );
+          }
         } catch (error) {
           logger.error(
-            `Failed to send email from queue for tenant ${tenant}: ${error.message}`,
+            `Failed to send email from queue for tenant ${tenant}: ${error.message}`
           );
           const nextAttempt = emailJob.attempts + 1;
-          const newStatus =
-            nextAttempt >= MAX_ATTEMPTS ? "failed" : "pending";
+          const isTerminalFailure = nextAttempt >= MAX_ATTEMPTS;
+          const newStatus = isTerminalFailure ? "failed" : "pending";
 
           await EmailQueueForTenant.findByIdAndUpdate(emailJob._id, {
             $set: { status: newStatus, errorMessage: error.message },
             $inc: { attempts: 1 },
           });
+          if (isTerminalFailure) {
+            await emailDeduplicator.removeEmailKey(emailJob.mailOptions, {
+              tenant,
+            });
+            logger.warn(
+              `Email job ${emailJob._id} failed permanently. Dedup key removed.`
+            );
+          }
         }
       }
     } catch (error) {
@@ -124,23 +139,6 @@ const processEmailQueue = async () => {
 
   isProcessingQueue = false;
 };
-
-const startEmailQueue = () => {
-  if (!queueIntervalId) {
-    queueIntervalId = setInterval(processEmailQueue, EMAIL_INTERVAL);
-    logger.info("Email queue processor has been started.");
-  }
-};
-
-const stopEmailQueue = () => {
-  if (queueIntervalId) {
-    clearInterval(queueIntervalId);
-    queueIntervalId = null;
-    logger.info("Email queue processor has been stopped.");
-  }
-};
-
-/** END: MongoDB-based Email Queue */
 
 let attachments = [
   {
@@ -182,8 +180,9 @@ const createMailerFunction = (
   customMailOptionsModifier = null,
 ) => {
   return async (params, next) => {
-    let email, otherParams, tenant, priority;
+    let email, otherParams, tenant, priority; // Declared in outer scope
     try {
+      // Assign to outer-scoped variables
       ({
         email = params.contact_email,
         tenant = "airqo",
@@ -406,7 +405,7 @@ const createMailerFunction = (
       let emailResult;
       try {
         const shouldSend =
-          await emailDeduplicator.checkAndMarkEmail(mailOptions);
+          await emailDeduplicator.checkAndMarkEmail(mailOptions, { tenant });
 
         if (shouldSend) {
           if (priority === "high") {
@@ -428,11 +427,6 @@ const createMailerFunction = (
               // Fallback to queueing if direct send fails
               const queueResult = await addToEmailQueue(mailOptions, tenant);
               if (!queueResult.success) {
-                // CRITICAL: Both direct send and queueing failed. Remove the dedup key.
-                await emailDeduplicator.removeEmailKey(mailOptions);
-                logger.error(
-                  `Deduplication key for ${mailOptions.to} removed after complete send/queue failure.`,
-                );
                 // If even queuing fails, we must throw.
                 throw new HttpError(
                   "High-priority email send and queue fallback failed.",
@@ -452,11 +446,6 @@ const createMailerFunction = (
             // Queue normal-priority emails
             const queueResult = await addToEmailQueue(mailOptions, tenant);
             if (!queueResult.success) {
-              // CRITICAL: Queuing failed. Remove the dedup key before throwing.
-              await emailDeduplicator.removeEmailKey(mailOptions);
-              logger.error(
-                `Deduplication key for ${mailOptions.to} removed after queue insertion failure.`,
-              );
               throw new HttpError(
                 queueResult.error || "Failed to queue email.",
                 httpStatus.INTERNAL_SERVER_ERROR,
@@ -495,7 +484,13 @@ const createMailerFunction = (
         const retryQueueResult = await addToEmailQueue(mailOptions, tenant);
         if (!retryQueueResult.success) {
           // If even the retry fails, clear the dedup key
-          await emailDeduplicator.removeEmailKey(mailOptions);
+          await emailDeduplicator.removeEmailKey(mailOptions, {
+            tenant,
+          });
+          // If even the retry fails, clear the dedup key
+          await emailDeduplicator.removeEmailKey(mailOptions, {
+            tenant,
+          });
           const errorMessage =
             retryQueueResult.error ||
             "Failed to queue email after deduplication step.";
@@ -554,6 +549,12 @@ const createMailerFunction = (
               params: otherParams,
             },
           );
+
+      // Preserve HttpError instances, wrap others
+      if (error instanceof HttpError) {
+        if (next) return next(error);
+        throw error;
+      }
 
           const error = new HttpError(
             "Internal Server Error",
@@ -1089,6 +1090,12 @@ const createSecurityEmailFunction = (
           params: otherParams,
         },
       );
+
+      // Preserve HttpError instances, wrap others
+      if (error instanceof HttpError) {
+        if (next) return next(error);
+        throw error;
+      }
 
       const httpError = new HttpError(
         "Internal Server Error",
@@ -2434,4 +2441,19 @@ const mailer = {
   ),
 };
 
-module.exports = mailer;
+const startEmailQueue = () => {
+  if (!queueIntervalId) {
+    queueIntervalId = setInterval(processEmailQueue, EMAIL_INTERVAL);
+    logger.info("Email queue processor has been started.");
+  }
+};
+
+const stopEmailQueue = () => {
+  if (queueIntervalId) {
+    clearInterval(queueIntervalId);
+    queueIntervalId = null;
+    logger.info("Email queue processor has been stopped.");
+  }
+};
+
+module.exports = { ...mailer, startEmailQueue, stopEmailQueue };

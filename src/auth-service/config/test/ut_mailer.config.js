@@ -17,6 +17,10 @@ describe("Nodemailer Configuration", () => {
     });
 
     it("should use environment variables for authentication", () => {
+      // Ensure the environment variables are actually set before testing
+      expect(process.env.MAIL_USER).to.be.a("string").and.not.be.empty;
+      expect(process.env.MAIL_PASS).to.be.a("string").and.not.be.empty;
+
       expect(directTransporter.options.auth.user).to.equal(
         process.env.MAIL_USER,
       );
@@ -25,8 +29,10 @@ describe("Nodemailer Configuration", () => {
       );
     });
 
-    it("should have the correct transporter type", () => {
-      expect(directTransporter instanceof nodemailer.Transporter).to.be.true;
+    it("should have a sendMail method", () => {
+      // Behavioral check: ensure it has the core method of a transporter
+      expect(directTransporter).to.have.property("sendMail");
+      expect(directTransporter.sendMail).to.be.a("function");
     });
   });
 
@@ -35,8 +41,9 @@ describe("Nodemailer Configuration", () => {
       expect(queueTransporter.options.service).to.equal("gmail");
     });
 
-    it("should have the correct transporter type", () => {
-      expect(queueTransporter instanceof nodemailer.Transporter).to.be.true;
+    it("should have a sendMail method", () => {
+      expect(queueTransporter).to.have.property("sendMail");
+      expect(queueTransporter.sendMail).to.be.a("function");
     });
   });
 });

@@ -1,4 +1,4 @@
-const { mailer, startEmailQueue, stopEmailQueue } = require("./mailer.util");
+const mailerModule = require("./mailer.util");
 const stringify = require("./stringify.util");
 const {
   generateDateFormat,
@@ -37,9 +37,8 @@ module.exports = {
   hasValidTheme,
   mergeWithDefaults,
   winstonLogger,
-  ...mailer,
-  startEmailQueue,
-  stopEmailQueue,
+  ...mailerModule, // Spread all functions from mailer.util
+  mailer: mailerModule, // Keep a 'mailer' namespace for backward compatibility
   stringify,
   generateDateFormat,
   threeMonthsFromNow,
