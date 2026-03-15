@@ -1,17 +1,13 @@
 const winston = require("winston");
-const { getIsConnected } = require("@config/database");
+const mongoose = require("mongoose");
 
-// Start with a console-only transport so the logger is immediately usable.
-// The MongoDB transport is added lazily once the connection is ready, because
-// winston-mongodb reads the db reference in its constructor — instantiating it
-// at module load time throws before the async connection has opened.
+// Console transport is live from the start so startup and outage logs are never
+// silently dropped. The MongoDB transport is added lazily once the driver
+// connection is open (readyState === 1), because winston-mongodb reads the db
+// reference in its constructor — instantiating it earlier throws.
 const winstonLogger = winston.createLogger({
   level: "info",
-  transports: [
-    new winston.transports.Console({
-      silent: true, // suppress console noise; MongoDB transport takes over once ready
-    }),
-  ],
+  transports: [new winston.transports.Console()],
 });
 
 let mongoTransportAdded = false;
@@ -47,10 +43,11 @@ const addMongoTransport = () => {
   }
 };
 
-// Poll until the connection is ready, then add the transport.
-// Interval cancels itself after success.
+// Poll on the driver's actual readyState rather than the app-level isConnected
+// flag, so the transport attaches as soon as the driver is open regardless of
+// whether RBAC init has completed.
 const pollInterval = setInterval(() => {
-  if (getIsConnected()) {
+  if (mongoose.connection.readyState === 1) {
     clearInterval(pollInterval);
     addMongoTransport();
   }

@@ -362,7 +362,18 @@ const createServer = () => {
     // Jobs whose timers haven't fired yet have not registered any cron tasks, so
     // no orphaned work starts during shutdown.
     jobs.forEach((jobPath, index) => {
-      setTimeout(() => require(jobPath), 10000 + index * 2000);
+      setTimeout(
+        () => {
+          try {
+            require(jobPath);
+          } catch (err) {
+            logger.error(
+              `Failed to load background job '${jobPath}': ${err.message}`,
+            );
+          }
+        },
+        10000 + index * 2000,
+      );
     });
   });
 

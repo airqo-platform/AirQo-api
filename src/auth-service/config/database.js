@@ -153,6 +153,7 @@ let mainConnection = mongoose.connection;
 let isConnected = false; // true only after RBAC/init completes successfully
 let connectionAttempted = false;
 let connectionOpen = false; // true as soon as the driver connection is open, independent of init state
+let _initPromise = null; // shared promise for callers that arrive while init is in progress
 
 const setupConnectionHandlers = (db, dbType) => {
   db.on("open", () => {
@@ -180,8 +181,8 @@ const setupConnectionHandlers = (db, dbType) => {
   });
 };
 
-const connectToMongoDB = async () => {
-  // Guard on driver readyState independently of init state.
+const connectToMongoDB = () => {
+  // If the driver is already open, return a resolved promise.
   // isConnected tracks RBAC/init completion; readyState tracks the driver.
   // Checking both separately prevents a duplicate mongoose.connect() call
   // when init failed/was skipped but the driver connection is already open.
@@ -195,21 +196,28 @@ const connectToMongoDB = async () => {
         "MongoDB driver connection is already open but initialization is not complete. Skipping reconnection.",
       );
     }
-    return mainConnection;
+    return Promise.resolve(mainConnection);
   }
 
-  if (connectionAttempted) {
+  // Return the shared in-progress promise so concurrent callers wait on the
+  // same init rather than racing to open duplicate connections.
+  if (_initPromise) {
     logger.info(
-      "MongoDB connection already in progress. Skipping re-initialization.",
+      "MongoDB connection already in progress. Returning existing init promise.",
     );
-    return mainConnection;
+    return _initPromise;
   }
 
   connectionAttempted = true;
-  try {
-    const handleDBInitialization = async () => {
+
+  _initPromise = (async () => {
+    try {
+      await mongoose.connect(QUERY_URI, options);
+      mainConnection = mongoose.connection;
+      setupConnectionHandlers(mainConnection, "main");
       connectionOpen = true;
       console.log("✅ MongoDB connected, proceeding with initializations...");
+
       try {
         await initializeRBAC();
 
@@ -253,18 +261,19 @@ const connectToMongoDB = async () => {
         );
 
         isConnected = true;
+        connectionAttempted = false;
         console.log(
           "✅ All database initializations complete. isConnected is now true.",
         );
-        connectionAttempted = false;
       } catch (err) {
+        connectionAttempted = false;
+        _initPromise = null; // allow a future retry
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
           err.message,
         );
-        connectionAttempted = false;
         logger.warn(
-          "⚠️ Database connection attempt failed, but retries are now allowed for subsequent connectToMongoDB calls.",
+          "⚠️ Retries are now allowed for subsequent connectToMongoDB calls.",
         );
 
         if (
@@ -274,32 +283,25 @@ const connectToMongoDB = async () => {
           process.exit(1);
         }
       }
-    };
 
-    await mongoose.connect(QUERY_URI, options);
-    mainConnection = mongoose.connection;
-    setupConnectionHandlers(mainConnection, "main");
+      process.on("unhandledRejection", (reason, p) => {
+        logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
+      });
 
-    if (mainConnection.readyState === 1) {
-      handleDBInitialization();
-    } else {
-      mainConnection.once("open", handleDBInitialization);
+      process.on("uncaughtException", (err) => {
+        logger.error("There was an uncaught error", err);
+      });
+
+      return mainConnection;
+    } catch (error) {
+      connectionAttempted = false;
+      _initPromise = null; // allow a future retry
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      throw error;
     }
+  })();
 
-    process.on("unhandledRejection", (reason, p) => {
-      logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
-    });
-
-    process.on("uncaughtException", (err) => {
-      logger.error("There was an uncaught error", err);
-    });
-
-    return mainConnection;
-  } catch (error) {
-    connectionAttempted = false;
-    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    throw error;
-  }
+  return _initPromise;
 };
 
 // Fire-and-forget at module load; connection errors are handled inside connectToMongoDB.
