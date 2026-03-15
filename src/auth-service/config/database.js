@@ -14,7 +14,10 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 
-const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI || "";
+// Reserved for a future separate command/write DB endpoint (constants.COMMAND_MONGO_URI).
+// Currently unused — the app runs a single unified connection via QUERY_URI.
+// const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI || "";
+
 // QUERY_URI resolves to MONGO_URI as fallback; intentional single unified connection.
 const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI || "";
 
@@ -151,7 +154,6 @@ const initializeRBAC = async () => {
 // Connection storage
 let mainConnection = mongoose.connection;
 let isConnected = false; // true only after RBAC/init completes successfully
-let connectionAttempted = false;
 let connectionOpen = false; // true as soon as the driver connection is open, independent of init state
 let _initPromise = null; // shared promise for callers that arrive while init is in progress
 let _processHandlersRegistered = false;
@@ -209,8 +211,6 @@ const connectToMongoDB = () => {
     return _initPromise;
   }
 
-  connectionAttempted = true;
-
   _initPromise = (async () => {
     try {
       await mongoose.connect(QUERY_URI, options);
@@ -262,12 +262,10 @@ const connectToMongoDB = () => {
         );
 
         isConnected = true;
-        connectionAttempted = false;
         console.log(
           "✅ All database initializations complete. isConnected is now true.",
         );
       } catch (err) {
-        connectionAttempted = false;
         _initPromise = null; // allow a future retry
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
@@ -287,7 +285,6 @@ const connectToMongoDB = () => {
 
       return mainConnection;
     } catch (error) {
-      connectionAttempted = false;
       _initPromise = null; // allow a future retry
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       throw error;
