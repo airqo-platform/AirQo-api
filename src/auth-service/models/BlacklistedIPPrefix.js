@@ -41,20 +41,31 @@ BlacklistedIPPrefixSchema.statics = {
     try {
       const { prefix, ...rest } = args;
 
-      const data = await this.findOneAndUpdate(
+      const rawResult = await this.findOneAndUpdate(
         { prefix }, // filter — match on the unique key
         { $setOnInsert: { prefix, ...rest } }, // only write fields on INSERT; no-op on match
         {
           upsert: true,
           new: true, // return the resulting document
           runValidators: true,
-          lean: true,
+          rawResult: true, // expose lastErrorObject so we can detect insert vs match
         },
       );
 
+      // rawResult.value is the Mongoose document (toJSON() runs normally — no lean)
+      const data = rawResult && rawResult.value;
+      const wasExisting = !!(
+        rawResult &&
+        rawResult.lastErrorObject &&
+        rawResult.lastErrorObject.updatedExisting === true
+      );
+
       if (!isEmpty(data)) {
-        return createSuccessResponse("create", data, "IP prefix", {
-          message: "IP prefix created",
+        const message = wasExisting
+          ? "IP prefix already exists and is blacklisted"
+          : "IP prefix created";
+        return createSuccessResponse("create", data._doc, "IP prefix", {
+          message,
         });
       } else {
         return createEmptySuccessResponse(
@@ -63,25 +74,21 @@ BlacklistedIPPrefixSchema.statics = {
         );
       }
     } catch (err) {
-      logObject("the error", err);
-      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-
-      // E11000 duplicate key — another pod won the upsert race on the same tick.
-      // This is safe to treat as a success: the prefix is already blacklisted.
+      // E11000 duplicate key — another pod won the upsert race in the same server tick.
+      // This is expected under load and is safe to treat as success.
       if (err.code === 11000) {
         logger.warn(
-          `⚠️ Duplicate key on upsert for IP prefix — prefix already blacklisted. Treating as success.`,
+          `⚠️ IP prefix upsert race — prefix already blacklisted. Treating as success.`,
         );
         try {
-          const existing = await this.findOne({ prefix: args.prefix }).lean();
-          return createSuccessResponse("create", existing, "IP prefix", {
+          const existing = await this.findOne({ prefix: args.prefix });
+          return createSuccessResponse("create", existing._doc, "IP prefix", {
             message: "IP prefix already exists and is blacklisted",
           });
         } catch (fetchErr) {
           logger.error(
             `🐛🐛 Could not fetch existing prefix after duplicate key error: ${fetchErr.message}`,
           );
-          // Still return success — the prefix IS in the DB, the insert just raced
           return {
             success: true,
             message:
@@ -92,6 +99,9 @@ BlacklistedIPPrefixSchema.statics = {
         }
       }
 
+      // Only log as an actual error for unexpected failures
+      logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       return createErrorResponse(err, "create", logger, "IP prefix");
     }
   },
