@@ -1053,13 +1053,8 @@ const createUserModule = {
             }
 
             if (Object.keys(userProperties).length > 0) {
-              // .catch() ensures an async rejection from the PostHog client
-              // does not become an unhandled promise rejection at runtime.
-              (async () => {
-                await analyticsService.identify(distinctId, userProperties);
-              })().catch((err) =>
-                logger.error(`PostHog identify error: ${err.message}`),
-              );
+              // analyticsService.identify is synchronous and internally handles its own errors.
+              analyticsService.identify(distinctId, userProperties);
             }
           }
         }
