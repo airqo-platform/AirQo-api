@@ -4,7 +4,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- blacklisted-ip-prefix-model`
+  `${constants.ENVIRONMENT} -- blacklisted-ip-prefix-model`,
 );
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
@@ -23,7 +23,7 @@ const BlacklistedIPPrefixSchema = new mongoose.Schema(
       required: [true, "prefix is required!"],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 BlacklistedIPPrefixSchema.pre("save", function (next) {
@@ -39,40 +39,60 @@ BlacklistedIPPrefixSchema.index({ prefix: 1 }, { unique: true });
 BlacklistedIPPrefixSchema.statics = {
   async register(args, next) {
     try {
-      const modifiedArgs = args;
-      const data = await this.create({
-        ...modifiedArgs,
-      });
+      const { prefix, ...rest } = args;
+
+      const data = await this.findOneAndUpdate(
+        { prefix }, // filter — match on the unique key
+        { $setOnInsert: { prefix, ...rest } }, // only write fields on INSERT; no-op on match
+        {
+          upsert: true,
+          new: true, // return the resulting document
+          runValidators: true,
+          lean: true,
+        },
+      );
 
       if (!isEmpty(data)) {
         return createSuccessResponse("create", data, "IP prefix", {
-          message: "IP created",
+          message: "IP prefix created",
         });
       } else {
         return createEmptySuccessResponse(
           "IP prefix",
-          "operation successful but IP NOT successfully created"
+          "operation successful but IP prefix NOT successfully created",
         );
       }
     } catch (err) {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
 
-      // Handle specific duplicate key errors
-      if (err.keyValue) {
-        let response = {};
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
-        });
-        return {
-          success: false,
-          message: "validation errors for some of the provided fields",
-          status: httpStatus.CONFLICT,
-          errors: response,
-        };
-      } else {
-        return createErrorResponse(err, "create", logger, "IP prefix");
+      // E11000 duplicate key — another pod won the upsert race on the same tick.
+      // This is safe to treat as a success: the prefix is already blacklisted.
+      if (err.code === 11000) {
+        logger.warn(
+          `⚠️ Duplicate key on upsert for IP prefix — prefix already blacklisted. Treating as success.`,
+        );
+        try {
+          const existing = await this.findOne({ prefix: args.prefix }).lean();
+          return createSuccessResponse("create", existing, "IP prefix", {
+            message: "IP prefix already exists and is blacklisted",
+          });
+        } catch (fetchErr) {
+          logger.error(
+            `🐛🐛 Could not fetch existing prefix after duplicate key error: ${fetchErr.message}`,
+          );
+          // Still return success — the prefix IS in the DB, the insert just raced
+          return {
+            success: true,
+            message:
+              "IP prefix already blacklisted (confirmed via duplicate key)",
+            status: httpStatus.OK,
+            data: { prefix: args.prefix },
+          };
+        }
       }
+
+      return createErrorResponse(err, "create", logger, "IP prefix");
     }
   },
 
@@ -82,7 +102,7 @@ BlacklistedIPPrefixSchema.statics = {
 
       const inclusionProjection = constants.IP_PREFIX_INCLUSION_PROJECTION;
       const exclusionProjection = constants.IP_PREFIX_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.category ? filter.category : "none",
       );
 
       if (!isEmpty(filter.category)) {
@@ -124,7 +144,7 @@ BlacklistedIPPrefixSchema.statics = {
       const updatedIP = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedIP)) {
@@ -135,7 +155,7 @@ BlacklistedIPPrefixSchema.statics = {
         return createNotFoundResponse(
           "IP prefix",
           "update",
-          "IP does not exist, please crosscheck"
+          "IP does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -162,7 +182,7 @@ BlacklistedIPPrefixSchema.statics = {
         return createNotFoundResponse(
           "IP prefix",
           "delete",
-          "IP does not exist, please crosscheck"
+          "IP does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -190,7 +210,7 @@ const BlacklistedIPPrefixModel = (tenant) => {
     let prefix = getModelByTenant(
       dbTenant,
       "BlacklistedIPPrefix",
-      BlacklistedIPPrefixSchema
+      BlacklistedIPPrefixSchema,
     );
     return prefix;
   }
