@@ -15,6 +15,7 @@ const {
 } = require("@utils/shared");
 
 const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI || "";
+// QUERY_URI resolves to MONGO_URI as fallback; intentional single unified connection.
 const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI || "";
 
 const options = {
@@ -30,7 +31,7 @@ const options = {
   serverSelectionTimeoutMS: 3600000,
 };
 
-let rbacInitialized = false; // Flag to ensure RBAC initialization runs only once
+let rbacInitialized = false;
 
 const validatePermissionsFile = () => {
   const { ALL, DEFAULT_ROLE_DEFINITIONS } = require("@config/constants");
@@ -48,7 +49,6 @@ const validatePermissionsFile = () => {
     errors.push(
       "PERMISSIONS.DEFAULT_ROLE_DEFINITIONS object is missing or empty.",
     );
-    // Stop further checks if the main object is missing
     return errors;
   }
 
@@ -68,7 +68,6 @@ const validatePermissionsFile = () => {
     if (!roleDef.permissions || !Array.isArray(roleDef.permissions)) {
       errors.push(`Role '${roleKey}' is missing a valid 'permissions' array.`);
     } else {
-      // Check if all permissions in the role definition exist in PERMISSIONS.ALL
       for (const perm of roleDef.permissions) {
         if (!ALL.includes(perm)) {
           errors.push(
@@ -88,7 +87,6 @@ const initializeRBAC = async () => {
     return;
   }
 
-  // Health check for the permissions file
   const permissionFileErrors = validatePermissionsFile();
   if (permissionFileErrors.length > 0) {
     console.error("❌ CRITICAL RBAC CONFIGURATION ERROR:");
@@ -105,8 +103,6 @@ const initializeRBAC = async () => {
   try {
     console.log("🚀 Initializing default permissions and roles...");
     const rolePermissionsUtil = require("@utils/role-permissions.util");
-    // The setupDefaultPermissions function is designed to be idempotent.
-    // It will create what's missing and update what's changed.
     const result = await rolePermissionsUtil.setupDefaultPermissions("airqo");
 
     if (result && result.success && result.data) {
@@ -119,7 +115,7 @@ const initializeRBAC = async () => {
         role_errors,
       } = result.data;
       console.log("✅ RBAC initialization completed successfully.");
-      rbacInitialized = true; // Set flag after successful initialization
+      rbacInitialized = true;
       if (permissions) {
         console.log(
           `   📊 Permissions: ${permissions.created} created, ${permissions.updated} updated, ${permissions.existing} existing.`,
@@ -148,14 +144,15 @@ const initializeRBAC = async () => {
     }
   } catch (error) {
     logger.error(`🐛🐛 RBAC Initialization Error -- ${error.message}`);
-    rbacInitialized = false; // Allow retry on next start if it fails
+    rbacInitialized = false;
   }
 };
 
 // Connection storage
 let mainConnection = mongoose.connection;
-let isConnected = false;
+let isConnected = false; // true only after RBAC/init completes successfully
 let connectionAttempted = false;
+let connectionOpen = false; // true as soon as the driver connection is open, independent of init state
 
 const setupConnectionHandlers = (db, dbType) => {
   db.on("open", () => {
@@ -167,30 +164,40 @@ const setupConnectionHandlers = (db, dbType) => {
   });
 
   db.on("disconnected", () => {
-    if (dbType === "query") {
+    if (dbType === "query" || dbType === "main") {
       isConnected = false;
+      connectionOpen = false;
     }
     logger.warn(`${dbType} database disconnected`);
   });
 
   db.on("reconnected", () => {
-    if (dbType === "query" && rbacInitialized) {
+    if ((dbType === "query" || dbType === "main") && rbacInitialized) {
       isConnected = true;
+      connectionOpen = true;
     }
     logger.info(`${dbType} database reconnected`);
   });
 };
 
-const connectToMongoDB = () => {
-  // Check if already fully connected and initialized
-  if (isConnected && mainConnection && mainConnection.readyState === 1) {
-    logger.info(
-      "MongoDB connections are already established and initialized. Skipping re-initialization.",
-    );
+const connectToMongoDB = async () => {
+  // Guard on driver readyState independently of init state.
+  // isConnected tracks RBAC/init completion; readyState tracks the driver.
+  // Checking both separately prevents a duplicate mongoose.connect() call
+  // when init failed/was skipped but the driver connection is already open.
+  if (mainConnection && mainConnection.readyState === 1) {
+    if (isConnected) {
+      logger.info(
+        "MongoDB connections are already established and initialized. Skipping re-initialization.",
+      );
+    } else {
+      logger.warn(
+        "MongoDB driver connection is already open but initialization is not complete. Skipping reconnection.",
+      );
+    }
     return mainConnection;
   }
 
-  // Check if a connection attempt is already in progress
   if (connectionAttempted) {
     logger.info(
       "MongoDB connection already in progress. Skipping re-initialization.",
@@ -198,24 +205,22 @@ const connectToMongoDB = () => {
     return mainConnection;
   }
 
-  connectionAttempted = true; // Mark that a connection attempt has started
+  connectionAttempted = true;
   try {
     const handleDBInitialization = async () => {
+      connectionOpen = true;
       console.log("✅ MongoDB connected, proceeding with initializations...");
       try {
         await initializeRBAC();
 
-        // Initialize guest user after RBAC
         console.log("🚀 Initializing guest user across all tenants...");
         const {
           ensureGuestUserExists,
         } = require("@bin/jobs/guest-user-init-job");
         await ensureGuestUserExists().catch((error) => {
           logger.error(`Guest user initialization failed: ${error.message}`);
-          // Don't crash the app - guest user creation failure is non-critical
         });
 
-        // Run default group initialization in the background
         const {
           ensureDefaultAirqoGroupExists,
         } = require("@bin/jobs/default-group-init-job");
@@ -225,7 +230,7 @@ const connectToMongoDB = () => {
             `Background job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
           );
         });
-        // Also run the token migration job now that DB is ready
+
         const {
           migrateTokenStrategiesToDefault,
         } = require("@bin/jobs/token-strategy-migration-job");
@@ -234,7 +239,6 @@ const connectToMongoDB = () => {
           logger.error(`Startup migration failed: ${err.message}`);
         });
 
-        // Run legacy role name migration in the background
         const {
           runLegacyRoleMigration,
         } = require("@migrations/rename-legacy-roles");
@@ -247,17 +251,17 @@ const connectToMongoDB = () => {
             );
           },
         );
+
         isConnected = true;
         console.log(
           "✅ All database initializations complete. isConnected is now true.",
         );
-        connectionAttempted = false; // Connection process is now complete
+        connectionAttempted = false;
       } catch (err) {
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
           err.message,
         );
-        // Reset connectionAttempted to allow future retries if the app doesn't exit
         connectionAttempted = false;
         logger.warn(
           "⚠️ Database connection attempt failed, but retries are now allowed for subsequent connectToMongoDB calls.",
@@ -272,8 +276,7 @@ const connectToMongoDB = () => {
       }
     };
 
-    // Use a single primary connection
-    mongoose.connect(QUERY_URI, options);
+    await mongoose.connect(QUERY_URI, options);
     mainConnection = mongoose.connection;
     setupConnectionHandlers(mainConnection, "main");
 
@@ -299,7 +302,15 @@ const connectToMongoDB = () => {
   }
 };
 
-const mainConnectionInstance = connectToMongoDB();
+// Fire-and-forget at module load; connection errors are handled inside connectToMongoDB.
+let mainConnectionInstance = mongoose.connection;
+connectToMongoDB()
+  .then((conn) => {
+    if (conn) mainConnectionInstance = conn;
+  })
+  .catch((err) => {
+    logger.error(`Failed to establish MongoDB connection: ${err.message}`);
+  });
 
 const getIsConnected = () => isConnected;
 const getQueryConnection = () => mainConnectionInstance;
@@ -310,31 +321,33 @@ const getCommandConnection = () => mainConnectionInstance;
  */
 function getCommandTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_${tenantId}`;
-  if (mainConnectionInstance) {
+  if (mainConnectionInstance && mainConnectionInstance.readyState === 1) {
     const db = mainConnectionInstance.useDb(dbName, { useCache: true });
-    db.model(modelName, schema);
+    try {
+      db.model(modelName);
+    } catch {
+      db.model(modelName, schema);
+    }
     return db;
   }
-  throw new Error("Command database connection not established");
+  throw new Error("Command database connection not established or not ready");
 }
 
 /**
  * Get a tenant-specific database from query DB (for read operations)
  */
 function getQueryTenantDB(tenantId, modelName, schema) {
-  // const dbName = `${constants.DB_NAME}_query_${tenantId}`;
   const dbName = `${constants.DB_NAME}_${tenantId}`;
-  if (mainConnectionInstance) {
+  if (mainConnectionInstance && mainConnectionInstance.readyState === 1) {
     const db = mainConnectionInstance.useDb(dbName, { useCache: true });
     try {
       db.model(modelName);
     } catch {
-      // Model doesn't exist, register it
       db.model(modelName, schema);
     }
     return db;
   }
-  throw new Error("Query database connection not established");
+  throw new Error("Query database connection not established or not ready");
 }
 
 /**

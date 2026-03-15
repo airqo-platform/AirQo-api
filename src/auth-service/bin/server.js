@@ -350,14 +350,19 @@ const createServer = () => {
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
 
-    // Start the email queue processor
+    // Delay email queue start to allow the connection pool to stabilise.
     setTimeout(() => {
       mailer.startEmailQueue();
-    }, 5000); // Delay email queue start by 5 seconds
+    }, 5000);
 
-    // Stagger job initialization
+    // Jobs are staggered with a fixed delay to prevent connection pool exhaustion
+    // at startup (thundering herd). Timer handles are intentionally not retained:
+    // by the time SIGTERM arrives in production the timers will have fired and each
+    // job will be registered in global.cronJobs, which gracefulShutdown iterates.
+    // Jobs whose timers haven't fired yet have not registered any cron tasks, so
+    // no orphaned work starts during shutdown.
     jobs.forEach((jobPath, index) => {
-      setTimeout(() => require(jobPath), 10000 + index * 2000); // Start jobs with a delay
+      setTimeout(() => require(jobPath), 10000 + index * 2000);
     });
   });
 
