@@ -847,10 +847,12 @@ class Config:
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
     MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME")
+    MLFLOW_FAULT_NAME = os.getenv("MLFLOW_FAULT_NAME")
     MLFLOW_ENABLE_MODEL_GATING = (
         str(os.getenv("MLFLOW_ENABLE_MODEL_GATING", "false")).lower() == "true"
     )
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
+    FAULT_MODEL_BUCKET = os.getenv("FAULT_MODEL_BUCKET")
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")

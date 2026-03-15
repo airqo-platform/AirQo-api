@@ -1253,7 +1253,7 @@ class BigQueryApi:
                 num_cols = results.select_dtypes(include="number").columns
                 results = (
                     results.groupby("device_id")
-                    .resample("H", on="timestamp")[num_cols]
+                    .resample("h", on="timestamp")[num_cols]
                     .mean()
                 )
                 results.reset_index(inplace=True)

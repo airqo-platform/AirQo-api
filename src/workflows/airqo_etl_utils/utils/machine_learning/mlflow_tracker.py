@@ -51,6 +51,51 @@ class MlflowTracker:
                 serialized[key] = str(value)
         return serialized
 
+    @staticmethod
+    def _log_model_with_fallback(
+        *,
+        model: Any,
+        model_artifact_path: str,
+        input_example: Optional[pd.DataFrame] = None,
+    ) -> None:
+        """Log a model artifact without failing the whole run on serializer issues."""
+        try:
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                name=model_artifact_path,
+                input_example=input_example,
+                serialization_format="skops",
+            )
+            return
+        except Exception as exc:
+            logger.warning(
+                f"MLflow skops model logging failed for '{model_artifact_path}': {exc}. "
+                "Retrying with cloudpickle."
+            )
+
+        try:
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                name=model_artifact_path,
+                input_example=input_example,
+                serialization_format="cloudpickle",
+            )
+        except Exception as exc:
+            logger.warning(
+                f"MLflow model artifact logging failed for '{model_artifact_path}': {exc}. "
+                "Metrics and tags were logged, but the model artifact was skipped."
+            )
+
+    @staticmethod
+    def _infer_run_status(tags: Dict[str, str]) -> str:
+        deployment_status = tags.get("deployment_status", "").strip().lower()
+        deployed = tags.get("deployed", "").strip().lower()
+
+        if deployment_status == "not_deployed" or deployed == "false":
+            return "FAILED"
+
+        return "FINISHED"
+
     def log_run(
         self,
         *,
@@ -74,21 +119,26 @@ class MlflowTracker:
         safe_tags = {k: str(v) for k, v in (tags or {}).items()}
         if self.model_gating_enabled:
             safe_tags["mlflow.model_gating_enabled"] = "true"
+        run_status = self._infer_run_status(safe_tags)
+        active_run = None
 
         try:
-            with mlflow.start_run(run_name=run_name):
-                if safe_params:
-                    mlflow.log_params(safe_params)
-                if safe_metrics:
-                    mlflow.log_metrics(safe_metrics)
-                if safe_tags:
-                    mlflow.set_tags(safe_tags)
-                if model is not None:
-                    mlflow.sklearn.log_model(
-                        sk_model=model,
-                        name=model_artifact_path,
-                        input_example=input_example,
-                        serialization_format="skops",
-                    )
+            active_run = mlflow.start_run(run_name=run_name)
+            if safe_params:
+                mlflow.log_params(safe_params)
+            if safe_metrics:
+                mlflow.log_metrics(safe_metrics)
+            if safe_tags:
+                mlflow.set_tags(safe_tags)
+            if model is not None:
+                self._log_model_with_fallback(
+                    model=model,
+                    model_artifact_path=model_artifact_path,
+                    input_example=input_example,
+                )
         except Exception as exc:
+            run_status = "FAILED"
             logger.warning(f"Failed to log MLflow run '{run_name}': {exc}")
+        finally:
+            if active_run is not None:
+                mlflow.end_run(status=run_status)
