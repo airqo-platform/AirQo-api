@@ -4,7 +4,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- blacklisted-ip-prefix-model`
+  `${constants.ENVIRONMENT} -- blacklisted-ip-prefix-model`,
 );
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
@@ -23,7 +23,7 @@ const BlacklistedIPPrefixSchema = new mongoose.Schema(
       required: [true, "prefix is required!"],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 BlacklistedIPPrefixSchema.pre("save", function (next) {
@@ -39,40 +39,70 @@ BlacklistedIPPrefixSchema.index({ prefix: 1 }, { unique: true });
 BlacklistedIPPrefixSchema.statics = {
   async register(args, next) {
     try {
-      const modifiedArgs = args;
-      const data = await this.create({
-        ...modifiedArgs,
-      });
+      const { prefix, ...rest } = args;
+
+      const rawResult = await this.findOneAndUpdate(
+        { prefix }, // filter — match on the unique key
+        { $setOnInsert: { prefix, ...rest } }, // only write fields on INSERT; no-op on match
+        {
+          upsert: true,
+          new: true, // return the resulting document
+          runValidators: true,
+          rawResult: true, // expose lastErrorObject so we can detect insert vs match
+        },
+      );
+
+      // rawResult.value is the Mongoose document (toJSON() runs normally — no lean)
+      const data = rawResult && rawResult.value;
+      const wasExisting = !!(
+        rawResult &&
+        rawResult.lastErrorObject &&
+        rawResult.lastErrorObject.updatedExisting === true
+      );
 
       if (!isEmpty(data)) {
-        return createSuccessResponse("create", data, "IP prefix", {
-          message: "IP created",
+        const message = wasExisting
+          ? "IP prefix already exists and is blacklisted"
+          : "IP prefix created";
+        return createSuccessResponse("create", data._doc, "IP prefix", {
+          message,
         });
       } else {
         return createEmptySuccessResponse(
           "IP prefix",
-          "operation successful but IP NOT successfully created"
+          "operation successful but IP prefix NOT successfully created",
         );
       }
     } catch (err) {
+      // E11000 duplicate key — another pod won the upsert race in the same server tick.
+      // This is expected under load and is safe to treat as success.
+      if (err.code === 11000) {
+        logger.warn(
+          `⚠️ IP prefix upsert race — prefix already blacklisted. Treating as success.`,
+        );
+        try {
+          const existing = await this.findOne({ prefix: args.prefix });
+          return createSuccessResponse("create", existing._doc, "IP prefix", {
+            message: "IP prefix already exists and is blacklisted",
+          });
+        } catch (fetchErr) {
+          logger.error(
+            `🐛🐛 Could not fetch existing prefix after duplicate key error: ${fetchErr.message}`,
+          );
+          return {
+            success: true,
+            message:
+              "IP prefix already blacklisted (confirmed via duplicate key)",
+            status: httpStatus.OK,
+            data: { prefix: args.prefix },
+          };
+        }
+      }
+
+      // Only log as an actual error for unexpected failures
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-
-      // Handle specific duplicate key errors
-      if (err.keyValue) {
-        let response = {};
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
-        });
-        return {
-          success: false,
-          message: "validation errors for some of the provided fields",
-          status: httpStatus.CONFLICT,
-          errors: response,
-        };
-      } else {
-        return createErrorResponse(err, "create", logger, "IP prefix");
-      }
+      return createErrorResponse(err, "create", logger, "IP prefix");
     }
   },
 
@@ -82,7 +112,7 @@ BlacklistedIPPrefixSchema.statics = {
 
       const inclusionProjection = constants.IP_PREFIX_INCLUSION_PROJECTION;
       const exclusionProjection = constants.IP_PREFIX_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.category ? filter.category : "none",
       );
 
       if (!isEmpty(filter.category)) {
@@ -124,7 +154,7 @@ BlacklistedIPPrefixSchema.statics = {
       const updatedIP = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedIP)) {
@@ -135,7 +165,7 @@ BlacklistedIPPrefixSchema.statics = {
         return createNotFoundResponse(
           "IP prefix",
           "update",
-          "IP does not exist, please crosscheck"
+          "IP does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -162,7 +192,7 @@ BlacklistedIPPrefixSchema.statics = {
         return createNotFoundResponse(
           "IP prefix",
           "delete",
-          "IP does not exist, please crosscheck"
+          "IP does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -190,7 +220,7 @@ const BlacklistedIPPrefixModel = (tenant) => {
     let prefix = getModelByTenant(
       dbTenant,
       "BlacklistedIPPrefix",
-      BlacklistedIPPrefixSchema
+      BlacklistedIPPrefixSchema,
     );
     return prefix;
   }
