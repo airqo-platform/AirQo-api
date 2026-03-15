@@ -1,4 +1,7 @@
-const { directTransporter, queueTransporter } = require("@config/mailer.config");
+const {
+  directTransporter,
+  queueTransporter,
+} = require("@config/mailer.config");
 const isEmpty = require("is-empty");
 const { getIsConnected, getQueryConnection } = require("@config/database");
 const mongoose = require("mongoose");
@@ -61,7 +64,8 @@ const processEmailQueue = async () => {
   const queryConnection = getQueryConnection();
   if (
     !getIsConnected() ||
-    !queryConnection || queryConnection.readyState !== 1
+    !queryConnection ||
+    queryConnection.readyState !== 1
   ) {
     logger.warn(
       "Email queue processing skipped: No active database connection.",
@@ -70,70 +74,70 @@ const processEmailQueue = async () => {
     return;
   }
 
-  const tenants = constants.TENANTS || ["airqo"];
-  for (const tenant of tenants) {
+  const tenant = constants.DEFAULT_TENANT || "airqo";
+  try {
+    const EmailQueueForTenant = EmailQueueModel(tenant);
+
+    // Reset stale "processing" jobs for this tenant
     try {
-      const EmailQueueForTenant = EmailQueueModel(tenant);
-
-      // Reset stale "processing" jobs for this tenant
-      try {
-        const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
-        await EmailQueueForTenant.updateMany(
-          { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
-          { $set: { status: "pending" } },
-        );
-      } catch (error) {
-        logger.warn(
-          `Error resetting stale email jobs for tenant ${tenant}: ${error.message}`,
-        );
-      }
-
-      const emailJob = await EmailQueueForTenant.findOneAndUpdate(
-        { status: "pending", attempts: { $lt: MAX_ATTEMPTS } },
-        { $set: { status: "processing", lastAttemptAt: new Date() } },
-        { sort: { createdAt: 1 } },
+      const processingTimeout = new Date(Date.now() - 30000); // 30 seconds
+      await EmailQueueForTenant.updateMany(
+        { status: "processing", lastAttemptAt: { $lt: processingTimeout } },
+        { $set: { status: "pending" } },
       );
-
-      if (emailJob) {
-        try {
-          // Attempt to send the email
-          await queueTransporter.sendMail(emailJob.mailOptions);
-          logger.info(
-            `Email sent successfully to: ${emailJob.mailOptions.to} for tenant ${tenant}`,
-          );
-          // If send is successful, delete the job.
-          try {
-            await EmailQueueForTenant.findByIdAndDelete(emailJob._id);
-          } catch (deleteError) {
-            logger.error(
-              `CRITICAL: Failed to delete job ${emailJob._id} after successful send: ${deleteError.message}`,
-            );
-          }
-        } catch (error) {
-          logger.error(
-            `Failed to send email from queue for tenant ${tenant}: ${error.message}`,
-          );
-          const nextAttempt = emailJob.attempts + 1;
-          const isTerminalFailure = nextAttempt >= MAX_ATTEMPTS;
-          const newStatus = isTerminalFailure ? "failed" : "pending";
-
-          if (isTerminalFailure) {
-            await emailDeduplicator.removeEmailKey(emailJob.mailOptions, { tenant });
-            logger.warn(
-              `Email job ${emailJob._id} failed permanently. Dedup key removed.`,
-            );
-          }
-          await EmailQueueForTenant.findByIdAndUpdate(emailJob._id, {
-            $set: { status: newStatus, errorMessage: error.message },
-            $inc: { attempts: 1 },
-          });
-        }
-      }
     } catch (error) {
-      logger.error(
-        `Error processing email queue for tenant ${tenant}: ${error.message}`,
+      logger.warn(
+        `Error resetting stale email jobs for tenant ${tenant}: ${error.message}`,
       );
     }
+
+    const emailJob = await EmailQueueForTenant.findOneAndUpdate(
+      { status: "pending", attempts: { $lt: MAX_ATTEMPTS } },
+      { $set: { status: "processing", lastAttemptAt: new Date() } },
+      { sort: { createdAt: 1 } },
+    );
+
+    if (emailJob) {
+      try {
+        // Attempt to send the email
+        await queueTransporter.sendMail(emailJob.mailOptions);
+        logger.info(
+          `Email sent successfully to: ${emailJob.mailOptions.to} for tenant ${tenant}`,
+        );
+        // If send is successful, delete the job.
+        try {
+          await EmailQueueForTenant.findByIdAndDelete(emailJob._id);
+        } catch (deleteError) {
+          logger.error(
+            `CRITICAL: Failed to delete job ${emailJob._id} after successful send: ${deleteError.message}`,
+          );
+        }
+      } catch (error) {
+        logger.error(
+          `Failed to send email from queue for tenant ${tenant}: ${error.message}`,
+        );
+        const nextAttempt = emailJob.attempts + 1;
+        const isTerminalFailure = nextAttempt >= MAX_ATTEMPTS;
+        const newStatus = isTerminalFailure ? "failed" : "pending";
+
+        if (isTerminalFailure) {
+          await emailDeduplicator.removeEmailKey(emailJob.mailOptions, {
+            tenant,
+          });
+          logger.warn(
+            `Email job ${emailJob._id} failed permanently. Dedup key removed.`,
+          );
+        }
+        await EmailQueueForTenant.findByIdAndUpdate(emailJob._id, {
+          $set: { status: newStatus, errorMessage: error.message },
+          $inc: { attempts: 1 },
+        });
+      }
+    }
+  } catch (error) {
+    logger.error(
+      `Error processing email queue for tenant ${tenant}: ${error.message}`,
+    );
   }
 
   isProcessingQueue = false;
@@ -418,8 +422,10 @@ const createMailerFunction = (
       // ✅ STEP 4d: DB-backed deduplication check before queuing
       let emailResult;
       try {
-        const shouldSend =
-          await emailDeduplicator.checkAndMarkEmail(mailOptions, { tenant });
+        const shouldSend = await emailDeduplicator.checkAndMarkEmail(
+          mailOptions,
+          { tenant },
+        );
 
         if (shouldSend) {
           if (priority === "high") {
@@ -444,7 +450,7 @@ const createMailerFunction = (
                 // CRITICAL: Both direct send and queueing failed. Remove the dedup key.
                 await emailDeduplicator.removeEmailKey(mailOptions, { tenant });
                 logger.error(
-                  `Deduplication key for ${mailOptions.to} removed after complete send/queue failure.`
+                  `Deduplication key for ${mailOptions.to} removed after complete send/queue failure.`,
                 );
                 // If even queuing fails, we must throw.
                 throw new HttpError(
@@ -457,7 +463,9 @@ const createMailerFunction = (
                 message: "Email successfully queued after direct send failed.",
                 duplicate: false,
                 data: {
-                  accepted: [mailOptions.to], rejected: [], messageId: `queued_fallback_${Date.now()}`,
+                  accepted: [mailOptions.to],
+                  rejected: [],
+                  messageId: `queued_fallback_${Date.now()}`,
                 },
               };
             }
@@ -470,7 +478,7 @@ const createMailerFunction = (
                 tenant,
               });
               logger.error(
-                `Deduplication key for ${mailOptions.to} removed after queue insertion failure.`
+                `Deduplication key for ${mailOptions.to} removed after queue insertion failure.`,
               );
               throw new HttpError(
                 queueResult.error || "Failed to queue email.",
@@ -602,13 +610,16 @@ const createMailerFunction = (
       if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
         return {
           success: true,
-          message: emailResult.message || `${functionName} email sent successfully`,
+          message:
+            emailResult.message || `${functionName} email sent successfully`,
           data: {
             email,
             functionName,
             messageId: emailData.messageId,
             emailResults: emailData,
-            bccCount: subscribedBccEmails ? subscribedBccEmails.split(",").length : 0,
+            bccCount: subscribedBccEmails
+              ? subscribedBccEmails.split(",").length
+              : 0,
             duplicate: false,
             sentAt: new Date(),
             ...otherParams,
