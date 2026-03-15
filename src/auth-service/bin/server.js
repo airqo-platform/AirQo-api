@@ -35,16 +35,18 @@ const rateLimit = require("express-rate-limit");
 const options = { mongooseConnection: mongoose.connection };
 
 // Initialize background jobs
-require("@bin/jobs/active-status-job");
-require("@bin/jobs/inactive-users-job");
-require("@bin/jobs/token-expiration-job");
-require("@bin/jobs/incomplete-profile-job");
-require("@bin/jobs/preferences-log-job");
-require("@bin/jobs/dashboard-analytics-job");
-require("@bin/jobs/preferences-update-job");
-require("@bin/jobs/profile-picture-update-job");
-require("@bin/jobs/role-cleanup-job");
-require("@bin/jobs/daily-compromise-summary-job");
+const jobs = [
+  "@bin/jobs/active-status-job",
+  "@bin/jobs/inactive-users-job",
+  "@bin/jobs/token-expiration-job",
+  "@bin/jobs/incomplete-profile-job",
+  "@bin/jobs/preferences-log-job",
+  "@bin/jobs/dashboard-analytics-job",
+  "@bin/jobs/preferences-update-job",
+  "@bin/jobs/profile-picture-update-job",
+  "@bin/jobs/role-cleanup-job",
+  "@bin/jobs/daily-compromise-summary-job",
+];
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
@@ -349,7 +351,14 @@ const createServer = () => {
     debug("Listening on " + bind);
 
     // Start the email queue processor
-    mailer.startEmailQueue();
+    setTimeout(() => {
+      mailer.startEmailQueue();
+    }, 5000); // Delay email queue start by 5 seconds
+
+    // Stagger job initialization
+    jobs.forEach((jobPath, index) => {
+      setTimeout(() => require(jobPath), 10000 + index * 2000); // Start jobs with a delay
+    });
   });
 
   // Graceful shutdown handler

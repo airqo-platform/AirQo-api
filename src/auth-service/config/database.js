@@ -152,22 +152,8 @@ const initializeRBAC = async () => {
   }
 };
 
-// Create separate connection instances for command and query
-const createCommandConnection = () =>
-  mongoose.createConnection(COMMAND_URI, {
-    ...options,
-    dbName: `${constants.DB_NAME}_command`,
-  });
-
-const createQueryConnection = () =>
-  mongoose.createConnection(QUERY_URI, {
-    ...options,
-    dbName: `${constants.DB_NAME}`,
-  });
-
 // Connection storage
-let commandDB = null;
-let queryDB = null;
+let mainConnection = mongoose.connection;
 let isConnected = false;
 let connectionAttempted = false;
 
@@ -197,11 +183,11 @@ const setupConnectionHandlers = (db, dbType) => {
 
 const connectToMongoDB = () => {
   // Check if already fully connected and initialized
-  if (isConnected) {
+  if (isConnected && mainConnection && mainConnection.readyState === 1) {
     logger.info(
       "MongoDB connections are already established and initialized. Skipping re-initialization.",
     );
-    return { commandDB, queryDB };
+    return mainConnection;
   }
 
   // Check if a connection attempt is already in progress
@@ -209,19 +195,11 @@ const connectToMongoDB = () => {
     logger.info(
       "MongoDB connection already in progress. Skipping re-initialization.",
     );
-    return { commandDB, queryDB };
+    return mainConnection;
   }
 
   connectionAttempted = true; // Mark that a connection attempt has started
   try {
-    // Connect to command database
-    commandDB = createCommandConnection();
-    setupConnectionHandlers(commandDB, "command");
-
-    // Connect to query database
-    queryDB = createQueryConnection();
-    setupConnectionHandlers(queryDB, "query");
-
     const handleDBInitialization = async () => {
       console.log("✅ MongoDB connected, proceeding with initializations...");
       try {
@@ -294,15 +272,17 @@ const connectToMongoDB = () => {
       }
     };
 
-    // Listen to the 'open' event on the query database connection
-    if (queryDB.readyState === 1) {
+    // Use a single primary connection
+    mongoose.connect(QUERY_URI, options);
+    mainConnection = mongoose.connection;
+    setupConnectionHandlers(mainConnection, "main");
+
+    if (mainConnection.readyState === 1) {
       handleDBInitialization();
     } else {
-      // Use .once to ensure handleDBInitialization runs only once on the first successful connection
-      queryDB.once("open", handleDBInitialization);
+      mainConnection.once("open", handleDBInitialization);
     }
 
-    // Error handling for the Node process
     process.on("unhandledRejection", (reason, p) => {
       logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
     });
@@ -311,7 +291,7 @@ const connectToMongoDB = () => {
       logger.error("There was an uncaught error", err);
     });
 
-    return { commandDB, queryDB };
+    return mainConnection;
   } catch (error) {
     connectionAttempted = false;
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
@@ -319,20 +299,19 @@ const connectToMongoDB = () => {
   }
 };
 
-// Initialize connections
-const { commandDB: commandMongoDB, queryDB: queryMongoDB } = connectToMongoDB();
+const mainConnectionInstance = connectToMongoDB();
 
 const getIsConnected = () => isConnected;
-const getQueryConnection = () => queryMongoDB;
-const getCommandConnection = () => commandMongoDB;
+const getQueryConnection = () => mainConnectionInstance;
+const getCommandConnection = () => mainConnectionInstance;
 
 /**
  * Get a tenant-specific database from command DB (for write operations)
  */
 function getCommandTenantDB(tenantId, modelName, schema) {
-  const dbName = `${constants.DB_NAME}_command_${tenantId}`;
-  if (commandMongoDB) {
-    const db = commandMongoDB.useDb(dbName, { useCache: true });
+  const dbName = `${constants.DB_NAME}_${tenantId}`;
+  if (mainConnectionInstance) {
+    const db = mainConnectionInstance.useDb(dbName, { useCache: true });
     db.model(modelName, schema);
     return db;
   }
@@ -345,8 +324,8 @@ function getCommandTenantDB(tenantId, modelName, schema) {
 function getQueryTenantDB(tenantId, modelName, schema) {
   // const dbName = `${constants.DB_NAME}_query_${tenantId}`;
   const dbName = `${constants.DB_NAME}_${tenantId}`;
-  if (queryMongoDB) {
-    const db = queryMongoDB.useDb(dbName, { useCache: true });
+  if (mainConnectionInstance) {
+    const db = mainConnectionInstance.useDb(dbName, { useCache: true });
     try {
       db.model(modelName);
     } catch {
