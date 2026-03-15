@@ -154,6 +154,7 @@ let isConnected = false; // true only after RBAC/init completes successfully
 let connectionAttempted = false;
 let connectionOpen = false; // true as soon as the driver connection is open, independent of init state
 let _initPromise = null; // shared promise for callers that arrive while init is in progress
+let _processHandlersRegistered = false;
 
 const setupConnectionHandlers = (db, dbType) => {
   db.on("open", () => {
@@ -284,14 +285,6 @@ const connectToMongoDB = () => {
         }
       }
 
-      process.on("unhandledRejection", (reason, p) => {
-        logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
-      });
-
-      process.on("uncaughtException", (err) => {
-        logger.error("There was an uncaught error", err);
-      });
-
       return mainConnection;
     } catch (error) {
       connectionAttempted = false;
@@ -314,14 +307,30 @@ connectToMongoDB()
     logger.error(`Failed to establish MongoDB connection: ${err.message}`);
   });
 
+// Registered once at module scope to avoid duplicate listeners on repeated
+// connectToMongoDB() calls.
+if (!_processHandlersRegistered) {
+  _processHandlersRegistered = true;
+
+  process.on("unhandledRejection", (reason, p) => {
+    logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
+  });
+
+  process.on("uncaughtException", (err) => {
+    logger.error("There was an uncaught error", err);
+  });
+}
+
 const getIsConnected = () => isConnected;
 const getQueryConnection = () => mainConnectionInstance;
 const getCommandConnection = () => mainConnectionInstance;
 
 /**
- * Get a tenant-specific database from command DB (for write operations)
+ * Internal helper — resolves a tenant-specific database from the main connection.
+ * Both command and query paths use the same underlying connection; this avoids
+ * duplicating the readyState check and model-registration logic.
  */
-function getCommandTenantDB(tenantId, modelName, schema) {
+function _resolveTenantDB(tenantId, modelName, schema, label) {
   const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (mainConnectionInstance && mainConnectionInstance.readyState === 1) {
     const db = mainConnectionInstance.useDb(dbName, { useCache: true });
@@ -332,24 +341,21 @@ function getCommandTenantDB(tenantId, modelName, schema) {
     }
     return db;
   }
-  throw new Error("Command database connection not established or not ready");
+  throw new Error(`${label} database connection not established or not ready`);
+}
+
+/**
+ * Get a tenant-specific database from command DB (for write operations)
+ */
+function getCommandTenantDB(tenantId, modelName, schema) {
+  return _resolveTenantDB(tenantId, modelName, schema, "Command");
 }
 
 /**
  * Get a tenant-specific database from query DB (for read operations)
  */
 function getQueryTenantDB(tenantId, modelName, schema) {
-  const dbName = `${constants.DB_NAME}_${tenantId}`;
-  if (mainConnectionInstance && mainConnectionInstance.readyState === 1) {
-    const db = mainConnectionInstance.useDb(dbName, { useCache: true });
-    try {
-      db.model(modelName);
-    } catch {
-      db.model(modelName, schema);
-    }
-    return db;
-  }
-  throw new Error("Query database connection not established or not ready");
+  return _resolveTenantDB(tenantId, modelName, schema, "Query");
 }
 
 /**

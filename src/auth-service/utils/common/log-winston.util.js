@@ -49,12 +49,14 @@ const addMongoTransport = () => {
 const pollInterval = setInterval(() => {
   if (mongoose.connection.readyState === 1) {
     clearInterval(pollInterval);
+    clearTimeout(mongoTimeout);
     addMongoTransport();
   }
 }, 2000);
 
 // Cap polling so it doesn't run forever if the DB never comes up.
-setTimeout(() => {
+// mongoTimeout is named so the success path above can cancel it.
+const mongoTimeout = setTimeout(() => {
   clearInterval(pollInterval);
   if (!mongoTransportAdded) {
     console.warn(
