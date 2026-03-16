@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 import logging
 from sqlalchemy.orm import Session
@@ -363,45 +364,100 @@ async def get_device_performance(device_names: List[str], startDateTime: str, en
         token = ""
 
     raw_data = []
+    pagination_incomplete = False
+    max_retries = 3
     async with httpx.AsyncClient(timeout=60.0) as client:
         url = f"{settings.PLATFORM_BASE_URL}/analytics/raw-data?token={token}"
         
         has_more = True
         while has_more:
-            response = await client.post(url, json=payload)
-            
-            if response.status_code != 200:
-                logger.error(f"Platform API returned error status: {response.status_code}")
-                logger.error(f"Platform API response body: {response.text[:500]}")
-                if not raw_data:
-                    return {
-                        "success": False,
-                        "message": f"Platform API error: {response.status_code}",
-                        "data": []
-                    }
-                has_more = False
-                continue
-                
-            try:
-                platform_data = response.json()
-                curr_data = platform_data.get("data", [])
-                raw_data.extend(curr_data)
-                metadata = platform_data.get("metadata", {})
-                has_more = metadata.get("has_more", False)
-                cursor = metadata.get("next")
-                if has_more and cursor:
-                    payload["cursor"] = cursor
-                else:
-                    has_more = False
-            except Exception as e:
-                logger.error(f"Failed to parse platform raw-data response: {e}")
-                if not raw_data:
-                    return {
-                        "success": False,
-                        "message": "Failed to parse platform raw-data response",
-                        "data": []
-                    }
-                has_more = False
+            last_error = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    response = await client.post(url, json=payload)
+
+                    if response.status_code == 200:
+                        try:
+                            platform_data = response.json()
+                            curr_data = platform_data.get("data", [])
+                            raw_data.extend(curr_data)
+                            metadata = platform_data.get("metadata", {})
+                            has_more = metadata.get("has_more", False)
+                            cursor = metadata.get("next")
+                            if has_more and cursor:
+                                payload["cursor"] = cursor
+                            else:
+                                has_more = False
+                        except Exception as e:
+                            logger.error(f"Failed to parse platform raw-data response: {e}")
+                            if not raw_data:
+                                return {
+                                    "success": False,
+                                    "message": "Failed to parse platform raw-data response",
+                                    "data": []
+                                }
+                            pagination_incomplete = True
+                            has_more = False
+                        break  # success or handled parse error — exit retry loop
+
+                    elif response.status_code >= 500:
+                        # Server error — retryable
+                        last_error = f"status {response.status_code}"
+                        if attempt < max_retries:
+                            delay = 2 ** attempt
+                            logger.warning(
+                                f"Platform API returned {response.status_code} "
+                                f"(attempt {attempt}/{max_retries}). Retrying in {delay}s..."
+                            )
+                            await asyncio.sleep(delay)
+                        else:
+                            logger.error(
+                                f"Platform API returned {response.status_code} "
+                                f"after {max_retries} attempts"
+                            )
+                            if not raw_data:
+                                return {
+                                    "success": False,
+                                    "message": f"Platform API error: {response.status_code}",
+                                    "data": []
+                                }
+                            pagination_incomplete = True
+                            has_more = False
+                    else:
+                        # Client error (4xx) — not retryable
+                        logger.error(f"Platform API returned error status: {response.status_code}")
+                        logger.error(f"Platform API response body: {response.text[:500]}")
+                        if not raw_data:
+                            return {
+                                "success": False,
+                                "message": f"Platform API error: {response.status_code}",
+                                "data": []
+                            }
+                        pagination_incomplete = True
+                        has_more = False
+                        break  # don't retry client errors
+
+                except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ConnectError) as e:
+                    last_error = e
+                    if attempt < max_retries:
+                        delay = 2 ** attempt
+                        logger.warning(
+                            f"Transient error fetching raw data "
+                            f"(attempt {attempt}/{max_retries}): {e}. Retrying in {delay}s..."
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(
+                            f"Failed to fetch raw data after {max_retries} attempts: {e}"
+                        )
+                        if not raw_data:
+                            return {
+                                "success": False,
+                                "message": f"Connection error: {e}",
+                                "data": []
+                            }
+                        pagination_incomplete = True
+                        has_more = False
 
     analysis = PerformanceAnalysis(raw_data)
     metrics_map = analysis.compute_device_metrics(startDateTime, endDateTime)
@@ -434,11 +490,15 @@ async def get_device_performance(device_names: List[str], startDateTime: str, en
                 "raw_data": []
             })
 
-    return {
+    result = {
         "success": True,
         "message": "Performance data fetched successfully",
-        "data": data_list
+        "data": data_list,
     }
+    if pagination_incomplete:
+        result["partial"] = True
+        result["message"] = "Performance data fetched with incomplete pagination (some pages failed)"
+    return result
 
 async def get_device_files(device_id: str) -> Dict[str, Any]:
     # Blank list for now as requested

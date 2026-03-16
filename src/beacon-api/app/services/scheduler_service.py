@@ -219,7 +219,7 @@ async def compute_and_store_performance(
             return {
                 "success": True,
                 "skipped": True,
-                "message": f"All requested days already have complete data",
+                "message": "All requested days already have complete data",
             }
 
         logger.info(
