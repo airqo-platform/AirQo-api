@@ -243,6 +243,13 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 
 # Database
 DATABASE_URL=postgres://user:password@localhost/airqo_website
+DB_CONN_MAX_AGE=300
+DB_CONN_HEALTH_CHECKS=true
+DB_CONNECT_TIMEOUT=10
+DB_TCP_KEEPALIVES=true
+DB_KEEPALIVES_IDLE=30
+DB_KEEPALIVES_INTERVAL=10
+DB_KEEPALIVES_COUNT=5
 
 # Cloudinary (Media Storage)
 CLOUDINARY_CLOUD_NAME=your-cloud-name

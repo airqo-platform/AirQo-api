@@ -1053,13 +1053,8 @@ const createUserModule = {
             }
 
             if (Object.keys(userProperties).length > 0) {
-              // .catch() ensures an async rejection from the PostHog client
-              // does not become an unhandled promise rejection at runtime.
-              analyticsService
-                .identify(distinctId, userProperties)
-                .catch((err) =>
-                  logger.error(`PostHog identify error: ${err.message}`),
-                );
+              // analyticsService.identify is synchronous and internally handles its own errors.
+              analyticsService.identify(distinctId, userProperties);
             }
           }
         }
@@ -2723,6 +2718,7 @@ const createUserModule = {
         const emailResult = await mailer.sendVerificationEmail({
           email: normalizedEmail,
           token: verificationToken,
+          priority: "high", // Set as high priority
           tenant: dbTenant,
         });
 
@@ -4491,6 +4487,7 @@ const createUserModule = {
               tenant,
               version,
               slug,
+              priority: "high",
             },
             next,
           );
@@ -4871,6 +4868,7 @@ const createUserModule = {
           email: updatedUser.email,
           token,
           tenant,
+          priority: "high",
         });
       } else {
         // Log that the user was not found, but do not throw an error to the client.

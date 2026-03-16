@@ -15,6 +15,7 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
+const { mailer } = require("@utils/common");
 require("@config/firebase-admin");
 
 const morgan = require("morgan");
@@ -34,16 +35,18 @@ const rateLimit = require("express-rate-limit");
 const options = { mongooseConnection: mongoose.connection };
 
 // Initialize background jobs
-require("@bin/jobs/active-status-job");
-require("@bin/jobs/inactive-users-job");
-require("@bin/jobs/token-expiration-job");
-require("@bin/jobs/incomplete-profile-job");
-require("@bin/jobs/preferences-log-job");
-require("@bin/jobs/dashboard-analytics-job");
-require("@bin/jobs/preferences-update-job");
-require("@bin/jobs/profile-picture-update-job");
-require("@bin/jobs/role-cleanup-job");
-require("@bin/jobs/daily-compromise-summary-job");
+const jobs = [
+  "@bin/jobs/active-status-job",
+  "@bin/jobs/inactive-users-job",
+  "@bin/jobs/token-expiration-job",
+  "@bin/jobs/incomplete-profile-job",
+  "@bin/jobs/preferences-log-job",
+  "@bin/jobs/dashboard-analytics-job",
+  "@bin/jobs/preferences-update-job",
+  "@bin/jobs/profile-picture-update-job",
+  "@bin/jobs/role-cleanup-job",
+  "@bin/jobs/daily-compromise-summary-job",
+];
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
@@ -346,6 +349,32 @@ const createServer = () => {
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+
+    // Delay email queue start to allow the connection pool to stabilise.
+    setTimeout(() => {
+      mailer.startEmailQueue();
+    }, 5000);
+
+    // Jobs are staggered with a fixed delay to prevent connection pool exhaustion
+    // at startup (thundering herd). Timer handles are intentionally not retained:
+    // by the time SIGTERM arrives in production the timers will have fired and each
+    // job will be registered in global.cronJobs, which gracefulShutdown iterates.
+    // Jobs whose timers haven't fired yet have not registered any cron tasks, so
+    // no orphaned work starts during shutdown.
+    jobs.forEach((jobPath, index) => {
+      setTimeout(
+        () => {
+          try {
+            require(jobPath);
+          } catch (err) {
+            logger.error(
+              `Failed to load background job '${jobPath}': ${err.message}`,
+            );
+          }
+        },
+        10000 + index * 2000,
+      );
+    });
   });
 
   // Graceful shutdown handler
@@ -358,6 +387,14 @@ const createServer = () => {
     // Close the server first to stop accepting new connections
     server.close(async () => {
       console.log("HTTP server closed");
+
+      // Stop the email queue processor
+      try {
+        mailer.stopEmailQueue();
+        console.log("✅ Email queue processor stopped.");
+      } catch (error) {
+        console.error("❌ Error stopping email queue:", error.message);
+      }
 
       // Enhanced cron job shutdown handling
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
