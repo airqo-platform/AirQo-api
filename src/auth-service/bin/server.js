@@ -97,7 +97,11 @@ if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
 
-app.set("trust proxy", true);
+// Set a specific trust proxy configuration to prevent IP spoofing.
+// '1' means we trust the first proxy hop (e.g., the Ingress controller in Kubernetes).
+// This is more secure than `true`, which trusts any proxy.
+// See: https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/
+app.set("trust proxy", 1);
 
 // Express Middlewares
 app.use(
