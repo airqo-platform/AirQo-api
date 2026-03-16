@@ -10,9 +10,9 @@ from airqo_etl_utils.calibration.pipeline import CalibrationPipeline
 
 COUNTRY_CONFIG = {
     "uganda": {
-        "primary_lcs": "AQ_G5341",
-        "lcs_devices": ["AQ_G5341"],
-        "reference_device": "BAM_MUK",
+        "primary_lcs": "AQ_DEVICE1",
+        "lcs_devices": ["AQ_DEVICE1"],
+        "reference_device": "BAM_DEVICE1",
         "tz_offset_hours": 0,
     }
 }
@@ -76,7 +76,7 @@ class TestCalibrationPipelineRun:
     ):
         mock_extract.return_value = pd.DataFrame(
             {
-                "device_id": ["AQ_G5341"] * 5,
+                "device_id": ["AQ_DEVICE1"] * 5,
                 "timestamp": pd.date_range("2025-01-01", periods=5, freq="h", tz="UTC"),
                 "s1_pm2_5": [10.0] * 5,
                 "s2_pm2_5": [11.0] * 5,
@@ -110,9 +110,9 @@ class TestCalibrationPipelineRun:
             countries={
                 "uganda": COUNTRY_CONFIG["uganda"],
                 "kenya": {
-                    "primary_lcs": "AQ_G5338",
-                    "lcs_devices": ["AQ_G5338"],
-                    "reference_device": "BAM_Nairobi",
+                    "primary_lcs": "AQ_DEVICE1",
+                    "lcs_devices": ["AQ_DEVICE1", "AQ_DEVICE2"],
+                    "reference_device": "BAM_DEVICE1",
                 },
             },
             bucket_name=BUCKET,
@@ -144,7 +144,7 @@ class TestPrepareTrainingData:
             countries=COUNTRY_CONFIG,
             bucket_name=BUCKET,
         )
-        # primary_lcs = "AQ_G5341" but data has "OTHER_DEVICE"
+        # primary_lcs = "AQ_DEVICE1" but data has "OTHER_DEVICE"
         lcs_other = lcs_raw_df.copy()
         lcs_other["device_id"] = "OTHER_DEVICE"
 
