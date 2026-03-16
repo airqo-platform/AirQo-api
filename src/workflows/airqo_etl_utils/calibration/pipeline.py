@@ -55,16 +55,18 @@ class CalibrationPipeline:
         # Countries: if the caller provided an explicit value (including an
         # empty dict) we honour it and validate; otherwise fall back to
         # configuration.
-        if countries is None:
-            self.countries = configuration.CALIBRATION_COLLOCATED_DEVICES or {}
-        else:
-            # Explicitly provided value must be non-empty
-            if not countries:
-                raise ValueError(
-                    "No collocated device configuration found. "
-                    "Set the CALIBRATION_COLLOCATED_DEVICES environment variable."
-                )
-            self.countries = countries
+        resolved = (
+            countries
+            if countries is not None
+            else (configuration.CALIBRATION_COLLOCATED_DEVICES or {})
+        )
+        if not resolved:
+            raise ValueError(
+                "No collocated device configuration found. "
+                "Set the CALIBRATION_COLLOCATED_DEVICES environment variable."
+            )
+
+        self.countries = resolved
 
         # Bucket: distinguish between 'not provided' (use configuration)
         # and an explicit None (treat as misconfiguration/error). The test

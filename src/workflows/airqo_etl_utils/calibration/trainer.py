@@ -63,7 +63,7 @@ class CalibrationModelTrainer:
         model.fit(X_train, y_train)
         preds = model.predict(X_val)
         metrics = ForecastModelTrainer._regression_metrics(y_val, preds)
-        metrics.update({"n_train": int(len(X_train)), "n_val": int(len(X_val))})
+        metrics.update({"n_train": len(X_train), "n_val": len(X_val)})
         return model, metrics
 
     @staticmethod
