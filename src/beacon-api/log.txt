@@ -1,0 +1,609 @@
+ERROR:     app.services.device_service: Error processing device 697e19123f43dd0013eeb00b: (psycopg2.errors.UndefinedTable) relation "category" does not exist
+LINE 2: FROM category
+             ^
+
+[SQL: SELECT category.name AS category_name, category.level AS category_level, category.description AS category_description, category.field1 AS category_field1, category.field2 AS category_field2, category.field3 AS category_field3, category.field4 AS category_field4, category.field5 AS category_field5, category.field6 AS category_field6, category.field7 AS category_field7, category.field8 AS category_field8, category.field9 AS category_field9, category.field10 AS category_field10, category.field11 AS category_field11, category.field12 AS category_field12, category.field13 AS category_field13, category.field14 AS category_field14, category.field15 AS category_field15, category.metadata1 AS category_metadata1, category.metadata2 AS category_metadata2, category.metadata3 AS category_metadata3, category.metadata4 AS category_metadata4, category.metadata5 AS category_metadata5, category.metadata6 AS category_metadata6, category.metadata7 AS category_metadata7, category.metadata8 AS category_metadata8, category.metadata9 AS category_metadata9, category.metadata10 AS category_metadata10, category.metadata11 AS category_metadata11, category.metadata12 AS category_metadata12, category.metadata13 AS category_metadata13, category.metadata14 AS category_metadata14, category.metadata15 AS category_metadata15, category.config1 AS category_config1, category.config2 AS category_config2, category.config3 AS category_config3, category.config4 AS category_config4, category.config5 AS category_config5, category.config6 AS category_config6, category.config7 AS category_config7, category.config8 AS category_config8, category.config9 AS category_config9, category.config10 AS category_config10, category.created_at AS category_created_at, category.updated_at AS category_updated_at
+FROM category
+WHERE category.name = %(name_1)s
+ LIMIT %(param_1)s]
+[parameters: {'name_1': 'lowcost', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+ERROR:     app.services.device_service: Error processing device 697e189330d7670013cf33ac: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e189330d7670013cf33ac', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e17ae3f43dd0013eeafe7: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e17ae3f43dd0013eeafe7', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e17483f43dd0013eeafd9: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e17483f43dd0013eeafd9', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e16cc3f43dd0013eeafca: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e16cc3f43dd0013eeafca', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e16845753400013248572: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e16845753400013248572', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697206af78ad850013bced4f: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697206af78ad850013bced4f', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 694ff9ab7e12b300132dc954: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '694ff9ab7e12b300132dc954', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 691f123d58d0960013effb3c: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '691f123d58d0960013effb3c', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639460339f1b0013a7f3d6: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639460339f1b0013a7f3d6', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639343fe855700134d753f: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639343fe855700134d753f', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639328339f1b0013a7f3bf: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639328339f1b0013a7f3bf', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 6863930ffe855700134d7533: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '6863930ffe855700134d7533', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392f40aef8b001385d4b3: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392f40aef8b001385d4b3', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392e1339f1b0013a7f3b4: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392e1339f1b0013a7f3b4', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392d4fe855700134d7524: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392d4fe855700134d7524', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638fb50aef8b001385d490: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638fb50aef8b001385d490', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eff339f1b0013a7f37e: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eff339f1b0013a7f37e', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eed0aef8b001385d47d: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eed0aef8b001385d47d', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638ec00aef8b001385d470: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638ec00aef8b001385d470', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eae0aef8b001385d467: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eae0aef8b001385d467', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638ea2339f1b0013a7f36e: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638ea2339f1b0013a7f36e', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686387420aef8b001385cec2: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686387420aef8b001385cec2', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686387370aef8b001385ceba: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686387370aef8b001385ceba', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 6863872c339f1b0013a7edbc: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '6863872c339f1b0013a7edbc', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+INFO:     127.0.0.1:60715 - "GET /devices/?skip=0&limit=25 HTTP/1.1" 200 OK
+ERROR:     app.services.device_service: Error processing device 697e19123f43dd0013eeb00b: (psycopg2.errors.UndefinedTable) relation "category" does not exist
+LINE 2: FROM category
+             ^
+
+[SQL: SELECT category.name AS category_name, category.level AS category_level, category.description AS category_description, category.field1 AS category_field1, category.field2 AS category_field2, category.field3 AS category_field3, category.field4 AS category_field4, category.field5 AS category_field5, category.field6 AS category_field6, category.field7 AS category_field7, category.field8 AS category_field8, category.field9 AS category_field9, category.field10 AS category_field10, category.field11 AS category_field11, category.field12 AS category_field12, category.field13 AS category_field13, category.field14 AS category_field14, category.field15 AS category_field15, category.metadata1 AS category_metadata1, category.metadata2 AS category_metadata2, category.metadata3 AS category_metadata3, category.metadata4 AS category_metadata4, category.metadata5 AS category_metadata5, category.metadata6 AS category_metadata6, category.metadata7 AS category_metadata7, category.metadata8 AS category_metadata8, category.metadata9 AS category_metadata9, category.metadata10 AS category_metadata10, category.metadata11 AS category_metadata11, category.metadata12 AS category_metadata12, category.metadata13 AS category_metadata13, category.metadata14 AS category_metadata14, category.metadata15 AS category_metadata15, category.config1 AS category_config1, category.config2 AS category_config2, category.config3 AS category_config3, category.config4 AS category_config4, category.config5 AS category_config5, category.config6 AS category_config6, category.config7 AS category_config7, category.config8 AS category_config8, category.config9 AS category_config9, category.config10 AS category_config10, category.created_at AS category_created_at, category.updated_at AS category_updated_at
+FROM category
+WHERE category.name = %(name_1)s
+ LIMIT %(param_1)s]
+[parameters: {'name_1': 'lowcost', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+ERROR:     app.services.device_service: Error processing device 697e189330d7670013cf33ac: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e189330d7670013cf33ac', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e17ae3f43dd0013eeafe7: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e17ae3f43dd0013eeafe7', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e17483f43dd0013eeafd9: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e17483f43dd0013eeafd9', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e16cc3f43dd0013eeafca: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e16cc3f43dd0013eeafca', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e16845753400013248572: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e16845753400013248572', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697206af78ad850013bced4f: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697206af78ad850013bced4f', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 694ff9ab7e12b300132dc954: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '694ff9ab7e12b300132dc954', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 691f123d58d0960013effb3c: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '691f123d58d0960013effb3c', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639460339f1b0013a7f3d6: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639460339f1b0013a7f3d6', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639343fe855700134d753f: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639343fe855700134d753f', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639328339f1b0013a7f3bf: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639328339f1b0013a7f3bf', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 6863930ffe855700134d7533: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '6863930ffe855700134d7533', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392f40aef8b001385d4b3: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392f40aef8b001385d4b3', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392e1339f1b0013a7f3b4: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392e1339f1b0013a7f3b4', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392d4fe855700134d7524: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392d4fe855700134d7524', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638fb50aef8b001385d490: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638fb50aef8b001385d490', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eff339f1b0013a7f37e: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eff339f1b0013a7f37e', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eed0aef8b001385d47d: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eed0aef8b001385d47d', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638ec00aef8b001385d470: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638ec00aef8b001385d470', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eae0aef8b001385d467: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eae0aef8b001385d467', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638ea2339f1b0013a7f36e: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638ea2339f1b0013a7f36e', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686387420aef8b001385cec2: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686387420aef8b001385cec2', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686387370aef8b001385ceba: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686387370aef8b001385ceba', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 6863872c339f1b0013a7edbc: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '6863872c339f1b0013a7edbc', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+INFO:     127.0.0.1:60715 - "GET /devices/?skip=0&limit=25 HTTP/1.1" 200 OK
+ERROR:     app.services.device_service: Error processing device 697e19123f43dd0013eeb00b: (psycopg2.errors.UndefinedTable) relation "category" does not exist
+LINE 2: FROM category
+             ^
+
+[SQL: SELECT category.name AS category_name, category.level AS category_level, category.description AS category_description, category.field1 AS category_field1, category.field2 AS category_field2, category.field3 AS category_field3, category.field4 AS category_field4, category.field5 AS category_field5, category.field6 AS category_field6, category.field7 AS category_field7, category.field8 AS category_field8, category.field9 AS category_field9, category.field10 AS category_field10, category.field11 AS category_field11, category.field12 AS category_field12, category.field13 AS category_field13, category.field14 AS category_field14, category.field15 AS category_field15, category.metadata1 AS category_metadata1, category.metadata2 AS category_metadata2, category.metadata3 AS category_metadata3, category.metadata4 AS category_metadata4, category.metadata5 AS category_metadata5, category.metadata6 AS category_metadata6, category.metadata7 AS category_metadata7, category.metadata8 AS category_metadata8, category.metadata9 AS category_metadata9, category.metadata10 AS category_metadata10, category.metadata11 AS category_metadata11, category.metadata12 AS category_metadata12, category.metadata13 AS category_metadata13, category.metadata14 AS category_metadata14, category.metadata15 AS category_metadata15, category.config1 AS category_config1, category.config2 AS category_config2, category.config3 AS category_config3, category.config4 AS category_config4, category.config5 AS category_config5, category.config6 AS category_config6, category.config7 AS category_config7, category.config8 AS category_config8, category.config9 AS category_config9, category.config10 AS category_config10, category.created_at AS category_created_at, category.updated_at AS category_updated_at
+FROM category
+WHERE category.name = %(name_1)s
+ LIMIT %(param_1)s]
+[parameters: {'name_1': 'lowcost', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+ERROR:     app.services.device_service: Error processing device 697e189330d7670013cf33ac: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e189330d7670013cf33ac', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e17ae3f43dd0013eeafe7: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e17ae3f43dd0013eeafe7', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e17483f43dd0013eeafd9: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e17483f43dd0013eeafd9', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e16cc3f43dd0013eeafca: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e16cc3f43dd0013eeafca', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697e16845753400013248572: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697e16845753400013248572', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 697206af78ad850013bced4f: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '697206af78ad850013bced4f', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 694ff9ab7e12b300132dc954: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '694ff9ab7e12b300132dc954', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 691f123d58d0960013effb3c: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '691f123d58d0960013effb3c', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639460339f1b0013a7f3d6: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639460339f1b0013a7f3d6', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639343fe855700134d753f: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639343fe855700134d753f', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68639328339f1b0013a7f3bf: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68639328339f1b0013a7f3bf', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 6863930ffe855700134d7533: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '6863930ffe855700134d7533', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392f40aef8b001385d4b3: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392f40aef8b001385d4b3', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392e1339f1b0013a7f3b4: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392e1339f1b0013a7f3b4', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686392d4fe855700134d7524: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686392d4fe855700134d7524', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638fb50aef8b001385d490: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638fb50aef8b001385d490', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eff339f1b0013a7f37e: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eff339f1b0013a7f37e', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eed0aef8b001385d47d: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eed0aef8b001385d47d', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638ec00aef8b001385d470: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638ec00aef8b001385d470', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638eae0aef8b001385d467: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638eae0aef8b001385d467', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 68638ea2339f1b0013a7f36e: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '68638ea2339f1b0013a7f36e', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686387420aef8b001385cec2: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686387420aef8b001385cec2', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 686387370aef8b001385ceba: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '686387370aef8b001385ceba', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+ERROR:     app.services.device_service: Error processing device 6863872c339f1b0013a7edbc: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: SELECT sync_device.device_id AS sync_device_device_id, sync_device.network_id AS sync_device_network_id, sync_device.current_firmware AS sync_device_current_firmware, sync_device.previous_firmware AS sync_device_previous_firmware, sync_device.target_firmware AS sync_device_target_firmware, sync_device.file_upload_state AS sync_device_file_upload_state, sync_device.firmware_download_state AS sync_device_firmware_download_state
+FROM sync_device
+WHERE sync_device.device_id = %(device_id_1)s
+ LIMIT %(param_1)s]
+[parameters: {'device_id_1': '6863872c339f1b0013a7edbc', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+INFO:     127.0.0.1:60721 - "GET /devices/?skip=0&limit=25 HTTP/1.1" 200 OK
