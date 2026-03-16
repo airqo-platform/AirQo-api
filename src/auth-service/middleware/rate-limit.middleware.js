@@ -3,7 +3,7 @@ const rateLimit = require("express-rate-limit");
 const { logObject, logText } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- rate-limit.middleware.js`
+  `${constants.ENVIRONMENT} -- rate-limit.middleware.js`,
 );
 const httpStatus = require("http-status");
 
@@ -63,7 +63,7 @@ const initializeRedisStore = () => {
       RedisStore = require("rate-limit-redis");
     } catch (error) {
       logger.warn(
-        "⚠️ rate-limit-redis package not found. Using in-memory store."
+        "⚠️ rate-limit-redis package not found. Using in-memory store.",
       );
       logger.warn("Install with: npm install rate-limit-redis");
       return null;
@@ -85,7 +85,7 @@ const initializeRedisStore = () => {
     // Check if Redis is actually available
     if (!redis.redisUtils.isAvailable()) {
       logger.warn(
-        "⚠️ Redis not available at initialization. Using in-memory store."
+        "⚠️ Redis not available at initialization. Using in-memory store.",
       );
       return null;
     }
@@ -98,7 +98,7 @@ const initializeRedisStore = () => {
     });
 
     logger.info(
-      "✅ Rate Limiting: Using Redis store for distributed rate limiting"
+      "✅ Rate Limiting: Using Redis store for distributed rate limiting",
     );
     return store;
   } catch (error) {
@@ -169,7 +169,7 @@ const isIpInCidr = (ip, cidr) => {
     return (ipNum & mask) === (rangeNum & mask);
   } catch (error) {
     logger.error(
-      `Error checking CIDR range ${cidr} for IP ${ip}: ${error.message}`
+      `Error checking CIDR range ${cidr} for IP ${ip}: ${error.message}`,
     );
     return false; // If CIDR check fails, don't whitelist
   }
@@ -177,13 +177,12 @@ const isIpInCidr = (ip, cidr) => {
 
 /**
  * Extract IP from request - matches production token.util pattern
- * Uses custom headers set by HAProxy (more secure than x-forwarded-for)
+ * Defers to req.ip which is securely populated by Express via 'trust proxy' setting.
  */
 const extractIp = (req) => {
-  // Match existing production logic from token.util.js
+  // Prioritize req.ip as it respects the 'trust proxy' setting.
+  // Fallback to headers or socket address only if req.ip is not available.
   const ip =
-    req.headers["x-client-ip"] ||
-    req.headers["x-client-original-ip"] ||
     req.ip ||
     req.socket?.remoteAddress ||
     req.connection?.remoteAddress ||
@@ -257,7 +256,7 @@ const onRateLimitError = (error, req, res, next) => {
 
   // Log but don't block the request - fail open for availability
   logger.warn(
-    "Rate limiter failed - allowing request through for availability"
+    "Rate limiter failed - allowing request through for availability",
   );
   next();
 };

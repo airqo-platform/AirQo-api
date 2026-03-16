@@ -29,7 +29,7 @@ const testRedisConnectivity = async (timeoutMs = 3000) => {
   try {
     const pingPromise = redis.ping();
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Redis ping timeout")), timeoutMs)
+      setTimeout(() => reject(new Error("Redis ping timeout")), timeoutMs),
     );
 
     const result = await Promise.race([pingPromise, timeoutPromise]);
@@ -76,8 +76,9 @@ const createLimiterConfig = (options, useRedis = false) => {
 
     // Custom key generator for more granular control
     keyGenerator: (req) => {
-      const forwarded = req.headers["x-forwarded-for"];
-      const ip = forwarded ? forwarded.split(",")[0].trim() : req.ip;
+      // Use req.ip, which is populated by Express based on the 'trust proxy' setting.
+      // This is more secure than manually parsing x-forwarded-for, which can be spoofed.
+      const ip = req.ip;
       const userAgent = req.headers["user-agent"] || "unknown";
 
       // Create a compound key for better rate limiting
@@ -132,7 +133,7 @@ const createLimiterConfig = (options, useRedis = false) => {
       logger.debug(`Redis store configured for ${options.prefix}`);
     } catch (error) {
       logger.warn(
-        `Failed to configure Redis store for ${options.prefix}: ${error.message}`
+        `Failed to configure Redis store for ${options.prefix}: ${error.message}`,
       );
       // Will fall back to memory store
     }
@@ -162,11 +163,11 @@ const createDynamicLimiter = (options) => {
 
         if (useRedis) {
           logger.debug(
-            `Created Redis-backed rate limiter for ${options.prefix}`
+            `Created Redis-backed rate limiter for ${options.prefix}`,
           );
         } else {
           logger.warn(
-            `⚠️ Redis not available. Created memory-backed rate limiter for ${options.prefix}`
+            `⚠️ Redis not available. Created memory-backed rate limiter for ${options.prefix}`,
           );
         }
       }
@@ -176,7 +177,7 @@ const createDynamicLimiter = (options) => {
     } catch (error) {
       // Critical error handling - always fallback to memory store
       logger.error(
-        `Rate limiter critical error for ${options.prefix}: ${error.message}`
+        `Rate limiter critical error for ${options.prefix}: ${error.message}`,
       );
 
       const fallbackKey = `fallback_${cacheKey}`;
@@ -207,7 +208,7 @@ const conditionalRateLimiter = (limiter) => {
   return (req, res, next) => {
     if (shouldBypassRateLimiting()) {
       logger.info(
-        `Rate limiting bypassed for ${req.path} in ${constants.ENVIRONMENT} environment`
+        `Rate limiting bypassed for ${req.path} in ${constants.ENVIRONMENT} environment`,
       );
       return next();
     }
@@ -278,13 +279,13 @@ const getRateLimiterStats = async () => {
       keys: Array.from(limiterCache.keys()),
       types: {
         redis: Array.from(limiterCache.keys()).filter((k) =>
-          k.startsWith("redis_")
+          k.startsWith("redis_"),
         ).length,
         memory: Array.from(limiterCache.keys()).filter((k) =>
-          k.startsWith("memory_")
+          k.startsWith("memory_"),
         ).length,
         fallback: Array.from(limiterCache.keys()).filter((k) =>
-          k.startsWith("fallback_")
+          k.startsWith("fallback_"),
         ).length,
       },
     },
@@ -348,7 +349,7 @@ const gracefulShutdown = async () => {
     // Close Redis connections if needed
     if (redis && redis.isOpen) {
       logger.info(
-        "Rate limiter cache cleared, Redis connection managed externally"
+        "Rate limiter cache cleared, Redis connection managed externally",
       );
     }
 
