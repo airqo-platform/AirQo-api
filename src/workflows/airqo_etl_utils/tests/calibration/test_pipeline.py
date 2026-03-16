@@ -100,7 +100,7 @@ class TestCalibrationPipelineRun:
         assert "r2" in results["uganda"]
         mock_train.assert_called_once()
 
-    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_devices_data")
+    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
     def test_run_captures_error_per_country_without_crashing(self, mock_extract):
         mock_extract.side_effect = RuntimeError("API down")
 
@@ -123,7 +123,7 @@ class TestCalibrationPipelineRun:
         assert "error" in results["uganda"]
         assert "error" in results["kenya"]
 
-    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_devices_data")
+    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
     def test_run_returns_error_for_empty_lcs_data(self, mock_extract):
         # lcs returns empty, bam returns something
         mock_extract.side_effect = [pd.DataFrame(), pd.DataFrame({"pm2_5": [10.0]})]
@@ -134,7 +134,7 @@ class TestCalibrationPipelineRun:
 
 
 class TestPrepareTrainingData:
-    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_devices_data")
+    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
     def test_falls_back_to_all_lcs_when_primary_not_found(
         self, mock_extract, lcs_raw_df, bam_raw_df
     ):

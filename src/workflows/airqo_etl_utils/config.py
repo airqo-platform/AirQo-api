@@ -862,7 +862,7 @@ class Config:
         "CALIBRATION_MLFLOW_EXPERIMENT", "calibration_training"
     )
     CALIBRATION_TRAINING_MONTHS = int(os.getenv("CALIBRATION_TRAINING_MONTHS", "3"))
-    # JSON: {"uganda": {"primary_lcs": "AQ_G5341", "lcs_devices": [...], "reference_device": "BAM_MUK", "tz_offset_hours": 1}}
+    # JSON: {"uganda": {"primary_lcs": "AQ_DEVICE1", "lcs_devices": [...], "reference_device": "BAM_DEVICE1", "tz_offset_hours": 1}}
     CALIBRATION_COLLOCATED_DEVICES: dict = json.loads(
         os.getenv("CALIBRATION_COLLOCATED_DEVICES", "{}")
     )
