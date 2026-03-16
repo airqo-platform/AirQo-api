@@ -15,7 +15,7 @@ from app.schemas.stock import (
 
 router = APIRouter()
 
-@router.post("", response_model=ItemsStockRead, status_code=201)
+@router.post("/", response_model=ItemsStockRead, status_code=201)
 def create_item_stock(
     *,
     db: Session = Depends(get_db),
@@ -36,7 +36,7 @@ def create_item_stock(
         raise HTTPException(status_code=400, detail=f"Error creating item stock: {str(e)}")
 
 
-@router.get("", response_model=ItemsStockResponse)
+@router.get("/", response_model=ItemsStockResponse)
 def get_items_stock(
     *,
     db: Session = Depends(get_db),

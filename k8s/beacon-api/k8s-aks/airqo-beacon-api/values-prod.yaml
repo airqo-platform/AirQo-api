@@ -7,7 +7,7 @@ app:
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-beacon-api
-  tag: prod-b1e15408-1773067011
+  tag: prod-b6b198c9-1773654559
 resources:
   limits:
     cpu: 400m

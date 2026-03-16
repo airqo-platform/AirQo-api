@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -847,10 +848,25 @@ class Config:
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
     MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME")
+    MLFLOW_CALIBRATION_EXPERIMENT_NAME = os.getenv("MLFLOW_CALIBRATION_EXPERIMENT_NAME")
     MLFLOW_ENABLE_MODEL_GATING = (
         str(os.getenv("MLFLOW_ENABLE_MODEL_GATING", "false")).lower() == "true"
     )
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
+
+    # Calibration model training
+    CALIBRATION_MODELS_BUCKET = os.getenv("CALIBRATION_MODELS_BUCKET") or os.getenv(
+        "FORECAST_MODELS_BUCKET"
+    )
+    CALIBRATION_MLFLOW_EXPERIMENT = os.getenv(
+        "CALIBRATION_MLFLOW_EXPERIMENT", "calibration_training"
+    )
+    CALIBRATION_TRAINING_MONTHS = int(os.getenv("CALIBRATION_TRAINING_MONTHS", "3"))
+    # JSON: {"uganda": {"primary_lcs": "AQ_DEVICE1", "lcs_devices": [...], "reference_device": "BAM_DEVICE1", "tz_offset_hours": 1}}
+    CALIBRATION_COLLOCATED_DEVICES: dict = json.loads(
+        os.getenv("CALIBRATION_COLLOCATED_DEVICES", "{}")
+    )
+
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")
