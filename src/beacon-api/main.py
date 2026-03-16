@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.APP_NAME,
     debug=settings.DEBUG,
-    version="1.0.0"
+    version="1.0.0",
+    redirect_slashes=False,
 )
 
 

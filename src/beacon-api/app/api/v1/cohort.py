@@ -9,7 +9,7 @@ from app.db.session import get_db
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.get("")
+@router.get("/")
 async def get_cohorts(
     authorization: str = Header(...),
     tags: Optional[str] = None,
@@ -43,12 +43,14 @@ async def get_cohorts(
             params["tags"] = tags
         if search:
             params["search"] = search
-        if includePerformance:
+        # When summary=true, performance comes from the local DB (get_cohorts_summary),
+        # so skip the expensive raw-data fetch inside get_cohorts.
+        if includePerformance and not summary:
             params["includePerformance"] = includePerformance
-        if startDateTime:
-            params["startDateTime"] = startDateTime
-        if endDateTime:
-            params["endDateTime"] = endDateTime
+            if startDateTime:
+                params["startDateTime"] = startDateTime
+            if endDateTime:
+                params["endDateTime"] = endDateTime
         result = await cohort_service.get_cohorts(token, params)
         
         if not result.get("success", True):
@@ -105,12 +107,14 @@ async def get_cohorts_by_ids(
         params = {
             "frequency": frequency
         }
-        if includePerformance:
+        # When summary=true, performance comes from the local DB (get_cohorts_summary),
+        # so skip the expensive raw-data fetch inside get_cohorts_by_ids.
+        if includePerformance and not summary:
             params["includePerformance"] = includePerformance
-        if startDateTime:
-            params["startDateTime"] = startDateTime
-        if endDateTime:
-            params["endDateTime"] = endDateTime
+            if startDateTime:
+                params["startDateTime"] = startDateTime
+            if endDateTime:
+                params["endDateTime"] = endDateTime
             
         result = await cohort_service.get_cohorts_by_ids(token, cohort_ids, params)
         

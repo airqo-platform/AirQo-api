@@ -154,7 +154,7 @@ async def get_device(
         logger.exception(f"Unexpected error fetching device {device_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-@router.get("", response_model=DeviceResponse)
+@router.get("/", response_model=DeviceResponse)
 async def get_devices(
     authorization: str = Header(...),
     db: Session = Depends(get_db),
