@@ -347,6 +347,10 @@ class DataUtils:
 
         data_store: List[pd.DataFrame] = []
 
+        # TODO: Consider using a more robust parallel processing approach if the number of devices is very large, such as multiprocessing or distributed processing frameworks.
+        # ThreadPoolExecutor may not be optimal for CPU-bound tasks or when dealing with a very high number of devices due to Python's GIL and potential memory constraints.
+        # Poor performance might be realized when device numbers exceed a couple of thousands but also depends on the amount of data per device dependant on the date range and resolution.
+        # In such cases, batching devices or using multiprocessing could be considered to improve performance.
         with ThreadPoolExecutor(
             max_workers=max_workers
         ) as executor:  # Adjust worker count to your CPU
