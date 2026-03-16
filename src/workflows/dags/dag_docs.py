@@ -370,3 +370,21 @@ Data Destinations:
 - BigQuery: `Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE`
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+calibration_model_training_doc = """
+    ## Calibration model training
+
+    Trains one `RandomForestRegressor` calibration model per country defined in
+    `CALIBRATION_COLLOCATED_DEVICES`.  A model is only written to GCS when it
+    strictly improves on R², MAE, **and** RMSE of the previously deployed artifact.
+
+    MLflow tracking is enabled when `MLFLOW_TRACKING_URI` is set.
+
+    ### Configuration env vars
+    | Variable | Description |
+    |---|---|
+    | `CALIBRATION_COLLOCATED_DEVICES` | JSON map of country → LCS/BAM device IDs |
+    | `CALIBRATION_MODELS_BUCKET` | GCS bucket for model artifacts |
+    | `CALIBRATION_TRAINING_MONTHS` | Look-back window in months (default 3) |
+    | `MLFLOW_CALIBRATION_MLFLOW_EXPERIMENT` | MLflow experiment name |
+"""
