@@ -19,7 +19,7 @@ const prodConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   GROUPS_TOPIC: process.env.GROUPS_TOPIC_PROD || "groups-topic",
@@ -50,5 +50,7 @@ const prodConfig = {
   DEPLOYMENT_URL: process.env.PROD_DEPLOYMENT_URL,
   SERVICE_JWT_TOKEN: process.env.PROD_SERVICE_JWT_TOKEN,
   ADMIN_SETUP_SECRET: process.env.PROD_ADMIN_SETUP_SECRET,
+  BACKFILL_SITE_METADATA_SCHEDULER_ENABLED: true,
+  FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED: true,
 };
 module.exports = prodConfig;

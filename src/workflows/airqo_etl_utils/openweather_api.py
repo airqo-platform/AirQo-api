@@ -5,7 +5,7 @@ import os
 import requests
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.common_utils import Utils
+from airqo_etl_utils.utils import Utils
 
 
 class OpenWeatherApi:

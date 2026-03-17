@@ -151,18 +151,6 @@ class CleanAirResourceAdmin(admin.ModelAdmin):
     # Custom actions
     actions = ['mark_featured', 'mark_archived', 'reset_order']
 
-    fieldsets = (
-        ('Resource Information', {
-            'fields': ('resource_title', 'resource_description', 'resource_category',
-                       'author_title', 'order'),
-            'classes': ('wide',)
-        }),
-        ('SEO & Metadata', {
-            'fields': ('id', 'created', 'modified'),
-            'classes': ('collapse',)
-        }),
-    )
-
     @admin.display(description='Title', ordering='resource_title')
     def resource_title_preview(self, obj):
         """Show resource title with character count"""

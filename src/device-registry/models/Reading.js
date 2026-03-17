@@ -7,12 +7,14 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- reading-model`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- reading-model -- ops-alerts`,
+);
 
 // Helper function for safe pollutant value conversion
 const createSafePollutantLookup = (
   pollutantField,
-  collectionName = "healthtips"
+  collectionName = "healthtips",
 ) => ({
   $lookup: {
     from: collectionName,
@@ -49,13 +51,61 @@ const createSafePollutantLookup = (
   },
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED HELPER — clampMapTimeWindow
+//
+// Single source of truth for the time-window clamping rules used by both
+// listForMap and latestForMap. Accepts the raw filter.time value directly
+// (either a { $gte: Date, ... } object or a bare Date instance) and
+// normalises it internally so both callers behave identically regardless
+// of how filter.time was passed.
+//
+//   • No callerTime / no resolvable $gte → 48 h default (partial index hit)
+//   • resolved $gte within 48 h          → honour as-is
+//   • resolved $gte within 14 d          → honour as-is
+//   • resolved $gte older than 14 d      → clamp to fourteenDaysAgo (TTL),
+//                                           NOT fortyEightHoursAgo so data
+//                                           between 48 h–14 d is preserved
+//
+// @param {Date|{ $gte?: Date, $lte?: Date, $lt?: Date }|undefined} callerTime
+//   The raw filter.time value — pass filter.time (listForMap) or callerTime
+//   (latestForMap after destructuring) directly; no pre-extraction needed.
+// @returns {{ effectiveGte: Date, fourteenDaysAgo: Date }}
+// ═══════════════════════════════════════════════════════════════════════════════
+const clampMapTimeWindow = (callerTime) => {
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  // Normalise: a plain Date is treated as a lower bound; an object may carry
+  // $gte; anything else (null/undefined) resolves to undefined → default 48 h.
+  const callerGte =
+    callerTime instanceof Date
+      ? callerTime
+      : callerTime?.$gte instanceof Date
+      ? callerTime.$gte
+      : undefined;
+
+  let effectiveGte;
+  if (!callerGte) {
+    effectiveGte = fortyEightHoursAgo;
+  } else if (callerGte >= fortyEightHoursAgo) {
+    effectiveGte = callerGte;
+  } else if (callerGte >= fourteenDaysAgo) {
+    effectiveGte = callerGte;
+  } else {
+    effectiveGte = fourteenDaysAgo;
+  }
+
+  return { effectiveGte, fourteenDaysAgo };
+};
+
 // New schema for the 'raw' part of latest_pm2_5
 const LatestPm2_5RawValueSchema = new Schema(
   {
     value: { type: Number, required: false },
     time: { type: Date, required: false },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // New schema for the 'calibrated' part of latest_pm2_5
@@ -66,7 +116,7 @@ const LatestPm2_5CalibratedValueSchema = new Schema(
     uncertainty: { type: Number, required: false },
     standardDeviation: { type: Number, required: false },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // New schema for the top-level latest_pm2_5 object
@@ -75,7 +125,7 @@ const LatestPm2_5Schema = new Schema(
     raw: { type: LatestPm2_5RawValueSchema },
     calibrated: { type: LatestPm2_5CalibratedValueSchema },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const HealthTipsSchema = new Schema(
@@ -85,7 +135,7 @@ const HealthTipsSchema = new Schema(
     tag_line: String,
     image: String,
   },
-  { _id: false }
+  { _id: false },
 );
 
 const categorySchema = new Schema(
@@ -108,7 +158,7 @@ const categorySchema = new Schema(
   },
   {
     _id: false,
-  }
+  },
 );
 
 const SiteDetailsSchema = new Schema(
@@ -135,7 +185,7 @@ const SiteDetailsSchema = new Schema(
     data_provider: String,
     site_category: { type: categorySchema },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const GridDetailsSchema = new Schema(
@@ -149,7 +199,7 @@ const GridDetailsSchema = new Schema(
     approximate_longitude: Number,
     description: String,
   },
-  { _id: false }
+  { _id: false },
 );
 
 const AqiRangeSchema = new Schema(
@@ -179,7 +229,7 @@ const AqiRangeSchema = new Schema(
       max: { type: Number }, // max can be null
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const averagesSchema = new Schema(
@@ -193,26 +243,76 @@ const averagesSchema = new Schema(
   },
   {
     _id: false,
-  }
+  },
+);
+
+const DeviceCategorySchema = new Schema(
+  {
+    primary_category: { type: String, default: null },
+    deployment_category: { type: String, default: null },
+    mobile_category: { type: String, default: null },
+    ownership_category: { type: String, default: null },
+    all_categories: {
+      type: [String],
+      default: [],
+      set(value) {
+        // Setter runs BEFORE Mongoose's own [String] casting on .save()/.create(),
+        // intercepting the value while it is still in its original form.
+        // Mongoose coerces [String] paths before pre("validate") fires, so a setter
+        // is the only reliable hook for .save() paths.
+        if (Array.isArray(value)) return value;
+        if (typeof value === "string" && value.length > 0) {
+          return value
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+        return [];
+      },
+    },
+    is_mobile: { type: Boolean, default: null },
+    is_static: { type: Boolean, default: null },
+    is_lowcost: { type: Boolean, default: null },
+    is_bam: { type: Boolean, default: null },
+    is_gas: { type: Boolean, default: null },
+  },
+  { _id: false },
 );
 
 const ReadingsSchema = new Schema(
   {
     // **CORE IDENTIFICATION**
     device: String,
-    device_id: String,
+    device_id: {
+      type: String,
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Same rationale as described below for site_id. Do not wrap values in ObjectId()
+      // when querying this collection.
+    },
     site: String, // Site name
     site_id: {
       type: String,
       required: function() {
         return this.deployment_type === "static";
       },
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Readings are written directly from device telemetry payloads which
+      // transmit IDs as strings. Converting to ObjectId at ingest would add
+      // latency on the hot write path and require a Sites collection lookup.
+      //
+      // When building a filter for this collection (e.g. in generateFilter,
+      // a util, or a test), always use a plain string:
+      //   ✅  filter.site_id = "kampala_road_ug"
+      //   ✅  filter.site_id = { $in: ["site_a", "site_b"] }
+      //   ❌  filter.site_id = ObjectId("...")   ← silent zero-result bug
     },
     grid_id: {
       type: String,
       required: function() {
         return this.deployment_type === "mobile" && !this.location;
       },
+      // ⚠️  STORED AS STRING — NOT ObjectId.
+      // Same rationale as site_id above.
     },
     device_number: Number,
 
@@ -228,8 +328,19 @@ const ReadingsSchema = new Schema(
       default: "static",
       required: true,
     },
-    tenant: { type: String, default: "airqo" },
-    network: { type: String, default: "airqo" },
+    tenant: {
+      type: String,
+      default: "airqo",
+      // Stored as a plain lowercase string (e.g. "airqo", "kcca").
+      // Always match against a string, never an ObjectId.
+    },
+    network: {
+      type: String,
+      default: "airqo",
+      // Stored as a plain lowercase string (e.g. "airqo", "kcca").
+      // handlePredefinedValueMatch returns a { $in: [...] } of strings —
+      // that is the correct form for querying this field.
+    },
 
     // **PRIMARY PM SENSORS**
     pm1: { value: Number },
@@ -324,6 +435,7 @@ const ReadingsSchema = new Schema(
     latest_pm2_5: LatestPm2_5Schema, // Add this new top-level field
     health_tips: [HealthTipsSchema],
     averages: averagesSchema,
+    device_categories: DeviceCategorySchema,
   },
   {
     timestamps: true,
@@ -333,7 +445,7 @@ const ReadingsSchema = new Schema(
         expireAfterSeconds: 60 * 60 * 24 * 14, // 2 weeks
       },
     ],
-  }
+  },
 );
 
 ReadingsSchema.pre("save", function(next) {
@@ -353,13 +465,75 @@ ReadingsSchema.pre("save", function(next) {
     ) {
       return next(
         new Error(
-          "Mobile readings require either grid_id or location coordinates"
-        )
+          "Mobile readings require either grid_id or location coordinates",
+        ),
       );
     }
     // site_id is optional for mobile devices (they might be at a known site)
   }
 
+  next();
+});
+
+function _normalizeAllCategoriesInUpdate(update) {
+  const payload = update.$set || update;
+
+  // Flat path: { "device_categories.all_categories": <value> }
+  const flatKey = "device_categories.all_categories";
+  if (Object.prototype.hasOwnProperty.call(payload, flatKey)) {
+    const raw = payload[flatKey];
+    if (!Array.isArray(raw)) {
+      payload[flatKey] =
+        typeof raw === "string" && raw.length > 0
+          ? raw
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+    }
+  }
+
+  // Nested path: { device_categories: { all_categories: <value> } }
+  if (
+    payload.device_categories &&
+    typeof payload.device_categories === "object" &&
+    !Array.isArray(payload.device_categories) &&
+    Object.prototype.hasOwnProperty.call(
+      payload.device_categories,
+      "all_categories",
+    )
+  ) {
+    const raw = payload.device_categories.all_categories;
+    if (!Array.isArray(raw)) {
+      payload.device_categories.all_categories =
+        typeof raw === "string" && raw.length > 0
+          ? raw
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+    }
+  }
+}
+
+ReadingsSchema.pre("updateOne", function(next) {
+  try {
+    _normalizeAllCategoriesInUpdate(this.getUpdate());
+  } catch (_) {}
+  next();
+});
+
+ReadingsSchema.pre("updateMany", function(next) {
+  try {
+    _normalizeAllCategoriesInUpdate(this.getUpdate());
+  } catch (_) {}
+  next();
+});
+
+ReadingsSchema.pre("findOneAndUpdate", function(next) {
+  try {
+    _normalizeAllCategoriesInUpdate(this.getUpdate());
+  } catch (_) {}
   next();
 });
 
@@ -372,14 +546,14 @@ ReadingsSchema.index(
   {
     unique: true,
     partialFilterExpression: { deployment_type: "mobile" },
-  }
+  },
 );
 ReadingsSchema.index(
   { site_id: 1, time: 1 },
   {
     unique: true,
     partialFilterExpression: { deployment_type: "static" },
-  }
+  },
 );
 ReadingsSchema.index({ device_id: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ device: 1, time: 1 }, { unique: true });
@@ -397,7 +571,7 @@ ReadingsSchema.index(
       "location.latitude.value": { $exists: true },
       "location.longitude.value": { $exists: true },
     },
-  }
+  },
 );
 
 // Add after existing indexes
@@ -408,7 +582,7 @@ ReadingsSchema.index(
       deployment_type: "mobile",
       grid_id: { $exists: true },
     },
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -418,7 +592,7 @@ ReadingsSchema.index(
       deployment_type: "mobile",
       "location.latitude.value": { $exists: true },
     },
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -426,7 +600,7 @@ ReadingsSchema.index(
   {
     name: "site_time_latest_idx",
     background: true,
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -434,7 +608,7 @@ ReadingsSchema.index(
   {
     name: "device_time_latest_idx",
     background: true,
-  }
+  },
 );
 
 ReadingsSchema.index(
@@ -442,7 +616,7 @@ ReadingsSchema.index(
   {
     name: "deployment_time_idx",
     background: true,
-  }
+  },
 );
 
 // Better TTL index
@@ -451,18 +625,19 @@ ReadingsSchema.index(
   {
     expireAfterSeconds: 60 * 60 * 24 * 14, //  2 weeks
     background: true,
-  }
+  },
 );
 
 // Partial index for active readings only
 ReadingsSchema.index(
   { time: -1, "pm2_5.value": 1 },
   {
+    name: "time_pm25_map_idx",
     partialFilterExpression: {
-      "pm2_5.value": { $exists: true, $ne: null },
+      "pm2_5.value": { $gt: 0 },
     },
     background: true,
-  }
+  },
 );
 
 // Sparse index for non-null coordinates (mobile devices)
@@ -471,7 +646,7 @@ ReadingsSchema.index(
   {
     sparse: true,
     background: true,
-  }
+  },
 );
 
 ReadingsSchema.methods = {
@@ -493,7 +668,8 @@ ReadingsSchema.methods = {
       pm10: this.pm10,
       frequency: this.frequency,
       no2: this.no2,
-      latest_pm2_5: this.latest_pm2_5, // Include in toJSON output
+      latest_pm2_5: this.latest_pm2_5,
+      device_categories: this.device_categories,
     };
 
     // Include location-specific fields based on deployment type
@@ -559,7 +735,7 @@ ReadingsSchema.statics.register = async function(args, next) {
 };
 ReadingsSchema.statics.list = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     logText("we are inside model's list....");
@@ -602,7 +778,7 @@ ReadingsSchema.statics.list = async function(
 };
 ReadingsSchema.statics.latest = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     // Strategy: Use $lookup with pipeline to get only the latest reading per site
@@ -693,26 +869,45 @@ ReadingsSchema.statics.latest = async function(
 };
 ReadingsSchema.statics.latestForMap = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Strip time and pm2_5 from caller filter before building $match so
+    // ...safeFilterForMatch cannot overwrite the enforced time floor or pm2_5
+    // predicate (finding 2 fix — carried forward from previous review round).
+    const {
+      time: callerTime,
+      "pm2_5.value": _pm25,
+      ...safeFilterForMatch
+    } = filter;
+
+    // Delegate to shared helper — pass callerTime directly; normalisation of
+    // bare Date vs { $gte } object is handled inside clampMapTimeWindow,
+    // making this identical to the listForMap call path.
+    const { effectiveGte } = clampMapTimeWindow(callerTime);
+
+    // Preserve any caller-supplied upper bound ($lte / $lt) while enforcing
+    // the clamped lower bound. Mirror the listForMap timeConstraint pattern:
+    // spread the full callerTime object first (which may carry $lte/$lt), then
+    // overwrite only $gte so the enforced floor is always applied.
+    const timeConstraint = {
+      ...(callerTime && typeof callerTime === "object" ? callerTime : {}),
+      $gte: effectiveGte,
+    };
 
     const pipeline = [
-      // 1. Match recent readings only
+      // FIX (finding 2): spread safeFilterForMatch FIRST so time and pm2_5.value
+      // are always set by us, not overwritten by the caller.
       {
         $match: {
-          time: { $gte: fourteenDaysAgo },
-          "pm2_5.value": { $exists: true, $ne: null },
-          ...filter,
+          ...safeFilterForMatch,
+          time: timeConstraint,
+          "pm2_5.value": { $gt: 0 },
         },
       },
 
-      // 2. Sort by time descending
       { $sort: { time: -1 } },
 
-      // 3. Group by site_id and take first (latest) reading
       {
         $group: {
           _id: "$site_id",
@@ -720,17 +915,13 @@ ReadingsSchema.statics.latestForMap = async function(
         },
       },
 
-      // 4. Replace root with the latest reading
       { $replaceRoot: { newRoot: "$latestReading" } },
 
-      // 5. Sort again by time for consistent output
       { $sort: { time: -1 } },
 
-      // 6. Apply pagination
       { $skip: skip || 0 },
       { $limit: limit || 1000 },
 
-      // 7. Project only necessary fields for map
       {
         $project: {
           _id: 0,
@@ -762,7 +953,7 @@ ReadingsSchema.statics.latestForMap = async function(
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error -- latestForMap -- ${error.message}`
+      `🐛🐛 Internal Server Error -- latestForMap -- ${error.message}`,
     );
     return {
       success: false,
@@ -775,7 +966,7 @@ ReadingsSchema.statics.latestForMap = async function(
 };
 ReadingsSchema.statics.recent = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     let threeDaysAgo = new Date();
@@ -836,7 +1027,7 @@ ReadingsSchema.statics.recent = async function(
 };
 ReadingsSchema.statics.getBestAirQualityLocations = async function(
   { threshold = 10, pollutant = "pm2_5", limit = 100, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     const validPollutants = ["pm2_5", "pm10", "no2"];
@@ -846,7 +1037,7 @@ ReadingsSchema.statics.getBestAirQualityLocations = async function(
         message: "Bad Request Error",
         errors: {
           message: `Invalid pollutant specified. Valid options are: ${validPollutants.join(
-            ", "
+            ", ",
           )}`,
           validOptions: validPollutants,
           received: pollutant,
@@ -1106,19 +1297,19 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
     const processWeeklyData = (weeklyComparison) => {
       const current = {
         normal: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === false
+          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === false,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
         peak: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === true
+          (w) => w._id.isCurrentWeek === true && w._id.isPeakHour === true,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
       };
 
       const last = {
         normal: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === false
+          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === false,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
         peak: weeklyComparison.find(
-          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === true
+          (w) => w._id.isCurrentWeek === false && w._id.isPeakHour === true,
         ) || { pm2_5_avg: 0, pm10_avg: 0, no2_avg: 0 },
       };
 
@@ -1166,29 +1357,29 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
       normal: {
         pm2_5: calculatePercentageDiff(
           weeklyData.current.normal.pm2_5_avg,
-          weeklyData.last.normal.pm2_5_avg
+          weeklyData.last.normal.pm2_5_avg,
         ),
         pm10: calculatePercentageDiff(
           weeklyData.current.normal.pm10_avg,
-          weeklyData.last.normal.pm10_avg
+          weeklyData.last.normal.pm10_avg,
         ),
         no2: calculatePercentageDiff(
           weeklyData.current.normal.no2_avg,
-          weeklyData.last.normal.no2_avg
+          weeklyData.last.normal.no2_avg,
         ),
       },
       peak: {
         pm2_5: calculatePercentageDiff(
           weeklyData.current.peak.pm2_5_avg,
-          weeklyData.last.peak.pm2_5_avg
+          weeklyData.last.peak.pm2_5_avg,
         ),
         pm10: calculatePercentageDiff(
           weeklyData.current.peak.pm10_avg,
-          weeklyData.last.peak.pm10_avg
+          weeklyData.last.peak.pm10_avg,
         ),
         no2: calculatePercentageDiff(
           weeklyData.current.peak.no2_avg,
-          weeklyData.last.peak.no2_avg
+          weeklyData.last.peak.no2_avg,
         ),
       },
     };
@@ -1353,7 +1544,7 @@ ReadingsSchema.statics.getWorstPm2_5Reading = async function({
 };
 ReadingsSchema.statics.listRecent = async function(
   { filter = {}, limit = 1000, skip = 0, page = 1 } = {},
-  next
+  next,
 ) {
   try {
     logText("Using optimized Readings collection for recent data query");
@@ -1460,12 +1651,12 @@ ReadingsSchema.statics.listRecent = async function(
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error -- listRecent -- ${error.message}`
+      `🐛🐛 Internal Server Error -- listRecent -- ${error.message}`,
     );
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -1530,22 +1721,22 @@ ReadingsSchema.statics.viewRecent = async function(filter, next) {
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Internal Server Error -- viewRecent -- ${error.message}`
+      `🐛🐛 Internal Server Error -- viewRecent -- ${error.message}`,
     );
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
 ReadingsSchema.statics.listRecentOptimized = async function(
   { filter = {}, limit = 1000, skip = 0, page = 1 } = {},
-  next
+  next,
 ) {
   try {
     logText(
-      "Using ultra-optimized Readings collection - no aggregations needed!"
+      "Using ultra-optimized Readings collection - no aggregations needed!",
     );
 
     // Simple find with projection - no lookups needed!
@@ -1591,7 +1782,7 @@ ReadingsSchema.statics.listRecentOptimized = async function(
 };
 ReadingsSchema.statics.getLatestByLocation = async function(
   { deployment_type, location_ids, limit = 100 } = {},
-  next
+  next,
 ) {
   try {
     let filter = {};
@@ -1620,6 +1811,253 @@ ReadingsSchema.statics.getLatestByLocation = async function(
       success: false,
       message: "Internal Server Error",
       errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+ReadingsSchema.statics.listForMap = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next,
+) {
+  try {
+    // ── String-field ObjectId guard ───────────────────────────────
+    const STRING_FILTER_FIELDS = [
+      "site_id",
+      "device_id",
+      "grid_id",
+      "network",
+      "tenant",
+    ];
+
+    const isObjectId = (v) =>
+      v !== null &&
+      v !== undefined &&
+      (v instanceof mongoose.Types.ObjectId ||
+        (typeof v === "object" &&
+          (v._bsontype === "ObjectId" || v._bsontype === "ObjectID") &&
+          typeof v.toHexString === "function"));
+
+    const findObjectIdViolation = (fieldName, fieldValue) => {
+      if (isObjectId(fieldValue)) return fieldName;
+      if (
+        fieldValue !== null &&
+        typeof fieldValue === "object" &&
+        !Array.isArray(fieldValue)
+      ) {
+        for (const op of ["$in", "$nin", "$eq", "$ne"]) {
+          const operand = fieldValue[op];
+          if (Array.isArray(operand) && operand.some(isObjectId)) {
+            return `${fieldName}.${op}[]`;
+          }
+          if (!Array.isArray(operand) && isObjectId(operand)) {
+            return `${fieldName}.${op}`;
+          }
+        }
+      }
+      return null;
+    };
+
+    const validateFilterRecursively = (node) => {
+      if (node === null || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        for (const element of node) validateFilterRecursively(element);
+        return;
+      }
+      for (const [key, value] of Object.entries(node)) {
+        if (STRING_FILTER_FIELDS.includes(key)) {
+          const violation = findObjectIdViolation(key, value);
+          if (violation) {
+            const msg =
+              `listForMap: filter field "${violation}" contains an ObjectId, ` +
+              `but the Readings collection stores "${key}" as a String. ` +
+              `Pass a plain string value instead.`;
+            logger.error(`🐛🐛 ${msg}`);
+            throw new HttpError(msg, httpStatus.BAD_REQUEST, { message: msg });
+          }
+        } else if (key.startsWith("$") && Array.isArray(value)) {
+          for (const element of value) validateFilterRecursively(element);
+        } else if (
+          key.startsWith("$") &&
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
+          validateFilterRecursively(value);
+        } else if (
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
+          validateFilterRecursively(value);
+        }
+      }
+    };
+
+    validateFilterRecursively(filter);
+    // ── End guard ─────────────────────────────────────────────────────────────
+
+    const DEFAULT_LIMIT = 1000;
+    const MAX_LIMIT = 5000;
+
+    const parsedLimit = parseInt(limit);
+    const parsedSkip = parseInt(skip);
+
+    const safeLimit =
+      isNaN(parsedLimit) || !isFinite(parsedLimit) || parsedLimit < 1
+        ? DEFAULT_LIMIT
+        : Math.min(parsedLimit, MAX_LIMIT);
+
+    const safeSkip =
+      isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
+        ? 0
+        : parsedSkip;
+
+    // Delegate to shared helper — pass filter.time directly; the helper
+    // normalises bare Date vs { $gte } object identically to latestForMap.
+    const { effectiveGte } = clampMapTimeWindow(filter.time);
+
+    const timeConstraint = {
+      ...(filter.time || {}),
+      $gte: effectiveGte,
+    };
+
+    // Strip time, tenant, and network before spreading into $match.
+    const {
+      time: _t,
+      tenant: _tenant,
+      network: _network,
+      ...safeFilterForMatch
+    } = filter;
+
+    logger.warn(
+      `[ReadingModel.listForMap] $match preview: ` +
+        `effectiveGte=${effectiveGte.toISOString()} ` +
+        `safeFilter=${JSON.stringify(safeFilterForMatch, (_, v) =>
+          v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
+        )}`,
+    );
+
+    const pipeline = [
+      {
+        $match: {
+          ...safeFilterForMatch,
+          time: timeConstraint,
+          "pm2_5.value": { $gt: 0 },
+        },
+      },
+
+      { $sort: { time: -1 } },
+
+      {
+        $group: {
+          _id: {
+            site: {
+              $cond: [
+                { $eq: ["$deployment_type", "mobile"] },
+                null,
+                "$site_id",
+              ],
+            },
+            device: {
+              $cond: [
+                { $eq: ["$deployment_type", "mobile"] },
+                "$device_id",
+                null,
+              ],
+            },
+          },
+          latestReading: { $first: "$$ROOT" },
+        },
+      },
+
+      { $replaceRoot: { newRoot: "$latestReading" } },
+
+      { $sort: { time: -1 } },
+
+      {
+        $project: {
+          _id: 0,
+          device: 1,
+          device_id: 1,
+          site_id: 1,
+          grid_id: 1,
+          deployment_type: 1,
+          time: 1,
+          pm2_5: 1,
+          pm10: 1,
+          no2: 1,
+          location: 1,
+          siteDetails: 1,
+          gridDetails: 1,
+          aqi_color: 1,
+          aqi_category: 1,
+          aqi_color_name: 1,
+          health_tips: 1,
+          site_image: 1,
+          device_categories: { $ifNull: ["$device_categories", null] },
+          timeDifferenceHours: 1,
+        },
+      },
+
+      {
+        $facet: {
+          paginatedResults: [{ $skip: safeSkip }, { $limit: safeLimit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const results = await this.aggregate(pipeline).allowDiskUse(true);
+
+    const { paginatedResults = [], totalCount = [] } = results[0] || {};
+    const total = totalCount[0]?.count || 0;
+    const pages = Math.ceil(total / safeLimit) || 1;
+
+    if (total === 0) {
+      logger.warn(
+        `[ReadingModel.listForMap] ⚠️  aggregation succeeded but matched 0 documents. ` +
+          `effectiveGte=${effectiveGte.toISOString()} ` +
+          `safeFilter=${JSON.stringify(safeFilterForMatch, (_, v) =>
+            v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
+          )} ` +
+          `collection=${this.collection.name}`,
+      );
+    }
+
+    return {
+      success: true,
+      message: "Successfully retrieved latest map readings",
+      data: {
+        measurements: paginatedResults,
+        meta: {
+          total,
+          limit: safeLimit,
+          skip: safeSkip,
+          page: Math.floor(safeSkip / safeLimit) + 1,
+          pages,
+        },
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return {
+        success: false,
+        message: error.message,
+        errors: error.errors || { message: error.message },
+        data: [],
+        status: error.statusCode || httpStatus.BAD_REQUEST,
+      };
+    }
+    logger.error(
+      `🐛🐛 [ReadingModel.listForMap] Internal Server Error: ${error.message}`,
+    );
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      data: [],
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
   }

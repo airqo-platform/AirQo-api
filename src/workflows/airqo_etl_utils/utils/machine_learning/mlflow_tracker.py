@@ -10,7 +10,15 @@ logger = logging.getLogger("airflow.task")
 
 
 class MlflowTracker:
-    """Reusable MLflow helper for model training runs."""
+    """MLflow helper for training runs, logging, and model artifacts.
+
+    This helper is safe to use inside production pipelines: if MLflow is
+    misconfigured the tracker disables itself and logging calls become no-ops.
+    It supports setting tracking/registry URIs and an experiment on
+    initialization, converting parameters/metrics to serializable types,
+    logging params, metrics and tags, and saving sklearn models using
+    skops serialization.
+    """
 
     def __init__(
         self,
@@ -21,6 +29,15 @@ class MlflowTracker:
         model_gating_enabled: bool = False,
         enabled: bool = True,
     ):
+        """Initialize the tracker.
+
+        Args:
+            tracking_uri: Optional MLflow tracking server URI.
+            registry_uri: Optional MLflow model registry URI.
+            experiment_name: Optional experiment to set for subsequent runs.
+            model_gating_enabled: When True, records a tag enabling model gating.
+            enabled: When False the tracker becomes a no-op.
+        """
         self.enabled = enabled
         self.model_gating_enabled = model_gating_enabled
         if not self.enabled:
@@ -39,6 +56,13 @@ class MlflowTracker:
 
     @staticmethod
     def _to_serializable(values: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Return a JSON-friendly copy of *values*.
+
+        - Preserves strings, ints, floats and booleans.
+        - Replaces ``None`` with the literal string ``"None"`` to avoid
+          MLflow treating it as a missing value.
+        - Converts other objects to their string representation.
+        """
         if not values:
             return {}
         serialized: Dict[str, Any] = {}
@@ -107,6 +131,20 @@ class MlflowTracker:
         model_artifact_path: str = "model",
         input_example: Optional[pd.DataFrame] = None,
     ) -> None:
+        """Log a single MLflow run (params, metrics, tags, and optional model).
+
+        This is best-effort: any exception raised by MLflow is caught and logged
+        at warning level so that pipelines remain resilient to tracking issues.
+
+        Args:
+            run_name: Human-readable name for the MLflow run.
+            params: Mapping of parameters to log (will be made serializable).
+            metrics: Mapping of numeric metrics to log.
+            tags: Optional tag mapping; `model_gating_enabled` adds a tag when set.
+            model: Optional sklearn-like model object to persist with the run.
+            model_artifact_path: Path under the run artifacts where the model is saved.
+            input_example: Optional pandas DataFrame used as an `input_example`.
+        """
         if not self.enabled:
             return
 

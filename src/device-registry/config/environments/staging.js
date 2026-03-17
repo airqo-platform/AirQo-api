@@ -20,7 +20,7 @@ const stageConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   GROUPS_TOPIC: process.env.GROUPS_TOPIC_STAGE || "groups-topic",
@@ -38,7 +38,7 @@ const stageConfig = {
   BIGQUERY_SITES: process.env.STAGE_BIGQUERY_SITES,
   BIGQUERY_AIRQLOUDS_SITES: process.env.STAGE_BIGQUERY_AIRQLOUDS_SITES,
   BIGQUERY_AIRQLOUDS: process.env.STAGE_BIGQUERY_AIRQLOUDS,
-  BIGQUERY_GRIDS_SITES: process.envSTAGE_BIGQUERY_GRIDS_SITES,
+  BIGQUERY_GRIDS_SITES: process.env.STAGE_BIGQUERY_GRIDS_SITES,
   BIGQUERY_GRIDS: process.env.STAGE_BIGQUERY_GRIDS,
   BIGQUERY_COHORTS_DEVICES: process.env.STAGE_BIGQUERY_COHORTS_DEVICES,
   BIGQUERY_COHORTS: process.env.STAGE_BIGQUERY_COHORTS,
@@ -52,6 +52,8 @@ const stageConfig = {
   DEPLOYMENT_URL: process.env.STAGE_DEPLOYMENT_URL,
   SERVICE_JWT_TOKEN: process.env.STAGE_SERVICE_JWT_TOKEN,
   ADMIN_SETUP_SECRET: process.env.STAGE_ADMIN_SETUP_SECRET,
+  BACKFILL_SITE_METADATA_SCHEDULER_ENABLED: false,
+  FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED: false,
 };
 
 module.exports = stageConfig;

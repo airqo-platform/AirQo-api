@@ -680,6 +680,8 @@ class ProjectionFactory {
                 name: "$$device.name",
                 long_name: "$$device.long_name",
                 description: "$$device.description",
+                latitude: "$$device.latitude",
+                longitude: "$$device.longitude",
                 device_number: "$$device.device_number",
                 isActive: "$$device.isActive",
                 isOnline: "$$device.isOnline",

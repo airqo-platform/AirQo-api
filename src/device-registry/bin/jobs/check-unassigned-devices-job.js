@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-unassigned-devices-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-unassigned-devices-job -- ops-alerts`,
 );
 const DeviceModel = require("@models/Device");
 const cron = require("node-cron");
@@ -47,17 +47,17 @@ const checkUnassignedDevices = async () => {
     if (percentage > UNASSIGNED_THRESHOLD) {
       logText(
         `🤦‍♀️🫣 ${percentage.toFixed(
-          2
+          2,
         )}% of deployed devices are not assigned to any category (${uniqueDeviceNames.join(
-          ", "
-        )})`
+          ", ",
+        )})`,
       );
-      logger.info(
+      logger.warn(
         `🤦‍♀️🫣 ${percentage.toFixed(
-          2
+          2,
         )}% of deployed devices are not assigned to any category (${uniqueDeviceNames.join(
-          ", "
-        )})`
+          ", ",
+        )})`,
       );
     }
   } catch (error) {

@@ -1,4 +1,4 @@
-# Beacon Service
+# Beacon Service.
 
 > High-performance device management and performance analytics microservice for AirQo's air quality monitoring network.
 
@@ -59,7 +59,6 @@ cp .env.example .env
 
 # Run the service
 source venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Docker Deployment

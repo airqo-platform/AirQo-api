@@ -1,0 +1,244 @@
+name: remove-api-deploy-previews
+
+on:
+  pull_request:
+    branches:
+      - staging
+    types:
+      - closed
+
+env:
+  RG: airqo-main-rg
+
+jobs:
+
+  branch-name:
+    name: Format branch name string
+    runs-on: ubuntu-latest
+    outputs:
+      lowercase: ${{ steps.string.outputs.lowercase }}
+    steps:
+      - id: string
+        uses: ASzc/change-string-case-action@v5
+        with:
+          string: ${{ github.head_ref || github.ref_name }}
+
+########################################################
+# REMOVE AUTH SERVICE PREVIEW
+########################################################
+
+  remove-auth-service-preview:
+    name: remove-auth-service-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-auth-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE BEACON API PREVIEW
+########################################################
+
+  remove-beacon-api-preview:
+    name: remove-beacon-api-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-beacon-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE DEVICE REGISTRY PREVIEW
+########################################################
+
+  remove-device-registry-preview:
+    name: remove-device-registry-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-device-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE PREDICT SERVICE PREVIEW
+########################################################
+
+  remove-predict-service-preview:
+    name: remove-predict-service-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-predict-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE META-DATA PREVIEW
+########################################################
+
+  remove-meta-data-preview:
+    name: remove-meta-data-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-meta-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE VIEW PREVIEW
+########################################################
+
+  remove-view-preview:
+    name: remove-view-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-view-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE CALIBRATE API PREVIEW
+########################################################
+
+  remove-calibrate-api-preview:
+    name: remove-calibrate-api-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-cal-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE SPATIAL PREVIEW
+########################################################
+
+  remove-spatial-preview:
+    name: remove-spatial-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-spatial-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE SUPERSET PREVIEW
+########################################################
+
+  remove-superset-preview:
+    name: remove-superset-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-super-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"
+
+########################################################
+# REMOVE WEBSITE API PREVIEW
+########################################################
+
+  remove-website-api-preview:
+    name: remove-website-api-preview
+    needs: [branch-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Container App
+        run: |
+          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
+          az containerapp delete \
+            --name "${BRANCH:0:12}-web-api-prev" \
+            --resource-group ${{ env.RG }} \
+            --yes || echo "Preview not found"

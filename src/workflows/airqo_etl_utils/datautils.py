@@ -27,7 +27,7 @@ from .constants import (
 )
 from .message_broker_utils import MessageBrokerUtils
 
-from .common_utils import Utils
+from airqo_etl_utils.utils import Utils
 from .date import DateUtils
 from .data_validator import DataValidationUtils
 
@@ -334,7 +334,6 @@ class DataUtils:
 
         if device_ids:
             devices = devices.loc[devices.device_id.isin(device_ids)]
-
         config = Config.device_config_mapping.get(device_category.str, None)
         if not config:
             logger.warning("Missing device category configuration.")
@@ -348,6 +347,10 @@ class DataUtils:
 
         data_store: List[pd.DataFrame] = []
 
+        # TODO: Consider using a more robust parallel processing approach if the number of devices is very large, such as multiprocessing or distributed processing frameworks.
+        # ThreadPoolExecutor may not be optimal for CPU-bound tasks or when dealing with a very high number of devices due to Python's GIL and potential memory constraints.
+        # Poor performance might be realized when device numbers exceed a couple of thousands but also depends on the amount of data per device dependant on the date range and resolution.
+        # In such cases, batching devices or using multiprocessing could be considered to improve performance.
         with ThreadPoolExecutor(
             max_workers=max_workers
         ) as executor:  # Adjust worker count to your CPU
@@ -819,8 +822,23 @@ class DataUtils:
             lat_fallback = device.get("latitude")
             lon_fallback = device.get("longitude")
         else:
-            lat_fallback = meta_data.get("latitude") or device.get("latitude")
-            lon_fallback = meta_data.get("longitude") or device.get("longitude")
+            lat_fallback = device.get("latitude") or meta_data.get("latitude")
+            lon_fallback = device.get("longitude") or meta_data.get("longitude")
+
+        # Ensure latitude and longitude are numeric, coercing errors to NaN for consistent processing.
+        # Avoid stacking/unstacking (which drops all-NaN rows by default) as that can
+        # change the length/shape and trigger "Columns must be same length as key".
+        to_convert = [c for c in ("latitude", "longitude") if c in data.columns]
+        if to_convert:
+            try:
+                # apply(pd.to_numeric) preserves shape and is robust.
+                data[to_convert] = data[to_convert].apply(
+                    pd.to_numeric, errors="coerce"
+                )
+            except Exception:
+                # Fallback: coerce columns individually to be extra-safe.
+                for c in to_convert:
+                    data[c] = pd.to_numeric(data[c], errors="coerce")
 
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")

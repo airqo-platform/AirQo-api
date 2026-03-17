@@ -56,10 +56,10 @@ class EmailDeduplicator {
    *
    * @returns {Promise<boolean>} true = send the email, false = duplicate, skip it
    */
-  async checkAndMarkEmail(emailData, { overrideKey } = {}) {
+  async checkAndMarkEmail(emailData, { overrideKey, tenant = "airqo" } = {}) {
     try {
       const key = overrideKey || this.generateEmailKey(emailData);
-      const SentEmailLog = SentEmailLogModel("airqo");
+      const SentEmailLog = SentEmailLogModel(tenant);
 
       // Atomic insert: succeeds only if `hash` is unique.
       // A duplicate key error (11000) means the email was already sent recently.
@@ -91,10 +91,10 @@ class EmailDeduplicator {
    * Remove a deduplication key — useful for testing or manual overrides.
    * @returns {Promise<boolean>}
    */
-  async removeEmailKey(emailData, { overrideKey } = {}) {
+  async removeEmailKey(emailData, { overrideKey, tenant = "airqo" } = {}) {
     try {
       const key = overrideKey || this.generateEmailKey(emailData);
-      const SentEmailLog = SentEmailLogModel("airqo");
+      const SentEmailLog = SentEmailLogModel(tenant);
       const result = await SentEmailLog.deleteOne({ hash: key });
       return result.deletedCount > 0;
     } catch (error) {

@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job -- ops-alerts`,
 );
 const DeviceModel = require("@models/Device");
 const cron = require("node-cron");
@@ -34,7 +34,7 @@ const checkActiveStatuses = async () => {
 
     // Check for Deployed devices with incorrect statuses
     const activeIncorrectStatusCount = await DeviceModel(
-      "airqo"
+      "airqo",
     ).countDocuments({
       isActive: true,
       status: { $ne: "deployed" },
@@ -79,10 +79,10 @@ const checkActiveStatuses = async () => {
     ]);
 
     const activeIncorrectStatusUniqueNames = activeIncorrectStatusResult.map(
-      (doc) => doc._id
+      (doc) => doc._id,
     );
     const activeMissingStatusUniqueNames = activeMissingStatusResult.map(
-      (doc) => doc._id
+      (doc) => doc._id,
     );
 
     logObject("activeIncorrectStatusCount", activeIncorrectStatusCount);
@@ -99,7 +99,7 @@ const checkActiveStatuses = async () => {
 
     logObject(
       "percentageActiveIncorrectStatus",
-      percentageActiveIncorrectStatus
+      percentageActiveIncorrectStatus,
     );
     logObject("percentageActiveMissingStatus", percentageActiveMissingStatus);
 
@@ -107,22 +107,22 @@ const checkActiveStatuses = async () => {
       percentageActiveIncorrectStatus > ACTIVE_STATUS_THRESHOLD ||
       percentageActiveMissingStatus > ACTIVE_STATUS_THRESHOLD
     ) {
-      logger.info(
+      logger.warn(
         `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+          ", ",
+        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`,
       );
 
-      logger.info(
+      logger.warn(
         `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-          ", "
-        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+          ", ",
+        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`,
       );
     }
   } catch (error) {
     logText(`🐛🐛 Error checking active statuses: ${error.message}`);
     logger.error(
-      `🐛🐛 ${JOB_NAME} Error checking active statuses: ${error.message}`
+      `🐛🐛 ${JOB_NAME} Error checking active statuses: ${error.message}`,
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   } finally {
@@ -162,7 +162,7 @@ const startCheckActiveStatusesJob = () => {
           // Wait for current execution to finish if running
           if (currentJobPromise) {
             logText(
-              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`,
             );
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed`);
@@ -215,7 +215,7 @@ process.on("unhandledRejection", (reason, promise) => {
     `🚫 Unhandled Rejection in ${JOB_NAME} at:`,
     promise,
     "reason:",
-    reason
+    reason,
   );
 });
 

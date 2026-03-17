@@ -34,6 +34,115 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 /**
+ * Asynchronously enriches a site with metadata. This is a "fire and forget" function.
+ * @param {string} tenant - The tenant identifier.
+ * @param {ObjectId} siteId - The ID of the site to enrich.
+ * @param {number} latitude - The site's latitude.
+ * @param {number} longitude - The site's longitude.
+ * @param {string} network - The network of the site.
+ */
+const enrichSiteWithMetadata = async (
+  tenant,
+  siteId,
+  latitude,
+  longitude,
+  network,
+) => {
+  try {
+    const metadataResponse = await createSiteUtil.generateMetadata(
+      {
+        query: { tenant },
+        body: { latitude, longitude, network },
+      },
+      // Pass an explicit error callback so that if generateMetadata
+      // internally calls next(err), it throws into this try/catch rather
+      // than crashing with "next is not a function".
+      (err) => {
+        throw err;
+      },
+    );
+
+    if (!metadataResponse) {
+      logger.error(
+        `Metadata generation returned a falsy value for site ${siteId} in tenant ${tenant}. Aborting enrichment.`,
+      );
+      return;
+    }
+
+    if (metadataResponse.success) {
+      if (!metadataResponse.data) {
+        logger.error(
+          `Metadata generation succeeded but returned no data for site ${siteId}.`,
+        );
+        return;
+      }
+
+      // Scope the update to only genuine reverse-geocoding metadata fields.
+      // Writing the full metadataResponse.data would clobber fields like
+      // generated_name, description, latitude, and longitude that are already
+      // correctly set on the site document from the batch deployment creation.
+      const {
+        country,
+        district,
+        city,
+        region,
+        town,
+        village,
+        parish,
+        county,
+        sub_county,
+        division,
+        street,
+        formatted_name,
+        geometry,
+        google_place_id,
+        location_name,
+        search_name,
+        altitude,
+        site_tags,
+      } = metadataResponse.data;
+
+      const metadataFields = Object.fromEntries(
+        Object.entries({
+          country,
+          district,
+          city,
+          region,
+          town,
+          village,
+          parish,
+          county,
+          sub_county,
+          division,
+          street,
+          formatted_name,
+          geometry,
+          google_place_id,
+          location_name,
+          search_name,
+          altitude,
+          site_tags,
+        }).filter(([, v]) => v !== undefined),
+      );
+
+      await SiteModel(tenant).findByIdAndUpdate(
+        siteId,
+        { $set: metadataFields },
+        { new: true },
+      );
+      logger.info(`Successfully enriched site ${siteId} with metadata.`);
+    } else {
+      logger.error(
+        `Metadata enrichment failed for site ${siteId}: ${metadataResponse.message}`,
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `Error during background site enrichment for ${siteId}: ${error.message}`,
+    );
+  }
+};
+/**
  * Updates the cached activity fields for sites and devices
  * Race-condition safe: Only updates if cache is older than snapshot time
  * @param {string} tenant - The tenant identifier
@@ -960,6 +1069,15 @@ const createActivity = {
             next,
           );
 
+          // **STEP 5**: Refresh site data_provider (fire and forget)
+          // Runs after the device is deployed, so it picks up the new device's network.
+          if (activityBody.site_id) {
+            createSiteUtil.refreshSiteDataProvider(
+              tenant,
+              activityBody.site_id,
+            );
+          }
+
           const data = {
             createdActivity: {
               activity_codes: createdActivity.activity_codes,
@@ -1655,6 +1773,15 @@ const createActivity = {
                       approxResult.approximate_distance_in_km || 0,
                     bearing_in_radians: approxResult.bearing_in_radians || 0,
                   });
+
+                  // Fire and forget: enrich the site in the background
+                  enrichSiteWithMetadata(
+                    tenant,
+                    site._id,
+                    site.latitude,
+                    site.longitude,
+                    site.network,
+                  );
                 } catch (createError) {
                   // Handle race condition: another process may have
                   // created the site between Phase A's existence check
@@ -2093,6 +2220,21 @@ const createActivity = {
         }
       });
 
+      // Refresh data_provider for each newly deployed site (fire-and-forget).
+      // Deduplicate site_ids so we call once per site regardless of how many
+      // devices were deployed to it in this batch.
+      // NOTE: mirrors the single-deploy refresh in _processDeployment (Step 5).
+      const deployedSiteIds = [
+        ...new Set(
+          createdActivities
+            .filter((a) => a.site_id)
+            .map((a) => a.site_id.toString()),
+        ),
+      ];
+      deployedSiteIds.forEach((siteId) => {
+        createSiteUtil.refreshSiteDataProvider(tenant, siteId);
+      });
+
       // PHASE 7: Send Kafka notifications (fire and forget)
       if (successful_deployments.length > 0) {
         (async () => {
@@ -2208,6 +2350,8 @@ const createActivity = {
         };
       }
 
+      // Build $push safely to avoid overwriting when both site_id
+      // and grid_id exist on the device being recalled.
       const deviceUpdateData = {
         $set: {
           isActive: false,
@@ -2218,13 +2362,16 @@ const createActivity = {
         },
       };
 
+      const pushFields = {};
       if (device.site_id) {
-        deviceUpdateData.$push = { previous_sites: device.site_id };
+        pushFields.previous_sites = device.site_id;
       }
 
       if (device.grid_id) {
-        deviceUpdateData.$push = deviceUpdateData.$push || {};
-        deviceUpdateData.$push.previous_grids = device.grid_id;
+        pushFields.previous_grids = device.grid_id;
+      }
+      if (Object.keys(pushFields).length > 0) {
+        deviceUpdateData.$push = pushFields;
       }
 
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
@@ -2296,6 +2443,17 @@ const createActivity = {
         });
       });
 
+      // Refresh site data_provider now that a device has been removed.
+      // Use the site_id captured before the device was recalled.
+      if (device.site_id) {
+        createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+      }
+
+      // Use toObject() on both Mongoose documents to ensure clean
+      // JSON serialization. Without this, JSON.stringify() on a Mongoose
+      // document may omit fields or produce unexpected output, which
+      // causes the Kafka consumer to receive an object missing
+      // createdActivity and trigger the "Missing required fields" error.
       (async () => {
         try {
           const recallTopic = constants.RECALL_TOPIC || "recall-topic";
@@ -2308,8 +2466,12 @@ const createActivity = {
             messages: [
               {
                 value: JSON.stringify({
-                  createdActivity,
-                  updatedDevice,
+                  createdActivity: createdActivity.toObject
+                    ? createdActivity.toObject()
+                    : createdActivity,
+                  updatedDevice: updatedDevice.toObject
+                    ? updatedDevice.toObject()
+                    : updatedDevice,
                   user_id: user_id || null,
                 }),
               },
@@ -2510,6 +2672,17 @@ const createActivity = {
         });
       });
 
+      // Refresh site data_provider — maintenance doesn't change device
+      // assignment but is a good opportunity to correct any stale value.
+      if (effectiveSiteId) {
+        createSiteUtil.refreshSiteDataProvider(tenant, effectiveSiteId);
+      }
+
+      // Use toObject() on both Mongoose documents — same serialization
+      // risk as the recall function. findOneAndUpdate() returns a Mongoose
+      // document, and ActivityModel.create() also returns one. Without
+      // toObject(), JSON.stringify() may produce incomplete output and the
+      // Kafka consumer would log "Missing required fields".
       (async () => {
         try {
           const maintainTopic = constants.MAINTAIN_TOPIC || "maintain-topic";
@@ -2522,8 +2695,12 @@ const createActivity = {
             messages: [
               {
                 value: JSON.stringify({
-                  createdActivity,
-                  updatedDevice,
+                  createdActivity: createdActivity.toObject
+                    ? createdActivity.toObject()
+                    : createdActivity,
+                  updatedDevice: updatedDevice.toObject
+                    ? updatedDevice.toObject()
+                    : updatedDevice,
                   user_id: user_id || null,
                 }),
               },
@@ -2997,7 +3174,7 @@ const createActivity = {
 
         return {
           success: true,
-          message: "Dry run completed - no changes made",
+          message: "Dry run completed - no changes were made",
           data: {
             total_activities_needing_backfill: totalCount,
             sample_device_names: sampleDeviceNames,

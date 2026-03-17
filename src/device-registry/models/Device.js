@@ -85,50 +85,72 @@ function getDeploymentDescription(deploymentType) {
  * @returns {Object} categories
  */
 function computeDeviceCategories(deviceDoc) {
-  // Handle both Mongoose documents and plain objects
   const doc = deviceDoc.toObject ? deviceDoc.toObject() : deviceDoc;
 
+  const isMobile = doc.mobility === true || doc.deployment_type === "mobile";
+
+  // ownership_category — returns raw network value for frontend display
+  // null when network is missing or empty string
+  let ownership_category = null;
+  if (doc.network && doc.network.trim() !== "") {
+    ownership_category = doc.network;
+  }
+
+  // mobile_category — only meaningful for mobile devices, null for static
+  // priority: movement_pattern (most descriptive) → route_id → coverage_area → "mobile"
+  let mobile_category = null;
+  if (isMobile) {
+    const mm = doc.mobility_metadata || {};
+    if (mm.movement_pattern) {
+      mobile_category = mm.movement_pattern;
+    } else if (mm.route_id) {
+      mobile_category = "fixed-route";
+    } else if (mm.coverage_area) {
+      mobile_category = "area-coverage";
+    } else {
+      mobile_category = "mobile";
+    }
+  }
+
+  const primary_category = doc.category || "lowcost";
+  const deployment_category = doc.deployment_type || "static";
+
+  // Use a Set to guarantee no duplicates in all_categories
+  const categorySet = new Set([primary_category, deployment_category]);
+  if (ownership_category) categorySet.add(ownership_category);
+  if (mobile_category) categorySet.add(mobile_category);
+  const all_categories = [...categorySet];
+
   const categories = {
-    // Primary equipment category
-    primary_category: doc.category || "lowcost",
-    // Deployment category
-    deployment_category: doc.deployment_type || "static",
-    // Boolean flags for easy frontend checking
-    is_mobile: doc.mobility === true || doc.deployment_type === "mobile",
-    is_static: doc.mobility === false || doc.deployment_type === "static",
-    is_lowcost: doc.category === "lowcost",
-    is_bam: doc.category === "bam",
-    is_gas: doc.category === "gas",
-    // All applicable categories (handles subcategories)
-    all_categories: [],
-    // Descriptive information
-    category_hierarchy: [],
-  };
-
-  // Build all_categories array
-  categories.all_categories.push(categories.primary_category);
-  categories.all_categories.push(categories.deployment_category);
-
-  // Build hierarchy showing relationships
-  categories.category_hierarchy.push({
-    level: "equipment",
-    category: categories.primary_category,
-    description: getCategoryDescription(categories.primary_category),
-  });
-
-  categories.category_hierarchy.push({
-    level: "deployment",
-    category: categories.deployment_category,
-    description: getDeploymentDescription(categories.deployment_category),
-  });
-
-  // Add metadata about category relationships
-  categories.category_relationships = {
-    note:
-      "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
-    mobile_is_subcategory_of: categories.is_mobile
-      ? categories.primary_category
-      : null,
+    primary_category,
+    deployment_category,
+    ownership_category,
+    mobile_category,
+    is_mobile: isMobile,
+    is_static: !isMobile,
+    // Use primary_category (resolved) not doc.category (raw) so flags are
+    // consistent when category is missing and defaults to "lowcost"
+    is_lowcost: primary_category === "lowcost",
+    is_bam: primary_category === "bam",
+    is_gas: primary_category === "gas",
+    all_categories,
+    category_hierarchy: [
+      {
+        level: "equipment",
+        category: primary_category,
+        description: getCategoryDescription(primary_category),
+      },
+      {
+        level: "deployment",
+        category: deployment_category,
+        description: getDeploymentDescription(deployment_category),
+      },
+    ],
+    category_relationships: {
+      note:
+        "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+      mobile_is_subcategory_of: isMobile ? primary_category : null,
+    },
   };
 
   return categories;
@@ -165,6 +187,7 @@ const deviceSchema = new mongoose.Schema(
     network: {
       type: String,
       trim: true,
+      lowercase: true,
       required: [true, "the network is required!"],
     },
     groups: {
@@ -972,16 +995,9 @@ deviceSchema.statics = {
         filter.path ? filter.path : "none",
       );
 
-      if (!isEmpty(filter.path)) {
-        delete filter.path;
-      }
-
-      if (!isEmpty(filter.dashboard)) {
-        delete filter.dashboard;
-      }
-      if (!isEmpty(filter.summary)) {
-        delete filter.summary;
-      }
+      if (!isEmpty(filter.path)) delete filter.path;
+      if (!isEmpty(filter.dashboard)) delete filter.dashboard;
+      if (!isEmpty(filter.summary)) delete filter.summary;
 
       let maxActivities = 500;
       if (!isEmpty(filter.maxActivities)) {
@@ -1146,27 +1162,288 @@ deviceSchema.statics = {
           device_categories: {
             primary_category: { $ifNull: ["$category", "lowcost"] },
             deployment_category: { $ifNull: ["$deployment_type", "static"] },
+
+            // Returns the raw network value so the frontend can display it directly.
+            // null when network is missing or empty string.
+            // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+            ownership_category: {
+              $cond: {
+                if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+                then: "$network",
+                else: null,
+              },
+            },
+
+            // Only meaningful for mobile devices — null for static.
+            // Priority: movement_pattern → route_id → coverage_area → "mobile"
+            // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+            mobile_category: {
+              $cond: {
+                if: {
+                  $or: [
+                    { $eq: ["$mobility", true] },
+                    { $eq: ["$deployment_type", "mobile"] },
+                  ],
+                },
+                then: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gt: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.movement_pattern",
+                                    null,
+                                  ],
+                                },
+                                null,
+                              ],
+                            },
+                            {
+                              $ne: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.movement_pattern",
+                                    "",
+                                  ],
+                                },
+                                "",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "$mobility_metadata.movement_pattern",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gt: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.route_id",
+                                    null,
+                                  ],
+                                },
+                                null,
+                              ],
+                            },
+                            {
+                              $ne: [
+                                {
+                                  $ifNull: ["$mobility_metadata.route_id", ""],
+                                },
+                                "",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "fixed-route",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gt: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.coverage_area",
+                                    null,
+                                  ],
+                                },
+                                null,
+                              ],
+                            },
+                            {
+                              $ne: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.coverage_area",
+                                    "",
+                                  ],
+                                },
+                                "",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "area-coverage",
+                      },
+                    ],
+                    default: "mobile",
+                  },
+                },
+                else: null,
+              },
+            },
+
             is_mobile: {
               $or: [
                 { $eq: ["$mobility", true] },
                 { $eq: ["$deployment_type", "mobile"] },
               ],
             },
+            // Strict negation of is_mobile — $not requires array form in aggregation expressions
             is_static: {
-              $or: [
-                { $eq: ["$mobility", false] },
-                { $eq: ["$deployment_type", "static"] },
+              $not: [
+                {
+                  $or: [
+                    { $eq: ["$mobility", true] },
+                    { $eq: ["$deployment_type", "mobile"] },
+                  ],
+                },
               ],
             },
-            is_lowcost: { $eq: ["$category", "lowcost"] },
-            is_bam: { $eq: ["$category", "bam"] },
-            is_gas: { $eq: ["$category", "gas"] },
+            // Compare against resolved primary_category (via $ifNull) not raw $category,
+            // so a device with no category correctly gets is_lowcost: true
+            is_lowcost: {
+              $eq: [{ $ifNull: ["$category", "lowcost"] }, "lowcost"],
+            },
+            is_bam: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "bam"] },
+            is_gas: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "gas"] },
+
+            // $setUnion guarantees uniqueness — prevents duplicates when
+            // deployment_category and mobile_category resolve to the same value (e.g. "mobile")
             all_categories: {
-              $concatArrays: [
-                [{ $ifNull: ["$category", "lowcost"] }],
-                [{ $ifNull: ["$deployment_type", "static"] }],
+              $setUnion: [
+                [],
+                {
+                  $filter: {
+                    input: {
+                      $concatArrays: [
+                        [{ $ifNull: ["$category", "lowcost"] }],
+                        [{ $ifNull: ["$deployment_type", "static"] }],
+                        // Include network value when present
+                        {
+                          $cond: {
+                            if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+                            then: ["$network"],
+                            else: [],
+                          },
+                        },
+                        // Include mobile_category when device is mobile
+                        {
+                          $cond: {
+                            if: {
+                              $or: [
+                                { $eq: ["$mobility", true] },
+                                { $eq: ["$deployment_type", "mobile"] },
+                              ],
+                            },
+                            then: [
+                              {
+                                $switch: {
+                                  branches: [
+                                    {
+                                      case: {
+                                        $and: [
+                                          {
+                                            $gt: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.movement_pattern",
+                                                  null,
+                                                ],
+                                              },
+                                              null,
+                                            ],
+                                          },
+                                          {
+                                            $ne: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.movement_pattern",
+                                                  "",
+                                                ],
+                                              },
+                                              "",
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                      then:
+                                        "$mobility_metadata.movement_pattern",
+                                    },
+                                    {
+                                      case: {
+                                        $and: [
+                                          {
+                                            $gt: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.route_id",
+                                                  null,
+                                                ],
+                                              },
+                                              null,
+                                            ],
+                                          },
+                                          {
+                                            $ne: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.route_id",
+                                                  "",
+                                                ],
+                                              },
+                                              "",
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                      then: "fixed-route",
+                                    },
+                                    {
+                                      case: {
+                                        $and: [
+                                          {
+                                            $gt: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.coverage_area",
+                                                  null,
+                                                ],
+                                              },
+                                              null,
+                                            ],
+                                          },
+                                          {
+                                            $ne: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.coverage_area",
+                                                  "",
+                                                ],
+                                              },
+                                              "",
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                      then: "area-coverage",
+                                    },
+                                  ],
+                                  default: "mobile",
+                                },
+                              },
+                            ],
+                            else: [],
+                          },
+                        },
+                      ],
+                    },
+                    as: "cat",
+                    cond: {
+                      $and: [{ $gt: ["$$cat", null] }, { $ne: ["$$cat", ""] }],
+                    },
+                  },
+                },
               ],
             },
+
             category_hierarchy: [
               {
                 level: "equipment",
@@ -1211,6 +1488,7 @@ deviceSchema.statics = {
                 },
               },
             ],
+
             category_relationships: {
               note:
                 "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
@@ -1228,6 +1506,7 @@ deviceSchema.statics = {
               },
             },
           },
+
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
@@ -1244,31 +1523,24 @@ deviceSchema.statics = {
       if (!isEmpty(response)) {
         response.forEach((device) => {
           device.latest_deployment_activity =
-            device.latest_deployment_activity &&
-            device.latest_deployment_activity.length > 0
+            device.latest_deployment_activity?.length > 0
               ? device.latest_deployment_activity[0]
               : null;
-
           device.latest_maintenance_activity =
-            device.latest_maintenance_activity &&
-            device.latest_maintenance_activity.length > 0
+            device.latest_maintenance_activity?.length > 0
               ? device.latest_maintenance_activity[0]
               : null;
-
           device.latest_recall_activity =
-            device.latest_recall_activity &&
-            device.latest_recall_activity.length > 0
+            device.latest_recall_activity?.length > 0
               ? device.latest_recall_activity[0]
               : null;
 
           if (device.activities && device.activities.length > 0) {
             const activitiesByType = {};
             const latestActivitiesByType = {};
-
             device.activities.forEach((activity) => {
               const type = activity.activityType || "unknown";
               activitiesByType[type] = (activitiesByType[type] || 0) + 1;
-
               if (
                 !latestActivitiesByType[type] ||
                 new Date(activity.createdAt) >
@@ -1277,7 +1549,6 @@ deviceSchema.statics = {
                 latestActivitiesByType[type] = activity;
               }
             });
-
             device.activities_by_type = activitiesByType;
             device.latest_activities_by_type = latestActivitiesByType;
           } else {
@@ -1319,11 +1590,14 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
+          {
+            message: error.message,
+          },
         ),
       );
     }
   },
+
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");

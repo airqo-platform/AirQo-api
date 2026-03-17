@@ -16,7 +16,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- generate-filter-util`,
+  `${constants.ENVIRONMENT} -- generate-filter-util -- ops-alerts`,
 );
 
 if (
@@ -652,6 +652,100 @@ const generateFilter = {
         .split(",")
         .map((id) => ObjectId(id));
       filter["values.grid_id"] = { $in: gridIdArray };
+    }
+
+    return filter;
+  },
+  readingsMap: (request, next) => {
+    const { query, params } = request;
+    const { device, device_id, site_id, site, startTime, endTime } = {
+      ...query,
+      ...params,
+    };
+
+    const DEFAULT_TIME_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+    const filter = {};
+
+    // ── time ────────────────────────────────────────────────────────────────
+    if (
+      startTime &&
+      !isTimeEmpty(startTime) &&
+      endTime &&
+      !isTimeEmpty(endTime)
+    ) {
+      filter.time = {
+        $gte: new Date(startTime),
+        $lte: new Date(endTime),
+      };
+    } else if (startTime && !isTimeEmpty(startTime)) {
+      filter.time = {
+        $gte: new Date(startTime),
+        $lte: new Date(new Date(startTime).getTime() + DEFAULT_TIME_WINDOW_MS),
+      };
+    } else if (endTime && !isTimeEmpty(endTime)) {
+      filter.time = {
+        $gte: new Date(new Date(endTime).getTime() - DEFAULT_TIME_WINDOW_MS),
+        $lte: new Date(endTime),
+      };
+    } else {
+      filter.time = {
+        $gte: new Date(Date.now() - DEFAULT_TIME_WINDOW_MS),
+        $lte: new Date(),
+      };
+    }
+
+    // ── device name ──────────────────────────────────────────────────────────
+    if (device) {
+      const deviceArray = device
+        .toString()
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0);
+      const mergedArray = [
+        ...deviceArray,
+        ...deviceArray.map((v) =>
+          v === v.toLowerCase() ? v.toUpperCase() : v.toLowerCase(),
+        ),
+      ];
+      filter.device = { $in: mergedArray };
+    }
+
+    // ── device_id (plain strings — Readings stores as String, not ObjectId) ──
+    if (device_id) {
+      const trimmedDeviceIds = device_id
+        .toString()
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
+
+      if (trimmedDeviceIds.length > 0) {
+        filter.device_id = { $in: trimmedDeviceIds };
+      }
+    }
+
+    // ── site name ────────────────────────────────────────────────────────────
+    if (site) {
+      const trimmedSiteArray = site
+        .toString()
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (trimmedSiteArray.length > 0) {
+        filter.site = { $in: trimmedSiteArray };
+      }
+    }
+
+    // ── site_id (plain strings — Readings stores as String, not ObjectId) ────
+    if (site_id) {
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
+      if (siteIdArray.length > 0) {
+        filter.site_id = { $in: siteIdArray };
+      }
     }
 
     return filter;

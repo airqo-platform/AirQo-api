@@ -40,7 +40,7 @@ const cohortSchema = new Schema(
       ref: "group",
     },
     cohort_tags: {
-      type: Array,
+      type: [String],
       default: [],
     },
     cohort_codes: [
@@ -123,6 +123,7 @@ cohortSchema.plugin(uniqueValidator, {
 
 cohortSchema.index({ grp_id: 1 });
 cohortSchema.index({ geoHash: 1 });
+cohortSchema.index({ cohort_tags: 1 });
 
 cohortSchema.methods.toJSON = function() {
   const {

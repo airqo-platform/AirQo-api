@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/device-status-check-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/device-status-check-job -- ops-alerts`,
 );
 const cron = require("node-cron");
 const moment = require("moment-timezone");
@@ -38,7 +38,7 @@ const processDeviceBatch = async (devices) => {
           {
             httpsAgent: new https.Agent({ rejectUnauthorized: false }),
             timeout: 5000, // Add timeout to prevent hanging requests
-          }
+          },
         );
 
         const deviceStatus = {
@@ -95,10 +95,10 @@ const processDeviceBatch = async (devices) => {
         }
       } catch (error) {
         logger.error(
-          `Error processing device ${device.name}: ${error.message}`
+          `Error processing device ${device.name}: ${error.message}`,
         );
       }
-    })
+    }),
   );
 
   return metrics;
