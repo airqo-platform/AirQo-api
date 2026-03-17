@@ -3,7 +3,7 @@ const OrganizationRequestModel = require("@models/OrganizationRequest");
 const GroupModel = require("@models/Group");
 const UserModel = require("@models/User");
 const httpStatus = require("http-status");
-const { logObject, logText, HttpError } = require("@utils/shared");
+const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -123,9 +123,8 @@ const organizationRequest = {
         generatedOrgName = sanitizeEmailString(body.organization_name);
         body.organization_name = generatedOrgName;
 
-        baseSlug = body.organization_slug
-          ? slugUtils.generateSlug(body.organization_slug)
-          : createGroupUtil.generateSlugFromTitle(generatedOrgName);
+        const slugSource = body.organization_slug || generatedOrgName;
+        baseSlug = createGroupUtil.generateSlugFromTitle(slugSource);
       }
 
       // Slug uniqueness retry loop.

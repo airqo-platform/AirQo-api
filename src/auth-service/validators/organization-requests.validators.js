@@ -27,10 +27,10 @@ module.exports = {
     body("organization_name").optional().trim(),
     body("organization_slug")
       .optional()
+      .bail()
       .trim()
       .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
       .withMessage("Slug must be lowercase alphanumeric with hyphens only"),
-
     // Required only when organization_name is not provided
     body("city")
       .if(body("organization_name").not().exists())

@@ -36,6 +36,7 @@ const OrganizationRequestSchema = new Schema(
       trim: true,
       validate: {
         validator: function (v) {
+          if (!v || v.trim() === "") return true; // guard null, undefined, and empty string
           return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v);
         },
         message: "Slug must be lowercase alphanumeric with hyphens only",
