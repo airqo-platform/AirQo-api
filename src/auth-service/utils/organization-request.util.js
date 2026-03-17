@@ -112,22 +112,20 @@ const organizationRequest = {
           ? `${city}_${projectName}_${funderPartner}`
           : `${city}_${projectName}`;
 
+        // Only the derived name is written back — original body.city,
+        // body.projectName, and body.funderPartner are preserved as supplied
+        // by the caller so the stored document reflects what was submitted.
         body.organization_name = generatedOrgName;
-        body.city = city;
-        body.projectName = projectName;
-        if (funderPartner) body.funderPartner = funderPartner;
 
-        const groupUtil = require("@utils/group.util");
-        baseSlug = groupUtil.generateSlugFromTitle(generatedOrgName);
+        baseSlug = createGroupUtil.generateSlugFromTitle(generatedOrgName);
       } else {
         // Legacy flow
         generatedOrgName = sanitizeEmailString(body.organization_name);
         body.organization_name = generatedOrgName;
 
-        const groupUtil = require("@utils/group.util");
         baseSlug = body.organization_slug
           ? slugUtils.generateSlug(body.organization_slug)
-          : groupUtil.generateSlugFromTitle(generatedOrgName);
+          : createGroupUtil.generateSlugFromTitle(generatedOrgName);
       }
 
       // Slug uniqueness retry loop.
