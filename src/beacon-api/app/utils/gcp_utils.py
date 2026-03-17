@@ -9,7 +9,6 @@ from google.cloud import storage
 
 logger = logging.getLogger(__name__)
 
-
 def load_gcp_credentials() -> Optional[service_account.Credentials]:
     """
     Load GCP credentials using multiple methods in order of preference:
@@ -42,20 +41,35 @@ def load_gcp_credentials() -> Optional[service_account.Credentials]:
         except Exception as e:
             logger.warning(f"Failed to load credentials from {default_creds_path}: {e}")
     
-    # Method 3: Fallback to JSON string in environment variable
+    # Method 3: Fallback to JSON string in environment variable or settings
     credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    
+    # If not in env, check app.core.config.settings
+    if not credentials_json:
+        try:
+            from app.core.config import settings
+            credentials_json = settings.GOOGLE_APPLICATION_CREDENTIALS_JSON
+        except ImportError:
+            pass
+
     if credentials_json:
         try:
-            credentials_dict = json.loads(credentials_json)
+            # Check if it's already a dict (pydantic-settings might have parsed it)
+            if isinstance(credentials_json, str):
+                credentials_dict = json.loads(credentials_json)
+            else:
+                credentials_dict = credentials_json
+            
             credentials = service_account.Credentials.from_service_account_info(credentials_dict)
             logger.info("Loaded GCP credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON")
             return credentials
-        except (json.JSONDecodeError, ValueError) as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             logger.error(f"Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+            # If it's a dict but failed, maybe it's because it's being used by someone who expected a string
+            logger.debug(f"Type of credentials_json: {type(credentials_json)}")
     
     logger.warning("No GCP credentials found. Set GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS")
     return None
-
 
 def get_storage_client(credentials: Optional[service_account.Credentials] = None) -> Optional[storage.Client]:
     """
