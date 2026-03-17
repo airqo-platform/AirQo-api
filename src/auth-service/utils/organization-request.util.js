@@ -77,60 +77,69 @@ const organizationRequest = {
         }
       }
 
-      // ── NEW: derive organization_name from granular inputs ──────────────────
-      const sanitizeComponent = (str) =>
-        (str || "")
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "_") // spaces → underscores
-          .replace(/[^\w]/g, ""); // strip anything that isn't word char
-
-      const city = sanitizeComponent(body.city);
-      const projectName = sanitizeComponent(body.projectName);
-      const funderPartner = body.funderPartner
-        ? sanitizeComponent(body.funderPartner)
-        : null;
-
-      if (!city || !projectName) {
-        return {
-          success: false,
-          message: "city and projectName are required",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message:
-              "city and projectName are required to generate the organization name",
-          },
-        };
-      }
-
-      const generatedOrgName = funderPartner
-        ? `${city}_${projectName}_${funderPartner}`
-        : `${city}_${projectName}`;
-
-      // Persist the derived values back onto body so downstream code
-      // (email notifications, model.register) picks them up transparently.
-      body.organization_name = generatedOrgName;
-      body.city = city;
-      body.projectName = projectName;
-      if (funderPartner) body.funderPartner = funderPartner;
-
-      // ── Generate base slug from the constructed organization_name ────────────
-      const groupUtil = require("@utils/group.util");
-      const baseSlug = groupUtil.generateSlugFromTitle(generatedOrgName);
-      // ── END new block ─────────────────────────────────────────────────────────
-
       // Sanitize contact_name
       if (body.contact_name) {
         body.contact_name = sanitizeEmailString(body.contact_name);
       }
 
-      // ── Slug uniqueness retry loop (adapted to use generated baseSlug) ────────
+      // Derive organization_name and base slug.
+      // Two paths are supported for backward compatibility:
+      //   1. New flow   — caller supplies city + projectName (+ optional funderPartner).
+      //      organization_name is constructed server-side; slug is derived from it.
+      //   2. Legacy flow — caller supplies organization_name directly.
+      //      organization_name is sanitized as-is; slug falls back to a
+      //      caller-supplied organization_slug or is derived from the name.
+      // The legacy path will be removed once all callers have migrated to the new flow.
+      let generatedOrgName;
+      let baseSlug;
+
+      const sanitizeComponent = (str) =>
+        (str || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "_")
+          .replace(/[^\w]/g, "");
+
+      if (body.city && body.projectName) {
+        // New flow
+        const city = sanitizeComponent(body.city);
+        const projectName = sanitizeComponent(body.projectName);
+        const funderPartner = body.funderPartner
+          ? sanitizeComponent(body.funderPartner)
+          : null;
+
+        generatedOrgName = funderPartner
+          ? `${city}_${projectName}_${funderPartner}`
+          : `${city}_${projectName}`;
+
+        body.organization_name = generatedOrgName;
+        body.city = city;
+        body.projectName = projectName;
+        if (funderPartner) body.funderPartner = funderPartner;
+
+        const groupUtil = require("@utils/group.util");
+        baseSlug = groupUtil.generateSlugFromTitle(generatedOrgName);
+      } else {
+        // Legacy flow
+        generatedOrgName = sanitizeEmailString(body.organization_name);
+        body.organization_name = generatedOrgName;
+
+        const groupUtil = require("@utils/group.util");
+        baseSlug = body.organization_slug
+          ? slugUtils.generateSlug(body.organization_slug)
+          : groupUtil.generateSlugFromTitle(generatedOrgName);
+      }
+
+      // Slug uniqueness retry loop.
+      // Attempts to find an available slug before writing to the database.
+      // Falls back to timestamp and random suffixes on collision, with a final
+      // catch for race conditions detected via MongoDB duplicate-key errors.
       const MAX_SLUG_LENGTH = 50;
       const MAX_RETRIES = 5;
       let currentTry = 0;
       let success = false;
       let responseFromCreateRequest;
-      let generatedSlug = baseSlug; // start from generated base, not user input
+      let generatedSlug = baseSlug;
 
       while (!success && currentTry < MAX_RETRIES) {
         if (currentTry === 0) {
@@ -200,8 +209,6 @@ const organizationRequest = {
           status: httpStatus.CONFLICT,
         };
       }
-
-      // Note: slug was always derived, not user-supplied, so no "slug modified" message needed.
 
       // Send notifications if the request was successful
       if (

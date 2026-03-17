@@ -24,10 +24,6 @@ module.exports = {
   ],
 
   create: [
-    // organization_name and organization_slug are optional — both are derived
-    // server-side from city + projectName + funderPartner. Accepted here only
-    // for legacy clients still sending them directly; values are ignored during
-    // name/slug generation if the granular fields are also present.
     body("organization_name").optional().trim(),
     body("organization_slug")
       .optional()
@@ -35,11 +31,19 @@ module.exports = {
       .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
       .withMessage("Slug must be lowercase alphanumeric with hyphens only"),
 
-    body("city").trim().notEmpty().withMessage("City is required"),
-    body("projectName")
+    // Required only when organization_name is not provided
+    body("city")
+      .if(body("organization_name").not().exists())
       .trim()
       .notEmpty()
-      .withMessage("Project name is required"),
+      .withMessage("City is required when organization_name is not provided"),
+    body("projectName")
+      .if(body("organization_name").not().exists())
+      .trim()
+      .notEmpty()
+      .withMessage(
+        "Project name is required when organization_name is not provided",
+      ),
     body("funderPartner").optional().trim(),
 
     body("contact_email")
