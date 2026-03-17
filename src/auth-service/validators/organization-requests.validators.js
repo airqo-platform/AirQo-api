@@ -31,20 +31,41 @@ module.exports = {
       .trim()
       .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
       .withMessage("Slug must be lowercase alphanumeric with hyphens only"),
-    // Required only when organization_name is not provided
+
+    // city, project_name, and funder_partner are required only when
+    // organization_name is absent or blank. Both snake_case and camelCase
+    // are accepted during transition; snake_case is preferred going forward.
     body("city")
-      .if(body("organization_name").not().exists())
-      .trim()
-      .notEmpty()
-      .withMessage("City is required when organization_name is not provided"),
-    body("projectName")
-      .if(body("organization_name").not().exists())
-      .trim()
-      .notEmpty()
-      .withMessage(
-        "Project name is required when organization_name is not provided",
-      ),
-    body("funderPartner").optional().trim(),
+      .if((value, { req }) => {
+        const orgName = req.body.organization_name;
+        return !orgName || !orgName.trim();
+      })
+      .custom((value, { req }) => {
+        const city = req.body.city;
+        if (!city || !city.trim()) {
+          throw new Error(
+            "City is required when organization_name is not provided",
+          );
+        }
+        return true;
+      }),
+
+    body(["project_name", "projectName"])
+      .if((value, { req }) => {
+        const orgName = req.body.organization_name;
+        return !orgName || !orgName.trim();
+      })
+      .custom((value, { req }) => {
+        const projectName = req.body.project_name || req.body.projectName;
+        if (!projectName || !projectName.trim()) {
+          throw new Error(
+            "Project name is required when organization_name is not provided",
+          );
+        }
+        return true;
+      }),
+
+    body(["funder_partner", "funderPartner"]).optional().trim(),
 
     body("contact_email")
       .trim()

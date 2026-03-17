@@ -10,7 +10,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- organization-request-util`,
 );
 const createGroupUtil = require("@utils/group.util");
-const { mailer, slugUtils } = require("@utils/common");
+const { mailer } = require("@utils/common");
 const { sanitizeEmailString } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const accessCodeGenerator = require("generate-password");
@@ -84,7 +84,7 @@ const organizationRequest = {
 
       // Derive organization_name and base slug.
       // Two paths are supported for backward compatibility:
-      //   1. New flow   — caller supplies city + projectName (+ optional funderPartner).
+      //   1. New flow   — caller supplies city + project_name (+ optional funder_partner).
       //      organization_name is constructed server-side; slug is derived from it.
       //   2. Legacy flow — caller supplies organization_name directly.
       //      organization_name is sanitized as-is; slug falls back to a
@@ -100,38 +100,82 @@ const organizationRequest = {
           .replace(/\s+/g, "_")
           .replace(/[^\w]/g, "");
 
-      if (body.city && body.projectName) {
+      // Support both snake_case and camelCase field names during transition
+      const rawCity = body.city;
+      const rawProjectName = body.project_name || body.projectName;
+      const rawFunderPartner = body.funder_partner || body.funderPartner;
+
+      if (rawCity && rawProjectName) {
         // New flow
-        const city = sanitizeComponent(body.city);
-        const projectName = sanitizeComponent(body.projectName);
-        const funderPartner = body.funderPartner
-          ? sanitizeComponent(body.funderPartner)
+        const city = sanitizeComponent(rawCity);
+        const projectName = sanitizeComponent(rawProjectName);
+        const funderPartner = rawFunderPartner
+          ? sanitizeComponent(rawFunderPartner)
           : null;
 
-        generatedOrgName = funderPartner
-          ? `${city}_${projectName}_${funderPartner}`
+        // Guard against inputs that sanitize down to empty strings,
+        // e.g. city: "!!!" becomes "" after stripping non-word characters.
+        if (!city || !projectName) {
+          return {
+            success: false,
+            message: "Invalid input values",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message:
+                "city and project_name must contain at least one alphanumeric character",
+            },
+          };
+        }
+
+        // Only include funderPartner in the name if it produced a non-empty
+        // sanitized value — drop it silently otherwise.
+        const effectiveFunderPartner =
+          funderPartner && funderPartner.length > 0 ? funderPartner : null;
+
+        generatedOrgName = effectiveFunderPartner
+          ? `${city}_${projectName}_${effectiveFunderPartner}`
           : `${city}_${projectName}`;
 
-        // Only the derived name is written back — original body.city,
-        // body.projectName, and body.funderPartner are preserved as supplied
-        // by the caller so the stored document reflects what was submitted.
+        // Only the derived name is written back — original body fields are
+        // preserved as supplied by the caller so the stored document reflects
+        // what was submitted.
         body.organization_name = generatedOrgName;
 
-        baseSlug = createGroupUtil.generateSlugFromTitle(generatedOrgName);
+        try {
+          baseSlug = createGroupUtil.generateSlugFromTitle(generatedOrgName);
+        } catch (slugError) {
+          return {
+            success: false,
+            message:
+              "Could not generate a valid slug from the provided city, project name, and funder partner values",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: slugError.message },
+          };
+        }
       } else {
         // Legacy flow
         generatedOrgName = sanitizeEmailString(body.organization_name);
         body.organization_name = generatedOrgName;
 
-        const slugSource = body.organization_slug || generatedOrgName;
-        baseSlug = createGroupUtil.generateSlugFromTitle(slugSource);
+        try {
+          const slugSource = body.organization_slug || generatedOrgName;
+          baseSlug = createGroupUtil.generateSlugFromTitle(slugSource);
+        } catch (slugError) {
+          return {
+            success: false,
+            message:
+              "Could not generate a valid slug from the provided organization name",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: slugError.message },
+          };
+        }
       }
 
       // Slug uniqueness retry loop.
       // Attempts to find an available slug before writing to the database.
       // Falls back to timestamp and random suffixes on collision, with a final
       // catch for race conditions detected via MongoDB duplicate-key errors.
-      const MAX_SLUG_LENGTH = 50;
+      const MAX_SLUG_LENGTH = constants.SLUG_MAX_LENGTH || 60;
       const MAX_RETRIES = 5;
       let currentTry = 0;
       let success = false;
