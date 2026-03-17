@@ -184,6 +184,8 @@ const extractIp = (req) => {
   // Fallback to headers or socket address only if req.ip is not available.
   const ip =
     req.ip ||
+    req.headers["x-client-ip"] ||
+    req.headers["x-client-original-ip"] ||
     req.socket?.remoteAddress ||
     req.connection?.remoteAddress ||
     "unknown";
