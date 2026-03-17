@@ -8,7 +8,7 @@ const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- organization-request-model`
+  `${constants.ENVIRONMENT} -- organization-request-model`,
 );
 const {
   createSuccessResponse,
@@ -21,7 +21,6 @@ const OrganizationRequestSchema = new Schema(
   {
     organization_name: {
       type: String,
-      required: [true, "Organization name is required"],
       trim: true,
     },
     country: {
@@ -31,8 +30,8 @@ const OrganizationRequestSchema = new Schema(
     },
     organization_slug: {
       type: String,
-      required: [true, "Organization slug is required"],
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
       validate: {
@@ -41,6 +40,18 @@ const OrganizationRequestSchema = new Schema(
         },
         message: "Slug must be lowercase alphanumeric with hyphens only",
       },
+    },
+    city: {
+      type: String,
+      trim: true,
+    },
+    projectName: {
+      type: String,
+      trim: true,
+    },
+    funderPartner: {
+      type: String,
+      trim: true,
     },
     contact_email: {
       type: String,
@@ -123,7 +134,7 @@ const OrganizationRequestSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 OrganizationRequestSchema.index({ onboarding_token: 1 }, { sparse: true });
@@ -157,7 +168,7 @@ OrganizationRequestSchema.statics = {
           error,
           "create",
           logger,
-          "organization request"
+          "organization request",
         );
       }
     }
@@ -222,20 +233,20 @@ OrganizationRequestSchema.statics = {
       const updatedRequest = await this.findOneAndUpdate(
         filter,
         update,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedRequest)) {
         return createSuccessResponse(
           "update",
           updatedRequest._doc,
-          "organization request"
+          "organization request",
         );
       } else {
         return createNotFoundResponse(
           "organization request",
           "update",
-          "Organization request does not exist"
+          "Organization request does not exist",
         );
       }
     } catch (error) {
@@ -243,7 +254,7 @@ OrganizationRequestSchema.statics = {
         error,
         "update",
         logger,
-        "organization request"
+        "organization request",
       );
     }
   },
@@ -255,6 +266,9 @@ OrganizationRequestSchema.methods = {
       _id: this._id,
       organization_name: this.organization_name,
       organization_slug: this.organization_slug,
+      city: this.city,
+      projectName: this.projectName,
+      funderPartner: this.funderPartner,
       contact_email: this.contact_email,
       contact_name: this.contact_name,
       use_case: this.use_case,
@@ -281,7 +295,7 @@ const OrganizationRequestModel = (tenant) => {
     const organization_requests = getModelByTenant(
       dbTenant,
       "organization_request",
-      OrganizationRequestSchema
+      OrganizationRequestSchema,
     );
     return organization_requests;
   }

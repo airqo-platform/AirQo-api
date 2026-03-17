@@ -24,16 +24,24 @@ module.exports = {
   ],
 
   create: [
-    body("organization_name")
-      .trim()
-      .notEmpty()
-      .withMessage("Organization name is required"),
+    // organization_name and organization_slug are optional — both are derived
+    // server-side from city + projectName + funderPartner. Accepted here only
+    // for legacy clients still sending them directly; values are ignored during
+    // name/slug generation if the granular fields are also present.
+    body("organization_name").optional().trim(),
     body("organization_slug")
+      .optional()
       .trim()
-      .notEmpty()
-      .withMessage("Organization slug is required")
       .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
       .withMessage("Slug must be lowercase alphanumeric with hyphens only"),
+
+    body("city").trim().notEmpty().withMessage("City is required"),
+    body("projectName")
+      .trim()
+      .notEmpty()
+      .withMessage("Project name is required"),
+    body("funderPartner").optional().trim(),
+
     body("contact_email")
       .trim()
       .notEmpty()
@@ -53,9 +61,7 @@ module.exports = {
       .bail()
       .isIn(constants.VALID_ORGANIZATION_TYPES)
       .withMessage(
-        `Invalid organization type. Valid types are: ${constants.VALID_ORGANIZATION_TYPES.join(
-          ", "
-        )}`
+        `Invalid organization type. Valid types are: ${constants.VALID_ORGANIZATION_TYPES.join(", ")}`,
       ),
   ],
 

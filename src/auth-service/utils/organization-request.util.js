@@ -58,7 +58,7 @@ const organizationRequest = {
       const { body, query, user } = request;
       const { tenant } = query;
 
-      // Check if user already has access to this organization (if user is authenticated)
+      // Check if user already has access to this organization (if authenticated)
       if (user && user._id) {
         const userAccess =
           await organizationRequest.checkUserOrganizationAccess(request, next);
@@ -77,50 +77,80 @@ const organizationRequest = {
         }
       }
 
-      // Sanitize input values - using safe string handling
-      if (body.organization_name) {
-        body.organization_name = sanitizeEmailString(body.organization_name);
+      // ── NEW: derive organization_name from granular inputs ──────────────────
+      const sanitizeComponent = (str) =>
+        (str || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "_") // spaces → underscores
+          .replace(/[^\w]/g, ""); // strip anything that isn't word char
+
+      const city = sanitizeComponent(body.city);
+      const projectName = sanitizeComponent(body.projectName);
+      const funderPartner = body.funderPartner
+        ? sanitizeComponent(body.funderPartner)
+        : null;
+
+      if (!city || !projectName) {
+        return {
+          success: false,
+          message: "city and projectName are required",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "city and projectName are required to generate the organization name",
+          },
+        };
       }
+
+      const generatedOrgName = funderPartner
+        ? `${city}_${projectName}_${funderPartner}`
+        : `${city}_${projectName}`;
+
+      // Persist the derived values back onto body so downstream code
+      // (email notifications, model.register) picks them up transparently.
+      body.organization_name = generatedOrgName;
+      body.city = city;
+      body.projectName = projectName;
+      if (funderPartner) body.funderPartner = funderPartner;
+
+      // ── Generate base slug from the constructed organization_name ────────────
+      const groupUtil = require("@utils/group.util");
+      const baseSlug = groupUtil.generateSlugFromTitle(generatedOrgName);
+      // ── END new block ─────────────────────────────────────────────────────────
+
+      // Sanitize contact_name
       if (body.contact_name) {
         body.contact_name = sanitizeEmailString(body.contact_name);
       }
 
-      // Store original slug for reference
-      const originalSlug = body.organization_slug;
-
-      // Define maximum slug length to prevent excessively long slugs
+      // ── Slug uniqueness retry loop (adapted to use generated baseSlug) ────────
       const MAX_SLUG_LENGTH = 50;
       const MAX_RETRIES = 5;
       let currentTry = 0;
       let success = false;
       let responseFromCreateRequest;
-      let generatedSlug = originalSlug;
+      let generatedSlug = baseSlug; // start from generated base, not user input
 
       while (!success && currentTry < MAX_RETRIES) {
-        // Generate a unique slug based on retry count
         if (currentTry === 0) {
-          generatedSlug = originalSlug;
+          generatedSlug = baseSlug;
         } else if (currentTry === 1) {
-          // For first retry, use timestamp (predictable length)
           const timestamp = Date.now().toString().slice(-6);
-          // Ensure we don't exceed maximum slug length
-          const baseSlug =
-            originalSlug.length > MAX_SLUG_LENGTH - 7
-              ? originalSlug.slice(0, MAX_SLUG_LENGTH - 7)
-              : originalSlug;
-          generatedSlug = `${baseSlug}-${timestamp}`;
+          const truncatedBase =
+            baseSlug.length > MAX_SLUG_LENGTH - 7
+              ? baseSlug.slice(0, MAX_SLUG_LENGTH - 7)
+              : baseSlug;
+          generatedSlug = `${truncatedBase}-${timestamp}`;
         } else {
-          // For subsequent retries, use random string (always 5 chars)
           const randomSuffix = Math.random().toString(36).substring(2, 7);
-          // Ensure we don't exceed maximum slug length
-          const baseSlug =
-            originalSlug.length > MAX_SLUG_LENGTH - 7
-              ? originalSlug.slice(0, MAX_SLUG_LENGTH - 7)
-              : originalSlug;
-          generatedSlug = `${baseSlug}-${randomSuffix}`;
+          const truncatedBase =
+            baseSlug.length > MAX_SLUG_LENGTH - 7
+              ? baseSlug.slice(0, MAX_SLUG_LENGTH - 7)
+              : baseSlug;
+          generatedSlug = `${truncatedBase}-${randomSuffix}`;
         }
 
-        // Check if the slug already exists in both collections
         const [existingGroup, existingRequest] = await Promise.all([
           GroupModel(tenant)
             .findOne({ organization_slug: generatedSlug })
@@ -131,7 +161,6 @@ const organizationRequest = {
         ]);
 
         if (existingGroup || existingRequest) {
-          // Slug already exists, try again with a different one
           currentTry++;
           logger.warn(
             `Slug '${generatedSlug}' already exists, retrying (${currentTry}/${MAX_RETRIES})`,
@@ -139,17 +168,14 @@ const organizationRequest = {
           continue;
         }
 
-        // If we get here, the slug is available
         body.organization_slug = generatedSlug;
 
-        // Now try to register with the available slug
         try {
           responseFromCreateRequest = await OrganizationRequestModel(
             tenant,
           ).register(body, next);
           success = true;
         } catch (registrationError) {
-          // Enhanced error detection for MongoDB errors
           if (
             (registrationError.code === 11000 ||
               registrationError.name === "MongoServerError") &&
@@ -161,7 +187,6 @@ const organizationRequest = {
               `Race condition detected with slug '${generatedSlug}', retrying (${currentTry}/${MAX_RETRIES})`,
             );
           } else {
-            // For other errors, just throw them to be caught by the outer catch
             throw registrationError;
           }
         }
@@ -176,15 +201,7 @@ const organizationRequest = {
         };
       }
 
-      // Handle slug modification message
-      const wasSlugModified = originalSlug !== generatedSlug;
-      if (
-        wasSlugModified &&
-        responseFromCreateRequest &&
-        responseFromCreateRequest.success
-      ) {
-        responseFromCreateRequest.message = `Organization request created successfully. Note: Your slug was modified to '${generatedSlug}' because the original was already taken.`;
-      }
+      // Note: slug was always derived, not user-supplied, so no "slug modified" message needed.
 
       // Send notifications if the request was successful
       if (
@@ -192,9 +209,7 @@ const organizationRequest = {
         responseFromCreateRequest.success === true
       ) {
         try {
-          // Run email notifications in parallel for better performance
           await Promise.all([
-            // Send notification to AirQo Admins
             mailer.notifyAdminsOfNewOrgRequest({
               organization_name: body.organization_name,
               contact_name: body.contact_name,
@@ -202,8 +217,6 @@ const organizationRequest = {
               email: constants.SUPPORT_EMAIL,
               tenant,
             }),
-
-            // Send confirmation to requestor
             mailer.confirmOrgRequestReceived({
               organization_name: body.organization_name,
               contact_name: body.contact_name,
@@ -211,7 +224,6 @@ const organizationRequest = {
             }),
           ]);
         } catch (emailError) {
-          // Log email sending errors but don't fail the request
           logger.error(`Error sending emails: ${emailError.message}`);
           responseFromCreateRequest.emailSendingIssue = true;
         }
