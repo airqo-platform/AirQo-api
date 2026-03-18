@@ -8,7 +8,7 @@ import ast
 from threading import Thread
 from datetime import timedelta
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple, Coroutine, Optional, Generic, TypeVar, Union, List
+from typing import Any, Dict, Tuple, Coroutine, Optional, Generic, TypeVar, List
 from http.client import HTTPResponse
 from cryptography.fernet import Fernet
 import requests
@@ -24,7 +24,6 @@ from ..constants import (
 )
 from ..date import DateUtils
 from ..config import configuration as Config
-from ..storage import GCSFileStorage, FileStorage
 
 logger = logging.getLogger("airflow.task")
 
@@ -231,26 +230,6 @@ class Utils:
         )
 
         return dates
-
-    @staticmethod
-    def test_data(data: pd.DataFrame, bucket_name: str, destination_file: str):
-        """Upload test data to GCS.
-
-        Args:
-            data: DataFrame to upload.
-            bucket_name: GCS bucket name.
-            destination_file: Destination blob path.
-        """
-        filestorage: FileStorage = GCSFileStorage()
-        filestorage.upload_dataframe(
-            bucket=bucket_name,
-            dataframe=data,
-            destination_file=destination_file,
-            format="csv",
-        )
-        logger.info(
-            f"{destination_file} with {len(data)} rows uploaded to {bucket_name}."
-        )
 
     @staticmethod
     def get_calibration_model_path(calibrateby: Any, pollutant: str) -> str:
