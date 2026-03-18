@@ -74,3 +74,23 @@ SELECT
 FROM merged
 GROUP BY country, city, sat_lat, sat_lon, TIMESTAMP_TRUNC(timestamp, HOUR)
 ORDER BY timestamp, country, city;
+
+-- name: satellite_readings_train
+-- All satellite sensor readings from a given date onward (training mode).
+-- Placeholders:
+-- {satellite_data_table} -> fully-qualified satellite data table (project.dataset.table)
+-- {start_date_time}      -> start date string (YYYY-MM-DD)
+
+SELECT DISTINCT *
+FROM {satellite_data_table}
+WHERE DATE(timestamp) >= '{start_date_time}'
+ORDER BY timestamp
+
+-- name: satellite_readings_predict
+-- All satellite sensor readings without a date filter (predict/inference mode).
+-- Placeholders:
+-- {satellite_data_table} -> fully-qualified satellite data table (project.dataset.table)
+
+SELECT DISTINCT *
+FROM {satellite_data_table}
+ORDER BY timestamp

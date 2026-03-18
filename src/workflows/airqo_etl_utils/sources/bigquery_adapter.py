@@ -1,11 +1,10 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
 import logging
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core import exceptions as google_api_exceptions
 
-from airqo_etl_utils.constants import JobAction, ColumnDataType
-from airqo_etl_utils.utils import Utils
+from airqo_etl_utils.constants import JobAction
 
 logger = logging.getLogger("airflow.task")
 

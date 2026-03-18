@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Optional, Dict, Any, Tuple, List, Union
 import logging
 import pandas as pd
 from google.cloud import bigquery
@@ -7,6 +7,10 @@ from google.api_core import exceptions as google_api_exceptions
 from airqo_etl_utils.constants import JobAction
 from .schema_registry import validate_dataframe as validate_against_schema
 from .base import StorageAdapter
+
+from airqo_etl_utils.utils import Result
+
+QueryParameter = Union[bigquery.ScalarQueryParameter, bigquery.ArrayQueryParameter]
 
 logger = logging.getLogger("airflow.task")
 
@@ -78,6 +82,39 @@ class BigQueryAdapter(StorageAdapter):
     def download_query(self, query: str) -> pd.DataFrame:
         result = self.client.query(query).result()
         return result.to_dataframe()
+
+    def execute_query(
+        self,
+        query: str,
+        query_parameters: Optional[List[QueryParameter]] = None,
+        use_cache: bool = True,
+    ) -> Result[pd.DataFrame]:
+        """Execute a SQL query and return the result wrapped in a Result object.
+
+        Supports both ScalarQueryParameter and ArrayQueryParameter via the
+        optional `query_parameters` argument.
+
+        Args:
+            query: The SQL query string to execute.
+            query_parameters: Optional list of BigQuery query parameters
+                (ScalarQueryParameter or ArrayQueryParameter).
+            use_cache: Whether to use BigQuery query cache. Defaults to True.
+
+        Returns:
+            Result[pd.DataFrame] with `data` set on success, or `error` set on failure.
+        """
+        try:
+            job_config = bigquery.QueryJobConfig(use_query_cache=use_cache)
+            if query_parameters:
+                job_config.query_parameters = query_parameters
+            df = self.client.query(query, job_config=job_config).result().to_dataframe()
+            return Result(data=df)
+        except google_api_exceptions.GoogleAPICallError as e:
+            logger.exception(f"BigQuery query execution failed: {e}")
+            return Result(error=str(e))
+        except Exception as e:
+            logger.exception(f"Unexpected error executing BigQuery query: {e}")
+            return Result(error=str(e))
 
 
 __all__ = ["BigQueryAdapter"]
