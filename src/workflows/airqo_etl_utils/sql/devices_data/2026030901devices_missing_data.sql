@@ -61,7 +61,7 @@ actual_data AS (
         TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
     FROM {table}
     WHERE timestamp >= TIMESTAMP('{start_date}')
-      AND timestamp <= TIMESTAMP_ADD(TIMESTAMP('{start_date}'), INTERVAL {n_hours} HOUR)
+      AND timestamp < TIMESTAMP_ADD(TIMESTAMP('{start_date}'), INTERVAL {n_hours} HOUR)
       AND network = '{network}'
       AND ({qualifier_query})
 )

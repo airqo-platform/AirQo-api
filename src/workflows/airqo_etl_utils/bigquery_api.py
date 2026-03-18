@@ -1482,10 +1482,17 @@ class BigQueryApi:
 
         if not data.error:
             data = data.data
+            if not isinstance(data, pd.DataFrame):
+                logger.warning(
+                    "execute_data_query: adapter returned a non-DataFrame payload; returning empty DataFrame"
+                )
+                return pd.DataFrame()
+            if data.empty:
+                logger.warning(
+                    "execute_data_query: query succeeded but returned no rows"
+                )
         else:
-            logger.error(
-                f"Error executing query for devices with missing data: {data.error}"
-            )
+            logger.error(f"execute_data_query error: {data.error}")
             data = pd.DataFrame()
 
         return data

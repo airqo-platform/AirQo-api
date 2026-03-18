@@ -71,23 +71,6 @@ def mock_bigquery_client(monkeypatch):
 
     monkeypatch.setattr(bq_mod, "get_configured_storage", lambda: FakeStorageAdapter())
 
-    # Also ensure BigQueryApi.execute_data_query is patched to prevent any direct
-    # calls to the real BigQuery client during tests. This makes the fixture
-    # robust even if other code paths call execute_data_query directly.
-    def fake_execute_data_query(self, query, use_cache=True, query_parameters=None):
-        if "2023-01-01" in query:
-            return sample_df
-        if "2023-01-02" in query:
-            return fake_data_empty_result
-        if "2023-01-03" in query:
-            # Simulate adapter error handling by returning an empty DataFrame
-            return fake_data_empty_result
-        raise ValueError("Invalid date in query")
-
-    monkeypatch.setattr(
-        bq_mod.BigQueryApi, "execute_data_query", fake_execute_data_query
-    )
-
     return fake_client
 
 
