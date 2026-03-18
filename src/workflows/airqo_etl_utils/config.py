@@ -854,6 +854,7 @@ class Config:
         str(os.getenv("MLFLOW_ENABLE_MODEL_GATING", "false")).lower() == "true"
     )
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
+    FAULT_MODEL_BUCKET = os.getenv("FAULT_MODEL_BUCKET")
 
     # Calibration model training
     CALIBRATION_MODELS_BUCKET = os.getenv("CALIBRATION_MODELS_BUCKET") or os.getenv(

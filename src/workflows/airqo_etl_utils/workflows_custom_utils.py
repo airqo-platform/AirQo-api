@@ -20,6 +20,16 @@ class AirflowUtils:
             "on_failure_callback": AirflowUtils.dag_failure_notification,
         }
 
+    @staticmethod
+    def dag_default_configs_with_retries() -> dict:
+        return {
+            **AirflowUtils.dag_default_configs(),
+            "retries": 3,
+            "retry_delay": timedelta(minutes=10),
+            "retry_exponential_backoff": True,
+            "max_retry_delay": timedelta(minutes=60),
+        }
+
     def __init__(self) -> None:
         super().__init__()
         self.base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").rstrip("/")

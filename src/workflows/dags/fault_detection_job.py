@@ -9,7 +9,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     "AirQo-Fault-Detection",
     tags=["airqo", "fault_detection"],
     schedule="0 1 * * 1",
-    default_args=AirflowUtils.dag_default_configs(),
+    default_args=AirflowUtils.dag_default_configs_with_retries(),
     catchup=False,
 )
 def airqo_fault_detection_dag():
@@ -24,16 +24,16 @@ def airqo_fault_detection_dag():
         return FaultDetectionUtils.flag_rule_based_faults(data)
 
     @task()
-    def flag_pattern_based_faults(data):
-        return FaultDetectionUtils.flag_pattern_based_faults(data)
-
-    @task()
     def get_time_features(data):
         return FaultDetectionUtils.get_time_features(data, Frequency.HOURLY)
 
     @task()
     def get_cyclic_features(data):
         return FaultDetectionUtils.get_cyclic_features(data, Frequency.HOURLY)
+
+    @task()
+    def flag_pattern_based_faults(data):
+        return FaultDetectionUtils.flag_pattern_based_faults(data)
 
     @task()
     def process_faulty_devices_percentage(data):
@@ -50,7 +50,10 @@ def airqo_fault_detection_dag():
     @task()
     def save_to_mongo(rule_faults, percentage_faults, sequence_faults, ml_faults):
         return FaultDetectionUtils.save_faulty_devices(
-            rule_faults, percentage_faults, sequence_faults, ml_faults
+            rule_faults,
+            percentage_faults,
+            sequence_faults,
+            ml_faults,
         )
 
     raw_data = fetch_raw_data()
@@ -73,7 +76,7 @@ def airqo_fault_detection_dag():
     "AirQo-Fault-Detection-Model-Training",
     tags=["airqo", "fault_detection", "training-job"],
     schedule="0 23 * * 0",
-    default_args=AirflowUtils.dag_default_configs(),
+    default_args=AirflowUtils.dag_default_configs_with_retries(),
     catchup=False,
 )
 def airqo_fault_detection_training_dag():
@@ -93,12 +96,17 @@ def airqo_fault_detection_training_dag():
 
     @task()
     def train_model(data):
-        return FaultDetectionUtils.train_fault_detection_model(data)
+        return FaultDetectionUtils.train_fault_detection_model_candidate(data)
+
+    @task()
+    def save_fault_detection_model_task(training_result):
+        return FaultDetectionUtils.save_fault_detection_model(training_result)
 
     training_data = fetch_training_data()
     time_features = build_time_features(training_data)
     cyclic_features = build_cyclic_features(time_features)
-    train_model(cyclic_features)
+    training_result = train_model(cyclic_features)
+    save_fault_detection_model_task(training_result)
 
 
 fault_detection_dag = airqo_fault_detection_dag()

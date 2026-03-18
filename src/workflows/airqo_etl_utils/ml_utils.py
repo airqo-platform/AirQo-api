@@ -39,7 +39,6 @@ logger = logging.getLogger("airflow.task")
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
-fault_model_bucket = configuration.FAULT_MODEL_BUCKET or configuration.FORECAST_MODELS_BUCKET
 environment = configuration.ENVIRONMENT
 additional_columns = ["site_id"]
 
@@ -685,6 +684,7 @@ class FaultDetectionUtils(BaseMlUtils):
     @staticmethod
     def get_fault_model_bucket() -> str:
         """Return the configured bucket for fault model artifacts."""
+        fault_model_bucket = configuration.FAULT_MODEL_BUCKET
         if not fault_model_bucket:
             raise ValueError(
                 "Missing required config: FAULT_MODEL_BUCKET. "
@@ -1067,6 +1067,23 @@ class FaultDetectionUtils(BaseMlUtils):
         bucket_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Train and persist a weekly fault-classification model."""
+        training_result = FaultDetectionUtils.train_fault_detection_model_candidate(
+            df,
+            min_rows=min_rows,
+            model_path=model_path,
+            bucket_name=bucket_name,
+        )
+        return FaultDetectionUtils.save_fault_detection_model(training_result)
+
+    @staticmethod
+    def train_fault_detection_model_candidate(
+        df: pd.DataFrame,
+        *,
+        min_rows: Optional[int] = None,
+        model_path: Optional[str] = None,
+        bucket_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Train a candidate weekly fault-classification model without deploying it."""
         featured = FaultDetectionUtils.prepare_fault_features(df)
         anomaly_scored = FaultDetectionUtils.flag_pattern_based_faults(df)
         weak_labels = anomaly_scored[["device_id", "timestamp", "anomaly_value"]].copy()
@@ -1159,6 +1176,44 @@ class FaultDetectionUtils(BaseMlUtils):
         }
         target_bucket = bucket_name or FaultDetectionUtils.get_fault_model_bucket()
         target_path = model_path or FaultDetectionUtils.DEFAULT_FAULT_MODEL_PATH
+        input_example = model_df[feature_columns].head(5)
+        if input_example.empty:
+            input_example = None
+
+        return {
+            "artifact": artifact,
+            "metrics": metrics,
+            "target_bucket": target_bucket,
+            "target_path": target_path,
+            "input_example": input_example,
+            "params": {
+                "model_type": "LGBMClassifier",
+                "n_estimators": 250,
+                "learning_rate": 0.05,
+                "num_leaves": 31,
+                "min_rows": min_rows,
+                "feature_count": len(feature_columns),
+                "model_path": target_path,
+            },
+        }
+
+    @staticmethod
+    def save_fault_detection_model(training_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Deploy a trained fault model artifact when it beats the current model."""
+        if not isinstance(training_result, dict):
+            raise ValueError("training_result must be a dictionary")
+
+        artifact = training_result.get("artifact")
+        metrics = training_result.get("metrics")
+        target_bucket = training_result.get("target_bucket")
+        target_path = training_result.get("target_path")
+
+        if not isinstance(artifact, dict):
+            raise ValueError("training_result missing trained model artifact")
+        if not isinstance(metrics, dict):
+            raise ValueError("training_result missing model metrics")
+        if not target_bucket or not target_path:
+            raise ValueError("training_result missing deployment target details")
 
         deployment = FaultDetectionUtils._deploy_if_better(
             bucket_name=target_bucket,
@@ -1166,8 +1221,9 @@ class FaultDetectionUtils(BaseMlUtils):
             blob_name=target_path,
             new_metrics=metrics,
         )
-        metrics["deployed"] = deployment["deployed"]
-        metrics["deployment_reason"] = deployment["reason"]
+        deployed_metrics = dict(metrics)
+        deployed_metrics["deployed"] = deployment["deployed"]
+        deployed_metrics["deployment_reason"] = deployment["reason"]
 
         tracker = MlflowTracker(
             tracking_uri=configuration.MLFLOW_TRACKING_URI,
@@ -1177,21 +1233,13 @@ class FaultDetectionUtils(BaseMlUtils):
             model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
             enabled=True,
         )
-        input_example = model_df[feature_columns].head(5)
-        if input_example.empty:
+        input_example = training_result.get("input_example")
+        if isinstance(input_example, pd.DataFrame) and input_example.empty:
             input_example = None
         tracker.log_run(
             run_name="fault-detection-weekly-training",
-            params={
-                "model_type": "LGBMClassifier",
-                "n_estimators": 250,
-                "learning_rate": 0.05,
-                "num_leaves": 31,
-                "min_rows": min_rows,
-                "feature_count": len(feature_columns),
-                "model_path": target_path,
-            },
-            metrics=metrics,
+            params=training_result.get("params", {}),
+            metrics=deployed_metrics,
             tags={
                 "pipeline": "fault_detection",
                 "model_kind": "classification",
@@ -1199,12 +1247,12 @@ class FaultDetectionUtils(BaseMlUtils):
                 "deployed": str(deployment["deployed"]).lower(),
                 "bucket_name": target_bucket,
             },
-            model=classifier,
+            model=artifact["model"],
             model_artifact_path="model",
             input_example=input_example,
         )
 
-        return metrics
+        return deployed_metrics
 
     @staticmethod
     def flag_ml_based_faults(

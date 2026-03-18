@@ -86,6 +86,10 @@ def load_fault_detection_module():
         def dag_default_configs():
             return {"owner": "AirQo"}
 
+        @staticmethod
+        def dag_default_configs_with_retries():
+            return {"owner": "AirQo", "retries": 3}
+
     workflow_utils_module.AirflowUtils = StubAirflowUtils
 
     ml_utils_module = types.ModuleType("airqo_etl_utils.ml_utils")
@@ -125,6 +129,14 @@ def load_fault_detection_module():
 
         @staticmethod
         def train_fault_detection_model(data):
+            return data
+
+        @staticmethod
+        def train_fault_detection_model_candidate(data):
+            return data
+
+        @staticmethod
+        def save_fault_detection_model(data):
             return data
 
     ml_utils_module.FaultDetectionUtils = StubFaultDetectionUtils
@@ -212,7 +224,23 @@ def test_fault_detection_training_dag_configuration():
         "build_time_features",
         "build_cyclic_features",
         "train_model",
+        "save_fault_detection_model_task",
     }
 
+    fetch_task = fault_detection_training_dag.get_task("fetch_training_data")
+    time_feature_task = fault_detection_training_dag.get_task("build_time_features")
+    cyclic_feature_task = fault_detection_training_dag.get_task(
+        "build_cyclic_features"
+    )
     train_task = fault_detection_training_dag.get_task("train_model")
+    save_task = fault_detection_training_dag.get_task(
+        "save_fault_detection_model_task"
+    )
+
+    assert fetch_task.upstream_task_ids == set()
+    assert time_feature_task.upstream_task_ids == {"fetch_training_data"}
+    assert cyclic_feature_task.upstream_task_ids == {"build_time_features"}
     assert train_task.upstream_task_ids == {"build_cyclic_features"}
+    assert save_task.upstream_task_ids == {
+        "train_model"
+    }
