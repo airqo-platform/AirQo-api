@@ -1470,38 +1470,25 @@ class BigQueryApi:
         Raises:
             google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
-        # Prefer configured storage adapter when available (returns Result[dataframe])
-        try:
-            from airqo_etl_utils.storage import get_configured_storage
-        except Exception:
-            get_configured_storage = None
-
-        if get_configured_storage:
-            storage_adapter = get_configured_storage()
-        else:
-            storage_adapter = None
-
-        if storage_adapter is not None:
-            result = storage_adapter.execute_query(
-                query=query, query_parameters=query_parameters, use_cache=use_cache
+        storage_adapter = get_configured_storage()
+        if storage_adapter is None:
+            raise RuntimeError(
+                "No configured storage adapter available; set STORAGE_BACKEND or check configuration"
             )
-            if not result.error:
-                return result.data
-            logger.error(f"Error executing query via storage adapter: {result.error}")
-            return pd.DataFrame()
 
-        # Fallback: execute query directly via BigQuery client (propagate exceptions)
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = use_cache
-        if query_parameters:
-            job_config.query_parameters = query_parameters
-
-        df = (
-            self.client.query(query=query, job_config=job_config)
-            .result()
-            .to_dataframe()
+        data = storage_adapter.execute_query(
+            query=query, query_parameters=query_parameters, use_cache=use_cache
         )
-        return df
+
+        if not data.error:
+            data = data.data
+        else:
+            logger.error(
+                f"Error executing query for devices with missing data: {data.error}"
+            )
+            data = pd.DataFrame()
+
+        return data
 
     def batch_update_records(
         self,
