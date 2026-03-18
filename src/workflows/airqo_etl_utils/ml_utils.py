@@ -1398,10 +1398,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 "model_kind": model_kind,
                 "target": target,
                 "decision_reason": deployment["reason"],
-                "deployed": str(deployment["deployed"]).lower(),
             },
+            deployed=deployment["deployed"],
             model=model,
             model_artifact_path="model",
+            dataset=df,
+            dataset_date_col=date_col,
             input_example=input_example,
         )
 
@@ -1524,10 +1526,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 "target": target,
                 "alpha": str(alpha),
                 "decision_reason": deployment["reason"],
-                "deployed": str(deployment["deployed"]).lower(),
             },
+            deployed=deployment["deployed"],
             model=model,
             model_artifact_path="model",
+            dataset=df,
+            dataset_date_col=date_col,
             input_example=input_example,
         )
 
@@ -1652,18 +1656,17 @@ class ForecastModelTrainer(BaseMlUtils):
         return out
 
     @staticmethod
-    def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
-        """Run quarterly retraining of site-level PM2.5 forecast models.
+    def fetch_site_forecast_training_data() -> pd.DataFrame:
+        """Fetch site-level daily aggregates for quarterly forecast retraining.
 
-        Pulls 90 months of consolidated daily site data from BigQuery,
-        engineers features, and trains mean + quantile (10th/90th) models.
-        Each model is deployed only if it outperforms the existing artifact.
+        Uses a configurable month lookback window to keep the dataset size
+        aligned with Airflow task memory/XCom limits.
 
         Returns:
-            Dict mapping model label to metrics with deployment metadata.
+            Raw site-level daily aggregates.
 
         Raises:
-            ValueError: On missing configuration, empty data, or no features.
+            ValueError: On missing configuration, invalid scope, or empty data.
         """
         storage_adapter = get_configured_storage()
         if storage_adapter is None:
@@ -1674,7 +1677,21 @@ class ForecastModelTrainer(BaseMlUtils):
 
         query: str = ""
         current_date = datetime.today()
-        start_date = current_date - relativedelta(months=90)
+        try:
+            lookback_months = int(
+                configuration.SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be a valid integer."
+            ) from exc
+
+        if lookback_months < 1:
+            raise ValueError(
+                "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be greater than 0."
+            )
+
+        start_date = current_date - relativedelta(months=lookback_months)
 
         start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
         end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
@@ -1699,24 +1716,25 @@ class ForecastModelTrainer(BaseMlUtils):
                 "No site forecast training data found in the selected period."
             )
 
-        featured_data = ForecastSiteUtils.add_time_lag_roll_features(
-            raw_data,
-            date_col="day",
-            site_col="site_id",
-            target_col="pm25_mean",
-            lags=(1, 2, 3, 7, 14),
-            rolling_window=(7, 14),
-            roll_shift=1,
-            dropna=True,
-        )
+        return raw_data
 
-        if featured_data.empty:
-            raise ValueError("Feature engineering produced an empty dataframe.")
+    @staticmethod
+    def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
+        """Run quarterly retraining of site-level PM2.5 forecast models.
 
-        featured_data = featured_data.copy()
-        featured_data["site_id_code"] = (
-            featured_data["site_id"].astype("category").cat.codes
-        )
+        Pulls site-level consolidated daily data from BigQuery using the
+        configured lookback window, engineers features, and trains mean +
+        quantile (10th/90th) models. Each model is deployed only if it
+        outperforms the existing artifact.
+
+        Returns:
+            Dict mapping model label to metrics with deployment metadata.
+
+        Raises:
+            ValueError: On missing configuration, empty data, or no features.
+        """
+        raw_data = ForecastModelTrainer.fetch_site_forecast_training_data()
+        featured_data = ForecastModelTrainer._build_site_forecast_features(raw_data)
 
         excluded = {"day", "site_id", "site_name", "pm25_mean", "pm25_min", "pm25_max"}
         features = [
@@ -1774,13 +1792,13 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:
-        """Engineer time/lag/rolling features and one-hot-encode site IDs.
+        """Engineer time/lag/rolling features and compactly encode site IDs.
 
         Args:
             raw_data: DataFrame with 'day', 'site_id', and 'pm25_mean' columns.
 
         Returns:
-            Feature-engineered DataFrame with site dummy columns.
+            Feature-engineered DataFrame with numeric site codes.
 
         Raises:
             ValueError: If feature engineering produces an empty result.
@@ -1800,11 +1818,8 @@ class ForecastModelTrainer(BaseMlUtils):
             raise ValueError("Feature engineering produced an empty dataframe.")
 
         featured_data = featured_data.copy()
-        featured_data = pd.get_dummies(
-            featured_data,
-            columns=["site_id"],
-            prefix="site",
-            dtype="int64",
+        featured_data["site_id_code"] = (
+            featured_data["site_id"].astype("category").cat.codes
         )
 
         return featured_data
@@ -1823,7 +1838,9 @@ class ForecastModelTrainer(BaseMlUtils):
             "site_id",
             "site_name",
             "pm25_mean",
+            "pm25_low",
             "pm25_min",
+            "pm25_high",
             "pm25_max",
             "n_hours",
         }
