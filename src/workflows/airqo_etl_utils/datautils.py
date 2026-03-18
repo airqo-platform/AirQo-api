@@ -11,7 +11,7 @@ import ast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs, drop_rows_with_bad_data
+from airqo_etl_utils.storage import GCSFileStorage, FileStorage
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
@@ -27,7 +27,7 @@ from .constants import (
 )
 from .message_broker_utils import MessageBrokerUtils
 
-from airqo_etl_utils.utils import Utils
+from airqo_etl_utils.utils import Utils, drop_rows_with_bad_data
 from .date import DateUtils
 from .data_validator import DataValidationUtils
 
@@ -556,15 +556,15 @@ class DataUtils:
 
         Note:
             Downloads from GCS only if local cache file is not available.
-            Uses download_file_from_gcs() utility for GCS operations.
+            Uses GCSFileStorage() utility for GCS operations.
         """
+        storage: FileStorage = GCSFileStorage()
+
         try:
             file = Path(local_file_path)
             if not file.exists() or file.stat().st_size == 0:
-                download_file_from_gcs(
-                    bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                    source_file=f"{file_name}.csv",
-                    destination_file=local_file_path,
+                storage.download_file(
+                    Config.AIRFLOW_XCOM_BUCKET, f"{file_name}.csv", local_file_path
                 )
             data = pd.read_csv(local_file_path)
             if not data.empty:
