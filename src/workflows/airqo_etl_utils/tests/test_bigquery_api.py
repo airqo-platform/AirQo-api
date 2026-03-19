@@ -2,11 +2,7 @@ from unittest import mock
 import pandas as pd
 import unittest
 from airqo_etl_utils.bigquery_api import BigQueryApi
-import pandas as pd
 import pytest
-
-from airqo_etl_utils.bigquery_api import BigQueryApi
-
 
 from airqo_etl_utils.utils import Result
 
