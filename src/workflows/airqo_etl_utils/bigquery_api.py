@@ -1323,6 +1323,66 @@ class BigQueryApi:
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
+    def fetch_raw_site_data_for_forecast_jobs(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        min_hours: int = 16,
+    ) -> pd.DataFrame:
+        """Fetch daily site aggregates from the raw events table for forecasting.
+
+        The site-level quarterly models are trained on daily site aggregates, so
+        this helper rolls raw PM2.5 readings up to one row per site/day and
+        joins site metadata to recover human-readable site names.
+        """
+        if min_hours <= 0:
+            raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
+
+        try:
+            start_date = pd.to_datetime(start_date_time).date()
+            end_date = pd.to_datetime(end_date_time).date()
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid date format. start_date_time='{start_date_time}', end_date_time='{end_date_time}'"
+            ) from e
+
+        if start_date > end_date:
+            raise ValueError(
+                f"start_date_time must be <= end_date_time, got {start_date} > {end_date}"
+            )
+
+        if not self.raw_measurements_table:
+            raise ValueError("Missing required config: BIGQUERY_RAW_EVENTS_TABLE.")
+
+        if not self.sites_table:
+            raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
+
+        pm25_expr = "COALESCE(t1.pm2_5, t1.s1_pm2_5, t1.s2_pm2_5)"
+        query = f"""
+        SELECT
+            DATE(t1.timestamp) AS day,
+            t1.site_id,
+            ANY_VALUE(COALESCE(t2.display_name, t2.name, t1.site_id)) AS site_name,
+            AVG({pm25_expr}) AS pm25_mean,
+            MIN({pm25_expr}) AS pm25_min,
+            MAX({pm25_expr}) AS pm25_max,
+            COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS n_hours
+        FROM `{self.raw_measurements_table}` AS t1
+        LEFT JOIN `{self.sites_table}` AS t2
+            ON t1.site_id = t2.id
+        WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
+            AND t1.site_id IS NOT NULL
+            AND {pm25_expr} IS NOT NULL
+        GROUP BY day, t1.site_id
+        HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
+        ORDER BY day, t1.site_id
+        """
+
+        try:
+            return self.execute_data_query(query=query)
+        except Exception as e:
+            raise RuntimeError(f"Error fetching raw site forecast data: {e}")
+
     def fetch_device_data_for_satellite_job(
         self,
         start_date_time: str,

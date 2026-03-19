@@ -2,8 +2,11 @@ import pandas as pd
 import pytest
 from unittest.mock import MagicMock
 
-from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils
+from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer
 from airqo_etl_utils.tests.conftest import ForecastFixtures
+from airqo_etl_utils.tests.test_7days_forecast import (
+    build_synthetic_site_forecast_history,
+)
 from airqo_etl_utils.constants import Frequency
 
 
@@ -171,3 +174,93 @@ class TestsForecasts(ForecastFixtures):
             FUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
             mock_collection = getattr(mock_db, collection_name)
             assert mock_collection.update_one.call_count == 0
+
+
+class DummyForecastModel:
+    def __init__(self, offset: float):
+        self.offset = offset
+
+    def predict(self, frame):
+        base = frame["pm25_mean_lag_1"].fillna(frame["roll7_mean"]).fillna(0.0)
+        return (base + self.offset).to_numpy()
+
+
+def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
+    synthetic_history = build_synthetic_site_forecast_history(
+        num_sites=3,
+        num_days=45,
+        seed=7,
+    )
+    feature_columns = [
+        "day_of_week",
+        "day_of_year",
+        "month",
+        "pm25_mean_lag_1",
+        "pm25_mean_lag_2",
+        "pm25_mean_lag_3",
+        "pm25_mean_lag_7",
+        "pm25_mean_lag_14",
+        "roll7_mean",
+        "roll7_std",
+        "roll14_mean",
+        "roll14_std",
+        "site_id_code",
+    ]
+    site_mapping = {
+        site_id: idx
+        for idx, site_id in enumerate(sorted(synthetic_history["site_id"].unique()))
+    }
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_load_site_forecast_artifacts",
+        staticmethod(
+            lambda: {
+                "mean": {
+                    "model": DummyForecastModel(0.5),
+                    "features": feature_columns,
+                    "site_id_mapping": site_mapping,
+                },
+                "min": {
+                    "model": DummyForecastModel(-1.0),
+                    "features": feature_columns,
+                    "site_id_mapping": site_mapping,
+                },
+                "max": {
+                    "model": DummyForecastModel(2.0),
+                    "features": feature_columns,
+                    "site_id_mapping": site_mapping,
+                },
+                "low": {
+                    "model": DummyForecastModel(-0.5),
+                    "features": feature_columns,
+                    "site_id_mapping": site_mapping,
+                },
+                "high": {
+                    "model": DummyForecastModel(1.5),
+                    "features": feature_columns,
+                    "site_id_mapping": site_mapping,
+                },
+            }
+        ),
+    )
+
+    forecasts = ForecastModelTrainer.generate_site_daily_forecasts(
+        synthetic_history,
+        horizon=7,
+    )
+
+    assert len(forecasts) == 21
+    assert forecasts["site_id"].nunique() == 3
+    assert forecasts.groupby("site_id")["date"].nunique().eq(7).all()
+    assert {
+        "site_name",
+        "site_id",
+        "date",
+        "pm2_5_mean",
+        "pm2_5_min",
+        "pm2_5_max",
+        "pm2_5_low",
+        "pm2_5_high",
+        "created_at",
+    }.issubset(forecasts.columns)

@@ -1,0 +1,47 @@
+[
+  {
+    "name": "site_name",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "date",
+    "type": "DATE",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "pm2_5_mean",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5_min",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5_max",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5_low",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5_high",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "created_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  }
+]

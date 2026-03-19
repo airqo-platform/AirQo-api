@@ -59,6 +59,7 @@ class Config:
     BIGQUERY_DAILY_FORECAST_EVENTS_TABLE = os.getenv(
         "BIGQUERY_DAILY_FORECAST_EVENTS_TABLE"
     )
+    DAILY_FORECAST_TABLE = os.getenv("DAILY_FORECAST_TABLE")
     BIGQUERY_HOURLY_WEATHER_TABLE = os.getenv("BIGQUERY_HOURLY_WEATHER_TABLE")
     BIGQUERY_OPENWEATHERMAP_TABLE = os.getenv("BIGQUERY_OPENWEATHERMAP_TABLE")
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
@@ -548,6 +549,7 @@ class Config:
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
+        DAILY_FORECAST_TABLE: "site_daily_forecasts.json",
         BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
         BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE: "satelite_airquality_data_copernicus_temp.json",
         BIGQUERY_GX_RESULTS_TABLE: "airqo_data_quality_checks.json",
@@ -847,6 +849,14 @@ class Config:
     )
     HOURLY_FORECAST_HORIZON = os.getenv("HOURLY_FORECAST_HORIZON")
     DAILY_FORECAST_HORIZON = os.getenv("DAILY_FORECAST_HORIZON")
+    MONGO_SITE_DAILY_FORECAST_COLLECTION = os.getenv(
+        "MONGO_SITE_DAILY_FORECAST_COLLECTION", "site_7days_daily_forecasts"
+    )
+    AWS_SITE_DAILY_FORECAST_BUCKET = os.getenv("AWS_SITE_DAILY_FORECAST_BUCKET")
+    AWS_SITE_DAILY_FORECAST_KEY = os.getenv(
+        "AWS_SITE_DAILY_FORECAST_KEY",
+        "site_daily_forecasts/site_daily_forecasts.csv",
+    )
     SATELLITE_TRAINING_SCOPE = os.getenv("SATELLITE_TRAINING_SCOPE")
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
