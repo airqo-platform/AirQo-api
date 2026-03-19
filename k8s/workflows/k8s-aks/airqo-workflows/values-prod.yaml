@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-redis
     containers: airqoacr.azurecr.io/airqo-workflows
-  tag: prod-28b1b5f0-1773837754
+  tag: prod-f1841a3d-1773922063
 resources:
   initContainer:
     requests:
@@ -36,17 +36,17 @@ resources:
   celery:
     requests:
       cpu: 125m
-      memory: 500Mi
+      memory: 1000Mi
     limits:
       cpu: 3000m
       memory: 4000Mi
   redis:
     requests:
       cpu: 50m
-      memory: 10Mi
+      memory: 64Mi
     limits:
       cpu: 300m
-      memory: 50Mi
+      memory: 256Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

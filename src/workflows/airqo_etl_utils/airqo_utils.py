@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Tuple, Union, Optional
 
-from .commons import drop_rows_with_bad_data
 from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
@@ -22,7 +21,7 @@ from airqo_etl_utils.storage import get_configured_storage
 from .data_validator import DataValidationUtils
 from .date import DateUtils
 from airqo_etl_utils.storage import FileStorage, GCSFileStorage
-from airqo_etl_utils.utils import Utils
+from airqo_etl_utils.utils import Utils, drop_rows_with_bad_data
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from .meta_data_utils import MetaDataUtils
