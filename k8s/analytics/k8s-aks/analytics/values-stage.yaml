@@ -28,10 +28,10 @@ api:
     redis:
       requests:
         cpu: 50m
-        memory: 10Mi
+        memory: 64Mi
       limits:
         cpu: 300m
-        memory: 50Mi
+        memory: 256Mi
 jobs:
   reports:
     name: stage-analytics-report

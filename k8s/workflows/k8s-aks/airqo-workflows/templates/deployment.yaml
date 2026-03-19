@@ -73,7 +73,7 @@ spec:
             - secretRef:
                 name: {{ .Values.app.secret }}
           command: ["airflow"]
-          args: ["celery", "worker", "--autoscale=6,2"]
+          args: ["celery", "worker", "--autoscale=4,2"]
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
