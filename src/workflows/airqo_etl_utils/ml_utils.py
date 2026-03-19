@@ -1656,17 +1656,23 @@ class ForecastModelTrainer(BaseMlUtils):
         return out
 
     @staticmethod
-    def fetch_site_forecast_training_data() -> pd.DataFrame:
+    def fetch_site_forecast_training_data(
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> pd.DataFrame:
         """Fetch site-level daily aggregates for quarterly forecast retraining.
 
         Uses a configurable month lookback window to keep the dataset size
-        aligned with Airflow task memory/XCom limits.
+        aligned with Airflow task memory/XCom limits. Manual Airflow trigger
+        runs may override the default window by passing ``start_date`` and
+        ``end_date`` as ``YYYY-MM-DD`` strings.
 
         Returns:
             Raw site-level daily aggregates.
 
         Raises:
-            ValueError: On missing configuration, invalid scope, or empty data.
+            ValueError: On missing configuration, invalid scope, invalid custom
+                dates, or empty data.
         """
         storage_adapter = get_configured_storage()
         if storage_adapter is None:
@@ -1676,25 +1682,56 @@ class ForecastModelTrainer(BaseMlUtils):
             )
 
         query: str = ""
-        current_date = datetime.today()
-        try:
-            lookback_months = int(
-                configuration.SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS
-            )
-        except (TypeError, ValueError) as exc:
+        if (start_date and not end_date) or (end_date and not start_date):
             raise ValueError(
-                "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be a valid integer."
-            ) from exc
-
-        if lookback_months < 1:
-            raise ValueError(
-                "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be greater than 0."
+                "Both start_date and end_date must be provided together for a custom training window."
             )
 
-        start_date = current_date - relativedelta(months=lookback_months)
+        if start_date and end_date:
+            try:
+                custom_start_date = datetime.strptime(start_date, "%Y-%m-%d")
+                custom_end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            except ValueError as exc:
+                raise ValueError(
+                    "Custom start_date and end_date must be in YYYY-MM-DD format."
+                ) from exc
 
-        start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
-        end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
+            if custom_start_date > custom_end_date:
+                raise ValueError("start_date must be less than or equal to end_date.")
+
+            start_date_str = DateUtils.date_to_str(
+                custom_start_date, str_format="%Y-%m-%d"
+            )
+            end_date_str = DateUtils.date_to_str(
+                custom_end_date, str_format="%Y-%m-%d"
+            )
+            logger.info(
+                "Using custom site forecast training window from manual DAG trigger: %s to %s",
+                start_date_str,
+                end_date_str,
+            )
+        else:
+            current_date = datetime.today()
+            try:
+                lookback_months = int(
+                    configuration.SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS
+                )
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be a valid integer."
+                ) from exc
+
+            if lookback_months < 1:
+                raise ValueError(
+                    "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be greater than 0."
+                )
+
+            default_start_date = current_date - relativedelta(months=lookback_months)
+
+            start_date_str = DateUtils.date_to_str(
+                default_start_date, str_format="%Y-%m-%d"
+            )
+            end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
 
         if query_manager.query_exists("consolidated_site_daily_aggregated"):
             query = query_manager.get_query("consolidated_site_daily_aggregated")
