@@ -20,7 +20,7 @@ from airqo_etl_utils.constants import (
 )
 from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.config import configuration as Config
-from airqo_etl_utils.commons import upload_dataframe_to_gcs
+from airqo_etl_utils.storage import GCSFileStorage, FileStorage
 
 
 @dag(
@@ -222,11 +222,13 @@ def cache_devices_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_devices(devices: pd.DataFrame) -> None:
-        if not devices.empty:
-            return upload_dataframe_to_gcs(
-                bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                contents=devices,
+        storage: FileStorage = GCSFileStorage()
+        if not devices.empty and storage is not None:
+            storage.upload_dataframe(
+                Config.AIRFLOW_XCOM_BUCKET,
+                devices,
                 destination_file="devices.csv",
+                format="csv",
             )
 
     extracted_devices = extract_devices()
@@ -406,12 +408,13 @@ def cache_sites_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_sites(sites: pd.DataFrame) -> None:
-
-        if not sites.empty:
-            return upload_dataframe_to_gcs(
-                bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                contents=sites,
+        storage: FileStorage = GCSFileStorage()
+        if not sites.empty and storage is not None:
+            storage.upload_dataframe(
+                Config.AIRFLOW_XCOM_BUCKET,
+                sites,
                 destination_file="sites.csv",
+                format="csv",
             )
 
     extracted_sites = extract_sites()
