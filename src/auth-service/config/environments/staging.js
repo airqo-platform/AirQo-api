@@ -24,7 +24,7 @@ const stageConfig = {
   ENVIRONMENT: "STAGING ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   GROUPS_TOPIC: process.env.GROUPS_TOPIC_STAGE || "groups-topic",
@@ -38,7 +38,7 @@ const stageConfig = {
   REDIS_PORT: process.env.STAGE_REDIS_PORT,
   SELECTED_SITES: process.env.SELECTED_SITES_STAGING
     ? process.env.SELECTED_SITES_STAGING.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   API_TOKEN: process.env.STAGE_API_TOKEN,
@@ -56,6 +56,15 @@ const stageConfig = {
   POSTHOG_ENABLED: process.env.STAGE_POSTHOG_ENABLED === "true" || false,
   POSTHOG_TRACK_API_REQUESTS:
     process.env.STAGE_POSTHOG_TRACK_API_REQUESTS === "true" || false,
+  GITHUB_CLIENT_ID: process.env.STAGE_GITHUB_CLIENT_ID,
+  GITHUB_CLIENT_SECRET: process.env.STAGE_GITHUB_CLIENT_SECRET,
+  LINKEDIN_CLIENT_ID: process.env.STAGE_LINKEDIN_CLIENT_ID,
+  LINKEDIN_CLIENT_SECRET: process.env.STAGE_LINKEDIN_CLIENT_SECRET,
+  MICROSOFT_CLIENT_ID: process.env.STAGE_MICROSOFT_CLIENT_ID,
+  MICROSOFT_CLIENT_SECRET: process.env.STAGE_MICROSOFT_CLIENT_SECRET,
+  TWITTER_CONSUMER_KEY: process.env.STAGE_TWITTER_CONSUMER_KEY,
+  TWITTER_CONSUMER_SECRET: process.env.STAGE_TWITTER_CONSUMER_SECRET,
+  TWITTER_BEARER_TOKEN: process.env.STAGE_TWITTER_BEARER_TOKEN,
 };
 
 module.exports = stageConfig;

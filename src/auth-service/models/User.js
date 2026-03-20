@@ -332,6 +332,9 @@ const UserSchema = new Schema(
       },
     },
     google_id: { type: String, trim: true },
+    linkedin_id: { type: String, trim: true },
+    twitter_id: { type: String, trim: true },
+    github_id: { type: String, trim: true },
     timezone: { type: String, trim: true },
     preferredTokenStrategy: {
       type: String,

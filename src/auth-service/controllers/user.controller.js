@@ -213,6 +213,89 @@ const userController = {
     }
   },
 
+  /**
+   * Generic OAuth callback controller.
+   * Works for any provider (google, linkedin, twitter, …).
+   * Generates a JWT, sets the access_token cookie, and redirects.
+   */
+  oauthCallback: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors)
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      if (!req.user) {
+        logger.error("oauthCallback: req.user is not set after passport auth");
+        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+      }
+
+      const { tenant } = request.query;
+
+      // Role cleanup & fresh user fetch (same pattern as googleCallback)
+      await userUtil.ensureDefaultAirqoRole(req.user, tenant);
+      const freshUser = await UserModel(tenant).findById(req.user._id);
+      if (!freshUser) {
+        logger.error(
+          `oauthCallback: user ${req.user._id} not found after refresh`,
+        );
+        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+      }
+
+      const userDetails = await freshUser.toAuthJSON();
+      const token = userDetails.token;
+
+      logger.info("OAuth login succeeded", {
+        userId: req.user._id,
+        provider: req.params.provider || req.oauthProvider || "google",
+      });
+
+      // Fire-and-forget stats update
+      (async () => {
+        try {
+          const currentDate = new Date();
+          await UserModel(tenant).findByIdAndUpdate(
+            req.user._id,
+            {
+              $set: { lastLogin: currentDate, isActive: true },
+              $inc: { loginCount: 1 },
+              ...(req.user.analyticsVersion !== 3 && req.user.verified === false
+                ? { $set: { verified: true } }
+                : {}),
+            },
+            { new: true, upsert: false, runValidators: true },
+          );
+        } catch (error) {
+          logger.error(`oauthCallback stats update error: ${stringify(error)}`);
+        }
+      })();
+
+      // Set secure HTTP-only cookie
+      res.cookie("access_token", token, {
+        httpOnly: true,
+        secure: true,
+      });
+
+      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+        res.cookie("temp_access_token", token, {
+          httpOnly: false,
+          secure: true,
+        });
+      }
+
+      return res.redirect(
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=${
+          req.params.provider || "oauth"
+        }`,
+      );
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   verify: async (req, res, next) => {
     try {
       if (!res.headersSent) {
