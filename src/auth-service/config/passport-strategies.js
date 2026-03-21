@@ -12,10 +12,11 @@ const logger = log4js.getLogger(
 
 /**
  * Builds the full callback URL for a given provider.
- * Uses the generic /auth/callback/:provider pattern.
+ * Trims any trailing slash from PLATFORM_BASE_URL to prevent double-slash
+ * URLs e.g. "http://localhost:3000//api/v2/users/auth/callback/google".
  */
 function buildCallbackURL(provider) {
-  const base = constants.PLATFORM_BASE_URL || "";
+  const base = (constants.PLATFORM_BASE_URL || "").replace(/\/+$/, "");
   const url = `${base}/api/v2/users/auth/callback/${provider}`;
   logger.info(`[passport-strategies] callbackURL for ${provider}: ${url}`);
   return url;
@@ -23,20 +24,24 @@ function buildCallbackURL(provider) {
 
 /**
  * Shared strategy callback factory.
- * Avoids repeating the same try/catch/handleOAuthProfile pattern
- * for every provider.
+ * Avoids repeating the same try/catch/handleOAuthProfile pattern for every
+ * provider. Logs only non-PII identifiers (provider name + profile.id) to
+ * prevent personal data leaking into log files.
  *
- * @param {string} provider - Provider name e.g. "google", "github"
- * @param {string} tenant   - Tenant identifier
- * @param {string} [emailRequiredMessage] - Custom error when no email is returned
+ * @param {string} provider              - Provider name e.g. "google", "github"
+ * @param {string} tenant                - Tenant identifier
+ * @param {string} [emailRequiredMessage]- Custom error when no email is returned
  */
 function makeStrategyCallback(provider, tenant, emailRequiredMessage) {
   return async (req, accessToken, refreshToken, profile, cb) => {
     try {
-      logObject(`${provider} OAuth profile (_json)`, profile._json);
+      // Log only non-PII identifiers — never dump profile._json which
+      // contains email, name, avatar and other personal fields.
+      logger.info(`[passport-strategies] ${provider} OAuth callback received`, {
+        provider,
+        profileId: profile.id || "unknown",
+      });
 
-      // Some providers (GitHub, Twitter) may not return an email
-      // if the user has no public/verified email configured.
       const email =
         (profile.emails && profile.emails[0] && profile.emails[0].value) ||
         (profile._json && profile._json.email) ||
@@ -49,7 +54,8 @@ function makeStrategyCallback(provider, tenant, emailRequiredMessage) {
           `Your ${provider} account does not have a verified email address. ` +
             `Please add one to your ${provider} account and try again.`;
         logger.error(
-          `${provider} OAuth: no email returned for profile id ${profile.id}`,
+          `[passport-strategies] ${provider} OAuth: no email returned`,
+          { provider, profileId: profile.id || "unknown" },
         );
         return cb(new Error(message), false);
       }
@@ -58,7 +64,8 @@ function makeStrategyCallback(provider, tenant, emailRequiredMessage) {
 
       if (!result.success) {
         logger.error(
-          `${provider} OAuth profile handling failed: ${result.message}`,
+          `[passport-strategies] ${provider} OAuth profile handling failed: ` +
+            `${result.message}`,
         );
         return cb(
           new Error(result.message || `${provider} authentication failed`),
@@ -69,7 +76,8 @@ function makeStrategyCallback(provider, tenant, emailRequiredMessage) {
       return cb(null, result.user);
     } catch (error) {
       logger.error(
-        `Unhandled error in ${provider} strategy callback: ${error.message}`,
+        `[passport-strategies] Unhandled error in ${provider} strategy ` +
+          `callback: ${error.message}`,
       );
       return cb(error, false);
     }
@@ -79,7 +87,8 @@ function makeStrategyCallback(provider, tenant, emailRequiredMessage) {
 /**
  * Configures all supported OAuth strategies on the supplied passport instance.
  * Each strategy is only registered if its credentials are present in constants.
- * Adding a new provider in future only requires adding a new block here.
+ * state: true is set on all OAuth2 strategies to enable Passport's built-in
+ * CSRF/state parameter validation.
  *
  * Currently supported: google, github, linkedin, microsoft, twitter
  *
@@ -97,6 +106,7 @@ function configureStrategies(passport, tenant) {
           clientSecret: constants.GOOGLE_CLIENT_SECRET,
           callbackURL: buildCallbackURL("google"),
           passReqToCallback: true,
+          state: true,
         },
         makeStrategyCallback("google", tenant),
       ),
@@ -104,7 +114,8 @@ function configureStrategies(passport, tenant) {
     logger.info("✅ Google OAuth strategy configured");
   } else {
     logger.warn(
-      "⚠️  Google OAuth strategy skipped: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set",
+      "⚠️  Google OAuth strategy skipped: GOOGLE_CLIENT_ID or " +
+        "GOOGLE_CLIENT_SECRET not set",
     );
   }
 
@@ -117,10 +128,9 @@ function configureStrategies(passport, tenant) {
           clientID: constants.GITHUB_CLIENT_ID,
           clientSecret: constants.GITHUB_CLIENT_SECRET,
           callbackURL: buildCallbackURL("github"),
-          // user:email scope is required to retrieve email addresses
-          // that may not be public on the GitHub profile
           scope: ["user:email"],
           passReqToCallback: true,
+          state: true,
         },
         makeStrategyCallback(
           "github",
@@ -133,7 +143,8 @@ function configureStrategies(passport, tenant) {
     logger.info("✅ GitHub OAuth strategy configured");
   } else {
     logger.warn(
-      "⚠️  GitHub OAuth strategy skipped: GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET not set",
+      "⚠️  GitHub OAuth strategy skipped: GITHUB_CLIENT_ID or " +
+        "GITHUB_CLIENT_SECRET not set",
     );
   }
 
@@ -151,6 +162,7 @@ function configureStrategies(passport, tenant) {
             callbackURL: buildCallbackURL("linkedin"),
             scope: ["r_emailaddress", "r_liteprofile"],
             passReqToCallback: true,
+            state: true,
           },
           makeStrategyCallback(
             "linkedin",
@@ -163,13 +175,14 @@ function configureStrategies(passport, tenant) {
       logger.info("✅ LinkedIn OAuth strategy configured");
     } catch (e) {
       logger.warn(
-        "⚠️  LinkedIn OAuth strategy skipped: passport-linkedin-oauth2 not installed. " +
-          "Run: npm install passport-linkedin-oauth2",
+        "⚠️  LinkedIn OAuth strategy skipped: passport-linkedin-oauth2 " +
+          "not installed. Run: npm install passport-linkedin-oauth2",
       );
     }
   } else {
     logger.warn(
-      "⚠️  LinkedIn OAuth strategy skipped: LINKEDIN_CLIENT_ID or LINKEDIN_CLIENT_SECRET not set",
+      "⚠️  LinkedIn OAuth strategy skipped: LINKEDIN_CLIENT_ID or " +
+        "LINKEDIN_CLIENT_SECRET not set",
     );
   }
 
@@ -186,9 +199,9 @@ function configureStrategies(passport, tenant) {
             clientSecret: constants.MICROSOFT_CLIENT_SECRET,
             callbackURL: buildCallbackURL("microsoft"),
             scope: ["user.read"],
-            // Allows both personal Microsoft accounts and work/school accounts
             tenant: "common",
             passReqToCallback: true,
+            state: true,
           },
           makeStrategyCallback(
             "microsoft",
@@ -201,21 +214,24 @@ function configureStrategies(passport, tenant) {
       logger.info("✅ Microsoft OAuth strategy configured");
     } catch (e) {
       logger.warn(
-        "⚠️  Microsoft OAuth strategy skipped: passport-microsoft not installed. " +
-          "Run: npm install passport-microsoft",
+        "⚠️  Microsoft OAuth strategy skipped: passport-microsoft not " +
+          "installed. Run: npm install passport-microsoft",
       );
     }
   } else {
     logger.warn(
-      "⚠️  Microsoft OAuth strategy skipped: MICROSOFT_CLIENT_ID or MICROSOFT_CLIENT_SECRET not set",
+      "⚠️  Microsoft OAuth strategy skipped: MICROSOFT_CLIENT_ID or " +
+        "MICROSOFT_CLIENT_SECRET not set",
     );
   }
 
   // ── Twitter / X ──────────────────────────────────────────────────────────
   // Requires: npm install passport-twitter
-  // Note: Twitter OAuth 1.0a does not return email by default.
-  // You must apply for elevated access in the Twitter Developer Portal
-  // and enable "Request email from users" to receive emails.
+  // NOTE: passport-twitter pulls in xmldom@0.1.31 which has a known CVE
+  // (CVE-2021-21366). Twitter support is included here but should only be
+  // enabled in production once the transitive dependency risk has been
+  // assessed or resolved via an npm override.
+  // Email access also requires elevated Twitter app permissions.
   if (constants.TWITTER_CONSUMER_KEY && constants.TWITTER_CONSUMER_SECRET) {
     try {
       const TwitterStrategy = require("passport-twitter").Strategy;
@@ -226,9 +242,10 @@ function configureStrategies(passport, tenant) {
             consumerKey: constants.TWITTER_CONSUMER_KEY,
             consumerSecret: constants.TWITTER_CONSUMER_SECRET,
             callbackURL: buildCallbackURL("twitter"),
-            // Required to receive email (needs elevated Twitter app access)
             includeEmail: true,
             passReqToCallback: true,
+            // Twitter OAuth 1.0a handles state/CSRF natively via oauth_token
+            // — state: true is an OAuth2-only option and is not set here.
           },
           makeStrategyCallback(
             "twitter",
@@ -247,7 +264,8 @@ function configureStrategies(passport, tenant) {
     }
   } else {
     logger.warn(
-      "⚠️  Twitter OAuth strategy skipped: TWITTER_CONSUMER_KEY or TWITTER_CONSUMER_SECRET not set",
+      "⚠️  Twitter OAuth strategy skipped: TWITTER_CONSUMER_KEY or " +
+        "TWITTER_CONSUMER_SECRET not set",
     );
   }
 

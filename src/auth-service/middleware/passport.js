@@ -1128,6 +1128,31 @@ function setOAuthProvider(req, res, next) {
 
     req.oauthProvider = provider;
     setOAuthStrategies(tenant);
+
+    // After registering strategies, verify the requested provider was actually
+    // configured. If credentials are missing, configureStrategies skips that
+    // strategy silently, and calling passport.authenticate() with an
+    // unregistered provider would produce a cryptic 500. Return a clear 400
+    // instead so the client knows the provider is not enabled.
+    const strategyRegistered =
+      passport &&
+      passport._strategies &&
+      Object.prototype.hasOwnProperty.call(passport._strategies, provider);
+
+    if (!strategyRegistered) {
+      return next(
+        new HttpError(
+          `OAuth provider not configured: ${provider}`,
+          httpStatus.BAD_REQUEST,
+          {
+            message:
+              `The "${provider}" OAuth provider is not currently enabled. ` +
+              `Please contact the system administrator.`,
+          },
+        ),
+      );
+    }
+
     next();
   } catch (e) {
     logObject("setOAuthProvider error", e);
@@ -1196,9 +1221,20 @@ const authGoogleCallback = passport.authenticate("google", {
 const authOAuth = (req, res, next) => {
   const provider = req.params.provider || req.oauthProvider || "google";
 
-  // Twitter uses OAuth 1.0a and does not accept a scope option
-  // All other providers use OAuth 2.0 with profile + email scope
-  const options = provider === "twitter" ? {} : { scope: ["profile", "email"] };
+  // Provider-specific scopes. Twitter uses OAuth 1.0a and does not accept
+  // a scope option. All other providers use OAuth 2.0 with scopes tailored
+  // to what each provider's API requires for email + basic profile access.
+  const providerScopes = {
+    google: ["profile", "email"],
+    github: ["user:email"],
+    linkedin: ["r_emailaddress", "r_liteprofile"],
+    microsoft: ["user.read"],
+  };
+
+  const options =
+    provider === "twitter"
+      ? {}
+      : { scope: providerScopes[provider] || ["profile", "email"] };
 
   passport.authenticate(provider, options)(req, res, next);
 };

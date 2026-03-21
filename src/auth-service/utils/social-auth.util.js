@@ -8,41 +8,49 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- social-auth-util`);
 const { logObject } = require("@utils/shared");
 
 /**
+ * Escapes special regex characters in a string so it can be safely
+ * used inside a RegExp constructor (e.g. for case-insensitive email lookup).
+ */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * Extracts standardized user info from a Passport OAuth profile object.
  * Handles differences between provider profile shapes:
- * - Google: uses profile.name.givenName/familyName, profile._json.email
- * - GitHub: uses profile.displayName, profile.emails, profile.username
- * - LinkedIn: uses profile.name.givenName/familyName, profile.emails
- * - Microsoft: uses profile.displayName, profile._json.userPrincipalName
- * - Twitter: uses profile.displayName, profile.emails (if available)
+ * - Google:    profile.name.givenName/familyName, profile._json.email
+ * - GitHub:    profile.displayName, profile.emails, profile.username
+ * - LinkedIn:  profile.name.givenName/familyName, profile.emails
+ * - Microsoft: profile.displayName, profile._json.userPrincipalName
+ * - Twitter:   profile.displayName, profile.emails (if available)
  */
 function extractProfileInfo(profile) {
   const json = profile._json || {};
 
   // ── Email extraction (provider-specific fallbacks) ─────────────────────
-  const email =
-    // Standard: profile.emails array (Google, GitHub with scope, LinkedIn, Microsoft)
+  const rawEmail =
     (profile.emails && profile.emails[0] && profile.emails[0].value) ||
-    // Google direct
     json.email ||
-    // Microsoft uses userPrincipalName as email
     json.userPrincipalName ||
     json.mail ||
-    // Twitter does not expose email by default — returns null
     null;
+
+  // Always normalize email to lowercase + trimmed to prevent duplicate
+  // accounts when a provider returns a mixed-case email address.
+  const email =
+    rawEmail && typeof rawEmail === "string"
+      ? rawEmail.toLowerCase().trim()
+      : null;
 
   // ── First name extraction ──────────────────────────────────────────────
   const rawDisplayName =
     profile.displayName || json.name || json.displayName || "";
 
   const firstName =
-    // Google, LinkedIn, Microsoft structured name
     (profile.name && profile.name.givenName) ||
     json.given_name ||
     json.givenName ||
-    // GitHub / Twitter use a single displayName string — split on first space
     (rawDisplayName ? rawDisplayName.split(" ")[0] : null) ||
-    // GitHub fallback: use username if no display name
     profile.username ||
     "Unknown";
 
@@ -52,19 +60,13 @@ function extractProfileInfo(profile) {
     json.family_name ||
     json.surname ||
     json.familyName ||
-    // Split displayName for GitHub / Twitter
     (rawDisplayName && rawDisplayName.split(" ").length > 1
       ? rawDisplayName.split(" ").slice(1).join(" ")
       : null) ||
     "";
 
   // ── Provider-specific ID ───────────────────────────────────────────────
-  const providerId =
-    profile.id ||
-    profile._id ||
-    json.sub || // Google OIDC
-    json.id ||
-    null;
+  const providerId = profile.id || profile._id || json.sub || json.id || null;
 
   return { email, firstName, lastName, providerId };
 }
@@ -103,15 +105,22 @@ async function handleOAuthProfile(profile, tenant, provider = "google") {
         success: false,
         message:
           `Your ${provider} account did not return an email address. ` +
-          `Please ensure your ${provider} account has a verified public email and try again.`,
+          `Please ensure your ${provider} account has a verified public ` +
+          `email and try again.`,
       };
     }
 
     const dbTenant = String(tenant).toLowerCase();
     const idField = providerIdField(provider);
 
-    // ── STEP 1: Look up existing user by email ──────────────────────────
-    let user = await UserModel(dbTenant).findOne({ email }).exec();
+    // ── STEP 1: Case-insensitive email lookup ────────────────────────────
+    // The User model normalizes emails to lowercase on save, but provider
+    // profiles may return mixed-case. Using a case-insensitive regex prevents
+    // duplicate accounts when casing differs.
+    const emailRegex = new RegExp(`^${escapeRegex(email)}$`, "i");
+    let user = await UserModel(dbTenant)
+      .findOne({ email: { $regex: emailRegex } })
+      .exec();
 
     if (user) {
       // ── STEP 2a: User exists — link provider ID if not already stored ─
@@ -122,18 +131,21 @@ async function handleOAuthProfile(profile, tenant, provider = "google") {
           });
           user[idField] = providerId;
           logger.info(
-            `handleOAuthProfile: linked ${idField}=${providerId} to existing user ${user.email}`,
+            `handleOAuthProfile: linked ${idField}=${providerId} to ` +
+              `existing user ${user.email}`,
           );
         } catch (linkError) {
           // Non-fatal — user can still log in
           logger.warn(
-            `handleOAuthProfile: could not link ${idField} for user ${user.email}: ${linkError.message}`,
+            `handleOAuthProfile: could not link ${idField} for user ` +
+              `${user.email}: ${linkError.message}`,
           );
         }
       }
 
       logger.info(
-        `handleOAuthProfile: existing user authenticated via ${provider}: ${user.email}`,
+        `handleOAuthProfile: existing user authenticated via ` +
+          `${provider}: ${user.email}`,
       );
       return {
         success: true,
@@ -145,14 +157,15 @@ async function handleOAuthProfile(profile, tenant, provider = "google") {
 
     // ── STEP 3: No existing user — create a new account ─────────────────
     logger.info(
-      `handleOAuthProfile: creating new user from ${provider} profile: ${email}`,
+      `handleOAuthProfile: creating new user from ${provider} ` +
+        `profile: ${email}`,
     );
 
     const newUserPayload = {
       [idField]: providerId,
       firstName,
       lastName: lastName || "Unknown",
-      email,
+      email, // already normalized to lowercase
       userName: email,
       verified: true, // OAuth email is already verified by the provider
       password: accessCodeGenerator.generate(
@@ -163,24 +176,18 @@ async function handleOAuthProfile(profile, tenant, provider = "google") {
     // ── Optional extra fields from the profile ───────────────────────────
     const json = profile._json || {};
 
-    // Website / domain (Google returns hd for hosted domain)
     if (json.hd) newUserPayload.website = json.hd;
 
-    // Profile picture
     if (profile.photos && profile.photos[0] && profile.photos[0].value) {
       newUserPayload.profilePicture = profile.photos[0].value;
     } else if (json.avatar_url) {
-      // GitHub
       newUserPayload.profilePicture = json.avatar_url;
     } else if (json.profile_image_url) {
-      // Twitter
       newUserPayload.profilePicture = json.profile_image_url;
     } else if (json.picture) {
-      // Microsoft / Google
       newUserPayload.profilePicture = json.picture;
     }
 
-    // GitHub: store username as a useful reference
     if (provider === "github" && profile.username) {
       newUserPayload.website =
         newUserPayload.website || `https://github.com/${profile.username}`;
@@ -188,13 +195,13 @@ async function handleOAuthProfile(profile, tenant, provider = "google") {
 
     const registerResult = await UserModel(dbTenant).register(
       newUserPayload,
-      () => {}, // no-op next; errors are returned in the result object
+      () => {},
     );
 
     if (!registerResult || registerResult.success === false) {
       logger.error(
-        `handleOAuthProfile: failed to create user from ${provider} profile: ` +
-          `${(registerResult && registerResult.message) || "unknown error"}`,
+        `handleOAuthProfile: failed to create user from ${provider} ` +
+          `profile: ${(registerResult && registerResult.message) || "unknown error"}`,
       );
       return {
         success: false,
@@ -206,7 +213,8 @@ async function handleOAuthProfile(profile, tenant, provider = "google") {
     }
 
     logger.info(
-      `handleOAuthProfile: new user created from ${provider} profile: ${email}`,
+      `handleOAuthProfile: new user created from ${provider} ` +
+        `profile: ${email}`,
     );
     return {
       success: true,
@@ -216,7 +224,8 @@ async function handleOAuthProfile(profile, tenant, provider = "google") {
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 handleOAuthProfile Internal Server Error [${provider}]: ${error.message}`,
+      `🐛🐛 handleOAuthProfile Internal Server Error [${provider}]: ` +
+        `${error.message}`,
     );
     return {
       success: false,

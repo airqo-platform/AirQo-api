@@ -235,9 +235,28 @@ const userController = {
 
       const { tenant } = request.query;
 
-      // Role cleanup & fresh user fetch (same pattern as googleCallback)
+      // Sanitize provider name before logging — only allow known values to
+      // prevent tainted req.oauthProvider content appearing in log files.
+      const sanitizeProviderForLogging = (raw) => {
+        const allowed = [
+          "google",
+          "github",
+          "linkedin",
+          "microsoft",
+          "twitter",
+        ];
+        if (typeof raw !== "string") return "unknown";
+        const normalized = raw.toLowerCase();
+        return allowed.includes(normalized) ? normalized : "unknown";
+      };
+
+      const providerForLog = sanitizeProviderForLogging(
+        req.params.provider || req.oauthProvider || "google",
+      );
+
       await userUtil.ensureDefaultAirqoRole(req.user, tenant);
       const freshUser = await UserModel(tenant).findById(req.user._id);
+
       if (!freshUser) {
         logger.error(
           `oauthCallback: user ${req.user._id} not found after refresh`,
@@ -250,21 +269,28 @@ const userController = {
 
       logger.info("OAuth login succeeded", {
         userId: req.user._id,
-        provider: req.params.provider || req.oauthProvider || "google",
+        provider: providerForLog,
       });
 
-      // Fire-and-forget stats update
+      // Fire-and-forget stats update.
+      // Build a single $set object so lastLogin/isActive are never silently
+      // dropped by a second $set key overwriting the first in the update doc.
       (async () => {
         try {
           const currentDate = new Date();
+          const setFields = {
+            lastLogin: currentDate,
+            isActive: true,
+            ...(req.user.analyticsVersion !== 3 && req.user.verified === false
+              ? { verified: true }
+              : {}),
+          };
+
           await UserModel(tenant).findByIdAndUpdate(
             req.user._id,
             {
-              $set: { lastLogin: currentDate, isActive: true },
+              $set: setFields,
               $inc: { loginCount: 1 },
-              ...(req.user.analyticsVersion !== 3 && req.user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
             },
             { new: true, upsert: false, runValidators: true },
           );
@@ -273,7 +299,6 @@ const userController = {
         }
       })();
 
-      // Set secure HTTP-only cookie
       res.cookie("access_token", token, {
         httpOnly: true,
         secure: true,
@@ -287,9 +312,8 @@ const userController = {
       }
 
       return res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=${
-          req.params.provider || "oauth"
-        }`,
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home` +
+          `?success=${providerForLog}`,
       );
     } catch (error) {
       handleError(error, next);
