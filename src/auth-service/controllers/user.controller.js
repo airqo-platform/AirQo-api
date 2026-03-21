@@ -163,13 +163,25 @@ const userController = {
         req.user._id,
       );
 
+      // Guard: if the user document cannot be found after OAuth (e.g. deleted
+      // between callback and here, or DB hiccup), redirect to failure rather
+      // than throwing on freshUser.toAuthJSON() which causes a secondary
+      // ERR_HTTP_HEADERS_SENT error on top of the one Passport already sent.
+      if (!freshUser) {
+        logger.error(
+          `googleCallback: user ${req.user._id} not found after OAuth — ` +
+            `redirecting to failure URL`,
+        );
+        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+      }
+
       const userDetails = await freshUser.toAuthJSON();
       const token = userDetails.token;
       logger.info("Google login succeeded for user", { userId: req.user._id });
 
       // Fire-and-forget stats update.
-      // Build a single $set object so lastLogin/isActive are never silently
-      // dropped by a second $set key overwriting the first in the update doc.
+      // Single $set object prevents lastLogin/isActive being silently
+      // dropped by a second $set key overwriting the first.
       (async () => {
         try {
           const currentDate = new Date();
@@ -180,7 +192,6 @@ const userController = {
               ? { verified: true }
               : {}),
           };
-
           await UserModel(request.query.tenant).findByIdAndUpdate(
             req.user._id,
             {
@@ -215,7 +226,6 @@ const userController = {
       handleError(error, next);
     }
   },
-
   /**
    * Generic OAuth callback controller.
    * Works for any provider (google, linkedin, twitter, …).

@@ -10,6 +10,18 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-strategies`,
 );
 
+// ── Strategy registration guard ───────────────────────────────────────────────
+// Strategies are registered once at startup (bin/server.js). This flag
+// prevents re-registration on every OAuth request when setGoogleAuth and
+// setOAuthProvider call configureStrategies per-request as a fallback.
+//
+// We use a single boolean rather than a per-tenant Set because Passport
+// strategy credentials (clientID, clientSecret, callbackURL) are identical
+// across all tenants. The tenant used for DB lookups is resolved dynamically
+// at runtime from req.query.tenant inside makeStrategyCallback — it is NOT
+// captured at strategy registration time.
+let strategiesConfigured = false;
+
 /**
  * Builds the full callback URL for a given provider.
  * Trims any trailing slash from PLATFORM_BASE_URL to prevent double-slash
@@ -24,19 +36,26 @@ function buildCallbackURL(provider) {
 
 /**
  * Shared strategy callback factory.
- * Avoids repeating the same try/catch/handleOAuthProfile pattern for every
- * provider. Logs only non-PII identifiers (provider name + profile.id) to
- * prevent personal data leaking into log files.
+ * Resolves the tenant dynamically from req.query.tenant at runtime so that
+ * multi-tenant requests are handled correctly regardless of which tenant
+ * value was passed when strategies were first registered at startup.
  *
- * @param {string} provider              - Provider name e.g. "google", "github"
- * @param {string} tenant                - Tenant identifier
- * @param {string} [emailRequiredMessage]- Custom error when no email is returned
+ * Logs only non-PII identifiers (provider name + profile.id).
+ *
+ * @param {string} provider               - Provider name e.g. "google", "github"
+ * @param {string} [emailRequiredMessage] - Custom error when no email is returned
  */
-function makeStrategyCallback(provider, tenant, emailRequiredMessage) {
+function makeStrategyCallback(provider, emailRequiredMessage) {
   return async (req, accessToken, refreshToken, profile, cb) => {
     try {
-      // Log only non-PII identifiers — never dump profile._json which
-      // contains email, name, avatar and other personal fields.
+      // Resolve tenant dynamically from the request at runtime.
+      // This is correct for multi-tenant deployments — do NOT capture
+      // tenant at registration time.
+      const tenant =
+        (req && req.query && req.query.tenant) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+
       logger.info(`[passport-strategies] ${provider} OAuth callback received`, {
         provider,
         profileId: profile.id || "unknown",
@@ -86,16 +105,29 @@ function makeStrategyCallback(provider, tenant, emailRequiredMessage) {
 
 /**
  * Configures all supported OAuth strategies on the supplied passport instance.
- * Each strategy is only registered if its credentials are present in constants.
- * state: true is set on all OAuth2 strategies to enable Passport's built-in
- * CSRF/state parameter validation.
  *
- * Currently supported: google, github, linkedin, microsoft, twitter
+ * Safe to call multiple times — strategies are only registered once per
+ * process lifetime regardless of how many requests trigger this function.
+ *
+ * Should be called once at startup in bin/server.js after
+ * app.use(passport.initialize()). The per-request calls from setGoogleAuth
+ * and setOAuthProvider are safe no-ops after the first call.
  *
  * @param {object} passport - The passport instance.
- * @param {string} tenant   - The tenant identifier (e.g. "airqo").
+ * @param {string} [tenant] - Ignored — tenant is resolved at runtime from req.
+ *                            Parameter kept for backward compatibility with
+ *                            existing callers in passport.js.
  */
 function configureStrategies(passport, tenant) {
+  if (strategiesConfigured) {
+    logger.info(
+      "[passport-strategies] strategies already configured — skipping",
+    );
+    return;
+  }
+
+  logger.info("[passport-strategies] configuring OAuth strategies");
+
   // ── Google ──────────────────────────────────────────────────────────────
   if (constants.GOOGLE_CLIENT_ID && constants.GOOGLE_CLIENT_SECRET) {
     passport.use(
@@ -108,7 +140,7 @@ function configureStrategies(passport, tenant) {
           passReqToCallback: true,
           state: true,
         },
-        makeStrategyCallback("google", tenant),
+        makeStrategyCallback("google"),
       ),
     );
     logger.info("✅ Google OAuth strategy configured");
@@ -134,7 +166,6 @@ function configureStrategies(passport, tenant) {
         },
         makeStrategyCallback(
           "github",
-          tenant,
           "Your GitHub account does not have a verified public email. " +
             "Please add one at github.com/settings/emails and try again.",
         ),
@@ -149,7 +180,6 @@ function configureStrategies(passport, tenant) {
   }
 
   // ── LinkedIn ─────────────────────────────────────────────────────────────
-  // Requires: npm install passport-linkedin-oauth2
   if (constants.LINKEDIN_CLIENT_ID && constants.LINKEDIN_CLIENT_SECRET) {
     try {
       const LinkedInStrategy = require("passport-linkedin-oauth2").Strategy;
@@ -166,7 +196,6 @@ function configureStrategies(passport, tenant) {
           },
           makeStrategyCallback(
             "linkedin",
-            tenant,
             "Your LinkedIn account did not return an email address. " +
               "Please ensure your LinkedIn account has a verified primary email.",
           ),
@@ -187,7 +216,6 @@ function configureStrategies(passport, tenant) {
   }
 
   // ── Microsoft ────────────────────────────────────────────────────────────
-  // Requires: npm install passport-microsoft
   if (constants.MICROSOFT_CLIENT_ID && constants.MICROSOFT_CLIENT_SECRET) {
     try {
       const MicrosoftStrategy = require("passport-microsoft").Strategy;
@@ -205,7 +233,6 @@ function configureStrategies(passport, tenant) {
           },
           makeStrategyCallback(
             "microsoft",
-            tenant,
             "Your Microsoft account did not return an email address. " +
               "Please ensure your Microsoft account has a verified email.",
           ),
@@ -226,12 +253,8 @@ function configureStrategies(passport, tenant) {
   }
 
   // ── Twitter / X ──────────────────────────────────────────────────────────
-  // Requires: npm install passport-twitter
-  // NOTE: passport-twitter pulls in xmldom@0.1.31 which has a known CVE
-  // (CVE-2021-21366). Twitter support is included here but should only be
-  // enabled in production once the transitive dependency risk has been
-  // assessed or resolved via an npm override.
-  // Email access also requires elevated Twitter app permissions.
+  // NOTE: passport-twitter pulls in xmldom@0.1.31 (CVE-2021-21366).
+  // Only enable once the transitive dependency risk has been assessed.
   if (constants.TWITTER_CONSUMER_KEY && constants.TWITTER_CONSUMER_SECRET) {
     try {
       const TwitterStrategy = require("passport-twitter").Strategy;
@@ -244,12 +267,11 @@ function configureStrategies(passport, tenant) {
             callbackURL: buildCallbackURL("twitter"),
             includeEmail: true,
             passReqToCallback: true,
-            // Twitter OAuth 1.0a handles state/CSRF natively via oauth_token
-            // — state: true is an OAuth2-only option and is not set here.
+            // Twitter OAuth 1.0a handles state/CSRF natively via
+            // oauth_token — state: true is OAuth2-only, not set here.
           },
           makeStrategyCallback(
             "twitter",
-            tenant,
             "Your Twitter/X account did not return an email address. " +
               "Please add a verified email to your Twitter account and try again.",
           ),
@@ -269,7 +291,7 @@ function configureStrategies(passport, tenant) {
     );
   }
 
-  // ── Serialize / Deserialize (shared across all strategies) ───────────────
+  // ── Serialize / Deserialize ──────────────────────────────────────────────
   passport.serializeUser((user, done) => {
     done(null, user);
   });
@@ -277,13 +299,23 @@ function configureStrategies(passport, tenant) {
   passport.deserializeUser(async (user, done) => {
     try {
       const UserModel = require("@models/User");
-      const dbTenant = String(tenant).toLowerCase();
+      // Resolve tenant from the user object itself as a fallback since
+      // req is not available in deserializeUser.
+      const dbTenant =
+        (user && user.tenant) || constants.DEFAULT_TENANT || "airqo";
       const freshUser = await UserModel(dbTenant).findById(user._id);
       done(null, freshUser);
     } catch (error) {
       done(error, null);
     }
   });
+
+  // Mark as configured — placed last so a partial failure during strategy
+  // registration does not incorrectly mark the process as configured.
+  strategiesConfigured = true;
+  logger.info(
+    "[passport-strategies] all OAuth strategies configured successfully",
+  );
 }
 
 module.exports = { configureStrategies, buildCallbackURL };

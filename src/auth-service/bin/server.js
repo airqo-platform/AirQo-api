@@ -122,6 +122,18 @@ if (isDev) {
 
 app.use(passport.initialize());
 
+// ── OAuth strategy one-time startup registration ───────────────────────────
+// Must be called here, after passport.initialize() and before any routes
+// are registered, so strategies are available when the first OAuth request
+// arrives. Calling configureStrategies per-request (inside setGoogleAuth /
+// setOAuthProvider) caused ERR_HTTP_HEADERS_SENT because Passport was
+// interrupted mid-authentication by a strategy re-registration.
+// configureStrategies is idempotent — subsequent calls from per-request
+// middleware are safe no-ops.
+const { configureStrategies } = require("@config/passport-strategies");
+configureStrategies(passport, constants.DEFAULT_TENANT || "airqo");
+// ── End OAuth startup registration ────────────────────────────────────────
+
 app.use(cookieParser());
 
 // Safe log4js middleware with fallback
