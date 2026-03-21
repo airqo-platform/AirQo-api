@@ -157,19 +157,53 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
+      // Guard: req.user must be set by Passport before this controller runs.
+      // If it is missing, Passport failed silently or the middleware chain
+      // was misconfigured. Redirect to failure rather than throwing.
+      if (!req.user) {
+        logger.error(
+          "googleCallback: req.user is not set after passport auth — " +
+            "redirecting to failure URL",
+        );
+        if (!res.headersSent) {
+          return res.redirect(
+            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+          );
+        }
+        return;
+      }
+
       await userUtil.ensureDefaultAirqoRole(req.user, request.query.tenant);
 
       const freshUser = await UserModel(request.query.tenant).findById(
         req.user._id,
       );
 
+      // Guard: if the user document cannot be found after OAuth (e.g. deleted
+      // between callback and here, or DB hiccup), redirect to failure rather
+      // than throwing on freshUser.toAuthJSON() which would cause a secondary
+      // ERR_HTTP_HEADERS_SENT. Also check res.headersSent before redirecting
+      // in case Passport already sent a response before reaching this point.
+      if (!freshUser) {
+        logger.error(
+          `googleCallback: user ${req.user._id} not found after OAuth — ` +
+            `redirecting to failure URL`,
+        );
+        if (!res.headersSent) {
+          return res.redirect(
+            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+          );
+        }
+        return;
+      }
+
       const userDetails = await freshUser.toAuthJSON();
       const token = userDetails.token;
       logger.info("Google login succeeded for user", { userId: req.user._id });
 
       // Fire-and-forget stats update.
-      // Build a single $set object so lastLogin/isActive are never silently
-      // dropped by a second $set key overwriting the first in the update doc.
+      // Single $set object prevents lastLogin/isActive being silently
+      // dropped by a second $set key overwriting the first.
       (async () => {
         try {
           const currentDate = new Date();
@@ -180,7 +214,6 @@ const userController = {
               ? { verified: true }
               : {}),
           };
-
           await UserModel(request.query.tenant).findByIdAndUpdate(
             req.user._id,
             {
@@ -215,7 +248,6 @@ const userController = {
       handleError(error, next);
     }
   },
-
   /**
    * Generic OAuth callback controller.
    * Works for any provider (google, linkedin, twitter, …).
