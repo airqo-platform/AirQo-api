@@ -157,10 +157,8 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // --- FIX: Perform role cleanup and other updates on login ---
       await userUtil.ensureDefaultAirqoRole(req.user, request.query.tenant);
 
-      // --- FIX: Re-fetch the user to get the cleaned-up data before generating the token ---
       const freshUser = await UserModel(request.query.tenant).findById(
         req.user._id,
       );
@@ -169,18 +167,25 @@ const userController = {
       const token = userDetails.token;
       logger.info("Google login succeeded for user", { userId: req.user._id });
 
-      // Fire-and-forget: Update user stats without blocking the login response.
+      // Fire-and-forget stats update.
+      // Build a single $set object so lastLogin/isActive are never silently
+      // dropped by a second $set key overwriting the first in the update doc.
       (async () => {
         try {
           const currentDate = new Date();
+          const setFields = {
+            lastLogin: currentDate,
+            isActive: true,
+            ...(req.user.analyticsVersion !== 3 && req.user.verified === false
+              ? { verified: true }
+              : {}),
+          };
+
           await UserModel(request.query.tenant).findByIdAndUpdate(
             req.user._id,
             {
-              $set: { lastLogin: currentDate, isActive: true },
+              $set: setFields,
               $inc: { loginCount: 1 },
-              ...(req.user.analyticsVersion !== 3 && req.user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
             },
             { new: true, upsert: false, runValidators: true },
           );
@@ -191,17 +196,15 @@ const userController = {
         }
       })();
 
-      // Set the token as an HTTP-only cookie
       res.cookie("access_token", token, {
         httpOnly: true,
-        secure: true, // Enable if using HTTPS
+        secure: true,
       });
 
       if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        // Create a temporary, non-httpOnly cookie for debugging:
         res.cookie("temp_access_token", token, {
-          httpOnly: false, // Set to false for debugging
-          secure: true, // But keep secure: true (if using HTTPS)
+          httpOnly: false,
+          secure: true,
         });
       }
 

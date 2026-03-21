@@ -994,31 +994,51 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
     logObject("Service", service);
+
     await AccessTokenModel(tenant.toLowerCase()).findOne(
       { id: token },
       function (error, accessToken) {
-        if (error) return done(error);
-        if (accessToken) {
-          if (!token.isValid(accessToken)) return done(null, false);
-          UserModel(tenant.toLowerCase()).findOne(
-            { id: accessToken.user_id },
-            function (error, user) {
-              if (error) return done(error);
-              if (!user) return done(null, false);
-              winstonLogger.info(
-                `successful login through ${service ? service : "unknown"} service`,
-                {
-                  username: user.userName,
-                  email: user.email,
-                  service: service ? service : "unknown",
-                },
-              );
-              return done(null, user);
-            },
-          );
-        } else {
-          return done(null);
+        if (error) {
+          return done(error);
         }
+
+        if (!accessToken) {
+          return done(null, false);
+        }
+
+        // Validate token expiry against current time.
+        // The previous token.isValid(accessToken) call was incorrect —
+        // token is a raw string and has no isValid method. Check the
+        // expires field on the accessToken document instead.
+        const expiryDate = accessToken.expires || accessToken.expiresAt || null;
+        if (!expiryDate || new Date(expiryDate) <= new Date()) {
+          return done(null, false);
+        }
+
+        UserModel(tenant.toLowerCase()).findOne(
+          { id: accessToken.user_id },
+          function (error, user) {
+            if (error) {
+              return done(error);
+            }
+
+            if (!user) {
+              return done(null, false);
+            }
+
+            winstonLogger.info(
+              `successful login through ${
+                service ? service : "unknown"
+              } service`,
+              {
+                username: user.userName,
+                email: user.email,
+                service: service ? service : "unknown",
+              },
+            );
+            return done(null, user);
+          },
+        );
       },
     );
   });
