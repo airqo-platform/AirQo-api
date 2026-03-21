@@ -8,7 +8,7 @@ images:
     reportJob: airqoacr.azurecr.io/airqo-stage-analytics-report-job
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     devicesSummaryJob: airqoacr.azurecr.io/airqo-stage-analytics-devices-summary-job
-  tag: stage-09828193-1773150374
+  tag: stage-6ee59627-1773921730
 externalSecret:
   enabled: true
 api:
@@ -28,10 +28,10 @@ api:
     redis:
       requests:
         cpu: 50m
-        memory: 10Mi
+        memory: 64Mi
       limits:
         cpu: 300m
-        memory: 50Mi
+        memory: 256Mi
 jobs:
   reports:
     name: stage-analytics-report
