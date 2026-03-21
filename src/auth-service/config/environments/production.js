@@ -24,7 +24,7 @@ const prodConfig = {
   ENVIRONMENT: "PRODUCTION ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   GROUPS_TOPIC: process.env.GROUPS_TOPIC_PROD || "groups-topic",
@@ -37,7 +37,7 @@ const prodConfig = {
   REDIS_PORT: process.env.PROD_REDIS_PORT,
   SELECTED_SITES: process.env.SELECTED_SITES_PRODUCTION
     ? process.env.SELECTED_SITES_PRODUCTION.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   API_TOKEN: process.env.PROD_API_TOKEN,
@@ -55,5 +55,14 @@ const prodConfig = {
   POSTHOG_ENABLED: process.env.PROD_POSTHOG_ENABLED === "true" || false,
   POSTHOG_TRACK_API_REQUESTS:
     process.env.PROD_POSTHOG_TRACK_API_REQUESTS === "true" || false,
+  GITHUB_CLIENT_ID: process.env.PROD_GITHUB_CLIENT_ID,
+  GITHUB_CLIENT_SECRET: process.env.PROD_GITHUB_CLIENT_SECRET,
+  LINKEDIN_CLIENT_ID: process.env.PROD_LINKEDIN_CLIENT_ID,
+  LINKEDIN_CLIENT_SECRET: process.env.PROD_LINKEDIN_CLIENT_SECRET,
+  MICROSOFT_CLIENT_ID: process.env.PROD_MICROSOFT_CLIENT_ID,
+  MICROSOFT_CLIENT_SECRET: process.env.PROD_MICROSOFT_CLIENT_SECRET,
+  TWITTER_CONSUMER_KEY: process.env.PROD_TWITTER_CONSUMER_KEY,
+  TWITTER_CONSUMER_SECRET: process.env.PROD_TWITTER_CONSUMER_SECRET,
+  TWITTER_BEARER_TOKEN: process.env.PROD_TWITTER_BEARER_TOKEN,
 };
 module.exports = prodConfig;

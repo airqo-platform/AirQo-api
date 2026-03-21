@@ -331,7 +331,15 @@ const UserSchema = new Schema(
         message: `Profile picture URL must be a valid URL & must not exceed ${maxLengthOfProfilePictures} characters.`,
       },
     },
+    // ── OAuth provider IDs ────────────────────────────────────────────────────
     google_id: { type: String, trim: true },
+    github_id: { type: String, trim: true },
+    linkedin_id: { type: String, trim: true },
+    microsoft_id: { type: String, trim: true },
+    twitter_id: { type: String, trim: true },
+    facebook_id: { type: String, trim: true },
+    apple_id: { type: String, trim: true },
+    // ── OAuth provider IDs end ────────────────────────────────────────────────────
     timezone: { type: String, trim: true },
     preferredTokenStrategy: {
       type: String,
@@ -611,6 +619,17 @@ UserSchema.index({ userName: 1 }, { unique: true });
 // nested ObjectId fields that the $match uses in its $in expression.
 UserSchema.index({ "network_roles.role": 1 });
 UserSchema.index({ "group_roles.role": 1 });
+
+// Sparse indexes for OAuth provider ID fields.
+// sparse: true means the index only includes documents where the field exists,
+// keeping index size small since most users will only have one provider linked.
+UserSchema.index({ google_id: 1 }, { sparse: true });
+UserSchema.index({ github_id: 1 }, { sparse: true });
+UserSchema.index({ linkedin_id: 1 }, { sparse: true });
+UserSchema.index({ microsoft_id: 1 }, { sparse: true });
+UserSchema.index({ twitter_id: 1 }, { sparse: true });
+UserSchema.index({ facebook_id: 1 }, { sparse: true });
+UserSchema.index({ apple_id: 1 }, { sparse: true });
 
 UserSchema.statics = {
   async register(args, next, options = {}) {
