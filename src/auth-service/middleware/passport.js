@@ -1123,7 +1123,9 @@ function setGoogleAuth(req, res, next) {
 
 /**
  * Generic OAuth provider middleware for the new /auth/:provider routes.
- * Validates the provider, persists tenant to session, and configures strategies.
+ * Validates the provider, persists tenant to session before the redirect
+ * so it can be recovered in makeStrategyCallback on the callback request
+ * (where req.query.tenant is no longer present), and configures strategies.
  */
 function setOAuthProvider(req, res, next) {
   try {
@@ -1156,7 +1158,8 @@ function setOAuthProvider(req, res, next) {
     }
 
     // Persist tenant in session so it survives the provider redirect
-    // round-trip. req.query.tenant is not present on the callback request.
+    // round-trip. req.query.tenant is not present on the callback request
+    // because the provider only appends code and state to the redirect URL.
     if (req.session) {
       req.session.oauthTenant = tenant;
     }
@@ -1164,75 +1167,10 @@ function setOAuthProvider(req, res, next) {
     req.oauthProvider = provider;
     setOAuthStrategies(tenant);
 
-    const strategyRegistered =
-      passport &&
-      passport._strategies &&
-      Object.prototype.hasOwnProperty.call(passport._strategies, provider);
-
-    if (!strategyRegistered) {
-      return next(
-        new HttpError(
-          `OAuth provider not configured: ${provider}`,
-          httpStatus.BAD_REQUEST,
-          {
-            message:
-              `The "${provider}" OAuth provider is not currently enabled. ` +
-              `Please contact the system administrator.`,
-          },
-        ),
-      );
-    }
-
-    next();
-  } catch (e) {
-    logObject("setOAuthProvider error", e);
-    logger.error(`setOAuthProvider error: ${e.message}`);
-    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
-  }
-}
-
-/**
- * Generic OAuth provider middleware for the new /auth/:provider routes.
- * Validates the provider, sets req.oauthProvider, and configures strategies.
- */
-function setOAuthProvider(req, res, next) {
-  try {
-    logText("setOAuthProvider: configuring OAuth strategies");
-    const errors = extractErrorsFromRequest(req);
-    if (errors) {
-      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
-      return;
-    }
-    const tenant = req.query.tenant || "airqo";
-    const provider = (req.params.provider || "google").toLowerCase();
-
-    const SUPPORTED_PROVIDERS = [
-      "google",
-      "github",
-      "linkedin",
-      "microsoft",
-      "twitter",
-    ];
-    if (!SUPPORTED_PROVIDERS.includes(provider)) {
-      return next(
-        new HttpError(
-          `Unsupported OAuth provider: ${provider}`,
-          httpStatus.BAD_REQUEST,
-          {
-            message: `Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`,
-          },
-        ),
-      );
-    }
-
-    req.oauthProvider = provider;
-    setOAuthStrategies(tenant);
-
-    // After registering strategies, verify the requested provider was actually
-    // configured. If credentials are missing, configureStrategies skips that
-    // strategy silently, and calling passport.authenticate() with an
-    // unregistered provider would produce a cryptic 500. Return a clear 400
-    // instead so the client knows the provider is not enabled.
+    // After registering strategies, verify the requested provider was
+    // actually configured. If credentials are missing, configureStrategies
+    // skips that strategy silently, and calling passport.authenticate()
+    // with an unregistered provider would produce a cryptic 500.
     const strategyRegistered =
       passport &&
       passport._strategies &&
