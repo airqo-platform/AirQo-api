@@ -21,7 +21,6 @@ jobs:
   branch-name:
     runs-on: ubuntu-latest
     outputs:
-      lowercase: ${{ steps.string.outputs.lowercase }}
       sanitized: ${{ steps.sanitize.outputs.sanitized }}
     steps:
       - id: string
@@ -34,6 +33,14 @@ jobs:
           BRANCH="${{ steps.string.outputs.lowercase }}"
           # Replace non-alphanumeric chars with hyphens, collapse multiples, trim
           SANITIZED=$(echo "$BRANCH" | sed 's/[^a-z0-9]/-/g; s/-\+/-/g; s/^-//; s/-$//')
+          # Fall back to PR number if sanitization yields an empty string
+          if [ -z "$SANITIZED" ]; then
+            SANITIZED="pr${{ github.event.pull_request.number }}"
+          fi
+          # Ensure name starts with a letter (Azure requirement)
+          if [[ ! "$SANITIZED" =~ ^[a-z] ]]; then
+            SANITIZED="a${SANITIZED}"
+          fi
           # Limit to 12 chars and trim any trailing hyphen
           SANITIZED="${SANITIZED:0:12}"
           SANITIZED="${SANITIZED%-}"
