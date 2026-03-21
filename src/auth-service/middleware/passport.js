@@ -1092,7 +1092,9 @@ function setLocalAuth(req, res, next) {
 
 /**
  * Backward-compatible middleware for the legacy /auth/google routes.
- * Delegates to setOAuthStrategies internally.
+ * Persists tenant to session before the OAuth redirect so it can be
+ * recovered in makeStrategyCallback on the callback request, where
+ * req.query.tenant is no longer present.
  */
 function setGoogleAuth(req, res, next) {
   try {
@@ -1103,11 +1105,88 @@ function setGoogleAuth(req, res, next) {
       return;
     }
     const tenant = req.query.tenant || "airqo";
+
+    // Persist tenant in session so it survives the provider redirect
+    // round-trip. req.query.tenant is not present on the callback request.
+    if (req.session) {
+      req.session.oauthTenant = tenant;
+    }
+
     setOAuthStrategies(tenant);
     next();
   } catch (e) {
     logObject("setGoogleAuth error", e);
     logger.error(`setGoogleAuth error: ${e.message}`);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+  }
+}
+
+/**
+ * Generic OAuth provider middleware for the new /auth/:provider routes.
+ * Validates the provider, persists tenant to session, and configures strategies.
+ */
+function setOAuthProvider(req, res, next) {
+  try {
+    logText("setOAuthProvider: configuring OAuth strategies");
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+    const tenant = req.query.tenant || "airqo";
+    const provider = (req.params.provider || "google").toLowerCase();
+
+    const SUPPORTED_PROVIDERS = [
+      "google",
+      "github",
+      "linkedin",
+      "microsoft",
+      "twitter",
+    ];
+    if (!SUPPORTED_PROVIDERS.includes(provider)) {
+      return next(
+        new HttpError(
+          `Unsupported OAuth provider: ${provider}`,
+          httpStatus.BAD_REQUEST,
+          {
+            message: `Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`,
+          },
+        ),
+      );
+    }
+
+    // Persist tenant in session so it survives the provider redirect
+    // round-trip. req.query.tenant is not present on the callback request.
+    if (req.session) {
+      req.session.oauthTenant = tenant;
+    }
+
+    req.oauthProvider = provider;
+    setOAuthStrategies(tenant);
+
+    const strategyRegistered =
+      passport &&
+      passport._strategies &&
+      Object.prototype.hasOwnProperty.call(passport._strategies, provider);
+
+    if (!strategyRegistered) {
+      return next(
+        new HttpError(
+          `OAuth provider not configured: ${provider}`,
+          httpStatus.BAD_REQUEST,
+          {
+            message:
+              `The "${provider}" OAuth provider is not currently enabled. ` +
+              `Please contact the system administrator.`,
+          },
+        ),
+      );
+    }
+
+    next();
+  } catch (e) {
+    logObject("setOAuthProvider error", e);
+    logger.error(`setOAuthProvider error: ${e.message}`);
     next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
   }
 }

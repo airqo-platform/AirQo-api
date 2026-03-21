@@ -157,6 +157,22 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
+      // Guard: req.user must be set by Passport before this controller runs.
+      // If it is missing, Passport failed silently or the middleware chain
+      // was misconfigured. Redirect to failure rather than throwing.
+      if (!req.user) {
+        logger.error(
+          "googleCallback: req.user is not set after passport auth — " +
+            "redirecting to failure URL",
+        );
+        if (!res.headersSent) {
+          return res.redirect(
+            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+          );
+        }
+        return;
+      }
+
       await userUtil.ensureDefaultAirqoRole(req.user, request.query.tenant);
 
       const freshUser = await UserModel(request.query.tenant).findById(
@@ -165,14 +181,20 @@ const userController = {
 
       // Guard: if the user document cannot be found after OAuth (e.g. deleted
       // between callback and here, or DB hiccup), redirect to failure rather
-      // than throwing on freshUser.toAuthJSON() which causes a secondary
-      // ERR_HTTP_HEADERS_SENT error on top of the one Passport already sent.
+      // than throwing on freshUser.toAuthJSON() which would cause a secondary
+      // ERR_HTTP_HEADERS_SENT. Also check res.headersSent before redirecting
+      // in case Passport already sent a response before reaching this point.
       if (!freshUser) {
         logger.error(
           `googleCallback: user ${req.user._id} not found after OAuth — ` +
             `redirecting to failure URL`,
         );
-        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+        if (!res.headersSent) {
+          return res.redirect(
+            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+          );
+        }
+        return;
       }
 
       const userDetails = await freshUser.toAuthJSON();

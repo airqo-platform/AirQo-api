@@ -14,18 +14,13 @@ const logger = log4js.getLogger(
 // Strategies are registered once at startup (bin/server.js). This flag
 // prevents re-registration on every OAuth request when setGoogleAuth and
 // setOAuthProvider call configureStrategies per-request as a fallback.
-//
-// We use a single boolean rather than a per-tenant Set because Passport
-// strategy credentials (clientID, clientSecret, callbackURL) are identical
-// across all tenants. The tenant used for DB lookups is resolved dynamically
-// at runtime from req.query.tenant inside makeStrategyCallback — it is NOT
-// captured at strategy registration time.
+// Boolean rather than per-tenant Set: strategy credentials are identical
+// across all tenants; tenant is resolved at runtime from the session.
 let strategiesConfigured = false;
 
 /**
  * Builds the full callback URL for a given provider.
- * Trims any trailing slash from PLATFORM_BASE_URL to prevent double-slash
- * URLs e.g. "http://localhost:3000//api/v2/users/auth/callback/google".
+ * Trims any trailing slash from PLATFORM_BASE_URL to prevent double-slash URLs.
  */
 function buildCallbackURL(provider) {
   const base = (constants.PLATFORM_BASE_URL || "").replace(/\/+$/, "");
@@ -35,30 +30,54 @@ function buildCallbackURL(provider) {
 }
 
 /**
+ * Resolves the tenant for a given OAuth callback request.
+ *
+ * Tenant resolution priority:
+ *   1. req.session.oauthTenant — set by setGoogleAuth/setOAuthProvider before
+ *      the redirect to the provider. This is the only value present on the
+ *      callback request because the provider does not preserve query params.
+ *   2. req.query.tenant — present on the initiation request, not the callback.
+ *      Kept as a fallback for any direct calls that bypass the session.
+ *   3. constants.DEFAULT_TENANT / "airqo" — final safety net.
+ *
+ * @param {object} req - Express request object
+ * @returns {string} Resolved tenant string
+ */
+function resolveTenant(req) {
+  return (
+    (req && req.session && req.session.oauthTenant) ||
+    (req && req.query && req.query.tenant) ||
+    constants.DEFAULT_TENANT ||
+    "airqo"
+  );
+}
+
+/**
  * Shared strategy callback factory.
- * Resolves the tenant dynamically from req.query.tenant at runtime so that
- * multi-tenant requests are handled correctly regardless of which tenant
- * value was passed when strategies were first registered at startup.
+ * Resolves tenant dynamically at runtime from the session (set before the
+ * OAuth redirect) so multi-tenant requests are handled correctly even though
+ * the provider does not preserve query parameters across the round-trip.
  *
  * Logs only non-PII identifiers (provider name + profile.id).
  *
  * @param {string} provider               - Provider name e.g. "google", "github"
- * @param {string} [emailRequiredMessage] - Custom error when no email is returned
+ * @param {string} [emailRequiredMessage] - Custom error when no email returned
  */
 function makeStrategyCallback(provider, emailRequiredMessage) {
   return async (req, accessToken, refreshToken, profile, cb) => {
     try {
-      // Resolve tenant dynamically from the request at runtime.
-      // This is correct for multi-tenant deployments — do NOT capture
-      // tenant at registration time.
-      const tenant =
-        (req && req.query && req.query.tenant) ||
-        constants.DEFAULT_TENANT ||
-        "airqo";
+      // Resolve tenant from session (persisted before redirect) with
+      // fallbacks. Clear the session value after reading so it does not
+      // bleed into subsequent requests on the same session.
+      const tenant = resolveTenant(req);
+      if (req && req.session && req.session.oauthTenant) {
+        delete req.session.oauthTenant;
+      }
 
       logger.info(`[passport-strategies] ${provider} OAuth callback received`, {
         provider,
         profileId: profile.id || "unknown",
+        tenant,
       });
 
       const email =
@@ -107,20 +126,20 @@ function makeStrategyCallback(provider, emailRequiredMessage) {
  * Configures all supported OAuth strategies on the supplied passport instance.
  *
  * Safe to call multiple times — strategies are only registered once per
- * process lifetime regardless of how many requests trigger this function.
+ * process lifetime. Subsequent calls are silent no-ops (logged at DEBUG).
  *
  * Should be called once at startup in bin/server.js after
- * app.use(passport.initialize()). The per-request calls from setGoogleAuth
- * and setOAuthProvider are safe no-ops after the first call.
+ * app.use(passport.initialize()).
  *
  * @param {object} passport - The passport instance.
- * @param {string} [tenant] - Ignored — tenant is resolved at runtime from req.
- *                            Parameter kept for backward compatibility with
- *                            existing callers in passport.js.
+ * @param {string} [tenant] - Ignored internally; kept for backward compatibility
+ *                            with existing callers in passport.js.
  */
 function configureStrategies(passport, tenant) {
   if (strategiesConfigured) {
-    logger.info(
+    // Use debug level to avoid log noise on every request since
+    // setGoogleAuth/setOAuthProvider still call this per-request.
+    logger.debug(
       "[passport-strategies] strategies already configured — skipping",
     );
     return;
@@ -299,8 +318,6 @@ function configureStrategies(passport, tenant) {
   passport.deserializeUser(async (user, done) => {
     try {
       const UserModel = require("@models/User");
-      // Resolve tenant from the user object itself as a fallback since
-      // req is not available in deserializeUser.
       const dbTenant =
         (user && user.tenant) || constants.DEFAULT_TENANT || "airqo";
       const freshUser = await UserModel(dbTenant).findById(user._id);
@@ -311,7 +328,7 @@ function configureStrategies(passport, tenant) {
   });
 
   // Mark as configured — placed last so a partial failure during strategy
-  // registration does not incorrectly mark the process as configured.
+  // registration does not incorrectly mark the process as done.
   strategiesConfigured = true;
   logger.info(
     "[passport-strategies] all OAuth strategies configured successfully",
