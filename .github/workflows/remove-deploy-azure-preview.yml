@@ -16,12 +16,30 @@ jobs:
     name: Format branch name string
     runs-on: ubuntu-latest
     outputs:
-      lowercase: ${{ steps.string.outputs.lowercase }}
+      sanitized: ${{ steps.sanitize.outputs.sanitized }}
     steps:
       - id: string
         uses: ASzc/change-string-case-action@v5
         with:
           string: ${{ github.head_ref || github.ref_name }}
+
+      - id: sanitize
+        run: |
+          BRANCH="${{ steps.string.outputs.lowercase }}"
+          # Replace non-alphanumeric chars with hyphens, collapse multiples, trim
+          SANITIZED=$(echo "$BRANCH" | sed 's/[^a-z0-9]/-/g; s/-\+/-/g; s/^-//; s/-$//')
+          # Fall back to PR number if sanitization yields an empty string
+          if [ -z "$SANITIZED" ]; then
+            SANITIZED="pr${{ github.event.pull_request.number }}"
+          fi
+          # Ensure name starts with a letter (Azure requirement)
+          if [[ ! "$SANITIZED" =~ ^[a-z] ]]; then
+            SANITIZED="a${SANITIZED}"
+          fi
+          # Limit to 12 chars and trim any trailing hyphen
+          SANITIZED="${SANITIZED:0:12}"
+          SANITIZED="${SANITIZED%-}"
+          echo "sanitized=$SANITIZED" >> $GITHUB_OUTPUT
 
 ########################################################
 # REMOVE AUTH SERVICE PREVIEW
@@ -39,9 +57,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-auth-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-auth-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -61,9 +78,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-beacon-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-beacon-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -83,9 +99,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-device-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-device-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -105,9 +120,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-predict-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-predict-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -127,9 +141,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-meta-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-meta-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -149,9 +162,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-view-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-view-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -171,9 +183,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-cal-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-cal-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -193,9 +204,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-spatial-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-spatial-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -215,9 +225,8 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-super-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-super-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
 
@@ -237,8 +246,7 @@ jobs:
 
       - name: Delete Container App
         run: |
-          BRANCH="${{ needs.branch-name.outputs.lowercase }}"
           az containerapp delete \
-            --name "${BRANCH:0:12}-web-api-prev" \
+            --name "${{ needs.branch-name.outputs.sanitized }}-web-api-prev" \
             --resource-group ${{ env.RG }} \
             --yes || echo "Preview not found"
