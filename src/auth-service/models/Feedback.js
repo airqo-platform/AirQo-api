@@ -165,11 +165,17 @@ FeedbackSchema.statics = {
       // updates, not just on inserts. context: 'query' is required for
       // validators that reference `this` in a query context.
       const options = { new: true, runValidators: true, context: "query" };
-      const modifiedUpdate = { ...update };
 
-      // Immutable fields — silently strip to prevent accidental overwrite
-      delete modifiedUpdate.tenant;
-      delete modifiedUpdate.email;
+      // Whitelist: only pick fields that are intentionally mutable via this
+      // path. Any other key in the incoming update object is silently ignored,
+      // preventing accidental overwrites of email, subject, message, etc.
+      const MUTABLE_FIELDS = ["status"];
+      const modifiedUpdate = {};
+      for (const key of MUTABLE_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(update, key)) {
+          modifiedUpdate[key] = update[key];
+        }
+      }
 
       const updatedFeedback = await this.findOneAndUpdate(
         filter,
