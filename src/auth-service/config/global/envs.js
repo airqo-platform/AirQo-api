@@ -106,6 +106,10 @@ const envs = {
   ORGANISATIONS_LIMIT: parseNumber(process.env.ORGANISATIONS_LIMIT, 10),
   USE_REDIS_RATE_LIMIT: true,
   RATE_LIMIT_WHITELIST: process.env.RATE_LIMIT_WHITELIST,
+  // MongoDB connection pool size. Default 100 supports ~1000 concurrent
+  // logins across 3 replicas (each login uses ~3-5 pool slots).
+  // Tune via MONGODB_POOL_SIZE env var without a code change.
+  MONGODB_POOL_SIZE: parseNumber(process.env.MONGODB_POOL_SIZE, 100),
 };
 
 module.exports = envs;

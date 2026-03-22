@@ -32,7 +32,56 @@ const {
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const rateLimit = require("express-rate-limit");
-const options = { mongooseConnection: mongoose.connection };
+
+// ── Session store ─────────────────────────────────────────────────────────
+//
+// Priority:
+//   1. Redis (connect-redis) — when USE_REDIS_SESSIONS !== false and the
+//      Redis client is available. Redis sessions are ~10× faster than MongoDB
+//      and free all pool connections that previously handled session I/O.
+//   2. MongoDB (connect-mongo) — automatic fallback when Redis is unavailable
+//      at startup (e.g. Redis not yet healthy in K8s) or when the feature
+//      flag is disabled.
+//
+// touchAfter reduces MongoDB session writes: the store only re-persists a
+// session if its data actually changed, or at most once per 10 minutes.
+// autoRemove:"native" uses a MongoDB TTL index instead of a polling job.
+
+const mongoStoreOptions = {
+  mongooseConnection: mongoose.connection,
+  ttl: 24 * 60 * 60,       // 1 day in seconds
+  touchAfter: 10 * 60,      // only write if data changed, or once per 10 min
+  autoRemove: "native",     // MongoDB TTL index handles expiry (no polling)
+};
+
+const buildSessionStore = () => {
+  // Allow opting out via USE_REDIS_SESSIONS=false env var.
+  if (constants.USE_REDIS_SESSIONS === false) {
+    logger.info("[session] Redis sessions disabled by config — using MongoStore");
+    return new MongoStore(mongoStoreOptions);
+  }
+
+  try {
+    const { RedisStore } = require("connect-redis");
+    // Use the raw redis client (not the wrapper) as connect-redis requires
+    // the native v4 client interface.
+    const { redis: redisClient } = require("@config/redis");
+
+    const store = new RedisStore({
+      client: redisClient,
+      prefix: "airqo:sess:",
+      ttl: 24 * 60 * 60, // 1 day in seconds
+    });
+
+    logger.info("[session] using Redis session store");
+    return store;
+  } catch (err) {
+    logger.warn(
+      `[session] Redis store unavailable, falling back to MongoStore: ${err.message}`
+    );
+    return new MongoStore(mongoStoreOptions);
+  }
+};
 
 // Initialize background jobs
 const jobs = [
@@ -103,7 +152,7 @@ app.set("trust proxy", true);
 app.use(
   session({
     secret: constants.SESSION_SECRET,
-    store: new MongoStore(options),
+    store: buildSessionStore(),
     resave: false,
     saveUninitialized: false,
   }),
