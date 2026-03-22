@@ -988,7 +988,7 @@ const groupUtil = {
               .join(" ") || user.email;
             const contact_email = user.email;
 
-            await Promise.allSettled([
+            const emailResults = await Promise.allSettled([
               mailer.notifyAdminsOfNewOrgRequest({
                 organization_name,
                 contact_name,
@@ -1004,6 +1004,14 @@ const groupUtil = {
                 tenant,
               }),
             ]);
+            const emailFailures = emailResults.filter(
+              (r) => r.status === "rejected",
+            );
+            if (emailFailures.length > 0) {
+              logger.error(
+                `Non-critical: ${emailFailures.length}/2 group creation email(s) failed for group ${grp_id}: ${emailFailures.map((r) => r.reason?.message).join("; ")}`,
+              );
+            }
           } catch (emailError) {
             logger.error(
               `Non-critical: Failed to send group creation emails for group ${grp_id}: ${emailError.message}`,
@@ -3573,6 +3581,10 @@ const groupUtil = {
       const DEACTIVATING_STATUSES = ["INACTIVE", "SUSPENDED", "ARCHIVED"];
       const isDeactivation = DEACTIVATING_STATUSES.includes(status);
 
+      // No-op guard: skip notifications when the status hasn't actually changed.
+      // Prevents duplicate emails from repeated PATCH calls with the same value.
+      const statusChanged = previousStatus !== status;
+
       const managerName =
         [group.grp_manager_firstname, group.grp_manager_lastname]
           .filter(Boolean)
@@ -3581,7 +3593,7 @@ const groupUtil = {
       // Always notify the manager on both activation AND deactivation — this
       // is a consequential change to their organisation's state. Fire-and-forget
       // so a mail failure never rolls back a successful status update.
-      if (group.grp_manager_username) {
+      if (statusChanged && group.grp_manager_username) {
         (async () => {
           try {
             if (status === "ACTIVE") {
@@ -3614,25 +3626,35 @@ const groupUtil = {
       // For deactivation, always notify all members — override the caller's
       // notify_members flag because users must know their access is gone.
       // For activation and other transitions, respect the caller's preference.
-      const shouldNotifyMembers = isDeactivation || notify_members;
+      // Skip member notifications entirely on no-op status updates.
+      const shouldNotifyMembers = statusChanged && (isDeactivation || notify_members);
 
       // Fire-and-forget: invalidate the Redis RBAC cache for every group member
       // so their next JWT refresh picks up the new group status from the DB
-      // instead of serving a stale cached payload. Runs for ALL status changes.
-      (async () => {
+      // instead of serving a stale cached payload. Only needed when status changed.
+      if (statusChanged) (async () => {
         try {
           const memberIds = await UserModel(tenant)
             .find({ "group_roles.group": grp_id })
             .select("_id")
             .lean();
-          await Promise.allSettled(
+          const cacheResults = await Promise.allSettled(
             memberIds.map((m) =>
               invalidateUserRBACCache(m._id.toString(), tenant),
             ),
           );
-          logger.info(
-            `RBAC cache invalidated for ${memberIds.length} member(s) of group ${grp_id}`,
+          const cacheFailures = cacheResults.filter(
+            (r) => r.status === "rejected",
           );
+          if (cacheFailures.length > 0) {
+            logger.error(
+              `RBAC cache invalidation failed for ${cacheFailures.length}/${memberIds.length} member(s) of group ${grp_id}: ${cacheFailures.map((r) => r.reason?.message).join("; ")}`,
+            );
+          } else {
+            logger.info(
+              `RBAC cache invalidated for ${memberIds.length} member(s) of group ${grp_id}`,
+            );
+          }
         } catch (err) {
           logger.error(
             `Non-critical: RBAC cache invalidation failed for group ${grp_id}: ${err.message}`,

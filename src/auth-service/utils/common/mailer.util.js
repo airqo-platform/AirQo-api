@@ -725,9 +725,9 @@ const getEmailSubject = (functionName, params) => {
     notifyOrgRequestApprovedWithOnboarding: `Welcome to AirQo: Complete Your Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
-    notifyGroupStatusChanged: `Organisation Status Update: ${sanitizeEmailString(
-      params.organization_name || "",
-    )}`,
+    notifyGroupStatusChanged: `Organisation Status Update (${sanitizeEmailString(
+      params.new_status || "",
+    )}) - ${sanitizeEmailString(params.organization_name || "")}`,
     onboardingAccountSetup: `Complete Your AirQo Account Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
