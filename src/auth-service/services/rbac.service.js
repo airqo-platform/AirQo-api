@@ -6,12 +6,44 @@ const logger = require("log4js").getLogger(
 
 const { logText, logObject } = require("@utils/shared");
 
+// ── Redis RBAC permission cache (L2 — shared across all replicas) ──────────
+// Each login calls getUserPermissionsForLogin() which runs 3-5 parallel DB
+// queries. Caching in Redis means only the first login per user per replica
+// per TTL window hits the database. The in-process Map below is L1 (faster,
+// per-replica). Both caches are optional and fail safe to a DB lookup.
+//
+// Redis key format:  airqo:rbac:<tenant>:<userId>
+// TTL:              5 minutes — short enough that role changes propagate
+//                  within a reasonable window without a manual invalidation.
+const REDIS_RBAC_TTL = 5 * 60; // seconds
+
+const _redisGet = async (key) => {
+  try {
+    const { redis: redisClient } = require("@config/redis");
+    if (!redisClient || !redisClient.isOpen || !redisClient.isReady) return null;
+    const raw = await redisClient.get(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null; // Redis unavailable — fall through to DB
+  }
+};
+
+const _redisSet = async (key, value, ttlSeconds) => {
+  try {
+    const { redis: redisClient } = require("@config/redis");
+    if (!redisClient || !redisClient.isOpen || !redisClient.isReady) return;
+    await redisClient.setEx(key, ttlSeconds, JSON.stringify(value));
+  } catch (_) {
+    // Redis unavailable — continue without caching
+  }
+};
+
 class RBACService {
   constructor(tenant = "airqo") {
     this.tenant = tenant;
     this.rolePermissionCache = new Map();
     this.cacheExpiry = new Map();
-    this.CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+    this.CACHE_TTL = 10 * 60 * 1000; // 10 minutes (L1 in-process cache)
 
     // Set up periodic cache cleanup
     this.cleanupInterval = setInterval(() => {
@@ -397,12 +429,30 @@ class RBACService {
   }
 
   async getUserPermissionsForLogin(userId) {
+    const redisKey = `airqo:rbac:${this.tenant}:${userId}`;
+    const empty = {
+      allPermissions: [],
+      systemPermissions: [],
+      groupPermissions: {},
+      networkPermissions: {},
+      groupMemberships: [],
+      networkMemberships: [],
+      isSuperAdmin: false,
+    };
+
     try {
-      console.log(
-        "🔐 Enhanced RBAC: getUserPermissionsForLogin called for:",
-        userId
+      logger.debug(
+        `[rbac] getUserPermissionsForLogin for user ${userId} (tenant: ${this.tenant})`
       );
 
+      // ── L2: Redis cache (shared across replicas) ──────────────────────
+      const cached = await _redisGet(redisKey);
+      if (cached) {
+        logger.debug(`[rbac] Redis cache hit for user ${userId}`);
+        return cached;
+      }
+
+      // ── DB lookup ─────────────────────────────────────────────────────
       const contextData = await this.getUserPermissionsByContext(userId);
 
       const allPermissions = [
@@ -411,10 +461,8 @@ class RBACService {
         ...Object.values(contextData.networkPermissions).flat(),
       ];
 
-      const uniqueAllPermissions = [...new Set(allPermissions)];
-
       const result = {
-        allPermissions: uniqueAllPermissions,
+        allPermissions: [...new Set(allPermissions)],
         systemPermissions: contextData.systemPermissions,
         groupPermissions: contextData.groupPermissions,
         networkPermissions: contextData.networkPermissions,
@@ -423,27 +471,20 @@ class RBACService {
         isSuperAdmin: contextData.isSuperAdmin,
       };
 
-      console.log("✅ Enhanced RBAC Login permissions result:", {
+      // ── Populate both caches (fire-and-forget for Redis) ──────────────
+      _redisSet(redisKey, result, REDIS_RBAC_TTL).catch(() => {});
+
+      logger.debug(`[rbac] permissions computed for user ${userId}`, {
         allPermissionsCount: result.allPermissions.length,
-        systemPermissionsCount: result.systemPermissions.length,
         isSuperAdmin: result.isSuperAdmin,
       });
 
       return result;
     } catch (error) {
-      console.error("❌ Enhanced RBAC Login ERROR:", error);
       logger.error(
-        `Error getting user permissions for login: ${error.message}`
+        `[rbac] getUserPermissionsForLogin error for user ${userId}: ${error.message}`
       );
-      return {
-        allPermissions: [],
-        systemPermissions: [],
-        groupPermissions: {},
-        networkPermissions: {},
-        groupMemberships: [],
-        networkMemberships: [],
-        isSuperAdmin: false,
-      };
+      return empty;
     }
   }
 

@@ -27,11 +27,14 @@ const options = {
   useFindAndModify: false,
   useUnifiedTopology: true,
   autoIndex: true,
-  poolSize: 10,
+  // Allow overriding via env for tuning across environments.
+  // Default 100 supports ~1000 concurrent logins (each login uses ~3-5 pool
+  // slots across auth + session + stats queries).
+  poolSize: parseInt(constants.MONGODB_POOL_SIZE || "100", 10),
   bufferMaxEntries: 0,
-  connectTimeoutMS: 1200000,
-  socketTimeoutMS: 600000,
-  serverSelectionTimeoutMS: 3600000,
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 60000,
+  serverSelectionTimeoutMS: 30000,
 };
 
 let rbacInitialized = false;
