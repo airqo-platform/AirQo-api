@@ -64,8 +64,19 @@ const buildSessionStore = () => {
   try {
     const { RedisStore } = require("connect-redis");
     // Use the raw redis client (not the wrapper) as connect-redis requires
-    // the native v4 client interface.
+    // the native client interface.
     const { redis: redisClient } = require("@config/redis");
+
+    // Only use Redis if the connection is fully established. isOpen means the
+    // socket is connected; isReady means the server has accepted the connection
+    // and is ready to receive commands. Without this check the store can be
+    // created successfully but then fail on the first session read/write.
+    if (!redisClient.isOpen || !redisClient.isReady) {
+      logger.warn(
+        "[session] Redis client not ready at startup — falling back to MongoStore"
+      );
+      return new MongoStore(mongoStoreOptions);
+    }
 
     const store = new RedisStore({
       client: redisClient,
@@ -549,30 +560,14 @@ const createServer = () => {
         console.log("No cron jobs to stop");
       }
 
-      // Close any Redis connections if they exist
-      if (global.redisClient) {
-        console.log("Closing Redis connection...");
-
-        try {
-          // Prefer quit() for a graceful shutdown, but fallback to disconnect()
-          if (
-            global.redisClient &&
-            typeof global.redisClient.quit === "function"
-          ) {
-            await global.redisClient.quit();
-            console.log("✅ Redis connection closed");
-          } else if (
-            global.redisClient &&
-            typeof global.redisClient.disconnect === "function"
-          ) {
-            // disconnect() is less graceful but better than nothing
-            await global.redisClient.disconnect();
-            console.log("✅ Redis connection disconnected");
-          }
-        } catch (error) {
-          console.error("❌ Error closing Redis connection:", error.message);
-          logger.error(`❌ Error closing Redis connection: ${error.message}`);
-        }
+      // Close the module-level Redis client (config/redis.js)
+      try {
+        const { disconnectRedis } = require("@config/redis");
+        await disconnectRedis("gracefulShutdown");
+        console.log("✅ Redis connection closed");
+      } catch (error) {
+        console.error("❌ Error closing Redis connection:", error.message);
+        logger.error(`❌ Error closing Redis connection: ${error.message}`);
       }
 
       // Close Firebase connections if they exist

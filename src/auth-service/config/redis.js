@@ -104,15 +104,13 @@ const disconnectRedis = async (signal) => {
   }
 };
 
-process.on("SIGTERM", () => disconnectRedis("SIGTERM"));
-process.on("SIGINT", () => disconnectRedis("SIGINT"));
-
 // ── Wrapper functions ─────────────────────────────────────────────────────
-// All wrappers guard against !redis.isOpen so callers get null / 0 / false
-// rather than throwing when Redis is momentarily unavailable.
+// All wrappers guard against !redis.isOpen || !redis.isReady so callers get
+// null / 0 / false rather than throwing when Redis is momentarily unavailable.
+// isOpen: socket connected. isReady: server accepted connection, commands OK.
 
 const redisGetAsync = async (key) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for GET ${key}`);
     return null;
   }
@@ -125,7 +123,7 @@ const redisGetAsync = async (key) => {
 };
 
 const redisSetAsync = async (key, value, ttlSeconds = null) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for SET ${key}`);
     return null;
   }
@@ -142,7 +140,7 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
 };
 
 const redisExpireAsync = async (key, seconds) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for EXPIRE ${key}`);
     return 0;
   }
@@ -155,7 +153,7 @@ const redisExpireAsync = async (key, seconds) => {
 };
 
 const redisDelAsync = async (key) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for DEL ${key}`);
     return 0;
   }
@@ -168,7 +166,7 @@ const redisDelAsync = async (key) => {
 };
 
 const redisSetWithTTLAsync = async (key, value, ttlSeconds) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for SETEX ${key}`);
     return null;
   }
@@ -181,7 +179,7 @@ const redisSetWithTTLAsync = async (key, value, ttlSeconds) => {
 };
 
 const redisSetNXAsync = async (key, value, ttlSeconds) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for SETNX ${key}`);
     throw new Error("Redis not available for distributed lock");
   }
@@ -201,7 +199,7 @@ const redisSetNXAsync = async (key, value, ttlSeconds) => {
 };
 
 const redisPingAsync = async (timeout = 3000) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     throw new Error("Redis not available");
   }
   try {
@@ -228,7 +226,7 @@ const redisUtils = {
   }),
 
   ping: async (timeout = 3000) => {
-    if (!redis.isOpen) {
+    if (!redis.isOpen || !redis.isReady) {
       return false;
     }
     try {
@@ -261,7 +259,7 @@ const redisWrapper = {
 
 // Compatibility export for ioredis.set(key, value, 'EX', seconds) callers
 redisWrapper.set = async (key, value, ttlType, ttlValue) => {
-  if (!redis.isOpen) {
+  if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for SET ${key}`);
     return null;
   }
@@ -278,3 +276,4 @@ redisWrapper.set = async (key, value, ttlType, ttlValue) => {
 
 module.exports = redisWrapper;
 module.exports.redis = redis; // Raw client — used by connect-redis and rbac cache
+module.exports.disconnectRedis = disconnectRedis; // Called by server.js gracefulShutdown
