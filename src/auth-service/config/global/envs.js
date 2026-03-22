@@ -110,6 +110,23 @@ const envs = {
   // logins across 3 replicas (each login uses ~3-5 pool slots).
   // Tune via MONGODB_POOL_SIZE env var without a code change.
   MONGODB_POOL_SIZE: parseNumber(process.env.MONGODB_POOL_SIZE, 100),
+
+  // ── Feedback domain constants ──────────────────────────────────────────────
+  // Single source of truth shared between the Feedback model and validators.
+  FEEDBACK_CATEGORIES: [
+    "general",
+    "bug",
+    "feature_request",
+    "performance",
+    "ux_design",
+    "other",
+  ],
+  FEEDBACK_STATUSES: ["pending", "reviewed", "resolved", "archived"],
+  FEEDBACK_PLATFORMS: ["web", "mobile", "api"],
+  // Conservative cap: reject metadata objects whose JSON serialisation exceeds
+  // this byte count. Keeps individual documents well under MongoDB's 16 MB
+  // document limit and avoids storage/query cost surprises.
+  FEEDBACK_METADATA_MAX_BYTES: 4096,
 };
 
 module.exports = envs;

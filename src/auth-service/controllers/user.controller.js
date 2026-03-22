@@ -1708,6 +1708,67 @@ const userController = {
       handleError(error, next);
     }
   },
+
+  // ── FEEDBACK (persistent) ───────────────────────────────────────────────────
+
+  submitFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.submitFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listFeedbackSubmissions: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listFeedbackSubmissions(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          feedbacks: result.data,
+          meta: result.meta,
+        });
+      }
+      return res
+        .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "Internal Server Error" },
+        });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  getFeedbackSubmission: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getFeedbackSubmission(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateFeedbackStatus: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateFeedbackStatus(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
 };
 
 module.exports = userController;
