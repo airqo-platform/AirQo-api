@@ -16,6 +16,7 @@ const logger = require("log4js").getLogger(
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError, logText } = require("@utils/shared");
+const mailer = require("@utils/common/mailer.util");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -971,6 +972,41 @@ const groupUtil = {
             responseFromRegisterGroup.message += ` (organization slug auto-generated: ${organizationSlug})`;
           }
         }
+
+        // Fire-and-forget email notifications — non-blocking; never affect the
+        // HTTP response. Admin receives a "new org registered" alert; creator
+        // receives a confirmation that their request is under review.
+        (async () => {
+          try {
+            const organization_name =
+              responseFromRegisterGroup.data.grp_title || body.grp_title;
+            const contact_name = [user.firstName, user.lastName]
+              .filter(Boolean)
+              .join(" ") || user.email;
+            const contact_email = user.email;
+
+            await Promise.allSettled([
+              mailer.notifyAdminsOfNewOrgRequest({
+                organization_name,
+                contact_name,
+                contact_email,
+                email: constants.SUPPORT_EMAIL || constants.EMAIL,
+                tenant,
+              }),
+              mailer.confirmOrgRequestReceived({
+                organization_name,
+                contact_name,
+                contact_email,
+                email: contact_email,
+                tenant,
+              }),
+            ]);
+          } catch (emailError) {
+            logger.error(
+              `Non-critical: Failed to send group creation emails for group ${grp_id}: ${emailError.message}`,
+            );
+          }
+        })();
 
         // Fire-and-forget Kafka event publishing with non-blocking rollback
         (async () => {
@@ -3496,6 +3532,24 @@ const groupUtil = {
         return;
       }
 
+      // The default "airqo" group is the foundation of every user's permissions
+      // on the platform. Deactivating it would silently lock out all users, so
+      // we block any non-ACTIVE status change on it regardless of caller role.
+      const isDefaultGroup =
+        group.is_default === true ||
+        group.organization_slug?.toLowerCase() === "airqo" ||
+        group.grp_title?.toLowerCase() === "airqo";
+
+      if (isDefaultGroup && status !== "ACTIVE") {
+        next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message:
+              "The default AirQo organisation cannot be deactivated. It is the foundation of all user permissions on the platform.",
+          }),
+        );
+        return;
+      }
+
       const previousStatus = group.grp_status;
       const updateDate = effective_date ? new Date(effective_date) : new Date();
 
@@ -3510,12 +3564,62 @@ const groupUtil = {
         { new: true },
       );
 
-      // Handle member notifications if requested
+      // Statuses that mean the organisation is being taken offline deliberately.
+      // These always warrant notifying affected users — not just when the admin
+      // opts in via notify_members — because silent access loss is unacceptable.
+      const DEACTIVATING_STATUSES = ["INACTIVE", "SUSPENDED", "ARCHIVED"];
+      const isDeactivation = DEACTIVATING_STATUSES.includes(status);
+
+      const managerName =
+        [group.grp_manager_firstname, group.grp_manager_lastname]
+          .filter(Boolean)
+          .join(" ") || group.grp_manager_username;
+
+      // Always notify the manager on both activation AND deactivation — this
+      // is a consequential change to their organisation's state. Fire-and-forget
+      // so a mail failure never rolls back a successful status update.
+      if (group.grp_manager_username) {
+        (async () => {
+          try {
+            if (status === "ACTIVE") {
+              await mailer.notifyOrgRequestApproved({
+                organization_name: group.grp_title,
+                contact_name: managerName,
+                contact_email: group.grp_manager_username,
+                email: group.grp_manager_username,
+                login_url: `${constants.ANALYTICS_BASE_URL}/login`,
+                tenant,
+              });
+            } else if (isDeactivation) {
+              await mailer.notifyGroupStatusChanged({
+                organization_name: group.grp_title,
+                contact_name: managerName,
+                new_status: status,
+                reason,
+                email: group.grp_manager_username,
+                tenant,
+              });
+            }
+          } catch (emailError) {
+            logger.error(
+              `Non-critical: Failed to send status email to manager for group ${grp_id}: ${emailError.message}`,
+            );
+          }
+        })();
+      }
+
+      // For deactivation, always notify all members — override the caller's
+      // notify_members flag because users must know their access is gone.
+      // For activation and other transitions, respect the caller's preference.
+      const shouldNotifyMembers = isDeactivation || notify_members;
+
       let notificationResults = null;
-      if (notify_members) {
+      if (shouldNotifyMembers) {
         notificationResults = await groupUtil.notifyGroupMembers({
           tenant,
           group_id: grp_id,
+          organization_name: group.grp_title,
+          new_status: status,
           message: `Group status changed from ${previousStatus} to ${status}`,
           reason,
           type: "status_change",
@@ -4138,21 +4242,53 @@ const groupUtil = {
   /**
    * Helper: Notify group members
    */
-  notifyGroupMembers: async ({ tenant, group_id, message, reason, type }) => {
+  notifyGroupMembers: async ({
+    tenant,
+    group_id,
+    organization_name,
+    new_status,
+    message,
+    reason,
+    type,
+  }) => {
     try {
       const members = await UserModel(tenant)
         .find({ "group_roles.group": group_id })
         .select("email firstName lastName")
         .lean();
 
-      // In production, integrate with your notification service
-      logger.info(`Notifying ${members.length} group members: ${message}`);
+      if (members.length === 0) {
+        return { sent_count: 0, type, message };
+      }
 
-      return {
-        sent_count: members.length,
-        type,
-        message,
-      };
+      logger.info(
+        `Sending ${type} email to ${members.length} members of group ${group_id}`,
+      );
+
+      const results = await Promise.allSettled(
+        members.map((member) =>
+          mailer.notifyGroupStatusChanged({
+            organization_name,
+            contact_name: [member.firstName, member.lastName]
+              .filter(Boolean)
+              .join(" ") || member.email,
+            new_status,
+            reason,
+            email: member.email,
+            tenant,
+          }),
+        ),
+      );
+
+      const sent_count = results.filter(
+        (r) => r.status === "fulfilled" && r.value?.success,
+      ).length;
+
+      logger.info(
+        `Notified ${sent_count}/${members.length} members of group ${group_id} (${type})`,
+      );
+
+      return { sent_count, type, message };
     } catch (error) {
       logger.error(`Error notifying group members: ${error.message}`);
       return { sent_count: 0 };

@@ -725,6 +725,9 @@ const getEmailSubject = (functionName, params) => {
     notifyOrgRequestApprovedWithOnboarding: `Welcome to AirQo: Complete Your Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
+    notifyGroupStatusChanged: `Organisation Status Update: ${sanitizeEmailString(
+      params.organization_name || "",
+    )}`,
     onboardingAccountSetup: `Complete Your AirQo Account Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
@@ -826,6 +829,7 @@ const EMAIL_CATEGORIES = {
     "notifyOrgRequestRejected",
     "notifyOrgRequestApprovedWithOnboarding",
     "onboardingCompleted",
+    "notifyGroupStatusChanged",
   ],
 
   USER_MANAGEMENT: [
@@ -2477,6 +2481,19 @@ const mailer = {
         bcc: bccEmails || undefined,
       };
     },
+  ),
+  // Sent to each group member when an admin triggers a status change with
+  // notify_members: true. Uses the groupStatusChanged template.
+  notifyGroupStatusChanged: createMailerFunction(
+    "notifyGroupStatusChanged",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.groupStatusChanged({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        new_status: params.new_status,
+        reason: params.reason,
+      }),
   ),
 };
 

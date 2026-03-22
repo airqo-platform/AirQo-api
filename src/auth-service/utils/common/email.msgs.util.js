@@ -1388,4 +1388,29 @@ module.exports = {
   </tr>`;
     return constants.EMAIL_BODY({ email: userEmail, content, name: "Admin" });
   },
+
+  // Sent to all group members when an admin explicitly requests member
+  // notification during a status update (notify_members: true).
+  groupStatusChanged: ({ organization_name, contact_name, new_status, reason }) => {
+    const statusLabel =
+      {
+        ACTIVE: "Active",
+        INACTIVE: "Inactive",
+        SUSPENDED: "Suspended",
+        ARCHIVED: "Archived",
+        MAINTENANCE: "Under Maintenance",
+      }[new_status] || new_status;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>The status of your organisation <strong>${escapeHtml(organization_name)}</strong> has been updated to <strong>${escapeHtml(statusLabel)}</strong>.</p>
+        ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
+        <p>If you have any questions, please contact our support team at support@airqo.net.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email: "", content, name: contact_name });
+  },
 };

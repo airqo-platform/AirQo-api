@@ -3,6 +3,9 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- rbac-service`
 );
+const {
+  isGroupActivationMigrationComplete,
+} = require("@bin/jobs/default-group-init-job");
 
 const { logText, logObject } = require("@utils/shared");
 
@@ -293,6 +296,27 @@ class RBACService {
           }
 
           const groupIdStr = groupId.toString();
+
+          // Option C guard — skip groups that have been explicitly deactivated.
+          //
+          // Two conditions must both be true before we drop a group:
+          //   1. The startup migration has confirmed it has run to completion
+          //      (isGroupActivationMigrationComplete() === true). Until then
+          //      the guard is fully dormant — pre-existing groups that are
+          //      INACTIVE purely from the schema default are not yet filtered,
+          //      giving the migration time to activate them first. This makes
+          //      single-deployment safe with zero race conditions.
+          //   2. We have the group's status from DB-populated data AND it is
+          //      not ACTIVE. If groupData is null (group was not populated)
+          //      we allow it through rather than silently drop a membership.
+          const groupStatus = groupData?.grp_status;
+          if (
+            isGroupActivationMigrationComplete() &&
+            groupStatus &&
+            groupStatus !== "ACTIVE"
+          ) {
+            continue;
+          }
 
           if (!groupPermissions[groupIdStr]) {
             groupPermissions[groupIdStr] = [];
