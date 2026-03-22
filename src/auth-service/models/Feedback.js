@@ -97,7 +97,7 @@ FeedbackSchema.index({ tenant: 1, category: 1 });
 FeedbackSchema.index({ email: 1, tenant: 1 });
 
 FeedbackSchema.statics = {
-  async register(args, next) {
+  async register(args) {
     try {
       const data = await this.create({ ...args });
       if (!isEmpty(data)) {
@@ -110,7 +110,7 @@ FeedbackSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       const totalCount = await this.countDocuments(filter);
       const feedbacks = await this.find(filter)
@@ -159,7 +159,7 @@ FeedbackSchema.statics = {
     }
   },
 
-  async modify({ filter = {}, update = {} } = {}, next) {
+  async modify({ filter = {}, update = {} } = {}) {
     try {
       // runValidators ensures schema enum/min/max constraints are enforced on
       // updates, not just on inserts. context: 'query' is required for
@@ -218,17 +218,15 @@ FeedbackSchema.methods = {
   },
 };
 
-// Use "feedback" (singular) consistently — matches the name getModelByTenant
-// registers in the tenant DB, preventing a mismatch that could silently break
-// model caching or tenant isolation.
+// Always delegate to getModelByTenant so every call is scoped to the correct
+// tenant database. The try/catch pattern (mongoose.model global lookup) is
+// removed because it could return a connection-agnostic model and bypass tenant
+// isolation. getModelByTenant handles its own per-tenant caching internally via
+// useDb({ useCache: true }), so repeated calls for the same tenant are cheap.
 const FeedbackModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    return mongoose.model("feedback");
-  } catch (error) {
-    return getModelByTenant(dbTenant, "feedback", FeedbackSchema);
-  }
+  return getModelByTenant(dbTenant, "feedback", FeedbackSchema);
 };
 
 module.exports = FeedbackModel;
