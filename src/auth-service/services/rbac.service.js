@@ -3,8 +3,10 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- rbac-service`
 );
+const {
+  isGroupActivationMigrationComplete,
+} = require("@bin/jobs/default-group-init-job");
 
-const { logText, logObject } = require("@utils/shared");
 
 // ── Redis RBAC permission cache (L2 — shared across all replicas) ──────────
 // Each login calls getUserPermissionsForLogin() which runs 3-5 parallel DB
@@ -38,12 +40,47 @@ const _redisSet = async (key, value, ttlSeconds) => {
   }
 };
 
+const _redisDel = async (key) => {
+  try {
+    const { redis: redisClient } = require("@config/redis");
+    if (!redisClient || !redisClient.isOpen || !redisClient.isReady) return;
+    await redisClient.del(key);
+  } catch (_) {
+    // Redis unavailable — safe to ignore
+  }
+};
+
+/**
+ * Invalidates both L1 (in-process rolePermissionCache) and L2 (Redis) RBAC
+ * caches for a single user. Call this whenever a user's group membership or
+ * group status changes so all subsequent permission checks rebuild from the DB.
+ *
+ * @param {string} userId
+ * @param {string} [tenant="airqo"]
+ */
+const invalidateUserRBACCache = (userId, tenant = "airqo") => {
+  const cacheKey = userId.toString();
+  // Clear L1 — the in-process rolePermissionCache on the live instance for
+  // this tenant (registered via RBACService._registry after class definition).
+  const instance = RBACService._registry?.get(tenant);
+  if (instance) {
+    instance.rolePermissionCache.delete(cacheKey);
+    instance.cacheExpiry.delete(cacheKey);
+  }
+  // Clear L2 — Redis shared cache.
+  return _redisDel(`airqo:rbac:${tenant}:${userId}`);
+};
+
 class RBACService {
   constructor(tenant = "airqo") {
     this.tenant = tenant;
     this.rolePermissionCache = new Map();
     this.cacheExpiry = new Map();
     this.CACHE_TTL = 10 * 60 * 1000; // 10 minutes (L1 in-process cache)
+
+    // Register in the static registry so invalidateUserRBACCache can reach
+    // this instance's L1 cache without a circular import.
+    RBACService._registry.set(tenant, this);
 
     // Set up periodic cache cleanup
     this.cleanupInterval = setInterval(() => {
@@ -60,6 +97,10 @@ class RBACService {
   destroy() {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
+    }
+    // Deregister from the static registry so the instance can be GC'd.
+    if (RBACService._registry.get(this.tenant) === this) {
+      RBACService._registry.delete(this.tenant);
     }
   }
 
@@ -258,7 +299,45 @@ class RBACService {
         });
       }
 
-      const isSuperAdmin = this.isSuperAdmin(populatedUser);
+      // Pre-filter deactivated groups BEFORE calling isSuperAdmin so a role
+      // granted only via a deactivated group cannot elevate privileges.
+      const deactivatedGroupMemberships = [];
+      let activeGroupRoles = populatedUser.group_roles || [];
+
+      if (
+        isGroupActivationMigrationComplete(this.tenant) &&
+        activeGroupRoles.length > 0
+      ) {
+        const filtered = [];
+        for (const groupRole of activeGroupRoles) {
+          const groupId = groupRole.group?._id || groupRole.group;
+          const groupData = groupRole.group?._id ? groupRole.group : null;
+          if (!groupId) {
+            filtered.push(groupRole); // unpopulated — allow through (cannot evaluate status)
+            continue;
+          }
+          const groupStatus = groupData?.grp_status;
+          if (groupStatus && groupStatus !== "ACTIVE") {
+            deactivatedGroupMemberships.push({
+              group: {
+                id: groupId.toString(),
+                title: groupData?.grp_title || "Unknown Group",
+                status: groupStatus,
+                organizationSlug: groupData?.organization_slug || null,
+              },
+              userType: groupRole.userType || "guest",
+            });
+          } else {
+            filtered.push(groupRole);
+          }
+        }
+        activeGroupRoles = filtered;
+      }
+
+      const isSuperAdmin = this.isSuperAdmin({
+        ...populatedUser,
+        group_roles: activeGroupRoles,
+      });
       if (isSuperAdmin) {
         console.log(
           "👑 Enhanced RBAC Context: Super admin - adding all system permissions"
@@ -275,15 +354,17 @@ class RBACService {
         );
       }
 
-      // Group-specific permissions
+      // Group-specific permissions — iterate only the pre-filtered active roles.
+      // Deactivated groups were already separated into deactivatedGroupMemberships
+      // above, so no guard check is needed here.
       const groupPermissions = {};
       const groupMemberships = [];
-      if (populatedUser.group_roles && populatedUser.group_roles.length > 0) {
-        for (const groupRole of populatedUser.group_roles) {
+
+      if (activeGroupRoles.length > 0) {
+        for (const groupRole of activeGroupRoles) {
           const groupId = groupRole.group?._id || groupRole.group;
           const groupData = groupRole.group?._id ? groupRole.group : null;
 
-          // Skip if groupId is null or undefined
           if (!groupId) {
             console.warn(
               "Skipping group role with null/undefined groupId:",
@@ -401,6 +482,7 @@ class RBACService {
         networkPermissions,
         groupMemberships,
         networkMemberships,
+        deactivatedGroupMemberships,
         isSuperAdmin,
       };
 
@@ -423,6 +505,7 @@ class RBACService {
         networkPermissions: {},
         groupMemberships: [],
         networkMemberships: [],
+        deactivatedGroupMemberships: [],
         isSuperAdmin: false,
       };
     }
@@ -1247,4 +1330,10 @@ class RBACService {
   }
 }
 
+// Static registry — maps tenant → live RBACService instance.
+// Populated by each constructor call and used by invalidateUserRBACCache
+// to clear L1 cache entries without needing a circular import.
+RBACService._registry = new Map();
+
 module.exports = RBACService;
+module.exports.invalidateUserRBACCache = invalidateUserRBACCache;

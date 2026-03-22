@@ -1362,6 +1362,161 @@ const assignCohorts = [
   body("cohort_ids.*").isMongoId().withMessage("Each ID must be a valid ID"),
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PERSISTENT FEEDBACK VALIDATORS
+// Enum values are sourced from constants (config/global/envs.js) — single
+// source of truth shared with the Feedback model to prevent drift.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FEEDBACK_CATEGORIES = constants.FEEDBACK_CATEGORIES;
+const FEEDBACK_STATUSES = constants.FEEDBACK_STATUSES;
+const FEEDBACK_PLATFORMS = constants.FEEDBACK_PLATFORMS;
+const FEEDBACK_METADATA_MAX_BYTES = constants.FEEDBACK_METADATA_MAX_BYTES;
+
+const submitFeedback = [
+  validateTenant,
+  body("email")
+    .exists()
+    .withMessage("email is required")
+    .bail()
+    .notEmpty()
+    .withMessage("email must not be empty")
+    .bail()
+    .isEmail()
+    .withMessage("this is not a valid email address")
+    .bail()
+    .customSanitizer((value) => value.toLowerCase().trim()),
+  body("subject")
+    .exists()
+    .withMessage("subject is required")
+    .bail()
+    .notEmpty()
+    .withMessage("subject must not be empty")
+    .bail()
+    .isLength({ max: 200 })
+    .withMessage("subject cannot exceed 200 characters")
+    .trim(),
+  body("message")
+    .exists()
+    .withMessage("message is required")
+    .bail()
+    .notEmpty()
+    .withMessage("message must not be empty")
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage("message cannot exceed 5000 characters")
+    .trim(),
+  body("rating")
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage("rating must be an integer between 1 and 5"),
+  body("category")
+    .optional()
+    .notEmpty()
+    .withMessage("category must not be empty if provided")
+    .bail()
+    .isIn(FEEDBACK_CATEGORIES)
+    .withMessage(
+      `category must be one of: ${FEEDBACK_CATEGORIES.join(", ")}`,
+    ),
+  body("platform")
+    .optional()
+    .notEmpty()
+    .withMessage("platform must not be empty if provided")
+    .bail()
+    .isIn(FEEDBACK_PLATFORMS)
+    .withMessage(
+      `platform must be one of: ${FEEDBACK_PLATFORMS.join(", ")}`,
+    ),
+  body("metadata")
+    .optional()
+    .isObject()
+    .withMessage("metadata must be an object if provided")
+    .bail()
+    .custom((value) => {
+      const bytes = Buffer.byteLength(JSON.stringify(value), "utf8");
+      if (bytes > FEEDBACK_METADATA_MAX_BYTES) {
+        throw new Error(
+          `metadata must not exceed ${FEEDBACK_METADATA_MAX_BYTES} bytes (received ${bytes} bytes)`,
+        );
+      }
+      return true;
+    }),
+];
+
+const listFeedbackSubmissions = [
+  validateTenant,
+  query("status")
+    .optional()
+    .notEmpty()
+    .withMessage("status must not be empty if provided")
+    .bail()
+    .isIn(FEEDBACK_STATUSES)
+    .withMessage(`status must be one of: ${FEEDBACK_STATUSES.join(", ")}`),
+  query("category")
+    .optional()
+    .notEmpty()
+    .withMessage("category must not be empty if provided")
+    .bail()
+    .isIn(FEEDBACK_CATEGORIES)
+    .withMessage(
+      `category must be one of: ${FEEDBACK_CATEGORIES.join(", ")}`,
+    ),
+  query("platform")
+    .optional()
+    .notEmpty()
+    .withMessage("platform must not be empty if provided")
+    .bail()
+    .isIn(FEEDBACK_PLATFORMS)
+    .withMessage(
+      `platform must be one of: ${FEEDBACK_PLATFORMS.join(", ")}`,
+    ),
+  query("email")
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage("email filter must be a valid email address"),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage("limit must be an integer between 1 and 1000"),
+];
+
+const getFeedbackById = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+];
+
+const updateFeedbackStatus = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("status")
+    .exists()
+    .withMessage("status is required")
+    .bail()
+    .notEmpty()
+    .withMessage("status must not be empty")
+    .bail()
+    .isIn(FEEDBACK_STATUSES)
+    .withMessage(`status must be one of: ${FEEDBACK_STATUSES.join(", ")}`),
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -1416,4 +1571,8 @@ module.exports = {
   confirmMobileAccountDeletion,
   updateConsent,
   assignCohorts,
+  submitFeedback,
+  listFeedbackSubmissions,
+  getFeedbackById,
+  updateFeedbackStatus,
 };

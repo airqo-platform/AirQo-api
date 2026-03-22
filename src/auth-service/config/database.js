@@ -235,11 +235,21 @@ const connectToMongoDB = () => {
 
         const {
           ensureDefaultAirqoGroupExists,
+          activateAllExistingGroups,
         } = require("@bin/jobs/default-group-init-job");
-        console.log("🚀 Kicking off default group initialization...");
-        ensureDefaultAirqoGroupExists().catch((err) => {
+
+        // Awaited so both complete before further startup proceeds. The
+        // activation migration in particular must finish before the Option C
+        // JWT guard can safely enforce ACTIVE-only group permissions.
+        console.log("🚀 Initializing default group and running activation migration...");
+        await ensureDefaultAirqoGroupExists().catch((err) => {
           logger.error(
-            `Background job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
+            `Startup job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
+          );
+        });
+        await activateAllExistingGroups().catch((err) => {
+          logger.error(
+            `Startup job 'activateAllExistingGroups' failed: ${err.message}`,
           );
         });
 

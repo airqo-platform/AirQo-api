@@ -312,6 +312,12 @@ const UserSchema = new Schema(
     lastLogin: {
       type: Date,
     },
+    // lastActiveAt tracks any authenticated API activity (preferences, etc.)
+    // independently of explicit login events. Used by active-status-job to
+    // more accurately reflect whether the user is still engaging with the platform.
+    lastActiveAt: {
+      type: Date,
+    },
     category: {
       type: String,
     },
@@ -623,6 +629,10 @@ UserSchema.index({ "group_roles.role": 1 });
 // Sparse indexes for OAuth provider ID fields.
 // sparse: true means the index only includes documents where the field exists,
 // keeping index size small since most users will only have one provider linked.
+// sparse: true keeps existing users (lastActiveAt: null) out of the index so
+// active-status-job and inactive-users-job range queries stay efficient.
+UserSchema.index({ lastActiveAt: 1 }, { sparse: true });
+
 UserSchema.index({ google_id: 1 }, { sparse: true });
 UserSchema.index({ github_id: 1 }, { sparse: true });
 UserSchema.index({ linkedin_id: 1 }, { sparse: true });
