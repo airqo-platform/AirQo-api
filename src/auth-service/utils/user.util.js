@@ -7493,8 +7493,165 @@ const createUserModule = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FEEDBACK UTILITIES
+// Separated from createUserModule to keep concerns clear; exported individually.
+// ─────────────────────────────────────────────────────────────────────────────
+const FeedbackModel = require("@models/Feedback");
+
+const feedbackUtil = {
+  submitFeedback: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const tenant = query.tenant
+        ? String(query.tenant).toLowerCase()
+        : constants.DEFAULT_TENANT || "airqo";
+
+      const { email, subject, message, rating, category, platform, metadata } =
+        body;
+
+      // Persist to database
+      const createResult = await FeedbackModel(tenant).register({
+        email: email.toLowerCase().trim(),
+        subject,
+        message,
+        rating,
+        category,
+        platform,
+        metadata,
+        tenant,
+        userId: request.user ? request.user._id : undefined,
+      });
+
+      if (!createResult || !createResult.success) {
+        return createResult;
+      }
+
+      // Also dispatch a support email (best-effort; DB record already saved)
+      try {
+        await mailer.feedback({ email, subject, message }, next);
+      } catch (emailError) {
+        logger.warn(
+          `Feedback saved to DB but support email failed: ${emailError.message}`,
+        );
+      }
+
+      return {
+        success: true,
+        message: "Feedback submitted successfully",
+        status: httpStatus.CREATED,
+        data: createResult.data,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  listFeedbackSubmissions: async (request, next) => {
+    try {
+      const { query } = request;
+      const tenant = query.tenant
+        ? String(query.tenant).toLowerCase()
+        : constants.DEFAULT_TENANT || "airqo";
+      const skip = parseInt(query.skip, 10) || 0;
+      const limit = parseInt(query.limit, 10) || 100;
+
+      const filter = { tenant };
+      if (query.status) filter.status = query.status;
+      if (query.category) filter.category = query.category;
+      if (query.platform) filter.platform = query.platform;
+      if (query.email) filter.email = query.email.toLowerCase().trim();
+
+      return await FeedbackModel(tenant).list({ skip, limit, filter });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getFeedbackSubmission: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const tenant = query.tenant
+        ? String(query.tenant).toLowerCase()
+        : constants.DEFAULT_TENANT || "airqo";
+
+      const filter = { _id: params.feedback_id, tenant };
+      const result = await FeedbackModel(tenant).list({
+        skip: 0,
+        limit: 1,
+        filter,
+      });
+
+      if (result.success && result.data && result.data.length === 0) {
+        return {
+          success: false,
+          message: "Feedback submission not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "No feedback found with that ID" },
+        };
+      }
+
+      if (result.success) {
+        return {
+          ...result,
+          data: result.data[0],
+        };
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  updateFeedbackStatus: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const tenant = query.tenant
+        ? String(query.tenant).toLowerCase()
+        : constants.DEFAULT_TENANT || "airqo";
+
+      const filter = { _id: params.feedback_id, tenant };
+      const update = { status: body.status };
+
+      return await FeedbackModel(tenant).modify({ filter, update });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+};
+
 module.exports = {
   ...createUserModule,
+  ...feedbackUtil,
   generateNumericToken,
   ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
 };

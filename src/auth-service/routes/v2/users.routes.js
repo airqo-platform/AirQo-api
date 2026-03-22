@@ -449,6 +449,48 @@ router.post(
 
 router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 
+// ================================
+// PERSISTENT FEEDBACK / RATING ROUTES
+// POST   /feedback/submit      – public; saves to DB and dispatches support email
+// GET    /feedback/submissions  – admin; list all feedback with filtering
+// GET    /feedback/submissions/:feedback_id – admin; get single submission
+// PATCH  /feedback/submissions/:feedback_id/status – admin; update status
+// ================================
+
+router.post(
+  "/feedback/submit",
+  userValidations.submitFeedback,
+  validate,
+  userController.submitFeedback,
+);
+
+router.get(
+  "/feedback/submissions",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.listFeedbackSubmissions,
+  validate,
+  userController.listFeedbackSubmissions,
+);
+
+router.get(
+  "/feedback/submissions/:feedback_id",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.getFeedbackById,
+  validate,
+  userController.getFeedbackSubmission,
+);
+
+router.patch(
+  "/feedback/submissions/:feedback_id/status",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.updateFeedbackStatus,
+  validate,
+  userController.updateFeedbackStatus,
+);
+
 router.post(
   "/firebase/lookup",
   userValidations.firebaseLookup,
@@ -737,6 +779,10 @@ router.use("*", (req, res) => {
       "GET /auth/google/callback",
       "GET /auth/:provider",
       "GET /auth/callback/:provider",
+      "POST /feedback/submit",
+      "GET /feedback/submissions",
+      "GET /feedback/submissions/:feedback_id",
+      "PATCH /feedback/submissions/:feedback_id/status",
     ],
   });
 });
