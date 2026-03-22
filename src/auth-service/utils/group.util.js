@@ -17,6 +17,9 @@ const logger = require("log4js").getLogger(
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError, logText } = require("@utils/shared");
 const mailer = require("@utils/common/mailer.util");
+const {
+  invalidateUserRBACCache,
+} = require("@services/rbac.service");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -3582,12 +3585,12 @@ const groupUtil = {
         (async () => {
           try {
             if (status === "ACTIVE") {
-              await mailer.notifyOrgRequestApproved({
+              await mailer.notifyGroupStatusChanged({
                 organization_name: group.grp_title,
                 contact_name: managerName,
-                contact_email: group.grp_manager_username,
+                new_status: status,
+                reason,
                 email: group.grp_manager_username,
-                login_url: `${constants.ANALYTICS_BASE_URL}/login`,
                 tenant,
               });
             } else if (isDeactivation) {
@@ -3613,17 +3616,54 @@ const groupUtil = {
       // For activation and other transitions, respect the caller's preference.
       const shouldNotifyMembers = isDeactivation || notify_members;
 
-      let notificationResults = null;
+      // Fire-and-forget: invalidate the Redis RBAC cache for every group member
+      // so their next JWT refresh picks up the new group status from the DB
+      // instead of serving a stale cached payload. Runs for ALL status changes.
+      (async () => {
+        try {
+          const memberIds = await UserModel(tenant)
+            .find({ "group_roles.group": grp_id })
+            .select("_id")
+            .lean();
+          await Promise.allSettled(
+            memberIds.map((m) =>
+              invalidateUserRBACCache(m._id.toString(), tenant),
+            ),
+          );
+          logger.info(
+            `RBAC cache invalidated for ${memberIds.length} member(s) of group ${grp_id}`,
+          );
+        } catch (err) {
+          logger.error(
+            `Non-critical: RBAC cache invalidation failed for group ${grp_id}: ${err.message}`,
+          );
+        }
+      })();
+
+      // Fire-and-forget: member notifications are dispatched off the request
+      // path to avoid O(n) latency for large groups. The DB update has already
+      // committed — the HTTP response does not wait for emails to be queued.
       if (shouldNotifyMembers) {
-        notificationResults = await groupUtil.notifyGroupMembers({
-          tenant,
-          group_id: grp_id,
-          organization_name: group.grp_title,
-          new_status: status,
-          message: `Group status changed from ${previousStatus} to ${status}`,
-          reason,
-          type: "status_change",
-        });
+        groupUtil
+          .notifyGroupMembers({
+            tenant,
+            group_id: grp_id,
+            organization_name: group.grp_title,
+            new_status: status,
+            message: `Group status changed from ${previousStatus} to ${status}`,
+            reason,
+            type: "status_change",
+          })
+          .then(({ sent_count } = {}) => {
+            logger.info(
+              `Background: notified ${sent_count ?? 0} member(s) of group ${grp_id} (status → ${status})`,
+            );
+          })
+          .catch((err) => {
+            logger.error(
+              `Background: member notification failed for group ${grp_id}: ${err.message}`,
+            );
+          });
       }
 
       return {
@@ -3636,7 +3676,7 @@ const groupUtil = {
           effective_date: updateDate,
           updated_by: request.user?._id,
           reason,
-          notifications_sent: notificationResults?.sent_count || 0,
+          notifications_queued: shouldNotifyMembers,
         },
         status: httpStatus.OK,
       };
@@ -4281,7 +4321,10 @@ const groupUtil = {
       );
 
       const sent_count = results.filter(
-        (r) => r.status === "fulfilled" && r.value?.success,
+        (r) =>
+          r.status === "fulfilled" &&
+          r.value?.success &&
+          !r.value?.data?.duplicate,
       ).length;
 
       logger.info(
@@ -4836,6 +4879,21 @@ const groupUtil = {
         ),
       );
     }
+  },
+
+  /**
+   * Resolves the default AirQo group's ObjectId by grp_title.
+   * Environment-independent — does not rely on the DEFAULT_GROUP env var.
+   *
+   * @param {string} tenant
+   * @returns {Promise<string|null>} The group _id as a string, or null if not found.
+   */
+  getDefaultAirqoGroupId: async (tenant = "airqo") => {
+    const group = await GroupModel(tenant)
+      .findOne({ grp_title: "airqo" })
+      .select("_id")
+      .lean();
+    return group ? group._id.toString() : null;
   },
 };
 

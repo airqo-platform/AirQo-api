@@ -820,6 +820,7 @@ const EMAIL_CATEGORIES = {
     "expiredToken",
     "expiringToken",
     "onboardingAccountSetup",
+    "notifyGroupStatusChanged",
   ],
 
   ORG_MANAGEMENT: [
@@ -829,7 +830,6 @@ const EMAIL_CATEGORIES = {
     "notifyOrgRequestRejected",
     "notifyOrgRequestApprovedWithOnboarding",
     "onboardingCompleted",
-    "notifyGroupStatusChanged",
   ],
 
   USER_MANAGEMENT: [
@@ -2482,17 +2482,20 @@ const mailer = {
       };
     },
   ),
-  // Sent to each group member when an admin triggers a status change with
-  // notify_members: true. Uses the groupStatusChanged template.
+  // Mandatory lifecycle notification — sent to the group manager and all members
+  // when an admin changes group status. Deactivation always triggers this;
+  // activation also notifies the manager. Bypasses unsubscribe checks (CORE_CRITICAL)
+  // because loss of access must reach affected users regardless of email preferences.
   notifyGroupStatusChanged: createMailerFunction(
     "notifyGroupStatusChanged",
-    "ORG_MANAGEMENT",
+    "CORE_CRITICAL",
     (params) =>
       msgs.groupStatusChanged({
         organization_name: params.organization_name,
         contact_name: params.contact_name,
         new_status: params.new_status,
         reason: params.reason,
+        email: params.email,
       }),
   ),
 };

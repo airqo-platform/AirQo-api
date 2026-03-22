@@ -41,6 +41,28 @@ const _redisSet = async (key, value, ttlSeconds) => {
   }
 };
 
+const _redisDel = async (key) => {
+  try {
+    const { redis: redisClient } = require("@config/redis");
+    if (!redisClient || !redisClient.isOpen || !redisClient.isReady) return;
+    await redisClient.del(key);
+  } catch (_) {
+    // Redis unavailable — safe to ignore
+  }
+};
+
+/**
+ * Invalidates the L2 Redis RBAC cache for a single user.
+ * Call this whenever a user's group/network membership or group status changes
+ * so the next getUserPermissionsForLogin() call rebuilds from the DB instead of
+ * returning a stale cached payload.
+ *
+ * @param {string} userId
+ * @param {string} [tenant="airqo"]
+ */
+const invalidateUserRBACCache = (userId, tenant = "airqo") =>
+  _redisDel(`airqo:rbac:${tenant}:${userId}`);
+
 class RBACService {
   constructor(tenant = "airqo") {
     this.tenant = tenant;
@@ -1290,3 +1312,4 @@ class RBACService {
 }
 
 module.exports = RBACService;
+module.exports.invalidateUserRBACCache = invalidateUserRBACCache;

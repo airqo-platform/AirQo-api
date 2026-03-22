@@ -1389,9 +1389,10 @@ module.exports = {
     return constants.EMAIL_BODY({ email: userEmail, content, name: "Admin" });
   },
 
-  // Sent to all group members when an admin explicitly requests member
-  // notification during a status update (notify_members: true).
-  groupStatusChanged: ({ organization_name, contact_name, new_status, reason }) => {
+  // Sent to all group members and the manager when an admin changes group status.
+  // Deactivation (INACTIVE/SUSPENDED/ARCHIVED) always triggers this regardless
+  // of the notify_members flag. Activation also sends to the manager.
+  groupStatusChanged: ({ organization_name, contact_name, new_status, reason, email = "" }) => {
     const statusLabel =
       {
         ACTIVE: "Active",
@@ -1411,6 +1412,6 @@ module.exports = {
     </tr>
   `;
 
-    return constants.EMAIL_BODY({ email: "", content, name: contact_name });
+    return constants.EMAIL_BODY({ email, content, name: contact_name });
   },
 };
