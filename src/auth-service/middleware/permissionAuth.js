@@ -159,6 +159,43 @@ const requireGroupPermissions = (
       );
 
       if (!hasPermission) {
+        // Check if the group is deactivated — give a descriptive message
+        // instead of a generic permission denied.
+        const rbacContext = await rbacService.getUserPermissionsByContext(
+          user._id
+        );
+        const deactivatedEntry = (
+          rbacContext.deactivatedGroupMemberships || []
+        ).find((m) => m.group.id === groupId.toString());
+
+        if (deactivatedEntry) {
+          const statusLabel =
+            {
+              INACTIVE: "deactivated",
+              SUSPENDED: "suspended",
+              ARCHIVED: "archived",
+              MAINTENANCE: "under maintenance",
+            }[deactivatedEntry.group.status] ||
+            deactivatedEntry.group.status.toLowerCase();
+
+          logger.warn(
+            `Group access denied for user ${user.email} (ID: ${user._id}): group "${deactivatedEntry.group.title}" is ${deactivatedEntry.group.status}`
+          );
+
+          return next(
+            new HttpError(
+              "Organisation access denied",
+              httpStatus.FORBIDDEN,
+              {
+                message: `This organisation has been ${statusLabel}. Please contact support@airqo.net for assistance.`,
+                groupId: groupId,
+                groupTitle: deactivatedEntry.group.title,
+                groupStatus: deactivatedEntry.group.status,
+              }
+            )
+          );
+        }
+
         const userPermissions = await rbacService.getUserPermissionsInContext(
           user._id,
           groupId,

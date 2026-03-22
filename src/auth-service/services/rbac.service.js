@@ -281,6 +281,11 @@ class RBACService {
       // Group-specific permissions
       const groupPermissions = {};
       const groupMemberships = [];
+      // Deactivated groups are tracked separately — they grant no permissions
+      // but are included in the context so middleware can return descriptive
+      // error messages instead of a generic 403.
+      const deactivatedGroupMemberships = [];
+
       if (populatedUser.group_roles && populatedUser.group_roles.length > 0) {
         for (const groupRole of populatedUser.group_roles) {
           const groupId = groupRole.group?._id || groupRole.group;
@@ -315,6 +320,17 @@ class RBACService {
             groupStatus &&
             groupStatus !== "ACTIVE"
           ) {
+            // Record in deactivatedGroupMemberships so the permission
+            // middleware can tell the caller WHY the 403 was issued.
+            deactivatedGroupMemberships.push({
+              group: {
+                id: groupIdStr,
+                title: groupData?.grp_title || "Unknown Group",
+                status: groupStatus,
+                organizationSlug: groupData?.organization_slug || null,
+              },
+              userType: groupRole.userType || "guest",
+            });
             continue;
           }
 
@@ -425,6 +441,7 @@ class RBACService {
         networkPermissions,
         groupMemberships,
         networkMemberships,
+        deactivatedGroupMemberships,
         isSuperAdmin,
       };
 
@@ -447,6 +464,7 @@ class RBACService {
         networkPermissions: {},
         groupMemberships: [],
         networkMemberships: [],
+        deactivatedGroupMemberships: [],
         isSuperAdmin: false,
       };
     }
