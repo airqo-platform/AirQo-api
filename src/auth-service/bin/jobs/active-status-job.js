@@ -19,42 +19,74 @@ const {
 
 const checkStatus = async () => {
   try {
-    const batchSize = 100; // Process 100 users at a time
-    let skip = 0;
+    const thresholdDate = new Date(Date.now() - inactiveThreshold);
+    const batchSize = 100;
 
+    // Pass 1 — deactivate users whose most recent activity signal is older
+    // than the threshold.
+    //
+    // Activity priority: lastActiveAt (set by API interactions such as
+    // preference reads/writes) takes precedence over lastLogin (set only on
+    // explicit authentication). A user is considered inactive when:
+    //   • lastActiveAt is set AND older than threshold, OR
+    //   • lastActiveAt is absent AND lastLogin is older than threshold or null.
+    //
+    // Note: skip is intentionally NOT incremented. Once a batch is updated to
+    // isActive:false those records fall out of the $ne:false filter, so the
+    // next iteration always starts at position 0 of the shrinking eligible set.
+    // Incrementing skip would skip records in the remaining pool and miss users.
     while (true) {
       const users = await UserModel("airqo")
         .find({
+          isActive: { $ne: false },
           $or: [
+            // Has a lastActiveAt signal and it has gone stale.
+            { lastActiveAt: { $lt: thresholdDate } },
+            // No lastActiveAt — fall back to lastLogin.
             {
-              lastLogin: {
-                $lt: new Date(Date.now() - inactiveThreshold),
-              },
-            },
-            {
-              lastLogin: null,
+              lastActiveAt: null,
+              $or: [
+                { lastLogin: { $lt: thresholdDate } },
+                { lastLogin: null },
+              ],
             },
           ],
-          isActive: { $ne: false }, // Exclude users where isActive is false
         })
         .limit(batchSize)
-        .skip(skip)
         .select("_id")
         .lean();
 
-      if (users.length === 0) {
-        break;
-      }
+      if (users.length === 0) break;
 
-      const userIds = users.map((user) => user._id);
-
-      // Update users to set isActive: false
+      const userIds = users.map((u) => u._id);
       await UserModel("airqo").updateMany(
         { _id: { $in: userIds } },
-        { isActive: false }
+        { $set: { isActive: false } }
       );
+    }
 
-      skip += batchSize;
+    // Pass 2 — re-activate users who have shown recent activity (via
+    // lastActiveAt, written by the preferences endpoints) but are still
+    // carrying isActive:false from a previous deactivation run.
+    // Same skip=0 pattern applies — updated users drop out of the filter.
+    while (true) {
+      const users = await UserModel("airqo")
+        .find({
+          lastActiveAt: { $gte: thresholdDate },
+          isActive: { $ne: true },
+          verified: true, // Never re-activate unverified accounts via activity signal.
+        })
+        .limit(batchSize)
+        .select("_id")
+        .lean();
+
+      if (users.length === 0) break;
+
+      const userIds = users.map((u) => u._id);
+      await UserModel("airqo").updateMany(
+        { _id: { $in: userIds } },
+        { $set: { isActive: true } }
+      );
     }
   } catch (error) {
     logger.error(`Internal Server Error --- ${stringify(error)}`);
