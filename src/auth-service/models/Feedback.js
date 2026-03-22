@@ -13,18 +13,10 @@ const {
   createEmptySuccessResponse,
 } = require("@utils/shared");
 
-const FEEDBACK_CATEGORIES = [
-  "general",
-  "bug",
-  "feature_request",
-  "performance",
-  "ux_design",
-  "other",
-];
-
-const FEEDBACK_STATUSES = ["pending", "reviewed", "resolved", "archived"];
-
-const FEEDBACK_PLATFORMS = ["web", "mobile", "api"];
+// Single source of truth — defined in config/global/envs.js
+const FEEDBACK_CATEGORIES = constants.FEEDBACK_CATEGORIES;
+const FEEDBACK_STATUSES = constants.FEEDBACK_STATUSES;
+const FEEDBACK_PLATFORMS = constants.FEEDBACK_PLATFORMS;
 
 const FeedbackSchema = new mongoose.Schema(
   {
@@ -90,7 +82,8 @@ const FeedbackSchema = new mongoose.Schema(
       required: [true, "Tenant is required"],
       trim: true,
     },
-    // Optional freeform metadata for context (e.g. page URL, browser, app version)
+    // Optional freeform metadata for context (e.g. page URL, browser, app version).
+    // Byte size is validated at the HTTP layer (see validators/users.validators.js).
     metadata: {
       type: mongoose.Schema.Types.Mixed,
     },
@@ -145,12 +138,36 @@ FeedbackSchema.statics = {
     }
   },
 
+  // Dedicated single-document lookup — avoids the countDocuments overhead
+  // of list() when only one record is needed (used by getFeedbackSubmission).
+  // Named findSingle to avoid shadowing Mongoose's built-in findOne.
+  async findSingle(filter = {}) {
+    try {
+      const feedback = await this.findOne(filter).lean().exec();
+      if (!isEmpty(feedback)) {
+        return createSuccessResponse("get", feedback, "feedback");
+      } else {
+        return {
+          success: false,
+          message: "Feedback submission not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "No feedback found with that ID" },
+        };
+      }
+    } catch (err) {
+      return createErrorResponse(err, "get", logger, "feedback");
+    }
+  },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      const options = { new: true };
+      // runValidators ensures schema enum/min/max constraints are enforced on
+      // updates, not just on inserts. context: 'query' is required for
+      // validators that reference `this` in a query context.
+      const options = { new: true, runValidators: true, context: "query" };
       const modifiedUpdate = { ...update };
 
-      // Status and tenant are the only mutable top-level fields for now
+      // Immutable fields — silently strip to prevent accidental overwrite
       delete modifiedUpdate.tenant;
       delete modifiedUpdate.email;
 
@@ -195,11 +212,14 @@ FeedbackSchema.methods = {
   },
 };
 
+// Use "feedback" (singular) consistently — matches the name getModelByTenant
+// registers in the tenant DB, preventing a mismatch that could silently break
+// model caching or tenant isolation.
 const FeedbackModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
-    return mongoose.model("feedbacks");
+    return mongoose.model("feedback");
   } catch (error) {
     return getModelByTenant(dbTenant, "feedback", FeedbackSchema);
   }

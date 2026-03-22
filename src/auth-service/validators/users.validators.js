@@ -1364,20 +1364,14 @@ const assignCohorts = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PERSISTENT FEEDBACK VALIDATORS
+// Enum values are sourced from constants (config/global/envs.js) — single
+// source of truth shared with the Feedback model to prevent drift.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FEEDBACK_CATEGORIES = [
-  "general",
-  "bug",
-  "feature_request",
-  "performance",
-  "ux_design",
-  "other",
-];
-
-const FEEDBACK_STATUSES = ["pending", "reviewed", "resolved", "archived"];
-
-const FEEDBACK_PLATFORMS = ["web", "mobile", "api"];
+const FEEDBACK_CATEGORIES = constants.FEEDBACK_CATEGORIES;
+const FEEDBACK_STATUSES = constants.FEEDBACK_STATUSES;
+const FEEDBACK_PLATFORMS = constants.FEEDBACK_PLATFORMS;
+const FEEDBACK_METADATA_MAX_BYTES = constants.FEEDBACK_METADATA_MAX_BYTES;
 
 const submitFeedback = [
   validateTenant,
@@ -1437,7 +1431,17 @@ const submitFeedback = [
   body("metadata")
     .optional()
     .isObject()
-    .withMessage("metadata must be an object if provided"),
+    .withMessage("metadata must be an object if provided")
+    .bail()
+    .custom((value) => {
+      const bytes = Buffer.byteLength(JSON.stringify(value), "utf8");
+      if (bytes > FEEDBACK_METADATA_MAX_BYTES) {
+        throw new Error(
+          `metadata must not exceed ${FEEDBACK_METADATA_MAX_BYTES} bytes (received ${bytes} bytes)`,
+        );
+      }
+      return true;
+    }),
 ];
 
 const listFeedbackSubmissions = [
@@ -1469,6 +1473,7 @@ const listFeedbackSubmissions = [
     ),
   query("email")
     .optional()
+    .trim()
     .isEmail()
     .withMessage("email filter must be a valid email address"),
   query("skip")

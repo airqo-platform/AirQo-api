@@ -7590,29 +7590,9 @@ const feedbackUtil = {
         : constants.DEFAULT_TENANT || "airqo";
 
       const filter = { _id: params.feedback_id, tenant };
-      const result = await FeedbackModel(tenant).list({
-        skip: 0,
-        limit: 1,
-        filter,
-      });
-
-      if (result.success && result.data && result.data.length === 0) {
-        return {
-          success: false,
-          message: "Feedback submission not found",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "No feedback found with that ID" },
-        };
-      }
-
-      if (result.success) {
-        return {
-          ...result,
-          data: result.data[0],
-        };
-      }
-
-      return result;
+      // Use findSingle instead of list() to avoid the unnecessary
+      // countDocuments call that list() always performs.
+      return await FeedbackModel(tenant).findSingle(filter);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       return next(
