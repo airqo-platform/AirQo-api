@@ -7,7 +7,6 @@ const {
   isGroupActivationMigrationComplete,
 } = require("@bin/jobs/default-group-init-job");
 
-const { logText, logObject } = require("@utils/shared");
 
 // ── Redis RBAC permission cache (L2 — shared across all replicas) ──────────
 // Each login calls getUserPermissionsForLogin() which runs 3-5 parallel DB
@@ -338,7 +337,7 @@ class RBACService {
           //      we allow it through rather than silently drop a membership.
           const groupStatus = groupData?.grp_status;
           if (
-            isGroupActivationMigrationComplete() &&
+            isGroupActivationMigrationComplete(this.tenant) &&
             groupStatus &&
             groupStatus !== "ACTIVE"
           ) {

@@ -81,43 +81,63 @@ const ensureDefaultAirqoGroupExists = async (tenant = "airqo") => {
  *
  * @param {string} tenant
  */
-// Set to true once activateAllExistingGroups has run to completion.
-// Read by the Option C guard in rbac.service.js to avoid filtering out
-// groups during the window between server start and migration completion.
-let _groupActivationMigrationComplete = false;
+// Tracks migration completion per-tenant so the Option C JWT guard is only
+// activated for tenants whose migration has actually completed. A global boolean
+// would incorrectly enable the guard for all tenants the moment any single
+// tenant's migration finishes (e.g., activating the guard for "kcca" after
+// "airqo" migration completes).
+const _migrationCompleteByTenant = new Map();
 
-const isGroupActivationMigrationComplete = () =>
-  _groupActivationMigrationComplete;
+const isGroupActivationMigrationComplete = (tenant = "airqo") =>
+  _migrationCompleteByTenant.get(tenant) === true;
 
 const activateAllExistingGroups = async (tenant = "airqo") => {
   try {
-    // Check whether this migration has already been completed on a previous
-    // deployment. If it has, skip immediately — this is a one-time migration
-    // and must NOT re-run on subsequent startups because it would silently
-    // activate any groups legitimately sitting in the INACTIVE review queue.
-    const existing = await MigrationTrackerModel(tenant).findOne({
-      name: ACTIVATION_MIGRATION_NAME,
-    });
-
-    if (existing?.status === "completed") {
-      logger.info(
-        `✅ Migration '${ACTIVATION_MIGRATION_NAME}' already completed on ${existing.completedAt?.toISOString()} — skipping.`,
+    // Atomically claim the migration slot for this tenant. Using a single
+    // findOneAndUpdate with { status: { $ne: "completed" } } ensures two
+    // replicas starting simultaneously cannot both run the migration:
+    //
+    //   • No existing doc  → upserts, returns null → this instance proceeds.
+    //   • Existing "failed" doc → overwrites to "running", returns old doc
+    //     with status "failed" → this instance proceeds (retry after crash).
+    //   • Existing "running" doc → overwrites to "running", returns old doc
+    //     with status "running" → another instance holds the claim, skip.
+    //   • Existing "completed" doc → filter { $ne: "completed" } misses it;
+    //     the upsert attempts to insert a second record, which throws E11000
+    //     on the { name, tenant } unique index → caught below as "already done".
+    let prior;
+    try {
+      prior = await MigrationTrackerModel(tenant).findOneAndUpdate(
+        { name: ACTIVATION_MIGRATION_NAME, status: { $ne: "completed" } },
+        {
+          $set: { status: "running", startedAt: new Date(), tenant },
+          $setOnInsert: { name: ACTIVATION_MIGRATION_NAME },
+        },
+        { upsert: true, new: false },
       );
-      _groupActivationMigrationComplete = true;
+    } catch (claimError) {
+      if (claimError.code === 11000) {
+        // Duplicate key on { name, tenant } unique index — a "completed" record
+        // already exists. Migration was done on a previous deployment.
+        logger.info(
+          `✅ Migration '${ACTIVATION_MIGRATION_NAME}' already completed — skipping.`,
+        );
+        _migrationCompleteByTenant.set(tenant, true);
+        return;
+      }
+      throw claimError;
+    }
+
+    if (prior?.status === "running") {
+      // Another startup instance already claimed this migration — skip.
+      logger.info(
+        `⏭️  Migration '${ACTIVATION_MIGRATION_NAME}' is already running on another instance — skipping.`,
+      );
       return;
     }
 
-    // Mark as running before touching data so a crash mid-migration is
-    // visible in the tracker rather than silently lost.
-    await MigrationTrackerModel(tenant).findOneAndUpdate(
-      { name: ACTIVATION_MIGRATION_NAME },
-      {
-        $set: { status: "running", startedAt: new Date(), tenant },
-        $setOnInsert: { name: ACTIVATION_MIGRATION_NAME },
-      },
-      { upsert: true },
-    );
-
+    // This instance holds the claim (prior is null = fresh insert, or
+    // prior.status === "failed" = retrying after a previous crash).
     const result = await GroupModel(tenant).updateMany(
       { grp_status: "INACTIVE" },
       { $set: { grp_status: "ACTIVE" } },
@@ -137,9 +157,8 @@ const activateAllExistingGroups = async (tenant = "airqo") => {
         : `✅ Migration '${ACTIVATION_MIGRATION_NAME}': no INACTIVE groups found — nothing to do.`,
     );
 
-    // Signal to the Option C guard that migration is complete and the guard
-    // can now safely enforce ACTIVE-only group permissions in JWTs.
-    _groupActivationMigrationComplete = true;
+    // Signal to the Option C guard — scoped to this tenant only.
+    _migrationCompleteByTenant.set(tenant, true);
   } catch (error) {
     logger.error(`🐛🐛 Error in activateAllExistingGroups: ${error.message}`);
 
@@ -154,9 +173,9 @@ const activateAllExistingGroups = async (tenant = "airqo") => {
       // original error.
     }
 
-    // Non-fatal — startup continues. _groupActivationMigrationComplete stays
-    // false so the Option C guard remains dormant until a subsequent restart
-    // successfully completes the migration.
+    // Non-fatal — startup continues. The tenant key stays absent from
+    // _migrationCompleteByTenant so the Option C guard remains dormant for
+    // this tenant until a subsequent restart successfully completes the migration.
   }
 };
 
