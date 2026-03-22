@@ -312,6 +312,12 @@ const UserSchema = new Schema(
     lastLogin: {
       type: Date,
     },
+    // lastActiveAt tracks any authenticated API activity (preferences, etc.)
+    // independently of explicit login events. Used by active-status-job to
+    // more accurately reflect whether the user is still engaging with the platform.
+    lastActiveAt: {
+      type: Date,
+    },
     category: {
       type: String,
     },

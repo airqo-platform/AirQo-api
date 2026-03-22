@@ -203,6 +203,27 @@ const preferences = {
         },
         next
       );
+
+      // Fire-and-forget: reading preferences is an authenticated activity
+      // signal. Update lastActiveAt and re-activate the user if needed.
+      // Prefer params.user_id (route /:user_id) then filter.user_id as fallback.
+      const userId =
+        request.params?.user_id ||
+        request.query?.user_id ||
+        filter?.user_id;
+      if (userId) {
+        UserModel(tenant)
+          .updateOne(
+            { _id: userId },
+            { $set: { lastActiveAt: new Date(), isActive: true } }
+          )
+          .catch((err) =>
+            logger.error(
+              `Non-critical: failed to update lastActiveAt for user ${userId}: ${err.message}`
+            )
+          );
+      }
+
       return listResponse;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -323,6 +344,22 @@ const preferences = {
         next
       );
 
+      // Fire-and-forget: updating preferences is an authenticated activity
+      // signal — mark the user as active so the active-status-job does not
+      // deactivate them between explicit login events.
+      if (body.user_id && modifyResponse?.success) {
+        UserModel(tenant)
+          .updateOne(
+            { _id: body.user_id },
+            { $set: { lastActiveAt: new Date(), isActive: true } }
+          )
+          .catch((err) =>
+            logger.error(
+              `Non-critical: failed to update lastActiveAt for user ${body.user_id}: ${err.message}`
+            )
+          );
+      }
+
       return modifyResponse;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -390,6 +427,21 @@ const preferences = {
       );
 
       if (!isEmpty(modifyResponse)) {
+        // Fire-and-forget: upserting preferences is a meaningful activity
+        // signal — mark the user as active.
+        if (body.user_id) {
+          UserModel(tenant)
+            .updateOne(
+              { _id: body.user_id },
+              { $set: { lastActiveAt: new Date(), isActive: true } }
+            )
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to update lastActiveAt for user ${body.user_id}: ${err.message}`
+              )
+            );
+        }
+
         return {
           success: true,
           message: "Successfully created or updated a preference",
@@ -477,6 +529,24 @@ const preferences = {
       );
 
       if (!isEmpty(modifyResponse)) {
+        // Fire-and-forget: mark the user as active. This is an authenticated
+        // write — the user is demonstrably engaging with the platform. We update
+        // both lastActiveAt (used by active-status-job for threshold checks) and
+        // isActive (re-activates users who were previously deactivated but have
+        // returned). Failure must never block the preference response.
+        if (body.user_id) {
+          UserModel(tenant)
+            .updateOne(
+              { _id: body.user_id },
+              { $set: { lastActiveAt: new Date(), isActive: true } }
+            )
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to update lastActiveAt for user ${body.user_id}: ${err.message}`
+              )
+            );
+        }
+
         return {
           success: true,
           message: "successfully created or updated a preference",
