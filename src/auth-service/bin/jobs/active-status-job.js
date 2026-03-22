@@ -74,6 +74,7 @@ const checkStatus = async () => {
         .find({
           lastActiveAt: { $gte: thresholdDate },
           isActive: { $ne: true },
+          verified: true, // Never re-activate unverified accounts via activity signal.
         })
         .limit(batchSize)
         .select("_id")

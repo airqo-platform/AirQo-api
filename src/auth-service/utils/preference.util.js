@@ -20,6 +20,31 @@ const handleError = (next, title, statusCode, message) => {
   next(new HttpError(title, statusCode, { message }));
 };
 
+/**
+ * Fire-and-forget: record that a verified user has been active.
+ * Updates lastActiveAt (used by active-status-job for threshold checks) and
+ * re-sets isActive:true — but ONLY for verified users. Unverified accounts are
+ * intentionally excluded: their isActive state is controlled by the
+ * verification flow, not by API activity.
+ * Errors are logged and never propagated to the caller.
+ *
+ * @param {string} tenant
+ * @param {string|ObjectId} userId
+ */
+const touchUserActivity = (tenant, userId) => {
+  if (!userId) return;
+  UserModel(tenant)
+    .updateOne(
+      { _id: userId, verified: true },
+      { $set: { lastActiveAt: new Date(), isActive: true } }
+    )
+    .catch((err) =>
+      logger.error(
+        `Non-critical: failed to update lastActiveAt for user ${userId}: ${err.message}`
+      )
+    );
+};
+
 const validateUserAndGroup = async (tenant, userId, groupId, next) => {
   if (!isEmpty(userId)) {
     const user = await UserModel(tenant).findById(userId).lean();
@@ -204,25 +229,13 @@ const preferences = {
         next
       );
 
-      // Fire-and-forget: reading preferences is an authenticated activity
-      // signal. Update lastActiveAt and re-activate the user if needed.
-      // Prefer params.user_id (route /:user_id) then filter.user_id as fallback.
-      const userId =
-        request.params?.user_id ||
-        request.query?.user_id ||
-        filter?.user_id;
-      if (userId) {
-        UserModel(tenant)
-          .updateOne(
-            { _id: userId },
-            { $set: { lastActiveAt: new Date(), isActive: true } }
-          )
-          .catch((err) =>
-            logger.error(
-              `Non-critical: failed to update lastActiveAt for user ${userId}: ${err.message}`
-            )
-          );
-      }
+      // Fire-and-forget: reading preferences is an authenticated activity signal.
+      // Use the authenticated user identity (request.user._id) when available;
+      // fall back to the sanitised filter.user_id used for the DB lookup.
+      // Raw request.params / request.query are intentionally avoided — they are
+      // unsanitised and could differ from the identity the query actually ran as.
+      const userId = request.user?._id || filter?.user_id;
+      touchUserActivity(tenant, userId);
 
       return listResponse;
     } catch (error) {
@@ -344,20 +357,8 @@ const preferences = {
         next
       );
 
-      // Fire-and-forget: updating preferences is an authenticated activity
-      // signal — mark the user as active so the active-status-job does not
-      // deactivate them between explicit login events.
-      if (body.user_id && modifyResponse?.success) {
-        UserModel(tenant)
-          .updateOne(
-            { _id: body.user_id },
-            { $set: { lastActiveAt: new Date(), isActive: true } }
-          )
-          .catch((err) =>
-            logger.error(
-              `Non-critical: failed to update lastActiveAt for user ${body.user_id}: ${err.message}`
-            )
-          );
+      if (modifyResponse?.success) {
+        touchUserActivity(tenant, body.user_id);
       }
 
       return modifyResponse;
@@ -427,20 +428,7 @@ const preferences = {
       );
 
       if (!isEmpty(modifyResponse)) {
-        // Fire-and-forget: upserting preferences is a meaningful activity
-        // signal — mark the user as active.
-        if (body.user_id) {
-          UserModel(tenant)
-            .updateOne(
-              { _id: body.user_id },
-              { $set: { lastActiveAt: new Date(), isActive: true } }
-            )
-            .catch((err) =>
-              logger.error(
-                `Non-critical: failed to update lastActiveAt for user ${body.user_id}: ${err.message}`
-              )
-            );
-        }
+        touchUserActivity(tenant, body.user_id);
 
         return {
           success: true,
@@ -529,23 +517,7 @@ const preferences = {
       );
 
       if (!isEmpty(modifyResponse)) {
-        // Fire-and-forget: mark the user as active. This is an authenticated
-        // write — the user is demonstrably engaging with the platform. We update
-        // both lastActiveAt (used by active-status-job for threshold checks) and
-        // isActive (re-activates users who were previously deactivated but have
-        // returned). Failure must never block the preference response.
-        if (body.user_id) {
-          UserModel(tenant)
-            .updateOne(
-              { _id: body.user_id },
-              { $set: { lastActiveAt: new Date(), isActive: true } }
-            )
-            .catch((err) =>
-              logger.error(
-                `Non-critical: failed to update lastActiveAt for user ${body.user_id}: ${err.message}`
-              )
-            );
-        }
+        touchUserActivity(tenant, body.user_id);
 
         return {
           success: true,
