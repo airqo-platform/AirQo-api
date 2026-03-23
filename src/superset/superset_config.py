@@ -35,6 +35,7 @@ WTF_CSRF_TIME_LIMIT = env.int("WTF_CSRF_TIME_LIMIT")
 SUPERSET_PUBLIC_URL = env("SUPERSET_PUBLIC_URL")
 PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_port": 1, "x_prefix": 0}
 
+# Disable CORS for now, as it is not needed and can cause issues with some browsers
 # CORS_OPTIONS = {
 #     "origins": env.list("ORIGINS"),
 #     "supports_credentials": True,

@@ -2,8 +2,10 @@ import pytest
 from unittest.mock import patch, MagicMock
 import uuid
 import json
+import base64
+import time
 
-from api.utils.cursor_utils import CursorUtils
+from api.utils.cursor_utils import CursorUtils, RedisCursorUtils, StatelessCursorUtils
 
 
 @pytest.fixture
@@ -40,8 +42,8 @@ def parsed_cursor_string_with_site_id():
     }
 
 
-class TestCursorUtils:
-    """Tests for the CursorUtils class."""
+class TestRedisCursorUtils:
+    """Tests for the RedisCursorUtils class."""
 
     @patch("api.utils.cursor_utils.uuid")
     def test_create_cursor_minimal(self, mock_uuid):
@@ -52,13 +54,13 @@ class TestCursorUtils:
         with patch("api.utils.cursor_utils.cache") as mock_cache:
             mock_cache.set = MagicMock(return_value=True)
 
-            cursor = CursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
+            cursor = RedisCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
 
             assert cursor == "00000000-0000-0000-0000-000000000000"
             mock_cache.set.assert_called_once_with(
                 "api:cursor:00000000-0000-0000-0000-000000000000",
                 "2025-01-01 00:00:00Z|device1",
-                timeout=CursorUtils.CURSOR_EXPIRATION,
+                timeout=RedisCursorUtils.CURSOR_EXPIRATION,
             )
 
     @patch("api.utils.cursor_utils.uuid")
@@ -70,7 +72,7 @@ class TestCursorUtils:
         with patch("api.utils.cursor_utils.cache") as mock_cache:
             mock_cache.set = MagicMock(return_value=True)
 
-            cursor = CursorUtils.create_cursor(
+            cursor = RedisCursorUtils.create_cursor(
                 "2025-01-01 00:00:00Z", "site1", "device1"
             )
 
@@ -78,7 +80,7 @@ class TestCursorUtils:
             mock_cache.set.assert_called_once_with(
                 "api:cursor:00000000-0000-0000-0000-000000000000",
                 "2025-01-01 00:00:00Z|site1|device1",
-                timeout=CursorUtils.CURSOR_EXPIRATION,
+                timeout=RedisCursorUtils.CURSOR_EXPIRATION,
             )
 
     def test_decode_cursor_basic(self, cursor_token, basic_cursor_string):
@@ -86,20 +88,20 @@ class TestCursorUtils:
         with patch("api.utils.cursor_utils.cache") as mock_cache:
             mock_cache.get = MagicMock(return_value=basic_cursor_string)
 
-            decoded = CursorUtils.retrieve_cursor(cursor_token)
+            decoded = RedisCursorUtils.retrieve_cursor(cursor_token)
             assert decoded == basic_cursor_string
 
     def test_decode_cursor_invalid(self):
         """Test decoding an invalid cursor."""
         with pytest.raises(ValueError):
-            CursorUtils.retrieve_cursor("invalid-cursor")
+            RedisCursorUtils.retrieve_cursor("invalid-cursor")
 
     def test_validate_cursor_valid(self):
         """Test validating a valid cursor."""
         with patch("api.utils.cursor_utils.cache") as mock_cache:
             mock_cache.get = MagicMock(return_value=True)
 
-            result = CursorUtils.validate_cursor("valid-cursor")
+            result = RedisCursorUtils.validate_cursor("valid-cursor")
 
             assert result is True
             mock_cache.get.assert_called_once_with("api:cursor:valid-cursor")
@@ -109,7 +111,7 @@ class TestCursorUtils:
         with patch("api.utils.cursor_utils.cache") as mock_cache:
             mock_cache.get = MagicMock(return_value=None)
 
-            result = CursorUtils.validate_cursor("invalid-cursor")
+            result = RedisCursorUtils.validate_cursor("invalid-cursor")
 
             assert result is False
             mock_cache.get.assert_called_once_with("api:cursor:invalid-cursor")
@@ -121,7 +123,7 @@ class TestCursorUtils:
         with patch("api.utils.cursor_utils.cache") as mock_cache:
             mock_cache.get = MagicMock(return_value=basic_cursor_string)
 
-            parsed = CursorUtils.parse_cursor(cursor_token)
+            parsed = RedisCursorUtils.parse_cursor(cursor_token)
 
             assert parsed == parsed_basic_cursor_string
             mock_cache.get.assert_called_once()
@@ -136,7 +138,7 @@ class TestCursorUtils:
         with patch("api.utils.cursor_utils.cache") as mock_cache:
             mock_cache.get = MagicMock(return_value=cursor_string_with_site_id)
 
-            parsed = CursorUtils.parse_cursor(cursor_token)
+            parsed = RedisCursorUtils.parse_cursor(cursor_token)
 
             assert parsed == parsed_cursor_string_with_site_id
             mock_cache.get.assert_called_once()
@@ -147,7 +149,7 @@ class TestCursorUtils:
             mock_cache.get = MagicMock(return_value=None)
 
             with pytest.raises(ValueError) as excinfo:
-                CursorUtils.parse_cursor("invalid-cursor")
+                RedisCursorUtils.parse_cursor("invalid-cursor")
 
             assert "Invalid or expired cursor" in str(excinfo.value)
             mock_cache.get.assert_called_once()
@@ -159,10 +161,74 @@ class TestCursorUtils:
             mock_cache.get = MagicMock(side_effect=Exception("Redis connection error"))
 
             with pytest.raises(Exception, match="Redis connection error"):
-                CursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
+                RedisCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
 
             with pytest.raises(Exception, match="Redis connection error"):
-                CursorUtils.parse_cursor("some-token")
+                RedisCursorUtils.parse_cursor("some-token")
 
             mock_cache.set.assert_called_once()
             mock_cache.get.assert_called_once()
+
+
+class TestStatelessCursorUtils:
+    """Tests for the StatelessCursorUtils class."""
+
+    def test_create_cursor_minimal(self):
+        """Test creating a stateless cursor with minimal parameters."""
+        cursor = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
+
+        # Result should be a base64 string
+        assert isinstance(cursor, str)
+        assert len(cursor) > 0
+
+        # Decoding should return the original data and a future timestamp
+        decoded = StatelessCursorUtils.retrieve_cursor(cursor)
+        assert decoded == "2025-01-01 00:00:00Z|device1"
+
+    def test_create_cursor_with_site_id(self):
+        """Test creating a stateless cursor with site_id."""
+        cursor = StatelessCursorUtils.create_cursor(
+            "2025-01-01 00:00:00Z", "site1", "device1"
+        )
+
+        decoded = StatelessCursorUtils.retrieve_cursor(cursor)
+        assert decoded == "2025-01-01 00:00:00Z|site1|device1"
+
+    def test_validate_cursor_valid(self):
+        """Test validating a valid stateless cursor."""
+        token = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
+        assert StatelessCursorUtils.validate_cursor(token) is True
+
+    def test_validate_cursor_expired(self):
+        """Test validating an expired stateless cursor."""
+        # Create a payload with an expired timestamp
+        expired_time = int(time.time()) - 100
+        payload = f"2025-01-01 00:00:00Z|device1|{expired_time}"
+        expired_token = (
+            base64.urlsafe_b64encode(payload.encode()).decode("utf-8").rstrip("=")
+        )
+
+        assert StatelessCursorUtils.validate_cursor(expired_token) is False
+        with pytest.raises(ValueError, match="expired"):
+            StatelessCursorUtils.retrieve_cursor(expired_token)
+
+    def test_parse_cursor_valid(self):
+        """Test parsing a stateless cursor."""
+        token = StatelessCursorUtils.create_cursor(
+            "2025-01-01 00:00:00Z", "site1", "device1"
+        )
+        parsed = StatelessCursorUtils.parse_cursor(token)
+
+        assert parsed == {
+            "timestamp": "2025-01-01 00:00:00Z",
+            "filter_value": "site1",
+            "device_id": "device1",
+        }
+
+    def test_retrieve_cursor_invalid_format(self):
+        """Test retrieving a cursor with invalid format."""
+        # Token not containing '|'
+        invalid_token = base64.urlsafe_b64encode(b"invalid_data").decode("utf-8")
+
+        with pytest.raises(ValueError, match="Invalid cursor format"):
+            StatelessCursorUtils.retrieve_cursor(invalid_token)

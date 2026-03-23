@@ -273,20 +273,35 @@ class TestMetaDataUtils:
                 assert "data_resolution" in result.columns
                 assert "baseline_type" in result.columns
 
-    def test_compute_device_site_baseline(self):
-        # Setup metadata with next_offset_date
+    @patch("airqo_etl_utils.meta_data_utils.AirQoDataDriftCompute.compute_baseline")
+    @patch("airqo_etl_utils.meta_data_utils.DataUtils.extract_data_from_bigquery")
+    @patch(
+        "airqo_etl_utils.meta_data_utils.DataUtils.extract_most_recent_metadata_record"
+    )
+    @patch("airqo_etl_utils.meta_data_utils.DateUtils.frequency_to_dates")
+    def test_compute_device_site_baseline(
+        self,
+        mock_frequency_to_dates,
+        mock_extract_metadata,
+        mock_extract_data,
+        mock_compute_baseline,
+    ):
+        """Test the compute_device_site_baseline method."""
+        start_date = "2023-01-01 00:00:00Z"
+        end_date = "2023-02-01 00:00:00Z"
+        mock_frequency_to_dates.return_value = (start_date, end_date)
+
+        # Mock extract_most_recent_metadata_record to return some test data
         mock_metadata = pd.DataFrame(
             {
-                "device_id": ["device1", "device2"],
-                "site_id": ["site1", "site2"],
-                "pollutant": ["pm2_5", "pm10"],
-                "minimum": [0.0, 0.0],
-                "maximum": [100.0, 150.0],
-                "run_id": ["run1", "run2"],
-                "next_offset_date": [
-                    pd.Timestamp("2024-01-08"),
-                    pd.Timestamp("2024-01-08"),
-                ],
+                "device_id": ["device1"],
+                "site_id": ["site1"],
+                "pollutant": ["pm2_5"],
+                "minimum": [10.0],
+                "maximum": [50.0],
+                "average": [30.0],
+                "next_offset_date": [pd.to_datetime(end_date)],
+                "run_id": ["run_1"],
             }
         )
 
@@ -295,6 +310,20 @@ class TestMetaDataUtils:
             [{"device_id": "device1", "pollutant": "pm2_5", "mean": 25.0}],
             [{"device_id": "device2", "pollutant": "pm10", "mean": 30.0}],
         ]
+        mock_compute_baseline.return_value = mock_baseline_result
+
+        def submit_side_effect(*args, **kwargs):
+            # Execute the submitted function so internal calls like
+            # DataUtils.extract_data_from_bigquery occur and can be asserted.
+            fn = args[0]
+            fn_args = args[1:]
+            mock_future = MagicMock()
+            try:
+                result = fn(*fn_args, **kwargs)
+                mock_future.result.return_value = result
+            except Exception as e:
+                mock_future.result.side_effect = e
+            return mock_future
 
         with patch(
             "airqo_etl_utils.meta_data_utils.DataUtils.extract_most_recent_metadata_record"

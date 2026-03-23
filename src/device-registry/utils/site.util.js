@@ -17,7 +17,7 @@ const axiosInstance = () => {
 const { generateFilter, stringify, distance } = require("@utils/common");
 const httpStatus = require("http-status");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- site-util`
+  `${constants.ENVIRONMENT} -- site-util`,
 );
 
 const createAirqloudUtil = require("@utils/airqloud.util");
@@ -34,6 +34,167 @@ const kafka = new Kafka({
 const mongoose = require("mongoose");
 const { isValidObjectId } = mongoose;
 const ObjectId = mongoose.Types.ObjectId;
+
+const getSiteCountSummary = async (request, next) => {
+  try {
+    const { tenant } = request.query;
+    const filter = generateFilter.sites(request, next);
+
+    const pipeline = [
+      { $match: filter },
+      {
+        $facet: {
+          total_sites: [{ $count: "count" }],
+          operational: [
+            { $match: { isOnline: true, rawOnlineStatus: true } },
+            { $count: "count" },
+          ],
+          transmitting: [
+            { $match: { isOnline: false, rawOnlineStatus: true } },
+            { $count: "count" },
+          ],
+          data_available: [
+            { $match: { isOnline: true, rawOnlineStatus: false } },
+            { $count: "count" },
+          ],
+          not_transmitting: [
+            { $match: { isOnline: false, rawOnlineStatus: false } },
+            { $count: "count" },
+          ],
+        },
+      },
+      {
+        $project: {
+          total_sites: {
+            $ifNull: [{ $arrayElemAt: ["$total_sites.count", 0] }, 0],
+          },
+          operational: {
+            $ifNull: [{ $arrayElemAt: ["$operational.count", 0] }, 0],
+          },
+          transmitting: {
+            $ifNull: [{ $arrayElemAt: ["$transmitting.count", 0] }, 0],
+          },
+          not_transmitting: {
+            $ifNull: [{ $arrayElemAt: ["$not_transmitting.count", 0] }, 0],
+          },
+          data_available: {
+            $ifNull: [{ $arrayElemAt: ["$data_available.count", 0] }, 0],
+          },
+        },
+      },
+    ];
+
+    const results = await SiteModel(tenant).aggregate(pipeline);
+    const defaultSummary = {
+      total_sites: 0,
+      operational: 0,
+      transmitting: 0,
+      not_transmitting: 0,
+      data_available: 0,
+    };
+    const summary = results[0] || defaultSummary;
+
+    return {
+      success: true,
+      message: "Successfully retrieved site health summary.",
+      data: summary,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      }),
+    );
+  }
+};
+
+/**
+ * Derives a display-ready data_provider string from the networks of all
+ * devices currently deployed at a given site.
+ *
+ * Rules:
+ *   - No devices at the site → returns null (callers such as refreshSiteDataProvider() should clear any stale stored value)
+ *   - Single network       → e.g. "AIRQO"
+ *   - Multiple networks    → e.g. "AIRQO / METONE" (sorted for determinism)
+ *
+ * @param {string}   tenant  - The tenant identifier
+ * @param {ObjectId} siteId  - The site whose devices will be queried
+ * @returns {Promise<string|null>}
+ */
+const computeSiteDataProvider = async (tenant, siteId) => {
+  try {
+    const DeviceModel = require("@models/Device");
+    const devices = await DeviceModel(tenant)
+      .find({ site_id: siteId, isActive: true })
+      .select("network")
+      .lean();
+
+    if (!devices || devices.length === 0) return null;
+
+    // Step 1: map raw network ids → display labels via the mapping fn.
+    // Step 2: filter out any unmappable values.
+    // Step 3: deduplicate labels (Set) — catches alias variants that map to
+    //         the same display label (e.g. "us_embassy" and "usembassy" both
+    //         become "US EMBASSY").
+    // Step 4: sort labels so the joined string is always deterministic.
+    const uniqueLabels = [
+      ...new Set(
+        devices
+          .map((d) =>
+            constants.DATA_PROVIDER_MAPPINGS((d.network || "").trim()),
+          )
+          .filter(Boolean),
+      ),
+    ].sort();
+
+    if (uniqueLabels.length === 0) return null;
+
+    return uniqueLabels.join(" / ");
+  } catch (error) {
+    logger.error(
+      `computeSiteDataProvider failed for site ${siteId}: ${error.message}`,
+    );
+    // Rethrow so callers (e.g. refreshSiteDataProvider) can distinguish a
+    // transient failure from a confirmed "zero active devices" case.
+    // Only a clean empty-devices result should ever clear data_provider.
+    throw error;
+  }
+};
+
+/**
+ * Recomputes and persists data_provider on the given site document.
+ * Safe to call fire-and-forget — all errors are caught and logged.
+ *
+ * @param {string}   tenant  - The tenant identifier
+ * @param {ObjectId} siteId  - The site to update
+ */
+const refreshSiteDataProvider = async (tenant, siteId) => {
+  try {
+    if (!siteId) return;
+    const SiteModel = require("@models/Site");
+    const dataProvider = await computeSiteDataProvider(tenant, siteId);
+
+    // Write the result unconditionally:
+    // - non-null  → sets the correct derived value
+    // - null      → clears a stale value when the last device is recalled
+    await SiteModel(tenant).findByIdAndUpdate(
+      siteId,
+      { $set: { data_provider: dataProvider } },
+      { new: false },
+    );
+    logger.info(
+      `refreshSiteDataProvider: site ${siteId} → data_provider=${
+        dataProvider === null ? "null (cleared)" : `"${dataProvider}"`
+      }`,
+    );
+  } catch (error) {
+    logger.error(
+      `refreshSiteDataProvider failed for site ${siteId}: ${error.message}`,
+    );
+  }
+};
 
 const createSite = {
   getSiteById: async (req, next) => {
@@ -78,8 +239,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -180,7 +341,7 @@ const createSite = {
       return name.indexOf(" ") >= 0;
     } catch (error) {
       logger.error(
-        `create site util server error -- hasWhiteSpace -- ${error.message}`
+        `create site util server error -- hasWhiteSpace -- ${error.message}`,
       );
     }
   },
@@ -198,7 +359,7 @@ const createSite = {
       return false;
     } catch (error) {
       logger.error(
-        `internal server error -- check string length -- ${error.message}`
+        `internal server error -- check string length -- ${error.message}`,
       );
     }
   },
@@ -223,7 +384,7 @@ const createSite = {
         };
         const responseFromListAirQlouds = await createAirqloudUtil.list(
           requestForAirQlouds,
-          next
+          next,
         );
         if (responseFromListAirQlouds.success === true) {
           const airqlouds = responseFromListAirQlouds.data;
@@ -239,7 +400,7 @@ const createSite = {
             });
             const isSiteInAirQloud = geolib.isPointInPolygon(
               { latitude, longitude },
-              airqloudPolygon
+              airqloudPolygon,
             );
 
             if (isSiteInAirQloud === true) {
@@ -273,8 +434,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -292,12 +453,12 @@ const createSite = {
         }
         const { latitude, longitude } = data[0];
         const responseFromListWeatherStations = await createSite.listWeatherStations(
-          next
+          next,
         );
         if (responseFromListWeatherStations.success === true) {
           const nearestWeatherStation = geolib.findNearest(
             { latitude, longitude },
-            responseFromListWeatherStations.data
+            responseFromListWeatherStations.data,
           );
           return {
             success: true,
@@ -317,8 +478,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -389,8 +550,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -404,7 +565,7 @@ const createSite = {
       return false;
     } catch (error) {
       logger.error(
-        `internal server error -- validate site name -- ${error.message}`
+        `internal server error -- validate site name -- ${error.message}`,
       );
     }
   },
@@ -419,18 +580,18 @@ const createSite = {
       };
 
       const responseFromModifyUniqueIdentifierCounter = await UniqueIdentifierCounterModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify(
         {
           filter,
           update,
         },
-        next
+        next,
       );
 
       if (responseFromModifyUniqueIdentifierCounter.success === false) {
         logger.error(
-          `unable to find the counter document, please first create it`
+          `unable to find the counter document, please first create it`,
         );
         return {
           success: false,
@@ -461,8 +622,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -486,7 +647,7 @@ const createSite = {
 
       const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km },
-        next
+        next,
       );
 
       if (responseFromApproximateCoordinates.success === true) {
@@ -522,7 +683,7 @@ const createSite = {
 
       let responseFromGenerateName = await createSite.generateName(
         tenant,
-        next
+        next,
       );
       logObject("responseFromGenerateName", responseFromGenerateName);
       if (responseFromGenerateName.success === true) {
@@ -534,7 +695,7 @@ const createSite = {
 
       const responseFromGenerateMetadata = await createSite.generateMetadata(
         request,
-        next
+        next,
       );
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
       if (responseFromGenerateMetadata.success === true) {
@@ -545,7 +706,7 @@ const createSite = {
 
       const responseFromCreateSite = await SiteModel(tenant).register(
         requestBodyForCreatingSite,
-        next
+        next,
       );
 
       logObject("responseFromCreateSite in the util", responseFromCreateSite);
@@ -567,11 +728,11 @@ const createSite = {
           };
 
           const responseFromRegisterActivity = await ActivityModel(
-            tenant
+            tenant,
           ).register(siteActivityBody, next);
           if (responseFromRegisterActivity.success === false) {
             logger.error(
-              "Unable to store the site activity for this operation."
+              "Unable to store the site activity for this operation.",
             );
           }
         } catch (error) {
@@ -612,8 +773,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -627,7 +788,7 @@ const createSite = {
           filter,
           update,
         },
-        next
+        next,
       );
 
       return responseFromModifySite;
@@ -637,8 +798,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -656,13 +817,13 @@ const createSite = {
 
       // Create sets for comparison
       const existingSiteIds = new Set(
-        existingSites.map((site) => site._id.toString())
+        existingSites.map((site) => site._id.toString()),
       );
       const providedSiteIds = new Set(siteIds.map((id) => id.toString()));
 
       // Identify non-existent site IDs
       const nonExistentSiteIds = siteIds.filter(
-        (id) => !existingSiteIds.has(id.toString())
+        (id) => !existingSiteIds.has(id.toString()),
       );
 
       // If there are non-existent sites, prepare a detailed error
@@ -674,7 +835,7 @@ const createSite = {
             existingSiteIds: Array.from(existingSiteIds),
             totalProvidedSiteIds: siteIds.length,
             existingSiteCount: existingSites.length,
-          })
+          }),
         );
       }
 
@@ -702,7 +863,7 @@ const createSite = {
           update: updateData,
           opts,
         },
-        next
+        next,
       );
 
       // Attach additional metadata to the response
@@ -720,8 +881,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -772,7 +933,7 @@ const createSite = {
             .catch((error) => {
               try {
                 logger.error(
-                  `internal server error -- ${JSON.stringify(error)}`
+                  `internal server error -- ${JSON.stringify(error)}`,
                 );
               } catch (error) {
                 logger.error(`internal server error -- ${error.message}`);
@@ -783,7 +944,7 @@ const createSite = {
                 message: "Internal Server Error",
                 status: httpStatus.INTERNAL_SERVER_ERROR,
               };
-            })
+            }),
         );
       }
 
@@ -810,72 +971,60 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
   generateMetadata: async (req, next) => {
     try {
       let { query, body } = req;
-      let { latitude, longitude } = body;
+      body = { ...body };
+      let { latitude, longitude, skipAltitude } = body;
       let { tenant, id } = query;
       let roadResponseData = {};
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      let responseFromGetAltitude = await createSite.getAltitude(
-        latitude,
-        longitude,
-        next
-      );
+      // Resolve the site id from either the fire-and-forget enrichment path
+      // (body.siteId) or the refresh/backfill path (query.id).
+      const resolvedSiteId = id || body.siteId || null;
 
-      if (responseFromGetAltitude.success === true) {
-        altitudeResponseData["altitude"] = responseFromGetAltitude.data;
-      } else if (responseFromGetAltitude.success === false) {
-        let errors = responseFromGetAltitude.errors
-          ? responseFromGetAltitude.errors
-          : { message: "" };
-        try {
-          logger.error(
-            `unable to retrieve the altitude for this site, ${
-              responseFromGetAltitude.message
-            } and ${JSON.stringify(errors)}`
-          );
-        } catch (error) {
-          logger.error(`internal server error ${error.message}`);
+      if (!skipAltitude) {
+        let responseFromGetAltitude = await createSite.getAltitude(
+          latitude,
+          longitude,
+          next,
+        );
+
+        if (responseFromGetAltitude.success === true) {
+          altitudeResponseData["altitude"] = responseFromGetAltitude.data;
+        } else if (responseFromGetAltitude.success === false) {
+          try {
+            const rawError = responseFromGetAltitude.errors?.message;
+            const safeError = {
+              code: rawError?.code,
+              message: rawError?.message,
+              responseStatus: rawError?.response?.status,
+              responseData:
+                rawError?.response?.data?.error_message ||
+                rawError?.response?.data,
+            };
+            logger.warn(
+              `unable to retrieve the altitude for this site, ${
+                responseFromGetAltitude.message
+              } — ${JSON.stringify(safeError)}`,
+            );
+          } catch (error) {
+            logger.warn(`getAltitude internal error ${error.message}`);
+          }
         }
       }
-
-      // let responseFromGetRoadMetadata = await createSite.getRoadMetadata(
-      //   latitude,
-      //   longitude,
-      //   next
-      // );
-
-      // logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
-
-      // if (responseFromGetRoadMetadata.success === true) {
-      //   roadResponseData = responseFromGetRoadMetadata.data;
-      // } else if (responseFromGetRoadMetadata.success === false) {
-      //   let errors = responseFromGetRoadMetadata.errors
-      //     ? responseFromGetRoadMetadata.errors
-      //     : {message:""};
-      //   try {
-      //     logger.error(
-      //       `unable to retrieve the road metadata, ${
-      //         responseFromGetRoadMetadata.message
-      //       } and ${JSON.stringify(errors)} `
-      //     );
-      //   } catch (error) {
-      //     logger.error(`internal server error -- ${error.message}`);
-      //   }
-      // }
 
       let responseFromReverseGeoCode = await createSite.reverseGeoCode(
         latitude,
         longitude,
-        next
+        next,
       );
 
       if (responseFromReverseGeoCode.success === true) {
@@ -884,13 +1033,42 @@ const createSite = {
         let existing_site_tags = body.site_tags ? body.site_tags : [];
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
+
+        // Resolve data_provider separately so a transient lookup failure does
+        // not abort the rest of the metadata path. reverse-geocode data is
+        // already in hand at this point and must not be discarded.
+        // - resolvedSiteId present + devices found  → mapped label string
+        // - resolvedSiteId present + no devices     → null (field cleared)
+        // - resolvedSiteId absent (new site)        → undefined (field omitted)
+        // - resolvedSiteId present + lookup throws  → undefined (field omitted,
+        //   existing stored value preserved until next successful activity)
+        let resolvedDataProvider = undefined;
+        if (resolvedSiteId) {
+          try {
+            resolvedDataProvider = await computeSiteDataProvider(
+              tenant,
+              resolvedSiteId,
+            );
+          } catch (error) {
+            logger.error(
+              `generateMetadata: data_provider lookup failed for site ${resolvedSiteId}: ${error.message}`,
+            );
+          }
+        }
+
+        // Strip siteId — it is an internal routing hint, not a site schema field.
+        const { siteId: _siteId, ...safeBody } = body;
+
         let finalResponseBody = {
           ...reverseGeoCodeResponseData,
-          ...body,
+          ...safeBody,
           ...roadResponseData,
           ...altitudeResponseData,
-          data_provider: constants.DATA_PROVIDER_MAPPINGS(body.network),
+          ...(resolvedDataProvider !== undefined && {
+            data_provider: resolvedDataProvider,
+          }),
         };
+
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
           : "";
@@ -909,8 +1087,10 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          {
+            message: error.message,
+          },
+        ),
       );
     }
   },
@@ -930,19 +1110,21 @@ const createSite = {
       const requestBody = createSite.prepareSiteRequestBody(
         siteDetails.data[0],
         tenant,
-        next
+        next,
       );
 
       const airQloudsAndWeatherStations = await createSite.fetchAdditionalSiteDetails(
         tenant,
         id,
-        next
+        next,
       );
       Object.assign(requestBody, airQloudsAndWeatherStations);
 
+      // Pass the site's id in body so generateMetadata can resolve the
+      // correct data_provider from deployed devices rather than body.network.
       const metadataResponse = await createSite.generateMetadata(
-        { query: { tenant }, body: requestBody },
-        next
+        { query: { tenant }, body: { ...requestBody, siteId: id } },
+        next,
       );
 
       if (!metadataResponse.success) return metadataResponse;
@@ -968,8 +1150,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -988,7 +1170,7 @@ const createSite = {
         {
           filter,
         },
-        next
+        next,
       );
 
       return responseFromRemoveSite;
@@ -998,8 +1180,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1024,7 +1206,7 @@ const createSite = {
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.min(
         MAX_LIMIT,
-        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT),
       );
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
@@ -1061,7 +1243,7 @@ const createSite = {
             },
           },
           { $project: constants.SITES_INCLUSION_PROJECTION },
-          { $project: constants.SITES_EXCLUSION_PROJECTION("summary") }
+          { $project: constants.SITES_EXCLUSION_PROJECTION("summary") },
         );
       } else {
         // Full detail level
@@ -1089,7 +1271,7 @@ const createSite = {
               foreignField: "_id",
               as: "airqlouds",
             },
-          }
+          },
         );
 
         if (useCache === "true") {
@@ -1259,8 +1441,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1275,7 +1457,7 @@ const createSite = {
           limit,
           skip,
         },
-        next
+        next,
       );
 
       if (responseFromListSite.success === false) {
@@ -1294,8 +1476,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1370,8 +1552,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1386,7 +1568,7 @@ const createSite = {
           if (!isEmpty(responseJSON.results)) {
             const responseFromTransformAddress = createSite.retrieveInformationFromAddress(
               responseJSON,
-              next
+              next,
             );
             return responseFromTransformAddress;
           } else {
@@ -1420,8 +1602,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1436,7 +1618,7 @@ const createSite = {
             },
             timeout: 1000, // milliseconds
           },
-          axiosInstance()
+          axiosInstance(),
         )
         .then((r) => {
           return {
@@ -1448,9 +1630,23 @@ const createSite = {
         })
         .catch((e) => {
           try {
-            logger.error(`internal server error -- ${JSON.stringify(e)}`);
+            // Downgraded from logger.error to logger.warn — altitude failure
+            // is non-fatal. Sites continue to receive all other metadata from
+            // reverseGeoCode. Logging as error was flooding Slack with alerts
+            // for every site in every batch when GOOGLE_MAPS_API_KEY is misconfigured.
+            const safeError = {
+              code: e.code,
+              message: e.message,
+              responseStatus: e.response?.status,
+              responseData: e.response?.data?.error_message || e.response?.data,
+            };
+            logger.warn(
+              `getAltitude failed for lat=${lat}, lng=${long} — ${JSON.stringify(
+                safeError,
+              )}`,
+            );
           } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
+            logger.warn(`getAltitude internal error -- ${error.message}`);
           }
           return {
             success: false,
@@ -1465,8 +1661,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1486,7 +1682,7 @@ const createSite = {
       };
       const responseFromListSites = await createSite.listAirQoActive(
         request,
-        next
+        next,
       );
 
       if (responseFromListSites.success === true) {
@@ -1504,7 +1700,7 @@ const createSite = {
                 latitude2: site["latitude"],
                 longitude2: site["longitude"],
               },
-              next
+              next,
             );
 
             if (distanceBetweenTwoPoints < radius) {
@@ -1531,14 +1727,14 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
   createApproximateCoordinates: (
     { latitude, longitude, approximate_distance_in_km, bearing },
-    next
+    next,
   ) => {
     try {
       const responseFromDistanceUtil = distance.createApproximateCoordinates(
@@ -1548,7 +1744,7 @@ const createSite = {
           approximate_distance_in_km,
           bearing,
         },
-        next
+        next,
       );
 
       return {
@@ -1562,8 +1758,8 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1616,7 +1812,7 @@ const createSite = {
           const { distance: perpendicularDist } = geolib.getDistanceFromLine(
             siteCoords,
             start,
-            end
+            end,
           );
 
           if (perpendicularDist <= radius * 1000) {
@@ -1697,12 +1893,17 @@ const createSite = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
   },
 };
 
-module.exports = createSite;
+module.exports = {
+  ...createSite,
+  getSiteCountSummary,
+  computeSiteDataProvider,
+  refreshSiteDataProvider,
+};

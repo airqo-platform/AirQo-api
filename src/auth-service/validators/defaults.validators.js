@@ -2,6 +2,7 @@
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -11,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -27,7 +28,7 @@ const validateIdOrUserId = oneOf([
   query("id")
     .exists()
     .withMessage(
-      "the record's identifier is missing in request, consider using the id"
+      "the record's identifier is missing in request, consider using the id",
     )
     .bail()
     .trim()
@@ -40,7 +41,7 @@ const validateIdOrUserId = oneOf([
   query("user_id")
     .exists()
     .withMessage(
-      "the record's identifier is missing in request, consider using the user_id"
+      "the record's identifier is missing in request, consider using the user_id",
     )
     .bail()
     .trim()
@@ -64,7 +65,7 @@ const update = [
       .trim()
       .isIn(["no2", "pm2_5", "pm10", "pm1"])
       .withMessage(
-        "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
+        "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1",
       ),
     body("frequency")
       .optional()
@@ -75,7 +76,7 @@ const update = [
       .toLowerCase()
       .isIn(["daily", "hourly", "monthly"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: daily, hourly and monthly"
+        "the frequency value is not among the expected ones which include: daily, hourly and monthly",
       ),
     body("chartType")
       .optional()
@@ -86,7 +87,7 @@ const update = [
       .toLowerCase()
       .isIn(["bar", "line", "pie"])
       .withMessage(
-        "the chartType value is not among the expected ones which include: bar, line and pie"
+        "the chartType value is not among the expected ones which include: bar, line and pie",
       ),
     body("startDate")
       .optional()
@@ -199,7 +200,7 @@ const create = [
       .trim()
       .isIn(["no2", "pm2_5", "pm10", "pm1"])
       .withMessage(
-        "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
+        "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1",
       ),
     body("frequency")
       .optional()
@@ -210,7 +211,7 @@ const create = [
       .toLowerCase()
       .isIn(["daily", "hourly", "monthly"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: daily, hourly and monthly"
+        "the frequency value is not among the expected ones which include: daily, hourly and monthly",
       ),
     body("chartType")
       .optional()
@@ -221,7 +222,7 @@ const create = [
       .toLowerCase()
       .isIn(["bar", "line", "pie"])
       .withMessage(
-        "the chartType value is not among the expected ones which include: bar, line and pie"
+        "the chartType value is not among the expected ones which include: bar, line and pie",
       ),
     body("startDate")
       .optional()

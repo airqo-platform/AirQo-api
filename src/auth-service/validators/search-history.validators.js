@@ -12,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -32,7 +32,7 @@ const listByUserId = [
     param("firebase_user_id")
       .exists()
       .withMessage(
-        "the firebase_user_id param is missing in request path, consider using firebase_user_id"
+        "the firebase_user_id param is missing in request path, consider using firebase_user_id",
       )
       .bail()
       .notEmpty()
@@ -123,7 +123,7 @@ const syncSearchHistory = [
         return Array.isArray(value);
       })
       .withMessage(
-        "Invalid request body format. The search_histories should be an array"
+        "Invalid request body format. The search_histories should be an array",
       ),
     body("search_histories.*")
       .optional()
@@ -156,7 +156,7 @@ const syncSearchHistory = [
     body("search_histories.*.firebase_user_id")
       .exists()
       .withMessage(
-        "the firebase_user_id is missing in the search history object"
+        "the firebase_user_id is missing in the search history object",
       )
       .bail()
       .notEmpty()
@@ -195,7 +195,7 @@ const update = [
     param("search_history_id")
       .exists()
       .withMessage(
-        "the search_history_id param is missing in request path, consider using search_history_id"
+        "the search_history_id param is missing in request path, consider using search_history_id",
       )
       .bail()
       .trim()
@@ -270,7 +270,7 @@ const deleteSearchHistory = [
     param("search_history_id")
       .exists()
       .withMessage(
-        "the search_history_id param is missing in request path, consider using search_history_id"
+        "the search_history_id param is missing in request path, consider using search_history_id",
       )
       .bail()
       .trim()
@@ -289,7 +289,7 @@ const getById = [
     param("search_history_id")
       .exists()
       .withMessage(
-        "the search_history_id param is missing in request path, consider using search_history_id"
+        "the search_history_id param is missing in request path, consider using search_history_id",
       )
       .bail()
       .trim()

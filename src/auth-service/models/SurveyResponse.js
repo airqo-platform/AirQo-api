@@ -7,7 +7,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- survey-responses-model`
+  `${constants.ENVIRONMENT} -- survey-responses-model`,
 );
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
@@ -34,7 +34,7 @@ const AnswerSchema = new Schema(
       default: Date.now,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Location Schema for context data
@@ -61,7 +61,7 @@ const LocationSchema = new Schema(
       min: [0, "Accuracy must be >= 0"],
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Context Data Schema
@@ -83,7 +83,7 @@ const ContextDataSchema = new Schema(
       type: Schema.Types.Mixed,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Main Survey Response Schema
@@ -98,6 +98,16 @@ const SurveyResponseSchema = new Schema(
       type: ObjectId,
       ref: "user",
       required: [true, "User ID is required"],
+    },
+    deviceId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    isGuest: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     answers: {
       type: [AnswerSchema],
@@ -140,7 +150,7 @@ const SurveyResponseSchema = new Schema(
       min: [0, "Time to complete must be >= 0"],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 SurveyResponseSchema.pre("save", function (next) {
@@ -149,9 +159,18 @@ SurveyResponseSchema.pre("save", function (next) {
   const uniqueQuestionIds = [...new Set(questionIds)];
 
   if (questionIds.length !== uniqueQuestionIds.length) {
-    return next(
-      new Error("Answer question IDs must be unique within a response")
+    // Use ValidationError instead of generic Error for proper 400 response
+    const err = new Error(
+      "Answer question IDs must be unique within a response",
     );
+    err.name = "ValidationError";
+    err.errors = {
+      answers: {
+        message: "Answer question IDs must be unique within a response",
+        kind: "user defined",
+      },
+    };
+    return next(err);
   }
 
   // Auto-set completedAt if status is completed and not already set
@@ -177,6 +196,21 @@ SurveyResponseSchema.pre("update", function (next) {
 SurveyResponseSchema.index({ surveyId: 1, userId: 1 });
 SurveyResponseSchema.index({ surveyId: 1, status: 1 });
 SurveyResponseSchema.index({ userId: 1, createdAt: -1 });
+// Supports filtered list queries sorted by createdAt (e.g. all responses for a
+// survey in reverse-chronological order) without a blocking post-join sort.
+SurveyResponseSchema.index({ surveyId: 1, createdAt: -1 });
+SurveyResponseSchema.index({ createdAt: -1 });
+SurveyResponseSchema.index(
+  { surveyId: 1, deviceId: 1 },
+  {
+    unique: true,
+    sparse: true,
+    partialFilterExpression: {
+      isGuest: true,
+      deviceId: { $exists: true, $nin: [null, ""] },
+    },
+  },
+);
 
 SurveyResponseSchema.statics = {
   async register(args, next) {
@@ -199,7 +233,7 @@ SurveyResponseSchema.statics = {
       } else {
         return createEmptySuccessResponse(
           "survey response",
-          "operation successful but survey response NOT successfully created"
+          "operation successful but survey response NOT successfully created",
         );
       }
     } catch (err) {
@@ -210,7 +244,31 @@ SurveyResponseSchema.statics = {
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
 
-      if (err.keyValue) {
+      // Handle duplicate key errors (including race condition duplicates)
+      if (
+        err.code === 11000 ||
+        (err.name === "MongoServerError" && err.code === 11000)
+      ) {
+        // Check if it's a duplicate deviceId for guest survey response
+        if (
+          err.keyPattern &&
+          err.keyPattern.deviceId &&
+          err.keyPattern.surveyId
+        ) {
+          return {
+            success: false,
+            message: "You have already submitted a response to this survey",
+            status: httpStatus.CONFLICT,
+            errors: {
+              message:
+                "You have already submitted a response to this survey from this device.",
+            },
+          };
+        }
+
+        // Generic duplicate key error
+        response["message"] = "the Survey Response must be unique";
+      } else if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
@@ -218,8 +276,6 @@ SurveyResponseSchema.statics = {
         Object.entries(err.errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
-      } else if (err.code === 11000) {
-        response["message"] = "the Survey Response must be unique";
       } else {
         message = "Internal Server Error";
         status = httpStatus.INTERNAL_SERVER_ERROR;
@@ -243,6 +299,8 @@ SurveyResponseSchema.statics = {
           id: 1,
           surveyId: 1,
           userId: 1,
+          deviceId: 1,
+          isGuest: 1,
           answers: 1,
           status: 1,
           startedAt: 1,
@@ -256,7 +314,7 @@ SurveyResponseSchema.statics = {
       const exclusionProjection =
         constants.SURVEY_RESPONSES_EXCLUSION_PROJECTION
           ? constants.SURVEY_RESPONSES_EXCLUSION_PROJECTION(
-              filter.category ? filter.category : "none"
+              filter.category ? filter.category : "none",
             )
           : {};
 
@@ -266,11 +324,25 @@ SurveyResponseSchema.statics = {
 
       const response = await this.aggregate()
         .match(filter)
+        // ── Sort BEFORE the $lookup/$unwind stages ──────────────────────────────
+        // createdAt is a root-document field, so the sort can be served from the
+        // { surveyId: 1, createdAt: -1 } or { userId: 1, createdAt: -1 } indexes
+        // (see schema-level index declarations) without materialising the joined
+        // result set first. Moving the sort here avoids an expensive blocking sort
+        // over the much-larger post-join documents.
+        .sort({ createdAt: -1 })
         .lookup({
           from: "surveys",
           localField: "surveyId",
           foreignField: "_id",
           as: "survey",
+        })
+        // preserveNullAndEmptyArrays: false — excludes orphaned responses (no
+        // matching survey). $unwind with false is equivalent to the previous
+        // .match({ survey: { $ne: null } }) but more efficient.
+        .unwind({
+          path: "$survey",
+          preserveNullAndEmptyArrays: false,
         })
         .lookup({
           from: "users",
@@ -278,11 +350,26 @@ SurveyResponseSchema.statics = {
           foreignField: "_id",
           as: "user",
         })
-        .addFields({
-          survey: { $arrayElemAt: ["$survey", 0] },
-          user: { $arrayElemAt: ["$user", 0] },
+        // preserveNullAndEmptyArrays: true — keeps guest responses whose sentinel
+        // userId (constants.GUEST_USER_ID) has no matching user document. When
+        // $unwind finds an empty array with this option it removes the field
+        // entirely rather than setting it to null, so the $addFields stage below
+        // is required to normalise the missing key to explicit null.
+        .unwind({
+          path: "$user",
+          preserveNullAndEmptyArrays: true,
         })
-        .sort({ createdAt: -1 })
+        // ── Normalise missing user to explicit null ─────────────────────────────
+        // After $unwind with preserveNullAndEmptyArrays: true, guest responses
+        // whose userId did not resolve to a user document will have NO "user" key
+        // on the document at all — not null, not undefined, simply absent. Without
+        // this stage, the downstream projection `user: "$user"` silently omits the
+        // key, giving the API an inconsistent response shape for guest vs
+        // authenticated responses. $ifNull coerces the absent field to null so
+        // consumers always receive a "user" key.
+        .addFields({
+          user: { $ifNull: ["$user", null] },
+        })
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
@@ -309,34 +396,40 @@ SurveyResponseSchema.statics = {
         const uniqueQuestionIds = [...new Set(questionIds)];
 
         if (questionIds.length !== uniqueQuestionIds.length) {
-          return {
-            success: false,
-            message: "Answer question IDs must be unique within a response",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
+          // Create a ValidationError to match Mongoose's error structure
+          // This will be caught in register() and returned as 409 CONFLICT
+          // (see the err.errors catch block around line 203)
+          const err = new Error(
+            "Answer question IDs must be unique within a response",
+          );
+          err.name = "ValidationError";
+          err.errors = {
+            answers: {
               message: "Answer question IDs must be unique within a response",
+              kind: "user defined",
             },
           };
+          return next(err);
         }
       }
 
       const updatedSurveyResponse = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedSurveyResponse)) {
         return createSuccessResponse(
           "update",
           updatedSurveyResponse._doc,
-          "survey response"
+          "survey response",
         );
       } else {
         return createNotFoundResponse(
           "survey response",
           "update",
-          "survey response does not exist, please crosscheck"
+          "survey response does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -381,20 +474,20 @@ SurveyResponseSchema.statics = {
 
       const removedSurveyResponse = await this.findOneAndRemove(
         filter,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(removedSurveyResponse)) {
         return createSuccessResponse(
           "delete",
           removedSurveyResponse._doc,
-          "survey response"
+          "survey response",
         );
       } else {
         return createNotFoundResponse(
           "survey response",
           "delete",
-          "survey response does not exist, please crosscheck"
+          "survey response does not exist, please crosscheck",
         );
       }
     } catch (error) {
@@ -409,6 +502,8 @@ SurveyResponseSchema.methods = {
       _id: this._id,
       surveyId: this.surveyId,
       userId: this.userId,
+      deviceId: this.deviceId,
+      isGuest: this.isGuest,
       answers: this.answers,
       status: this.status,
       startedAt: this.startedAt,
@@ -431,7 +526,7 @@ const SurveyResponseModel = (tenant) => {
     let surveyResponses = getModelByTenant(
       dbTenant,
       "surveyresponse",
-      SurveyResponseSchema
+      SurveyResponseSchema,
     );
     return surveyResponses;
   }

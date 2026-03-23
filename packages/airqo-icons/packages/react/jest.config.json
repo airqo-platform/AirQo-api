@@ -1,0 +1,28 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "jsdom",
+  "setupFilesAfterEnv": ["<rootDir>/src/__tests__/jest.setup.ts"],
+  "testMatch": [
+    "<rootDir>/src/**/__tests__/**/*.test.{ts,tsx}",
+    "<rootDir>/src/**/*.test.{ts,tsx}",
+    "<rootDir>/src/**/*.spec.{ts,tsx}"
+  ],
+  "testPathIgnorePatterns": [
+    "<rootDir>/node_modules/",
+    "<rootDir>/dist/",
+    "<rootDir>/src/__tests__/jest.setup.ts"
+  ],
+  "collectCoverageFrom": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.d.ts",
+    "!src/**/__tests__/**",
+    "!src/**/types.ts",
+    "!src/index.ts"
+  ],
+  "coverageDirectory": "coverage",
+  "coverageReporters": ["text", "lcov", "html"],
+  "transform": {
+    "^.+\\.(ts|tsx)$": "ts-jest"
+  },
+  "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"]
+}

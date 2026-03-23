@@ -32,7 +32,7 @@ describe("Device Validator", () => {
         const errors = validationResult(req);
         expect(errors.isEmpty()).to.be.false;
         expect(errors.array()[0].msg).to.equal(
-          "the tenant value is not among the expected ones"
+          "the tenant value is not among the expected ones",
         );
       });
     });
@@ -43,7 +43,7 @@ describe("Device Validator", () => {
         const errors = validationResult(req);
         expect(errors.isEmpty()).to.be.false;
         expect(errors.array()[0].msg).to.equal(
-          "tenant cannot be empty if provided"
+          "tenant cannot be empty if provided",
         );
       });
     });
@@ -63,7 +63,7 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[0](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.true;
       });
@@ -74,11 +74,11 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[0](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.false;
         expect(validationResult(req).array()[0].msg).to.equal(
-          "the device_number should be an integer value"
+          "the device_number should be an integer value",
         );
       });
     });
@@ -88,7 +88,7 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[1](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.true;
       });
@@ -99,11 +99,11 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[1](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.false;
         expect(validationResult(req).array()[0].msg).to.equal(
-          "id must be an object ID"
+          "id must be an object ID",
         );
       });
     });
@@ -113,7 +113,7 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[2](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.true;
       });
@@ -124,11 +124,11 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[2](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.false;
         expect(validationResult(req).array()[0].msg).to.equal(
-          "device name should be lower case"
+          "device name should be lower case",
         );
       });
     });
@@ -138,11 +138,11 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[2](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.false;
         expect(validationResult(req).array()[0].msg).to.equal(
-          "the device names do not have spaces in them"
+          "the device names do not have spaces in them",
         );
       });
     });
@@ -152,12 +152,12 @@ describe("Device Validator", () => {
       return deviceValidator.validateDeviceIdentifier[0](
         req,
         {},
-        () => {}
+        () => {},
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.false;
         const errors = validationResult(req).array();
         expect(errors[0].msg).to.equal(
-          "the device identifier is missing in request, consider using the device_number"
+          "the device identifier is missing in request, consider using the device_number",
         );
       });
     });
@@ -172,13 +172,13 @@ describe("Device Validator", () => {
           network: "validNetwork",
           latitude: "0.12345",
           longitude: "32.12345",
-        }
+        },
       );
 
       return Promise.all(
         deviceValidator.validateCreateDevice.map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.true;
       });
@@ -189,10 +189,79 @@ describe("Device Validator", () => {
 
       return Promise.all(
         deviceValidator.validateCreateDevice.map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.false;
+      });
+    });
+
+    it("should pass validation with valid tags", () => {
+      const req = mockRequest(
+        {},
+        {
+          name: "device-with-tags",
+          network: "airqo",
+          tags: ["tag1", "tag2"],
+        },
+      );
+
+      return Promise.all(
+        deviceValidator.validateCreateDevice.map((validator) =>
+          validator(req, {}, () => {}),
+        ),
+      ).then(() => {
+        const errors = validationResult(req);
+        expect(errors.isEmpty()).to.be.true;
+      });
+    });
+
+    it("should return an error if tags is not an array", () => {
+      const req = mockRequest(
+        {},
+        {
+          name: "device-with-invalid-tags",
+          network: "airqo",
+          tags: "not-an-array",
+        },
+      );
+
+      return Promise.all(
+        deviceValidator.validateCreateDevice.map((validator) =>
+          validator(req, {}, () => {}),
+        ),
+      ).then(() => {
+        const errors = validationResult(req);
+        expect(errors.isEmpty()).to.be.false;
+        expect(errors.array()[0].msg).to.equal(
+          "tags must be an array of strings",
+        );
+      });
+    });
+
+    it("should return an error if tags array contains non-string elements", () => {
+      const req = mockRequest(
+        {},
+        {
+          name: "device-with-bad-tags",
+          network: "airqo",
+          tags: ["valid-tag", 123, true],
+        },
+      );
+
+      return Promise.all(
+        deviceValidator.validateCreateDevice.map((validator) =>
+          validator(req, {}, () => {}),
+        ),
+      ).then(() => {
+        const errors = validationResult(req);
+        expect(errors.isEmpty()).to.be.false;
+        const tagErrors = errors
+          .array()
+          .filter((err) => err.param === "tags[1]" || err.param === "tags[2]");
+        expect(tagErrors).to.have.lengthOf(2);
+        expect(tagErrors[0].msg).to.equal("Each tag must be a string");
+        expect(tagErrors[1].msg).to.equal("Each tag must be a string");
       });
     });
 
@@ -208,12 +277,12 @@ describe("Device Validator", () => {
           long_name: "Updated Device Name",
           latitude: "0.12345",
           longitude: "32.12345",
-        }
+        },
       );
       return Promise.all(
         deviceValidator.validateUpdateDevice.map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.true;
       });
@@ -227,12 +296,12 @@ describe("Device Validator", () => {
           long_name: "", // Empty string
           latitude: "invalidLatitude", //Invalid lat
           longitude: "invalidLongitude", // Invalid lon
-        }
+        },
       );
       return Promise.all(
         deviceValidator.validateUpdateDevice.map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         expect(validationResult(req).isEmpty()).to.be.false;
       });
@@ -269,6 +338,77 @@ describe("Device Validator", () => {
           expect(validationResult(req).isEmpty()).to.be.false;
         });
     });
+
+    describe("tags query param validation", () => {
+      it("should pass validation with a single valid tag", () => {
+        const req = mockRequest({ tags: "school" });
+        return Promise.all(
+          deviceValidator.validateListDevices.map((validator) =>
+            validator(req, {}, () => {}),
+          ),
+        ).then(() => {
+          const errors = validationResult(req);
+          expect(errors.isEmpty()).to.be.true;
+        });
+      });
+
+      it("should pass validation with multiple comma-separated tags", () => {
+        const req = mockRequest({ tags: "school, public, urban" });
+        return Promise.all(
+          deviceValidator.validateListDevices.map((validator) =>
+            validator(req, {}, () => {}),
+          ),
+        ).then(() => {
+          const errors = validationResult(req);
+          expect(errors.isEmpty()).to.be.true;
+        });
+      });
+
+      it("should return an error if tags is provided but empty", () => {
+        const req = mockRequest({ tags: "" });
+        return Promise.all(
+          deviceValidator.validateListDevices.map((validator) =>
+            validator(req, {}, () => {}),
+          ),
+        ).then(() => {
+          const errors = validationResult(req);
+          expect(errors.isEmpty()).to.be.false;
+          expect(errors.array()[0].msg).to.equal(
+            "tags must not be empty if provided",
+          );
+        });
+      });
+
+      it("should return an error for a trailing comma", () => {
+        const req = mockRequest({ tags: "school," });
+        return Promise.all(
+          deviceValidator.validateListDevices.map((validator) =>
+            validator(req, {}, () => {}),
+          ),
+        ).then(() => {
+          const errors = validationResult(req);
+          expect(errors.isEmpty()).to.be.false;
+          expect(errors.array()[0].msg).to.equal(
+            "tags cannot contain empty values. Check for extra commas.",
+          );
+        });
+      });
+
+      it("should return an error for duplicate commas", () => {
+        const req = mockRequest({ tags: "school,,public" });
+        return Promise.all(
+          deviceValidator.validateListDevices.map((validator) =>
+            validator(req, {}, () => {}),
+          ),
+        ).then(() => {
+          const errors = validationResult(req);
+          expect(errors.isEmpty()).to.be.false;
+          expect(errors.array()[0].msg).to.equal(
+            "tags cannot contain empty values. Check for extra commas.",
+          );
+        });
+      });
+    });
   });
 
   describe("validateEncryptKeys", () => {
@@ -278,7 +418,7 @@ describe("Device Validator", () => {
         {
           writeKey: "someWriteKey",
           readKey: "someReadKey",
-        }
+        },
       );
 
       return deviceValidator.validateEncryptKeys[0]
@@ -305,12 +445,12 @@ describe("Device Validator", () => {
         {},
         {
           encrypted_key: "someEncryptedKey",
-        }
+        },
       );
       return deviceValidator.validateDecryptKeys[0](req, {}, () => {}).then(
         () => {
           expect(validationResult(req).isEmpty()).to.be.true;
-        }
+        },
       );
     });
   });
@@ -326,8 +466,8 @@ describe("Device Validator", () => {
 
       return Promise.all(
         deviceValidator.validateDecryptManyKeys[0].map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         const errors = validationResult(req);
         expect(errors.isEmpty()).to.be.true;
@@ -344,8 +484,8 @@ describe("Device Validator", () => {
 
       return Promise.all(
         deviceValidator.validateDecryptManyKeys[0].map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         const errors = validationResult(req);
         expect(errors.isEmpty()).to.be.false;
@@ -359,7 +499,7 @@ describe("Device Validator", () => {
       return deviceValidator.validateArrayBody[0](req, {}, () => {}).then(
         () => {
           expect(validationResult(req).isEmpty()).to.be.true;
-        }
+        },
       );
     });
   });
@@ -374,13 +514,13 @@ describe("Device Validator", () => {
             new mongoose.Types.ObjectId(),
           ],
           updateData: { description: "Updated description" },
-        }
+        },
       );
 
       return Promise.all(
         deviceValidator.validateBulkUpdateDevices.map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         const errors = validationResult(req);
         expect(errors.isEmpty()).to.be.true;
@@ -393,18 +533,18 @@ describe("Device Validator", () => {
         {
           deviceIds: ["invalidId1", "invalidId2"],
           updateData: { description: "Updated description" },
-        }
+        },
       );
 
       return Promise.all(
         deviceValidator.validateBulkUpdateDevices.map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         const errors = validationResult(req);
         expect(errors.isEmpty()).to.be.false;
         expect(errors.array()[0].msg).to.equal(
-          "All deviceIds must be valid MongoDB ObjectIds"
+          "All deviceIds must be valid MongoDB ObjectIds",
         );
       });
     });
@@ -418,17 +558,17 @@ describe("Device Validator", () => {
             new mongoose.Types.ObjectId(),
           ],
           updateData: { invalidField: "some value" },
-        }
+        },
       );
       return Promise.all(
         deviceValidator.validateBulkUpdateDevices.map((validator) =>
-          validator(req, {}, () => {})
-        )
+          validator(req, {}, () => {}),
+        ),
       ).then(() => {
         const errors = validationResult(req);
         expect(errors.isEmpty()).to.be.false;
         expect(errors.array()[0].msg).to.equal(
-          "Invalid fields in updateData: invalidField"
+          "Invalid fields in updateData: invalidField",
         );
       });
     });

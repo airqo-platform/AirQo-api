@@ -13,7 +13,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
 };
@@ -42,7 +42,7 @@ const networkStatusValidations = {
       .custom((value, { req }) => {
         if (value > req.body.total_deployed_devices) {
           throw new Error(
-            "offline_devices_count cannot exceed total_deployed_devices"
+            "offline_devices_count cannot exceed total_deployed_devices",
           );
         }
         return true;

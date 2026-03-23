@@ -29,66 +29,13 @@ const dbProjections = {
   },
   NETWORKS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
-      "net_users.__v": 0,
-      "net_users.notifications": 0,
-      "net_users.emailConfirmed": 0,
-      "net_users.networks": 0,
-      "net_users.locationCount": 0,
-      "net_users.network": 0,
-      "net_users.long_network": 0,
-      "net_users.privilege": 0,
-      "net_users.password": 0,
-      "net_users.duration": 0,
-      "net_users.updatedAt": 0,
-      "net_users.organization": 0,
-      "net_users.phoneNumber": 0,
-      "net_users.profilePicture": 0,
-      "net_users.resetPasswordExpires": 0,
-      "net_users.resetPasswordToken": 0,
-      "net_users.verified": 0,
-      "net_users.analyticsVersion": 0,
-      "net_users.groups": 0,
-      "net_users.permissions": 0,
-      "net_users.long_organization": 0,
-      "net_manager.__v": 0,
-      "net_manager.notifications": 0,
-      "net_manager.emailConfirmed": 0,
-      "net_manager.networks": 0,
-      "net_manager.locationCount": 0,
-      "net_manager.network": 0,
-      "net_manager.long_network": 0,
-      "net_manager.privilege": 0,
-      "net_manager.userName": 0,
-      "net_manager.password": 0,
-      "net_manager.duration": 0,
-      "net_manager.network_roles": 0,
-      "net_manager.createdAt": 0,
-      "net_manager.updatedAt": 0,
-      "net_manager.groups": 0,
-      "net_manager.role": 0,
-      "net_manager.resetPasswordExpires": 0,
-      "net_manager.resetPasswordToken": 0,
-      "net_manager.phoneNumber": 0,
-      "net_manager.organization": 0,
-      "net_manager.profilePicture": 0,
-      "net_manager.is_email_verified": 0,
-      "net_manager.permissions": 0,
-      "net_permissions.__v": 0,
-      "net_permissions.createdAt": 0,
-      "net_permissions.updatedAt": 0,
-      "net_roles.__v": 0,
-      "net_roles.createdAt": 0,
-      "net_roles.updatedAt": 0,
-      "net_roles.role_permissions": 0,
-      "net_roles.role_code": 0,
-      "net_roles.network_id": 0,
-      "net_roles.role_status": 0,
-      "net_groups.__v": 0,
-      "net_groups.createdAt": 0,
-      "net_groups.updatedAt": 0,
-      "net_departments.__v": 0,
-      "net_departments.createdAt": 0,
-      "net_departments.updatedAt": 0,
+      net_users: 0,
+      net_manager: 0,
+      net_permissions: 0,
+      net_roles: 0,
+      net_groups: 0,
+      net_departments: 0,
+      net_phoneNumber: 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -99,7 +46,7 @@ const dbProjections = {
           net_email: 0,
           net_phoneNumber: 0,
           net_category: 0,
-          net_description: 0,
+          net_profile_picture: 0,
           net_website: 0,
           net_acronym: 0,
           createdAt: 0,
@@ -109,42 +56,9 @@ const dbProjections = {
           net_departments: 0,
           net_data_source: 0,
           net_api_key: 0,
-          "net_manager.notifications": 0,
-          "net_manager.emailConfirmed": 0,
-          "net_manager.locationCount": 0,
-          "net_manager.email": 0,
-          "net_manager.firstName": 0,
-          "net_manager.lastName": 0,
-          "net_manager.lastLogin": 0,
-          "net_manager.isActive": 0,
-          "net_manager.userName": 0,
-          "net_manager.password": 0,
-          "net_manager.privilege": 0,
-          "net_manager.organization": 0,
-          "net_manager.duration": 0,
-          "net_manager.__v": 0,
-          "net_manager.phoneNumber": 0,
-          "net_manager.profilePicture": 0,
-          "net_manager.is_email_verified": 0,
-          "net_manager.role": 0,
-          "net_manager.updatedAt": 0,
-          "net_manager.networks": 0,
-          "net_manager.network_roles": 0,
-          "net_manager.jobTitle": 0,
-          "net_manager.website": 0,
-          "net_manager.description": 0,
-          "net_manager.category": 0,
-          "net_manager.country": 0,
-          "net_manager.resetPasswordExpires": 0,
-          "net_manager.resetPasswordToken": 0,
-          "net_roles.role_status": 0,
-          "net_roles.role_code": 0,
-          "net_roles.network_id": 0,
-          "net_roles.createdAt": 0,
-          "net_roles.updatedAt": 0,
-          "net_roles.role_permissions": 0,
-          "net_roles.__v": 0,
-        }
+          net_manager: 0,
+          net_roles: 0,
+        },
       );
     }
 
@@ -157,7 +71,7 @@ const dbProjections = {
     role_code: 1,
     network_id: 1,
     role_permissions: 1,
-    role_users: "$role_users",
+    user_count: 1,
     network: "$network",
     group: "$group",
     createdAt: 1,
@@ -165,61 +79,6 @@ const dbProjections = {
   },
   ROLES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
-      "role_users.notifications": 0,
-      "role_users.emailConfirmed": 0,
-      "role_users.locationCount": 0,
-      "role_users.password": 0,
-      "role_users.privilege": 0,
-      "role_users.organization": 0,
-      "role_users.duration": 0,
-      "role_users.__v": 0,
-      "role_users.phoneNumber": 0,
-      "role_users.profilePicture": 0,
-      "role_users.resetPasswordExpires": 0,
-      "role_users.resetPasswordToken": 0,
-      "role_users.updatedAt": 0,
-      "role_users.role": 0,
-      "role_users.interest": 0,
-      "role_users.org_name": 0,
-      "role_users.accountStatus": 0,
-      "role_users.hasAccess": 0,
-      "role_users.collaborators": 0,
-      "role_users.publisher": 0,
-      "role_users.bus_nature": 0,
-      "role_users.org_department": 0,
-      "role_users.uni_faculty": 0,
-      "role_users.uni_course_yr": 0,
-      "role_users.pref_locations": 0,
-      "role_users.job_title": 0,
-      "role_users.userName": 0,
-      "role_users.product": 0,
-      "role_users.website": 0,
-      "role_users.description": 0,
-      "role_users.networks": 0,
-      "role_users.jobTitle": 0,
-      "role_users.category": 0,
-      "role_users.long_organization": 0,
-      "role_users.groups": 0,
-      "role_users.permissions": 0,
-      "role_users.network_roles": 0,
-      "role_users.verified": 0,
-      "role_users.analyticsVersion": 0,
-      "role_users.country": 0,
-      "role_users.createdAt": 0,
-      "role_users.is_email_verified": 0,
-      "role_users.group_roles": 0,
-      "role_users.lastLogin": 0,
-      "role_users.isActive": 0,
-      "role_users.loginCount": 0,
-      "role_users.interests": 0,
-      "role_users.interestsDescription": 0,
-      "role_users.subscriptionStatus": 0,
-      "role_users.theme": 0,
-      "role_users.preferredTokenStrategy": 0,
-      "role_users.deletionToken": 0,
-      "role_users.deletionTokenExpires": 0,
-      "role_users.status": 0,
-      "role_users.automaticRenewal": 0,
       network_id: 0,
       "network.__v": 0,
       "network.net_status": 0,
@@ -252,7 +111,9 @@ const dbProjections = {
       "role_permissions.__v": 0,
       "role_permissions.network_id": 0,
     };
+
     let projection = Object.assign({}, initialProjection);
+
     if (category === "summary") {
       projection = Object.assign(
         {},
@@ -265,11 +126,10 @@ const dbProjections = {
           "role_permissions.updatedAt": 0,
           "role_permissions.__v": 0,
           "role_permissions.network_id": 0,
-          role_users: 0,
           network: 0,
           createdAt: 0,
           updatedAt: 0,
-        }
+        },
       );
     }
 
@@ -425,7 +285,6 @@ const dbProjections = {
       "networks.role.__v": 0,
       "networks.role.createdAt": 0,
       "networks.role.updatedAt": 0,
-      "networks.role.role_users": 0,
       "networks.role.network_id": 0,
       "networks.role.role_code": 0,
       "networks.role.role_permissions.__v": 0,
@@ -477,15 +336,6 @@ const dbProjections = {
       "my_groups.createdAt": 0,
       "my_groups.updatedAt": 0,
       "my_groups.__v": 0,
-
-      "lol.role_status": 0,
-      "lol.role_permissions": 0,
-      "lol.role_code": 0,
-      "lol.role_name": 0,
-      "lol.createdAt": 0,
-      "lol.updatedAt": 0,
-      "lol.__v": 0,
-      "lol.role_users": 0,
       "clients.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
@@ -494,23 +344,19 @@ const dbProjections = {
     }
 
     if (category === "networks") {
-      projection = Object.assign(
-        {
-          verified: 0,
-          analyticsVersion: 0,
-          privilege: 0,
-          profilePicture: 0,
-          phoneNumber: 0,
-          updatedAt: 0,
-          lol: 0,
-          "networks.role": 0,
-          clients: 0,
-          permissions: 0,
-          my_networks: 0,
-          my_groups: 0,
-        },
-        {}
-      );
+      projection = {
+        verified: 0,
+        analyticsVersion: 0,
+        privilege: 0,
+        profilePicture: 0,
+        phoneNumber: 0,
+        updatedAt: 0,
+        "networks.role": 0,
+        clients: 0,
+        permissions: 0,
+        my_networks: 0,
+        my_groups: 0,
+      };
     }
 
     return projection;
@@ -751,7 +597,7 @@ const dbProjections = {
           createdAt: 0,
           grp_users: 0,
           grp_manager: 0,
-        }
+        },
       );
     }
     return projection;
@@ -1246,6 +1092,8 @@ const dbProjections = {
     _id: 1,
     surveyId: 1,
     userId: 1,
+    deviceId: 1,
+    isGuest: 1,
     answers: 1,
     status: 1,
     startedAt: 1,
@@ -1259,10 +1107,14 @@ const dbProjections = {
       },
     },
     updatedAt: 1,
-    // Include survey info
-    survey: { $arrayElemAt: ["$survey", 0] },
-    // Include user info
-    user: { $arrayElemAt: ["$user", 0] },
+    // survey and user are already plain objects after $unwind in the aggregation
+    // pipeline (SurveyResponse.js list method). Do NOT use $arrayElemAt here —
+    // that caused: "PlanExecutor error :: $arrayElemAt's first argument must be
+    // an array, but is object". Pass through the already-deconstructed objects
+    // directly. For guest responses user will be null (normalised by the
+    // $addFields stage in the pipeline) but the key is always present.
+    survey: "$survey",
+    user: "$user",
     // Calculate answer count
     answerCount: {
       $cond: {
@@ -1271,7 +1123,13 @@ const dbProjections = {
         else: 0,
       },
     },
-    // Calculate completion percentage based on time
+    // Ratio of survey.timeToComplete (expected) to timeToComplete (actual),
+    // expressed as a percentage.
+    //   • Values > 100 mean the respondent was FASTER than expected.
+    //   • Values < 100 mean the respondent was SLOWER than expected.
+    //   • Values are NOT capped at 100; consumers must not interpret this as a
+    //     bounded completion percentage.
+    //   • null when either timeToComplete or survey.timeToComplete is absent/zero.
     completionEfficiency: {
       $cond: {
         if: {
@@ -1306,6 +1164,19 @@ const dbProjections = {
             { $ne: ["$contextData.currentLocation", null] },
             { $ne: ["$contextData.currentLocation.latitude", null] },
             { $ne: ["$contextData.currentLocation.longitude", null] },
+          ],
+        },
+        then: true,
+        else: false,
+      },
+    },
+    hasDeviceTracking: {
+      $cond: {
+        if: {
+          $and: [
+            { $eq: ["$isGuest", true] },
+            { $ne: ["$deviceId", null] },
+            { $ne: ["$deviceId", ""] },
           ],
         },
         then: true,
@@ -1369,11 +1240,11 @@ const dbProjections = {
         answerCount: 0,
         completionEfficiency: 0,
         hasLocationData: 0,
+        hasDeviceTracking: 0,
         user: 0,
         survey: 0,
       });
     } else if (category === "analytics") {
-      // For analytics, keep response data but exclude personal info
       projection = Object.assign({}, projection, {
         "contextData.currentLocation": 0,
         user: 0,
@@ -1386,6 +1257,7 @@ const dbProjections = {
         updatedAt: 0,
         completionEfficiency: 0,
         answerCount: 0,
+        hasDeviceTracking: 0,
         "survey.description": 0,
         "survey.createdAt": 0,
         "user.email": 0,
@@ -1395,13 +1267,23 @@ const dbProjections = {
         "user.updatedAt": 0,
       });
     } else if (category === "export") {
-      // For data export, include more fields but exclude internal IDs
+      // For data export, include deviceId and isGuest for analysis
       projection = Object.assign({}, projection, {
         _id: 0,
         "survey._id": 0,
         "user._id": 0,
         hasLocationData: 0,
+        hasDeviceTracking: 0,
         completionEfficiency: 0,
+        // NOTE: deviceId and isGuest are kept for export
+      });
+    } else if (category === "privacy") {
+      projection = Object.assign({}, projection, {
+        deviceId: 0,
+        userId: 0,
+        "contextData.currentLocation": 0,
+        user: 0,
+        hasDeviceTracking: 0,
       });
     }
 

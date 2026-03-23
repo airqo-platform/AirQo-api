@@ -8,18 +8,17 @@ const {
 } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
 
-const validateTenant = oneOf([
-  query("tenant")
-    .optional()
-    .notEmpty()
-    .withMessage("tenant should not be empty if provided")
-    .trim()
-    .toLowerCase()
-    .bail()
-    .isIn(["kcca", "airqo", "airqount"])
-    .withMessage("the tenant value is not among the expected ones"),
-]);
+const validateTenant = query("tenant")
+  .optional()
+  .notEmpty()
+  .withMessage("tenant cannot be empty if provided")
+  .trim()
+  .toLowerCase()
+  .bail()
+  .isIn(constants.TENANTS)
+  .withMessage("the tenant value is not among the expected ones");
 
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
@@ -96,7 +95,7 @@ const create = [
     body("network_id")
       .exists()
       .withMessage(
-        "the organisation identifier is missing in request, consider using the network_id"
+        "the organisation identifier is missing in request, consider using the network_id",
       )
       .bail()
       .trim()
@@ -109,7 +108,7 @@ const create = [
     body("group_id")
       .exists()
       .withMessage(
-        "the organisation identifier is missing in request, consider using the group_id"
+        "the organisation identifier is missing in request, consider using the group_id",
       )
       .bail()
       .trim()
@@ -126,7 +125,7 @@ const create = [
       .optional()
       .notEmpty()
       .withMessage(
-        "role_code should not be empty IF provided (will auto-generate from role_name if omitted)"
+        "role_code should not be empty IF provided (will auto-generate from role_name if omitted)",
       )
       .bail()
       .trim()
@@ -153,7 +152,7 @@ const create = [
       .bail()
       .isIn(["ACTIVE", "INACTIVE"])
       .withMessage(
-        "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
+        "the role_status value is not among the expected ones: ACTIVE or INACTIVE",
       )
       .trim(),
     body("role_permission")
@@ -183,7 +182,7 @@ const update = [
       .toUpperCase()
       .isIn(["ACTIVE", "INACTIVE"])
       .withMessage(
-        "the status value is not among the expected ones which include: ACTIVE, INACTIVE"
+        "the status value is not among the expected ones which include: ACTIVE, INACTIVE",
       )
       .trim(),
     body("role_name")
@@ -390,7 +389,7 @@ const getUserRolesWithFilters = [
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId"),
 
-  query("tenant").optional().isString().withMessage("tenant must be a string"),
+  validateTenant,
 
   query("group_id")
     .optional()
@@ -439,7 +438,7 @@ const getUserPermissionsForGroup = [
     .isMongoId()
     .withMessage("group_id in query must be a valid MongoDB ObjectId"),
 
-  query("tenant").optional().isString().withMessage("tenant must be a string"),
+  validateTenant,
 
   // Custom validation to ensure group_id is provided either as param or query
   (req, res, next) => {
@@ -500,7 +499,7 @@ const bulkPermissionsCheck = [
       }
       // Validate each group_id is a valid MongoDB ObjectId
       const invalidIds = value.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id)
+        (id) => !mongoose.Types.ObjectId.isValid(id),
       );
       if (invalidIds.length > 0) {
         throw new Error(`Invalid MongoDB ObjectIds: ${invalidIds.join(", ")}`);
@@ -520,17 +519,17 @@ const bulkPermissionsCheck = [
       // Validate permission names format
       const invalidPermissions = value.filter(
         (perm) =>
-          typeof perm !== "string" || perm.length === 0 || perm.length > 100
+          typeof perm !== "string" || perm.length === 0 || perm.length > 100,
       );
       if (invalidPermissions.length > 0) {
         throw new Error(
-          "All permissions must be non-empty strings with max 100 characters"
+          "All permissions must be non-empty strings with max 100 characters",
         );
       }
       return true;
     }),
 
-  query("tenant").optional().isString().withMessage("tenant must be a string"),
+  validateTenant,
 
   (req, res, next) => {
     const errors = validationResult(req);
@@ -579,17 +578,17 @@ const checkUserPermissionsForActions = [
         (action) =>
           typeof action !== "string" ||
           action.length === 0 ||
-          action.length > 100
+          action.length > 100,
       );
       if (invalidActions.length > 0) {
         throw new Error(
-          "All actions must be non-empty strings with max 100 characters"
+          "All actions must be non-empty strings with max 100 characters",
         );
       }
       return true;
     }),
 
-  query("tenant").optional().isString().withMessage("tenant must be a string"),
+  validateTenant,
 
   (req, res, next) => {
     const errors = validationResult(req);
@@ -673,7 +672,7 @@ const getUserRoles = [
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId"),
 
-  query("tenant").optional().isString().withMessage("tenant must be a string"),
+  validateTenant,
 
   query("group_id")
     .optional()
@@ -725,7 +724,7 @@ const getEnhancedUserDetails = [
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId"),
 
-  query("tenant").optional().isString().withMessage("tenant must be a string"),
+  validateTenant,
 
   query("include_deprecated")
     .optional()

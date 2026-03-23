@@ -30,7 +30,7 @@ const survey = {
       }
 
       const responseFromCreateSurvey = await SurveyModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).register(modifiedBody, next);
 
       return responseFromCreateSurvey;
@@ -40,8 +40,8 @@ const survey = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -62,7 +62,7 @@ const survey = {
       }
 
       const responseFromUpdateSurvey = await SurveyModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify({ filter, update }, next);
 
       return responseFromUpdateSurvey;
@@ -72,8 +72,8 @@ const survey = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -84,7 +84,7 @@ const survey = {
       const { tenant } = query;
       const filter = generateFilter.surveys(request, next);
       const responseFromDeleteSurvey = await SurveyModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).remove({ filter }, next);
       return responseFromDeleteSurvey;
     } catch (error) {
@@ -93,8 +93,8 @@ const survey = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -128,7 +128,7 @@ const survey = {
       }
 
       const responseFromListSurvey = await SurveyModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list({ skip, limit, filter }, next);
       return responseFromListSurvey;
     } catch (error) {
@@ -137,8 +137,8 @@ const survey = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -171,7 +171,7 @@ const survey = {
 
       const filter = { _id: validObjectId, isActive: true };
       const responseFromListSurvey = await SurveyModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list({ skip: 0, limit: 1, filter }, next);
 
       if (responseFromListSurvey.success === true) {
@@ -198,14 +198,14 @@ const survey = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in getSurveyById: ${error.message}`
+        `🐛🐛 Internal Server Error in getSurveyById: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -215,6 +215,23 @@ const survey = {
     try {
       const { body, query, user } = request;
       const { tenant } = query;
+
+      // Early validation: Check for duplicate question IDs
+      if (body.answers && Array.isArray(body.answers)) {
+        const questionIds = body.answers.map((a) => a.questionId);
+        const uniqueQuestionIds = [...new Set(questionIds)];
+
+        if (questionIds.length !== uniqueQuestionIds.length) {
+          return {
+            success: false,
+            message: "validation errors for some of the provided fields",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              answers: "Answer question IDs must be unique within a response",
+            },
+          };
+        }
+      }
 
       // Validate that survey exists and is active
       const surveyExists = await SurveyModel(tenant).exists({
@@ -233,18 +250,76 @@ const survey = {
         };
       }
 
-      // Validate that user exists
-      const userExists = await UserModel(tenant).exists({ _id: body.userId });
-      if (!userExists) {
-        return {
-          success: false,
-          message: `User ${body.userId} does not exist`,
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `User ${body.userId} does not exist` },
-        };
+      // Check if this is a guest user
+      const isGuestUser = body.userId === "guest";
+
+      // Validate that user exists (skip for guest users)
+      if (!isGuestUser) {
+        const userExists = await UserModel(tenant).exists({ _id: body.userId });
+        if (!userExists) {
+          return {
+            success: false,
+            message: `User ${body.userId} does not exist`,
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `User ${body.userId} does not exist` },
+          };
+        }
       }
 
       let modifiedBody = Object.assign({}, body);
+
+      // Handle guest users
+      if (isGuestUser) {
+        // Use sentinel user ID for database relationship (prevents $lookup failures)
+        modifiedBody.userId = constants.GUEST_USER_ID;
+
+        // Mark as guest response
+        modifiedBody.isGuest = true;
+
+        // BACKWARD COMPATIBLE: deviceId is optional for legacy clients
+        if (
+          body.deviceId &&
+          typeof body.deviceId === "string" &&
+          body.deviceId.trim() !== ""
+        ) {
+          // New client with deviceId → enable duplicate prevention
+          modifiedBody.deviceId = body.deviceId.trim();
+
+          // Check for duplicate submission from same device
+          const existingResponse = await SurveyResponseModel(tenant)
+            .findOne({
+              surveyId: body.surveyId,
+              deviceId: modifiedBody.deviceId,
+              isGuest: true,
+            })
+            .lean();
+
+          if (existingResponse) {
+            return {
+              success: false,
+              message: "You have already submitted a response to this survey",
+              status: httpStatus.CONFLICT,
+              errors: {
+                message:
+                  "You have already submitted a response to this survey from this device.",
+              },
+            };
+          }
+        } else {
+          // Legacy client without deviceId → allow submission (no duplicate check)
+          // Explicitly remove deviceId to avoid persisting empty strings
+          delete modifiedBody.deviceId;
+
+          logger.info(
+            `Guest survey response submitted without deviceId (legacy client) - Survey: ${body.surveyId}`,
+          );
+        }
+      } else {
+        // Authenticated user - mark as not guest
+        modifiedBody.isGuest = false;
+        // deviceId should not be set for authenticated users
+        delete modifiedBody.deviceId;
+      }
 
       // Set default status if not provided
       if (!modifiedBody.status) {
@@ -269,12 +344,12 @@ const survey = {
         const startTime = new Date(modifiedBody.startedAt);
         const completedTime = new Date(modifiedBody.completedAt);
         modifiedBody.timeToComplete = Math.floor(
-          (completedTime - startTime) / 1000
+          (completedTime - startTime) / 1000,
         );
       }
 
       const responseFromCreateSurveyResponse = await SurveyResponseModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).register(modifiedBody, next);
 
       return responseFromCreateSurveyResponse;
@@ -284,8 +359,8 @@ const survey = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -325,7 +400,7 @@ const survey = {
       }
 
       const responseFromListSurveyResponse = await SurveyResponseModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list({ skip, limit, filter }, next);
       return responseFromListSurveyResponse;
     } catch (error) {
@@ -334,8 +409,8 @@ const survey = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -477,14 +552,14 @@ const survey = {
       };
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in getSurveyStats: ${error.message}`
+        `🐛🐛 Internal Server Error in getSurveyStats: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }

@@ -1,0 +1,48 @@
+{
+  "name": "@airqo/icons-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.5.0",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0",
+    "yarn": ">=3.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "preinstall": "node tools/package-manager/check-manager.js",
+    "build": "node tools/package-manager/run-command.js build",
+    "build:all": "pnpm run clean:svg-names && node tools/build-all.js",
+    "build:react": "pnpm run clean:svg-names && node tools/package-manager/run-workspace.js packages/react build",
+    "build:flutter:generate": "pnpm run clean:svg-names && node tools/generators/flutter-generator.js",
+    "build:flutter:install": "cd packages/flutter && flutter packages get",
+    "dev": "pnpm run build:all && pnpm --filter @airqo/icons-react dev",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "test:flutter": "cd packages/flutter && flutter test",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "lint:flutter": "cd packages/flutter && flutter analyze",
+    "clean": "node tools/package-manager/run-command.js clean",
+    "clean:svg-names": "node scripts/rename-spaced-svg.js",
+    "validate": "pnpm run lint && pnpm run test && pnpm run build:all",
+    "validate:all": "pnpm run lint && pnpm run test && pnpm run build:all && pnpm run validate:flutter",
+    "validate:flutter": "(where flutter > nul 2>&1 && echo Flutter available - running validation && cd packages/flutter && flutter analyze && flutter test) || echo Flutter not available - skipping Flutter validation"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "chokidar-cli": "^3.0.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "rimraf": "^5.0.10",
+    "typescript": "^5.4.0"
+  },
+  "version": "1.0.0",
+  "dependencies": {
+    "fuse.js": "^7.1.0"
+  }
+}

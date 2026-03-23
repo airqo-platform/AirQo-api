@@ -13,7 +13,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
 
@@ -22,17 +22,17 @@ const commonValidations = {
       query("id")
         .exists()
         .withMessage(
-          "the device identifier is missing in request, consider using id"
+          "the device identifier is missing in request, consider using id",
         ),
       query("name")
         .exists()
         .withMessage(
-          "the device identifier is missing in request, consider using name"
+          "the device identifier is missing in request, consider using name",
         ),
       query("device_number")
         .exists()
         .withMessage(
-          "the device_number identifier is missing in request, consider using device_number"
+          "the device_number identifier is missing in request, consider using device_number",
         ),
     ]),
   ],
@@ -87,7 +87,7 @@ const transmitValidations = {
       .bail()
       .isIn(["raw", "hourly", "daily"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: raw, hourly and daily"
+        "the frequency value is not among the expected ones which include: raw, hourly and daily",
       ),
     body("*.is_test_data")
       .optional()

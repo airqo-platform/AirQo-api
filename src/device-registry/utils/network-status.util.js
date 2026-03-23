@@ -74,9 +74,9 @@ const networkStatusUtil = {
       };
 
       // Determine severity based on offline percentage
-      if (alertData.offline_percentage >= 50) {
+      if (alertData.not_transmitting_percentage >= 50) {
         enrichedData.severity = "HIGH";
-      } else if (alertData.offline_percentage >= 35) {
+      } else if (alertData.not_transmitting_percentage >= 35) {
         enrichedData.severity = "MEDIUM";
       } else {
         enrichedData.severity = "LOW";

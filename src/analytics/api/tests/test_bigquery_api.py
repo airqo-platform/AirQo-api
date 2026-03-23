@@ -243,7 +243,10 @@ class TestBigQueryApiQueryExecution:
     def test_apply_pagination_cursor(self, mock_cursor_utils, mock_config, bq_api):
         """Test _apply_pagination_cursor method."""
         mock_config.FILTER_FIELD_MAPPING = {"device_names": "device_id"}
-        mock_cursor_utils.decode_cursor.return_value = "2025-01-01 00:00:00Z|device1"
+        mock_cursor_utils.parse_cursor.return_value = {
+            "timestamp": "2025-01-01 00:00:00Z",
+            "filter_value": "device1",
+        }
 
         query = "SELECT * FROM table"
         result = bq_api._apply_pagination_cursor(

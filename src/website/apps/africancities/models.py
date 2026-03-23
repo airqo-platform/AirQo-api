@@ -1,10 +1,7 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
 from utils.models import BaseModel
-import logging
-
-logger = logging.getLogger(__name__)
+from utils.cloudinary import safe_destroy
 
 
 class AfricanCountry(BaseModel):
@@ -35,13 +32,7 @@ class AfricanCountry(BaseModel):
         """
         Remove associated Cloudinary images before DB deletion; fail-open on errors.
         """
-        flag_id = getattr(self.country_flag, "public_id", None)
-        if flag_id:
-            try:
-                destroy(flag_id, invalidate=True)
-            except Exception:
-                logger.warning(
-                    "Cloudinary destroy failed for AfricanCountry %s (public_id=%s)", self.pk, flag_id)
+        safe_destroy(self.country_flag, invalidate=True)
         return super().delete(*args, **kwargs)
 
 
@@ -123,13 +114,7 @@ class Image(BaseModel):
         """
         Remove associated Cloudinary image before DB deletion; fail-open on errors.
         """
-        img_id = getattr(self.image, "public_id", None)
-        if img_id:
-            try:
-                destroy(img_id, invalidate=True)
-            except Exception:
-                logger.warning(
-                    "Cloudinary destroy failed for Image %s (public_id=%s)", self.pk, img_id)
+        safe_destroy(self.image, invalidate=True)
         return super().delete(*args, **kwargs)
 
     def get_image_url(self):

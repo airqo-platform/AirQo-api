@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/device-status-hourly-check-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/device-status-hourly-check-job -- ops-alerts`,
 );
 const cron = require("node-cron");
 const moment = require("moment-timezone");
@@ -35,7 +35,7 @@ const getDeviceLastFeed = async (channelID) => {
     const request = { channel: channelID, api_key };
     const thingspeakData = await createFeedUtil.fetchThingspeakData(request);
     const { status, data } = createFeedUtil.handleThingspeakResponse(
-      thingspeakData
+      thingspeakData,
     );
 
     if (status === 200) {
@@ -44,7 +44,7 @@ const getDeviceLastFeed = async (channelID) => {
     return null;
   } catch (error) {
     logger.error(
-      `Error getting last feed for channel ${channelID}: ${error.message}`
+      `Error getting last feed for channel ${channelID}: ${error.message}`,
     );
     return null;
   }
@@ -78,7 +78,7 @@ const processDeviceBatch = async (devices) => {
             channelID: device.channelID,
             elapsed_time: timeDifferenceHours,
             elapsed_time_readable: convertSecondsToReadableFormat(
-              timeDifferenceSeconds
+              timeDifferenceSeconds,
             ),
             latitude: device.latitude,
             longitude: device.longitude,
@@ -94,10 +94,10 @@ const processDeviceBatch = async (devices) => {
         }
       } catch (error) {
         logger.error(
-          `Error processing device ${device.name}: ${error.message}`
+          `Error processing device ${device.name}: ${error.message}`,
         );
       }
-    })
+    }),
   );
 
   return metrics;
@@ -142,10 +142,10 @@ const deviceStatusHourlyCheck = async () => {
 
     const total = finalMetrics.online.count + finalMetrics.offline.count;
     finalMetrics.online.percentage = math.floor(
-      (finalMetrics.online.count / total) * 100
+      (finalMetrics.online.count / total) * 100,
     );
     finalMetrics.offline.percentage = math.floor(
-      (finalMetrics.offline.count / total) * 100
+      (finalMetrics.offline.count / total) * 100,
     );
 
     const deviceStatusRecord = new DeviceStatusModel({
@@ -158,7 +158,7 @@ const deviceStatusHourlyCheck = async () => {
     await deviceStatusRecord.save();
 
     const duration = (Date.now() - startTime) / 1000;
-    logger.info(`
+    logger.warn(`
       Device Status Check Complete (${duration}s)
       Total Devices: ${total}
       Online Devices: ${finalMetrics.online.count} (${finalMetrics.online.percentage}%)

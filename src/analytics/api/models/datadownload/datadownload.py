@@ -123,3 +123,32 @@ dashboard_chart_data_model = Model(
         ),
     },
 )
+
+forecast_data_model = Model(
+    "ForecastDataModel",
+    {
+        "startDateTime": fields.DateTime(
+            required=True, description="Start date and time for forecast data (ISO)"
+        ),
+        "endDateTime": fields.DateTime(
+            required=True, description="End date and time for forecast data (ISO)"
+        ),
+        "country": fields.String(description="Country name i.e Uganda"),
+        "city": fields.String(description="City name i.e Kampala"),
+        "pollutants": fields.List(
+            fields.String(),
+            required=True,
+            description="List of pollutants i.e [pm2_5, pm10]",
+        ),
+        "metaDataFields": fields.List(
+            fields.String(),
+            description="List of metadata fields i.e [latitude, longitude]",
+        ),
+        "weatherFields": fields.List(
+            fields.String(),
+            description="List of weather fields i.e [wind_speed, wind_direction]",
+        )
+        # "latitude": fields.Float(description="Latitude coordinate (decimal degrees)"),
+        # "longitude": fields.Float(description="Longitude coordinate (decimal degrees)"),
+    },
+)

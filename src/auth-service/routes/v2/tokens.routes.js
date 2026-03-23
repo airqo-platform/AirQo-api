@@ -10,13 +10,16 @@ const {
   validateTokenUpdate,
   validateSingleIp,
   validateMultipleIps,
-  validatePagination,
   validateIpRange,
   validateMultipleIpRanges,
   validateIpRangeIdParam,
   validateIpParam,
+  validateBotLikeIPStats,
   validateIpPrefix,
   validateMultipleIpPrefixes,
+  createBlockedDomain,
+  listBlockedDomains,
+  removeBlockedDomain,
   validateIdParam,
 } = require("@validators/token.validators");
 
@@ -24,6 +27,7 @@ const { validate, headers, pagination } = require("@validators/common");
 
 const { strictRateLimiter } = require("@middleware/rate-limit.middleware");
 
+const domainBlockingMiddleware = require("@middleware/domain-blocking.middleware");
 // Apply common middleware
 router.use(headers); // Keep headers global
 
@@ -37,7 +41,7 @@ router.get(
   validateTenant,
   enhancedJWTAuth,
   pagination(), // Apply pagination here
-  createTokenController.listExpired
+  createTokenController.listExpired,
 );
 
 // List expiring tokens
@@ -46,7 +50,7 @@ router.get(
   validateTenant,
   pagination(), // Apply pagination here
   enhancedJWTAuth,
-  createTokenController.listExpiring
+  createTokenController.listExpiring,
 );
 
 // List tokens with unknown IPs
@@ -55,7 +59,7 @@ router.get(
   validateTenant,
   pagination(), // Apply pagination here
   enhancedJWTAuth,
-  createTokenController.listUnknownIPs
+  createTokenController.listUnknownIPs,
 );
 
 // Create new token
@@ -64,7 +68,7 @@ router.post(
   validateTenant,
   validateTokenCreate,
   enhancedJWTAuth,
-  createTokenController.create
+  createTokenController.create,
 );
 
 // Regenerate token
@@ -74,7 +78,7 @@ router.put(
   validateTokenParam,
   validateTokenUpdate,
   enhancedJWTAuth,
-  createTokenController.regenerate
+  createTokenController.regenerate,
 );
 
 // Update token
@@ -84,7 +88,7 @@ router.put(
   validateTokenParam,
   validateTokenUpdate,
   enhancedJWTAuth,
-  createTokenController.update
+  createTokenController.update,
 );
 
 // Delete token
@@ -93,15 +97,16 @@ router.delete(
   validateTenant,
   validateTokenParam,
   enhancedJWTAuth,
-  createTokenController.delete
+  createTokenController.delete,
 );
 
 router.get(
   "/:token/verify",
   validateTenant,
+  // domainBlockingMiddleware, // Temporarily disabled for performance monitoring
   validateTokenParam,
   // strictRateLimiter,
-  createTokenController.verify
+  createTokenController.verify,
 );
 
 /******************** blacklisted IP addresses *********************/
@@ -111,7 +116,7 @@ router.post(
   validateTenant,
   validateSingleIp,
   enhancedJWTAuth,
-  createTokenController.blackListIp
+  createTokenController.blackListIp,
 );
 
 // Blacklist multiple IPs
@@ -120,7 +125,7 @@ router.post(
   validateAirqoTenantOnly,
   validateMultipleIps,
   enhancedJWTAuth,
-  createTokenController.blackListIps
+  createTokenController.blackListIps,
 );
 
 router.delete(
@@ -128,7 +133,7 @@ router.delete(
   validateTenant,
   validateIpParam,
   enhancedJWTAuth,
-  createTokenController.removeBlacklistedIp
+  createTokenController.removeBlacklistedIp,
 );
 
 router.get(
@@ -136,7 +141,7 @@ router.get(
   validateTenant,
   pagination(), // Apply pagination here
   enhancedJWTAuth,
-  createTokenController.listBlacklistedIp
+  createTokenController.listBlacklistedIp,
 );
 
 /******************** blacklisted IP address RANGES *********************/
@@ -145,28 +150,28 @@ router.post(
   validateTenant,
   validateIpRange,
   enhancedJWTAuth,
-  createTokenController.blackListIpRange
+  createTokenController.blackListIpRange,
 );
 router.post(
   "/blacklist-ip-range/bulk",
   validateTenant,
   validateMultipleIpRanges,
   enhancedJWTAuth,
-  createTokenController.bulkInsertBlacklistIpRanges
+  createTokenController.bulkInsertBlacklistIpRanges,
 );
 router.delete(
   "/blacklist-ip-range/:id",
   validateTenant,
   validateIpRangeIdParam,
   enhancedJWTAuth,
-  createTokenController.removeBlacklistedIpRange
+  createTokenController.removeBlacklistedIpRange,
 );
 router.get(
   "/blacklist-ip-range",
   validateTenant,
   pagination(), // Apply pagination here
   enhancedJWTAuth,
-  createTokenController.listBlacklistedIpRange
+  createTokenController.listBlacklistedIpRange,
 );
 
 /******************** whitelisted IP addresses ************************/
@@ -175,7 +180,7 @@ router.post(
   validateTenant,
   validateSingleIp,
   enhancedJWTAuth,
-  createTokenController.whiteListIp
+  createTokenController.whiteListIp,
 );
 
 router.post(
@@ -183,7 +188,7 @@ router.post(
   validateTenant,
   validateMultipleIps,
   enhancedJWTAuth,
-  createTokenController.bulkWhiteListIps
+  createTokenController.bulkWhiteListIps,
 );
 
 router.delete(
@@ -191,14 +196,31 @@ router.delete(
   validateTenant,
   validateIpParam,
   enhancedJWTAuth,
-  createTokenController.removeWhitelistedIp
+  createTokenController.removeWhitelistedIp,
 );
 router.get(
   "/whitelist-ip",
   validateTenant,
-  pagination(), // Apply pagination here
+  pagination(),
   enhancedJWTAuth,
-  createTokenController.listWhitelistedIp
+  createTokenController.listWhitelistedIp,
+);
+
+router.get(
+  "/bot-like-ip-stats",
+  validateTenant,
+  pagination(),
+  validateBotLikeIPStats,
+  enhancedJWTAuth,
+  createTokenController.getBotLikeIPStats,
+);
+
+router.get(
+  "/whitelist/stats",
+  validateTenant,
+  pagination(),
+  enhancedJWTAuth,
+  createTokenController.getWhitelistedIPStats,
 );
 
 /********************  ip prefixes ***************************************/
@@ -207,7 +229,7 @@ router.post(
   validateTenant,
   validateIpPrefix,
   enhancedJWTAuth,
-  createTokenController.ipPrefix
+  createTokenController.ipPrefix,
 );
 
 router.post(
@@ -215,7 +237,7 @@ router.post(
   validateTenant,
   validateMultipleIpPrefixes,
   enhancedJWTAuth,
-  createTokenController.bulkInsertIpPrefix
+  createTokenController.bulkInsertIpPrefix,
 );
 
 router.delete(
@@ -223,7 +245,7 @@ router.delete(
   validateTenant,
   validateIdParam,
   enhancedJWTAuth,
-  createTokenController.removeIpPrefix
+  createTokenController.removeIpPrefix,
 );
 
 router.get(
@@ -231,7 +253,7 @@ router.get(
   validateTenant,
   pagination(), // Apply pagination here
   enhancedJWTAuth,
-  createTokenController.listIpPrefix
+  createTokenController.listIpPrefix,
 );
 
 /********************  blacklisted ip prefixes ****************************/
@@ -240,28 +262,52 @@ router.post(
   validateTenant,
   validateIpPrefix,
   enhancedJWTAuth,
-  createTokenController.blackListIpPrefix
+  createTokenController.blackListIpPrefix,
 );
 router.post(
   "/blacklist-ip-prefix/bulk",
   validateTenant,
   validateMultipleIpPrefixes,
   enhancedJWTAuth,
-  createTokenController.bulkInsertBlacklistIpPrefix
+  createTokenController.bulkInsertBlacklistIpPrefix,
 );
 router.delete(
   "/blacklist-ip-prefix/:id",
   validateTenant,
   validateIdParam,
   enhancedJWTAuth,
-  createTokenController.removeBlacklistedIpPrefix
+  createTokenController.removeBlacklistedIpPrefix,
 );
 router.get(
   "/blacklist-ip-prefix",
   validateTenant,
   pagination(), // Apply pagination here
   enhancedJWTAuth,
-  createTokenController.listBlacklistedIpPrefix
+  createTokenController.listBlacklistedIpPrefix,
+);
+
+/******************** blocked domains ***********************************/
+router.post(
+  "/blocked-domains",
+  validateTenant,
+  createBlockedDomain,
+  enhancedJWTAuth,
+  createTokenController.createBlockedDomain,
+);
+router.get(
+  "/blocked-domains",
+  validateTenant,
+  pagination(),
+  listBlockedDomains,
+  enhancedJWTAuth,
+  createTokenController.listBlockedDomains,
+);
+router.delete(
+  "/blocked-domains/:domain",
+  validateTenant,
+  removeBlockedDomain,
+  enhancedJWTAuth,
+  createTokenController.removeBlockedDomain,
 );
 
 /*************************** Get TOKEN's information ********************* */
@@ -271,7 +317,7 @@ router.get(
   validateTokenParam,
   // No pagination for single item retrieval
   enhancedJWTAuth,
-  createTokenController.list
+  createTokenController.list,
 );
 
 module.exports = router;

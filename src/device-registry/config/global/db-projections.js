@@ -399,6 +399,7 @@ class ProjectionFactory {
           height: 1,
           mobility: 1,
           status: 1,
+          tags: 1,
           network: 1,
           groups: 1,
           api_code: 1,
@@ -679,6 +680,8 @@ class ProjectionFactory {
                 name: "$$device.name",
                 long_name: "$$device.long_name",
                 description: "$$device.description",
+                latitude: "$$device.latitude",
+                longitude: "$$device.longitude",
                 device_number: "$$device.device_number",
                 isActive: "$$device.isActive",
                 isOnline: "$$device.isOnline",
@@ -688,6 +691,10 @@ class ProjectionFactory {
                 status: "$$device.status",
                 network: "$$device.network",
                 createdAt: "$$device.createdAt",
+                // deployment_date records when the device was physically
+                // deployed in the field — distinct from createdAt which
+                // captures when the device record was created in the system
+                deployment_date: "$$device.deployment_date",
               },
             },
           },
@@ -1153,6 +1160,17 @@ class ProjectionFactory {
 
       devices: {
         summary: {
+          // -------------------------------------------------------------------------
+          // IMPORTANT: deployment_date is intentionally NOT listed here.
+          //
+          // deployment_date must be present in the API response for:
+          //   - GET /api/v2/devices/summary   (detailLevel: "summary")
+          //   - GET /api/v2/devices/status/*  (detailLevel: "summary")
+          //
+          // It is already included in the base inclusion projection
+          // (devices.inclusion.deployment_date = 1) and must not be suppressed
+          // by this summary-level additionalExclusions list.
+          // -------------------------------------------------------------------------
           additionalExclusions: {
             alias: 0,
             approximate_distance_in_km: 0,
@@ -1162,7 +1180,6 @@ class ProjectionFactory {
             visibility: 0,
             isPrimaryInLocation: 0,
             nextMaintenance: 0,
-            deployment_date: 0,
             name_id: 0,
             recall_date: 0,
             maintenance_date: 0,
@@ -1472,6 +1489,30 @@ class ProjectionFactory {
             isOnline: 0,
           },
         },
+        grid: {
+          gridExclusions: {
+            shape: 0,
+            grid_tags: 0,
+            grid_codes: 0,
+            centers: 0,
+            sites: 0,
+            createdAt: 0,
+            updatedAt: 0,
+            __v: 0,
+            network: 0,
+            visibility: 0,
+            shape_update_history: 0,
+            activeMobileDevices: 0,
+            mobileDeviceCount: 0,
+            isOnline: 0,
+            flag_url: 0,
+          },
+        },
+        brief_grid: {
+          briefGridExclusions: {
+            shape: 0,
+          },
+        },
       },
     };
 
@@ -1503,11 +1544,6 @@ class ProjectionFactory {
       kyaquizprogress: "kyaQuizProgress",
       kyaquiz_progress: "kyaQuizProgress",
       kya_quiz_progress: "kyaQuizProgress",
-      kyalessonsprogress: "kyaLessonsProgress",
-      kyalessons_progress: "kyaLessonsProgress",
-      kya_lessons_progress: "kyaLessonsProgress",
-      kyaprogress: "kyaLessonsProgress",
-      kya_progress: "kyaLessonsProgress",
       kya_user_progress: "kyaLessonsProgress",
       kya_user_quiz_progress: "kyaQuizProgress",
       kyauserquizprogress: "kyaQuizProgress",
@@ -1541,7 +1577,7 @@ class ProjectionFactory {
     const baseProjection = this.baseProjections[mappedEntity];
     if (!baseProjection) {
       logText(
-        `No base projection found for entity: ${entity} (mapped to ${mappedEntity})`
+        `No base projection found for entity: ${entity} (mapped to ${mappedEntity})`,
       );
       return {
         inclusionProjection: {},
@@ -1553,7 +1589,7 @@ class ProjectionFactory {
     const entityPathStrategies = this.pathStrategies[mappedEntity];
     if (!entityPathStrategies || !entityPathStrategies[path]) {
       logText(
-        `No path strategy found for ${mappedEntity} with path ${path}, using base projections`
+        `No path strategy found for ${mappedEntity} with path ${path}, using base projections`,
       );
       return {
         inclusionProjection: baseProjection.inclusion,
@@ -1567,7 +1603,7 @@ class ProjectionFactory {
     if (pathStrategy.overrideExclusion) {
       logObject(
         `Using override exclusion for ${mappedEntity} with path ${path}`,
-        pathStrategy.overrideExclusion
+        pathStrategy.overrideExclusion,
       );
       return {
         inclusionProjection: baseProjection.inclusion,
@@ -1583,7 +1619,7 @@ class ProjectionFactory {
 
     logObject(
       `Using merged exclusions for ${mappedEntity} with path ${path}`,
-      mergedExclusions
+      mergedExclusions,
     );
     return {
       inclusionProjection: baseProjection.inclusion,
@@ -1674,6 +1710,14 @@ class ProjectionFactory {
       Object.keys(entityStrategy.briefSiteExclusions).forEach((key) => {
         projection[as][key] = entityStrategy.briefSiteExclusions[key];
       });
+    } else if (entity === "grid" && entityStrategy.gridExclusions) {
+      Object.keys(entityStrategy.gridExclusions).forEach((key) => {
+        projection[as][key] = entityStrategy.gridExclusions[key];
+      });
+    } else if (entity === "brief_grid" && entityStrategy.briefGridExclusions) {
+      Object.keys(entityStrategy.briefGridExclusions).forEach((key) => {
+        projection[as][key] = entityStrategy.briefGridExclusions[key];
+      });
     }
 
     return projection;
@@ -1695,7 +1739,7 @@ const dbProjections = {
 
     // Handle both function and non-function properties
     if (typeof this[key] === "function") {
-      return thiskey;
+      return this[key].apply(this, args);
     } else {
       return this[key];
     }
@@ -1705,14 +1749,14 @@ const dbProjections = {
   ensureProjectionFunction(projectionName) {
     if (!this[projectionName]) {
       logText(
-        `Warning: Projection '${projectionName}' not found, creating default`
+        `Warning: Projection '${projectionName}' not found, creating default`,
       );
       // Create a default projection function that returns nothing: 0
       this[projectionName] = () => ({ nothing: 0 });
     } else if (typeof this[projectionName] !== "function") {
       const originalValue = this[projectionName];
       logText(
-        `Warning: Projection '${projectionName}' is not a function, converting`
+        `Warning: Projection '${projectionName}' is not a function, converting`,
       );
       // Convert non-function projection to function
       this[projectionName] = () => originalValue;
@@ -1724,7 +1768,7 @@ const dbProjections = {
   KYA_QUIZ_PROGRESS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "kyaQuizProgress",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1733,7 +1777,7 @@ const dbProjections = {
   KYA_QUIZ_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "kyaQuiz",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1742,7 +1786,7 @@ const dbProjections = {
   KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "kyaLessonsProgress",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1768,7 +1812,7 @@ const dbProjections = {
 
       // If the projection exists as a function, call it
       if (typeof this[keyName] === "function") {
-        return thiskeyName;
+        return this[keyName]();
       }
 
       // If it exists as an object, return it
@@ -1778,16 +1822,16 @@ const dbProjections = {
 
       // Otherwise use the factory to get a projection
       logText(
-        `Using factory method to generate exclusion for: ${entity} with path: ${path}`
+        `Using factory method to generate exclusion for: ${entity} with path: ${path}`,
       );
       const { exclusionProjection } = projectionFactory.getProjections(
         entity,
-        path
+        path,
       );
       return exclusionProjection;
     } catch (error) {
       logText(
-        `Error getting exclusion projection for ${entity}: ${error.message}`
+        `Error getting exclusion projection for ${entity}: ${error.message}`,
       );
       return { nothing: 0 }; // Safe fallback in case of errors
     }
@@ -1797,7 +1841,7 @@ const dbProjections = {
   KYA_ANSWERS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "kyaAnswers",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1807,7 +1851,7 @@ const dbProjections = {
   KYA_QUESTIONS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "kyaQuestions",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1817,7 +1861,7 @@ const dbProjections = {
   KYA_TASKS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "kyaTasks",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1827,7 +1871,7 @@ const dbProjections = {
   ADMIN_LEVEL_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "adminLevel",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1837,7 +1881,7 @@ const dbProjections = {
   NETWORK_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "network",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1847,7 +1891,7 @@ const dbProjections = {
   SITE_ACTIVITIES_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "siteActivities",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1856,7 +1900,7 @@ const dbProjections = {
   GRIDS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "grids",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1867,7 +1911,7 @@ const dbProjections = {
   KYA_LESSONS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "kyaLessons",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1877,7 +1921,7 @@ const dbProjections = {
   SITES_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "sites",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1888,7 +1932,7 @@ const dbProjections = {
   DEVICES_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "devices",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1899,7 +1943,7 @@ const dbProjections = {
   COHORTS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "cohorts",
-      path
+      path,
     );
     return exclusionProjection;
   },
@@ -1910,7 +1954,7 @@ const dbProjections = {
   AIRQLOUDS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "airqlouds",
-      path
+      path,
     );
     return exclusionProjection;
   },

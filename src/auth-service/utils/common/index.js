@@ -21,6 +21,7 @@ const msgs = require("./email.msgs.util");
 const emailTemplates = require("./email.templates.util");
 const generateFilter = require("./generate-filter.util");
 const winstonLogger = require("./log-winston.util");
+const { publishKafkaEvent } = require("./kafka.util");
 const slugUtils = require("./slug.util");
 const { deduplicator } = require("./slack-dedup-utility");
 const {
@@ -56,4 +57,5 @@ module.exports = {
   msgs,
   emailTemplates,
   generateFilter,
+  publishKafkaEvent,
 };

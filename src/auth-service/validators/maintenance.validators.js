@@ -29,7 +29,7 @@ const tenantValidation = [
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ];
 

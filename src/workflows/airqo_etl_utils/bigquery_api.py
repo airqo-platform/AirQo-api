@@ -6,6 +6,8 @@ from google.cloud import bigquery
 from google.api_core import exceptions as google_api_exceptions
 
 from .config import configuration
+from .sql import query_manager
+from .storage import get_configured_storage
 from .constants import (
     JobAction,
     ColumnDataType,
@@ -15,7 +17,7 @@ from .constants import (
     Frequency,
 )
 from .date import DateUtils
-from .utils import Utils
+from airqo_etl_utils.utils import Utils
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -83,28 +85,11 @@ class BigQueryApi:
         Returns:
             pd.DataFrame: A DataFrame containing the distinct hourly measurements for each device, including calibrated and raw PM2.5 values, site ID, device ID, and timestamp.
         """
-        query = (
-            f" SELECT `{self.hourly_measurements_table}`.pm2_5_calibrated_value , "
-            f" `{self.hourly_measurements_table}`.pm2_5_raw_value ,"
-            f" `{self.hourly_measurements_table}`.site_id ,"
-            f" `{self.hourly_measurements_table}`.device_id AS device ,"
-            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', `{self.hourly_measurements_table}`.timestamp) AS timestamp "
-            f" FROM `{self.hourly_measurements_table}` "
-            f" WHERE DATE(`{self.hourly_measurements_table}`.timestamp) >= '{day.strftime('%Y-%m-%d')}' "
-            f" AND `{self.hourly_measurements_table}`.pm2_5_raw_value IS NOT NULL "
+        query = query_manager.get_query("devices_hourly_data").format(
+            hourly_measurements_table=self.hourly_measurements_table,
+            day=day.strftime("%Y-%m-%d"),
         )
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        dataframe = (
-            bigquery.Client()
-            .query(f"select distinct * from ({query})", job_config)
-            .result()
-            .to_dataframe()
-        )
-
-        return dataframe
+        return self.execute_data_query(query, use_cache=True)
 
     def save_devices_summary_data(
         self,
@@ -318,23 +303,24 @@ class BigQueryApi:
         Raises:
             google.cloud.exceptions.GoogleCloudError: If the job fails.
         """
+        # Delegate to the configured storage adapter
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
-        job_config = bigquery.LoadJobConfig(
-            write_disposition=job_action.get_name(),
-        )
-        try:
-            job = self.client.load_table_from_dataframe(
-                dataframe, table, job_config=job_config
-            )
-            job.result()
-        except google_api_exceptions.GoogleCloudError as e:
-            logger.exception(f"BigQuery load job failed: {e}")
-            raise
 
-        destination_table = self.client.get_table(table)
-        logger.info(f"Loaded {len(dataframe)} rows to {table}")
-        logger.info(f"Total rows after load :  {destination_table.num_rows}")
+        try:
+            from airqo_etl_utils.storage import get_configured_storage, StorageAdapter
+
+            adapter = get_configured_storage()
+        except Exception:
+            adapter = None
+
+        if adapter is None or not isinstance(adapter, StorageAdapter):
+            raise RuntimeError(
+                "No configured storage backend available. Set STORAGE_BACKEND or register a backend via register_storage()."
+            )
+
+        info = adapter.load_dataframe(dataframe, table, job_action=job_action)
+        logger.info(f"BigQueryAdapter load info: {info}")
 
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
         """
@@ -1221,24 +1207,9 @@ class BigQueryApi:
         """
         TODO: Document
         """
-        query = f"""
-        SELECT DISTINCT
-        raw_device_data_table.timestamp AS timestamp,
-         raw_device_data_table.device_id AS device_id,
-         raw_device_data_table.latitude AS latitude,
-         raw_device_data_table.longitude AS longitude,
--- review model performance with and without location
-         raw_device_data_table.s1_pm2_5 AS s1_pm2_5,
-         raw_device_data_table.s2_pm2_5 AS s2_pm2_5,
-         raw_device_data_table.pm2_5 AS pm2_5,
-         raw_device_data_table.battery AS battery
-           FROM
-           `{self.raw_measurements_table}` AS raw_device_data_table
-           WHERE
-           DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL 21 DAY)
-            ORDER BY device_id, timestamp
-           """
+        query = query_manager.get_query("raw_device_readings").format(
+            raw_measurements_table=self.raw_measurements_table,
+        )
         # TODO: May need to review frequency
         try:
             results = self.execute_data_query(f"{query}")
@@ -1278,35 +1249,77 @@ class BigQueryApi:
             ValueError: If the provided start_date_time is invalid.
             RuntimeError: If there is an error fetching data from BigQuery.
         """
+        valid_job_types = {"train", "predict"}
+        if job_type not in valid_job_types:
+            raise ValueError(
+                f"Invalid job_type '{job_type}'. Expected one of {sorted(valid_job_types)}."
+            )
+
         try:
-            pd.to_datetime(start_date_time)
-        except ValueError:
-            raise ValueError(f"Invalid start date time: {start_date_time}")
+            start_date = pd.to_datetime(start_date_time).date()
+        except ValueError as e:
+            raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
-        select_fields = """
-            t1.device_id,
-            t1.device_number,
-            t1.timestamp,
-            t1.pm2_5_calibrated_value as pm2_5,
-            t2.latitude,
-            t2.longitude
-            """
+        query_name = f"fetches_device_data_satellite_based_job_{job_type}"
+        query = query_manager.get_query(query_name).format(
+            hourly_measurements_table=self.hourly_measurements_table,
+            sites_table=self.sites_table,
+            start_date=str(start_date),
+        )
 
-        if job_type != "train":
-            select_fields += ", t1.site_id"
+        try:
+            return self.execute_data_query(query=query)
+        except Exception as e:
+            raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
-        query = f"""
-        SELECT DISTINCT {select_fields}
-        FROM `{self.hourly_measurements_table}` t1
-        JOIN `{self.sites_table}` t2
-        ON t1.site_id = t2.id
-        WHERE DATE(t1.timestamp) >= '{start_date_time}'
-        AND t1.device_id IS NOT NULL
-        ORDER BY t1.device_id, t1.timestamp
+    def fetch_site_data_for_forecast_jobs(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        job_type: str,
+        min_hours: int = 18,
+    ) -> pd.DataFrame:
+
+        # fetch data for forecast jobs
         """
+        Fetch daily aggregated PM2.5 stats per site for forecast jobs.
+
+        Notes:
+        - Filters to rows with non-null pm2_5_calibrated_value
+        - Requires at least `min_hours` hourly points per day (default 18)
+        - Aggregate
+        """
+        if min_hours <= 0:
+            raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
+
+        valid_job_types = {"train", "predict"}
+        if job_type not in valid_job_types:
+            raise ValueError(
+                f"Invalid job_type '{job_type}'. Expected one of {sorted(valid_job_types)}."
+            )
 
         try:
-            return self.execute_data_query(query)
+            start_date = pd.to_datetime(start_date_time).date()
+            end_date = pd.to_datetime(end_date_time).date()
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid date format. start_date_time='{start_date_time}', end_date_time='{end_date_time}'"
+            ) from e
+
+        if start_date > end_date:
+            raise ValueError(
+                f"start_date_time must be <= end_date_time, got {start_date} > {end_date}"
+            )
+
+        query = query_manager.get_query("consolidated_site_daily_aggregated").format(
+            consolidated_table=self.consolidated_data_table,
+            start_date=str(start_date),
+            end_date=str(end_date),
+            min_hours=min_hours,
+        )
+
+        try:
+            return self.execute_data_query(query=query)
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
@@ -1334,31 +1347,13 @@ class BigQueryApi:
         except ValueError as e:
             raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
-        query = f"""
-        SELECT DISTINCT
-            TIMESTAMP_TRUNC(t1.timestamp, DAY) AS timestamp,
-            t2.city,
-            t1.device_id,
-            t2.latitude,
-            t2.longitude,
-            AVG(t1.pm2_5_calibrated_value) AS pm2_5
-        FROM `{self.hourly_measurements_table}` AS t1
-        INNER JOIN `{self.sites_table}` AS t2
-            ON t1.site_id = t2.id
-        WHERE
-            t1.timestamp > '{start_date_time}'
-            AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
-            AND t1.device_id IS NOT NULL
-        GROUP BY
-            timestamp,
-            t1.device_id,
-            t2.city,
-            t2.latitude,
-            t2.longitude
-        ORDER BY
-            t1.device_id,
-            timestamp;
-        """
+        query = query_manager.get_query(
+            "fetches_device_data_satellite_based_job"
+        ).format(
+            hourly_measurements_table=self.hourly_measurements_table,
+            sites_table=self.sites_table,
+            start_date_time=start_date_time,
+        )
         try:
             return self.execute_data_query(query)
         except Exception as e:
@@ -1374,16 +1369,15 @@ class BigQueryApi:
         except ValueError as e:
             raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
-        query = f"""
-        SELECT DISTINCT * FROM `{self.satellite_data_table}`
-        """
-
+        query_name = (
+            "satellite_readings_train"
+            if job_type == "train"
+            else "satellite_readings_predict"
+        )
+        format_kwargs = {"satellite_data_table": self.satellite_data_table}
         if job_type == "train":
-            query += f"""
-            WHERE date(timestamp) >= '{start_date_time}'
-            """
-
-        query += "ORDER BY timestamp" ""
+            format_kwargs["start_date_time"] = start_date_time
+        query = query_manager.get_query(query_name).format(**format_kwargs)
 
         try:
             df = self.execute_data_query(query)
@@ -1412,30 +1406,12 @@ class BigQueryApi:
             str: The SQL query as a formatted string.
         """
         qualifier_query = " AND ".join(f"{field} IS NULL" for field in qualifier_fields)
-        query = f"""
-            WITH timestamp_hours AS (
-            SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp
-            FROM UNNEST(GENERATE_ARRAY(0, 23)) AS n
-            ),
-            device_data AS (
-            SELECT device_id, TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
-            FROM `{table}`
-            WHERE
-            TIMESTAMP_TRUNC(timestamp, DAY) = '{date}'
-            AND {qualifier_query}
-            AND network = '{network.str}'
-            )
-            SELECT
-                dd.device_id,
-                dt.timestamp
-            FROM
-                device_data dd
-            LEFT JOIN
-                timestamp_hours dt ON dd.timestamp = dt.timestamp
-            ORDER BY
-                dt.timestamp, dd.device_id;
-            """
-        return query
+        return query_manager.get_query("device_missing_data_by_qualifier").format(
+            date=date,
+            table=table,
+            qualifier_query=qualifier_query,
+            network=network.str,
+        )
 
     def devices_with_missing_data(
         self,
@@ -1467,52 +1443,20 @@ class BigQueryApi:
         # Build the qualifier condition for missing data
         qualifier_query = " OR ".join(f"{field} IS NULL" for field in qualifier_fields)
 
-        query = f"""
-            WITH timestamp_hours AS (
-                -- Generate all 24 hourly timestamps for the target date
-                SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp
-                FROM UNNEST(GENERATE_ARRAY(0, 23)) AS n
-            ),
-            deployed_devices AS (
-                -- Get devices that were deployed on the target date
-                SELECT DISTINCT device_id
-                FROM {configuration.BIGQUERY_DEVICES_DEVICES_TABLE}
-                WHERE network = '{network.str}'
-                AND deployed=True AND device_id IS NOT NULL
-            ),
-            expected_data_points AS (
-                -- Create all expected device-hour combinations using CROSS JOIN
-                SELECT
-                    dd.device_id,
-                    th.timestamp
-                FROM deployed_devices dd
-                CROSS JOIN timestamp_hours th
-            ),
-            actual_data AS (
-                -- Get device-timestamp combinations that have complete data
-                SELECT
-                    device_id,
-                    TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
-                FROM `{table}`
-                WHERE TIMESTAMP_TRUNC(timestamp, DAY) = '{date}'
-                AND network = '{network.str}'
-                AND NOT ({qualifier_query})  -- Only records with complete data
-            )
-            -- Find missing data by comparing expected vs actual
-            SELECT
-                edp.device_id,
-                edp.timestamp
-            FROM expected_data_points edp
-            LEFT JOIN actual_data ad
-                ON edp.device_id = ad.device_id
-                AND edp.timestamp = ad.timestamp
-            WHERE ad.device_id IS NULL  -- Only return where there's no match (missing data)
-            ORDER BY edp.device_id, edp.timestamp;
-        """
-        return query
+        query = query_manager.get_query("devices_with_missing_data").format(
+            date=date,
+            table=table,
+            qualifier_query=qualifier_query,
+            network=network.str,
+            devices_table=configuration.BIGQUERY_DEVICES_DEVICES_TABLE,
+        )
+        return self.execute_data_query(query)
 
     def execute_data_query(
-        self, query: str, use_cache: Optional[bool] = True
+        self,
+        query: str,
+        use_cache: Optional[bool] = True,
+        query_parameters: Optional[List[bigquery.ScalarQueryParameter]] = None,
     ) -> pd.DataFrame:
         """
         Executes the given SQL query using the BigQuery client and returns the result as a Pandas DataFrame.
@@ -1526,13 +1470,31 @@ class BigQueryApi:
         Raises:
             google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
-        query_config = bigquery.QueryJobConfig()
-        query_config.use_query_cache = use_cache
-        data = (
-            self.client.query(query=query, job_config=query_config)
-            .result()
-            .to_dataframe()
+        storage_adapter = get_configured_storage()
+        if storage_adapter is None:
+            raise RuntimeError(
+                "No configured storage adapter available; set STORAGE_BACKEND or check configuration"
+            )
+
+        data = storage_adapter.execute_query(
+            query=query, query_parameters=query_parameters, use_cache=use_cache
         )
+
+        if not data.error:
+            data = data.data
+            if not isinstance(data, pd.DataFrame):
+                logger.warning(
+                    "execute_data_query: adapter returned a non-DataFrame payload; returning empty DataFrame"
+                )
+                return pd.DataFrame()
+            if data.empty:
+                logger.warning(
+                    "execute_data_query: query succeeded but returned no rows"
+                )
+        else:
+            logger.error(f"execute_data_query error: {data.error}")
+            data = pd.DataFrame()
+
         return data
 
     def batch_update_records(

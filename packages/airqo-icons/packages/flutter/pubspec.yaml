@@ -1,0 +1,22 @@
+name: airqo_icons_flutter
+description: Universal Flutter icon widgets with comprehensive framework support and Aq prefix naming
+version: 1.0.3
+homepage: https://airqo.net/packages
+repository: https://github.com/airqo-platform/AirQo-api
+issue_tracker: https://github.com/airqo-platform/AirQo-api/issues
+documentation: https://github.com/airqo-platform/AirQo-api/tree/staging/packages/airqo-icons/packages/flutter
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_svg: ^2.0.9
+  meta: ^1.9.1
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.7
+flutter:
+  uses-material-design: false
+environment:
+  sdk: ^3.3.0

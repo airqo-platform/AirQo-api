@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/device-uptime-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/device-uptime-job -- ops-alerts`,
 );
 const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
@@ -49,7 +49,7 @@ const getDeviceRecords = async (tenant, channelId, deviceName, isActive) => {
     };
   } catch (error) {
     logger.error(
-      `Error getting device records for ${deviceName}: ${error.message}`
+      `Error getting device records for ${deviceName}: ${error.message}`,
     );
     return null;
   }
@@ -77,7 +77,7 @@ const processDeviceBatch = async (devices, tenant) => {
       tenant,
       channelId,
       deviceName,
-      device.isActive
+      device.isActive,
     );
 
     if (record && device.isActive) {
@@ -125,7 +125,7 @@ const saveDeviceUptime = async (tenant) => {
 
       const { records, activeCount, totalUptime } = await processDeviceBatch(
         devices,
-        tenant
+        tenant,
       );
 
       allRecords.push(...records);
@@ -155,7 +155,7 @@ const saveDeviceUptime = async (tenant) => {
     await networkUptimeRecord.save();
 
     const duration = (Date.now() - startTime) / 1000;
-    logger.info(`
+    logger.warn(`
       Device uptime check completed for ${tenant} in ${duration}s
       Total Devices: ${totalDevices}
       Active Devices: ${totalActiveDevices}

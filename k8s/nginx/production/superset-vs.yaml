@@ -11,6 +11,8 @@ spec:
       port: 8088
   routes:
     - path: /
+      location-snippets: |
+        auth_request off;
       action:
         proxy:
           upstream: superset-upstream
@@ -27,5 +29,3 @@ spec:
                 value: ${remote_addr}
               - name: X-CSRFToken
                 value: ${http_x_csrftoken}
-              - name: Referer
-                value: ${http_referer}

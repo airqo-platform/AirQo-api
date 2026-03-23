@@ -13,7 +13,7 @@ const RBACService = require("@services/rbac.service");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- role-permissions util`
+  `${constants.ENVIRONMENT} -- role-permissions util`,
 );
 const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 
@@ -28,23 +28,51 @@ const normalizeName = (name) => {
 
 /**
  * Ensures the default "AirQo" group exists, creating it if necessary.
+ *
+ * Identification strategy: queries by `grp_title: "airqo"` — the field that
+ * carries a unique index and is stable across ALL environments (dev, staging,
+ * production). The document's `_id` is NEVER used here because it differs
+ * per environment.
+ *
  * @param {string} tenant - The tenant identifier.
  * @returns {Promise<Object>} The AirQo group document.
  */
 const getOrCreateAirqoGroup = async (tenant) => {
-  const query = { organization_slug: "airqo" };
+  const filter = { grp_title: "airqo" };
+
   const update = {
-    $setOnInsert: {
-      grp_title: "AirQo",
-      grp_description: "The default AirQo organization group",
-      grp_status: "ACTIVE",
+    // $set: always-applied fields — keeps slug and flags in sync on every run.
+    $set: {
       organization_slug: "airqo",
+      grp_status: "ACTIVE",
+      is_default: true,
+    },
+    // $setOnInsert: only written on first creation so manual admin edits to
+    // description etc. are preserved on subsequent startup runs.
+    $setOnInsert: {
+      grp_title: "airqo",
+      grp_description: "The default AirQo organization group",
     },
   };
-  const options = { new: true, upsert: true };
+
+  const options = {
+    new: true,
+    upsert: true,
+    // setDefaultsOnInsert: ensures schema-defined defaults (e.g. theme,
+    // grp_profile_picture) are applied when the document is first created.
+    setDefaultsOnInsert: true,
+    // runValidators is intentionally omitted for Mongoose 5.x compatibility.
+    // In Mongoose 5, runValidators on a findOneAndUpdate upsert runs validators
+    // with `this` set to null, causing any validator that calls
+    // this.ownerDocument() to throw "Cannot read properties of null".
+    // Schema constraints are still enforced at the database index level
+    // (e.g. the unique index on grp_title).
+  };
+
   const airqoGroup = await GroupModel(tenant)
-    .findOneAndUpdate(query, update, options)
+    .findOneAndUpdate(filter, update, options)
     .lean();
+
   return airqoGroup;
 };
 
@@ -99,7 +127,7 @@ const determineUserTypeFromRoleName = (roleName) => {
 const generateRoleCode = (
   roleName,
   organizationName = "",
-  existingRoleCode = null
+  existingRoleCode = null,
 ) => {
   // If role_code is explicitly provided, use it
   if (existingRoleCode && existingRoleCode.trim()) {
@@ -136,7 +164,7 @@ const generateRoleCode = (
 const findAvailableRoleCode = async (
   tenant,
   baseRoleCode,
-  scopeFilter = {}
+  scopeFilter = {},
 ) => {
   try {
     // Check if base code is available
@@ -215,7 +243,7 @@ const findAvailableRoleCode = async (
 const generateAlternativeRoleNames = async (
   baseName,
   tenant,
-  groupId = null
+  groupId = null,
 ) => {
   const alternatives = [];
   const suffixes = ["V2", "NEW", "ALT", Date.now().toString().slice(-4)];
@@ -301,7 +329,7 @@ const convertToUpperCaseWithUnderscore = (inputString, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -593,14 +621,14 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
     const permissionIds = permissions.map((p) => p._id);
     const foundPermissions = permissions.map((p) => p.permission);
     const missingPermissions = roleData.permissions.filter(
-      (p) => !foundPermissions.includes(p)
+      (p) => !foundPermissions.includes(p),
     );
 
     if (missingPermissions.length > 0) {
       logger.warn(
         `⚠️  Missing permissions for role ${roleData.role_name}: ${stringify(
-          missingPermissions
-        )}`
+          missingPermissions,
+        )}`,
       );
     }
 
@@ -616,7 +644,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
 
     if (existingRole) {
       const currentPermissionIds = (existingRole.role_permissions || []).map(
-        (id) => id.toString()
+        (id) => id.toString(),
       );
       const expectedPermissionIds = permissionIds.map((id) => id.toString());
 
@@ -626,7 +654,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
 
       if (!arePermissionsSynced) {
         logObject(
-          `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`
+          `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`,
         );
         const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
           existingRole._id,
@@ -636,7 +664,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
             role_status: "ACTIVE",
             updatedAt: new Date(),
           },
-          { new: true }
+          { new: true },
         );
         return {
           success: true,
@@ -649,7 +677,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
         };
       } else {
         logObject(
-          `✅ Role ${roleData.role_name} already has all required permissions`
+          `✅ Role ${roleData.role_name} already has all required permissions`,
         );
         return {
           success: true,
@@ -707,9 +735,8 @@ const syncPermissions = async (tenant, permissionsList) => {
         .lean();
 
       if (!existingPermission) {
-        const newPermission = await PermissionModel(tenant).create(
-          permissionData
-        );
+        const newPermission =
+          await PermissionModel(tenant).create(permissionData);
         createdPermissions.push(newPermission);
         logger.debug(`✅ Created permission: ${permissionData.permission}`);
       } else {
@@ -722,11 +749,11 @@ const syncPermissions = async (tenant, permissionsList) => {
           const updated = await PermissionModel(tenant).findByIdAndUpdate(
             existingPermission._id,
             { description: permissionData.description },
-            { new: true }
+            { new: true },
           );
           updatedPermissions.push(updated);
           logObject(
-            `🔄 Updated permission description for: ${permissionData.permission}`
+            `🔄 Updated permission description for: ${permissionData.permission}`,
           );
         }
       }
@@ -734,7 +761,7 @@ const syncPermissions = async (tenant, permissionsList) => {
       // Only log errors that are not duplicate key errors, which are expected.
       if (error.code !== 11000) {
         logger.error(
-          `Error syncing permission ${permissionData.permission}: ${error.message}`
+          `Error syncing permission ${permissionData.permission}: ${error.message}`,
         );
       }
     }
@@ -747,13 +774,13 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
     return (async () => {
       try {
         logger.debug(
-          `[RBAC Setup] Syncing role: ${roleData.role_name} for group ${airqoGroupId}`
+          `[RBAC Setup] Syncing role: ${roleData.role_name} for group ${airqoGroupId}`,
         );
         const data = { ...roleData, group_id: airqoGroupId };
         const result = await createOrUpdateRoleWithPermissionSync(tenant, data);
         if (!result) {
           logger.error(
-            `[RBAC Setup] Failed to sync role ${roleData.role_name}. Result was empty.`
+            `[RBAC Setup] Failed to sync role ${roleData.role_name}. Result was empty.`,
           );
           return {
             success: false,
@@ -764,7 +791,7 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
         return result;
       } catch (error) {
         logger.error(
-          `Error creating/updating role ${roleData.role_name}: ${error.message}`
+          `Error creating/updating role ${roleData.role_name}: ${error.message}`,
         );
         return {
           success: false,
@@ -829,7 +856,7 @@ const auditAndSyncExistingRoles = async (tenant) => {
 
     // Use the centralized role definitions from constants
     const rolePermissionTemplates = Object.entries(
-      constants.DEFAULT_ROLE_DEFINITIONS
+      constants.DEFAULT_ROLE_DEFINITIONS,
     ).reduce((acc, [key, value]) => {
       // Extract the base role type (e.g., SUPER_ADMIN from AIRQO_SUPER_ADMIN)
       const roleType = key.replace(/^AIRQO_/, "").replace(/^DEFAULT_/, "");
@@ -843,14 +870,16 @@ const auditAndSyncExistingRoles = async (tenant) => {
       .find({ permission: { $in: allPermissionNames } })
       .lean();
     const permissionsMap = new Map(
-      allPermissions.map((p) => [p.permission, p._id])
+      allPermissions.map((p) => [p.permission, p._id]),
     );
 
     logObject(`📊 Found ${existingRoles.length} organization roles to audit`);
 
     // Manually populate permissions for each role
     const rolesWithPermissions = await Promise.all(
-      existingRoles.map((role) => manuallyPopulateRolePermissions(role, tenant))
+      existingRoles.map((role) =>
+        manuallyPopulateRolePermissions(role, tenant),
+      ),
     );
 
     let rolesUpdated = 0;
@@ -862,7 +891,7 @@ const auditAndSyncExistingRoles = async (tenant) => {
         // Updated logic: Check both role_name and role_code for a match
         let roleType = null;
         for (const [type, permissions] of Object.entries(
-          rolePermissionTemplates
+          rolePermissionTemplates,
         )) {
           // Check if role_name or role_code ends with the type (e.g., "_ADMIN")
           if (
@@ -888,13 +917,13 @@ const auditAndSyncExistingRoles = async (tenant) => {
         const currentPermissions =
           role.role_permissions?.map((p) => p.permission) || [];
         const missingPermissions = expectedPermissions.filter(
-          (p) => !currentPermissions.includes(p)
+          (p) => !currentPermissions.includes(p),
         );
 
         if (missingPermissions.length > 0) {
           logObject(
             `📝 Adding ${missingPermissions.length} missing permissions to ${role.role_name}:`,
-            missingPermissions
+            missingPermissions,
           );
 
           // Get permission IDs for missing permissions
@@ -920,19 +949,19 @@ const auditAndSyncExistingRoles = async (tenant) => {
             rolesUpdated++;
             permissionsAdded += missingPermissionDocs.length;
             logText(
-              `✅ Updated role ${role.role_name} with ${missingPermissionDocs.length} new permissions`
+              `✅ Updated role ${role.role_name} with ${missingPermissionDocs.length} new permissions`,
             );
           }
         }
       } catch (error) {
         logger.error(
-          `❌ Error processing role ${role.role_name}: ${error.message}`
+          `❌ Error processing role ${role.role_name}: ${error.message}`,
         );
       }
     }
 
     logText(
-      `🎉 Role audit complete: ${rolesUpdated} roles updated, ${permissionsAdded} permissions added`
+      `🎉 Role audit complete: ${rolesUpdated} roles updated, ${permissionsAdded} permissions added`,
     );
     return { rolesUpdated, permissionsAdded };
   } catch (error) {
@@ -941,9 +970,19 @@ const auditAndSyncExistingRoles = async (tenant) => {
   }
 };
 
+/**
+ * Update tenant settings with references to the default AirQo group and roles.
+ *
+ * The AirQo group is located by name (via getOrCreateAirqoGroup) so this
+ * function is environment-agnostic — it never relies on a hard-coded _id.
+ */
 const updateTenantSettingsWithDefaultRoles = async (tenant) => {
   try {
+    // Locate the default group by name, not by _id.
+    // getOrCreateAirqoGroup queries using { grp_title: "airqo" } which is
+    // stable across all environments.
     const airqoGroup = await getOrCreateAirqoGroup(tenant);
+
     const defaultRoleCodes = ["AIRQO_DEFAULT_MEMBER", "AIRQO_DEFAULT_USER"];
     const defaultUserRole = await RoleModel(tenant)
       .findOne({ role_code: { $in: defaultRoleCodes } })
@@ -951,16 +990,22 @@ const updateTenantSettingsWithDefaultRoles = async (tenant) => {
 
     if (defaultUserRole) {
       const settingsUpdate = {
+        // The _id used here was derived from a name-based lookup above, so it
+        // is correct for the current environment.
         defaultGroup: airqoGroup._id,
         defaultGroupRole: defaultUserRole._id,
-        defaultNetwork: constants.DEFAULT_NETWORK, // Assuming this is static for now
+        // DEFAULT_NETWORK is a separate concern (network layer) and is managed
+        // outside the scope of this group-name refactor.
+        defaultNetwork: constants.DEFAULT_NETWORK,
         defaultNetworkRole: defaultUserRole._id,
       };
+
       await TenantSettingsModel(tenant).findOneAndUpdate(
         { tenant },
         { $set: settingsUpdate },
-        { upsert: true, new: true }
+        { upsert: true, new: true },
       );
+
       logText("✅ Tenant settings updated with default roles.");
     } else {
       logger.warn("⚠️ Could not find default roles to update tenant settings.");
@@ -1003,7 +1048,7 @@ const cleanupDuplicateRolePrefixes = async (tenant) => {
       }
       if (roleIdsToDelete.length === 0) {
         logger.info(
-          "[RBAC Cleanup] No deletions performed; duplicates are in use."
+          "[RBAC Cleanup] No deletions performed; duplicates are in use.",
         );
         return;
       }
@@ -1013,24 +1058,24 @@ const cleanupDuplicateRolePrefixes = async (tenant) => {
           roleIdsToDelete.length
         } roles with duplicate prefixes to delete: ${rolesToDelete
           .map((r) => r.role_name)
-          .join(", ")}`
+          .join(", ")}`,
       );
       // Gate deletion behind a flag for safety
       if (process.env.RBAC_CLEANUP_DUP_PREFIX === "true") {
         await RoleModel(tenant).deleteMany({ _id: { $in: roleIdsToDelete } });
         logger.info(
-          `[RBAC Cleanup] Successfully deleted roles with duplicate prefixes.`
+          `[RBAC Cleanup] Successfully deleted roles with duplicate prefixes.`,
         );
       } else {
         logger.info(
-          "[RBAC Cleanup] Skipping deletion (RBAC_CLEANUP_DUP_PREFIX != 'true')."
+          "[RBAC Cleanup] Skipping deletion (RBAC_CLEANUP_DUP_PREFIX != 'true').",
         );
         return;
       }
     }
   } catch (error) {
     logger.error(
-      `[RBAC Cleanup] Error during duplicate prefix role cleanup: ${error}`
+      `[RBAC Cleanup] Error during duplicate prefix role cleanup: ${error}`,
     );
   }
 };
@@ -1045,7 +1090,7 @@ const getGlobalRoles = () => {
       (roleDef) =>
         !roleDef.role_name.startsWith("AIRQO_") &&
         !roleDef.group_id &&
-        !roleDef.network_id
+        !roleDef.network_id,
     )
     .map((roleDef) => ({
       ...roleDef,
@@ -1059,11 +1104,11 @@ const syncGlobalRoles = async (tenant, rolesList) => {
         logger.debug(`[RBAC Setup] Syncing global role: ${roleData.role_name}`);
         const result = await createOrUpdateRoleWithPermissionSync(
           tenant,
-          roleData
+          roleData,
         );
         if (!result) {
           logger.error(
-            `[RBAC Setup] Failed to sync global role ${roleData.role_name}. Result was empty.`
+            `[RBAC Setup] Failed to sync global role ${roleData.role_name}. Result was empty.`,
           );
           return {
             success: false,
@@ -1074,7 +1119,7 @@ const syncGlobalRoles = async (tenant, rolesList) => {
         return result;
       } catch (error) {
         logger.error(
-          `Error creating/updating global role ${roleData.role_name}: ${error.message}`
+          `Error creating/updating global role ${roleData.role_name}: ${error.message}`,
         );
         return {
           success: false,
@@ -1116,7 +1161,7 @@ const syncGlobalRoles = async (tenant, rolesList) => {
 const setupDefaultPermissions = async (tenant = "airqo") => {
   try {
     logText(
-      `🚀 Setting up default permissions and roles for tenant: ${tenant}`
+      `🚀 Setting up default permissions and roles for tenant: ${tenant}`,
     );
 
     // Run cleanup for legacy roles first
@@ -1129,7 +1174,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
     }));
     const permissionSyncResult = await syncPermissions(
       tenant,
-      allPermissionsList
+      allPermissionsList,
     );
 
     // Step 2: Ensure AirQo group exists
@@ -1140,7 +1185,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
     const airqoRoleSyncResult = await syncAirqoRoles(
       tenant,
       defaultAirqoRoles,
-      airqoGroup._id
+      airqoGroup._id,
     );
 
     // Step 3.5: Synchronize global roles (like SYSTEM_ADMIN)
@@ -1172,10 +1217,10 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
           up_to_date: airqoRoleSyncResult.stats.rolesUpToDate,
           processed: defaultAirqoRoles.length,
           successful: airqoRoleSyncResult.roleCreationResults.filter(
-            (r) => r.success
+            (r) => r.success,
           ).length,
           failed: airqoRoleSyncResult.roleCreationResults.filter(
-            (r) => !r.success
+            (r) => !r.success,
           ).length,
         },
         global_roles: {
@@ -1184,10 +1229,10 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
           up_to_date: globalRoleSyncResult.stats.rolesUpToDate,
           processed: globalRoles.length,
           successful: globalRoleSyncResult.roleCreationResults.filter(
-            (r) => r.success
+            (r) => r.success,
           ).length,
           failed: globalRoleSyncResult.roleCreationResults.filter(
-            (r) => !r.success
+            (r) => !r.success,
           ).length,
         },
         audit: {
@@ -1259,7 +1304,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
     // Handle E11000 duplicate key error specifically
     if (err.code === 11000) {
       logObject(
-        `🔄 Duplicate detected for role: ${roleData.role_name}, finding existing...`
+        `🔄 Duplicate detected for role: ${roleData.role_name}, finding existing...`,
       );
 
       try {
@@ -1278,7 +1323,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
           existingRole = await RoleModel(tenant).findOne(searchQuery).lean();
           if (existingRole) {
             logObject(
-              `✅ Found existing role: ${existingRole.role_name} (ID: ${existingRole._id})`
+              `✅ Found existing role: ${existingRole.role_name} (ID: ${existingRole._id})`,
             );
             break;
           }
@@ -1302,7 +1347,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
                 role_status: "ACTIVE",
                 updatedAt: new Date(),
               },
-              { new: true }
+              { new: true },
             );
 
             logObject(`🔄 Updated existing role: ${roleData.role_name}`);
@@ -1316,7 +1361,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
             };
           } catch (updateError) {
             logObject(
-              `⚠️  Update failed, using existing role: ${roleData.role_name}`
+              `⚠️  Update failed, using existing role: ${roleData.role_name}`,
             );
             return {
               success: true,
@@ -1329,7 +1374,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
         } else {
           // Could not find existing role even though duplicate error occurred
           logObject(
-            `❌ Duplicate error but role not found: ${roleData.role_name}`
+            `❌ Duplicate error but role not found: ${roleData.role_name}`,
           );
 
           return {
@@ -1347,7 +1392,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
         }
       } catch (findError) {
         logger.error(
-          `❌ Error finding existing role ${roleData.role_name}: ${findError.message}`
+          `❌ Error finding existing role ${roleData.role_name}: ${findError.message}`,
         );
         return {
           success: false,
@@ -1364,7 +1409,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
     } else {
       // Handle other errors
       logger.error(
-        `❌ Error creating role ${roleData.role_name}: ${err.message}`
+        `❌ Error creating role ${roleData.role_name}: ${err.message}`,
       );
 
       return {
@@ -1387,7 +1432,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
 const createDefaultRolesForOrganization = async (
   groupId,
   organizationName,
-  tenant = "airqo"
+  tenant = "airqo",
 ) => {
   try {
     const orgName = normalizeName(organizationName);
@@ -1424,13 +1469,13 @@ const createDefaultRolesForOrganization = async (
 
         const result = await createOrUpdateRoleWithPermissionSync(
           tenant,
-          roleData
+          roleData,
         );
 
         if (result.success) {
           createdRoles.push(result.data);
           logObject(
-            `✅ Created/Synced role for ${organizationName}: ${roleTemplate.role_name}`
+            `✅ Created/Synced role for ${organizationName}: ${roleTemplate.role_name}`,
           );
         } else {
           roleErrors.push({
@@ -1439,7 +1484,7 @@ const createDefaultRolesForOrganization = async (
             details: result.errors,
           });
           logger.error(
-            `❌ Failed to create/sync role ${roleTemplate.role_name}: ${result.message}`
+            `❌ Failed to create/sync role ${roleTemplate.role_name}: ${result.message}`,
           );
         }
       } catch (error) {
@@ -1449,7 +1494,7 @@ const createDefaultRolesForOrganization = async (
           type: "unexpected_error",
         });
         logger.error(
-          `❌ Error creating/syncing role ${roleTemplate.role_name}: ${error.message}`
+          `❌ Error creating/syncing role ${roleTemplate.role_name}: ${error.message}`,
         );
         // Continue with other roles
         continue;
@@ -1473,7 +1518,7 @@ const createDefaultRolesForOrganization = async (
     };
   } catch (error) {
     logger.error(
-      `❌ Error creating default roles for organization ${organizationName}: ${error.message}`
+      `❌ Error creating default roles for organization ${organizationName}: ${error.message}`,
     );
     return {
       success: false,
@@ -1496,7 +1541,7 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
     } = options;
 
     logObject(
-      `🧹 ${dryRun ? "DRY RUN:" : ""} Resetting RBAC data for tenant: ${tenant}`
+      `🧹 ${dryRun ? "DRY RUN:" : ""} Resetting RBAC data for tenant: ${tenant}`,
     );
 
     const results = {
@@ -1518,11 +1563,11 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
             privilege: 1,
           },
         },
-        { dryRun }
+        { dryRun },
       );
       results.users_updated = updateResult.modifiedCount || 0;
       logObject(
-        `${dryRun ? "[DRY RUN]" : ""} Updated ${results.users_updated} users`
+        `${dryRun ? "[DRY RUN]" : ""} Updated ${results.users_updated} users`,
       );
     }
 
@@ -1530,20 +1575,20 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
       const deleteResult = await RoleModel(tenant).deleteMany({}, { dryRun });
       results.roles_deleted = deleteResult.deletedCount || 0;
       logObject(
-        `${dryRun ? "[DRY RUN]" : ""} Deleted ${results.roles_deleted} roles`
+        `${dryRun ? "[DRY RUN]" : ""} Deleted ${results.roles_deleted} roles`,
       );
     }
 
     if (resetPermissions) {
       const deleteResult = await PermissionModel(tenant).deleteMany(
         {},
-        { dryRun }
+        { dryRun },
       );
       results.permissions_deleted = deleteResult.deletedCount || 0;
       logObject(
         `${dryRun ? "[DRY RUN]" : ""} Deleted ${
           results.permissions_deleted
-        } permissions`
+        } permissions`,
       );
     }
 
@@ -1578,7 +1623,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
 
     if (superAdminRole) {
       logObject(
-        `✅ Found existing AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`
+        `✅ Found existing AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`,
       );
       return superAdminRole;
     }
@@ -1673,7 +1718,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
       });
 
       logObject(
-        `✅ Created AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`
+        `✅ Created AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`,
       );
       return superAdminRole;
     } catch (err) {
@@ -1695,15 +1740,15 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
 
         if (superAdminRole) {
           logObject(
-            `✅ Found existing role after duplicate error (ID: ${superAdminRole._id})`
+            `✅ Found existing role after duplicate error (ID: ${superAdminRole._id})`,
           );
           return superAdminRole;
         } else {
           logger.error(
-            "❌ Duplicate error but could not find existing AIRQO_SUPER_ADMIN role"
+            "❌ Duplicate error but could not find existing AIRQO_SUPER_ADMIN role",
           );
           throw new Error(
-            "AIRQO_SUPER_ADMIN role appears to exist but could not be located"
+            "AIRQO_SUPER_ADMIN role appears to exist but could not be located",
           );
         }
       } else {
@@ -1720,7 +1765,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
 const getDetailedUserRolesAndPermissions = async (
   userId,
   tenant,
-  filters = {}
+  filters = {},
 ) => {
   // Get user data without populate to avoid schema registration issues
   const user = await UserModel(tenant).findById(userId).lean();
@@ -1740,7 +1785,7 @@ const getDetailedUserRolesAndPermissions = async (
   if (group_id && !include_all_groups) {
     filteredGroupRoles = filteredGroupRoles.filter(
       (groupRole) =>
-        groupRole.group && groupRole.group.toString() === group_id.toString()
+        groupRole.group && groupRole.group.toString() === group_id.toString(),
     );
   }
 
@@ -1751,7 +1796,7 @@ const getDetailedUserRolesAndPermissions = async (
         ? await GroupModel(tenant)
             .findById(groupRole.group)
             .select(
-              "_id grp_title grp_description organization_slug grp_status"
+              "_id grp_title grp_description organization_slug grp_status",
             )
             .lean()
         : null;
@@ -1767,11 +1812,11 @@ const getDetailedUserRolesAndPermissions = async (
             // Manually populate permissions
             const populatedRole = await manuallyPopulateRolePermissions(
               role,
-              tenant
+              tenant,
             );
             role = populatedRole;
             permissions = (role.role_permissions || []).map(
-              (perm) => perm.permission
+              (perm) => perm.permission,
             );
           }
         } catch (roleError) {
@@ -1828,7 +1873,7 @@ const getDetailedUserRolesAndPermissions = async (
     filteredNetworkRoles = filteredNetworkRoles.filter(
       (networkRole) =>
         networkRole.network &&
-        networkRole.network.toString() === network_id.toString()
+        networkRole.network.toString() === network_id.toString(),
     );
   }
 
@@ -1847,7 +1892,7 @@ const getDetailedUserRolesAndPermissions = async (
           };
         } catch (networkError) {
           logger.warn(
-            `Could not fetch network details: ${networkError.message}`
+            `Could not fetch network details: ${networkError.message}`,
           );
         }
       }
@@ -1863,11 +1908,11 @@ const getDetailedUserRolesAndPermissions = async (
             // Manually populate permissions
             const populatedRole = await manuallyPopulateRolePermissions(
               role,
-              tenant
+              tenant,
             );
             role = populatedRole;
             permissions = (role.role_permissions || []).map(
-              (perm) => perm.permission
+              (perm) => perm.permission,
             );
           }
         } catch (roleError) {
@@ -1910,12 +1955,12 @@ const getDetailedUserRolesAndPermissions = async (
   const allPermissions = new Set();
   groupRolesWithPermissions.forEach((groupRole) => {
     groupRole.permissions.forEach((permission) =>
-      allPermissions.add(permission)
+      allPermissions.add(permission),
     );
   });
   networkRolesWithPermissions.forEach((networkRole) => {
     networkRole.permissions.forEach((permission) =>
-      allPermissions.add(permission)
+      allPermissions.add(permission),
     );
   });
 
@@ -1965,7 +2010,7 @@ const rolePermissionUtil = {
           skip,
           filter,
         },
-        next
+        next,
       );
       return responseFromListRole;
     } catch (error) {
@@ -1974,8 +2019,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1990,7 +2035,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id.toString()} Not Found`,
-          })
+          }),
         );
         return;
       }
@@ -2048,8 +2093,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2064,7 +2109,7 @@ const rolePermissionUtil = {
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message:
               "the role ID is missing -- required when updating corresponding users",
-          })
+          }),
         );
       }
 
@@ -2075,22 +2120,22 @@ const rolePermissionUtil = {
             { "group_roles.role": filter._id },
           ],
         },
-        { $set: { "network_roles.$.role": null, "group_roles.$.role": null } }
+        { $set: { "network_roles.$.role": null, "group_roles.$.role": null } },
       );
 
       if (result.nModified > 0) {
         logger.info(
-          `Removed role ${filter._id} from ${result.nModified} users.`
+          `Removed role ${filter._id} from ${result.nModified} users.`,
         );
       }
 
       if (result.n === 0) {
         logger.info(
-          `Role ${filter._id} was not found in any users' network_roles or group_roles.`
+          `Role ${filter._id} was not found in any users' network_roles or group_roles.`,
         );
       }
       const responseFromDeleteRole = await RoleModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).remove({ filter }, next);
       logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
@@ -2100,8 +2145,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2113,7 +2158,7 @@ const rolePermissionUtil = {
       const update = Object.assign({}, body);
 
       const responseFromUpdateRole = await RoleModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify({ filter, update }, next);
       return responseFromUpdateRole;
     } catch (error) {
@@ -2122,8 +2167,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2142,7 +2187,7 @@ const rolePermissionUtil = {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided group ${body.group_id} is invalid, please crosscheck`,
-            })
+            }),
           );
         }
         organizationName = normalizeName(group.grp_title);
@@ -2154,7 +2199,7 @@ const rolePermissionUtil = {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided network ${body.network_id} is invalid, please crosscheck`,
-            })
+            }),
           );
         }
         organizationName = normalizeName(network.net_name);
@@ -2163,12 +2208,12 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Either network_id or group_id must be provided",
-          })
+          }),
         );
       }
 
       const transformedRoleName = convertToUpperCaseWithUnderscore(
-        body.role_name
+        body.role_name,
       );
       const finalRoleName = `${organizationName}_${transformedRoleName}`;
 
@@ -2195,7 +2240,7 @@ const rolePermissionUtil = {
               `${finalRoleName}_${Date.now().toString().slice(-4)}`,
             ],
             error_type: "role_name_duplicate",
-          })
+          }),
         );
       }
 
@@ -2203,12 +2248,12 @@ const rolePermissionUtil = {
       const baseRoleCode = generateRoleCode(
         body.role_name,
         organizationName,
-        body.role_code
+        body.role_code,
       );
       const roleCodeCheck = await findAvailableRoleCode(
         tenant,
         baseRoleCode,
-        queryFilter
+        queryFilter,
       );
 
       if (!roleCodeCheck.available) {
@@ -2219,8 +2264,8 @@ const rolePermissionUtil = {
               httpStatus.INTERNAL_SERVER_ERROR,
               {
                 message: roleCodeCheck.error,
-              }
-            )
+              },
+            ),
           );
         }
 
@@ -2231,7 +2276,7 @@ const rolePermissionUtil = {
               conflicting_role: roleCodeCheck.existingRole,
               suggestions: roleCodeCheck.suggestions,
               error_type: "explicit_role_code_conflict",
-            })
+            }),
           );
         }
 
@@ -2246,7 +2291,7 @@ const rolePermissionUtil = {
               error_type: "auto_generation_failed",
               suggestion:
                 "Please provide a custom role_code or try a different role_name",
-            })
+            }),
           );
         }
       } else {
@@ -2262,7 +2307,7 @@ const rolePermissionUtil = {
       }
 
       const responseFromCreateRole = await RoleModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).register(newBody, next);
 
       if (responseFromCreateRole.success && responseFromCreateRole.data) {
@@ -2284,8 +2329,8 @@ const rolePermissionUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -2300,7 +2345,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid role ID ${role_id}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -2349,8 +2394,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2366,7 +2411,7 @@ const rolePermissionUtil = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide the user ID using query params and query body; choose one approach",
-          })
+          }),
         );
       }
 
@@ -2382,7 +2427,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("User or Role not found", httpStatus.BAD_REQUEST, {
             message: `User ${userId} or Role ${role_id} not found`,
-          })
+          }),
         );
       }
 
@@ -2392,7 +2437,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          })
+          }),
         );
       }
 
@@ -2420,7 +2465,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${userObject._id.toString()} is already assigned to the role ${role_id.toString()}`,
-          })
+          }),
         );
       }
 
@@ -2436,7 +2481,7 @@ const rolePermissionUtil = {
             message: `The ROLE ${role_id} is not associated with any of the ${
               isNetworkRole ? "networks" : "groups"
             } already assigned to USER ${userObject._id}`,
-          })
+          }),
         );
       }
 
@@ -2450,7 +2495,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `SUPER ADMIN user ${userObject._id} cannot be reassigned to a different role`,
-          })
+          }),
         );
       }
 
@@ -2479,7 +2524,7 @@ const rolePermissionUtil = {
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         { _id: userObject._id },
         updateQuery,
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       );
 
       if (updatedUser) {
@@ -2494,8 +2539,8 @@ const rolePermissionUtil = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Failed to assign user" }
-          )
+            { message: "Failed to assign user" },
+          ),
         );
       }
     } catch (error) {
@@ -2504,8 +2549,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2520,7 +2565,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} does not exist`,
-          })
+          }),
         );
       }
 
@@ -2530,7 +2575,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          })
+          }),
         );
       }
 
@@ -2539,7 +2584,7 @@ const rolePermissionUtil = {
 
       // --- Automatically determine userType from role name ---
       const determinedUserType = determineUserTypeFromRoleName(
-        roleObject.role_name
+        roleObject.role_name,
       );
       // Get users without populate
       const users = await UserModel(tenant)
@@ -2622,7 +2667,7 @@ const rolePermissionUtil = {
           { _id: user._id },
           {
             $pull: { [roleArrayField]: { [contextField]: associatedId } },
-          }
+          },
         );
 
         // Step 2: Add the new role assignment
@@ -2637,7 +2682,7 @@ const rolePermissionUtil = {
                 createdAt: new Date(),
               },
             },
-          }
+          },
         );
 
         assignUserPromises.push(null);
@@ -2645,10 +2690,10 @@ const rolePermissionUtil = {
 
       const assignUserResults = await Promise.all(assignUserPromises);
       const successfulAssignments = assignUserResults.filter(
-        (result) => result === null
+        (result) => result === null,
       );
       const unsuccessfulAssignments = assignUserResults.filter(
-        (result) => result !== null
+        (result) => result !== null,
       );
 
       if (
@@ -2670,7 +2715,7 @@ const rolePermissionUtil = {
             message:
               "None of the provided users could be assigned to the role.",
             unsuccessfulAssignments,
-          })
+          }),
         );
       } else {
         return {
@@ -2685,8 +2730,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2703,7 +2748,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid role ID ${role_id.toString()}, please crosscheck`,
-          })
+          }),
         );
       }
 
@@ -2748,8 +2793,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2770,7 +2815,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("User or Role not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} or Role ${role_id} not found`,
-          })
+          }),
         );
       }
 
@@ -2780,7 +2825,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          })
+          }),
         );
       }
 
@@ -2797,7 +2842,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The ROLE ${role_id} is not associated with any of the ${roleType.toUpperCase()}s already assigned to USER ${user_id}`,
-          })
+          }),
         );
       }
 
@@ -2811,7 +2856,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `SUPER_ADMIN User ${user_id.toString()} may not be unassigned from their role`,
-          })
+          }),
         );
       }
 
@@ -2821,7 +2866,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${user_id.toString()} is not assigned to the role ${role_id.toString()}`,
-          })
+          }),
         );
       }
 
@@ -2838,7 +2883,7 @@ const rolePermissionUtil = {
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         filter,
         update,
-        { new: true, arrayFilters }
+        { new: true, arrayFilters },
       );
 
       if (isEmpty(updatedUser)) {
@@ -2846,7 +2891,7 @@ const rolePermissionUtil = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "User not found or not assigned to the specified Role in the Network or Group provided",
-          })
+          }),
         );
       }
 
@@ -2862,8 +2907,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2876,27 +2921,27 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id} not found`,
-          })
+          }),
         );
       }
 
       // Check if all provided users actually exist
       const existingUsers = await UserModel(tenant).find(
         { _id: { $in: user_ids } },
-        "_id"
+        "_id",
       );
 
       const nonExistentUsers = user_ids.filter(
-        (user_id) => !existingUsers.some((user) => user._id.equals(user_id))
+        (user_id) => !existingUsers.some((user) => user._id.equals(user_id)),
       );
 
       if (nonExistentUsers.length > 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The following users do not exist: ${nonExistentUsers.join(
-              ", "
+              ", ",
             )}`,
-          })
+          }),
         );
       }
 
@@ -2981,7 +3026,7 @@ const rolePermissionUtil = {
         const updateResult = await UserModel(tenant).updateOne(
           { _id: user_id },
           updateQuery,
-          { arrayFilters: [{ "elem.role": role_id }] }
+          { arrayFilters: [{ "elem.role": role_id }] },
         );
 
         if (updateResult.nModified !== 1) {
@@ -2999,10 +3044,10 @@ const rolePermissionUtil = {
       const assignUserResults = await Promise.all(unAssignUserPromises);
 
       const successfulUnassignments = assignUserResults.filter(
-        (result) => result === null
+        (result) => result === null,
       );
       const unsuccessfulUnAssignments = assignUserResults.filter(
-        (result) => result !== null
+        (result) => result !== null,
       );
 
       let success, message, status;
@@ -3050,8 +3095,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3069,7 +3114,7 @@ const rolePermissionUtil = {
           limit,
           filter,
         },
-        next
+        next,
       );
 
       if (listRoleResponse.success === true) {
@@ -3089,7 +3134,7 @@ const rolePermissionUtil = {
             limit,
             filter,
           },
-          next
+          next,
         );
         return responseFromListPermissions;
       } else if (listRoleResponse.success === false) {
@@ -3101,8 +3146,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3120,7 +3165,7 @@ const rolePermissionUtil = {
           limit,
           filter,
         },
-        next
+        next,
       );
 
       if (listRoleResponse.success === true) {
@@ -3140,7 +3185,7 @@ const rolePermissionUtil = {
             limit,
             filter,
           },
-          next
+          next,
         );
         return responseFromListPermissions;
       } else if (listRoleResponse.success === false) {
@@ -3152,8 +3197,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3167,7 +3212,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} Not Found`,
-          })
+          }),
         );
       }
 
@@ -3176,7 +3221,7 @@ const rolePermissionUtil = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "permissions must be a non-empty array of ObjectId strings",
-          })
+          }),
         );
       }
 
@@ -3195,9 +3240,9 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid permission IDs provided: ${invalidPermissionIds.join(
-              ", "
+              ", ",
             )}`,
-          })
+          }),
         );
       }
 
@@ -3205,35 +3250,35 @@ const rolePermissionUtil = {
         {
           _id: { $in: validPermissionIds },
         },
-        "_id"
+        "_id",
       );
 
       const foundIds = new Set(
-        permissionsResponse.map((p) => p._id.toString())
+        permissionsResponse.map((p) => p._id.toString()),
       );
       const requestedIds = new Set(
-        validPermissionIds.map((id) => id.toString())
+        validPermissionIds.map((id) => id.toString()),
       );
       const missingFromDb = [...requestedIds].filter((id) => !foundIds.has(id));
       if (missingFromDb.length > 0) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Not all provided permissions exist. Missing: ${missingFromDb.join(
-              ", "
+              ", ",
             )}`,
-          })
+          }),
         );
       }
 
       const assignedPermissions = role.role_permissions.map((permission) =>
-        permission.toString()
+        permission.toString(),
       );
 
       const toAddIds = validPermissionIds.filter(
-        (id) => !assignedPermissions.includes(id.toString())
+        (id) => !assignedPermissions.includes(id.toString()),
       );
       const skipped = validPermissionIds.filter((id) =>
-        assignedPermissions.includes(id.toString())
+        assignedPermissions.includes(id.toString()),
       );
 
       let updatedRole = role;
@@ -3241,7 +3286,7 @@ const rolePermissionUtil = {
         updatedRole = await RoleModel(tenant).findOneAndUpdate(
           { _id: role_id },
           { $addToSet: { role_permissions: { $each: toAddIds } } },
-          { new: true }
+          { new: true },
         );
       }
 
@@ -3249,7 +3294,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "unable to update Role",
-          })
+          }),
         );
       }
       return {
@@ -3269,8 +3314,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3305,7 +3350,7 @@ const rolePermissionUtil = {
         groupObjectId = mongoose.Types.ObjectId(groupId);
       } catch (objectIdError) {
         logger.error(
-          `❌ [DEBUG] Error creating ObjectId from groupId: ${groupId}`
+          `❌ [DEBUG] Error creating ObjectId from groupId: ${groupId}`,
         );
         return null;
       }
@@ -3317,7 +3362,7 @@ const rolePermissionUtil = {
       } catch (dbError) {
         logger.error(
           "❌ [DEBUG] Database error fetching group:",
-          dbError.message
+          dbError.message,
         );
         return null;
       }
@@ -3348,7 +3393,7 @@ const rolePermissionUtil = {
       } catch (sanitizeError) {
         logObject(
           "⚠️ [DEBUG] Error sanitizing group title:",
-          sanitizeError.message
+          sanitizeError.message,
         );
         organizationName = "DEFAULT_GROUP";
       }
@@ -3371,7 +3416,7 @@ const rolePermissionUtil = {
       } catch (findError) {
         logger.error(
           "❌ [DEBUG] Error finding existing role:",
-          findError.message
+          findError.message,
         );
       }
 
@@ -3412,7 +3457,7 @@ const rolePermissionUtil = {
         // Handle duplicate role creation (race condition)
         if (roleCreateError.code === 11000) {
           logObject(
-            "🔄 [DEBUG] Duplicate role detected, searching for existing..."
+            "🔄 [DEBUG] Duplicate role detected, searching for existing...",
           );
 
           // Try to find the role that was created by another process
@@ -3426,7 +3471,7 @@ const rolePermissionUtil = {
           } catch (findRetryError) {
             logger.error(
               "❌ [DEBUG] Error in retry search:",
-              findRetryError.message
+              findRetryError.message,
             );
           }
 
@@ -3448,7 +3493,7 @@ const rolePermissionUtil = {
             } catch (lastResortError) {
               logger.error(
                 "❌ [DEBUG] Last resort search failed:",
-                lastResortError.message
+                lastResortError.message,
               );
             }
 
@@ -3456,17 +3501,17 @@ const rolePermissionUtil = {
               const errorMsg = `Failed to create or find default role after duplicate error: ${roleCreateError.message}`;
               logger.error(`❌ [DEBUG] ${errorMsg}`);
               throw new Error(
-                `Failed to create default role for group ${groupId}: ${roleCreateError.message}`
+                `Failed to create default role for group ${groupId}: ${roleCreateError.message}`,
               );
             }
           }
         } else {
           // Some other error occurred during role creation
           logger.error(
-            `❌ [DEBUG] Unexpected error creating role: ${roleCreateError.message}`
+            `❌ [DEBUG] Unexpected error creating role: ${roleCreateError.message}`,
           );
           throw new Error(
-            `Failed to create default role: ${roleCreateError.message}`
+            `Failed to create default role: ${roleCreateError.message}`,
           );
         }
       }
@@ -3487,7 +3532,7 @@ const rolePermissionUtil = {
 
         logObject(
           "📋 [DEBUG] Default permission names:",
-          defaultPermissionNames
+          defaultPermissionNames,
         );
 
         if (defaultPermissionNames.length > 0) {
@@ -3501,7 +3546,7 @@ const rolePermissionUtil = {
           } catch (permFindError) {
             logger.error(
               "❌ [DEBUG] Error finding existing permissions:",
-              permFindError.message
+              permFindError.message,
             );
           }
 
@@ -3511,10 +3556,10 @@ const rolePermissionUtil = {
           });
 
           const foundPermissionNames = existingPermissions.map(
-            (p) => p.permission
+            (p) => p.permission,
           );
           const missingPermissions = defaultPermissionNames.filter(
-            (perm) => !foundPermissionNames.includes(perm)
+            (perm) => !foundPermissionNames.includes(perm),
           );
 
           if (missingPermissions.length > 0) {
@@ -3526,12 +3571,12 @@ const rolePermissionUtil = {
                 permission: permission,
                 description: `Auto-created permission: ${permission}`,
                 group_id: groupObjectId,
-              })
+              }),
             );
 
             try {
               const createdPermissions = await PermissionModel(
-                tenant
+                tenant,
               ).insertMany(permissionsToCreate, { ordered: false });
 
               logObject("✅ [DEBUG] Created missing permissions:", {
@@ -3544,7 +3589,7 @@ const rolePermissionUtil = {
               // Log but don't fail - some permissions might have been created by another process
               logObject(
                 "⚠️ [DEBUG] Error creating some permissions:",
-                createPermError.message
+                createPermError.message,
               );
 
               // Re-fetch to get any permissions that were created
@@ -3560,7 +3605,7 @@ const rolePermissionUtil = {
               } catch (refetchError) {
                 logger.error(
                   "❌ [DEBUG] Error refetching permissions:",
-                  refetchError.message
+                  refetchError.message,
                 );
               }
             }
@@ -3585,12 +3630,12 @@ const rolePermissionUtil = {
                     },
                   },
                 },
-                { new: true }
+                { new: true },
               );
 
               if (updateResult) {
                 logObject(
-                  "✅ [DEBUG] Successfully assigned permissions to role"
+                  "✅ [DEBUG] Successfully assigned permissions to role",
                 );
                 // Update our role object with the new permissions
                 role = updateResult;
@@ -3600,7 +3645,7 @@ const rolePermissionUtil = {
             } catch (updateError) {
               logger.error(
                 "❌ [DEBUG] Error updating role with permissions:",
-                updateError.message
+                updateError.message,
               );
             }
           } else {
@@ -3612,7 +3657,7 @@ const rolePermissionUtil = {
       } catch (permissionError) {
         // Log the error but don't fail the entire operation
         logger.warn(
-          `⚠️ [DEBUG] Could not assign permissions to default role: ${permissionError.message}`
+          `⚠️ [DEBUG] Could not assign permissions to default role: ${permissionError.message}`,
         );
         logObject("⚠️ [DEBUG] Permission assignment error details:", {
           error: permissionError.message,
@@ -3644,7 +3689,7 @@ const rolePermissionUtil = {
       });
 
       logger.error(
-        `❌ [DEBUG] Error getting default group role: ${error.message}`
+        `❌ [DEBUG] Error getting default group role: ${error.message}`,
       );
 
       // Re-throw as HttpError for consistent error handling
@@ -3655,7 +3700,7 @@ const rolePermissionUtil = {
           message: `Failed to get default group role: ${error.message}`,
           groupId,
           tenant,
-        }
+        },
       );
     }
   },
@@ -3707,7 +3752,7 @@ const rolePermissionUtil = {
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        { message: error.message },
       );
     }
   },
@@ -3722,7 +3767,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} Not Found`,
-          })
+          }),
         );
       }
 
@@ -3734,7 +3779,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permission ${permission_id.toString()} Not Found`,
-          })
+          }),
         );
       }
 
@@ -3747,24 +3792,24 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permission ${permission_id.toString()} is not assigned to the Role ${role_id.toString()}`,
-          })
+          }),
         );
       }
 
       const responseFromUnAssignPermissionFromRole = await RoleModel(
-        tenant
+        tenant,
       ).modify(
         {
           filter,
           update,
         },
-        next
+        next,
       );
 
       if (responseFromUnAssignPermissionFromRole.success === true) {
         let modifiedResponse = Object.assign(
           {},
-          responseFromUnAssignPermissionFromRole
+          responseFromUnAssignPermissionFromRole,
         );
         if (
           responseFromUnAssignPermissionFromRole.message ===
@@ -3782,8 +3827,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3802,7 +3847,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id} not found`,
-          })
+          }),
         );
       }
 
@@ -3812,39 +3857,39 @@ const rolePermissionUtil = {
       });
       const missingPermissions = permission_ids.filter((permission_id) => {
         return !permissions.some((permission) =>
-          permission._id.equals(permission_id)
+          permission._id.equals(permission_id),
         );
       });
       if (missingPermissions.length > 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permissions not found: ${missingPermissions.join(", ")}`,
-          })
+          }),
         );
       }
 
       const assignedPermissions = role.role_permissions.map((permission) =>
-        permission.toString()
+        permission.toString(),
       );
 
       const notAssigned = permission_ids.filter(
-        (permission) => !assignedPermissions.includes(permission)
+        (permission) => !assignedPermissions.includes(permission),
       );
 
       if (notAssigned.length > 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Some of the provided permissions are not assigned to the Role ${role_id.toString()}, they include: ${notAssigned.join(
-              ", "
+              ", ",
             )}`,
-          })
+          }),
         );
       }
 
       const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
         role_id,
         { $pull: { role_permissions: { $in: permission_ids } } },
-        { new: true }
+        { new: true },
       );
 
       if (!isEmpty(updatedRole)) {
@@ -3858,7 +3903,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "unable to remove the permissions",
-          })
+          }),
         );
       }
 
@@ -3873,8 +3918,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3893,7 +3938,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id} not found`,
-          })
+          }),
         );
       }
 
@@ -3903,14 +3948,14 @@ const rolePermissionUtil = {
       });
       const missingPermissions = permission_ids.filter((permission_id) => {
         return !permissions.some((permission) =>
-          permission._id.equals(permission_id)
+          permission._id.equals(permission_id),
         );
       });
       if (missingPermissions.length > 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permissions not found: ${missingPermissions.join(", ")}`,
-          })
+          }),
         );
       }
 
@@ -3919,7 +3964,7 @@ const rolePermissionUtil = {
       const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
         role_id,
         { role_permissions: uniquePermissions },
-        { new: true }
+        { new: true },
       );
 
       if (!isEmpty(updatedRole)) {
@@ -3933,7 +3978,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "unable to update the permissions",
-          })
+          }),
         );
       }
 
@@ -3948,8 +3993,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3961,12 +4006,12 @@ const rolePermissionUtil = {
       const { tenant } = query;
       const filter = generateFilter.permissions(request, next);
       const responseFromListPermissions = await PermissionModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list(
         {
           filter,
         },
-        next
+        next,
       );
       return responseFromListPermissions;
     } catch (error) {
@@ -3975,8 +4020,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3986,12 +4031,12 @@ const rolePermissionUtil = {
       const { tenant } = query;
       const filter = generateFilter.permissions(request, next);
       const responseFromDeletePermission = await PermissionModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).remove(
         {
           filter,
         },
-        next
+        next,
       );
       return responseFromDeletePermission;
     } catch (error) {
@@ -4000,8 +4045,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4012,7 +4057,7 @@ const rolePermissionUtil = {
       const update = body;
       const filter = generateFilter.permissions(request, next);
       const responseFromUpdatePermission = await PermissionModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify({ filter, update }, next);
       return responseFromUpdatePermission;
     } catch (error) {
@@ -4021,8 +4066,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4031,7 +4076,7 @@ const rolePermissionUtil = {
       const { query, body } = request;
       const { tenant } = query;
       const responseFromCreatePermission = await PermissionModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).register(body, next);
       return responseFromCreatePermission;
     } catch (error) {
@@ -4040,8 +4085,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4183,7 +4228,7 @@ const rolePermissionUtil = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide the user ID using query params and query body; choose one approach",
-          })
+          }),
         );
       }
 
@@ -4194,7 +4239,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid user ID format",
-          })
+          }),
         );
       }
 
@@ -4202,19 +4247,19 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid role ID format",
-          })
+          }),
         );
       }
 
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
-        actualTenant
+        actualTenant,
       );
       if (!initialSummary) {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${userId} not found`,
-          })
+          }),
         );
       }
 
@@ -4226,7 +4271,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
             message: `Error fetching role: ${roleError.message}`,
-          })
+          }),
         );
       }
 
@@ -4234,7 +4279,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Role not found", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id} not found`,
-          })
+          }),
         );
       }
 
@@ -4243,7 +4288,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          })
+          }),
         );
       }
 
@@ -4264,13 +4309,13 @@ const rolePermissionUtil = {
               remaining: 0,
               existing_roles: currentRoles.roles,
             },
-          })
+          }),
         );
       }
 
       // Check if role is already assigned
       const isRoleAssigned = currentRoles.roles.some(
-        (r) => r.role_id && r.role_id.toString() === role_id.toString()
+        (r) => r.role_id && r.role_id.toString() === role_id.toString(),
       );
 
       if (isRoleAssigned) {
@@ -4284,7 +4329,7 @@ const rolePermissionUtil = {
               remaining: currentRoles.remaining,
               existing_roles: currentRoles.roles,
             },
-          })
+          }),
         );
       }
 
@@ -4296,7 +4341,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
             message: `Error fetching user: ${userError.message}`,
-          })
+          }),
         );
       }
 
@@ -4304,7 +4349,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${userId} not found`,
-          })
+          }),
         );
       }
 
@@ -4330,7 +4375,7 @@ const rolePermissionUtil = {
               remaining: currentRoles.remaining,
               existing_roles: currentRoles.roles,
             },
-          })
+          }),
         );
       }
 
@@ -4352,7 +4397,7 @@ const rolePermissionUtil = {
               remaining: currentRoles.remaining,
               existing_roles: currentRoles.roles,
             },
-          })
+          }),
         );
       }
 
@@ -4364,9 +4409,9 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Invalid User Type", httpStatus.BAD_REQUEST, {
             message: `Invalid determined userType: ${determinedUserType}. Valid values are: ${VALID_USER_TYPES.join(
-              ", "
+              ", ",
             )}`,
-          })
+          }),
         );
       }
 
@@ -4377,7 +4422,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid associated ID format",
-          })
+          }),
         );
       }
 
@@ -4412,14 +4457,14 @@ const rolePermissionUtil = {
           {
             new: true,
             runValidators: true,
-          }
+          },
         );
       } catch (updateError) {
         logger.error("❌ [DEBUG] Database update error:", updateError.message);
         return next(
           new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
             message: `Failed to assign user to role: ${updateError.message}`,
-          })
+          }),
         );
       }
 
@@ -4430,15 +4475,15 @@ const rolePermissionUtil = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: "Failed to assign user to role - update returned null",
-            }
-          )
+            },
+          ),
         );
       }
 
       // Get updated role summary
       const updatedSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
-        actualTenant
+        actualTenant,
       );
 
       return {
@@ -4465,8 +4510,8 @@ const rolePermissionUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -4492,7 +4537,7 @@ const rolePermissionUtil = {
       // Fix 2: Use the simpler getUserRoleSummary (without populate)
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
-        actualTenant
+        actualTenant,
       );
 
       logObject("📋 [DEBUG] Initial summary result:", !!initialSummary);
@@ -4502,7 +4547,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} not found`,
-          })
+          }),
         );
       }
 
@@ -4523,7 +4568,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("User or Role not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} or Role ${role_id} not found`,
-          })
+          }),
         );
       }
 
@@ -4538,7 +4583,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("User or Role data not found", httpStatus.BAD_REQUEST, {
             message: `Failed to fetch user or role data`,
-          })
+          }),
         );
       }
 
@@ -4551,7 +4596,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          })
+          }),
         );
       }
 
@@ -4583,7 +4628,7 @@ const rolePermissionUtil = {
               remaining: currentRoles.remaining,
               existing_roles: currentRoles.roles,
             },
-          })
+          }),
         );
       }
 
@@ -4600,7 +4645,7 @@ const rolePermissionUtil = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The role ${role_id} is not associated with any of the ${roleType.toUpperCase()}s already assigned to user ${user_id}`,
-          })
+          }),
         );
       }
 
@@ -4625,7 +4670,7 @@ const rolePermissionUtil = {
               remaining: currentRoles.remaining,
               existing_roles: currentRoles.roles,
             },
-          })
+          }),
         );
       }
 
@@ -4650,7 +4695,7 @@ const rolePermissionUtil = {
       const updatedUser = await UserModel(actualTenant).findOneAndUpdate(
         filter,
         update,
-        { new: true, arrayFilters }
+        { new: true, arrayFilters },
       );
 
       if (isEmpty(updatedUser)) {
@@ -4659,7 +4704,7 @@ const rolePermissionUtil = {
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "User not found or not assigned to the specified Role in the Network or Group provided",
-          })
+          }),
         );
       }
 
@@ -4668,7 +4713,7 @@ const rolePermissionUtil = {
       // Get updated role summary
       const updatedSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
-        actualTenant
+        actualTenant,
       );
 
       logObject("✅ [DEBUG] Operation completed successfully");
@@ -4697,8 +4742,8 @@ const rolePermissionUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -4719,20 +4764,20 @@ const rolePermissionUtil = {
         "🔍 [DEBUG] Getting network roles for user:",
         user_id,
         "in tenant:",
-        actualTenant
+        actualTenant,
       );
 
       // Use the getUserRoleSummary method that already works
       const roleSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
-        actualTenant
+        actualTenant,
       );
 
       if (!roleSummary) {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} not found`,
-          })
+          }),
         );
       }
 
@@ -4761,8 +4806,8 @@ const rolePermissionUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -4783,20 +4828,20 @@ const rolePermissionUtil = {
         "🔍 [DEBUG] Getting group roles for user:",
         user_id,
         "in tenant:",
-        actualTenant
+        actualTenant,
       );
 
       // Use the getUserRoleSummary method that already works
       const roleSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
-        actualTenant
+        actualTenant,
       );
 
       if (!roleSummary) {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} not found`,
-          })
+          }),
         );
       }
 
@@ -4825,8 +4870,8 @@ const rolePermissionUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -4839,9 +4884,8 @@ const rolePermissionUtil = {
       const { tenant, include_user_details, export_format } = query;
 
       // Get the audit report from the User model
-      const auditResult = await UserModel(tenant).auditDeprecatedFieldUsage(
-        next
-      );
+      const auditResult =
+        await UserModel(tenant).auditDeprecatedFieldUsage(next);
 
       if (!auditResult || auditResult.success === false) {
         return auditResult;
@@ -4861,7 +4905,7 @@ const rolePermissionUtil = {
             ],
           })
           .select(
-            "_id email firstName lastName role privilege organization long_organization createdAt"
+            "_id email firstName lastName role privilege organization long_organization createdAt",
           )
           .lean();
 
@@ -4891,12 +4935,12 @@ const rolePermissionUtil = {
 
       if (migration_readiness.safe_to_migrate) {
         enhancedReport.migration_recommendations.immediate_actions.push(
-          "✅ Safe to remove deprecated fields - no users are using them"
+          "✅ Safe to remove deprecated fields - no users are using them",
         );
         enhancedReport.migration_recommendations.next_steps.push(
           "Update database schema to remove deprecated fields",
           "Update API documentation to reflect changes",
-          "Deploy changes to production"
+          "Deploy changes to production",
         );
         enhancedReport.migration_recommendations.timeline_suggestion =
           "Can proceed immediately";
@@ -4908,7 +4952,7 @@ const rolePermissionUtil = {
           enhancedReport.migration_recommendations.immediate_actions.push(
             "⚠️ High usage of deprecated fields detected",
             "Identify and update frontend applications using deprecated fields",
-            "Create migration plan for affected users"
+            "Create migration plan for affected users",
           );
           enhancedReport.migration_recommendations.timeline_suggestion =
             "3-6 months migration period recommended";
@@ -4916,7 +4960,7 @@ const rolePermissionUtil = {
           enhancedReport.migration_recommendations.immediate_actions.push(
             "🔄 Moderate usage of deprecated fields detected",
             "Update remaining frontend applications",
-            "Prepare migration notices for affected users"
+            "Prepare migration notices for affected users",
           );
           enhancedReport.migration_recommendations.timeline_suggestion =
             "1-3 months migration period recommended";
@@ -4924,7 +4968,7 @@ const rolePermissionUtil = {
           enhancedReport.migration_recommendations.immediate_actions.push(
             "✨ Low usage of deprecated fields detected",
             "Complete final frontend updates",
-            "Schedule deprecated field removal"
+            "Schedule deprecated field removal",
           );
           enhancedReport.migration_recommendations.timeline_suggestion =
             "2-4 weeks migration period recommended";
@@ -4934,7 +4978,7 @@ const rolePermissionUtil = {
           "Send migration notices to affected users",
           "Update API documentation with deprecation warnings",
           "Set up monitoring for deprecated field usage",
-          "Plan phased removal of deprecated fields"
+          "Plan phased removal of deprecated fields",
         );
       }
 
@@ -4961,8 +5005,8 @@ const rolePermissionUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -4978,7 +5022,7 @@ const rolePermissionUtil = {
 
       const result = await UserModel(actualTenant).getEnhancedUserDetails(
         { filter, includeDeprecated },
-        next
+        next,
       );
 
       if (isEmpty(result)) {
@@ -4997,8 +5041,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5095,24 +5139,24 @@ const rolePermissionUtil = {
             ? Math.round(((totalUsers - usersWithoutRoles) / totalUsers) * 100)
             : 0,
         group_role_distribution: stats.groupRoleStats.filter(
-          (stat) => stat._id && stat._id.length > 0
+          (stat) => stat._id && stat._id.length > 0,
         ),
         network_role_distribution: stats.networkRoleStats.filter(
-          (stat) => stat._id && stat._id.length > 0
+          (stat) => stat._id && stat._id.length > 0,
         ),
         health_status:
           usersWithoutRoles === 0
             ? "healthy"
             : usersWithoutRoles < totalUsers * 0.1
-            ? "good"
-            : "needs_attention",
+              ? "good"
+              : "needs_attention",
         recommendations: [],
       };
 
       // Add recommendations based on health status
       if (health.health_status === "needs_attention") {
         health.recommendations.push(
-          "Assign roles to users without role assignments"
+          "Assign roles to users without role assignments",
         );
         health.recommendations.push("Review user onboarding process");
       }
@@ -5133,8 +5177,8 @@ const rolePermissionUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5174,7 +5218,7 @@ const rolePermissionUtil = {
       const result = await getDetailedUserRolesAndPermissions(
         user_id,
         tenant,
-        filters
+        filters,
       );
 
       if (!result) {
@@ -5199,7 +5243,7 @@ const rolePermissionUtil = {
       };
     } catch (error) {
       logger.error(
-        `getUserRolesAndPermissionsDetailed error: ${error.message}`
+        `getUserRolesAndPermissionsDetailed error: ${error.message}`,
       );
       return {
         success: false,
@@ -5246,7 +5290,7 @@ const rolePermissionUtil = {
       const result = await getDetailedUserRolesAndPermissions(
         user_id,
         tenant,
-        filters
+        filters,
       );
 
       if (!result) {
@@ -5437,7 +5481,7 @@ const rolePermissionUtil = {
     try {
       const result = await rolePermissionUtil.getUserPermissionsForGroup(
         request,
-        next
+        next,
       );
 
       if (!result.success) {
@@ -5493,7 +5537,7 @@ const rolePermissionUtil = {
 
       const result = await rolePermissionUtil.getUserPermissionsForGroup(
         { params: { user_id }, query: { tenant, group_id } },
-        next
+        next,
       );
 
       if (!result.success) {
@@ -5516,7 +5560,7 @@ const rolePermissionUtil = {
           actions_checked: actions,
           action_permissions: actionChecks,
           all_actions_allowed: Object.values(actionChecks).every(
-            (allowed) => allowed
+            (allowed) => allowed,
           ),
           generated_at: new Date().toISOString(),
         },
@@ -5544,7 +5588,7 @@ const rolePermissionUtil = {
       const result =
         await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
           request,
-          next
+          next,
         );
 
       if (!result.success) {
@@ -5597,7 +5641,7 @@ const rolePermissionUtil = {
       const result =
         await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
           tempReq,
-          next
+          next,
         );
 
       if (!result.success) {
@@ -5637,13 +5681,13 @@ const rolePermissionUtil = {
           overall_summary: {
             total_groups: groupsSummary.length,
             groups_with_edit_access: groupsSummary.filter(
-              (g) => g.key_permissions.can_edit
+              (g) => g.key_permissions.can_edit,
             ).length,
             groups_with_delete_access: groupsSummary.filter(
-              (g) => g.key_permissions.can_delete
+              (g) => g.key_permissions.can_delete,
             ).length,
             groups_with_user_management: groupsSummary.filter(
-              (g) => g.key_permissions.can_manage_users
+              (g) => g.key_permissions.can_manage_users,
             ).length,
             total_unique_permissions:
               result.data.summary.total_unique_permissions,
@@ -5654,7 +5698,7 @@ const rolePermissionUtil = {
       };
     } catch (error) {
       logger.error(
-        `getUserGroupsWithPermissionsSummary error: ${error.message}`
+        `getUserGroupsWithPermissionsSummary error: ${error.message}`,
       );
       return {
         success: false,
@@ -5678,7 +5722,7 @@ const rolePermissionUtil = {
 
       const result = await getDetailedUserRolesAndPermissions(
         request.user._id,
-        request.query.tenant
+        request.query.tenant,
       );
 
       if (!result) {
@@ -5768,7 +5812,7 @@ const rolePermissionUtil = {
       // Transform group permissions into desired format
       const groupDetails = [];
       for (const [groupId, groupData] of Object.entries(
-        effectivePermissions.group_permissions || {}
+        effectivePermissions.group_permissions || {},
       )) {
         groupDetails.push({
           group: {
@@ -5784,7 +5828,7 @@ const rolePermissionUtil = {
       // Transform network permissions into desired format
       const networkDetails = [];
       for (const [networkId, networkData] of Object.entries(
-        effectivePermissions.network_permissions || {}
+        effectivePermissions.network_permissions || {},
       )) {
         networkDetails.push({
           network: {
@@ -5897,11 +5941,11 @@ const rolePermissionUtil = {
               if (role) {
                 const populatedRole = await manuallyPopulateRolePermissions(
                   role,
-                  tenant
+                  tenant,
                 );
                 role = populatedRole;
                 permissions = (role.role_permissions || []).map(
-                  (p) => p.permission
+                  (p) => p.permission,
                 );
               }
             } catch (roleError) {
@@ -5945,7 +5989,7 @@ const rolePermissionUtil = {
               };
             } catch (networkError) {
               logger.warn(
-                `Could not fetch network details: ${networkError.message}`
+                `Could not fetch network details: ${networkError.message}`,
               );
             }
           }
@@ -5960,11 +6004,11 @@ const rolePermissionUtil = {
               if (role) {
                 const populatedRole = await manuallyPopulateRolePermissions(
                   role,
-                  tenant
+                  tenant,
                 );
                 role = populatedRole;
                 permissions = (role.role_permissions || []).map(
-                  (p) => p.permission
+                  (p) => p.permission,
                 );
               }
             } catch (roleError) {
@@ -6046,7 +6090,7 @@ const rolePermissionUtil = {
       // Use the detailed method for current user
       return await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
         modifiedRequest,
-        next
+        next,
       );
     } catch (error) {
       logger.error(`getCurrentUserRolesAndPermissions error: ${error.message}`);

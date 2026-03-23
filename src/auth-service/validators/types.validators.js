@@ -2,6 +2,7 @@
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -11,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -28,7 +29,7 @@ const validateOrgIdentifier = oneOf([
   query("net_id")
     .exists()
     .withMessage(
-      "the organisational identifier is missing in request, consider using net_id"
+      "the organisational identifier is missing in request, consider using net_id",
     )
     .bail()
     .isMongoId()
@@ -36,7 +37,7 @@ const validateOrgIdentifier = oneOf([
   query("grp_id")
     .exists()
     .withMessage(
-      "the organisational identifier is missing in request, consider using grp_id"
+      "the organisational identifier is missing in request, consider using grp_id",
     )
     .bail()
     .isMongoId()

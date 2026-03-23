@@ -6,7 +6,7 @@ from urllib.parse import quote
 import pandas as pd
 
 from .constants import DeviceNetwork
-from .utils import Utils, Result
+from airqo_etl_utils.utils import Utils, Result
 from .data_api import DataApi
 from .config import configuration
 import logging
@@ -182,8 +182,12 @@ class DataSourcesApis:
                     }
                 )
 
-                base_url = device.get("api_code", "").rstrip("/")
-                device_identifier = device.get("serial_number")
+                base_url = integration.get("url", "").rstrip("/")
+                # Use serial_number as the primary device identifier when available,
+                # fall back to device_number for legacy records.
+                device_identifier = device.get("serial_number") or device.get(
+                    "device_number"
+                )
                 end_point = (
                     integration.get("endpoints", {})
                     .get("raw", "")

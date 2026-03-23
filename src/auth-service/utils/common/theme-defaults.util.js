@@ -11,7 +11,7 @@ const getDefaultTheme = () => {
     primaryColor: "#1976d2", // Default blue color from schema
     mode: "light", // Default from schema
     interfaceStyle: "bordered", // Default from schema (NOT "default")
-    contentLayout: "compact", // Default from schema (NOT "wide")
+    contentLayout: "wide", // Default from schema (NOT "compact")
   };
 };
 
@@ -31,7 +31,7 @@ const hasValidTheme = (theme) => {
     keys.length > 0 &&
     keys.some(
       (key) =>
-        theme[key] !== null && theme[key] !== undefined && theme[key] !== ""
+        theme[key] !== null && theme[key] !== undefined && theme[key] !== "",
     )
   );
 };

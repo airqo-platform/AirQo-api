@@ -109,23 +109,9 @@ class AirQoDataDriftCompute:
         if data.empty:
             return None
 
-        # Normalize window_start and device recent maintenance date to datetimes
-        start_dt = (
-            window_start
-            if isinstance(window_start, datetime)
-            else DateUtils.str_to_date(window_start)
-        )
-
-        recent_maintenance = device_metadata.get("recent_maintenance_date")
-        recent_maintenance_dt = (
-            recent_maintenance
-            if isinstance(recent_maintenance, datetime)
-            else DateUtils.str_to_date(recent_maintenance)
-        )
-
-        # If recent maintenance occurred within the cooldown period after the window start,
-        # we consider the data contaminated by maintenance and fail.
-        if recent_maintenance_dt <= (start_dt + timedelta(hours=cls.COOLDOWN_HOURS)):
+        if (
+            DateUtils.str_to_date(window_start) + timedelta(hours=cls.COOLDOWN_HOURS)
+        ) < DateUtils.str_to_date(device_metadata["recent_maintenance_date"]):
             raise ValueError(
                 "All data should be before or after maintenance cooldown period"
             )

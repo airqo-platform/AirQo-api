@@ -10,7 +10,7 @@ const createCohortUtil = require("@utils/cohort.util");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- cohort-controller`
+  `${constants.ENVIRONMENT} -- cohort-controller`,
 );
 const isEmpty = require("is-empty");
 
@@ -33,7 +33,7 @@ const handleError = (error, next) => {
   next(
     new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
       message: error.message,
-    })
+    }),
   );
 };
 
@@ -74,7 +74,7 @@ const createCohort = {
 
       const result = await createCohortUtil.createCohortFromCohortIDs(
         request,
-        next
+        next,
       );
       handleResponse({ res, result });
     } catch (error) {
@@ -125,6 +125,17 @@ const createCohort = {
       handleError(error, next);
     }
   },
+  listUserCohorts: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.listUserCohorts(request, next);
+      handleResponse({ res, result, key: "cohorts" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   list: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);
@@ -166,6 +177,18 @@ const createCohort = {
 
       const result = await createCohortUtil.updateName(request, next);
       handleResponse({ res, result, key: "cohort" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  findOriginal: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.findOriginal(request, next);
+      // The key is 'original_cohort' for clarity in the API response
+      handleResponse({ res, result, key: "original_cohort" });
     } catch (error) {
       handleError(error, next);
     }
@@ -254,7 +277,7 @@ const createCohort = {
 
       const result = await createCohortUtil.assignManyDevicesToCohort(
         request,
-        next
+        next,
       );
       handleResponse({ res, result, key: "updated_cohort" });
     } catch (error) {
@@ -269,7 +292,7 @@ const createCohort = {
 
       const result = await createCohortUtil.unAssignManyDevicesFromCohort(
         request,
-        next
+        next,
       );
       handleResponse({ res, result, key: "updated_records" });
     } catch (error) {
@@ -284,7 +307,7 @@ const createCohort = {
 
       const result = await createCohortUtil.assignOneDeviceToCohort(
         request,
-        next
+        next,
       );
       handleResponse({ res, result, key: "updated_records" });
     } catch (error) {
@@ -299,7 +322,7 @@ const createCohort = {
 
       const result = await createCohortUtil.unAssignOneDeviceFromCohort(
         request,
-        next
+        next,
       );
       handleResponse({ res, result, key: "updated_records" });
     } catch (error) {
@@ -325,7 +348,7 @@ const createCohort = {
 
       const result = await createCohortUtil.filterOutPrivateDevices(
         request,
-        next
+        next,
       );
       handleResponse({ res, result, key: "devices" });
     } catch (error) {

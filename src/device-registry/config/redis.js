@@ -6,12 +6,12 @@ const { logText, logElement, logTextWithTimestamp } = require("@utils/shared");
 const REDIS_URL = constants.REDIS_URL;
 
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- redis-config`
+  `${constants.ENVIRONMENT} -- redis-config`,
 );
 
 if (!REDIS_URL) {
   logger.error(
-    "REDIS_URL environment variable not set. Redis will be unavailable."
+    "REDIS_URL environment variable not set. Redis will be unavailable.",
   );
 }
 
@@ -41,9 +41,7 @@ const logThrottledOperationError = (operation, key, error) => {
 
   // Only log in first minute (minute 0) and first 20 seconds
   if (currentMinute === 0 && currentSecond < LOGGING_WINDOW_SECONDS) {
-    logger.warn(
-      `Redis ${operation} failed for ${key}: ${error.message} - using fallback`
-    );
+    // Intentionally left blank to reduce log noise for routine fallback operations.
   }
 };
 // --- END: Log Throttling ---
@@ -64,11 +62,11 @@ const logThrottledConnectionError = (error) => {
       logger.warn(
         `Redis connection error: ${error.code || "N/A"} - ${
           error.message
-        }. Check server and network.`
+        }. Check server and network.`,
       );
     } else if (errorMessage.includes("auth")) {
       logger.error(
-        "Redis authentication failed. Please check your password/credentials."
+        "Redis authentication failed. Please check your password/credentials.",
       );
     } else {
       logger.error(`Redis error: ${error.message}`);
@@ -90,7 +88,7 @@ const redisConfig = {
 
     if (retries > 15) {
       logger.error(
-        "Redis maximum retry attempts (15) reached. Stopping retries."
+        "Redis maximum retry attempts (15) reached. Stopping retries.",
       );
       return new Error("Redis retry limit reached");
     }
@@ -101,7 +99,7 @@ const redisConfig = {
     const delay = baseDelay + jitter;
 
     logger.warn(
-      `Redis retry attempt ${retries + 1}/15 in ${Math.round(delay)}ms`
+      `Redis retry attempt ${retries + 1}/15 in ${Math.round(delay)}ms`,
     );
     return delay;
   },
@@ -205,7 +203,7 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
 
   if (!client.isOpen) {
     logger.debug(
-      `Redis not available - SET ${prefixedKey} cached in fallback only`
+      `Redis not available - SET ${prefixedKey} cached in fallback only`,
     );
     return "OK";
   }
@@ -232,7 +230,7 @@ const redisExpireAsync = async (key, seconds) => {
 
   if (!client.isOpen) {
     logger.debug(
-      `Redis not available - EXPIRE ${prefixedKey} applied to fallback only`
+      `Redis not available - EXPIRE ${prefixedKey} applied to fallback only`,
     );
     return 1;
   }
@@ -252,7 +250,7 @@ const redisDelAsync = async (key) => {
 
   if (!client.isOpen) {
     logger.debug(
-      `Redis not available - DEL ${prefixedKey} removed from fallback only`
+      `Redis not available - DEL ${prefixedKey} removed from fallback only`,
     );
     return hadKey ? 1 : 0;
   }
@@ -274,7 +272,7 @@ const redisPingAsync = async (timeout = 3000) => {
     return await Promise.race([
       client.ping(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Ping timeout")), timeout)
+        setTimeout(() => reject(new Error("Ping timeout")), timeout),
       ),
     ]);
   } catch (error) {
@@ -305,7 +303,7 @@ const redisUtils = {
       const result = await Promise.race([
         client.ping(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Ping timeout")), timeout)
+          setTimeout(() => reject(new Error("Ping timeout")), timeout),
         ),
       ]);
       return result === "PONG";

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: '{{ .Values.app.name }}-svc'
+  namespace: {{ .Values.app.namespace }}
+  labels: {{- include "airqo-workflows.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- $webSvcPort := include "getPortByName" (list . "web-server") }}
+  {{- $webTargetPort := include "getTargetPortByName" (list . "web-server") }}
+  {{- $webNodePort := include "getNodePortByName" (list . "web-server") }}
+  {{- $webProtocol := include "getProtocolBySvcName" (list . "web-server") }}
+  {{- $redisSvcPort := include "getPortByName" (list . "redis-server") }}
+  {{- $redisTargetPort := include "getTargetPortByName" (list . "redis-server") }}
+  {{- $redisNodePort := include "getNodePortByName" (list . "redis-server") }}
+  {{- $redisProtocol := include "getProtocolBySvcName" (list . "redis-server") }}
+  ports:
+    - name: web-server
+      port: {{ $webSvcPort }}
+      targetPort: {{ $webTargetPort }}
+      protocol: {{ $webProtocol }}
+      nodePort: {{ $webNodePort }}
+    - name: redis-server
+      port: {{ $redisSvcPort }}
+      targetPort: {{ $redisTargetPort }}
+      protocol: {{ $redisProtocol }}
+      nodePort: {{ $redisNodePort }}
+  selector:
+    app: {{ .Values.app.label }}

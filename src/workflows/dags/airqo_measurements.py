@@ -354,12 +354,11 @@ def airqo_realtime_measurements():
     @task()
     # TODO : Needs review. If properly executed could ease identification of data issues
     def save_test_data(data: pd.DataFrame):
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.config import Config
 
         bucket_name = Config.BUCKET_NAME_AIRQO
         file_path = Config.FILE_PATH_AIRQO
-        return Utils.test_data(
+        return AirQoDataUtils.test_data(
             data=data, bucket_name=bucket_name, destination_file=file_path
         )
 
@@ -412,7 +411,6 @@ def airqo_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame):
         data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
-
         data_api = DataApi()
         data_api.save_events(measurements=data)
 

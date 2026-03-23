@@ -4,7 +4,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-request-controller`
+  `${constants.ENVIRONMENT} -- create-request-controller`,
 );
 const {
   logObject,
@@ -20,7 +20,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -61,8 +61,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -72,7 +72,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -84,7 +84,7 @@ const createAccessRequest = {
 
       const result = await requestUtil.requestAccessToGroupByEmail(
         request,
-        next
+        next,
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -116,8 +116,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -127,7 +127,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -136,6 +136,9 @@ const createAccessRequest = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
+      if (request.user && request.user.email) {
+        request.body.email = request.user.email;
+      }
 
       const result = await requestUtil.acceptInvitation(request, next);
 
@@ -168,8 +171,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -179,7 +182,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -221,8 +224,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -232,7 +235,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -275,8 +278,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -286,7 +289,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -330,8 +333,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -341,7 +344,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -382,8 +385,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -394,7 +397,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -438,8 +441,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -450,7 +453,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -493,8 +496,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -504,7 +507,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -545,8 +548,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -556,7 +559,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -597,8 +600,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -608,7 +611,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -649,8 +652,8 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -660,7 +663,7 @@ const createAccessRequest = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -701,8 +704,179 @@ const createAccessRequest = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+  listPendingInvitationsForUser: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await requestUtil.listPendingInvitationsForUser(
+        request,
+        next,
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          invitations: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+  acceptPendingInvitation: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Set the target_id from params for acceptInvitation to use
+      request.body.target_id = req.params.request_id;
+
+      // If user is authenticated, use their email for the acceptance process
+      if (request.user && request.user.email) {
+        request.body.email = request.user.email;
+      }
+
+      const result = await requestUtil.acceptInvitation(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+
+  rejectPendingInvitation: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Pass the request_id from the URL to the utility function
+      request.params.invitation_id = req.params.request_id;
+
+      const result = await requestUtil.rejectPendingInvitation(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
       );
       return;
     }

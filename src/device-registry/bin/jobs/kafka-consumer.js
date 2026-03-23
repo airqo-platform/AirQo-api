@@ -14,6 +14,7 @@ const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
 const CohortModel = require("@models/Cohort");
 const axios = require("axios");
+const createCohortUtil = require("@utils/cohort.util");
 
 const { stringify } = require("@utils/common");
 
@@ -469,6 +470,76 @@ const handleGroupCreated = async (payload) => {
   }
 };
 
+const handleNetworkEvents = async (messageData) => {
+  try {
+    const { action, value } = JSON.parse(messageData);
+    const networkData = JSON.parse(value);
+
+    const request = {
+      query: { tenant: "airqo" }, // Assuming a default tenant
+      body: networkData,
+    };
+
+    let response;
+
+    switch (action) {
+      case "create":
+        logText("KAFKA-CONSUMER: Creating network in device-registry...");
+        response = await createCohortUtil.createNetwork(request, (err) => {
+          if (err) logger.error(`Error in createNetwork callback: ${err}`);
+        });
+        break;
+      case "update":
+        logText("KAFKA-CONSUMER: Updating network in device-registry...");
+        if (!networkData.net_name) {
+          logger.error(
+            `KAFKA-CONSUMER: Invalid message for network update - 'net_name' is missing.`
+          );
+          return;
+        }
+        request.query.name = networkData.net_name;
+        response = await createCohortUtil.updateNetwork(request, (err) => {
+          if (err) logger.error(`Error in updateNetwork callback: ${err}`);
+        });
+        break;
+      case "delete":
+        logText("KAFKA-CONSUMER: Deleting network from device-registry...");
+        if (!networkData.net_name) {
+          logger.error(
+            `KAFKA-CONSUMER: Invalid message for network delete - 'net_name' is missing.`
+          );
+          return;
+        }
+        request.query.name = networkData.net_name;
+        response = await createCohortUtil.deleteNetwork(request, (err) => {
+          if (err) logger.error(`Error in deleteNetwork callback: ${err}`);
+        });
+        break;
+      default:
+        logger.warn(
+          `KAFKA-CONSUMER: Unknown network action received: ${action}`
+        );
+        return;
+    }
+
+    if (response && response.success) {
+      logger.info(
+        `KAFKA-CONSUMER: Successfully processed network action '${action}' for network ID ${networkData._id}`
+      );
+    } else {
+      logger.error(
+        `KAFKA-CONSUMER: Failed to process network action '${action}' for network ID ${
+          networkData._id
+        }. Details: ${response ? response.message : "Unknown error"}`
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `🐛🐛 KAFKA-CONSUMER: Error processing network event: ${error.message}`
+    );
+  }
+};
+
 const kafkaConsumer = async () => {
   try {
     const kafka = new Kafka({
@@ -487,6 +558,7 @@ const kafkaConsumer = async () => {
       "hourly-measurements-topic": consumeHourlyMeasurements,
       "airqo.forecasts": consumeForecasts,
       [constants.GROUPS_TOPIC]: handleGroupCreated,
+      [constants.NETWORK_EVENTS_TOPIC]: handleNetworkEvents,
     };
 
     await consumer.connect();

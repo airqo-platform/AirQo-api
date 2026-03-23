@@ -11,25 +11,39 @@ if [ -d "/app/logs" ]; then
     chmod -R 755 /app/logs 2>/dev/null || true
 fi
 
-# Wait for database to be ready (optional, useful in docker-compose)
-# Use bounded retries and configurable backoff to avoid infinite loops.
-max_tries=${DB_WAIT_MAX_TRIES:-60}
-sleep_seconds=${DB_WAIT_INTERVAL_SECONDS:-2}
-for i in $(seq 1 "$max_tries"); do
-  if python manage.py check --database default >/dev/null 2>&1; then
-    break
+# Determine whether to run DB init tasks at startup.
+# Cloud Run instances should start quickly; skip DB wait/migrations by default there.
+if [ -z "${RUN_DB_INIT:-}" ]; then
+  if [ -n "${K_SERVICE:-}" ]; then
+    RUN_DB_INIT=false
+  else
+    RUN_DB_INIT=true
   fi
-  echo "Waiting for database... ($i/$max_tries)"
-  sleep "$sleep_seconds"
-done
-if [ "$i" -eq "$max_tries" ]; then
-  echo "Database not ready after $((max_tries*sleep_seconds))s. Exiting."
-  exit 1
 fi
 
-# Run Django migrations
-echo "Running migrations..."
-python manage.py migrate --noinput
+if [ "${RUN_DB_INIT}" = "true" ]; then
+  # Wait for database to be ready (optional, useful in docker-compose)
+  # Use bounded retries and configurable backoff to avoid infinite loops.
+  max_tries=${DB_WAIT_MAX_TRIES:-60}
+  sleep_seconds=${DB_WAIT_INTERVAL_SECONDS:-2}
+  for i in $(seq 1 "$max_tries"); do
+    if python manage.py check --database default >/dev/null 2>&1; then
+      break
+    fi
+    echo "Waiting for database... ($i/$max_tries)"
+    sleep "$sleep_seconds"
+  done
+  if [ "$i" -eq "$max_tries" ]; then
+    echo "Database not ready after $((max_tries*sleep_seconds))s. Exiting."
+    exit 1
+  fi
+
+  # Run Django migrations
+  echo "Running migrations..."
+  python manage.py migrate --noinput
+else
+  echo "Skipping DB init (RUN_DB_INIT=${RUN_DB_INIT})."
+fi
 
 # Collect static files. In production, fail fast if collectstatic fails.
 echo "Collecting static files..."
@@ -46,7 +60,7 @@ fi
 # Start Gunicorn server optimized for production with large upload support
 echo "Starting Gunicorn server..."
 exec gunicorn core.wsgi:application \
-    --bind 0.0.0.0:8000 \
+    --bind 0.0.0.0:${PORT:-8000} \
     --workers 2 \
     --worker-class sync \
     --worker-connections 1000 \

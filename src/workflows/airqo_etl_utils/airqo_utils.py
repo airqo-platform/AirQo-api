@@ -1,10 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import ast
 import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Tuple, Union, Optional
 
-from .commons import drop_rows_with_bad_data
 from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
@@ -17,10 +16,12 @@ from .constants import (
     CountryModels,
     DataSource,
 )
+from .sql import query_manager
+from airqo_etl_utils.storage import get_configured_storage
 from .data_validator import DataValidationUtils
 from .date import DateUtils
-from .ml_utils import GCSUtils
-from .utils import Utils
+from airqo_etl_utils.storage import FileStorage, GCSFileStorage
+from airqo_etl_utils.utils import Utils, drop_rows_with_bad_data
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from .meta_data_utils import MetaDataUtils
@@ -937,15 +938,17 @@ class AirQoDataUtils:
 
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
-        default_rf_model = GCSUtils.get_trained_model_from_gcs(
-            project_name=project_id,
-            bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(models.DEFAULT, "pm2_5"),
+        file_storage: FileStorage = GCSFileStorage()
+
+        default_rf_model = file_storage.load_file_object(
+            bucket=bucket,
+            source_file=Utils.get_calibration_model_path(models.DEFAULT, "pm2_5"),
+            local_cache_path=f"/tmp/default_rf_model_{models.DEFAULT}.pkl",
         )
-        default_lasso_model = GCSUtils.get_trained_model_from_gcs(
-            project_name=project_id,
-            bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(models.DEFAULT, "pm10"),
+        default_lasso_model = file_storage.load_file_object(
+            bucket=bucket,
+            source_file=Utils.get_calibration_model_path(models.DEFAULT, "pm10"),
+            local_cache_path=f"/tmp/default_lasso_model_{models.DEFAULT}.pkl",
         )
         available_models = [c.value for c in models]
 
@@ -960,12 +963,12 @@ class AirQoDataUtils:
                 and groupedby.lower() in available_models
             ):
                 try:
-                    current_rf_model = GCSUtils.get_trained_model_from_gcs(
-                        project_name=project_id,
-                        bucket_name=bucket,
-                        source_blob_name=Utils.get_calibration_model_path(
+                    current_rf_model = file_storage.load_file_object(
+                        bucket=bucket,
+                        source_file=Utils.get_calibration_model_path(
                             groupedby.lower(), "pm2_5"
                         ),
+                        local_cache_path=f"/tmp/rf_model_{groupedby.lower()}.pkl",
                     )
                 except Exception as e:
                     logger.exception(
@@ -973,12 +976,12 @@ class AirQoDataUtils:
                     )
                     current_rf_model = default_rf_model
                 try:
-                    current_lasso_model = GCSUtils.get_trained_model_from_gcs(
-                        project_name=project_id,
-                        bucket_name=bucket,
-                        source_blob_name=Utils.get_calibration_model_path(
+                    current_lasso_model = file_storage.load_file_object(
+                        bucket=bucket,
+                        source_file=Utils.get_calibration_model_path(
                             groupedby.lower(), "pm10"
                         ),
+                        local_cache_path=f"/tmp/lasso_model_{groupedby.lower()}.pkl",
                     )
                 except Exception as e:
                     logger.exception(
@@ -997,27 +1000,68 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_devices_with_missing_data(
-        start_date: str, network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO
+        start_date: str,
+        end_date: Optional[str] = None,
+        network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
     ) -> pd.DataFrame:
         """
         Extracts devices with missing data by comparing deployed devices with the data in BigQuery.
         Args:
-            date (str): The date for which to check missing data.
-
+            start_date (str): The start of the period to check (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS).
+            end_date (str, optional): The end of the period to check. When provided, the hour
+                difference between start_date and end_date is used to determine the number of
+                hourly slots to inspect. Defaults to None, which covers exactly 24 hours.
+            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.AIRQO.
         Returns:
             pd.DataFrame: A DataFrame containing the devices with missing data.
         """
-        bigquery_api = BigQueryApi()
+        qualifier_fields = ["pm2_5_calibrated_value"]
+        # Build the qualifier condition for missing data
+        qualifier_query = " OR ".join(f"{field} IS NULL" for field in qualifier_fields)
+        storage_adapter = get_configured_storage()
+        if storage_adapter is None:
+            raise RuntimeError(
+                "No configured storage adapter available; set STORAGE_BACKEND or check configuration"
+            )
 
         source = Config.DataSource.get(DataType.AVERAGED)
         table = source.get(DeviceCategory.GENERAL).get(Frequency.HOURLY)
         if not table:
             raise ValueError("Table name could not be determined from configuration.")
 
-        query = bigquery_api.devices_with_missing_data(
-            start_date, table, ["pm2_5_calibrated_value"], network
+        if end_date is not None:
+            n_hours = max(
+                1,
+                int(
+                    (
+                        pd.to_datetime(end_date) - pd.to_datetime(start_date)
+                    ).total_seconds()
+                    / 3600
+                ),
+            )
+        else:
+            n_hours = 24
+
+        # Query considers the end data as inclusive.
+        query = query_manager.get_query("devices_with_missing_data").format(
+            table=table,
+            devices_table=Config.BIGQUERY_DEVICES_DEVICES_TABLE,
+            start_date=start_date,
+            n_hours=n_hours,
+            qualifier_query=qualifier_query,
+            network=network.str if isinstance(network, DeviceNetwork) else network,
         )
-        return bigquery_api.execute_data_query(query)
+
+        data = storage_adapter.execute_query(query=query)
+
+        if not data.error:
+            data = data.data
+        else:
+            logger.error(
+                f"Error executing query for devices with missing data: {data.error}"
+            )
+            data = pd.DataFrame()
+        return data
 
     @staticmethod
     def extract_devices_with_uncalibrated_data(
@@ -1222,3 +1266,23 @@ class AirQoDataUtils:
         if devices is None or len(devices) == 0:
             return pd.DataFrame()
         return pd.DataFrame(devices)
+
+    @staticmethod
+    def test_data(data: pd.DataFrame, bucket_name: str, destination_file: str):
+        """Upload test data to GCS.
+
+        Args:
+            data: DataFrame to upload.
+            bucket_name: GCS bucket name.
+            destination_file: Destination blob path.
+        """
+        filestorage: FileStorage = GCSFileStorage()
+        filestorage.upload_dataframe(
+            bucket=bucket_name,
+            dataframe=data,
+            destination_file=destination_file,
+            format="csv",
+        )
+        logger.info(
+            f"{destination_file} with {len(data)} rows uploaded to {bucket_name}."
+        )

@@ -13,7 +13,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   deviceId: [
@@ -76,12 +76,12 @@ const validateForecastValue = {
       .withMessage("pm2_5 confidence_upper must be a non-negative number")
       .custom((value, { req }) => {
         const valueIndex = req.body.values.findIndex(
-          (v) => v.pm2_5.confidence_upper === value
+          (v) => v.pm2_5.confidence_upper === value,
         );
         const lower = req.body.values[valueIndex].pm2_5.confidence_lower;
         if (lower && value <= lower) {
           throw new Error(
-            "confidence_upper must be greater than confidence_lower"
+            "confidence_upper must be greater than confidence_lower",
           );
         }
         return true;
@@ -102,12 +102,12 @@ const validateForecastValue = {
       .withMessage("pm10 confidence_upper must be a non-negative number")
       .custom((value, { req }) => {
         const valueIndex = req.body.values.findIndex(
-          (v) => v.pm10.confidence_upper === value
+          (v) => v.pm10.confidence_upper === value,
         );
         const lower = req.body.values[valueIndex].pm10.confidence_lower;
         if (lower && value <= lower) {
           throw new Error(
-            "confidence_upper must be greater than confidence_lower"
+            "confidence_upper must be greater than confidence_lower",
           );
         }
         return true;

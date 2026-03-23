@@ -390,3 +390,66 @@ def get_validated_filter(json_data):
     validated_data = filter_value
 
     return filter_type, validated_data, error_message
+
+
+def get_validated_forecast_filter(json_data):
+    """
+    Validate that exactly one of the following is provided:
+      - country
+      - city
+    #   - latitude and longitude (both required)
+
+    Returns: (filter_type, filter_value, error_message)
+    """
+    filter_type = None
+    filter_value = None
+    error_message = ""
+
+    has_country = bool(json_data.get("country"))
+    has_city = bool(json_data.get("city"))
+    # has_lat = json_data.get("latitude") is not None
+    # has_lon = json_data.get("longitude") is not None
+
+    # Count provided top-level filter groups
+    provided = 0
+    if has_country:
+        provided += 1
+    if has_city:
+        provided += 1
+    # if has_lat or has_lon:
+    #     provided += 1
+
+    if provided == 0:
+        error_message = (
+            "Provide one of: 'country', 'city', or both 'latitude' and 'longitude'."
+        )
+        return None, None, error_message
+
+    if provided > 1:
+        error_message = "Provide only one of: 'country', 'city', or a pair of 'latitude' and 'longitude'."
+        return None, None, error_message
+
+    # # Validate lat & lon pair
+    # if has_lat or has_lon:
+    #     if not (has_lat and has_lon):
+    #         error_message = "Both 'latitude' and 'longitude' must be provided together."
+    #         return None, None, error_message
+    #     try:
+    #         lat = float(json_data.get("latitude"))
+    #         lon = float(json_data.get("longitude"))
+    #     except Exception:
+    #         error_message = "Invalid latitude or longitude. Must be numeric."
+    #         return None, None, error_message
+    #     filter_type = "latlon"
+    #     filter_value = {"latitude": lat, "longitude": lon}
+    #     return filter_type, filter_value, error_message
+
+    if has_country:
+        filter_type = "country"
+        filter_value = str(json_data.get("country")).strip()
+        return filter_type, filter_value, error_message
+
+    if has_city:
+        filter_type = "city"
+        filter_value = str(json_data.get("city")).strip()
+        return filter_type, filter_value, error_message

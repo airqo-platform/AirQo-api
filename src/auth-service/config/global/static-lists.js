@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const staticLists = {
   SUPER_ADMIN_EMAIL_ALLOWLIST: process.env.SUPER_ADMIN_EMAIL_ALLOWLIST
     ? process.env.SUPER_ADMIN_EMAIL_ALLOWLIST.split(",")
@@ -25,13 +24,15 @@ const staticLists = {
     : [],
   TENANTS: process.env.TENANTS
     ? process.env.TENANTS.split(",")
-        .map((value) => value.trim())
+        .map((value) => value.trim().toLowerCase())
         .filter((value) => value !== "")
-    : [],
+    : ["airqo"],
+  GUEST_USER_ID: new mongoose.Types.ObjectId("000000000000000000000001"),
   NETWORKS: process.env.NETWORKS
     ? process.env.NETWORKS.split(",")
         .map((value) => value.trim())
         .filter((value) => value !== "")
     : [],
+  BOT_MONITORED_ENDPOINTS: ["/api/v2/devices/readings"],
 };
 module.exports = staticLists;

@@ -62,6 +62,9 @@ class BaseConfig:
     BIGQUERY_RAW_BAM_DATA_TABLE = env_var("BIGQUERY_RAW_BAM_DATA_TABLE")
     BIGQUERY_BAM_HOURLY_DATA = env_var("BIGQUERY_BAM_HOURLY_DATA")
     BIGQUERY_HOURLY_CONSOLIDATED = env_var("BIGQUERY_HOURLY_CONSOLIDATED")
+    BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE = env_var(
+        "BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE"
+    )
 
     # Meta-Data
     BIGQUERY_DEVICES_DEVICES = env_var("BIGQUERY_DEVICES_DEVICES")
@@ -105,6 +108,9 @@ class BaseConfig:
                 },
                 DeviceCategory.MOBILE: {
                     Frequency.RAW: cls.BIGQUERY_MOBILE_RAW_DATA,
+                },
+                DeviceCategory.SATELLITE: {
+                    Frequency.HOURLY: cls.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE,
                 },
             },
             # Added as a repetition - Accomodates the frontend request parameters as is. Can be cleanup better.
@@ -181,7 +187,19 @@ class BaseConfig:
             "humidity",
             "site_id",
         },
-        DeviceCategory.MOBILE: {"longitude", "latitude", "temperature", "humidity"},
+        DeviceCategory.MOBILE: {
+            "longitude",
+            "latitude",
+            "temperature",
+            "humidity",
+            "battery",
+        },
+        DeviceCategory.SATELLITE: {
+            "longitude",
+            "latitude",
+            "wind_speed",
+            "wind_direction",
+        },
     }
 
     FILTER_FIELD_MAPPING = {
@@ -203,6 +221,7 @@ class BaseConfig:
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_MOBILE_RAW_DATA: "airqo_mobile_measurements.json",
         BIGQUERY_MOBILE_HOURLY_TABLE: "airqo_mobile_measurements.json",
+        BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE: "satellite_airquality_cleaned_merged.json",
         "all": None,
     }
 

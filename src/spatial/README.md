@@ -1,6 +1,6 @@
 # Air Quality Spatial Analysis API
 
-Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps, satellite-derived PM2.5, and reporting endpoints.
+Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps, and satellite-derived PM2.5.
 
 ## Prerequisites
 - Python 3.10+ and `pip`.
@@ -37,12 +37,45 @@ REDIS_CACHE_TTL=3600
 MODEL_DIR_FILE=./models
 ```
 
-## Running locally
+## Start the microservice
+
+After completing setup and activating your virtual environment, run the service from `src/spatial`.
+
+### 1. Development mode (recommended locally)
+- Linux/macOS:
+```bash
+export FLASK_APP=app.py
+export FLASK_ENV=development
+python -m flask run --host 0.0.0.0 --port 5000
+```
+- Windows (PowerShell):
+```powershell
+$env:FLASK_APP="app.py"
+$env:FLASK_ENV="development"
+python -m flask run --host 0.0.0.0 --port 5000
+```
+
+### 2. Alternative local start
+- Cross-platform:
+```bash
+python app.py
+```
+
+### 3. Production-like start (Gunicorn)
+- Linux/macOS:
+```bash
+gunicorn --bind 0.0.0.0:5000 app:app
+```
+- Windows:
+  - Gunicorn is not supported natively on Windows. Use `python app.py` locally, or run Gunicorn in Linux/WSL/container environments.
+
+### 4. Verify the service is running
 - Base URL: `http://127.0.0.1:5000/api/v2/spatial`
-- Quick start:  
-  - Linux/macOS: `FLASK_APP=app.py FLASK_ENV=development flask run --port 5000`  
-  - Windows (PowerShell): `set FLASK_APP=app.py; set FLASK_ENV=development; flask run --port 5000`  
-  - Or simply: `python app.py`
+- Quick check:
+```bash
+curl http://127.0.0.1:5000/api/v2/spatial/heatmaps
+```
+If this returns JSON (or a validation error JSON), the microservice is running.
 
 ## API authentication
 Requests to this service are not authenticated by default, but the service itself uses `AIRQO_API_TOKEN` to pull upstream data. Protect deployments behind your API gateway or add middleware if you need request-level auth.
@@ -57,14 +90,13 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/localmoran` | POST | Local Moran's I cluster/outlier analysis. |
 | `/site_location` | POST | ML-driven sensor placement inside a polygon. |
 | `/categorize_site` | GET | Classify a site by latitude/longitude. |
+| `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
+| `/source_metadata/batch` | POST | Infer source metadata for multiple points in one request. |
 | `/derived_pm2_5` | GET | Derived PM2.5 from satellite AOD for a point and date range (JSON body). |
 | `/derived_pm2_5_daily` | GET | Daily MODIS AOD data for a point and date range (JSON body). |
 | `/satellite_prediction` | POST | Predict PM2.5 from satellite features at a point. |
 | `/heatmaps` | GET | Generate and return base64 PNG AQI heatmaps for all cities. |
 | `/heatmaps/<id>` | GET | Heatmap for a specific city id. |
-| `/air_quality_report` | POST | LLM-generated air quality report. |
-| `/rulebase_air_quality_report` | POST | Rule-based air quality report. |
-| `/air_quality_report_with_customised_prompt` | POST | LLM report with a custom prompt. |
 
 ## Example requests
 Hotspot analysis (Getis-Ord):
@@ -108,6 +140,24 @@ curl -X POST http://127.0.0.1:5000/api/v2/spatial/site_location \
 Site categorization:
 ```sh
 curl "http://127.0.0.1:5000/api/v2/spatial/categorize_site?latitude=0.322502&longitude=32.584726"
+```
+
+Source metadata (single point):
+```sh
+curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&include_satellite=false"
+```
+
+Source metadata (batch):
+```sh
+curl -X POST http://127.0.0.1:5000/api/v2/spatial/source_metadata/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "include_satellite": false,
+    "items": [
+      {"id": "site-1", "latitude": 0.322502, "longitude": 32.584726},
+      {"id": "site-2", "latitude": 0.347596, "longitude": 32.582520}
+    ]
+  }'
 ```
 
 Derived PM2.5 (GET with JSON body):

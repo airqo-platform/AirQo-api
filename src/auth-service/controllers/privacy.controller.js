@@ -214,7 +214,7 @@ const privacy = {
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
-        const { data, total } = result.data;
+        const { data, meta: { total } = {} } = result;
         return res.status(status).json({
           success: true,
           message: result.message,

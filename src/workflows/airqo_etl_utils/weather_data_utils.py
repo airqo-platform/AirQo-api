@@ -11,7 +11,7 @@ from .config import configuration as Config
 from .constants import DataSource, DataType, Frequency, DeviceCategory
 from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
-from .utils import Utils
+from airqo_etl_utils.utils import Utils
 
 
 class WeatherDataUtils:

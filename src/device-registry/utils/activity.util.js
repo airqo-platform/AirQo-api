@@ -7,6 +7,7 @@ const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const GridModel = require("@models/Grid");
 const constants = require("@config/constants");
+const moment = require("moment");
 
 const {
   distance,
@@ -16,7 +17,7 @@ const {
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-activity-util`
+  `${constants.ENVIRONMENT} -- create-activity-util`,
 );
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
@@ -33,6 +34,115 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 /**
+ * Asynchronously enriches a site with metadata. This is a "fire and forget" function.
+ * @param {string} tenant - The tenant identifier.
+ * @param {ObjectId} siteId - The ID of the site to enrich.
+ * @param {number} latitude - The site's latitude.
+ * @param {number} longitude - The site's longitude.
+ * @param {string} network - The network of the site.
+ */
+const enrichSiteWithMetadata = async (
+  tenant,
+  siteId,
+  latitude,
+  longitude,
+  network,
+) => {
+  try {
+    const metadataResponse = await createSiteUtil.generateMetadata(
+      {
+        query: { tenant },
+        body: { latitude, longitude, network },
+      },
+      // Pass an explicit error callback so that if generateMetadata
+      // internally calls next(err), it throws into this try/catch rather
+      // than crashing with "next is not a function".
+      (err) => {
+        throw err;
+      },
+    );
+
+    if (!metadataResponse) {
+      logger.error(
+        `Metadata generation returned a falsy value for site ${siteId} in tenant ${tenant}. Aborting enrichment.`,
+      );
+      return;
+    }
+
+    if (metadataResponse.success) {
+      if (!metadataResponse.data) {
+        logger.error(
+          `Metadata generation succeeded but returned no data for site ${siteId}.`,
+        );
+        return;
+      }
+
+      // Scope the update to only genuine reverse-geocoding metadata fields.
+      // Writing the full metadataResponse.data would clobber fields like
+      // generated_name, description, latitude, and longitude that are already
+      // correctly set on the site document from the batch deployment creation.
+      const {
+        country,
+        district,
+        city,
+        region,
+        town,
+        village,
+        parish,
+        county,
+        sub_county,
+        division,
+        street,
+        formatted_name,
+        geometry,
+        google_place_id,
+        location_name,
+        search_name,
+        altitude,
+        site_tags,
+      } = metadataResponse.data;
+
+      const metadataFields = Object.fromEntries(
+        Object.entries({
+          country,
+          district,
+          city,
+          region,
+          town,
+          village,
+          parish,
+          county,
+          sub_county,
+          division,
+          street,
+          formatted_name,
+          geometry,
+          google_place_id,
+          location_name,
+          search_name,
+          altitude,
+          site_tags,
+        }).filter(([, v]) => v !== undefined),
+      );
+
+      await SiteModel(tenant).findByIdAndUpdate(
+        siteId,
+        { $set: metadataFields },
+        { new: true },
+      );
+      logger.info(`Successfully enriched site ${siteId} with metadata.`);
+    } else {
+      logger.error(
+        `Metadata enrichment failed for site ${siteId}: ${metadataResponse.message}`,
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `Error during background site enrichment for ${siteId}: ${error.message}`,
+    );
+  }
+};
+/**
  * Updates the cached activity fields for sites and devices
  * Race-condition safe: Only updates if cache is older than snapshot time
  * @param {string} tenant - The tenant identifier
@@ -46,7 +156,7 @@ const updateActivityCache = async (
   site_id,
   device_id,
   deviceName,
-  next
+  next,
 ) => {
   try {
     const updatePromises = [];
@@ -134,20 +244,20 @@ const updateActivityCache = async (
                   activities_cache_updated_at: cacheStamp,
                 },
               },
-              { new: true }
+              { new: true },
             );
 
             if (result) {
               logText(
-                `Updated cache for site ${site_id}: ${siteActivities.length} activities`
+                `Updated cache for site ${site_id}: ${siteActivities.length} activities`,
               );
             }
           } catch (error) {
             logger.error(
-              `Failed to update site cache for ${site_id}: ${error.message}`
+              `Failed to update site cache for ${site_id}: ${error.message}`,
             );
           }
-        })()
+        })(),
       );
     }
 
@@ -269,24 +379,24 @@ const updateActivityCache = async (
                   activities_cache_updated_at: cacheStamp,
                 },
               },
-              { new: true }
+              { new: true },
             );
 
             if (result) {
               logText(
                 `Updated cache for device ${device_id || deviceName}: ${
                   deviceActivities.length
-                } activities`
+                } activities`,
               );
             }
           } catch (error) {
             logger.error(
               `Failed to update device cache for ${device_id || deviceName}: ${
                 error.message
-              }`
+              }`,
             );
           }
-        })()
+        })(),
       );
     }
 
@@ -322,7 +432,7 @@ const getNextMaintenanceDate = (dateInput, months = 3) => {
     // Ensure we get back a valid Date object
     if (!nextMaintenance || isNaN(new Date(nextMaintenance).getTime())) {
       console.warn(
-        "addMonthsToProvideDateTime returned invalid date, using fallback"
+        "addMonthsToProvideDateTime returned invalid date, using fallback",
       );
       const fallback = new Date(baseDate);
       fallback.setMonth(fallback.getMonth() + months);
@@ -372,6 +482,27 @@ const createActivity = {
             host_id: 1,
             network: 1,
             tags: 1,
+            activity_by: {
+              $cond: {
+                if: { $or: ["$firstName", "$lastName", "$email", "$userName"] },
+                then: {
+                  name: {
+                    $trim: {
+                      input: {
+                        $concat: [
+                          { $ifNull: ["$firstName", ""] },
+                          " ",
+                          { $ifNull: ["$lastName", ""] },
+                        ],
+                      },
+                    },
+                  },
+                  email: "$email",
+                  userName: "$userName",
+                },
+                else: "$$REMOVE",
+              },
+            },
           },
         },
         {
@@ -439,8 +570,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -458,7 +589,7 @@ const createActivity = {
           filter,
           update,
         },
-        next
+        next,
       );
 
       return responseFromModifyActivity;
@@ -468,8 +599,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -484,7 +615,7 @@ const createActivity = {
         {
           filter,
         },
-        next
+        next,
       );
 
       return responseFromRemoveActivity;
@@ -494,8 +625,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -517,6 +648,10 @@ const createActivity = {
         host_id,
         network,
         user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
         mobility_metadata,
       } = body;
 
@@ -597,7 +732,7 @@ const createActivity = {
 
       const responseFromDeviceSearchCheck = await createDeviceUtil.doesDeviceSearchExist(
         requestForExistenceSearch,
-        next
+        next,
       );
 
       if (responseFromDeviceSearchCheck.success === true) {
@@ -621,13 +756,12 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
 
-  // ENHANCED: Helper function for static deployments (backward compatible)
   _deployStatic: async (request, next) => {
     try {
       const { body, query } = request;
@@ -642,6 +776,10 @@ const createActivity = {
         host_id,
         network,
         user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
       } = body;
 
       // Get site details for coordinates
@@ -654,7 +792,7 @@ const createActivity = {
 
       const responseFromListSite = await createSiteUtil.list(
         siteListRequest,
-        next
+        next,
       );
 
       if (responseFromListSite.success === true) {
@@ -672,13 +810,17 @@ const createActivity = {
             host_id: host_id ? host_id : null,
             user_id: user_id ? user_id : null,
             network,
+            firstName,
+            lastName,
+            userName,
+            email,
             nextMaintenance: getNextMaintenanceDate(date, 3),
           };
 
           // Calculate approximate coordinates
           const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
             { latitude, longitude },
-            next
+            next,
           );
 
           const {
@@ -719,7 +861,7 @@ const createActivity = {
             deviceBody,
             user_id,
             tenant,
-            next
+            next,
           );
         } else {
           return {
@@ -740,7 +882,6 @@ const createActivity = {
     }
   },
 
-  // ENHANCED: Helper function for mobile deployments
   _deployMobile: async (request, next) => {
     try {
       const { body, query } = request;
@@ -755,6 +896,10 @@ const createActivity = {
         host_id,
         network,
         user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
         mobility_metadata,
       } = body;
 
@@ -762,7 +907,7 @@ const createActivity = {
       const gridFilter = { _id: ObjectId(grid_id) };
       const responseFromListGrid = await GridModel(tenant).list(
         { filter: gridFilter },
-        next
+        next,
       );
 
       if (
@@ -786,11 +931,11 @@ const createActivity = {
           if (coordinates && coordinates.length > 0) {
             const latSum = coordinates.reduce(
               (sum, coord) => sum + coord[1],
-              0
+              0,
             );
             const lngSum = coordinates.reduce(
               (sum, coord) => sum + coord[0],
-              0
+              0,
             );
             initialLatitude = latSum / coordinates.length;
             initialLongitude = lngSum / coordinates.length;
@@ -808,6 +953,10 @@ const createActivity = {
           host_id: host_id ? host_id : null,
           user_id: user_id ? user_id : null,
           network,
+          firstName,
+          lastName,
+          userName,
+          email,
           mobility_metadata,
           nextMaintenance: getNextMaintenanceDate(date, 3),
         };
@@ -846,7 +995,7 @@ const createActivity = {
           deviceBody,
           user_id,
           tenant,
-          next
+          next,
         );
       } else {
         return {
@@ -864,19 +1013,18 @@ const createActivity = {
     }
   },
 
-  // ENHANCED: Common deployment processing function
   _processDeployment: async (
     activityBody,
     deviceBody,
     user_id,
     tenant,
-    next
+    next,
   ) => {
     try {
       // **STEP 1**: Get device first to capture device_id BEFORE creating activity
       const filter = generateFilter.devices(
         { query: { tenant, name: deviceBody.query.name } },
-        next
+        next,
       );
       const existingDevice = await DeviceModel(tenant)
         .findOne(filter)
@@ -897,7 +1045,7 @@ const createActivity = {
       // **STEP 2**: Register activity WITH device_id
       const responseFromRegisterActivity = await ActivityModel(tenant).register(
         activityBody,
-        next
+        next,
       );
 
       if (responseFromRegisterActivity.success === true) {
@@ -906,7 +1054,7 @@ const createActivity = {
         // **STEP 3**: Update device
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
-          next
+          next,
         );
 
         if (responseFromUpdateDevice.success === true) {
@@ -918,8 +1066,17 @@ const createActivity = {
             activityBody.site_id,
             existingDevice._id, // Use the device_id we retrieved
             activityBody.device,
-            next
+            next,
           );
+
+          // **STEP 5**: Refresh site data_provider (fire and forget)
+          // Runs after the device is deployed, so it picks up the new device's network.
+          if (activityBody.site_id) {
+            createSiteUtil.refreshSiteDataProvider(
+              tenant,
+              activityBody.site_id,
+            );
+          }
 
           const data = {
             createdActivity: {
@@ -980,7 +1137,7 @@ const createActivity = {
             await kafkaProducer.disconnect();
           } catch (error) {
             logger.error(
-              `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`
+              `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`,
             );
           }
 
@@ -1030,7 +1187,7 @@ const createActivity = {
         name: deviceName,
       });
 
-      if (!device) {
+      if (isEmpty(device)) {
         return {
           success: false,
           message: "Device not found",
@@ -1127,8 +1284,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1145,7 +1302,7 @@ const createActivity = {
 
       await DeviceModel(tenant).findOneAndUpdate(
         { name: deviceName },
-        { claim_status: "deployed" }
+        { claim_status: "deployed" },
       );
 
       result.data.updatedDevice.claim_status = "deployed";
@@ -1165,7 +1322,7 @@ const createActivity = {
 
       await DeviceModel(tenant).findOneAndUpdate(
         { name: deviceName },
-        { claim_status: "deployed" }
+        { claim_status: "deployed" },
       );
 
       result.data.updatedDevice.claim_status = "deployed";
@@ -1174,7 +1331,6 @@ const createActivity = {
     return result;
   },
 
-  // ENHANCED: Batch deployment supporting mixed deployment types
   batchDeployWithCoordinates: async (request, next) => {
     try {
       const { body, query } = request;
@@ -1189,8 +1345,15 @@ const createActivity = {
       // Create a map to store site IDs based on unique latitude and longitude
       const siteMap = new Map();
 
-      // Create an array of promises for each deployment
-      const deploymentPromises = body.map(async (deployment) => {
+      // Maps for bulk operations
+      const deviceNameToDeployment = new Map();
+      const activitiesToInsert = [];
+      const deviceBulkOps = [];
+      const deviceIdMap = new Map(); // device name -> device_id
+      const siteDataCache = new Map(); // site_id -> {latitude, longitude}
+
+      // PHASE 1: Validate and prepare data
+      for (const deployment of body) {
         const {
           date,
           height,
@@ -1207,6 +1370,10 @@ const createActivity = {
           deployment_type,
           grid_id,
           mobility_metadata,
+          firstName,
+          lastName,
+          userName,
+          email,
         } = deployment;
 
         // Determine deployment type
@@ -1214,163 +1381,101 @@ const createActivity = {
           deployment_type || (grid_id ? "mobile" : "static");
 
         try {
-          if (actualDeploymentType === "static") {
-            // Handle static deployment (existing logic)
-            static_count++;
-
-            const coordsKey = `${latitude},${longitude}`;
-            let site_id;
-
-            // Check if site already exists
-            const existingSite = await SiteModel(tenant).findOne({
-              $or: [
-                { name: site_name },
-                { latitude: latitude, longitude: longitude },
-              ],
+          // Check for duplicate deviceName
+          if (deviceNameToDeployment.has(deviceName)) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: {
+                message:
+                  "Duplicate deviceName in batch - each device can only be deployed once per batch",
+              },
+              user_id: user_id || null,
             });
+            continue;
+          }
 
-            if (existingSite) {
-              site_id = existingSite._id;
-              existing_sites.push({
-                deviceName,
-                site_id,
-                message: `Using existing site with name "${existingSite.name}" and coordinates (${latitude}, ${longitude})`,
-              });
-            } else {
-              // Create new site
-              const siteRequestBody = {
-                name: site_name,
-                latitude: latitude,
-                longitude: longitude,
-              };
+          // Validate the date for this specific deployment
+          const inputDate = moment(date);
+          if (!inputDate.isValid()) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: { message: "invalid date format" },
+            });
+            continue;
+          }
 
-              const siteRequest = {
-                body: siteRequestBody,
-                query: { tenant },
-              };
+          if (inputDate.isAfter(moment())) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: { message: "date cannot be in the future" },
+            });
+            continue;
+          }
 
-              const responseFromCreateSite = await createSiteUtil.create(
-                siteRequest,
-                next
-              );
+          if (inputDate.isBefore(moment().subtract(1, "month"))) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: actualDeploymentType,
+              error: {
+                message: "date cannot be more than one month in the past",
+              },
+            });
+            continue;
+          }
 
-              if (responseFromCreateSite.success === false) {
-                failed_deployments.push({
-                  deviceName,
-                  error: responseFromCreateSite.errors,
-                  deployment_type: actualDeploymentType,
-                  user_id: user_id ? user_id : null,
-                });
-                return;
-              }
+          // Type-specific validation
+          if (actualDeploymentType === "static") {
+            const hasValidLatitude =
+              latitude !== null &&
+              latitude !== undefined &&
+              Number.isFinite(Number(latitude));
+            const hasValidLongitude =
+              longitude !== null &&
+              longitude !== undefined &&
+              Number.isFinite(Number(longitude));
+            const hasSiteName =
+              typeof site_name === "string"
+                ? site_name.trim().length > 0
+                : Boolean(site_name);
 
-              const createdSite = responseFromCreateSite.data;
-              site_id = createdSite._id;
-              siteMap.set(coordsKey, site_id);
-            }
-
-            // Proceed with static device deployment
-            const deviceRequestBody = {
-              date,
-              height,
-              mountType,
-              powerType,
-              isPrimaryInLocation,
-              site_id,
-              deployment_type: "static",
-              network,
-              user_id,
-              host_id,
-            };
-
-            const deviceRequest = {
-              body: deviceRequestBody,
-              query: { tenant, deviceName },
-            };
-
-            const responseFromDeploy = await createActivity.deploy(
-              deviceRequest,
-              next
-            );
-
-            if (responseFromDeploy.success) {
-              const createdActivity = responseFromDeploy.data.createdActivity;
-              const updatedDevice = responseFromDeploy.data.updatedDevice;
-              successful_deployments.push({
-                deviceName,
-                deployment_type: "static",
-                createdActivity,
-                updatedDevice,
-                user_id: user_id ? user_id : null,
-              });
-            } else {
+            if (!hasValidLatitude || !hasValidLongitude || !hasSiteName) {
               failed_deployments.push({
                 deviceName,
                 deployment_type: "static",
-                error: responseFromDeploy.errors,
-                user_id: user_id ? user_id : null,
+                message:
+                  "latitude, longitude, and site_name are required for static deployments",
+                error: {
+                  message:
+                    "latitude, longitude, and site_name are required for static deployments",
+                },
               });
+              continue;
             }
+            static_count++;
           } else {
-            // Handle mobile deployment
-            mobile_count++;
-
             if (!grid_id) {
               failed_deployments.push({
                 deviceName,
                 deployment_type: "mobile",
+                message: "grid_id is required for mobile deployments",
                 error: {
                   message: "grid_id is required for mobile deployments",
                 },
                 user_id: user_id ? user_id : null,
               });
-              return;
+              continue;
             }
-
-            // Proceed with mobile device deployment
-            const deviceRequestBody = {
-              date,
-              height,
-              mountType,
-              powerType,
-              isPrimaryInLocation,
-              grid_id,
-              deployment_type: "mobile",
-              network,
-              user_id,
-              host_id,
-              mobility_metadata,
-            };
-
-            const deviceRequest = {
-              body: deviceRequestBody,
-              query: { tenant, deviceName },
-            };
-
-            const responseFromDeploy = await createActivity.deploy(
-              deviceRequest,
-              next
-            );
-
-            if (responseFromDeploy.success) {
-              const createdActivity = responseFromDeploy.data.createdActivity;
-              const updatedDevice = responseFromDeploy.data.updatedDevice;
-              successful_deployments.push({
-                deviceName,
-                deployment_type: "mobile",
-                createdActivity,
-                updatedDevice,
-                user_id: user_id ? user_id : null,
-              });
-            } else {
-              failed_deployments.push({
-                deviceName,
-                deployment_type: "mobile",
-                error: responseFromDeploy.errors,
-                user_id: user_id ? user_id : null,
-              });
-            }
+            mobile_count++;
           }
+
+          // Store for processing
+          deviceNameToDeployment.set(deviceName, {
+            ...deployment,
+            actualDeploymentType,
+          });
         } catch (error) {
           failed_deployments.push({
             deviceName,
@@ -1379,10 +1484,785 @@ const createActivity = {
             user_id: user_id ? user_id : null,
           });
         }
+      }
+
+      // PHASE 2: Fetch all devices in bulk
+      const deviceNames = Array.from(deviceNameToDeployment.keys());
+
+      if (deviceNames.length === 0) {
+        return {
+          success: failed_deployments.length === 0,
+          message: "No valid deployments to process",
+          successful_deployments: [],
+          failed_deployments,
+          existing_sites: [],
+          deployment_summary: {
+            total_requested: body.length,
+            total_successful: 0,
+            total_failed: failed_deployments.length,
+            static_deployments: static_count,
+            mobile_deployments: mobile_count,
+            successful_static: 0,
+            successful_mobile: 0,
+            sites_created: 0,
+            sites_reused: 0,
+          },
+        };
+      }
+
+      const existingDevices = await DeviceModel(tenant)
+        .find({ name: { $in: deviceNames } })
+        .lean();
+
+      // Create device lookup map
+      const existingDeviceMap = new Map();
+      existingDevices.forEach((device) => {
+        existingDeviceMap.set(device.name, device);
+        deviceIdMap.set(device.name, device._id);
       });
 
-      // Wait for all deployments to complete
-      await Promise.all(deploymentPromises);
+      // Filter out non-existent and already deployed devices
+      for (const [deviceName, deployment] of deviceNameToDeployment) {
+        const device = existingDeviceMap.get(deviceName);
+
+        if (isEmpty(device)) {
+          failed_deployments.push({
+            deviceName,
+            deployment_type: deployment.actualDeploymentType,
+            error: { message: `Device ${deviceName} not found` },
+            user_id: deployment.user_id || null,
+          });
+          deviceNameToDeployment.delete(deviceName);
+          continue;
+        }
+
+        if (device.isActive) {
+          failed_deployments.push({
+            deviceName,
+            deployment_type: deployment.actualDeploymentType,
+            error: { message: `Device ${deviceName} already deployed` },
+            user_id: deployment.user_id || null,
+          });
+          deviceNameToDeployment.delete(deviceName);
+          continue;
+        }
+      }
+
+      // PHASE 3: Handle sites and grids in bulk
+      const uniqueSites = new Map();
+      const uniqueGrids = new Set();
+
+      for (const [deviceName, deployment] of deviceNameToDeployment) {
+        if (deployment.actualDeploymentType === "static") {
+          // Defense-in-depth null/NaN coordinate guard.
+          //
+          // Three layers already protect against invalid coordinates:
+          //   1. The HTTP-layer validator (validateBatchDeploymentItems)
+          //      rejects missing or non-finite coordinates for static
+          //      deployments before the request reaches this function.
+          //   2. Phase 1 (above) validates using Number.isFinite() and
+          //      pushes invalid items directly to failed_deployments.
+          //   3. This guard — a final safety net for cases where either
+          //      earlier layer is bypassed (e.g. direct internal calls
+          //      that skip the router) or if the validator logic changes
+          //      in the future.
+          //
+          // Without any guard, constructing lat_long as "null_null" or
+          // "NaN_NaN" would succeed on the first insert (creating a
+          // ghost site), then fail every subsequent insert with a
+          // confusing E11000 duplicate key error on lat_long_1 — exactly
+          // the production error we observed before this fix.
+          //
+          // We parse explicitly here so we always store finite Numbers
+          // in siteData, which makes lat_long construction in Phase A
+          // and Phase B deterministic and safe.
+          const parsedLat = Number(deployment.latitude);
+          const parsedLng = Number(deployment.longitude);
+
+          if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+            failed_deployments.push({
+              deviceName,
+              deployment_type: "static",
+              error: {
+                message:
+                  `Invalid coordinates for static deployment: ` +
+                  `latitude="${deployment.latitude}", longitude="${deployment.longitude}". ` +
+                  `Both must be finite numbers — null, undefined, and NaN are not accepted.`,
+              },
+              user_id: deployment.user_id || null,
+            });
+            deviceNameToDeployment.delete(deviceName);
+            continue;
+          }
+
+          const coordsKey = `${parsedLat},${parsedLng}`;
+          if (!uniqueSites.has(coordsKey)) {
+            uniqueSites.set(coordsKey, {
+              name: deployment.site_name,
+              // Store parsed Numbers, not raw strings, so that lat_long
+              // construction in Phase A/B is always type-consistent
+              latitude: parsedLat,
+              longitude: parsedLng,
+              network: deployment.network,
+            });
+          }
+        } else {
+          uniqueGrids.add(deployment.grid_id);
+        }
+      }
+
+      // Site creation using find-then-create with all required fields.
+      //
+      // IMPORTANT — two-phase approach for generated_name:
+      //
+      // createSite.generateName() increments a shared counter document
+      // in UniqueIdentifierCounterModel via $inc. Running it in parallel
+      // inside Promise.all would cause a race condition where concurrent
+      // increments collide and produce duplicate generated_name values,
+      // which would then hit the unique index and throw 11000 errors.
+      //
+      // Phase A (sequential): For each site that does NOT already exist
+      //   in the DB, call generateName once in order to claim a counter
+      //   slot and reserve a unique name. Sites that already exist skip
+      //   this step entirely — they keep their existing generated_name.
+      //
+      // Phase B (parallel): With all names pre-reserved, run the actual
+      //   SiteModel.create() calls concurrently via Promise.all — safe
+      //   because the uniqueness concern is already resolved.
+
+      // Phase A: Pre-generate names sequentially for new sites only
+      // Map: coordsKey -> pre-generated name (only populated for new sites)
+      const preGeneratedNames = new Map();
+
+      for (const [coordsKey, siteData] of uniqueSites) {
+        const lat_long = `${siteData.latitude}_${siteData.longitude}`;
+
+        // Check if site already exists — if so, skip name generation
+        const existingCheck = await SiteModel(tenant)
+          .findOne({ lat_long })
+          .select("_id")
+          .lean();
+
+        if (!existingCheck) {
+          // Site does not exist yet — claim a counter slot now,
+          // sequentially, before any parallel work begins
+          const responseFromGenerateName = await createSiteUtil.generateName(
+            tenant,
+            next,
+          );
+
+          if (!responseFromGenerateName || !responseFromGenerateName.success) {
+            // Propagate failure: mark every device mapped to this site
+            // as failed immediately so Phase B skips this coordsKey
+            logger.error(
+              `generateName failed for site "${
+                siteData.name
+              }" at ${coordsKey}: ${
+                responseFromGenerateName
+                  ? responseFromGenerateName.errors
+                    ? responseFromGenerateName.errors.message
+                    : responseFromGenerateName.message
+                  : "generateName returned undefined"
+              }`,
+            );
+            preGeneratedNames.set(coordsKey, {
+              error: {
+                message:
+                  responseFromGenerateName && responseFromGenerateName.errors
+                    ? responseFromGenerateName.errors.message
+                    : "Unable to generate unique name for site, contact support",
+              },
+            });
+          } else {
+            preGeneratedNames.set(coordsKey, {
+              generated_name: responseFromGenerateName.data,
+            });
+          }
+        }
+        // If site exists, preGeneratedNames has no entry for this
+        // coordsKey — Phase B will detect the existing site via findOne
+        // and use its own generated_name without touching the counter
+      }
+
+      // Phase B: Create/find sites in parallel now that all names are
+      // pre-reserved and no further counter increments are needed
+      const sitePromises = [];
+
+      for (const [coordsKey, siteData] of uniqueSites) {
+        sitePromises.push(
+          (async () => {
+            try {
+              // Compute lat_long once — used for lookup, create, and
+              // race-condition re-fetch
+              const lat_long = `${siteData.latitude}_${siteData.longitude}`;
+
+              // Use an explicit flag to correctly track whether the site
+              // was found or newly created, since lean() returns a plain
+              // object with no $isNew/isNew properties, and isNew is
+              // always false on a document returned from create()
+              let wasExisting = false;
+
+              // Look up by lat_long (unique + immutable) not by name,
+              // since multiple sites can share the same name at different
+              // coordinates
+              let site = await SiteModel(tenant)
+                .findOne({ lat_long })
+                .lean();
+
+              if (site) {
+                wasExisting = true;
+              } else {
+                // Site does not exist — check that Phase A successfully
+                // reserved a generated_name for this coordsKey
+                const nameReservation = preGeneratedNames.get(coordsKey);
+
+                if (!nameReservation) {
+                  // Phase A found the site existed at the time of the
+                  // existence check, but it has since been deleted or
+                  // was never written — treat as a new site needing a
+                  // name. This is an extremely unlikely edge case but
+                  // we handle it defensively.
+                  throw new Error(
+                    `No pre-generated name found for site "${siteData.name}" at ${lat_long} — counter reservation was skipped`,
+                  );
+                }
+
+                if (nameReservation.error) {
+                  // Phase A already logged the error; re-throw so this
+                  // site lands in failed_deployments with a clear message
+                  throw new Error(nameReservation.error.message);
+                }
+
+                const generated_name = nameReservation.generated_name;
+
+                // Compute approximate coordinates — createApproximateCoordinates
+                // calls next() on error but does not return a value, so
+                // guard against undefined
+                const approxResult = distance.createApproximateCoordinates(
+                  {
+                    latitude: siteData.latitude,
+                    longitude: siteData.longitude,
+                  },
+                  next,
+                );
+
+                if (!approxResult) {
+                  throw new Error(
+                    `Failed to compute approximate coordinates for site "${siteData.name}" at ${lat_long}`,
+                  );
+                }
+
+                try {
+                  site = await SiteModel(tenant).create({
+                    name: siteData.name,
+                    latitude: siteData.latitude,
+                    longitude: siteData.longitude,
+                    network:
+                      siteData.network || constants.DEFAULT_NETWORK || "airqo",
+                    lat_long,
+                    generated_name,
+                    // description mirrors generated_name — unique per
+                    // site, carries no raw coordinate data, and is
+                    // consistent with the existing Site.register pattern
+                    description: generated_name,
+                    approximate_latitude:
+                      approxResult.approximate_latitude || siteData.latitude,
+                    approximate_longitude:
+                      approxResult.approximate_longitude || siteData.longitude,
+                    approximate_distance_in_km:
+                      approxResult.approximate_distance_in_km || 0,
+                    bearing_in_radians: approxResult.bearing_in_radians || 0,
+                  });
+
+                  // Fire and forget: enrich the site in the background
+                  enrichSiteWithMetadata(
+                    tenant,
+                    site._id,
+                    site.latitude,
+                    site.longitude,
+                    site.network,
+                  );
+                } catch (createError) {
+                  // Handle race condition: another process may have
+                  // created the site between Phase A's existence check
+                  // and this create() call. Re-fetch by lat_long (unique
+                  // + immutable) — a 11000 error can fire on lat_long,
+                  // generated_name, or description, not just name, so
+                  // querying by name would risk returning the wrong site
+                  if (createError.code === 11000) {
+                    site = await SiteModel(tenant)
+                      .findOne({ lat_long })
+                      .lean();
+                    if (!site) {
+                      throw createError;
+                    }
+                    wasExisting = true;
+                  } else {
+                    throw createError;
+                  }
+                }
+              }
+
+              // Cache site data
+              siteMap.set(coordsKey, site._id);
+              siteDataCache.set(site._id.toString(), {
+                latitude: site.latitude,
+                longitude: site.longitude,
+              });
+
+              return {
+                coordsKey,
+                site_id: site._id,
+                existing: wasExisting,
+              };
+            } catch (error) {
+              logger.error(
+                `Site creation failed for ${coordsKey} ("${siteData.name}"): ${error.message}`,
+              );
+              return { coordsKey, error: { message: error.message } };
+            }
+          })(),
+        );
+      }
+
+      const siteResults = await Promise.all(sitePromises);
+
+      // Track existing vs created sites, and fail devices whose site
+      // could not be created
+      siteResults.forEach((result) => {
+        if (result.error) {
+          // Move all devices relying on this failed site into
+          // failed_deployments
+          for (const [deviceName, deployment] of deviceNameToDeployment) {
+            if (deployment.actualDeploymentType === "static") {
+              // Parse to Numbers before stringifying so this key matches
+              // the Phase 3 siteMap keys which use parsedLat/parsedLng
+              const parsedLat = Number(deployment.latitude);
+              const parsedLng = Number(deployment.longitude);
+              const coordsKey = `${parsedLat},${parsedLng}`;
+              if (coordsKey === result.coordsKey) {
+                failed_deployments.push({
+                  deviceName,
+                  deployment_type: "static",
+                  error: {
+                    message: `Site creation failed: ${result.error.message}`,
+                  },
+                  user_id: deployment.user_id || null,
+                });
+                deviceNameToDeployment.delete(deviceName);
+              }
+            }
+          }
+        } else if (result.existing) {
+          existing_sites.push({
+            site_id: result.site_id,
+            message: "Using existing site",
+          });
+        }
+      });
+
+      // Fetch all grids
+      const gridIds = Array.from(uniqueGrids).map((id) => ObjectId(id));
+      const existingGrids =
+        gridIds.length > 0
+          ? await GridModel(tenant)
+              .find({ _id: { $in: gridIds } })
+              .lean()
+          : [];
+
+      // Normalize grid map keys to strings for consistent lookup
+      const gridMap = new Map();
+      existingGrids.forEach((grid) => {
+        gridMap.set(grid._id.toString(), grid);
+      });
+
+      // PHASE 4: Prepare bulk operations
+      for (const [deviceName, deployment] of deviceNameToDeployment) {
+        const {
+          date,
+          height,
+          mountType,
+          powerType,
+          isPrimaryInLocation,
+          latitude,
+          longitude,
+          network,
+          user_id,
+          host_id,
+          mobility_metadata,
+          actualDeploymentType,
+          firstName,
+          lastName,
+          userName,
+          email,
+        } = deployment;
+
+        const device_id = deviceIdMap.get(deviceName);
+
+        try {
+          if (actualDeploymentType === "static") {
+            // Parse to Numbers before stringifying so this key matches
+            // the Phase 3 siteMap keys which use parsedLat/parsedLng
+            const coordsKey = `${Number(latitude)},${Number(longitude)}`;
+            const site_id = siteMap.get(coordsKey);
+
+            if (!site_id) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: "static",
+                error: { message: "Failed to create or find site" },
+                user_id: user_id || null,
+              });
+              continue;
+            }
+
+            // Use cached site data instead of fetching from DB
+            const siteData = siteDataCache.get(site_id.toString());
+
+            if (!siteData) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: "static",
+                error: { message: "Site data not found in cache" },
+                user_id: user_id || null,
+              });
+              continue;
+            }
+
+            const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
+              {
+                latitude: siteData.latitude,
+                longitude: siteData.longitude,
+              },
+              next,
+            );
+
+            const {
+              approximate_latitude,
+              approximate_longitude,
+              approximate_distance_in_km,
+              bearing_in_radians,
+            } = responseFromCreateApproximateCoordinates;
+
+            // Activity with user details and device_id
+            activitiesToInsert.push({
+              device: deviceName,
+              device_id: device_id,
+              date: (date && new Date(date)) || new Date(),
+              description: "device deployed",
+              activityType: "deployment",
+              deployment_type: "static",
+              site_id,
+              host_id: host_id || null,
+              user_id: user_id || null,
+              network,
+              firstName,
+              lastName,
+              userName,
+              email,
+              nextMaintenance: getNextMaintenanceDate(date, 3),
+            });
+
+            // Device bulk update
+            deviceBulkOps.push({
+              updateOne: {
+                filter: { name: deviceName },
+                update: {
+                  $set: {
+                    height,
+                    mountType,
+                    powerType,
+                    isPrimaryInLocation,
+                    deployment_type: "static",
+                    mobility: false,
+                    nextMaintenance: getNextMaintenanceDate(date, 3),
+                    latitude: approximate_latitude || siteData.latitude,
+                    longitude: approximate_longitude || siteData.longitude,
+                    approximate_distance_in_km: approximate_distance_in_km || 0,
+                    bearing_in_radians: bearing_in_radians || 0,
+                    site_id,
+                    host_id: host_id || null,
+                    grid_id: null,
+                    isActive: true,
+                    deployment_date: (date && new Date(date)) || new Date(),
+                    status: "deployed",
+                  },
+                },
+              },
+            });
+          } else {
+            // Mobile deployment
+            const grid_id_obj = ObjectId(deployment.grid_id);
+            const gridData = gridMap.get(deployment.grid_id.toString());
+
+            if (!gridData) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: "mobile",
+                error: { message: "Grid not found" },
+                user_id: user_id || null,
+              });
+              continue;
+            }
+
+            let initialLatitude = null;
+            let initialLongitude = null;
+
+            if (gridData.centers && gridData.centers.length > 0) {
+              initialLatitude = gridData.centers[0].latitude;
+              initialLongitude = gridData.centers[0].longitude;
+            } else if (gridData.shape && gridData.shape.coordinates) {
+              const coordinates = gridData.shape.coordinates[0];
+              if (coordinates && coordinates.length > 0) {
+                const latSum = coordinates.reduce(
+                  (sum, coord) => sum + coord[1],
+                  0,
+                );
+                const lngSum = coordinates.reduce(
+                  (sum, coord) => sum + coord[0],
+                  0,
+                );
+                initialLatitude = latSum / coordinates.length;
+                initialLongitude = lngSum / coordinates.length;
+              }
+            }
+
+            // Activity with user details and device_id
+            activitiesToInsert.push({
+              device: deviceName,
+              device_id: device_id,
+              date: (date && new Date(date)) || new Date(),
+              description: "mobile device deployed",
+              activityType: "deployment",
+              deployment_type: "mobile",
+              grid_id: grid_id_obj,
+              host_id: host_id || null,
+              user_id: user_id || null,
+              network,
+              firstName,
+              lastName,
+              userName,
+              email,
+              mobility_metadata,
+              nextMaintenance: getNextMaintenanceDate(date, 3),
+            });
+
+            // Device bulk update
+            const deviceUpdate = {
+              height,
+              mountType,
+              powerType,
+              isPrimaryInLocation,
+              deployment_type: "mobile",
+              mobility: true,
+              nextMaintenance: getNextMaintenanceDate(date, 3),
+              grid_id: grid_id_obj,
+              site_id: null,
+              host_id: host_id || null,
+              isActive: true,
+              deployment_date: (date && new Date(date)) || new Date(),
+              status: "deployed",
+              mobility_metadata,
+            };
+
+            if (initialLatitude && initialLongitude) {
+              deviceUpdate.latitude = initialLatitude;
+              deviceUpdate.longitude = initialLongitude;
+            }
+
+            deviceBulkOps.push({
+              updateOne: {
+                filter: { name: deviceName },
+                update: { $set: deviceUpdate },
+              },
+            });
+          }
+        } catch (error) {
+          failed_deployments.push({
+            deviceName,
+            deployment_type: actualDeploymentType,
+            error: { message: error.message },
+            user_id: deployment.user_id || null,
+          });
+        }
+      }
+
+      // PHASE 5: Execute bulk operations WITHOUT transactions
+      let createdActivities = [];
+      let updatedDevices = [];
+
+      if (activitiesToInsert.length > 0) {
+        try {
+          // Use .create() to trigger pre-save middleware (validates
+          // deployment invariants)
+          createdActivities = await ActivityModel(tenant).create(
+            activitiesToInsert,
+          );
+
+          // Bulk update devices
+          await DeviceModel(tenant).bulkWrite(deviceBulkOps, {
+            ordered: false,
+          });
+
+          // Fetch updated devices for response
+          const updatedDeviceNames = deviceBulkOps.map(
+            (op) => op.updateOne.filter.name,
+          );
+          updatedDevices = await DeviceModel(tenant)
+            .find({ name: { $in: updatedDeviceNames } })
+            .lean();
+        } catch (error) {
+          logger.error(`Bulk operation error: ${error.message}`);
+
+          // Mark all remaining deployments as failed
+          for (const [deviceName, deployment] of deviceNameToDeployment) {
+            if (!failed_deployments.find((f) => f.deviceName === deviceName)) {
+              failed_deployments.push({
+                deviceName,
+                deployment_type: deployment.actualDeploymentType,
+                error: {
+                  message: `Bulk operation failed: ${error.message}`,
+                },
+                user_id: deployment.user_id || null,
+              });
+            }
+          }
+        }
+      }
+
+      // PHASE 6: Build success responses and trigger cache updates
+      const deviceUpdateMap = new Map();
+      updatedDevices.forEach((device) => {
+        deviceUpdateMap.set(device.name, device);
+      });
+
+      const cacheUpdatePromises = [];
+
+      for (const activity of createdActivities) {
+        const deployment = deviceNameToDeployment.get(activity.device);
+        const updatedDevice = deviceUpdateMap.get(activity.device);
+
+        if (updatedDevice) {
+          successful_deployments.push({
+            deviceName: activity.device,
+            deployment_type: activity.deployment_type,
+            createdActivity: {
+              activity_codes: activity.activity_codes,
+              tags: activity.tags,
+              _id: activity._id,
+              device: activity.device,
+              device_id: activity.device_id,
+              date: activity.date,
+              description: activity.description,
+              activityType: activity.activityType,
+              site_id: activity.site_id,
+              grid_id: activity.grid_id,
+              deployment_type: activity.deployment_type,
+              host_id: activity.host_id,
+              network: activity.network,
+              nextMaintenance: activity.nextMaintenance,
+              createdAt: activity.createdAt,
+              firstName: activity.firstName,
+              lastName: activity.lastName,
+              userName: activity.userName,
+              email: activity.email,
+            },
+            updatedDevice: {
+              status: updatedDevice.status,
+              category: updatedDevice.category,
+              isActive: updatedDevice.isActive,
+              _id: updatedDevice._id,
+              long_name: updatedDevice.long_name,
+              network: updatedDevice.network,
+              device_number: updatedDevice.device_number,
+              name: updatedDevice.name,
+              deployment_date: updatedDevice.deployment_date,
+              deployment_type: updatedDevice.deployment_type,
+              mobility: updatedDevice.mobility,
+              latitude: updatedDevice.latitude,
+              longitude: updatedDevice.longitude,
+              mountType: updatedDevice.mountType,
+              powerType: updatedDevice.powerType,
+              site_id: updatedDevice.site_id,
+              grid_id: updatedDevice.grid_id,
+            },
+            user_id: deployment ? deployment.user_id || null : null,
+          });
+
+          cacheUpdatePromises.push(
+            updateActivityCache(
+              tenant,
+              activity.site_id,
+              activity.device_id,
+              activity.device,
+              next,
+            ),
+          );
+        } else {
+          failed_deployments.push({
+            deviceName: activity.device,
+            deployment_type: activity.deployment_type,
+            error: { message: "Device update verification failed" },
+            user_id: deployment ? deployment.user_id || null : null,
+          });
+        }
+      }
+
+      Promise.allSettled(cacheUpdatePromises).then((results) => {
+        const failures = results.filter((r) => r.status === "rejected");
+        if (failures.length > 0) {
+          failures.forEach((failure) => {
+            logger.error(
+              `Cache update failed: ${failure.reason?.message ||
+                failure.reason}`,
+            );
+          });
+        }
+      });
+
+      // Refresh data_provider for each newly deployed site (fire-and-forget).
+      // Deduplicate site_ids so we call once per site regardless of how many
+      // devices were deployed to it in this batch.
+      // NOTE: mirrors the single-deploy refresh in _processDeployment (Step 5).
+      const deployedSiteIds = [
+        ...new Set(
+          createdActivities
+            .filter((a) => a.site_id)
+            .map((a) => a.site_id.toString()),
+        ),
+      ];
+      deployedSiteIds.forEach((siteId) => {
+        createSiteUtil.refreshSiteDataProvider(tenant, siteId);
+      });
+
+      // PHASE 7: Send Kafka notifications (fire and forget)
+      if (successful_deployments.length > 0) {
+        (async () => {
+          try {
+            const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
+            await kafkaProducer.connect();
+            const messages = successful_deployments.map((deployment) => ({
+              value: JSON.stringify({
+                createdActivity: deployment.createdActivity,
+                updatedDevice: deployment.updatedDevice,
+                user_id: deployment.user_id,
+              }),
+            }));
+            await kafkaProducer.send({
+              topic: deployTopic,
+              messages,
+            });
+            await kafkaProducer.disconnect();
+          } catch (error) {
+            logger.error(
+              `Kafka deployment notification failed: ${error.message}`,
+            );
+          }
+        })();
+      }
 
       // Create deployment summary
       const deployment_summary = {
@@ -1392,22 +2272,30 @@ const createActivity = {
         static_deployments: static_count,
         mobile_deployments: mobile_count,
         successful_static: successful_deployments.filter(
-          (d) => d.deployment_type === "static"
+          (d) => d.deployment_type === "static",
         ).length,
         successful_mobile: successful_deployments.filter(
-          (d) => d.deployment_type === "mobile"
+          (d) => d.deployment_type === "mobile",
         ).length,
-        sites_created: siteMap.size,
+        sites_created: siteMap.size - existing_sites.length,
         sites_reused: existing_sites.length,
       };
 
+      const overallSuccess =
+        failed_deployments.length === 0 && successful_deployments.length > 0;
+      const message =
+        failed_deployments.length === 0
+          ? "Batch deployment completed successfully"
+          : `Batch deployment processed with ${failed_deployments.length} failure(s)`;
+
       return {
-        success: true,
-        message: "Batch deployment processed",
+        success: overallSuccess,
+        message,
         successful_deployments,
         failed_deployments,
         existing_sites,
         deployment_summary,
+        status: overallSuccess ? httpStatus.OK : httpStatus.BAD_REQUEST,
       };
     } catch (error) {
       logger.error(`🐛🐛 Batch Deploy Error ${error.message}`);
@@ -1415,8 +2303,8 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1424,398 +2312,464 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
-      const { recallType, user_id } = body;
       const { tenant, deviceName } = query;
 
-      const deviceExists = await DeviceModel(tenant).exists({
-        name: deviceName,
-      });
+      const {
+        recallType,
+        date,
+        user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
+        network,
+        host_id,
+      } = body;
 
-      if (!deviceExists) {
+      const device = await DeviceModel(tenant)
+        .findOne({ name: deviceName })
+        .lean();
+
+      if (isEmpty(device)) {
         return {
           success: false,
-          message: "Device not found",
+          message: `Invalid request, Device ${deviceName} not found`,
+          errors: { message: `Device ${deviceName} not found` },
           status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: `Invalid request, Device ${deviceName} not found`,
-          },
         };
       }
 
-      let requestForExistenceSearch = {};
-      requestForExistenceSearch["filter"] = {
-        name: deviceName,
-        isActive: false,
+      if (!device.isActive) {
+        return {
+          success: false,
+          message: "Device is not currently active",
+          errors: {
+            message: `Device ${deviceName} is not currently active`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Build $push safely to avoid overwriting when both site_id
+      // and grid_id exist on the device being recalled.
+      const deviceUpdateData = {
+        $set: {
+          isActive: false,
+          status: "recalled",
+          recall_date: (date && new Date(date)) || new Date(),
+          site_id: null,
+          grid_id: null,
+        },
       };
-      requestForExistenceSearch["tenant"] = tenant;
-      const isDeviceRecalled = await createDeviceUtil.doesDeviceSearchExist(
-        requestForExistenceSearch,
-        next
+
+      const pushFields = {};
+      if (device.site_id) {
+        pushFields.previous_sites = device.site_id;
+      }
+
+      if (device.grid_id) {
+        pushFields.previous_grids = device.grid_id;
+      }
+      if (Object.keys(pushFields).length > 0) {
+        deviceUpdateData.$push = pushFields;
+      }
+
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { name: deviceName },
+        deviceUpdateData,
+        { new: true },
       );
 
-      if (isDeviceRecalled.success === true) {
+      if (!updatedDevice) {
         return {
           success: false,
-          message: `Device ${deviceName} already recalled`,
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Device ${deviceName} already recalled` },
+          message: "Recall operation failed",
+          errors: { message: `Failed to update device ${deviceName}` },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
-      } else if (isDeviceRecalled.success === false) {
-        let previousSiteId = null;
-        let previousGridId = null;
-        const filter = generateFilter.devices(request, next);
-        const responseFromListDevice = await DeviceModel(tenant).list(
-          {
-            filter,
-          },
-          next
-        );
-
-        if (
-          responseFromListDevice.success === true &&
-          responseFromListDevice.data.length === 1
-        ) {
-          const deviceData = responseFromListDevice.data[0];
-          previousSiteId = deviceData.site
-            ? deviceData.site._id
-            : deviceData.site_id;
-          previousGridId = deviceData.assigned_grid
-            ? deviceData.assigned_grid[0]._id
-            : deviceData.grid_id;
-        } else if (responseFromListDevice.success === false) {
-          return responseFromListDevice;
-        } else {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: {
-              message: "unable to retrieve device information",
-            },
-          };
-        }
-
-        const siteActivityBody = {
-          device: deviceName,
-          user_id: user_id ? user_id : null,
-          date: new Date(),
-          description: "device recalled",
-          activityType: "recallment",
-          recallType,
-          site_id: previousSiteId, // Keep for cache update
-        };
-
-        let deviceBody = {
-          body: {
-            height: 0,
-            mountType: "",
-            powerType: "",
-            isPrimaryInLocation: false,
-            nextMaintenance: "",
-            latitude: "",
-            longitude: "",
-            isActive: false,
-            status: "recalled",
-            deployment_type: "static",
-            mobility: false,
-            site_id: null,
-            grid_id: null,
-            host_id: null,
-            previous_sites: previousSiteId ? [previousSiteId] : [],
-            recall_date: new Date(),
-          },
-          query: {
-            name: deviceName,
-            tenant,
-          },
-        };
-
-        if (previousGridId) {
-          deviceBody.body.previous_grids = [previousGridId];
-        }
-
-        const responseFromRegisterActivity = await ActivityModel(
-          tenant
-        ).register(siteActivityBody, next);
-
-        if (responseFromRegisterActivity.success === true) {
-          const createdActivity = responseFromRegisterActivity.data;
-
-          const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
-            deviceBody,
-            next
-          );
-
-          if (responseFromUpdateDevice.success === true) {
-            const updatedDevice = responseFromUpdateDevice.data;
-
-            // **NEW: Update activity cache immediately**
-            // Use previousSiteId since device is being unassigned
-            await updateActivityCache(
-              tenant,
-              previousSiteId,
-              updatedDevice._id,
-              deviceName,
-              next
-            );
-
-            const data = {
-              createdActivity: {
-                _id: createdActivity._id,
-                device: createdActivity.device,
-                date: createdActivity.date,
-                description: createdActivity.description,
-                activityType: createdActivity.activityType,
-                recallType,
-              },
-              updatedDevice: {
-                height: updatedDevice.height,
-                category: updatedDevice.category,
-                _id: updatedDevice._id,
-                long_name: updatedDevice.long_name,
-                network: updatedDevice.network,
-                device_number: updatedDevice.device_number,
-                name: updatedDevice.name,
-                mountType: updatedDevice.mountType,
-                powerType: updatedDevice.powerType,
-                isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
-                nextMaintenance: updatedDevice.nextMaintenance,
-                latitude: updatedDevice.latitude,
-                longitude: updatedDevice.longitude,
-                isActive: updatedDevice.isActive,
-                status: updatedDevice.status,
-                deployment_type: updatedDevice.deployment_type,
-                mobility: updatedDevice.mobility,
-                site_id: updatedDevice.site_id,
-                grid_id: updatedDevice.grid_id,
-                host_id: updatedDevice.host_id,
-                previous_sites: updatedDevice.previous_sites,
-                recall_date: updatedDevice.recall_date,
-              },
-              user_id: user_id ? user_id : null,
-            };
-
-            try {
-              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-              const kafkaProducer = kafka.producer({
-                groupId: constants.UNIQUE_PRODUCER_GROUP,
-              });
-              await kafkaProducer.connect();
-              await kafkaProducer.send({
-                topic: recallTopic,
-                messages: [
-                  {
-                    action: "create",
-                    value: JSON.stringify(data),
-                  },
-                ],
-              });
-
-              await kafkaProducer.disconnect();
-            } catch (error) {
-              logger.error(`internal server error -- ${error.message}`);
-            }
-
-            return {
-              success: true,
-              message: "successfully recalled the device",
-              data,
-            };
-          } else if (responseFromUpdateDevice.success === false) {
-            return responseFromUpdateDevice;
-          }
-        } else if (responseFromRegisterActivity.success === false) {
-          return responseFromRegisterActivity;
-        }
       }
+
+      const activityData = {
+        device: deviceName,
+        device_id: device._id,
+        date: (date && new Date(date)) || new Date(),
+        description: "device recalled",
+        activityType: "recallment",
+        recallType,
+        host_id: host_id || null,
+        user_id: user_id || null,
+        network: network || device.network,
+        firstName,
+        lastName,
+        userName,
+        email,
+        site_id: device.site_id || null,
+        grid_id: device.grid_id || null,
+      };
+
+      const createdActivity = await ActivityModel(tenant).create(activityData);
+
+      if (!createdActivity) {
+        logger.error(
+          `⚠️ Recall inconsistency: device ${deviceName} updated to recalled ` +
+            `but activity creation failed. Device _id: ${device._id}`,
+        );
+        return {
+          success: false,
+          message: "Recall partially completed — activity record not created",
+          errors: {
+            message:
+              "Device was recalled but activity log could not be created",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      Promise.allSettled([
+        updateActivityCache(
+          tenant,
+          device.site_id,
+          device._id,
+          deviceName,
+          next,
+        ),
+      ]).then((results) => {
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            logger.error(
+              `Cache update failed for ${deviceName}: ${result.reason?.message}`,
+            );
+          }
+        });
+      });
+
+      // Refresh site data_provider now that a device has been removed.
+      // Use the site_id captured before the device was recalled.
+      if (device.site_id) {
+        createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+      }
+
+      // Use toObject() on both Mongoose documents to ensure clean
+      // JSON serialization. Without this, JSON.stringify() on a Mongoose
+      // document may omit fields or produce unexpected output, which
+      // causes the Kafka consumer to receive an object missing
+      // createdActivity and trigger the "Missing required fields" error.
+      (async () => {
+        try {
+          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: recallTopic,
+            messages: [
+              {
+                value: JSON.stringify({
+                  createdActivity: createdActivity.toObject
+                    ? createdActivity.toObject()
+                    : createdActivity,
+                  updatedDevice: updatedDevice.toObject
+                    ? updatedDevice.toObject()
+                    : updatedDevice,
+                  user_id: user_id || null,
+                }),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`Kafka recall notification failed: ${error.message}`);
+        }
+      })();
+
+      return {
+        success: true,
+        message: "successfully recalled the device",
+        data: {
+          createdActivity: {
+            activity_codes: createdActivity.activity_codes,
+            tags: createdActivity.tags,
+            _id: createdActivity._id,
+            device: createdActivity.device,
+            device_id: createdActivity.device_id,
+            date: createdActivity.date,
+            description: createdActivity.description,
+            activityType: createdActivity.activityType,
+            recallType: createdActivity.recallType,
+            site_id: createdActivity.site_id,
+            grid_id: createdActivity.grid_id,
+            host_id: createdActivity.host_id,
+            network: createdActivity.network,
+            firstName: createdActivity.firstName,
+            lastName: createdActivity.lastName,
+            userName: createdActivity.userName,
+            email: createdActivity.email,
+            createdAt: createdActivity.createdAt,
+          },
+          updatedDevice: {
+            _id: updatedDevice._id,
+            name: updatedDevice.name,
+            long_name: updatedDevice.long_name,
+            device_number: updatedDevice.device_number,
+            isActive: updatedDevice.isActive,
+            status: updatedDevice.status,
+            recall_date: updatedDevice.recall_date,
+            site_id: updatedDevice.site_id,
+            grid_id: updatedDevice.grid_id,
+            network: updatedDevice.network,
+            category: updatedDevice.category,
+            deployment_type: updatedDevice.deployment_type,
+            height: updatedDevice.height,
+            mountType: updatedDevice.mountType,
+            powerType: updatedDevice.powerType,
+            isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
+            latitude: updatedDevice.latitude,
+            longitude: updatedDevice.longitude,
+            mobility: updatedDevice.mobility,
+            host_id: updatedDevice.host_id,
+            previous_sites: updatedDevice.previous_sites,
+            previous_grids: updatedDevice.previous_grids,
+          },
+          user_id: user_id || null,
+        },
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Recall Error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
 
   maintain: async (request, next) => {
     try {
-      const { body, query } = request;
+      const { query, body } = request;
       const { tenant, deviceName } = query;
+
       const {
         date,
         tags,
         description,
-        site_id,
-        grid_id,
         maintenanceType,
-        network,
         user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
+        network,
+        host_id,
+        site_id,
       } = body;
 
-      const deviceExists = await DeviceModel(tenant).exists({
-        name: deviceName,
-      });
+      const device = await DeviceModel(tenant)
+        .findOne({ name: deviceName })
+        .lean();
 
-      if (!deviceExists) {
-        logger.error(
-          `Maintain Device: Invalid request-- Device ${deviceName} not found`
-        );
+      if (isEmpty(device)) {
         return {
           success: false,
-          message: "Device not found",
+          message: `Invalid request, Device ${deviceName} not found`,
+          errors: { message: `Device ${deviceName} not found` },
           status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: `Invalid request, Device ${deviceName} not found`,
-          },
         };
       }
 
-      // **CRITICAL**: Get full device details to capture device_id
-      const deviceDetails = await DeviceModel(tenant)
-        .findOne({
-          name: deviceName,
-        })
-        .lean();
-
-      if (!deviceDetails || deviceDetails.status !== "deployed") {
+      if (device.status !== "deployed") {
         return {
           success: false,
           message: "Maintenance can only be recorded for deployed devices",
-          status: httpStatus.BAD_REQUEST,
           errors: {
-            message: `Device ${deviceName} is not currently deployed.`,
+            message: `Cannot record maintenance for device ${deviceName} with status "${device.status}"`,
           },
+          status: httpStatus.BAD_REQUEST,
         };
       }
 
-      // **CRITICAL**: Include device_id in activity body
-      const siteActivityBody = {
+      const effectiveSiteId = site_id || device.site_id || null;
+
+      const deviceUpdateData = {
+        $set: {
+          nextMaintenance: getNextMaintenanceDate(date, 3),
+          maintenance_date: (date && new Date(date)) || new Date(),
+        },
+      };
+
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { name: deviceName },
+        deviceUpdateData,
+        { new: true },
+      );
+
+      if (!updatedDevice) {
+        return {
+          success: false,
+          message: "Maintenance operation failed",
+          errors: { message: `Failed to update device ${deviceName}` },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      const activityData = {
         device: deviceName,
-        device_id: deviceDetails._id, // Add device_id!
-        user_id: user_id ? user_id : null,
+        device_id: device._id,
         date: (date && new Date(date)) || new Date(),
-        description: description,
+        description,
         activityType: "maintenance",
-        site_id: site_id || null,
-        grid_id: grid_id || null,
-        network,
-        tags,
-        maintenanceType,
+        maintenanceType: maintenanceType || null,
+        tags: tags || [],
+        host_id: host_id || null,
+        user_id: user_id || null,
+        network: network || device.network,
+        firstName,
+        lastName,
+        userName,
+        email,
+        site_id: effectiveSiteId,
+        grid_id: device.grid_id || null,
         nextMaintenance: getNextMaintenanceDate(date, 3),
       };
 
-      let deviceBody = {};
-      deviceBody["body"] = {};
-      deviceBody["query"] = {};
-      deviceBody["body"]["nextMaintenance"] = getNextMaintenanceDate(date, 3);
-      deviceBody["body"]["maintenance_date"] =
-        (date && new Date(date)) || new Date();
-      deviceBody["query"]["name"] = deviceName;
-      deviceBody["query"]["tenant"] = tenant;
+      const createdActivity = await ActivityModel(tenant).create(activityData);
 
-      const responseFromRegisterActivity = await ActivityModel(tenant).register(
-        siteActivityBody,
-        next
-      );
-
-      if (responseFromRegisterActivity.success === true) {
-        const createdActivity = responseFromRegisterActivity.data;
-
-        const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
-          deviceBody,
-          next
+      if (!createdActivity) {
+        logger.error(
+          `⚠️ Maintenance inconsistency: device ${deviceName} nextMaintenance updated ` +
+            `but activity creation failed. Device _id: ${device._id}`,
         );
-
-        if (responseFromUpdateDevice.success === true) {
-          const updatedDevice = responseFromUpdateDevice.data;
-
-          // **NEW: Update activity cache immediately**
-          await updateActivityCache(
-            tenant,
-            siteActivityBody.site_id,
-            deviceDetails._id,
-            deviceName,
-            next
-          );
-
-          const data = {
-            createdActivity: {
-              activity_codes: createdActivity.activity_codes,
-              tags: createdActivity.tags,
-              _id: createdActivity._id,
-              device: createdActivity.device,
-              device_id: createdActivity.device_id, // Now populated!
-              date: createdActivity.date,
-              description: createdActivity.description,
-              activityType: createdActivity.activityType,
-              site_id: createdActivity.site_id,
-              grid_id: createdActivity.grid_id,
-              deployment_type: createdActivity.deployment_type,
-              host_id: createdActivity.host_id,
-              network: createdActivity.network,
-              nextMaintenance: createdActivity.nextMaintenance,
-              createdAt: createdActivity.createdAt,
-            },
-            updatedDevice: {
-              _id: updatedDevice._id,
-              long_name: updatedDevice.long_name,
-              status: updatedDevice.status,
-              device_number: updatedDevice.device_number,
-              name: updatedDevice.name,
-              maintenance_date: updatedDevice.maintenance_date,
-              nextMaintenance: updatedDevice.nextMaintenance,
-            },
-            user_id: user_id ? user_id : null,
-          };
-
-          try {
-            const kafkaProducer = kafka.producer({
-              groupId: constants.UNIQUE_PRODUCER_GROUP,
-            });
-            await kafkaProducer.connect();
-            await kafkaProducer.send({
-              topic: "activities-topic",
-              messages: [
-                {
-                  action: "create",
-                  value: JSON.stringify(data),
-                },
-              ],
-            });
-
-            await kafkaProducer.disconnect();
-          } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
-          }
-
-          return {
-            success: true,
-            message: "successfully maintained the device",
-            data,
-          };
-        } else if (responseFromUpdateDevice.success === false) {
-          return responseFromUpdateDevice;
-        }
-      } else if (responseFromRegisterActivity.success === false) {
-        return responseFromRegisterActivity;
+        return {
+          success: false,
+          message:
+            "Maintenance partially completed — activity record not created",
+          errors: {
+            message:
+              "Device was updated but maintenance activity log could not be created",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
+
+      Promise.allSettled([
+        updateActivityCache(
+          tenant,
+          effectiveSiteId,
+          device._id,
+          deviceName,
+          next,
+        ),
+      ]).then((results) => {
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            logger.error(
+              `Cache update failed for ${deviceName}: ${result.reason?.message}`,
+            );
+          }
+        });
+      });
+
+      // Refresh site data_provider — maintenance doesn't change device
+      // assignment but is a good opportunity to correct any stale value.
+      if (effectiveSiteId) {
+        createSiteUtil.refreshSiteDataProvider(tenant, effectiveSiteId);
+      }
+
+      // Use toObject() on both Mongoose documents — same serialization
+      // risk as the recall function. findOneAndUpdate() returns a Mongoose
+      // document, and ActivityModel.create() also returns one. Without
+      // toObject(), JSON.stringify() may produce incomplete output and the
+      // Kafka consumer would log "Missing required fields".
+      (async () => {
+        try {
+          const maintainTopic = constants.MAINTAIN_TOPIC || "maintain-topic";
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: maintainTopic,
+            messages: [
+              {
+                value: JSON.stringify({
+                  createdActivity: createdActivity.toObject
+                    ? createdActivity.toObject()
+                    : createdActivity,
+                  updatedDevice: updatedDevice.toObject
+                    ? updatedDevice.toObject()
+                    : updatedDevice,
+                  user_id: user_id || null,
+                }),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(
+            `Kafka maintenance notification failed: ${error.message}`,
+          );
+        }
+      })();
+
+      return {
+        success: true,
+        message: "successfully maintained the device",
+        data: {
+          createdActivity: {
+            activity_codes: createdActivity.activity_codes,
+            tags: createdActivity.tags,
+            _id: createdActivity._id,
+            device: createdActivity.device,
+            device_id: createdActivity.device_id,
+            date: createdActivity.date,
+            description: createdActivity.description,
+            activityType: createdActivity.activityType,
+            maintenanceType: createdActivity.maintenanceType,
+            site_id: createdActivity.site_id,
+            grid_id: createdActivity.grid_id,
+            deployment_type: createdActivity.deployment_type,
+            host_id: createdActivity.host_id,
+            network: createdActivity.network,
+            nextMaintenance: createdActivity.nextMaintenance,
+            firstName: createdActivity.firstName,
+            lastName: createdActivity.lastName,
+            userName: createdActivity.userName,
+            email: createdActivity.email,
+            createdAt: createdActivity.createdAt,
+          },
+          updatedDevice: {
+            _id: updatedDevice._id,
+            name: updatedDevice.name,
+            long_name: updatedDevice.long_name,
+            device_number: updatedDevice.device_number,
+            isActive: updatedDevice.isActive,
+            status: updatedDevice.status,
+            nextMaintenance: updatedDevice.nextMaintenance,
+            maintenance_date: updatedDevice.maintenance_date,
+            site_id: updatedDevice.site_id,
+            network: updatedDevice.network,
+            category: updatedDevice.category,
+            deployment_type: updatedDevice.deployment_type,
+          },
+          user_id: user_id || null,
+        },
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Maintain Error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
+
   getDeploymentStatistics: async (request, next) => {
     try {
       const { query } = request;
@@ -1900,11 +2854,12 @@ const createActivity = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
+
   getDevicesByDeploymentType: async (request, next) => {
     try {
       const { query, params } = request;
@@ -1937,7 +2892,8 @@ const createActivity = {
             as: deploymentType === "static" ? "site_temp" : "grid_temp",
           },
         },
-        // Convert array to single object using $unwind (with preserveNullAndEmptyArrays to handle missing references)
+        // Convert array to single object using $unwind
+        // (with preserveNullAndEmptyArrays to handle missing references)
         {
           $unwind: {
             path: deploymentType === "static" ? "$site_temp" : "$grid_temp",
@@ -1999,17 +2955,18 @@ const createActivity = {
       };
     } catch (error) {
       logger.error(
-        `🐛🐛 Get Devices By Deployment Type Error ${error.message}`
+        `🐛🐛 Get Devices By Deployment Type Error ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
+
   recalculateNextMaintenance: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -2043,7 +3000,8 @@ const createActivity = {
       // Validate dates and track invalid rows
       const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
       const invalidActivities = [];
-      // Build latest maintenance date per device across ALL maintenance activities
+      // Build latest maintenance date per device across ALL maintenance
+      // activities
       const latestMaintenanceDateByDevice = new Map();
       for (const a of maintenanceActivities) {
         if (!isValidDate(a.date)) {
@@ -2081,7 +3039,9 @@ const createActivity = {
           activityBulkOps.push({
             updateOne: {
               filter: { _id: activity._id },
-              update: { $set: { nextMaintenance: correctNextMaintenance } },
+              update: {
+                $set: { nextMaintenance: correctNextMaintenance },
+              },
             },
           });
           // Mark device as needing nextMaintenance re-evaluation
@@ -2092,7 +3052,7 @@ const createActivity = {
       if (!dry_run && activityBulkOps.length > 0) {
         const activityResult = await ActivityModel(tenant).bulkWrite(
           activityBulkOps,
-          { ordered: false }
+          { ordered: false },
         );
         updatedActivitiesCount = activityResult.modifiedCount;
 
@@ -2108,12 +3068,12 @@ const createActivity = {
 
           for (const device of devices) {
             const latestMaintenanceDate = latestMaintenanceDateByDevice.get(
-              device.name
+              device.name,
             );
             if (!latestMaintenanceDate) continue;
             const latestCorrectNextMaintenance = getNextMaintenanceDate(
               latestMaintenanceDate,
-              3
+              3,
             );
             // Only update when it actually changes
             if (
@@ -2125,7 +3085,9 @@ const createActivity = {
                 updateOne: {
                   filter: { _id: device._id },
                   update: {
-                    $set: { nextMaintenance: latestCorrectNextMaintenance },
+                    $set: {
+                      nextMaintenance: latestCorrectNextMaintenance,
+                    },
                   },
                 },
               });
@@ -2135,7 +3097,7 @@ const createActivity = {
           if (deviceBulkOps.length > 0) {
             const deviceResult = await DeviceModel(tenant).bulkWrite(
               deviceBulkOps,
-              { ordered: false }
+              { ordered: false },
             );
             updatedDevicesCount = deviceResult.modifiedCount || 0;
           }
@@ -2173,11 +3135,12 @@ const createActivity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
+
   backfillDeviceIds: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -2185,7 +3148,8 @@ const createActivity = {
 
       logText(`Starting device_id backfill for tenant: ${tenant}`);
 
-      // Build filter for activities without device_id but WITH a valid device name
+      // Build filter for activities without device_id but WITH a valid
+      // device name
       const filter = {
         $or: [{ device_id: null }, { device_id: { $exists: false } }],
         device: { $exists: true, $nin: [null, ""] },
@@ -2210,7 +3174,7 @@ const createActivity = {
 
         return {
           success: true,
-          message: "Dry run completed - no changes made",
+          message: "Dry run completed - no changes were made",
           data: {
             total_activities_needing_backfill: totalCount,
             sample_device_names: sampleDeviceNames,
@@ -2242,7 +3206,8 @@ const createActivity = {
         logText(`Processing batch #${batchNumber} (batch_size=${batch_size})`);
 
         // Fetch batch with minimal projection
-        // No skip needed - updated documents automatically drop out of filter
+        // No skip needed - updated documents automatically drop out of
+        // filter
         const batchActivities = await ActivityModel(tenant)
           .find(filter)
           .select("_id device activityType date")
@@ -2308,7 +3273,7 @@ const createActivity = {
           });
           totalBackfilled += batchResult.modifiedCount;
           logText(
-            `Batch #${batchNumber} updated: ${batchResult.modifiedCount} activities`
+            `Batch #${batchNumber} updated: ${batchResult.modifiedCount} activities`,
           );
         }
 
@@ -2317,31 +3282,32 @@ const createActivity = {
         // Log progress
         const progressPercent = Math.round((processedCount / totalCount) * 100);
         logText(
-          `Progress: ${processedCount}/${totalCount} activities processed (${progressPercent}%)`
+          `Progress: ${processedCount}/${totalCount} activities processed (${progressPercent}%)`,
         );
 
         // Safety check: prevent infinite loops
         if (batchNumber > BACK_FILL_BATCH_SIZE) {
           logger.warn(
-            `Safety limit reached (${BACK_FILL_BATCH_SIZE} batches), stopping backfill`
+            `Safety limit reached (${BACK_FILL_BATCH_SIZE} batches), stopping backfill`,
           );
           break;
         }
       }
 
-      // After successful backfill, trigger cache recalculation for affected devices
+      // After successful backfill, trigger cache recalculation for
+      // affected devices
       if (totalBackfilled > 0) {
         logText("Triggering cache updates for affected devices...");
 
         // Get unique device names that were updated
         const updatedDeviceNames = [...deviceCache.keys()].filter(
-          (name) => deviceCache.get(name) !== null
+          (name) => deviceCache.get(name) !== null,
         );
 
         // Update cache for devices (limit to first 50 to avoid timeout)
         const devicesToUpdate = updatedDeviceNames.slice(
           0,
-          UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
+          UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE,
         );
 
         Promise.all(
@@ -2354,19 +3320,19 @@ const createActivity = {
                   null,
                   device._id,
                   deviceName,
-                  next
+                  next,
                 );
               }
             } catch (error) {
               logger.error(
-                `Failed to update cache for ${deviceName}: ${error.message}`
+                `Failed to update cache for ${deviceName}: ${error.message}`,
               );
             }
-          })
+          }),
         )
           .then(() => {
             logText(
-              `Cache updates completed for ${devicesToUpdate.length} devices`
+              `Cache updates completed for ${devicesToUpdate.length} devices`,
             );
           })
           .catch((error) => {
@@ -2391,9 +3357,9 @@ const createActivity = {
           cache_update_triggered: totalBackfilled > 0,
           cache_updates_queued: Math.min(
             [...deviceCache.keys()].filter(
-              (name) => deviceCache.get(name) !== null
+              (name) => deviceCache.get(name) !== null,
             ).length,
-            UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE
+            UPDATE_DEVICE_NAMES_CACHE_BATCH_SIZE,
           ),
         },
         status: httpStatus.OK,
@@ -2403,10 +3369,11 @@ const createActivity = {
       next(
         new HttpError("Backfill Failed", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
-        })
+        }),
       );
     }
   },
+
   refreshActivityCaches: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -2432,7 +3399,7 @@ const createActivity = {
                 device.site_id,
                 device._id,
                 deviceName,
-                next
+                next,
               );
               refreshedDevices.push(deviceName);
             } else {
@@ -2456,7 +3423,7 @@ const createActivity = {
               ObjectId(site_id),
               null,
               null,
-              next
+              next,
             );
             refreshedSites.push(site_id);
           } catch (error) {
@@ -2480,7 +3447,7 @@ const createActivity = {
               device.site_id,
               device._id,
               device.name,
-              next
+              next,
             );
             refreshedDevices.push(device.name);
           } catch (error) {
@@ -2510,8 +3477,8 @@ const createActivity = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },

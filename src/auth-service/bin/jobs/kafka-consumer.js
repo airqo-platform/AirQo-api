@@ -267,7 +267,7 @@ const emailsForDeployedDevices = async (messageData) => {
       lastName: user.lastName,
       deviceDetails: extractDeviceDetails(updatedDevice),
       activityDetails: extractActivityDetails(createdActivity),
-      activityType: "deploy",
+      activityType: "deployment",
     });
 
     // Handle email response

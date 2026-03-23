@@ -13,6 +13,8 @@ import xarray as xr
 from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import DeviceNetwork
+from airqo_etl_utils.sql import query_manager
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -450,3 +452,75 @@ class SatelliteUtils:
         except Exception as e:
             logger.error(f"Error processing GRIB2 file: {e}")
             raise
+
+    @staticmethod
+    def approximate_satellite_data_locations_for_airquality_measurements(
+        start_date: str, end_date: str
+    ) -> pd.DataFrame:
+        """
+        Computes closest latitude and longitude approximations for satellite data points.
+        Args:
+            start_date (str): The start date for filtering records (format: 'YYYY-MM-DD').
+            end_date (str): The end date for filtering records (format: 'YYYY-MM-DD').
+        Returns:
+            pd.DataFrame: DataFrame containing timestamp, latitudes and longitudes and airquality measurements.
+        """
+        query: str = ""
+        if query_manager.query_exists("location_approximated_satellite_hourly_data"):
+            query = query_manager.get_query(
+                "location_approximated_satellite_hourly_data"
+            )
+        else:
+            logger.warning(
+                "Query 'location_approximated_satellite_hourly_data' not found in QueryManager. Using fallback query string."
+            )
+            raise RuntimeError(
+                "Required query 'location_approximated_satellite_hourly_data' not found in QueryManager. Please ensure the query is defined and available."
+            )
+
+        query = query.format(
+            geo_table=configuration.BIGQUERY_GEO_CONTINENT_META_DATA_TABLE,
+            sat_table=configuration.BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE,
+            start_date=start_date,
+            end_date=end_date,
+            distance_meters=100,
+        )
+
+        from airqo_etl_utils.storage import get_configured_storage
+
+        storage_adapter = get_configured_storage()
+
+        if storage_adapter is None:
+            raise RuntimeError(
+                "No configured storage adapter available; set STORAGE_BACKEND or check configuration"
+            )
+
+        try:
+            logger.info(
+                "Starting download of satellite data approximations from BigQuery."
+            )
+            data = storage_adapter.download_query(query)
+            logger.info(f"Downloaded {len(data)} records from BigQuery.")
+        except Exception as e:
+            logger.error(f"Error downloading data from BigQuery: {e}")
+            raise
+
+        if data.empty:
+            logger.info("No data found for the specified date range.")
+            return pd.DataFrame(
+                columns=[
+                    "country",
+                    "city",
+                    "latitude",
+                    "longitude",
+                    "pm2_5",
+                    "pm10",
+                    "wind_speed",
+                    "wind_direction",
+                    "timestamp",
+                    "data_type",
+                ]
+            )
+        data["data_type"] = "FORECAST"
+        data["network"] = DeviceNetwork.COPERNICUS.str
+        return data

@@ -9,7 +9,7 @@ images:
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-065caafc-1765878715
+  tag: stage-09828193-1773150378
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api
@@ -50,7 +50,10 @@ jobs:
   resources:
     limits:
       cpu: 1000m
-      memory: 4000Mi
+      memory: 3000Mi
+    requests:
+      cpu: 100m
+      memory: 500Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
