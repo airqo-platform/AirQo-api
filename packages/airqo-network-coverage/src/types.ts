@@ -104,7 +104,7 @@ export type ApiEnvelope<T> = ApiSuccessEnvelope<T> | ApiErrorEnvelope;
  * Response shape for GET /network-coverage
  */
 export interface NetworkCoverageListResponse {
-  success: boolean;
+  success: true;
   message: string;
   meta: NetworkCoverageMeta;
   countries: CountrySummary[];
@@ -115,7 +115,7 @@ export interface NetworkCoverageListResponse {
  * Response shape for GET /network-coverage/monitors/:monitorId
  */
 export interface MonitorDetailResponse {
-  success: boolean;
+  success: true;
   message: string;
   data: MonitorListItem;
 }
@@ -124,7 +124,7 @@ export interface MonitorDetailResponse {
  * Response shape for GET /network-coverage/countries/:countryId/monitors
  */
 export interface CountryMonitorsResponse {
-  success: boolean;
+  success: true;
   message: string;
   countryId: string;
   country: string;
@@ -136,7 +136,7 @@ export interface CountryMonitorsResponse {
  * Response shape for POST /network-coverage/registry
  */
 export interface RegistryUpsertResponse {
-  success: boolean;
+  success: true;
   message: string;
   /** 201 when created, 200 when updated */
   status: number;

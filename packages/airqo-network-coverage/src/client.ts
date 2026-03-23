@@ -40,6 +40,51 @@ function typesParam(types?: MonitorType | MonitorType[]): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Runtime payload assertion
+// ---------------------------------------------------------------------------
+
+/**
+ * Fails fast before a network request is made when the payload violates the
+ * Shape A / Shape B contract that TypeScript enforces at compile time but
+ * JavaScript callers or dynamic data can bypass at runtime.
+ *
+ * Shape A (site_id present)  — no required fields; name/country/lat/lng are optional overrides.
+ * Shape B (site_id absent)   — name, country, latitude, longitude are all required and valid.
+ */
+function assertRegistryPayload(payload: RegistryUpsertPayload): void {
+  if ("site_id" in payload && payload.site_id !== undefined) {
+    // Shape A — nothing further to assert; optional fields are caller's choice.
+    return;
+  }
+
+  // Shape B — standalone entry: validate required location fields.
+  const errors: string[] = [];
+
+  if (typeof (payload as { name?: unknown }).name !== "string" || !(payload as { name: string }).name.trim()) {
+    errors.push("name must be a non-empty string");
+  }
+  if (typeof (payload as { country?: unknown }).country !== "string" || !(payload as { country: string }).country.trim()) {
+    errors.push("country must be a non-empty string");
+  }
+
+  const lat = (payload as { latitude?: unknown }).latitude;
+  if (typeof lat !== "number" || !isFinite(lat) || lat < -90 || lat > 90) {
+    errors.push("latitude must be a finite number between -90 and 90");
+  }
+
+  const lng = (payload as { longitude?: unknown }).longitude;
+  if (typeof lng !== "number" || !isFinite(lng) || lng < -180 || lng > 180) {
+    errors.push("longitude must be a finite number between -180 and 180");
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Invalid standalone registry payload (Shape B requires name, country, latitude, longitude): ${errors.join("; ")}`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // NetworkCoverageClient
 // ---------------------------------------------------------------------------
 
@@ -291,6 +336,7 @@ export class NetworkCoverageClient {
   async upsertRegistry(
     payload: RegistryUpsertPayload
   ): Promise<RegistryUpsertResponse> {
+    assertRegistryPayload(payload);
     const { tenant, ...body } = payload;
     const qs = buildQuery({ tenant: tenant ?? this.defaultTenant });
     return this.post<RegistryUpsertResponse>(
