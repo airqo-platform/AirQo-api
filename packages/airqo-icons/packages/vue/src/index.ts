@@ -3,4 +3,4 @@ export * from "./components";
 export * from "./types";
 
 // Version information
-export const version = "0.2.3";
+export const version = "0.2.5";

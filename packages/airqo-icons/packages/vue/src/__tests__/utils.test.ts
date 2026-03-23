@@ -3,7 +3,7 @@ import { iconGroups, totalIcons, allIconNames, version } from "../index";
 
 describe("Vue Package Utilities", () => {
   it("should export version information", () => {
-    expect(version).toBe("0.2.3");
+    expect(version).toBe("0.2.5");
     expect(typeof version).toBe("string");
   });
 
