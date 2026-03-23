@@ -1,4 +1,4 @@
-// index.ts — Public API surface for @airqo/network-coverage
+// index.ts — Public API surface for @airqo-packages/network-coverage
 
 export { NetworkCoverageClient, NetworkCoverageError } from "./client.js";
 

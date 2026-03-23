@@ -12,6 +12,8 @@ Requires **Node.js ≥ 18** (uses native `fetch`). No runtime dependencies.
 npm install @airqo-packages/network-coverage
 ```
 
+> **Migrating from an earlier version?** Replace `@airqo/network-coverage` with `@airqo-packages/network-coverage` in your `package.json` and all import statements.
+
 ---
 
 ## Quick start
