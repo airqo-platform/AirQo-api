@@ -273,8 +273,8 @@ function buildStandaloneMonitorItem(registryDoc) {
     city: registryDoc.city || "",
     country,
     iso2: registryDoc.iso2 || getIso2(country),
-    latitude: registryDoc.latitude || 0,
-    longitude: registryDoc.longitude || 0,
+    latitude: registryDoc.latitude ?? null,
+    longitude: registryDoc.longitude ?? null,
     type: registryDoc.type || "LCS",
     status: registryDoc.status || "active",
     lastActive: registryDoc.lastActive
