@@ -1,5 +1,5 @@
 {
-  "name": "@airqo/network-coverage",
+  "name": "@airqo-packages/network-coverage",
   "version": "1.0.0",
   "description": "Node.js client for the AirQo Network Coverage API — typed wrappers for all monitor and registry endpoints",
   "main": "dist/index.js",
