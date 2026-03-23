@@ -725,6 +725,9 @@ const getEmailSubject = (functionName, params) => {
     notifyOrgRequestApprovedWithOnboarding: `Welcome to AirQo: Complete Your Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
+    notifyGroupStatusChanged: `Organisation Status Update (${sanitizeEmailString(
+      params.new_status || "",
+    )}) - ${sanitizeEmailString(params.organization_name || "")}`,
     onboardingAccountSetup: `Complete Your AirQo Account Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
@@ -817,6 +820,7 @@ const EMAIL_CATEGORIES = {
     "expiredToken",
     "expiringToken",
     "onboardingAccountSetup",
+    "notifyGroupStatusChanged",
   ],
 
   ORG_MANAGEMENT: [
@@ -2477,6 +2481,22 @@ const mailer = {
         bcc: bccEmails || undefined,
       };
     },
+  ),
+  // Mandatory lifecycle notification — sent to the group manager and all members
+  // when an admin changes group status. Deactivation always triggers this;
+  // activation also notifies the manager. Bypasses unsubscribe checks (CORE_CRITICAL)
+  // because loss of access must reach affected users regardless of email preferences.
+  notifyGroupStatusChanged: createMailerFunction(
+    "notifyGroupStatusChanged",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.groupStatusChanged({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        new_status: params.new_status,
+        reason: params.reason,
+        email: params.email,
+      }),
   ),
 };
 

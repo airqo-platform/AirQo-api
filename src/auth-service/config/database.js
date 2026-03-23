@@ -27,11 +27,14 @@ const options = {
   useFindAndModify: false,
   useUnifiedTopology: true,
   autoIndex: true,
-  poolSize: 10,
+  // Allow overriding via env for tuning across environments.
+  // Default 100 supports ~1000 concurrent logins (each login uses ~3-5 pool
+  // slots across auth + session + stats queries).
+  poolSize: parseInt(constants.MONGODB_POOL_SIZE || "100", 10),
   bufferMaxEntries: 0,
-  connectTimeoutMS: 1200000,
-  socketTimeoutMS: 600000,
-  serverSelectionTimeoutMS: 3600000,
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 60000,
+  serverSelectionTimeoutMS: 30000,
 };
 
 let rbacInitialized = false;
@@ -232,11 +235,21 @@ const connectToMongoDB = () => {
 
         const {
           ensureDefaultAirqoGroupExists,
+          activateAllExistingGroups,
         } = require("@bin/jobs/default-group-init-job");
-        console.log("🚀 Kicking off default group initialization...");
-        ensureDefaultAirqoGroupExists().catch((err) => {
+
+        // Awaited so both complete before further startup proceeds. The
+        // activation migration in particular must finish before the Option C
+        // JWT guard can safely enforce ACTIVE-only group permissions.
+        console.log("🚀 Initializing default group and running activation migration...");
+        await ensureDefaultAirqoGroupExists().catch((err) => {
           logger.error(
-            `Background job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
+            `Startup job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
+          );
+        });
+        await activateAllExistingGroups().catch((err) => {
+          logger.error(
+            `Startup job 'activateAllExistingGroups' failed: ${err.message}`,
           );
         });
 
