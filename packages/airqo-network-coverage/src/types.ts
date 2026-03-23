@@ -174,19 +174,10 @@ export interface ExportCsvParams {
 }
 
 /**
- * Body for POST /network-coverage/registry
- *
- * Shape A (AirQo-site enrichment): provide `site_id`; name/country/lat/lng optional.
- * Shape B (Standalone entry): omit `site_id`; name, country, latitude, longitude required.
+ * Shared optional metadata fields present in both registry payload shapes.
  */
-export interface RegistryUpsertPayload {
-  /** AirQo Site `_id`. Omit for standalone/external entries. */
-  site_id?: string;
-  name?: string;
+interface RegistryCommonFields {
   city?: string;
-  country?: string;
-  latitude?: number;
-  longitude?: number;
   type?: MonitorType;
   status?: MonitorStatus;
   /** ISO 3166-1 alpha-2 override */
@@ -213,6 +204,39 @@ export interface RegistryUpsertPayload {
   lastActive?: string;
   tenant?: string;
 }
+
+/**
+ * Shape A — AirQo-site enrichment.
+ * Provide `site_id`; name/country/lat/lng are optional (sourced live from the Site document).
+ */
+export type RegistryUpsertWithSite = RegistryCommonFields & {
+  site_id: string;
+  name?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+/**
+ * Shape B — Standalone external entry.
+ * Omit `site_id`; name, country, latitude, and longitude are required.
+ */
+export type RegistryUpsertStandalone = RegistryCommonFields & {
+  site_id?: never;
+  name: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+};
+
+/**
+ * Body for POST /network-coverage/registry.
+ *
+ * Two mutually exclusive shapes enforced at compile time:
+ *   - `RegistryUpsertWithSite`   — pass `site_id` to enrich an existing AirQo site
+ *   - `RegistryUpsertStandalone` — omit `site_id` and provide name/country/lat/lng for an external entry
+ */
+export type RegistryUpsertPayload = RegistryUpsertWithSite | RegistryUpsertStandalone;
 
 // ---------------------------------------------------------------------------
 // Client configuration

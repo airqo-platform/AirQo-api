@@ -37,6 +37,15 @@
   ],
   "author": "AirQo",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/airqo-platform/AirQo-api.git",
+    "directory": "packages/airqo-network-coverage"
+  },
+  "bugs": {
+    "url": "https://github.com/airqo-platform/AirQo-api/issues"
+  },
+  "homepage": "https://github.com/airqo-platform/AirQo-api/tree/main/packages/airqo-network-coverage#readme",
   "devDependencies": {
     "@types/jest": "^29.5.8",
     "@types/node": "^20.11.0",

@@ -27,6 +27,8 @@ export type {
   ListParams,
   ExportCsvParams,
   RegistryUpsertPayload,
+  RegistryUpsertWithSite,
+  RegistryUpsertStandalone,
 
   // Client config
   NetworkCoverageClientOptions,

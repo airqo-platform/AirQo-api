@@ -79,7 +79,8 @@ export class NetworkCoverageClient {
         throw new NetworkCoverageError(message, response.status, body);
       }
 
-      return response.json() as Promise<T>;
+      const data = await response.json() as T;
+      return data;
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         throw new NetworkCoverageError(
@@ -109,7 +110,7 @@ export class NetworkCoverageClient {
         throw new NetworkCoverageError(response.statusText, response.status);
       }
 
-      return response.text();
+      return await response.text();
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         throw new NetworkCoverageError(
@@ -146,7 +147,8 @@ export class NetworkCoverageClient {
         throw new NetworkCoverageError(message, response.status, responseBody);
       }
 
-      return response.json() as Promise<T>;
+      const data = await response.json() as T;
+      return data;
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         throw new NetworkCoverageError(
@@ -179,7 +181,8 @@ export class NetworkCoverageClient {
         throw new NetworkCoverageError(message, response.status, body);
       }
 
-      return response.json() as Promise<T>;
+      const data = await response.json() as T;
+      return data;
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         throw new NetworkCoverageError(
