@@ -2,9 +2,10 @@
 const { query, body, param } = require("express-validator");
 const constants = require("@config/constants");
 const { isValidObjectId } = require("mongoose");
+const NetworkCoverageRegistryModel = require("@models/NetworkCoverageRegistry");
 
-const MONITOR_TYPES = ["Reference", "LCS", "Inactive"];
-const MONITOR_STATUSES = ["active", "inactive"];
+// Single source of truth — defined in the model and exported for reuse here
+const { MONITOR_TYPES, MONITOR_STATUSES } = NetworkCoverageRegistryModel;
 
 const commonTenant = query("tenant")
   .optional()
@@ -112,19 +113,24 @@ const networkCoverageValidations = {
         return true;
       }),
 
-    // For standalone entries (no site_id) these three become required
-    body("name").custom((value, { req }) => {
-      if (!req.body.site_id && (!value || !String(value).trim())) {
-        throw new Error("name is required for standalone monitor entries");
-      }
-      return true;
-    }),
-    body("country").custom((value, { req }) => {
-      if (!req.body.site_id && (!value || !String(value).trim())) {
-        throw new Error("country is required for standalone monitor entries");
-      }
-      return true;
-    }),
+    // For standalone entries (no site_id) name and country are required
+    // strings. Using .if() enforces type and emptiness consistently.
+    body("name")
+      .if((_value, { req }) => !req.body.site_id)
+      .isString()
+      .withMessage("name must be a string for standalone monitor entries")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("name is required for standalone monitor entries"),
+    body("country")
+      .if((_value, { req }) => !req.body.site_id)
+      .isString()
+      .withMessage("country must be a string for standalone monitor entries")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("country is required for standalone monitor entries"),
     body("latitude").custom((value, { req }) => {
       if (!req.body.site_id) {
         const num = parseFloat(value);

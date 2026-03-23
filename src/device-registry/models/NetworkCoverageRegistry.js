@@ -40,7 +40,9 @@ const networkCoverageRegistrySchema = new Schema(
     site_id: {
       type: ObjectId,
       ref: "site",
-      default: null,
+      // No default — omit the field entirely for standalone entries so the
+      // sparse unique index skips them. Defaulting to null would make MongoDB
+      // treat null as an indexed value, allowing only one standalone document.
       index: true,
       sparse: true,
       unique: true,   // at most one registry entry per AirQo site
@@ -161,20 +163,29 @@ networkCoverageRegistrySchema.statics.list = async function (
 networkCoverageRegistrySchema.statics.register = async function (data) {
   try {
     let record;
+    let isNew;
+
     if (data.site_id) {
-      record = await this.findOneAndUpdate(
+      // Use rawResult so we can detect create vs update via lastErrorObject
+      const raw = await this.findOneAndUpdate(
         { site_id: data.site_id },
         { $set: data },
-        { new: true, upsert: true, runValidators: true }
+        { new: true, upsert: true, runValidators: true, rawResult: true }
       );
+      record = raw.value;
+      isNew = !raw.lastErrorObject.updatedExisting;
     } else {
       record = await this.create(data);
+      isNew = true;
     }
+
     return {
       success: true,
       data: record,
-      message: "Registry record saved successfully",
-      status: httpStatus.OK,
+      message: isNew
+        ? "Registry record created successfully"
+        : "Registry record updated successfully",
+      status: isNew ? httpStatus.CREATED : httpStatus.OK,
     };
   } catch (error) {
     logger.error(`Error saving registry record: ${error.message}`);
@@ -231,5 +242,9 @@ const NetworkCoverageRegistryModel = (tenant) => {
     throw error;
   }
 };
+
+// Export shared enums so validators and other modules use the same values
+NetworkCoverageRegistryModel.MONITOR_TYPES = MONITOR_TYPES;
+NetworkCoverageRegistryModel.MONITOR_STATUSES = MONITOR_STATUSES;
 
 module.exports = NetworkCoverageRegistryModel;

@@ -1,7 +1,6 @@
 // network-coverage.controller.js
 const httpStatus = require("http-status");
 const {
-  logObject,
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
@@ -66,7 +65,7 @@ const networkCoverageController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      const result = await networkCoverageUtil.list(request, next);
+      const result = await networkCoverageUtil.list(request);
 
       if (!result || res.headersSent) return;
       const { success, status, data, message, errors } = result;
@@ -102,7 +101,7 @@ const networkCoverageController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      const result = await networkCoverageUtil.getMonitor(request, next);
+      const result = await networkCoverageUtil.getMonitor(request);
       sendResponse(res, result, "monitor");
     } catch (error) {
       handleError(error, next);
@@ -118,10 +117,7 @@ const networkCoverageController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      const result = await networkCoverageUtil.getCountryMonitors(
-        request,
-        next
-      );
+      const result = await networkCoverageUtil.getCountryMonitors(request);
 
       if (!result || res.headersSent) return;
       const { success, status, data, message, errors } = result;
@@ -158,7 +154,7 @@ const networkCoverageController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      const result = await networkCoverageUtil.exportCsv(request, next);
+      const result = await networkCoverageUtil.exportCsv(request);
 
       if (!result || res.headersSent) return;
 
@@ -185,7 +181,7 @@ const networkCoverageController = {
    * GET /network-coverage/export.pdf
    * PDF export – not yet implemented.
    */
-  exportPdf: async (req, res, next) => {
+  exportPdf: async (_req, res) => {
     return res.status(httpStatus.NOT_IMPLEMENTED).json({
       success: false,
       message: "PDF export is not yet implemented",
@@ -202,7 +198,7 @@ const networkCoverageController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      const result = await networkCoverageUtil.upsertRegistry(request, next);
+      const result = await networkCoverageUtil.upsertRegistry(request);
       sendResponse(res, result, "registry");
     } catch (error) {
       handleError(error, next);
@@ -210,15 +206,15 @@ const networkCoverageController = {
   },
 
   /**
-   * DELETE /network-coverage/registry/:siteId
-   * Remove a registry entry for a site.
+   * DELETE /network-coverage/registry/:registryId
+   * Remove a registry entry.
    */
   deleteRegistry: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      const result = await networkCoverageUtil.deleteRegistry(request, next);
+      const result = await networkCoverageUtil.deleteRegistry(request);
       sendResponse(res, result, "registry");
     } catch (error) {
       handleError(error, next);

@@ -57,8 +57,8 @@ router.get(
 
 // ---------------------------------------------------------------------------
 // Registry management (admin operations for extended metadata)
-// POST  /network-coverage/registry          – upsert registry entry
-// DELETE /network-coverage/registry/:siteId – remove registry entry
+// POST   /network-coverage/registry               – upsert registry entry
+// DELETE /network-coverage/registry/:registryId   – remove registry entry
 // ---------------------------------------------------------------------------
 router.post(
   "/registry",

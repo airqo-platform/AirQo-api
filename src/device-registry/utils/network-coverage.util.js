@@ -184,6 +184,8 @@ function getIso2(countryName) {
 function slugify(str) {
   if (!str) return "";
   return str
+    .normalize("NFD")               // decompose accented chars (e.g. é → e + ́)
+    .replace(/[\u0300-\u036f]/g, "") // strip combining diacritic marks
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, "")
@@ -422,20 +424,30 @@ async function fetchAllSources(tenant) {
     }
   }
 
-  // 3. Fetch all registry records
-  let allRegistry = [];
+  // 3. Fetch only the registry records we actually need:
+  //    a) enrichment docs keyed to the active sites
+  //    b) standalone docs (no site_id at all, or site_id explicitly null for
+  //       legacy records created before the default:null was removed)
+  let enrichmentDocs = [];
+  let standaloneEntries = [];
   try {
-    allRegistry = await NetworkCoverageRegistryModel(tenant).find({}).lean();
+    [enrichmentDocs, standaloneEntries] = await Promise.all([
+      activeSiteIds.length > 0
+        ? NetworkCoverageRegistryModel(tenant)
+            .find({ site_id: { $in: activeSiteIds } })
+            .lean()
+        : Promise.resolve([]),
+      NetworkCoverageRegistryModel(tenant)
+        .find({ $or: [{ site_id: { $exists: false } }, { site_id: null }] })
+        .lean(),
+    ]);
   } catch (err) {
     // Non-fatal — log and continue with empty registry
     logger.warn(`Could not fetch registry records (non-fatal): ${err.message}`);
   }
 
-  // 4. Partition registry into enrichment entries and standalone entries
-  const registryBySiteId = buildRegistryBySiteId(allRegistry);
-  const standaloneEntries = allRegistry.filter(
-    (r) => !r.site_id
-  );
+  // 4. Build enrichment map
+  const registryBySiteId = buildRegistryBySiteId(enrichmentDocs);
 
   return { airqoSites, standaloneEntries, registryBySiteId };
 }
@@ -537,7 +549,7 @@ const networkCoverageUtil = {
         let registryDoc = null;
         try {
           registryDoc = await NetworkCoverageRegistryModel(tenant)
-            .findOne({ site_id: monitorId })
+            .findOne({ site_id: site._id })
             .lean();
         } catch (err) {
           logger.warn(
@@ -681,8 +693,15 @@ const networkCoverageUtil = {
         );
       }
 
-      const escape = (v) =>
-        `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+      // Sanitize a value for CSV:
+      // 1. Neutralize spreadsheet formula injection (=, +, -, @, |, %)
+      // 2. Escape internal double-quotes
+      // 3. Wrap in double-quotes
+      const escape = (v) => {
+        let s = String(v == null ? "" : v);
+        if (/^[=+\-@|%]/.test(s)) s = `'${s}`;
+        return `"${s.replace(/"/g, '""')}"`;
+      };
 
       const header =
         "Country,City,Monitor Name,Type,Status,Latitude,Longitude,Last Active";
@@ -700,10 +719,13 @@ const networkCoverageUtil = {
         ].join(",")
       );
 
+      // Prepend UTF-8 BOM so Excel opens non-ASCII characters correctly
+      const bom = "\uFEFF";
+
       return {
         success: true,
         message: "CSV export ready",
-        data: [header, ...rows].join("\n"),
+        data: bom + [header, ...rows].join("\n"),
         status: httpStatus.OK,
       };
     } catch (error) {
