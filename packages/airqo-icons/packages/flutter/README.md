@@ -1,6 +1,6 @@
 # airqo_icons_flutter
 
-> High-quality Flutter icon widgets with Aq prefix naming - 1,383 icons across 22 categories
+> High-quality Flutter icon widgets with Aq prefix naming - 1,380 icons across 22 categories
 
 [![Pub Version](https://img.shields.io/pub/v/airqo_icons_flutter?style=flat-square&logo=dart)](https://pub.dev/packages/airqo_icons_flutter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
@@ -23,7 +23,7 @@ flutter pub get
 
 ## ✨ Features
 
-- 🎯 **1,383 icons** across 22 comprehensive categories
+- 🎯 **1,380 icons** across 22 comprehensive categories
 - 🏷️ **Aq prefix naming** - Consistent naming convention (AqHome01, AqUser, etc.)
 - 📱 **Flutter 3.0+ compatible** with latest framework features
 - 🎨 **Fully customizable** - size, color, semantic labels
