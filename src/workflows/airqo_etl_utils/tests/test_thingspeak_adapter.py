@@ -1,5 +1,3 @@
-import pytest
-
 from airqo_etl_utils.sources.thingspeak_adapter import ThingSpeakAdapter
 
 
@@ -27,8 +25,11 @@ def test_thingspeak_adapter_fetch(monkeypatch):
     device = {"device_number": 123, "key": "abc"}
     dates = [("2024-01-01T00:00:00Z", "2024-01-01T02:00:00Z")]
 
-    records, meta = adapter.fetch(device, dates)
+    result = adapter.fetch(device, dates)
 
+    assert result.error is None
+    records = result.data["records"]
+    meta = result.data["meta"]
     assert isinstance(records, list)
     assert len(records) == 2
     assert meta.get("id") == 123

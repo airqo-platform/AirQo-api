@@ -296,46 +296,25 @@ class MetaDataUtils:
 
         # TODO: Come up with a structure for pollutants for multi-sensor devices. Currently, only one pollutant is considered.
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # If ThreadPoolExecutor was mocked in tests, it will return a MagicMock
-            # as the executor; in that scenario, executor.submit won't actually
-            # execute the function. Detect that case and call the compute function
-            # synchronously so test patches (mock_compute) are invoked as expected.
-            is_mock_executor = executor.__class__.__name__ == "MagicMock"
-
             results = []
-            if is_mock_executor:
-                for _, device_data in device_metadata.iterrows():
-                    try:
-                        result = MetaDataUtils.compute_baseline_per_entity(
-                            data_type,
-                            device_data,
-                            frequency,
-                            device_category,
-                            device_network=device_network,
-                        )
-                        if result:
-                            results.extend(result)
-                    except Exception as e:
-                        logger.exception(f"Exception in baseline computation: {e}")
-            else:
-                futures = [
-                    executor.submit(
-                        MetaDataUtils.compute_baseline_per_entity,
-                        data_type,
-                        device_data,
-                        frequency,
-                        device_category,
-                        device_network=device_network,
-                    )
-                    for _, device_data in device_metadata.iterrows()
-                ]
-                for future in futures:
-                    try:
-                        result = future.result()
-                        if result:
-                            results.extend(result)
-                    except Exception as e:
-                        logger.exception(f"Exception in baseline computation: {e}")
+            futures = [
+                executor.submit(
+                    MetaDataUtils.compute_baseline_per_entity,
+                    data_type,
+                    device_data,
+                    frequency,
+                    device_category,
+                    device_network=device_network,
+                )
+                for _, device_data in device_metadata.iterrows()
+            ]
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        results.extend(result)
+                except Exception as e:
+                    logger.exception(f"Exception in baseline computation: {e}")
 
         return pd.DataFrame(results)
 
