@@ -15,6 +15,7 @@ from airqo_etl_utils.storage import GCSFileStorage, FileStorage
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from .sources.registry import get_adapter
+from .sources.registry import fetch_from_adapter
 from .airqo_gx_expectations import AirQoGxExpectations
 from .constants import (
     DeviceCategory,
@@ -25,6 +26,7 @@ from .constants import (
     MetaDataType,
     ColumnDataType,
 )
+from .sources.registry import fetch_from_adapter
 from .message_broker_utils import MessageBrokerUtils
 
 from airqo_etl_utils.utils import Utils, drop_rows_with_bad_data
@@ -873,9 +875,8 @@ class DataUtils:
 
             # Prefer adapter-based fetch if available
             if adapter is not None:
+                print(f"Using adapter for device {device.get('device_id')}")
                 try:
-                    from .sources.registry import fetch_from_adapter
-
                     res = fetch_from_adapter(
                         DeviceNetwork.AIRQO,
                         device.to_dict() if hasattr(device, "to_dict") else device,
@@ -898,8 +899,6 @@ class DataUtils:
 
             # If adapter wasn't available or returned no data, attempt direct adapter fetch per-date
             try:
-                from .sources.registry import fetch_from_adapter
-
                 res = fetch_from_adapter(
                     DeviceNetwork.AIRQO,
                     device.to_dict() if hasattr(device, "to_dict") else device,
@@ -924,13 +923,11 @@ class DataUtils:
                 # Prefer adapter-based fetch when available
                 adapter = None
                 try:
-                    adapter = get_adapter(network)
+                    adapter = get_adapter(DeviceNetwork[network.upper()])
                 except Exception:
                     adapter = None
 
                 if adapter is not None:
-                    from .sources.registry import fetch_from_adapter
-
                     res = fetch_from_adapter(
                         network,
                         device.to_dict() if hasattr(device, "to_dict") else device,
