@@ -1,0 +1,60 @@
+{
+  "name": "@airqo/network-coverage",
+  "version": "1.0.0",
+  "description": "Node.js client for the AirQo Network Coverage API — typed wrappers for all monitor and registry endpoints",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsc --watch",
+    "clean": "rimraf dist",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "airqo",
+    "air-quality",
+    "network-coverage",
+    "monitors",
+    "africa"
+  ],
+  "author": "AirQo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/airqo-platform/AirQo-api.git",
+    "directory": "packages/airqo-network-coverage"
+  },
+  "bugs": {
+    "url": "https://github.com/airqo-platform/AirQo-api/issues"
+  },
+  "homepage": "https://github.com/airqo-platform/AirQo-api/tree/main/packages/airqo-network-coverage#readme",
+  "devDependencies": {
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "eslint": "^8.54.0",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.4.0"
+  }
+}
