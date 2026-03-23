@@ -221,15 +221,10 @@ function buildAirQoMonitorItem(siteDoc, registryDoc) {
     city: siteDoc.city || siteDoc.town || siteDoc.district || "",
     country,
     iso2: reg.iso2 || getIso2(country),
-    // Use approximate coordinates for privacy (within 0.5 km)
-    latitude:
-      typeof siteDoc.approximate_latitude === "number"
-        ? siteDoc.approximate_latitude
-        : siteDoc.latitude || 0,
-    longitude:
-      typeof siteDoc.approximate_longitude === "number"
-        ? siteDoc.approximate_longitude
-        : siteDoc.longitude || 0,
+    // Use approximate coordinates for privacy (within 0.5 km).
+    // Null when both values are absent — avoids false (0,0) map points.
+    latitude: siteDoc.approximate_latitude ?? siteDoc.latitude ?? null,
+    longitude: siteDoc.approximate_longitude ?? siteDoc.longitude ?? null,
     // type comes from registry; default LCS (most AirQo sensors are low-cost)
     type: reg.type || "LCS",
     // status driven by live Site.isOnline flag
@@ -694,12 +689,14 @@ const networkCoverageUtil = {
       }
 
       // Sanitize a value for CSV:
-      // 1. Neutralize spreadsheet formula injection (=, +, -, @, |, %)
-      // 2. Escape internal double-quotes
-      // 3. Wrap in double-quotes
+      // 1. Neutralize spreadsheet formula injection — prefix the dangerous
+      //    operator with a single-quote, preserving any leading whitespace so
+      //    the output column alignment is not disturbed.
+      // 2. Escape internal double-quotes.
+      // 3. Wrap in double-quotes.
       const escape = (v) => {
         let s = String(v == null ? "" : v);
-        if (/^[=+\-@|%]/.test(s)) s = `'${s}`;
+        s = s.replace(/^(\s*)([=+\-@|%])/, "$1'$2");
         return `"${s.replace(/"/g, '""')}"`;
       };
 
@@ -752,29 +749,32 @@ const networkCoverageUtil = {
       const { tenant } = request.query;
       const data = request.body;
 
-      // When linking to an AirQo site, verify the site exists and is active
+      // When linking to an AirQo site, verify the Site document exists first,
+      // then check for active devices. Enrichment is allowed even when no
+      // device is currently active (useful for temporarily offline sites).
       if (data.site_id) {
+        const siteExists = await SiteModel(tenant).exists({
+          _id: data.site_id,
+        });
+
+        if (!siteExists) {
+          return {
+            success: false,
+            message: "Site not found",
+            errors: { message: `No site with id ${data.site_id}` },
+            status: httpStatus.NOT_FOUND,
+          };
+        }
+
         const hasActive = await DeviceModel(tenant).exists({
           site_id: data.site_id,
           isActive: true,
         });
 
         if (!hasActive) {
-          // Site might exist but have no active devices — still allow
-          // enrichment (metadata is useful even for temporarily offline sites),
-          // but confirm the Site document exists at minimum.
-          const siteExists = await SiteModel(tenant).exists({
-            _id: data.site_id,
-          });
-
-          if (!siteExists) {
-            return {
-              success: false,
-              message: "Site not found",
-              errors: { message: `No site with id ${data.site_id}` },
-              status: httpStatus.NOT_FOUND,
-            };
-          }
+          logger.warn(
+            `Registry enrichment for site ${data.site_id} — no active device currently attached`
+          );
         }
       }
 

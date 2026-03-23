@@ -188,7 +188,28 @@ networkCoverageRegistrySchema.statics.register = async function (data) {
       status: isNew ? httpStatus.CREATED : httpStatus.OK,
     };
   } catch (error) {
-    logger.error(`Error saving registry record: ${error.message}`);
+    logger.error(`Error saving registry record: ${error.message}`, { error });
+
+    // Duplicate-key (e.g. two enrichment entries for the same site_id)
+    if (error.code === 11000) {
+      return {
+        success: false,
+        message: "A registry record for this site already exists",
+        errors: { message: error.message },
+        status: httpStatus.CONFLICT,
+      };
+    }
+
+    // Mongoose validation or cast errors (bad field values from the caller)
+    if (error.name === "ValidationError" || error.name === "CastError") {
+      return {
+        success: false,
+        message: "Invalid registry data",
+        errors: { message: error.message },
+        status: httpStatus.BAD_REQUEST,
+      };
+    }
+
     return {
       success: false,
       message: "Internal Server Error",
