@@ -1,5 +1,5 @@
 {
-  "name": "@airqo/network-coverage",
+  "name": "@airqo-packages/network-coverage",
   "version": "1.0.0",
   "description": "Node.js client for the AirQo Network Coverage API — typed wrappers for all monitor and registry endpoints",
   "main": "dist/index.js",
@@ -46,6 +46,9 @@
     "url": "https://github.com/airqo-platform/AirQo-api/issues"
   },
   "homepage": "https://github.com/airqo-platform/AirQo-api/tree/main/packages/airqo-network-coverage#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.8",
     "@types/node": "^20.11.0",

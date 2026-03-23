@@ -1,4 +1,4 @@
-# @airqo/network-coverage
+# @airqo-packages/network-coverage
 
 Node.js client for the **AirQo Network Coverage API** — typed wrappers for all monitor and registry endpoints that power the _"Where We Monitor"_ map.
 
@@ -9,15 +9,17 @@ Requires **Node.js ≥ 18** (uses native `fetch`). No runtime dependencies.
 ## Installation
 
 ```bash
-npm install @airqo/network-coverage
+npm install @airqo-packages/network-coverage
 ```
+
+> **Migrating from an earlier version?** Replace `@airqo/network-coverage` with `@airqo-packages/network-coverage` in your `package.json` and all import statements.
 
 ---
 
 ## Quick start
 
 ```ts
-import { NetworkCoverageClient } from "@airqo/network-coverage";
+import { NetworkCoverageClient } from "@airqo-packages/network-coverage";
 
 const client = new NetworkCoverageClient({
   baseUrl: "https://api.airqo.net/api/v2/devices",
@@ -181,7 +183,7 @@ await client.deleteRegistry("64a1f2b3c4d5e6f7a8b9c0d1");
 All methods throw `NetworkCoverageError` on non-2xx responses or timeouts.
 
 ```ts
-import { NetworkCoverageClient, NetworkCoverageError } from "@airqo/network-coverage";
+import { NetworkCoverageClient, NetworkCoverageError } from "@airqo-packages/network-coverage";
 
 try {
   await client.getMonitor("nonexistent-id");
@@ -224,7 +226,7 @@ import type {
   ListParams,
   ExportCsvParams,
   NetworkCoverageClientOptions,
-} from "@airqo/network-coverage";
+} from "@airqo-packages/network-coverage";
 ```
 
 ---
