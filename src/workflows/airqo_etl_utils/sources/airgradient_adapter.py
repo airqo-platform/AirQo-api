@@ -5,15 +5,15 @@ from datetime import datetime
 import pandas as pd
 
 from .adapter import DataSourceAdapter
+from .http_client import HttpClient
 from ..config import configuration
-from ..data_api import DataApi
 from ..constants import DeviceNetwork
 from ..utils import Result
 
 
 class AirGradientAdapter(DataSourceAdapter):
     def __init__(self) -> None:
-        self.data_api = DataApi()
+        self.client = HttpClient()
         self.integration = configuration.INTEGRATION_DETAILS.get(
             DeviceNetwork.AIRGRADIENT.str
         )
@@ -79,13 +79,8 @@ class AirGradientAdapter(DataSourceAdapter):
                 )
 
                 if base_url and device_identifier and not pd.isna(base_url):
-                    url = f"{base_url}/{device_identifier}"
-                    api_data = self.data_api._request(
-                        end_point,
-                        params=params,
-                        base_url=url,
-                        network=DeviceNetwork.AIRGRADIENT,
-                    )
+                    url = f"{base_url}/{device_identifier}/{end_point}"
+                    api_data = self.client.get_json(url, params=params)
                     if api_data is not None:
                         data.extend(api_data)
                 else:

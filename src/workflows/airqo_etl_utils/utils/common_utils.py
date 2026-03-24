@@ -148,7 +148,7 @@ class Utils:
         data_source: DataSource,
         start_date_time,
         end_date_time,
-    ):
+    ) -> List[Tuple[str, str]]:
         """Generate date ranges based on the specified time period and frequency.
 
         Creates an array of date ranges starting from `start_date_time` to `end_date_time`,

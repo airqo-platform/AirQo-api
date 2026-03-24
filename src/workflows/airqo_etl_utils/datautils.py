@@ -14,8 +14,7 @@ from .config import configuration as Config
 from airqo_etl_utils.storage import GCSFileStorage, FileStorage
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
-from .sources.registry import get_adapter
-from .sources.registry import fetch_from_adapter
+from .sources.registry import get_adapter, fetch_from_adapter
 from .airqo_gx_expectations import AirQoGxExpectations
 from .constants import (
     DeviceCategory,
@@ -26,7 +25,6 @@ from .constants import (
     MetaDataType,
     ColumnDataType,
 )
-from .sources.registry import fetch_from_adapter
 from .message_broker_utils import MessageBrokerUtils
 
 from airqo_etl_utils.utils import Utils, drop_rows_with_bad_data
@@ -437,7 +435,7 @@ class DataUtils:
             device_category = DeviceCategory.LOWCOST
 
         devices = DataUtils.get_devices(device_category, device_network)
-
+        devices.sort_values(by="network", inplace=True)
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
         if is_mobile_category:
             # Device registry metadata has multiple devices tagged as mobile and yet aren't
@@ -872,10 +870,7 @@ class DataUtils:
             key = (
                 Utils.decrypt_key(bytes(key, "utf-8")) if isinstance(key, str) else None
             )
-
-            # Prefer adapter-based fetch if available
             if adapter is not None:
-                print(f"Using adapter for device {device.get('device_id')}")
                 try:
                     res = fetch_from_adapter(
                         DeviceNetwork.AIRQO,
@@ -893,43 +888,22 @@ class DataUtils:
                                 DataUtils.map_and_extract_data(mapping, api_data),
                                 meta_data,
                             )
-                except Exception:
-                    # fallback to existing implementation on any adapter error
-                    pass
-
-            # If adapter wasn't available or returned no data, attempt direct adapter fetch per-date
-            try:
-                res = fetch_from_adapter(
-                    DeviceNetwork.AIRQO,
-                    device.to_dict() if hasattr(device, "to_dict") else device,
-                    dates,
-                )
-                if res and res.data and isinstance(res.data, dict):
-                    records = res.data.get("records", [])
-                    meta_tmp = res.data.get("meta", {})
-                    if records:
-                        api_data.extend(records)
-                        meta_data = meta_tmp or meta_data
-                        mapping = config["mapping"][network]
-                        return (
-                            DataUtils.map_and_extract_data(mapping, api_data),
-                            meta_data,
-                        )
-            except Exception:
-                # If adapter call fails, continue with empty api_data (no legacy call)
-                pass
+                except Exception as e:
+                    logger.exception(
+                        f"An error occurred fetching data from adapter: {e} - device {device.get('name')}"
+                    )
         else:
             try:
-                # Prefer adapter-based fetch when available
                 adapter = None
                 try:
-                    adapter = get_adapter(DeviceNetwork[network.upper()])
+                    network_ = DeviceNetwork[network.upper()]
+                    adapter = get_adapter(network_)
                 except Exception:
                     adapter = None
 
                 if adapter is not None:
                     res = fetch_from_adapter(
-                        network,
+                        network_,
                         device.to_dict() if hasattr(device, "to_dict") else device,
                         dates,
                         resolution,
@@ -944,14 +918,12 @@ class DataUtils:
                                 meta or {},
                             )
 
-                # Fallback: attempt adapter-based fetch (already tried above for many networks)
-                # If not handled by adapter, leave as no-data; legacy `DataSourcesApis` removed.
                 logger.info(
                     f"No data returned from {device.get('device_id')} for the given date range or no adapter available"
                 )
             except Exception as e:
                 logger.exception(
-                    f"An error occurred: {e} - device {device.get('name')}"
+                    f"An error occurred fetching data from adapter: {e} - device {device.get('name')}"
                 )
         return pd.DataFrame(), {}
 

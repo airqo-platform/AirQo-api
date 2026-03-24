@@ -498,30 +498,21 @@ class TestAirgradientMethod:
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_success(self, mock_config):
         """Test successful data fetch from AirGradient API."""
-        # Configure mocks
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
-        mock_api_instance._request.return_value = self.data
-        # Create adapter inside the patched DataApi context so the adapter's data_api is mocked
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
         with patch(
-            "airqo_etl_utils.sources.airgradient_adapter.DataApi",
-            return_value=mock_api_instance,
-        ):
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            return_value=self.data,
+        ) as mock_get_json:
             adapter = AirGradientAdapter()
             res = adapter.fetch(self.valid_device, dates=self.dates)
 
-        endpoint = (
-            mock_config.INTEGRATION_DETAILS.get(DeviceNetwork.AIRGRADIENT.str, {})
-            .get("endpoints", {})
-            .get("raw", "")
-            .lstrip("/")
-            .rstrip("/")
-        )
-        mock_api_instance._request.assert_called_once_with(
-            endpoint,
+        mock_get_json.assert_called_once_with(
+            "https://api.example.com/airgradient/DEF456/measures/current",
             params=self.params,
-            base_url="https://api.example.com/airgradient/DEF456",
-            network=DeviceNetwork.AIRGRADIENT,
         )
         assert isinstance(res, Result)
         assert isinstance(res.data.get("records"), list)
@@ -530,13 +521,14 @@ class TestAirgradientMethod:
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_no_data(self, mock_config):
         """Test AirGradient API with no data returned."""
-        # Configure mocks
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
-        mock_api_instance._request.return_value = []
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
         with patch(
-            "airqo_etl_utils.sources.airgradient_adapter.DataApi",
-            return_value=mock_api_instance,
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            return_value=[],
         ):
             adapter = AirGradientAdapter()
             res = adapter.fetch(self.valid_device, self.dates)
@@ -548,13 +540,14 @@ class TestAirgradientMethod:
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_exception(self, mock_config):
         """Test AirGradient API with a generic exception."""
-        # Configure mocks
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
-        mock_api_instance._request.side_effect = Exception("Unknown error")
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
         with patch(
-            "airqo_etl_utils.sources.airgradient_adapter.DataApi",
-            return_value=mock_api_instance,
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            side_effect=Exception("Unknown error"),
         ):
             adapter = AirGradientAdapter()
             res = adapter.fetch(self.valid_device, self.dates)
@@ -565,20 +558,23 @@ class TestAirgradientMethod:
 
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_empty_api_code(self, mock_config):
-        """Test AirGradient API with empty API code in device."""
+        """Test AirGradient API when the device has no serial number (invalid device)."""
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
         invalid_device = {
             "api_code": "",
-            "serial_number": "DEF456",
+            "serial_number": "",
+            "device_number": "",
             "device_id": "device_1",
         }
         with patch(
-            "airqo_etl_utils.sources.airgradient_adapter.DataApi",
-            return_value=mock_api_instance,
-        ):
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json"
+        ) as mock_get_json:
             adapter = AirGradientAdapter()
             res = adapter.fetch(invalid_device, self.dates)
         assert res.data.get("records") == []
         assert res.error is not None
-        mock_api_instance.assert_not_called()
+        mock_get_json.assert_not_called()

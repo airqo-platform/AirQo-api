@@ -28,8 +28,7 @@ def test_openweather_success(mock_get_json):
     assert res.data["records"] == mock_payload
 
 
-@patch("airqo_etl_utils.sources.tahmo_adapter.DataApi.get_tahmo_data")
-def test_tahmo_no_stations(mock_get_tahmo):
+def test_tahmo_no_stations():
     adapter = TahmoAdapter()
     res = adapter.fetch({})
     assert isinstance(res, Result)
@@ -37,9 +36,8 @@ def test_tahmo_no_stations(mock_get_tahmo):
     assert res.error is not None
 
 
-@patch("airqo_etl_utils.sources.tahmo_adapter.DataApi.get_tahmo_data")
+@patch("airqo_etl_utils.sources.tahmo_adapter.TahmoAdapter.get_tahmo_data")
 def test_tahmo_with_data(mock_get_tahmo):
-    # Prepare a simple DataFrame as DataApi would return
     df = pd.DataFrame([{"value": 1, "variable": "temp", "station": "S1", "time": "t1"}])
     mock_get_tahmo.return_value = df
     adapter = TahmoAdapter()
@@ -49,4 +47,19 @@ def test_tahmo_with_data(mock_get_tahmo):
     mock_get_tahmo.assert_called_once()
     assert isinstance(res, Result)
     assert isinstance(res.data["records"], list)
+    assert len(res.data["records"]) == 1
+
+
+@patch("airqo_etl_utils.sources.tahmo_adapter.TahmoAdapter.get_tahmo_data")
+def test_tahmo_single_tuple_dates(mock_get_tahmo):
+    """A single (start, end) tuple should be accepted without unpacking errors."""
+    df = pd.DataFrame([{"value": 2, "variable": "rh", "station": "S2", "time": "t2"}])
+    mock_get_tahmo.return_value = df
+    adapter = TahmoAdapter()
+    device = {"stations": ["S2"]}
+    dates = ("2025-01-01T00:00:00Z", "2025-01-01T01:00:00Z")  # single tuple, not a list
+    res = adapter.fetch(device, dates=dates)
+    mock_get_tahmo.assert_called_once()
+    assert isinstance(res, Result)
+    assert res.error is None
     assert len(res.data["records"]) == 1
