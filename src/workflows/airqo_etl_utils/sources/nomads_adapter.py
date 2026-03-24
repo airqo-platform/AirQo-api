@@ -1,9 +1,10 @@
 from typing import Any, Dict, Optional
 from datetime import datetime
 
-from airqo_etl_utils.sources.adapter import DataSourceAdapter
-from airqo_etl_utils.utils import Result, Utils
+from .adapter import DataSourceAdapter
+from ..constants import DeviceNetwork
 from .http_client import HttpClient
+from ..utils import Result, Utils
 
 
 class NomadsAdapter(DataSourceAdapter):
@@ -62,3 +63,9 @@ class NomadsAdapter(DataSourceAdapter):
         )
 
         return base_url, endpoint, grib_filename
+
+
+# Self-register with the adapter registry
+from .registry import register_adapter  # noqa: E402
+
+register_adapter(DeviceNetwork.NOMADS, NomadsAdapter)

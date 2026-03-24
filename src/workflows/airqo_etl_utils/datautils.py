@@ -14,7 +14,7 @@ from .config import configuration as Config
 from airqo_etl_utils.storage import GCSFileStorage, FileStorage
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
-from .sources.registry import get_adapter, fetch_from_adapter
+from airqo_etl_utils.sources import get_adapter
 from .airqo_gx_expectations import AirQoGxExpectations
 from .constants import (
     DeviceCategory,
@@ -872,8 +872,7 @@ class DataUtils:
             )
             if adapter is not None:
                 try:
-                    res = fetch_from_adapter(
-                        DeviceNetwork.AIRQO,
+                    res = adapter.fetch(
                         device.to_dict() if hasattr(device, "to_dict") else device,
                         dates,
                     )
@@ -902,8 +901,7 @@ class DataUtils:
                     adapter = None
 
                 if adapter is not None:
-                    res = fetch_from_adapter(
-                        network_,
+                    res = adapter.fetch(
                         device.to_dict() if hasattr(device, "to_dict") else device,
                         dates,
                         resolution,

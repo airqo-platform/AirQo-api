@@ -1,8 +1,10 @@
 from typing import Any, Dict, List, Optional, Tuple
-from airqo_etl_utils.sources.adapter import DataSourceAdapter
-from airqo_etl_utils.sources.http_client import HttpClient
-from airqo_etl_utils.utils import Result
-from airqo_etl_utils.config import configuration
+
+from .adapter import DataSourceAdapter
+from ..constants import DeviceNetwork
+from .http_client import HttpClient
+from ..config import configuration
+from ..utils import Result
 
 
 class OpenWeatherAdapter(DataSourceAdapter):
@@ -48,3 +50,9 @@ class OpenWeatherAdapter(DataSourceAdapter):
             return Result(data={"records": resp or {}, "meta": {}}, error=None)
         except Exception as e:
             return Result(data={"records": [], "meta": {}}, error=str(e))
+
+
+# Self-register with the adapter registry
+from .registry import register_adapter  # noqa: E402
+
+register_adapter(DeviceNetwork.OPENWEATHER, OpenWeatherAdapter)

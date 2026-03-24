@@ -1,15 +1,15 @@
 from typing import Any, Dict, List, Optional, Tuple
-import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import pandas as pd
 
-from airqo_etl_utils.sources.adapter import DataSourceAdapter
-from airqo_etl_utils.utils import Result
-from ..constants import DeviceNetwork
-from airqo_etl_utils.data_api import DataApi
+from .adapter import DataSourceAdapter
 from .http_client import HttpClient
-from airqo_etl_utils.utils.auth import AuthHeaderBuilder
 from ..config import configuration
+from ..constants import DeviceNetwork
+from ..data_api import DataApi
+from ..utils import Result
+from ..utils.auth import AuthHeaderBuilder
 
 import logging
 
@@ -139,3 +139,9 @@ class TahmoAdapter(DataSourceAdapter):
         if all_data:
             return pd.concat(all_data, ignore_index=True)
         return pd.DataFrame(columns=columns)
+
+
+# Self-register with the adapter registry
+from .registry import register_adapter  # noqa: E402
+
+register_adapter(DeviceNetwork.TAHMO, TahmoAdapter)

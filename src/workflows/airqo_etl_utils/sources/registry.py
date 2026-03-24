@@ -1,36 +1,70 @@
-from typing import Optional, Tuple, List, Dict, Any
+"""Data-source adapter registry.
+
+Adapters self-register by calling ``register_adapter`` (typically at the
+bottom of their module).  ``get_adapter`` instantiates the adapter class
+registered for a :class:`DeviceNetwork` key.  This avoids a hardcoded
+``match`` statement that must be edited every time a new data source is added.
+
+Adding a new adapter
+--------------------
+1. Create ``my_adapter.py`` implementing :class:`DataSourceAdapter`.
+2. At module level call::
+
+       from .registry import register_adapter
+       register_adapter(DeviceNetwork.MY_NETWORK, MyAdapter)
+
+3. Import the module from ``__init__.py`` so registration runs at package load.
+"""
+from typing import Optional, Tuple, Type, List, Dict, Any
 
 from ..constants import DeviceNetwork
 from ..utils import Result
 
 from .adapter import DataSourceAdapter
-from .thingspeak_adapter import ThingSpeakAdapter
-from .iqair_adapter import IQAirAdapter
-from .airgradient_adapter import AirGradientAdapter
-from .tahmo_adapter import TahmoAdapter
+
+
+# ---------------------------------------------------------------------------
+# Registry internals
+# ---------------------------------------------------------------------------
+
+_ADAPTER_REGISTRY: Dict[str, Type[DataSourceAdapter]] = {}
+
+
+def register_adapter(
+    network: DeviceNetwork | str,
+    adapter_cls: Type[DataSourceAdapter],
+) -> None:
+    """Register an adapter class for a network.
+
+    Args:
+        network: Network enum value or its string representation.
+        adapter_cls: The adapter *class* (not an instance).  ``get_adapter``
+            will call this with no arguments to create a fresh instance.
+    """
+    key = network.str if hasattr(network, "str") else str(network)
+    _ADAPTER_REGISTRY[key] = adapter_cls
 
 
 def get_adapter(network: DeviceNetwork | str) -> Optional[DataSourceAdapter]:
-    """Return an adapter instance for the given network, or ``None`` if unsupported.
+    """Return a fresh adapter instance for *network*, or ``None`` if unsupported.
 
     Args:
         network (DeviceNetwork | str): Network enum value or its string representation.
 
     Returns:
-        Optional[DataSourceAdapter]: A fresh adapter instance, or ``None`` when the
+        Optional[DataSourceAdapter]: A new adapter instance, or ``None`` when the
         network has no registered adapter.
     """
-    key = network.str if hasattr(network, "str") else network
-    match key:
-        case DeviceNetwork.AIRQO.str:
-            return ThingSpeakAdapter()
-        case DeviceNetwork.IQAIR.str:
-            return IQAirAdapter()
-        case DeviceNetwork.AIRGRADIENT.str:
-            return AirGradientAdapter()
-        case DeviceNetwork.TAHMO.str:
-            return TahmoAdapter()
-    return None
+    key = network.str if hasattr(network, "str") else str(network)
+    cls = _ADAPTER_REGISTRY.get(key)
+    if cls is None:
+        return None
+    return cls()
+
+
+def list_adapters() -> Dict[str, Type[DataSourceAdapter]]:
+    """Return a snapshot of all registered adapter classes (useful for debugging)."""
+    return dict(_ADAPTER_REGISTRY)
 
 
 def fetch_from_adapter(

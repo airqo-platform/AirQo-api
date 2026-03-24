@@ -1,10 +1,12 @@
 from typing import List, Dict, Tuple, Any
 
+import pandas as pd
+
 from .adapter import DataSourceAdapter
 from .http_client import HttpClient
 from ..config import configuration
+from ..constants import DeviceNetwork
 from ..utils import Result
-import pandas as pd
 
 
 class IQAirAdapter(DataSourceAdapter):
@@ -73,3 +75,9 @@ class IQAirAdapter(DataSourceAdapter):
             data={"records": data or [], "meta": meta or {}},
             error=None if data else "No data retrieved",
         )
+
+
+# Self-register with the adapter registry
+from .registry import register_adapter  # noqa: E402
+
+register_adapter(DeviceNetwork.IQAIR, IQAirAdapter)

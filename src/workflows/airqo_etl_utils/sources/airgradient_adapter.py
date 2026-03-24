@@ -104,3 +104,9 @@ class AirGradientAdapter(DataSourceAdapter):
             return Result(
                 data={"records": [], "meta": {}}, error="An unexpected error occurred"
             )
+
+
+# Self-register with the adapter registry
+from .registry import register_adapter  # noqa: E402
+
+register_adapter(DeviceNetwork.AIRGRADIENT, AirGradientAdapter)

@@ -18,7 +18,7 @@ from .constants import (
 from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
 from airqo_etl_utils.utils import Utils
-from airqo_etl_utils.sources.registry import get_adapter, fetch_from_adapter
+from airqo_etl_utils.sources import get_adapter
 
 
 class WeatherDataUtils:
@@ -168,9 +168,7 @@ class WeatherDataUtils:
         if adapter is None:
             raise ValueError(f"No adapter available for network: {DeviceNetwork.TAHMO}")
 
-        measurements = fetch_from_adapter(
-            DeviceNetwork.TAHMO, dates=dates, stations=station_codes
-        )
+        measurements = get_adapter(device={"stations": station_codes}, dates=dates)
 
         if measurements.error is None:
             measurements = pd.DataFrame(measurements.data.get("records", []))
