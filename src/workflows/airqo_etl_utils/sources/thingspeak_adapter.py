@@ -3,6 +3,7 @@ from typing import List, Dict, Tuple, Any
 from .adapter import DataSourceAdapter
 from .http_client import HttpClient
 from ..config import configuration
+from ..constants import DeviceNetwork
 from ..utils import Utils, Result
 
 
@@ -41,7 +42,10 @@ class ThingSpeakAdapter(DataSourceAdapter):
         data: List[Dict[str, Any]] = []
         meta: Dict[str, Any] = {}
         if device_number is None:
-            return data, meta
+            return Result(
+                data={"records": [], "meta": {}},
+                error="Missing device_number",
+            )
 
         # decrypt key only when it appears to be an encrypted token (Fernet tokens start with 'gAAAA')
         if isinstance(key, str) and key.startswith("gAAAA"):
@@ -78,3 +82,9 @@ class ThingSpeakAdapter(DataSourceAdapter):
             data={"records": data or [], "meta": meta or {}},
             error=None if data else "No data retrieved",
         )
+
+
+# Self-register with the adapter registry
+from .registry import register_adapter  # noqa: E402
+
+register_adapter(DeviceNetwork.AIRQO, ThingSpeakAdapter)

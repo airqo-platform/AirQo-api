@@ -226,25 +226,47 @@ def example_nomads():
 
 
 # ---------------------------------------------------------------------------
-# 7.  BigQueryAdapter  (Google BigQuery load / download)
+# 7.  BigQuery — both a data source AND a storage backend
 # ---------------------------------------------------------------------------
-# Unlike the other adapters, BigQueryAdapter is not a DataSourceAdapter —
-# it wraps BigQuery load jobs and query downloads rather than polling a
-# third-party API.  It is used internally by BigQueryApi.
+# BigQuery serves two roles:
+#   - **Storage** (storage.BigQueryAdapter): load DataFrames, schema
+#     validation, admin queries.
+#   - **Data source** (sources.BigQuerySourceAdapter): read data *from*
+#     BigQuery via the unified DataSourceAdapter.fetch() interface.
+#
+# The source adapter delegates query execution to the storage adapter, so
+# there is zero code duplication.
 # ---------------------------------------------------------------------------
 
 
-def example_bigquery():
+def example_bigquery_source():
+    """Read data FROM BigQuery using the unified adapter pattern."""
+    from airqo_etl_utils.sources import get_adapter
+
+    adapter = get_adapter("bigquery")
+
+    # Option A — provide a raw SQL query
+    result = adapter.fetch(
+        device={"query": "SELECT * FROM `project.dataset.table` LIMIT 10"},
+    )
+    print_result("BigQuery source (raw query)", result)
+
+    # Option B — provide a table name + date ranges
+    result = adapter.fetch(
+        device={"table": "project.dataset.measurements", "date_column": "timestamp"},
+        dates=[("2024-01-01T00:00:00Z", "2024-01-02T00:00:00Z")],
+    )
+    print_result("BigQuery source (table + dates)", result)
+
+
+def example_bigquery_storage():
+    """Write data INTO BigQuery using the storage adapter."""
     import pandas as pd
-    from airqo_etl_utils.sources.bigquery_adapter import BigQueryAdapter
+    from airqo_etl_utils.storage import BigQueryAdapter
     from airqo_etl_utils.constants import JobAction
 
-    # Initialise with an explicit client to avoid touching live GCP credentials
-    # in this example.  In production, omit `client` and let it default to
-    # bigquery.Client() which reads GOOGLE_CLOUD_PROJECT / ADC credentials.
     adapter = BigQueryAdapter()
 
-    # --- Loading data into BigQuery ---
     df = pd.DataFrame(
         {
             "device_id": ["device1", "device2"],
@@ -253,9 +275,6 @@ def example_bigquery():
         }
     )
 
-    # job_action controls write disposition:
-    #   JobAction.APPEND   → append rows (default)
-    #   JobAction.OVERWRITE → truncate then load
     info = adapter.load_dataframe(
         dataframe=df,
         table="your-gcp-project.dataset.table",
@@ -301,31 +320,37 @@ def example_registry():
 
 
 # ---------------------------------------------------------------------------
-# 9.  storage_registry.py — lightweight in-process storage registry
+# 9.  Adapter registries — runtime discovery
 # ---------------------------------------------------------------------------
-# A simple in-memory registry that maps string names to arbitrary storage
-# backend objects (e.g. a BigQueryAdapter, a local cache, a mock).
+# Both sources and storage have registries that allow runtime lookup without
+# hardcoded if/match statements.
 # ---------------------------------------------------------------------------
 
 
-def example_storage_registry():
-    from airqo_etl_utils.sources.storage_registry import (
+def example_registries():
+    # --- Source adapter registry ---
+    from airqo_etl_utils.sources import list_adapters
+
+    print("\nRegistered source adapters:")
+    for name, cls in list_adapters().items():
+        print(f"  {name:15s} → {cls.__name__}")
+
+    # --- Storage registry ---
+    from airqo_etl_utils.storage import (
         register_storage,
         get_storage,
         get_default_storage,
+        BigQueryAdapter,
     )
-    from airqo_etl_utils.sources.bigquery_adapter import BigQueryAdapter
 
     bq = BigQueryAdapter()
     register_storage("bigquery", bq)
 
-    # Retrieve by name
     backend = get_storage("bigquery")
-    print(f"\nstorage_registry: get_storage('bigquery') → {type(backend).__name__}")
+    print(f"\nstorage: get_storage('bigquery') → {type(backend).__name__}")
 
-    # Retrieve the first registered backend (useful when only one is registered)
     default = get_default_storage()
-    print(f"storage_registry: get_default_storage()    → {type(default).__name__}")
+    print(f"storage: get_default_storage()    → {type(default).__name__}")
 
 
 # ---------------------------------------------------------------------------
