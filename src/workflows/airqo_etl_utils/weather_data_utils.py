@@ -8,10 +8,17 @@ import pandas as pd
 
 from .data_api import DataApi
 from .config import configuration as Config
-from .constants import DataSource, DataType, Frequency, DeviceCategory
+from .constants import (
+    DataSource,
+    DataType,
+    Frequency,
+    DeviceCategory,
+    DeviceNetwork,
+)
 from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
 from airqo_etl_utils.utils import Utils
+from airqo_etl_utils.sources.registry import get_adapter, fetch_from_adapter
 
 
 class WeatherDataUtils:
@@ -157,16 +164,20 @@ class WeatherDataUtils:
             data_source=DataSource.TAHMO,
         )
 
-        for start, end in dates:
-            range_measurements = DataUtils.extract_tahmo_data(start, end, station_codes)
-            measurements.extend(range_measurements)
+        adapter = get_adapter(DeviceNetwork.TAHMO)
+        if adapter is None:
+            raise ValueError(f"No adapter available for network: {DeviceNetwork.TAHMO}")
 
-        measurements = (
-            pd.DataFrame(data=measurements)
-            if measurements
-            else pd.DataFrame([], columns=["value", "variable", "time", "station"])
+        measurements = fetch_from_adapter(
+            DeviceNetwork.TAHMO, dates=dates, stations=station_codes
         )
 
+        if measurements.error is None:
+            measurements = pd.DataFrame(measurements.data.get("records", []))
+        else:
+            raise ValueError(
+                f"Error fetching data from TAHMO adapter: {measurements.error}"
+            )
         return measurements
 
     @staticmethod
