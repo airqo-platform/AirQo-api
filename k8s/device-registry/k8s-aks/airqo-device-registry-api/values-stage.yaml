@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-device-registry-api
-  tag: stage-65606059-1774284419
+  tag: stage-26717002-1774461040
 resources:
   limits:
     cpu: 300m
