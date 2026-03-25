@@ -1,0 +1,122 @@
+[
+  {
+    "name": "site_name",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Display name used for the forecast site."
+  },
+  {
+    "name": "site_latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Latitude of the forecast site in decimal degrees."
+  },
+  {
+    "name": "site_longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Longitude of the forecast site in decimal degrees."
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Site identifier used to deduplicate daily forecasts."
+  },
+  {
+    "name": "date",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "Forecast target day stored as a normalized timestamp."
+  },
+  {
+    "name": "pm2_5_mean",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Predicted daily mean PM2.5 concentration in ug/m3."
+  },
+  {
+    "name": "pm2_5_min",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Predicted daily minimum PM2.5 concentration in ug/m3."
+  },
+  {
+    "name": "pm2_5_max",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Predicted daily maximum PM2.5 concentration in ug/m3."
+  },
+  {
+    "name": "pm2_5_low",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Predicted lower PM2.5 forecast bound in ug/m3."
+  },
+  {
+    "name": "pm2_5_high",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Predicted upper PM2.5 forecast bound in ug/m3."
+  },
+  {
+    "name": "met_latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Rounded latitude used when fetching met.no forecast data."
+  },
+  {
+    "name": "met_longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Rounded longitude used when fetching met.no forecast data."
+  },
+  {
+    "name": "met_air_pressure_at_sea_level",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Daily average met.no air pressure at sea level."
+  },
+  {
+    "name": "met_air_temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Daily average met.no air temperature."
+  },
+  {
+    "name": "met_cloud_area_fraction",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Daily average met.no cloud area fraction."
+  },
+  {
+    "name": "met_relative_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Daily average met.no relative humidity."
+  },
+  {
+    "name": "met_wind_from_direction",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Daily average met.no wind direction in degrees."
+  },
+  {
+    "name": "met_wind_speed",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Daily average met.no wind speed."
+  },
+  {
+    "name": "met_precipitation_amount",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Daily average met.no precipitation amount."
+  },
+  {
+    "name": "created_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "Timestamp when the forecast record was generated."
+  }
+]

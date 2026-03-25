@@ -3,7 +3,6 @@ import pandas as pd
 import unittest
 from airqo_etl_utils.bigquery_api import BigQueryApi
 import pytest
-
 from airqo_etl_utils.utils import Result
 
 
@@ -141,6 +140,68 @@ def test_fetch_raw_readings_empty(mock_bigquery_client):
     with pytest.raises(Exception) as e:
         df = api.fetch_raw_readings()
         assert "No data found" in str(e.value)
+
+
+def test_fetch_raw_site_data_for_forecast_jobs_builds_expected_query(monkeypatch):
+    api = BigQueryApi()
+    expected = pd.DataFrame(
+        {
+            "day": [pd.Timestamp("2026-03-01")],
+            "site_id": ["12"],
+            "site_name": ["Site A"],
+            "site_latitude": [0.31],
+            "site_longitude": [32.58],
+            "pm25_mean": [18.5],
+            "pm25_min": [11.0],
+            "pm25_max": [25.0],
+            "n_hours": [24],
+        }
+    )
+    captured = {}
+
+    def fake_execute_data_query(*, query):
+        captured["query"] = query
+        return expected
+
+    monkeypatch.setattr(api, "execute_data_query", fake_execute_data_query)
+
+    actual = api.fetch_raw_site_data_for_forecast_jobs(
+        "2026-03-01",
+        "2026-03-07",
+        min_hours=18,
+    )
+
+    pd.testing.assert_frame_equal(actual, expected)
+    assert "COALESCE(t2.display_name, t2.name" in captured["query"]
+    assert "COALESCE(t2.approximate_latitude, t2.latitude)" in captured["query"]
+    assert "COALESCE(t2.approximate_longitude, t2.longitude)" in captured["query"]
+    assert "2026-03-01" in captured["query"]
+    assert "2026-03-07" in captured["query"]
+    assert "18" in captured["query"]
+    assert api.raw_measurements_table in captured["query"]
+    assert api.sites_table in captured["query"]
+
+
+@pytest.mark.parametrize(
+    "start_date_time,end_date_time,min_hours",
+    [
+        ("2026-03-08", "2026-03-07", 18),
+        ("2026-03-01", "2026-03-07", 0),
+    ],
+)
+def test_fetch_raw_site_data_for_forecast_jobs_validates_inputs(
+    start_date_time,
+    end_date_time,
+    min_hours,
+):
+    api = BigQueryApi()
+
+    with pytest.raises(ValueError):
+        api.fetch_raw_site_data_for_forecast_jobs(
+            start_date_time,
+            end_date_time,
+            min_hours=min_hours,
+        )
 
 
 class TestFetchMaxMinValues(unittest.TestCase):

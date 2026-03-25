@@ -153,3 +153,19 @@ class AirflowUtils:
                 headers=self.headers,
             )
             print(f"{dag_id} : {dag_run_id} : {response.status_code}")
+
+
+PREDICTION_DAG_ARGS = {
+    **AirflowUtils.dag_default_configs(),
+    "retries": 3,
+    "retry_delay": timedelta(minutes=5),
+}
+
+
+SITE_PREDICTION_DAG_ARGS = {
+    **AirflowUtils.dag_default_configs(),
+    "retries": 3,
+    "retry_delay": timedelta(minutes=10),
+    "retry_exponential_backoff": True,
+    "max_retry_delay": timedelta(minutes=60),
+}

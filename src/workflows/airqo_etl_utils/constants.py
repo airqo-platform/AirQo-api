@@ -332,3 +332,27 @@ class CountryModels(Enum):
             instance.str
         """
         return self.__str__()
+
+
+class ForecastConstants:
+    """Shared constants for site forecast generation and met enrichment."""
+
+    MET_NO_MAX_ATTEMPTS = 3
+    MET_NO_REQUEST_HEADERS = {
+        "User-Agent": "AirQo-site-forecast/1.0 (+https://airqo.net)"
+    }
+    MET_NO_INSTANT_FIELDS = (
+        "air_pressure_at_sea_level",
+        "air_temperature",
+        "cloud_area_fraction",
+        "relative_humidity",
+        "wind_from_direction",
+        "wind_speed",
+    )
+    MET_NO_NEXT_1H_FIELDS = ("precipitation_amount",)
+    MET_NO_FORECAST_COLUMNS = [
+        "met_latitude",
+        "met_longitude",
+        *[f"met_{field}" for field in MET_NO_INSTANT_FIELDS],
+        *[f"met_{field}" for field in MET_NO_NEXT_1H_FIELDS],
+    ]

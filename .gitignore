@@ -21,6 +21,8 @@ node_modules
 venv/
 .idea/
 *.pyc
+*.pyc*
+
 src/data-mgt/java/measurements-consumer/.mvn/wrapper/maven-wrapper.properties
 src/data-mgt/java/measurements-consumer/HELP.md
 src/data-mgt/java/measurements-consumer/measurements-consumer.iml

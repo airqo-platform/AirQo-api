@@ -4,8 +4,10 @@ from datetime import datetime, timedelta, timezone
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration as Config
-from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastUtils
-from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastModelTrainer, ForecastUtils
+from airqo_etl_utils.workflows_custom_utils import (
+    AirflowUtils,SITE_PREDICTION_DAG_ARGS,
+)
 
 from airqo_etl_utils.constants import Frequency
 from airqo_etl_utils.date import DateUtils
@@ -152,4 +154,90 @@ def make_forecasts():
     save_daily_forecasts_to_mongo(daily_forecasts)
 
 
-make_forecasts()
+@dag(
+    "AirQo-site-daily-forecasting-job_Q",
+    schedule="0 3 * * *",
+    default_args=SITE_PREDICTION_DAG_ARGS,
+    catchup=False,
+    tags=["airqo", "forecast", "site-level", "prediction-job", "daily"],
+    description="Daily site-level PM2.5 forecasting pipeline.",
+)
+def make_site_daily_forecasts():
+    @task()
+    def fetch_site_prediction_data():
+        from airflow.operators.python import get_current_context
+
+        execution_date = get_current_context()["logical_date"]
+        end_date = execution_date - timedelta(days=1)
+        lookback_days = int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE or 30)
+        start_date = end_date - timedelta(days=lookback_days)
+
+        return BigQueryApi().fetch_raw_site_data_for_forecast_jobs(
+            start_date_time=DateUtils.date_to_str(start_date, str_format="%Y-%m-%d"),
+            end_date_time=DateUtils.date_to_str(end_date, str_format="%Y-%m-%d"),
+        )
+
+    @task()
+    def generate_site_forecasts(data):
+        return ForecastModelTrainer.generate_site_daily_forecasts(
+            data,
+            horizon=int(Config.DAILY_FORECAST_HORIZON or 10),
+        )
+
+    @task()
+    def enrich_site_forecasts_with_met_data(site_data, forecast_data):
+        return ForecastModelTrainer.enrich_site_daily_forecasts_with_met_data(
+            site_data,
+            forecast_data,
+        )
+
+    @task()
+    def save_site_forecasts_to_mongodb(data):
+        try:
+            details = ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
+            return {"target": "mongodb", "success": True, "details": details}
+        except Exception as exc:
+            return {"target": "mongodb", "success": False, "error": str(exc)}
+
+    @task()
+    def save_site_forecasts_to_aws(data):
+        try:
+            details = ForecastModelTrainer._save_site_daily_forecasts_to_aws(data)
+            return {"target": "aws", "success": True, "details": details}
+        except Exception as exc:
+            return {"target": "aws", "success": False, "error": str(exc)}
+
+    @task()
+    def save_site_forecasts_to_bigquery(data):
+        try:
+            details = ForecastModelTrainer._save_site_daily_forecasts_to_bigquery(data)
+            return {"target": "bigquery", "success": True, "details": details}
+        except Exception as exc:
+            return {"target": "bigquery", "success": False, "error": str(exc)}
+
+    @task()
+    def validate_site_forecast_saves(mongodb_result, aws_result, bigquery_result):
+        results = [mongodb_result, aws_result, bigquery_result]
+        succeeded = [result["target"] for result in results if result.get("success")]
+
+        if not succeeded:
+            raise RuntimeError(
+                f"Failed to save site forecasts to all targets: {results}"
+            )
+
+        return {"saved_to": succeeded, "results": results}
+
+    site_data = fetch_site_prediction_data()
+    site_forecasts = generate_site_forecasts(site_data)
+    site_forecasts_with_met = enrich_site_forecasts_with_met_data(
+        site_data,
+        site_forecasts,
+    )
+    mongodb_result = save_site_forecasts_to_mongodb(site_forecasts_with_met)
+    aws_result = save_site_forecasts_to_aws(site_forecasts_with_met)
+    bigquery_result = save_site_forecasts_to_bigquery(site_forecasts_with_met)
+    validate_site_forecast_saves(mongodb_result, aws_result, bigquery_result)
+
+
+forecast_prediction_dag = make_forecasts()
+site_daily_forecast_prediction_dag = make_site_daily_forecasts()

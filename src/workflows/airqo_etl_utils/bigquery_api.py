@@ -1323,6 +1323,73 @@ class BigQueryApi:
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
+    def fetch_raw_site_data_for_forecast_jobs(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        min_hours: int = 18,
+    ) -> pd.DataFrame:
+        """Fetch daily aggregated site PM2.5 stats from the raw events table.
+
+        Args:
+            start_date_time: Start date in YYYY-MM-DD format.
+            end_date_time: End date in YYYY-MM-DD format.
+            min_hours: Minimum distinct hourly records required per site/day.
+
+        Returns:
+            A DataFrame with columns:
+            day, site_id, site_name, site_latitude, site_longitude,
+            pm25_mean, pm25_min, pm25_max, n_hours.
+        """
+        if min_hours <= 0:
+            raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
+
+        try:
+            start_date = pd.to_datetime(start_date_time).date()
+            end_date = pd.to_datetime(end_date_time).date()
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid date format. start_date_time='{start_date_time}', end_date_time='{end_date_time}'"
+            ) from e
+
+        if start_date > end_date:
+            raise ValueError(
+                f"start_date_time must be <= end_date_time, got {start_date} > {end_date}"
+            )
+
+        query = f"""
+        WITH site_daily AS (
+          SELECT
+            DATE(t1.timestamp) AS day,
+            CAST(t1.site_id AS STRING) AS site_id,
+            ANY_VALUE(
+              COALESCE(t2.display_name, t2.name, CAST(t1.site_id AS STRING))
+            ) AS site_name,
+            ANY_VALUE(COALESCE(t2.approximate_latitude, t2.latitude)) AS site_latitude,
+            ANY_VALUE(COALESCE(t2.approximate_longitude, t2.longitude)) AS site_longitude,
+            AVG(t1.pm2_5) AS pm25_mean,
+            MIN(t1.pm2_5) AS pm25_min,
+            MAX(t1.pm2_5) AS pm25_max,
+            COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS n_hours
+          FROM {self.raw_measurements_table} AS t1
+          LEFT JOIN {self.sites_table} AS t2
+            ON CAST(t1.site_id AS STRING) = CAST(t2.id AS STRING)
+          WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
+            AND t1.pm2_5 IS NOT NULL
+            AND t1.site_id IS NOT NULL
+          GROUP BY day, site_id
+          HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
+        )
+        SELECT *
+        FROM site_daily
+        ORDER BY day, site_id
+        """
+
+        try:
+            return self.execute_data_query(query=query)
+        except Exception as e:
+            raise RuntimeError(f"Error fetching data from BigQuery: {e}")
+
     def fetch_device_data_for_satellite_job(
         self,
         start_date_time: str,

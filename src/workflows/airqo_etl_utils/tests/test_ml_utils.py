@@ -1,10 +1,12 @@
 import pandas as pd
 import pytest
+import requests
 from unittest.mock import MagicMock
 
-from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils
+import airqo_etl_utils.ml_utils as ml_utils_module
+from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer
 from airqo_etl_utils.tests.conftest import ForecastFixtures
-from airqo_etl_utils.constants import Frequency
+from airqo_etl_utils.constants import ForecastConstants, Frequency
 
 
 class TestsForecasts(ForecastFixtures):
@@ -171,3 +173,249 @@ class TestsForecasts(ForecastFixtures):
             FUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
             mock_collection = getattr(mock_db, collection_name)
             assert mock_collection.update_one.call_count == 0
+
+
+def test_enrich_site_daily_forecasts_with_met_data_uses_rounded_unique_coordinates(
+    monkeypatch,
+):
+    site_data = pd.DataFrame(
+        [
+            {
+                "site_id": "site_01",
+                "site_name": "Synthetic Site 1",
+                "site_latitude": 0.1231,
+                "site_longitude": 32.5671,
+            },
+            {
+                "site_id": "site_02",
+                "site_name": "Synthetic Site 2",
+                "site_latitude": 0.1249,
+                "site_longitude": 32.5651,
+            },
+        ]
+    )
+    forecast_data = pd.DataFrame(
+        [
+            {
+                "site_id": "site_01",
+                "site_name": "Synthetic Site 1",
+                "site_latitude": 0.1231,
+                "site_longitude": 32.5671,
+                "date": pd.Timestamp("2026-03-24"),
+                "pm2_5_mean": 20.0,
+                "pm2_5_min": 18.0,
+                "pm2_5_max": 24.0,
+                "pm2_5_low": 19.0,
+                "pm2_5_high": 22.0,
+                "created_at": pd.Timestamp("2026-03-23T00:00:00Z"),
+            },
+            {
+                "site_id": "site_02",
+                "site_name": "Synthetic Site 2",
+                "site_latitude": 0.1249,
+                "site_longitude": 32.5651,
+                "date": pd.Timestamp("2026-03-24"),
+                "pm2_5_mean": 22.0,
+                "pm2_5_min": 20.0,
+                "pm2_5_max": 25.0,
+                "pm2_5_low": 21.0,
+                "pm2_5_high": 23.0,
+                "created_at": pd.Timestamp("2026-03-23T00:00:00Z"),
+            },
+        ]
+    )
+    met_payload = {
+        "properties": {
+            "timeseries": [
+                {
+                    "time": "2026-03-24T00:00:00Z",
+                    "data": {
+                        "instant": {
+                            "details": {
+                                "air_pressure_at_sea_level": 1010,
+                                "air_temperature": 20,
+                                "cloud_area_fraction": 40,
+                                "relative_humidity": 60,
+                                "wind_from_direction": 90,
+                                "wind_speed": 3,
+                            }
+                        },
+                        "next_1_hours": {"details": {"precipitation_amount": 1}},
+                    },
+                },
+                {
+                    "time": "2026-03-24T12:00:00Z",
+                    "data": {
+                        "instant": {
+                            "details": {
+                                "air_pressure_at_sea_level": 1014,
+                                "air_temperature": 24,
+                                "cloud_area_fraction": 60,
+                                "relative_humidity": 80,
+                                "wind_from_direction": 110,
+                                "wind_speed": 5,
+                            }
+                        },
+                        "next_1_hours": {"details": {"precipitation_amount": 3}},
+                    },
+                },
+            ]
+        }
+    }
+    calls = []
+
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return met_payload
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        calls.append((url, params, headers, timeout))
+        return DummyResponse()
+
+    monkeypatch.setattr(ml_utils_module.requests, "get", fake_get)
+
+    enriched = ForecastModelTrainer.enrich_site_daily_forecasts_with_met_data(
+        site_data,
+        forecast_data,
+    )
+
+    assert len(calls) == 1
+    assert calls[0][1] == {"lat": "0.12", "lon": "32.57"}
+    assert enriched["met_latitude"].eq(pytest.approx(0.12)).all()
+    assert enriched["met_longitude"].eq(pytest.approx(32.57)).all()
+    assert enriched["met_air_temperature"].eq(pytest.approx(22.0)).all()
+    assert enriched["met_precipitation_amount"].eq(pytest.approx(2.0)).all()
+
+
+def test_enrich_site_daily_forecasts_with_met_data_skips_failed_met_requests(
+    monkeypatch,
+):
+    site_data = pd.DataFrame(
+        [
+            {
+                "site_id": "site_01",
+                "site_name": "Synthetic Site 1",
+                "site_latitude": 0.1231,
+                "site_longitude": 32.5671,
+            }
+        ]
+    )
+    forecast_data = pd.DataFrame(
+        [
+            {
+                "site_id": "site_01",
+                "site_name": "Synthetic Site 1",
+                "site_latitude": 0.1231,
+                "site_longitude": 32.5671,
+                "date": pd.Timestamp("2026-03-24"),
+                "pm2_5_mean": 20.0,
+                "pm2_5_min": 18.0,
+                "pm2_5_max": 24.0,
+                "pm2_5_low": 19.0,
+                "pm2_5_high": 22.0,
+                "created_at": pd.Timestamp("2026-03-23T00:00:00Z"),
+            }
+        ]
+    )
+
+    def fail_get(*args, **kwargs):
+        raise requests.exceptions.ConnectionError("dns failure")
+
+    monkeypatch.setattr(ml_utils_module.requests, "get", fail_get)
+
+    enriched = ForecastModelTrainer.enrich_site_daily_forecasts_with_met_data(
+        site_data,
+        forecast_data,
+    )
+
+    for column in ForecastConstants.MET_NO_FORECAST_COLUMNS:
+        assert column in enriched.columns
+        assert enriched[column].isna().all()
+
+
+def test_normalize_site_daily_forecasts_keeps_latest_10_rows_per_site():
+    rows = []
+
+    for day in pd.date_range("2026-03-01", periods=16, freq="D"):
+        rows.append(
+            {
+                "site_id": "site_01",
+                "site_name": "Synthetic Site 1",
+                "site_latitude": 0.1231,
+                "site_longitude": 32.5671,
+                "date": day,
+                "pm2_5_mean": 20.0,
+                "pm2_5_min": 18.0,
+                "pm2_5_max": 24.0,
+                "pm2_5_low": 19.0,
+                "pm2_5_high": 22.0,
+                "created_at": day + pd.Timedelta(hours=6),
+            }
+        )
+
+    for day in pd.date_range("2026-03-10", periods=3, freq="D"):
+        rows.append(
+            {
+                "site_id": "site_02",
+                "site_name": "Synthetic Site 2",
+                "site_latitude": 0.2231,
+                "site_longitude": 32.6671,
+                "date": day,
+                "pm2_5_mean": 30.0,
+                "pm2_5_min": 28.0,
+                "pm2_5_max": 34.0,
+                "pm2_5_low": 29.0,
+                "pm2_5_high": 32.0,
+                "created_at": day + pd.Timedelta(hours=6),
+            }
+        )
+
+    normalized = ForecastModelTrainer._normalize_site_daily_forecasts(
+        pd.DataFrame(rows)
+    )
+
+    site_01 = normalized[normalized["site_id"] == "site_01"].copy()
+    site_02 = normalized[normalized["site_id"] == "site_02"].copy()
+
+    assert len(site_01) == 10
+    assert site_01["date"].min() == pd.Timestamp("2026-03-07")
+    assert site_01["date"].max() == pd.Timestamp("2026-03-16")
+
+    assert len(site_02) == 3
+    assert site_02["date"].min() == pd.Timestamp("2026-03-10")
+    assert site_02["date"].max() == pd.Timestamp("2026-03-12")
+
+
+def test_normalize_site_daily_forecasts_rounds_pm_and_coordinates():
+    normalized = ForecastModelTrainer._normalize_site_daily_forecasts(
+        pd.DataFrame(
+            [
+                {
+                    "site_id": "site_01",
+                    "site_name": "Synthetic Site 1",
+                    "site_latitude": 0.123456789,
+                    "site_longitude": 32.567891234,
+                    "date": pd.Timestamp("2026-03-25"),
+                    "pm2_5_mean": 20.149,
+                    "pm2_5_min": 18.151,
+                    "pm2_5_max": 24.159,
+                    "pm2_5_low": 19.149,
+                    "pm2_5_high": 22.151,
+                    "created_at": pd.Timestamp("2026-03-24T06:00:00"),
+                }
+            ]
+        )
+    )
+
+    row = normalized.iloc[0]
+
+    assert row["pm2_5_mean"] == pytest.approx(20.1)
+    assert row["pm2_5_min"] == pytest.approx(18.2)
+    assert row["pm2_5_max"] == pytest.approx(24.2)
+    assert row["pm2_5_low"] == pytest.approx(19.1)
+    assert row["pm2_5_high"] == pytest.approx(22.2)
+    assert row["site_latitude"] == pytest.approx(0.123457)
+    assert row["site_longitude"] == pytest.approx(32.567891)
