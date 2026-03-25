@@ -120,7 +120,7 @@ def NOMADS_daily_measurements():
         retries=2,
         retry_delay=timedelta(minutes=5),
     )
-    def extract_data(**kwargs) -> None:
+    def extract_data(**kwargs) -> str:
         adapter = NomadsAdapter()
         res = adapter.fetch()
         file = None
@@ -133,17 +133,15 @@ def NOMADS_daily_measurements():
                         f"File {file} has not changed. Skipping workflow."
                     )
         Variable.set("nomads_file_path", file)
-        return
+
+        return file
 
     @task(
         provide_context=True,
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
-    def clean_data(**kwargs) -> pd.DataFrame:
-        file = Variable.get(
-            "nomads_file_path", default_var="/tmp/gdas.t00z.pgrb2.0p25.f000"
-        )
+    def clean_data(file, **kwargs) -> pd.DataFrame:
         if not file or not Path(file).exists():
             raise AirflowSkipException(
                 f"File {file} does not exist. Skipping workflow."
@@ -165,8 +163,8 @@ def NOMADS_daily_measurements():
         big_query_api = BigQueryApi()
         big_query_api.load_data(formated_data, table=table)
 
-    extract_data()
-    cleaned = clean_data()
+    file = extract_data()
+    cleaned = clean_data(file)
     store_data(cleaned)
 
 
