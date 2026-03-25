@@ -168,7 +168,7 @@ class WeatherDataUtils:
         if adapter is None:
             raise ValueError(f"No adapter available for network: {DeviceNetwork.TAHMO}")
 
-        measurements = get_adapter(device={"stations": station_codes}, dates=dates)
+        measurements = adapter.fetch(device={"stations": station_codes}, dates=dates)
 
         if measurements.error is None:
             measurements = pd.DataFrame(measurements.data.get("records", []))
