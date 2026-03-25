@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 import pandas as pd
 from pathlib import Path
+from airflow.exceptions import AirflowSkipException
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.satellite_utils import SatelliteUtils
@@ -119,7 +120,7 @@ def NOMADS_daily_measurements():
         retries=2,
         retry_delay=timedelta(minutes=5),
     )
-    def extract_data(**kwargs) -> None:
+    def extract_data(**kwargs) -> str:
         adapter = NomadsAdapter()
         res = adapter.fetch()
         file = None
@@ -128,21 +129,23 @@ def NOMADS_daily_measurements():
             if file:
                 old_file = Variable.get("nomads_file_path", default_var=None)
                 if old_file and old_file == file:
-                    return
+                    raise AirflowSkipException(
+                        f"File {file} has not changed. Skipping workflow."
+                    )
         Variable.set("nomads_file_path", file)
-        return
+
+        return file
 
     @task(
         provide_context=True,
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
-    def clean_data(**kwargs) -> pd.DataFrame:
-        file = Variable.get(
-            "nomads_file_path", default_var="/tmp/gdas.t00z.pgrb2.0p25.f000"
-        )
+    def clean_data(file, **kwargs) -> pd.DataFrame:
         if not file or not Path(file).exists():
-            return
+            raise AirflowSkipException(
+                f"File {file} does not exist. Skipping workflow."
+            )
         clean_data = SatelliteUtils.process_nomads_data_files(file)
         if not clean_data.empty:
             delete_old_files([file])
@@ -160,8 +163,8 @@ def NOMADS_daily_measurements():
         big_query_api = BigQueryApi()
         big_query_api.load_data(formated_data, table=table)
 
-    extract_data()
-    cleaned = clean_data()
+    file = extract_data()
+    cleaned = clean_data(file)
     store_data(cleaned)
 
 

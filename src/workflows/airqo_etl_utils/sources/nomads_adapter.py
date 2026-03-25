@@ -7,6 +7,10 @@ from ..constants import DeviceNetwork
 from .http_client import HttpClient
 from ..utils import Result, Utils
 
+import logging
+
+logger = logging.getLogger("airflow.task")
+
 # GDAS runs are published on a 6-hourly cycle (00z, 06z, 12z, 18z).
 # Data for a given cycle typically becomes available ~3.5 hours after the
 # nominal run time; we use this delay to select the latest *available* cycle.
@@ -68,6 +72,7 @@ class NomadsAdapter(DataSourceAdapter):
 
             # Check if file already exists (e.g. from a previous run) before downloading
             if file_name and Path(f"/tmp/{file_name}").exists():
+                logger.info(f"NOMADS file already exists: /tmp/{file_name}")
                 return Result(
                     data={"records": [], "meta": {"file": f"/tmp/{file_name}"}},
                     error=None,
@@ -77,14 +82,18 @@ class NomadsAdapter(DataSourceAdapter):
                 response, base_url, file_name=file_name
             )
             if downloaded_file:
+                logger.info(f"Successfully downloaded NOMADS file: {downloaded_file}")
                 return Result(
                     data={"records": [], "meta": {"file": f"/tmp/{file_name}"}},
                     error=None,
                 )
+
+            logger.error("Failed to download NOMADS file")
             return Result(
                 data={"records": [], "meta": {}}, error="Failed to download NOMADS file"
             )
         except Exception as e:
+            logger.exception("Exception occurred while downloading NOMADS file: %s", e)
             return Result(data={"records": [], "meta": {}}, error=str(e))
 
     @classmethod
