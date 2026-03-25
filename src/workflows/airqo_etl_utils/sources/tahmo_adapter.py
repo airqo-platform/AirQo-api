@@ -18,7 +18,7 @@ logger = logging.getLogger("airflow.task")
 
 
 class TahmoAdapter(DataSourceAdapter):
-    """Adapter for TAHMO data via `DataApi.get_tahmo_data`.
+    """Adapter for TAHMO data.
 
     Expects `device` to optionally provide a `stations` list. `dates` should be
     a list of (start_iso, end_iso) tuples. The adapter aggregates station
@@ -27,7 +27,6 @@ class TahmoAdapter(DataSourceAdapter):
 
     def __init__(self) -> None:
         self.client = HttpClient()
-        self.data_api = DataApi()
         network = DeviceNetwork.TAHMO
         self.integration = configuration.INTEGRATION_DETAILS.get(network.str)
         self.base_url = self.integration.get("url", "")
