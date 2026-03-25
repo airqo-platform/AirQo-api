@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
-import concurrent.futures
 import pandas as pd
+from pathlib import Path
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.satellite_utils import SatelliteUtils
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.sources.nomads_adapter import NomadsAdapter
+from airqo_etl_utils.sources.cams_cds_adapter import CAMSAdapter, CAMS_VARIABLES
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import DataType, DeviceCategory, Frequency
 from airqo_etl_utils.config import configuration as Config
@@ -58,13 +59,10 @@ def copernicus_hourly_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def extract_data(**kwargs) -> pd.DataFrame:
-        data_to_download = {
-            "particulate_matter_10um": "/tmp/pm10_download.zip",
-            "particulate_matter_2.5um": "/tmp/pm25_download.zip",
-        }
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            for variable, destination in data_to_download.items():
-                SatelliteUtils.retrieve_cams_variable(variable, destination)
+        adapter = CAMSAdapter()
+        result = adapter.fetch()
+        if result.error:
+            raise RuntimeError(f"CAMS download failed: {result.error}")
 
     @task(
         provide_context=True,
@@ -73,8 +71,8 @@ def copernicus_hourly_measurements():
     )
     def clean_data(**kwargs) -> pd.DataFrame:
         data_to_read = {
-            "pm10": "/tmp/pm10_download.zip",
-            "pm2p5": "/tmp/pm25_download.zip",
+            short_name: meta["default_path"]
+            for short_name, meta in CAMS_VARIABLES.items()
         }
         files_to_delete = []
         dfs: list[pd.DataFrame] = []
@@ -125,9 +123,13 @@ def NOMADS_daily_measurements():
         adapter = NomadsAdapter()
         res = adapter.fetch()
         file = None
-        if res and res.data and isinstance(res.data, dict):
-            file = res.data.get("meta", {}).get("file")
-        Variable.set("nomads_file_path", file or "/tmp/gdas.t00z.pgrb2.0p25.f000")
+        if res and res.error is None:
+            file = res.data.get("meta", {}).get("file", {})
+            if file:
+                old_file = Variable.get("nomads_file_path", default_var=None)
+                if old_file and old_file == file:
+                    return
+        Variable.set("nomads_file_path", file)
         return
 
     @task(
@@ -139,6 +141,8 @@ def NOMADS_daily_measurements():
         file = Variable.get(
             "nomads_file_path", default_var="/tmp/gdas.t00z.pgrb2.0p25.f000"
         )
+        if not file or not Path(file).exists():
+            return
         clean_data = SatelliteUtils.process_nomads_data_files(file)
         if not clean_data.empty:
             delete_old_files([file])

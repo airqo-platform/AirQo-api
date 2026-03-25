@@ -100,9 +100,9 @@ class CAMSAdapter(DataSourceAdapter):
                     dates[0][0] if isinstance(dates[0], (tuple, list)) else dates[0]
                 )
                 try:
-                    run_date = datetime.fromisoformat(
-                        start_iso.replace("Z", "+00:00")
-                    ).strftime("%Y-%m-%d")
+                    run_date = datetime(start_iso.replace("Z", "+00:00")).strftime(
+                        "%Y-%m-%d"
+                    )
                 except (ValueError, AttributeError):
                     pass  # keep auto-detected date
 
@@ -234,8 +234,14 @@ class CAMSAdapter(DataSourceAdapter):
             Exception: Re-raised from ``cdsapi`` if the download fails.
         """
         time_str = f"{run_hour:02d}:00"
+        # CDS API expects a date range in the form "YYYY-MM-DD/YYYY-MM-DD".
+        # We anchor to the day before the run date so the request remains valid
+        # even near midnight boundaries (matching the original implementation).
+        run_date_dt = datetime.strptime(run_date, "%Y-%m-%d")
+        prev_date = (run_date_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+        date_range = f"{prev_date}/{run_date}"
         request_payload = {
-            "date": run_date,
+            "date": date_range,
             "type": "forecast",
             "format": "netcdf_zip",
             "time": time_str,

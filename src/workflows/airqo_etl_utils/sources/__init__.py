@@ -40,6 +40,7 @@ from . import tahmo_adapter as _tahmo  # noqa: F401
 from . import openweather_adapter as _openweather  # noqa: F401
 from . import nomads_adapter as _nomads  # noqa: F401
 from . import bigquery_source_adapter as _bigquery  # noqa: F401
+from . import cams_cds_adapter as _cams  # noqa: F401
 
 __all__ = [
     "DataSourceAdapter",

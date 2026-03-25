@@ -330,7 +330,7 @@ def test_download_variable_calls_cdsapi_correctly():
     dataset = args[0][0]
     payload = args[0][1]
     assert dataset == "cams-global-atmospheric-composition-forecasts"
-    assert payload["date"] == "2024-03-25"
+    assert payload["date"] == "2024-03-24/2024-03-25"  # CDS requires a date range
     assert payload["time"] == "12:00"
     assert payload["leadtime_hour"] == "6"
     assert payload["variable"] == "particulate_matter_10um"

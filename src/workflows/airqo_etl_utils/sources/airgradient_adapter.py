@@ -1,7 +1,6 @@
 from typing import List, Dict, Tuple, Any
 from urllib.parse import quote
 from datetime import datetime
-
 import pandas as pd
 
 from .adapter import DataSourceAdapter
