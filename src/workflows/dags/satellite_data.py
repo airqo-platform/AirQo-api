@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 import pandas as pd
 from pathlib import Path
+from airflow.exceptions import AirflowSkipException
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.satellite_utils import SatelliteUtils
@@ -128,7 +129,9 @@ def NOMADS_daily_measurements():
             if file:
                 old_file = Variable.get("nomads_file_path", default_var=None)
                 if old_file and old_file == file:
-                    return
+                    raise AirflowSkipException(
+                        f"File {file} has not changed. Skipping workflow."
+                    )
         Variable.set("nomads_file_path", file)
         return
 
@@ -142,7 +145,9 @@ def NOMADS_daily_measurements():
             "nomads_file_path", default_var="/tmp/gdas.t00z.pgrb2.0p25.f000"
         )
         if not file or not Path(file).exists():
-            return
+            raise AirflowSkipException(
+                f"File {file} does not exist. Skipping workflow."
+            )
         clean_data = SatelliteUtils.process_nomads_data_files(file)
         if not clean_data.empty:
             delete_old_files([file])
