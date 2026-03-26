@@ -2174,8 +2174,6 @@ class ForecastModelTrainer(BaseMlUtils):
                 last_error = exc
                 logger.warning(
                     "met.no fetch failed for lat=%s lon=%s on attempt %s/%s: %s",
-                    f"{query_latitude:.2f}",
-                    f"{query_longitude:.2f}",
                     attempt,
                     MET_NO_MAX_ATTEMPTS,
                     exc,
@@ -2184,8 +2182,6 @@ class ForecastModelTrainer(BaseMlUtils):
         if last_error is not None:
             logger.warning(
                 "Skipping met.no enrichment for lat=%s lon=%s after %s failed attempts.",
-                f"{query_latitude:.2f}",
-                f"{query_longitude:.2f}",
                 MET_NO_MAX_ATTEMPTS,
             )
             return pd.DataFrame(columns=["date", *MET_NO_FORECAST_COLUMNS])
@@ -2250,24 +2246,70 @@ class ForecastModelTrainer(BaseMlUtils):
         site_data: pd.DataFrame,
         forecast_data: pd.DataFrame,
     ) -> pd.DataFrame:
-        """Append best-effort met.no daily averages to generated site forecasts."""
+        """Append best-effort met.no daily averages to generated site forecasts.
+
+        The original forecast identity fields such as ``site_name`` and the raw
+        site coordinates are preserved. met.no lookups are deduplicated using
+        latitude/longitude rounded to 2 decimal places to avoid over-querying.
+        """
         if forecast_data.empty:
             return forecast_data
 
         enriched = forecast_data.copy()
+        enriched["site_id"] = enriched["site_id"].astype(str)
         enriched["date"] = pd.to_datetime(enriched["date"], errors="coerce").dt.normalize()
         for column in MET_NO_FORECAST_COLUMNS:
             if column not in enriched.columns:
                 enriched[column] = np.nan
 
-        if site_data is None or len(site_data) == 0:
-            return enriched
+        site_locations = enriched[["site_id"]].drop_duplicates().copy()
+        for coord_col in ("site_latitude", "site_longitude"):
+            if coord_col in enriched.columns:
+                site_locations[coord_col] = pd.to_numeric(
+                    enriched.groupby("site_id")[coord_col].last().reindex(
+                        site_locations["site_id"]
+                    ),
+                    errors="coerce",
+                ).to_numpy()
+            else:
+                site_locations[coord_col] = np.nan
 
-        site_locations = site_data.copy()
-        if "site_latitude" not in site_locations.columns or "site_longitude" not in site_locations.columns:
-            return enriched
+        if site_data is not None and len(site_data) != 0:
+            fallback_locations = site_data.copy()
+        else:
+            fallback_locations = pd.DataFrame(columns=["site_id", "site_latitude", "site_longitude"])
 
-        site_locations["site_id"] = site_locations["site_id"].astype(str)
+        if not fallback_locations.empty and {
+            "site_latitude",
+            "site_longitude",
+        }.issubset(fallback_locations.columns):
+            fallback_locations["site_id"] = fallback_locations["site_id"].astype(str)
+            fallback_locations["site_latitude"] = pd.to_numeric(
+                fallback_locations["site_latitude"], errors="coerce"
+            )
+            fallback_locations["site_longitude"] = pd.to_numeric(
+                fallback_locations["site_longitude"], errors="coerce"
+            )
+            fallback_locations = fallback_locations.dropna(
+                subset=["site_id", "site_latitude", "site_longitude"]
+            )
+            fallback_locations = fallback_locations[
+                ["site_id", "site_latitude", "site_longitude"]
+            ].drop_duplicates("site_id", keep="last")
+
+            site_locations = site_locations.merge(
+                fallback_locations,
+                on="site_id",
+                how="left",
+                suffixes=("", "_fallback"),
+            )
+            for coord_col in ("site_latitude", "site_longitude"):
+                fallback_col = f"{coord_col}_fallback"
+                site_locations[coord_col] = site_locations[coord_col].fillna(
+                    site_locations[fallback_col]
+                )
+                site_locations = site_locations.drop(columns=[fallback_col])
+
         site_locations["site_latitude"] = pd.to_numeric(
             site_locations["site_latitude"], errors="coerce"
         )
