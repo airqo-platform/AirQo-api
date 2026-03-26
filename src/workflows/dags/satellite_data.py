@@ -183,12 +183,11 @@ def satellite_data_location_approximations():
     def approximate_locations(**kwargs) -> pd.DataFrame:
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day: datetime = execution_date - timedelta(hours=1)
-        start_date_time = DateUtils.date_to_str(
-            hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
-        )
-        end_date_time = DateUtils.date_to_str(
-            hour_of_day, str_format="%Y-%m-%dT%H:59:59Z"
-        )
+        # TODO: Periodically review data sources for more accurate satellite data and or forecast data.
+        # Pass only dates since most satellite data only have date with times set to 00:00:00,
+        # so we approximate the satellite data locations for the whole day of the execution date, which is the previous day of the current date.
+        start_date_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%d")
+        end_date_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%d")
         return SatelliteUtils.approximate_satellite_data_locations_for_airquality_measurements(
             start_date=start_date_time, end_date=end_date_time
         )
