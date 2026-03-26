@@ -2396,7 +2396,7 @@ const createActivity = {
       // Non-fatal: a failure here does not roll back the recall.
       try {
         await ReadingModel(tenant).updateMany(
-          { device_id: updatedDevice._id },
+          { device_id: updatedDevice._id.toString() },
           { $set: { "deviceDetails.isActive": false } }
         );
       } catch (readingUpdateError) {
