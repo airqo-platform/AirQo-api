@@ -116,8 +116,8 @@ Fetches a single monitor by its `_id`.
 
 ```ts
 const result = await client.getMonitor("64a1f2b3c4d5e6f7a8b9c0d1");
-// or with overrides:
-const result = await client.getMonitor("64a1f2b3c4d5e6f7a8b9c0d1", { tenant: "airqo", token: "YOUR_TOKEN" });
+// or with a tenant override (public endpoint — no token needed):
+const resultWithTenant = await client.getMonitor("64a1f2b3c4d5e6f7a8b9c0d1", { tenant: "airqo" });
 console.log(result.data); // MonitorListItem
 ```
 
@@ -194,12 +194,14 @@ await client.upsertRegistry({
 
 ### `client.deleteRegistry(registryId, options?)`
 
-Removes a registry entry by document `_id`. Requires a valid access token.
+Removes a registry entry by document `_id`. Requires a valid access token — ensure the client was constructed with one or pass it explicitly via `options.token`.
 
 ```ts
+// client must have been constructed with a token:
+// const client = new NetworkCoverageClient({ token: "YOUR_TOKEN" });
 await client.deleteRegistry("64a1f2b3c4d5e6f7a8b9c0d1");
-// or with overrides:
-await client.deleteRegistry("64a1f2b3c4d5e6f7a8b9c0d1", { tenant: "airqo", token: "YOUR_TOKEN" });
+// or pass token explicitly per-call:
+await client.deleteRegistry("64a1f2b3c4d5e6f7a8b9c0d1", { token: "YOUR_TOKEN" });
 ```
 
 ---

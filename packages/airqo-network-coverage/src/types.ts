@@ -206,7 +206,6 @@ interface RegistryCommonFields {
   viewDataUrl?: string;
   /** ISO 8601 date string */
   lastActive?: string;
-  tenant?: string;
 }
 
 /**
