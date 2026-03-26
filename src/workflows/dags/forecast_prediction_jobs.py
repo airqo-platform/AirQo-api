@@ -160,11 +160,33 @@ def make_forecasts():
     default_args=SITE_PREDICTION_DAG_ARGS,
     catchup=False,
     tags=["airqo", "forecast", "site-level", "prediction-job", "daily"],
-    description="Daily site-level PM2.5 forecasting pipeline.",
+    description=(
+        "Daily site-level PM2.5 forecasting pipeline"
+    ),
 )
 def make_site_daily_forecasts():
+    """Run the site-level daily PM2.5 forecasting workflow.
+
+    The pipeline:
+    1. Pulls site history from BigQuery using the DAG logical date as the anchor.
+    2. Generates a multi-day forecast for each site with sufficient history.
+    3. Enriches the forecasts with meteorological features.
+    4. Saves the resulting rows to the configured downstream targets.
+
+    Notes:
+    - The historical window is controlled by ``DAILY_FORECAST_PREDICTION_JOB_SCOPE``.
+    - The forecast length is controlled by ``DAILY_FORECAST_HORIZON``.
+    - Persistence is pruned per site by the save helpers; there is no DAG-level
+      global row limit.
+    """
+
     @task()
     def fetch_site_prediction_data():
+        """Fetch historical site data used as forecast input.
+
+        The query uses the Airflow logical date, excludes the current execution day,
+        and reads an inclusive lookback window ending on the previous day.
+        """
         from airflow.operators.python import get_current_context
 
         execution_date = get_current_context()["logical_date"]
@@ -179,6 +201,12 @@ def make_site_daily_forecasts():
 
     @task()
     def generate_site_forecasts(data):
+        """Generate the configured forecast horizon for each site.
+
+        The forecast trainer produces one row per site per forecast day. For
+        example, a 10-day horizon yields 10 rows for each site that is
+        successfully modeled.
+        """
         return ForecastModelTrainer.generate_site_daily_forecasts(
             data,
             horizon=int(Config.DAILY_FORECAST_HORIZON or 10),
@@ -186,6 +214,7 @@ def make_site_daily_forecasts():
 
     @task()
     def enrich_site_forecasts_with_met_data(site_data, forecast_data):
+        """Attach daily meteorological context to the generated forecast rows."""
         return ForecastModelTrainer.enrich_site_daily_forecasts_with_met_data(
             site_data,
             forecast_data,
@@ -193,6 +222,7 @@ def make_site_daily_forecasts():
 
     @task()
     def save_site_forecasts_to_mongodb(data):
+        """Save forecasts to MongoDB using upsert semantics per site and date."""
         try:
             details = ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
             return {"target": "mongodb", "success": True, "details": details}
@@ -201,6 +231,7 @@ def make_site_daily_forecasts():
 
     @task()
     def save_site_forecasts_to_aws(data):
+        """Save forecasts to AWS if the site forecast bucket is configured."""
         try:
             details = ForecastModelTrainer._save_site_daily_forecasts_to_aws(data)
             return {"target": "aws", "success": True, "details": details}
@@ -209,6 +240,7 @@ def make_site_daily_forecasts():
 
     @task()
     def save_site_forecasts_to_bigquery(data):
+        """Save forecasts to BigQuery after date-range replacement and pruning."""
         try:
             details = ForecastModelTrainer._save_site_daily_forecasts_to_bigquery(data)
             return {"target": "bigquery", "success": True, "details": details}
@@ -217,6 +249,7 @@ def make_site_daily_forecasts():
 
     @task()
     def validate_site_forecast_saves(mongodb_result, aws_result, bigquery_result):
+        """Require at least one downstream sink to persist the forecast output."""
         results = [mongodb_result, aws_result, bigquery_result]
         succeeded = [result["target"] for result in results if result.get("success")]
 
