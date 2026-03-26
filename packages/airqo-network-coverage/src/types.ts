@@ -160,6 +160,8 @@ export interface ListParams {
   types?: MonitorType | MonitorType[];
   /** Override the default tenant */
   tenant?: string;
+  /** Override the client-level access token for this request */
+  token?: string;
 }
 
 /**
@@ -171,6 +173,8 @@ export interface ExportCsvParams {
   activeOnly?: boolean;
   types?: MonitorType | MonitorType[];
   tenant?: string;
+  /** Override the client-level access token for this request */
+  token?: string;
 }
 
 /**
@@ -261,4 +265,10 @@ export interface NetworkCoverageClientOptions {
    * Additional headers to send with every request (e.g. Authorization).
    */
   headers?: Record<string, string>;
+  /**
+   * AirQo access token. When provided it is appended as `?token=` on every
+   * request — the same mechanism described in the AirQo API documentation.
+   * Can be overridden per-request via the `token` field on each params object.
+   */
+  token?: string;
 }

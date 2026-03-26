@@ -93,12 +93,14 @@ export class NetworkCoverageClient {
   private readonly defaultTenant: string;
   private readonly timeoutMs: number;
   private readonly extraHeaders: Record<string, string>;
+  private readonly token: string | undefined;
 
   constructor(options: NetworkCoverageClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
     this.defaultTenant = options.defaultTenant ?? DEFAULT_TENANT;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.extraHeaders = options.headers ?? {};
+    this.token = options.token;
   }
 
   // -------------------------------------------------------------------------
@@ -252,9 +254,10 @@ export class NetworkCoverageClient {
    * Use this to power a map or sidebar listing.
    */
   async list(params: ListParams = {}): Promise<NetworkCoverageListResponse> {
-    const { search, activeOnly, types, tenant } = params;
+    const { search, activeOnly, types, tenant, token } = params;
     const qs = buildQuery({
       tenant: tenant ?? this.defaultTenant,
+      token: token ?? this.token,
       search,
       activeOnly: activeOnly !== undefined ? String(activeOnly) : undefined,
       types: typesParam(types),
@@ -271,9 +274,10 @@ export class NetworkCoverageClient {
    */
   async getMonitor(
     monitorId: string,
-    tenant?: string
+    tenant?: string,
+    token?: string
   ): Promise<MonitorDetailResponse> {
-    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant });
+    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant, token: token ?? this.token });
     return this.get<MonitorDetailResponse>(
       `/network-coverage/monitors/${encodeURIComponent(monitorId)}${qs}`
     );
@@ -289,9 +293,10 @@ export class NetworkCoverageClient {
     countryId: string,
     params: Omit<ListParams, "search"> = {}
   ): Promise<CountryMonitorsResponse> {
-    const { activeOnly, types, tenant } = params;
+    const { activeOnly, types, tenant, token } = params;
     const qs = buildQuery({
       tenant: tenant ?? this.defaultTenant,
+      token: token ?? this.token,
       activeOnly: activeOnly !== undefined ? String(activeOnly) : undefined,
       types: typesParam(types),
     });
@@ -311,9 +316,10 @@ export class NetworkCoverageClient {
    * fs.writeFileSync("monitors.csv", csv);
    */
   async exportCsv(params: ExportCsvParams = {}): Promise<string> {
-    const { countryId, search, activeOnly, types, tenant } = params;
+    const { countryId, search, activeOnly, types, tenant, token } = params;
     const qs = buildQuery({
       tenant: tenant ?? this.defaultTenant,
+      token: token ?? this.token,
       countryId,
       search,
       activeOnly: activeOnly !== undefined ? String(activeOnly) : undefined,
@@ -338,7 +344,7 @@ export class NetworkCoverageClient {
   ): Promise<RegistryUpsertResponse> {
     assertRegistryPayload(payload);
     const { tenant, ...body } = payload;
-    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant });
+    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant, token: this.token });
     return this.post<RegistryUpsertResponse>(
       `/network-coverage/registry${qs}`,
       body as Record<string, unknown>
@@ -352,9 +358,10 @@ export class NetworkCoverageClient {
    */
   async deleteRegistry(
     registryId: string,
-    tenant?: string
+    tenant?: string,
+    token?: string
   ): Promise<{ success: boolean; message: string }> {
-    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant });
+    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant, token: token ?? this.token });
     return this.delete<{ success: boolean; message: string }>(
       `/network-coverage/registry/${encodeURIComponent(registryId)}${qs}`
     );
