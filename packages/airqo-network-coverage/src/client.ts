@@ -274,10 +274,12 @@ export class NetworkCoverageClient {
    */
   async getMonitor(
     monitorId: string,
-    tenant?: string,
-    token?: string
+    options?: { tenant?: string; token?: string }
   ): Promise<MonitorDetailResponse> {
-    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant, token: token ?? this.token });
+    const qs = buildQuery({
+      tenant: options?.tenant ?? this.defaultTenant,
+      token: options?.token ?? this.token,
+    });
     return this.get<MonitorDetailResponse>(
       `/network-coverage/monitors/${encodeURIComponent(monitorId)}${qs}`
     );
@@ -340,11 +342,12 @@ export class NetworkCoverageClient {
    * Returns 201 on creation, 200 on update.
    */
   async upsertRegistry(
-    payload: RegistryUpsertPayload
+    payload: RegistryUpsertPayload,
+    token?: string
   ): Promise<RegistryUpsertResponse> {
     assertRegistryPayload(payload);
     const { tenant, ...body } = payload;
-    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant, token: this.token });
+    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant, token: token ?? this.token });
     return this.post<RegistryUpsertResponse>(
       `/network-coverage/registry${qs}`,
       body as Record<string, unknown>
@@ -358,10 +361,12 @@ export class NetworkCoverageClient {
    */
   async deleteRegistry(
     registryId: string,
-    tenant?: string,
-    token?: string
+    options?: { tenant?: string; token?: string }
   ): Promise<{ success: boolean; message: string }> {
-    const qs = buildQuery({ tenant: tenant ?? this.defaultTenant, token: token ?? this.token });
+    const qs = buildQuery({
+      tenant: options?.tenant ?? this.defaultTenant,
+      token: options?.token ?? this.token,
+    });
     return this.delete<{ success: boolean; message: string }>(
       `/network-coverage/registry/${encodeURIComponent(registryId)}${qs}`
     );
