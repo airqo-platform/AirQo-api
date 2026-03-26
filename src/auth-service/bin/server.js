@@ -32,7 +32,67 @@ const {
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const rateLimit = require("express-rate-limit");
-const options = { mongooseConnection: mongoose.connection };
+
+// ── Session store ─────────────────────────────────────────────────────────
+//
+// Priority:
+//   1. Redis (connect-redis) — when USE_REDIS_SESSIONS !== false and the
+//      Redis client is available. Redis sessions are ~10× faster than MongoDB
+//      and free all pool connections that previously handled session I/O.
+//   2. MongoDB (connect-mongo) — automatic fallback when Redis is unavailable
+//      at startup (e.g. Redis not yet healthy in K8s) or when the feature
+//      flag is disabled.
+//
+// touchAfter reduces MongoDB session writes: the store only re-persists a
+// session if its data actually changed, or at most once per 10 minutes.
+// autoRemove:"native" uses a MongoDB TTL index instead of a polling job.
+
+const mongoStoreOptions = {
+  mongooseConnection: mongoose.connection,
+  ttl: 24 * 60 * 60,       // 1 day in seconds
+  touchAfter: 10 * 60,      // only write if data changed, or once per 10 min
+  autoRemove: "native",     // MongoDB TTL index handles expiry (no polling)
+};
+
+const buildSessionStore = () => {
+  // Allow opting out via USE_REDIS_SESSIONS=false env var.
+  if (constants.USE_REDIS_SESSIONS === false) {
+    logger.info("[session] Redis sessions disabled by config — using MongoStore");
+    return new MongoStore(mongoStoreOptions);
+  }
+
+  try {
+    const { RedisStore } = require("connect-redis");
+    // Use the raw redis client (not the wrapper) as connect-redis requires
+    // the native client interface.
+    const { redis: redisClient } = require("@config/redis");
+
+    // Only use Redis if the connection is fully established. isOpen means the
+    // socket is connected; isReady means the server has accepted the connection
+    // and is ready to receive commands. Without this check the store can be
+    // created successfully but then fail on the first session read/write.
+    if (!redisClient.isOpen || !redisClient.isReady) {
+      logger.warn(
+        "[session] Redis client not ready at startup — falling back to MongoStore"
+      );
+      return new MongoStore(mongoStoreOptions);
+    }
+
+    const store = new RedisStore({
+      client: redisClient,
+      prefix: "airqo:sess:",
+      ttl: 24 * 60 * 60, // 1 day in seconds
+    });
+
+    logger.info("[session] using Redis session store");
+    return store;
+  } catch (err) {
+    logger.warn(
+      `[session] Redis store unavailable, falling back to MongoStore: ${err.message}`
+    );
+    return new MongoStore(mongoStoreOptions);
+  }
+};
 
 // Initialize background jobs
 const jobs = [
@@ -103,7 +163,7 @@ app.set("trust proxy", true);
 app.use(
   session({
     secret: constants.SESSION_SECRET,
-    store: new MongoStore(options),
+    store: buildSessionStore(),
     resave: false,
     saveUninitialized: false,
   }),
@@ -121,6 +181,18 @@ if (isDev) {
 }
 
 app.use(passport.initialize());
+
+// ── OAuth strategy one-time startup registration ───────────────────────────
+// Must be called here, after passport.initialize() and before any routes
+// are registered, so strategies are available when the first OAuth request
+// arrives. Calling configureStrategies per-request (inside setGoogleAuth /
+// setOAuthProvider) caused ERR_HTTP_HEADERS_SENT because Passport was
+// interrupted mid-authentication by a strategy re-registration.
+// configureStrategies is idempotent — subsequent calls from per-request
+// middleware are safe no-ops.
+const { configureStrategies } = require("@config/passport-strategies");
+configureStrategies(passport, constants.DEFAULT_TENANT || "airqo");
+// ── End OAuth startup registration ────────────────────────────────────────
 
 app.use(cookieParser());
 
@@ -488,30 +560,14 @@ const createServer = () => {
         console.log("No cron jobs to stop");
       }
 
-      // Close any Redis connections if they exist
-      if (global.redisClient) {
-        console.log("Closing Redis connection...");
-
-        try {
-          // Prefer quit() for a graceful shutdown, but fallback to disconnect()
-          if (
-            global.redisClient &&
-            typeof global.redisClient.quit === "function"
-          ) {
-            await global.redisClient.quit();
-            console.log("✅ Redis connection closed");
-          } else if (
-            global.redisClient &&
-            typeof global.redisClient.disconnect === "function"
-          ) {
-            // disconnect() is less graceful but better than nothing
-            await global.redisClient.disconnect();
-            console.log("✅ Redis connection disconnected");
-          }
-        } catch (error) {
-          console.error("❌ Error closing Redis connection:", error.message);
-          logger.error(`❌ Error closing Redis connection: ${error.message}`);
-        }
+      // Close the module-level Redis client (config/redis.js)
+      try {
+        const { disconnectRedis } = require("@config/redis");
+        await disconnectRedis("gracefulShutdown");
+        console.log("✅ Redis connection closed");
+      } catch (error) {
+        console.error("❌ Error closing Redis connection:", error.message);
+        logger.error(`❌ Error closing Redis connection: ${error.message}`);
       }
 
       // Close Firebase connections if they exist

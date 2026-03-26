@@ -2,7 +2,6 @@ const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const userUtil = require("@utils/user.util");
 const { AbstractTokenFactory } = require("@services/atf.service");
-const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
@@ -13,7 +12,6 @@ const { mailer, stringify, winstonLogger } = require("@utils/common");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
-const accessCodeGenerator = require("generate-password");
 const analyticsService = require("@services/analytics.service");
 const {
   logObject,
@@ -26,6 +24,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`,
 );
+const { configureStrategies } = require("@config/passport-strategies");
 
 // --- Token Lifecycle Configuration ---
 const TOKEN_LIFE_SECONDS = constants.JWT_EXPIRES_IN_SECONDS;
@@ -38,12 +37,9 @@ const setLocalOptions = (req, res, next) => {
     const userName =
       typeof rawUserName === "string" ? rawUserName.trim() : rawUserName;
     if (typeof userName === "string") {
-      // normalize for downstream consumers
       req.body.userName = userName;
     }
 
-    // The validator library expects a string.
-    // We check for existence first, then validate.
     if (
       !userName ||
       typeof userName !== "string" ||
@@ -56,7 +52,6 @@ const setLocalOptions = (req, res, next) => {
     }
 
     const authenticationFields = {};
-    // Use the trimmed value for validation
     if (Validator.isEmail(userName)) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
@@ -71,7 +66,6 @@ const setLocalOptions = (req, res, next) => {
       authenticationFields,
     };
   } catch (error) {
-    // Handle errors appropriately, including HttpErrors
     if (error instanceof HttpError) {
       return next(error);
     }
@@ -99,21 +93,11 @@ const jwtOpts = {
   secretOrKey: constants.JWT_SECRET,
 };
 
-/**
- * using the strategies
- * @param {*} tenant
- * @param {*} req
- * @param {*} res
- * @param {*} next
- * @returns
- */
 const useLocalStrategy = (tenant, req, res, next) => {
   try {
     const localOptions = setLocalOptions(req, res, next);
     logObject("the localOptions", localOptions);
 
-    // If setLocalOptions calls next(error), it returns undefined.
-    // The error is already passed to the express error handler, so we just stop.
     if (!localOptions) {
       return;
     }
@@ -176,7 +160,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           return;
         }
 
-        // Centralized verification check
         const verificationResult = userUtil._handleVerification(user);
         if (!verificationResult.shouldProceed) {
           try {
@@ -207,9 +190,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
               email: user.email.toLowerCase(),
               _id: { $ne: user._id },
             });
-
             if (!conflictUser) {
-              // Safe to migrate this user's email
               await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
                 user._id,
                 { email: user.email.toLowerCase() },
@@ -223,7 +204,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           }
         }
 
-        // Fire-and-forget permission update
         (async () => {
           try {
             const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
@@ -233,14 +213,11 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
               .find({ permission: { $in: DEFAULT_PERMISSIONS } })
               .select("_id")
               .lean();
-
             if (existingPermissions.length > 0) {
               const permissionIds = existingPermissions.map((p) => p._id);
               await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
                 user._id,
-                {
-                  $addToSet: { permissions: { $each: permissionIds } },
-                },
+                { $addToSet: { permissions: { $each: permissionIds } } },
               );
             }
           } catch (permError) {
@@ -251,13 +228,11 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         })();
 
         try {
-          // Decide if auto-verification should happen.
           const shouldAutoVerify =
             verificationResult.shouldProceed &&
             user.verified !== true &&
             user.analyticsVersion !== 3 &&
             user.analyticsVersion !== 4;
-
           const updatePayload = userUtil._constructLoginUpdate(user, null, {
             autoVerify: shouldAutoVerify,
           });
@@ -274,7 +249,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         } catch (error) {
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
-        // Ensure user's default role is correctly assigned before proceeding
+
         await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
@@ -284,7 +259,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           },
         );
-
         return done(null, user);
       } catch (e) {
         req.auth = {};
@@ -313,7 +287,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
           req.auth.status = httpStatus.BAD_REQUEST;
-
           next(
             new HttpError(
               `username or password does not exist in this organisation (${tenant})`,
@@ -334,7 +307,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           return;
         }
 
-        // Centralized verification check
         const verificationResult = userUtil._handleVerification(user);
         if (!verificationResult.shouldProceed) {
           try {
@@ -364,9 +336,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
               email: user.email.toLowerCase(),
               _id: { $ne: user._id },
             });
-
             if (!conflictUser) {
-              // Safe to migrate this user's email
               await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
                 user._id,
                 { email: user.email.toLowerCase() },
@@ -380,7 +350,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           }
         }
 
-        // Fire-and-forget permission update
         (async () => {
           try {
             const DEFAULT_PERMISSIONS = constants.DEFAULTS.DEFAULT_USER;
@@ -390,14 +359,11 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
               .find({ permission: { $in: DEFAULT_PERMISSIONS } })
               .select("_id")
               .lean();
-
             if (existingPermissions.length > 0) {
               const permissionIds = existingPermissions.map((p) => p._id);
               await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
                 user._id,
-                {
-                  $addToSet: { permissions: { $each: permissionIds } },
-                },
+                { $addToSet: { permissions: { $each: permissionIds } } },
               );
             }
           } catch (permError) {
@@ -408,13 +374,11 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         })();
 
         try {
-          // Decide if auto-verification should happen.
           const shouldAutoVerify =
             verificationResult.shouldProceed &&
             user.verified !== true &&
             user.analyticsVersion !== 3 &&
             user.analyticsVersion !== 4;
-
           const updatePayload = userUtil._constructLoginUpdate(user, null, {
             autoVerify: shouldAutoVerify,
           });
@@ -432,9 +396,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
 
-        // Ensure user's default role is correctly assigned before proceeding
         await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
-
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -456,173 +418,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
     },
   );
 
-const useGoogleStrategy = (tenant, req, res, next) =>
-  new GoogleStrategy(
-    {
-      clientID: constants.GOOGLE_CLIENT_ID,
-      clientSecret: constants.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${constants.PLATFORM_BASE_URL}/api/v2/users/auth/google/callback`,
-    },
-    async (accessToken, refreshToken, profile, cb) => {
-      logObject("Google profile Object", profile._json);
-
-      try {
-        const service = req.headers["service"];
-        let user = await UserModel(tenant.toLowerCase())
-          .findOne({
-            email: profile._json.email,
-          })
-          .exec();
-
-        req.auth = {};
-        if (user) {
-          req.auth.success = true;
-          req.auth.message = "successful login";
-
-          try {
-            analyticsService.track(user._id.toString(), "user_logged_in", {
-              method: "google",
-            });
-          } catch (analyticsError) {
-            logger.error(
-              `PostHog Google login track error: ${analyticsError.message}`,
-            );
-          }
-
-          if (user && user.email !== user.email.toLowerCase()) {
-            try {
-              const conflictUser = await UserModel(
-                tenant.toLowerCase(),
-              ).findOne({
-                email: user.email.toLowerCase(),
-                _id: { $ne: user._id },
-              });
-
-              if (!conflictUser) {
-                // Safe to migrate this user's email
-                await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
-                  user._id,
-                  { email: user.email.toLowerCase() },
-                  { new: true },
-                );
-              }
-            } catch (error) {
-              logger.warn(
-                `Could not migrate email case for user ${user._id}: ${error.message}`,
-              );
-            }
-          }
-
-          // Role check and fix
-          await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
-
-          winstonLogger.info(
-            `successful login through ${service ? service : "unknown"} service`,
-            {
-              username: user.userName,
-              email: user.email,
-              service: service ? service : "none",
-            },
-          );
-          cb(null, user);
-          return next();
-        } else {
-          // profilePicture: profile._json.picture,
-          const responseFromRegisterUser = await UserModel(tenant).register(
-            {
-              google_id: profile._json.sub,
-              firstName: profile._json.given_name,
-              lastName: profile._json.family_name,
-              email: profile._json.email,
-              userName: profile._json.email,
-              website: profile._json.hd,
-              password: accessCodeGenerator.generate(
-                constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
-              ),
-            },
-            next,
-          );
-          if (responseFromRegisterUser.success === false) {
-            req.auth.success = false;
-            req.auth.message = "unable to create user";
-            req.auth.status =
-              responseFromRegisterUser.status ||
-              httpStatus.INTERNAL_SERVER_ERROR;
-            cb(responseFromRegisterUser.errors, false);
-
-            next(
-              new HttpError(
-                "unable to create user",
-                responseFromRegisterUser.status ||
-                  httpStatus.INTERNAL_SERVER_ERROR,
-              ),
-            );
-            return;
-          } else {
-            logObject("the newly created user", responseFromRegisterUser.data);
-            user = responseFromRegisterUser.data;
-
-            try {
-              const userId = user._id.toString();
-              const userProperties = {
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                createdAt: user.createdAt,
-              };
-              analyticsService.identify(userId, userProperties);
-              analyticsService.track(userId, "user_registered", {
-                method: "google",
-              });
-            } catch (analyticsError) {
-              logger.error(
-                `PostHog Google registration track error: ${analyticsError.message}`,
-              );
-            }
-
-            try {
-              // New user from Google should be auto-verified.
-              const updatePayload = userUtil._constructLoginUpdate(user, null, {
-                autoVerify: true,
-              });
-              await UserModel(tenant.toLowerCase())
-                .findOneAndUpdate({ _id: user._id }, updatePayload, {
-                  new: true,
-                  upsert: false,
-                  runValidators: true,
-                })
-                .then(() => {})
-                .catch((error) => {
-                  logger.error(
-                    `🐛🐛 Internal Server Error -- ${stringify(error)}`,
-                  );
-                });
-            } catch (error) {
-              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
-            }
-            cb(null, user);
-
-            return next();
-          }
-        }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
-        logObject("error", error);
-        req.auth = {};
-        req.auth.success = false;
-        req.auth.message = "Server Error";
-        req.auth.error = error.message;
-
-        next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
-        return;
-      }
-    },
-  );
-
 const specificRoutes = [
-  // ============================================
-  // EVENTS ENDPOINTS
-  // ============================================
   {
     uri: ["/api/v2/devices/events"],
     service: "events-registry",
@@ -630,10 +426,6 @@ const specificRoutes = [
     description:
       "Blocks JWT for events endpoint - uses query token authentication",
   },
-
-  // ============================================
-  // MEASUREMENTS ENDPOINTS (V2)
-  // ============================================
   {
     uri: [
       "/api/v2/devices/measurements",
@@ -647,10 +439,6 @@ const specificRoutes = [
     description:
       "Blocks JWT for all measurements endpoints - uses query token authentication",
   },
-
-  // ============================================
-  // READINGS ENDPOINTS
-  // ============================================
   {
     uri: ["/api/v2/devices/readings"],
     service: "events-registry",
@@ -658,10 +446,6 @@ const specificRoutes = [
     description:
       "Blocks JWT for readings endpoint - uses query token authentication",
   },
-
-  // ============================================
-  // RAW DATA ENDPOINTS (V2 & V3)
-  // ============================================
   {
     uri: ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"],
     service: "analytics",
@@ -669,10 +453,6 @@ const specificRoutes = [
     description:
       "Blocks JWT for raw data endpoints - uses query token authentication",
   },
-
-  // ============================================
-  // DATA DOWNLOAD ENDPOINTS (V2 & V3)
-  // ============================================
   {
     uri: [
       "/api/v2/analytics/data-download",
@@ -683,10 +463,6 @@ const specificRoutes = [
     description:
       "Blocks JWT for data download endpoints - uses query token authentication",
   },
-
-  // ============================================
-  // DATA EXPORT ENDPOINTS
-  // ============================================
   {
     uri: [
       "/api/v2/analytics/data-export",
@@ -697,10 +473,6 @@ const specificRoutes = [
     description:
       "Blocks JWT for data export endpoints - uses query token authentication",
   },
-
-  // ============================================
-  // FORECAST ENDPOINTS (PREMIUM TIER)
-  // ============================================
   {
     uri: [
       "/api/v2/analytics/forecasts/hourly",
@@ -713,10 +485,6 @@ const specificRoutes = [
     description:
       "Blocks JWT for forecast endpoints - uses query token authentication",
   },
-
-  // ============================================
-  // HEATMAP ENDPOINTS
-  // ============================================
   {
     uri: [
       "/api/v2/devices/measurements/heatmaps",
@@ -727,20 +495,12 @@ const specificRoutes = [
     description:
       "Blocks JWT for heatmap endpoints - uses query token authentication",
   },
-
-  // ============================================
-  // DEPRECATED ENDPOINTS
-  // ============================================
   {
     uri: ["/api/v1/devices"],
     service: "device-registry",
     action: "Deprecated API Version - Query Token Required",
     description: "Blocks JWT for deprecated v1 devices endpoint",
   },
-
-  // ============================================
-  // PUBLIC METADATA ENDPOINTS (if using query tokens)
-  // ============================================
   {
     uri: [
       "/api/v2/metadata/sites",
@@ -755,7 +515,6 @@ const specificRoutes = [
 ];
 
 const routesWithService = [
-  /**** Sites */
   {
     method: "POST",
     uriIncludes: ["/api/v2/devices/sites"],
@@ -780,8 +539,6 @@ const routesWithService = [
     service: "site-registry",
     action: "Site Deletion",
   },
-
-  /**** Devices */
   {
     method: "DELETE",
     uriIncludes: ["/api/v2/devices?"],
@@ -824,67 +581,54 @@ const routesWithService = [
     service: "device-registry",
     action: "Device SOFT Creation",
   },
-  /**** Cohorts */
   {
     method: "GET",
     uriIncludes: ["/api/v2/devices/cohorts"],
     service: "cohort-registry",
     action: "View Cohorts",
   },
-
   {
     method: "POST",
     uriIncludes: ["/api/v2/devices/cohorts"],
     service: "cohort-registry",
     action: "Create Cohorts",
   },
-
   {
     method: "PUT",
     uriIncludes: ["/api/v2/devices/cohorts"],
     service: "cohort-registry",
     action: "Update Cohort",
   },
-
   {
     method: "DELETE",
     uriIncludes: ["/api/v2/devices/cohorts"],
     service: "cohort-registry",
     action: "Delete Cohort",
   },
-
-  /**** Grids */
-
   {
     method: "GET",
     uriIncludes: ["/api/v2/devices/grids"],
     service: "grid-registry",
     action: "View Grids",
   },
-
   {
     method: "PUT",
     uriIncludes: ["/api/v2/devices/grids"],
     service: "grid-registry",
     action: "Update Grid",
   },
-
   {
     method: "DELETE",
     uriIncludes: ["/api/v2/devices/grids"],
     service: "grid-registry",
     action: "Delete Grid",
   },
-
   {
     method: "POST",
     uriIncludes: ["/api/v2/devices/grids"],
     service: "grid-registry",
     action: "Create Grid",
   },
-
-  /**** AirQlouds */
-
   {
     method: "GET",
     uriIncludes: ["/api/v2/devices/airqlouds"],
@@ -909,9 +653,6 @@ const routesWithService = [
     service: "airqloud-registry",
     action: "AirQloud Deletion",
   },
-
-  /**** Site Activities */
-
   {
     method: "POST",
     uriIncludes: ["/api/v2/devices/activities/maintain"],
@@ -930,8 +671,6 @@ const routesWithService = [
     service: "device-deployment",
     action: "Deploy Device",
   },
-
-  /**** Users */
   {
     method: "POST",
     uriIncludes: ["api/v2/users", "api/v1/users"],
@@ -956,8 +695,6 @@ const routesWithService = [
     service: "auth",
     action: "Delete User",
   },
-
-  /****Incentives*/
   {
     method: "POST",
     uriIncludes: [
@@ -976,32 +713,24 @@ const routesWithService = [
     service: "incentives",
     action: "Send Money to Host",
   },
-
-  /**** Calibrate */
   {
     method: "POST",
     uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
     service: "calibrate",
     action: "calibrate device",
   },
-
-  /**** Locate */
   {
     method: "POST",
     uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
     service: "locate",
     action: "Identify Suitable Device Locations",
   },
-
-  /**** Fault Detection */
   {
     method: "POST",
     uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
     service: "fault-detection",
     action: "Detect Faults",
   },
-
-  /**** Data Proxy */
   {
     method: "GET",
     uriIncludes: ["/api/v2/data"],
@@ -1014,8 +743,6 @@ const routesWithService = [
     service: "data-proxy",
     action: "Retrieve Data",
   },
-
-  /*****Analytics */
   {
     method: "GET",
     uriIncludes: ["/api/v2/analytics/dashboard/sites"],
@@ -1034,9 +761,6 @@ const routesWithService = [
     service: "analytics",
     action: "Retrieve Exceedances on Analytics Page",
   },
-
-  /*****KYA lessons */
-
   {
     method: "GET",
     uriIncludes: ["/api/v2/devices/kya/lessons/users"],
@@ -1061,44 +785,36 @@ const routesWithService = [
     service: "kya",
     action: "Delete KYA lesson",
   },
-  /*****KYA Quizzes */
   {
     method: "GET",
     uriIncludes: ["/api/v2/devices/kya/quizzes/users"],
     service: "kya",
     action: "Retrieve KYA quizzes",
   },
-
   {
     method: "POST",
     uriIncludes: ["/api/v2/devices/kya/quizzes"],
     service: "kya",
     action: "Create KYA quizzes",
   },
-
   {
     method: "PUT",
     uriIncludes: ["/api/v2/devices/kya/quizzes"],
     service: "kya",
     action: "Update KYA quiz",
   },
-
   {
     method: "DELETE",
     uriIncludes: ["/api/v2/devices/kya/quizzes"],
     service: "kya",
     action: "Delete KYA quiz",
   },
-
-  /*****view */
   {
     method: "GET",
     uriIncludes: ["/api/v2/view/mobile-app/version-info"],
     service: "mobile-version",
     action: "View Mobile App Information",
   },
-
-  /*****Predict */
   {
     method: "GET",
     uriIncludes: ["/api/v2/predict/daily-forecast"],
@@ -1117,22 +833,18 @@ const routesWithService = [
     service: "predict",
     action: "Retrieve Heatmap",
   },
-
-  /*****Device Monitoring */
   {
     method: "GET",
     uriIncludes: ["/api/v2/monitor"],
     service: "monitor",
     action: "Retrieve Network Statistics Data",
   },
-
   {
     method: "GET",
     uriIncludes: ["/api/v2/meta-data"],
     service: "meta-data",
     action: "Retrieve Metadata",
   },
-
   {
     method: "GET",
     uriIncludes: ["/api/v2/network-uptime"],
@@ -1141,38 +853,15 @@ const routesWithService = [
   },
 ];
 
-// ============================================
-// IMPROVED ROUTE MATCHING LOGIC
-// ============================================
-
-/**
- * Enhanced route matching function that handles:
- * - Exact matches
- * - Prefix matches
- * - Path parameters (e.g., /api/v2/devices/measurements/sites/{site_id})
- * - Query parameters
- *
- * @param {string} requestUri - The incoming request URI
- * @param {Array<string>} routeUris - Array of route patterns to match against
- * @returns {boolean} - True if the request URI matches any route pattern
- */
 function matchesRoute(requestUri, routeUris) {
   if (!requestUri) return false;
-
-  // Remove query parameters from request URI for matching
   const cleanUri = requestUri.split("?")[0];
-
   return routeUris.some((routeUri) => {
-    // Exact match
     if (cleanUri === routeUri) return true;
-
-    // Prefix match - checks if the URI starts with the route pattern
     if (cleanUri.startsWith(routeUri)) {
-      // Ensure it's a valid path boundary (not matching partial segments)
       const nextChar = cleanUri[routeUri.length];
       return !nextChar || nextChar === "/" || nextChar === "?";
     }
-
     return false;
   });
 }
@@ -1185,7 +874,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
         "req.headers[x-original-method]",
         req.headers["x-original-method"],
       );
-
       logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
       logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
       logObject(
@@ -1203,13 +891,10 @@ const useJWTStrategy = (tenant, req, res, next) =>
       let service = req.headers["service"] || "unknown";
       let userAction = "unknown";
 
-      // Check if the route should be blocked from JWT authentication
       for (const route of specificRoutes) {
         if (matchesRoute(endpoint, route.uri)) {
           service = route.service;
           userAction = route.action;
-
-          // Return false to indicate authentication should not proceed via JWT
           return done(null, false, {
             message: "This endpoint requires query token authentication",
             service: service,
@@ -1229,7 +914,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
       routesWithService.forEach(async (route) => {
         const uri = req.headers["x-original-uri"];
         const method = req.headers["x-original-method"];
-
         if (
           method &&
           route.method === method &&
@@ -1242,7 +926,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service = route.service;
           userAction = route.action;
           logObject("Service", service);
-
           if (["device-deployment", "device-recall"].includes(service)) {
             try {
               const emailResponse = await mailer.siteActivity(
@@ -1251,14 +934,13 @@ const useJWTStrategy = (tenant, req, res, next) =>
                   firstName: user.firstName,
                   lastName: user.lastName,
                   siteActivityDetails: {
-                    service: service,
-                    userAction: userAction,
+                    service,
+                    userAction,
                     actor: user.email,
                   },
                 },
                 next,
               );
-
               if (emailResponse && emailResponse.success === false) {
                 logger.error(
                   `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`,
@@ -1272,7 +954,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
       });
 
       try {
-        // Only update login stats; do not flip verification state here.
         const updatePayload = userUtil._constructLoginUpdate(user, null, {
           autoVerify: false,
         });
@@ -1290,7 +971,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
       }
 
-      // Ensure user's default role is correctly assigned before proceeding
       await userUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
 
       winstonLogger.info(userAction, {
@@ -1314,59 +994,59 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
     logObject("Service", service);
+
     await AccessTokenModel(tenant.toLowerCase()).findOne(
-      {
-        id: token,
-      },
+      { id: token },
       function (error, accessToken) {
         if (error) {
           return done(error);
         }
 
-        if (accessToken) {
-          if (!token.isValid(accessToken)) {
-            return done(null, false);
-          }
-
-          UserModel(tenant.toLowerCase()).findOne(
-            {
-              id: accessToken.user_id,
-            },
-            function (error, user) {
-              if (error) {
-                return done(error);
-              }
-
-              if (!user) {
-                return done(null, false);
-              }
-              winstonLogger.info(
-                `successful login through ${
-                  service ? service : "unknown"
-                } service`,
-                {
-                  username: user.userName,
-                  email: user.email,
-                  service: service ? service : "unknown",
-                },
-              );
-              return done(null, user);
-            },
-          );
-        } else {
-          return done(null);
+        if (!accessToken) {
+          return done(null, false);
         }
+
+        // Validate token expiry against current time.
+        // The previous token.isValid(accessToken) call was incorrect —
+        // token is a raw string and has no isValid method. Check the
+        // expires field on the accessToken document instead.
+        const expiryDate = accessToken.expires || accessToken.expiresAt || null;
+        if (!expiryDate || new Date(expiryDate) <= new Date()) {
+          return done(null, false);
+        }
+
+        UserModel(tenant.toLowerCase()).findOne(
+          { id: accessToken.user_id },
+          function (error, user) {
+            if (error) {
+              return done(error);
+            }
+
+            if (!user) {
+              return done(null, false);
+            }
+
+            winstonLogger.info(
+              `successful login through ${
+                service ? service : "unknown"
+              } service`,
+              {
+                username: user.userName,
+                email: user.email,
+                service: service ? service : "unknown",
+              },
+            );
+            return done(null, user);
+          },
+        );
       },
     );
   });
 
-/**
- * setting the strategies
- * @param {*} tenant
- * @param {*} req
- * @param {*} res
- * @param {*} next
- */
+// ============================================
+// STRATEGY SETUP FUNCTIONS
+// ============================================
+
 const setLocalStrategy = (tenant, req, res, next) => {
   const strategy = useLocalStrategy(tenant, req, res, next);
   if (strategy) {
@@ -1374,18 +1054,12 @@ const setLocalStrategy = (tenant, req, res, next) => {
   }
 };
 
-const setGoogleStrategy = (tenant, req, res, next) => {
-  passport.use(useGoogleStrategy(tenant, req, res, next));
-  passport.serializeUser((user, done) => {
-    done(null, user);
-  });
-  passport.deserializeUser(async (user, done) => {
-    await UserModel(tenant.toLowerCase())
-      .findById(id)
-      .then((user) => {
-        done(null, user);
-      });
-  });
+/**
+ * Configures all OAuth strategies (Google, and future providers) via the
+ * centralized passport-strategies config. Replaces the old setGoogleStrategy.
+ */
+const setOAuthStrategies = (tenant) => {
+  configureStrategies(passport, tenant);
 };
 
 const setJWTStrategy = (tenant, req, res, next) => {
@@ -1396,6 +1070,10 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
   passport.use("authtoken", useAuthTokenStrategy(tenant, req, res, next));
 };
 
+// ============================================
+// MIDDLEWARE FUNCTIONS
+// ============================================
+
 function setLocalAuth(req, res, next) {
   try {
     const errors = extractErrorsFromRequest(req);
@@ -1403,10 +1081,7 @@ function setLocalAuth(req, res, next) {
       next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
+    const tenant = req.query.tenant || "airqo";
     setLocalStrategy(tenant, req, res, next);
     next();
   } catch (e) {
@@ -1414,26 +1089,115 @@ function setLocalAuth(req, res, next) {
     logObject("the error in setLocalAuth is", e);
   }
 }
+
+/**
+ * Backward-compatible middleware for the legacy /auth/google routes.
+ * Persists tenant to session before the OAuth redirect so it can be
+ * recovered in makeStrategyCallback on the callback request, where
+ * req.query.tenant is no longer present.
+ */
 function setGoogleAuth(req, res, next) {
   try {
-    logText("we are setting the Google Auth");
+    logText("setGoogleAuth: configuring OAuth strategies");
     const errors = extractErrorsFromRequest(req);
     if (errors) {
       next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
+    const tenant = req.query.tenant || "airqo";
+
+    // Persist tenant in session so it survives the provider redirect
+    // round-trip. req.query.tenant is not present on the callback request.
+    if (req.session) {
+      req.session.oauthTenant = tenant;
     }
-    setGoogleStrategy(tenant, req, res, next);
+
+    setOAuthStrategies(tenant);
     next();
   } catch (e) {
-    logObject("e", e);
-    logger.error(`the error in setLocalAuth is: ${e.message}`);
-    logObject("the error in setLocalAuth is", e);
+    logObject("setGoogleAuth error", e);
+    logger.error(`setGoogleAuth error: ${e.message}`);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
   }
 }
+
+/**
+ * Generic OAuth provider middleware for the new /auth/:provider routes.
+ * Validates the provider, persists tenant to session before the redirect
+ * so it can be recovered in makeStrategyCallback on the callback request
+ * (where req.query.tenant is no longer present), and configures strategies.
+ */
+function setOAuthProvider(req, res, next) {
+  try {
+    logText("setOAuthProvider: configuring OAuth strategies");
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+    const tenant = req.query.tenant || "airqo";
+    const provider = (req.params.provider || "google").toLowerCase();
+
+    const SUPPORTED_PROVIDERS = [
+      "google",
+      "github",
+      "linkedin",
+      "microsoft",
+      "twitter",
+    ];
+    if (!SUPPORTED_PROVIDERS.includes(provider)) {
+      return next(
+        new HttpError(
+          `Unsupported OAuth provider: ${provider}`,
+          httpStatus.BAD_REQUEST,
+          {
+            message: `Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`,
+          },
+        ),
+      );
+    }
+
+    // Persist tenant in session so it survives the provider redirect
+    // round-trip. req.query.tenant is not present on the callback request
+    // because the provider only appends code and state to the redirect URL.
+    if (req.session) {
+      req.session.oauthTenant = tenant;
+    }
+
+    req.oauthProvider = provider;
+    setOAuthStrategies(tenant);
+
+    // After registering strategies, verify the requested provider was
+    // actually configured. If credentials are missing, configureStrategies
+    // skips that strategy silently, and calling passport.authenticate()
+    // with an unregistered provider would produce a cryptic 500.
+    const strategyRegistered =
+      passport &&
+      passport._strategies &&
+      Object.prototype.hasOwnProperty.call(passport._strategies, provider);
+
+    if (!strategyRegistered) {
+      return next(
+        new HttpError(
+          `OAuth provider not configured: ${provider}`,
+          httpStatus.BAD_REQUEST,
+          {
+            message:
+              `The "${provider}" OAuth provider is not currently enabled. ` +
+              `Please contact the system administrator.`,
+          },
+        ),
+      );
+    }
+
+    next();
+  } catch (e) {
+    logObject("setOAuthProvider error", e);
+    logger.error(`setOAuthProvider error: ${e.message}`);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+  }
+}
+
 function setJWTAuth(req, res, next) {
   try {
     if (req.body && req.body.user_id) {
@@ -1446,40 +1210,83 @@ function setJWTAuth(req, res, next) {
       next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
+    const tenant = req.query.tenant || "airqo";
     setJWTStrategy(tenant, req, res, next);
     next();
   } catch (e) {
-    logger.error(`the error in setLocalAuth is: ${e.message}`);
-    logObject("the error in setLocalAuth is", e);
+    logger.error(`the error in setJWTAuth is: ${e.message}`);
+    logObject("the error in setJWTAuth is", e);
     next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
     return;
   }
 }
+
 const setGuestToken = (req, res) => {
   const guest = { guest: true, role: "guest" };
   const token = jwt.sign(guest, constants.JWT_SECRET);
   res.json({ token });
 };
 
-/**
- * utilising the strategies after setting them in the routes
- */
+// ============================================
+// PASSPORT AUTHENTICATE WRAPPERS
+// ============================================
+
 const authLocal = passport.authenticate("user-local", {
   session: false,
   failureFlash: true,
 });
 
+/**
+ * Initiates Google OAuth flow (legacy route support).
+ */
 const authGoogle = passport.authenticate("google", {
   scope: ["profile", "email"],
 });
 
+/**
+ * Handles the Google OAuth callback (legacy route support).
+ */
 const authGoogleCallback = passport.authenticate("google", {
   failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+  session: false,
 });
+
+/**
+ * Dynamically initiates OAuth flow for any supported provider.
+ * Used by the generic GET /auth/:provider route.
+ */
+const authOAuth = (req, res, next) => {
+  const provider = req.params.provider || req.oauthProvider || "google";
+
+  // Provider-specific scopes. Twitter uses OAuth 1.0a and does not accept
+  // a scope option. All other providers use OAuth 2.0 with scopes tailored
+  // to what each provider's API requires for email + basic profile access.
+  const providerScopes = {
+    google: ["profile", "email"],
+    github: ["user:email"],
+    linkedin: ["r_emailaddress", "r_liteprofile"],
+    microsoft: ["user.read"],
+  };
+
+  const options =
+    provider === "twitter"
+      ? {}
+      : { scope: providerScopes[provider] || ["profile", "email"] };
+
+  passport.authenticate(provider, options)(req, res, next);
+};
+
+/**
+ * Dynamically handles the OAuth callback for any supported provider.
+ * Used by the generic GET /auth/callback/:provider route.
+ */
+const authOAuthCallback = (req, res, next) => {
+  const provider = req.params.provider || req.oauthProvider || "google";
+  passport.authenticate(provider, {
+    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+    session: false,
+  })(req, res, next);
+};
 
 const authGuest = (req, res, next) => {
   try {
@@ -1501,7 +1308,6 @@ function authJWT(req, res, next) {
     next();
     return;
   }
-  // If user_id is not present, proceed with JWT authentication
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
@@ -1535,20 +1341,14 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
-    // ========================================
-    // ROUTE BLOCKING CHECK (BEFORE JWT VERIFICATION)
-    // Critical security check: Block JWT tokens from query-token-only endpoints
-    // ========================================
     const endpoint =
       req.headers["x-original-uri"] || req.originalUrl || req.url;
 
-    // Check if this endpoint should be blocked from JWT authentication
     for (const route of specificRoutes) {
       if (matchesRoute(endpoint, route.uri)) {
         logger.warn(
           `JWT blocked for endpoint: ${endpoint} - requires query token`,
         );
-
         return next(
           new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
             message:
@@ -1560,16 +1360,12 @@ const enhancedJWTAuth = (req, res, next) => {
         );
       }
     }
-    // ========================================
-    // END ROUTE BLOCKING CHECK
-    // ========================================
 
     jwt.verify(
       token,
       constants.JWT_SECRET,
       { ignoreExpiration: true },
       async (err, decoded) => {
-        // This handles malformed tokens, but not expiration
         if (err) {
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
@@ -1580,7 +1376,6 @@ const enhancedJWTAuth = (req, res, next) => {
 
         const now = Math.floor(Date.now() / 1000);
 
-        // 1. Check if token is fully expired (past grace period)
         if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
           return next(
             new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
@@ -1596,14 +1391,12 @@ const enhancedJWTAuth = (req, res, next) => {
           "airqo";
         const tenant = String(tenantRaw).toLowerCase();
 
-        // 2. Check if a refresh is needed (proactive sliding window OR reactive grace period)
         if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
           try {
             const userIdForRefresh = decoded.id || decoded._id;
             const userForRefresh = await UserModel(tenant)
               .findById(userIdForRefresh)
               .lean();
-
             if (userForRefresh) {
               const tokenFactory = new AbstractTokenFactory(tenant);
               const strategy =
@@ -1613,21 +1406,16 @@ const enhancedJWTAuth = (req, res, next) => {
                 strategy,
                 { expiresIn: `${TOKEN_LIFE_SECONDS}s` },
               );
-
               res.set("X-Access-Token", `JWT ${newToken}`);
               res.set("Access-Control-Expose-Headers", "X-Access-Token");
             }
           } catch (refreshError) {
             logger.error(
-              `Failed to refresh token for user ${decoded.id || decoded._id}: ${
-                refreshError.message
-              }`,
+              `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
             );
-            // Do not fail the request, just log the error. The current token is still valid (or within grace).
           }
         }
 
-        // 3. Attach user info to the request and proceed
         const userId = decoded.userId || decoded.id || decoded._id;
         const user = await UserModel(tenant).findById(userId).lean();
 
@@ -1645,7 +1433,6 @@ const enhancedJWTAuth = (req, res, next) => {
           );
         }
 
-        // For compatibility, merge DB user data with token claims
         req.user = { ...decoded, ...user };
         next();
       },
@@ -1663,36 +1450,22 @@ const enhancedJWTAuth = (req, res, next) => {
 const optionalJWTAuth = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
-    // If no auth header, just proceed without a user object
-    if (!authHeader) {
-      return next();
-    }
+    if (!authHeader) return next();
 
     const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) {
-      // Invalid format, but we proceed without user
-      return next();
-    }
+    if (!match || !match[2]) return next();
 
     const token = match[2].trim();
-    if (!token) {
-      return next();
-    }
+    if (!token) return next();
 
-    // ========================================
-    // ROUTE BLOCKING CHECK (consistent with enhancedJWTAuth)
-    // ========================================
     const endpoint =
       req.headers["x-original-uri"] || req.originalUrl || req.url;
 
-    // Check if this endpoint should be blocked from JWT authentication
     for (const route of specificRoutes) {
       if (matchesRoute(endpoint, route.uri)) {
         logger.warn(
           `JWT blocked for endpoint: ${endpoint} - requires query token`,
         );
-
         return next(
           new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
             message:
@@ -1704,9 +1477,6 @@ const optionalJWTAuth = (req, res, next) => {
         );
       }
     }
-    // ========================================
-    // END ROUTE BLOCKING CHECK
-    // ========================================
 
     jwt.verify(
       token,
@@ -1714,16 +1484,10 @@ const optionalJWTAuth = (req, res, next) => {
       { ignoreExpiration: true },
       async (err, decoded) => {
         try {
-          if (err || !decoded) {
-            // Invalid token format, proceed without user
-            return next();
-          }
+          if (err || !decoded) return next();
 
           const now = Math.floor(Date.now() / 1000);
-
-          // Check if token is fully expired (past grace period)
           if (decoded.exp && decoded.exp + GRACE_PERIOD_SECONDS < now) {
-            // Expired token, proceed without user
             return next();
           }
 
@@ -1734,13 +1498,10 @@ const optionalJWTAuth = (req, res, next) => {
             "airqo";
           const tenant = String(tenantRaw).toLowerCase();
           const userId = decoded.userId || decoded.id || decoded._id;
-
           const user = await UserModel(tenant).findById(userId).lean();
-
           if (user) {
-            req.user = { ...decoded, ...user }; // Attach user if found
+            req.user = { ...decoded, ...user };
           }
-
           return next();
         } catch (err) {
           logger.warn(`optionalJWTAuth verify callback error: ${err.message}`);
@@ -1761,16 +1522,13 @@ function authenticateJWT(req, res, next) {
       next();
       return;
     }
-
     const errors = extractErrorsFromRequest(req);
     if (errors) {
       next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
-
     setJWTStrategy("airqo", req, res, next);
-
-    passport.authenticate("jwt", { session: false })(req, res, next); //Authenticate
+    passport.authenticate("jwt", { session: false })(req, res, next);
   } catch (e) {
     logger.error(`the error in authenticateJWT is: ${e.message}`);
     next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
@@ -1781,16 +1539,11 @@ function authenticateJWT(req, res, next) {
 // ROUTE CONFIGURATION VALIDATION
 // ============================================
 
-/**
- * Validates the specificRoutes configuration on startup
- * Helps catch configuration errors early
- */
 function validateRouteConfiguration() {
   const errors = [];
   const allUris = new Set();
 
   specificRoutes.forEach((route, index) => {
-    // Check required fields
     if (!route.uri || !Array.isArray(route.uri)) {
       errors.push(`Route at index ${index} missing or invalid 'uri' array`);
     }
@@ -1800,8 +1553,6 @@ function validateRouteConfiguration() {
     if (!route.action) {
       errors.push(`Route at index ${index} missing 'action' field`);
     }
-
-    // Check for duplicate URIs across routes
     if (route.uri && Array.isArray(route.uri)) {
       route.uri.forEach((uri) => {
         if (allUris.has(uri)) {
@@ -1821,23 +1572,24 @@ function validateRouteConfiguration() {
   return true;
 }
 
-// Validate configuration on module load
 try {
   validateRouteConfiguration();
 } catch (error) {
   logger.error("Failed to validate route configuration:", error);
-  // Crash the process to prevent startup with invalid configuration
 }
 
 module.exports = {
   setLocalAuth,
   setJWTAuth,
   setGoogleAuth,
+  setOAuthProvider,
   setGuestToken,
   authLocal,
   authJWT,
   authGoogle,
   authGoogleCallback,
+  authOAuth,
+  authOAuthCallback,
   authGuest,
   enhancedJWTAuth,
   authenticateJWT,

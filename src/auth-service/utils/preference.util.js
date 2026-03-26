@@ -20,6 +20,31 @@ const handleError = (next, title, statusCode, message) => {
   next(new HttpError(title, statusCode, { message }));
 };
 
+/**
+ * Fire-and-forget: record that a verified user has been active.
+ * Updates lastActiveAt (used by active-status-job for threshold checks) and
+ * re-sets isActive:true — but ONLY for verified users. Unverified accounts are
+ * intentionally excluded: their isActive state is controlled by the
+ * verification flow, not by API activity.
+ * Errors are logged and never propagated to the caller.
+ *
+ * @param {string} tenant
+ * @param {string|ObjectId} userId
+ */
+const touchUserActivity = (tenant, userId) => {
+  if (!userId) return;
+  UserModel(tenant)
+    .updateOne(
+      { _id: userId, verified: true },
+      { $set: { lastActiveAt: new Date(), isActive: true } }
+    )
+    .catch((err) =>
+      logger.error(
+        `Non-critical: failed to update lastActiveAt for user ${userId}: ${err.message}`
+      )
+    );
+};
+
 const validateUserAndGroup = async (tenant, userId, groupId, next) => {
   if (!isEmpty(userId)) {
     const user = await UserModel(tenant).findById(userId).lean();
@@ -203,6 +228,15 @@ const preferences = {
         },
         next
       );
+
+      // Fire-and-forget: reading preferences is an authenticated activity signal.
+      // Use the authenticated user identity (request.user._id) when available;
+      // fall back to the sanitised filter.user_id used for the DB lookup.
+      // Raw request.params / request.query are intentionally avoided — they are
+      // unsanitised and could differ from the identity the query actually ran as.
+      const userId = request.user?._id || filter?.user_id;
+      touchUserActivity(tenant, userId);
+
       return listResponse;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -323,6 +357,10 @@ const preferences = {
         next
       );
 
+      if (modifyResponse?.success) {
+        touchUserActivity(tenant, body.user_id);
+      }
+
       return modifyResponse;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -390,6 +428,8 @@ const preferences = {
       );
 
       if (!isEmpty(modifyResponse)) {
+        touchUserActivity(tenant, body.user_id);
+
         return {
           success: true,
           message: "Successfully created or updated a preference",
@@ -477,6 +517,8 @@ const preferences = {
       );
 
       if (!isEmpty(modifyResponse)) {
+        touchUserActivity(tenant, body.user_id);
+
         return {
           success: true,
           message: "successfully created or updated a preference",

@@ -362,13 +362,18 @@ Approximates satellite data locations for air quality measurements.
 2. **Load to BigQuery** (`load_to_bigquery`)
    - Uses a configured storage adapter to load the approximated data into BigQuery.
 #### Schedule
-Runs every hour at the 20th minute (20 * * * *)
+Runs every hour at the 20th minute (20 * * * *) to allow for data availability and processing time.
+Depending on when the data is available, the flow keeps checking the source until it finds the file, and if it doesn't find it, it skips the workflow run.
 #### Notes
 Data sources:
 - Satellite Data (internal processing)
 Data Destinations:
 - BigQuery: `Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE`
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
+
+NOTE: Currently only using copernicus satellite data in production. The copernicus data is prefered because it has both pm2.5 and pm10 always present.
+The nomads satellite data is not prefered because sometimes either pm2.5 or pm10 is missing, and pm2.5 is the main pollutant of interest for air quality monitoring.
+Although it has extra wind data which can be useful for some analysis, the missing pm2.5 data makes it less ideal for our use case.
 """
 
 calibration_model_training_doc = """

@@ -1,13 +1,15 @@
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
-import concurrent.futures
 import pandas as pd
+from pathlib import Path
+from airflow.exceptions import AirflowSkipException
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.satellite_utils import SatelliteUtils
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.datautils import DataUtils
-from airqo_etl_utils.data_sources import DataSourcesApis
+from airqo_etl_utils.sources.nomads_adapter import NomadsAdapter
+from airqo_etl_utils.sources.cams_cds_adapter import CAMSAdapter, CAMS_VARIABLES
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import DataType, DeviceCategory, Frequency
 from airqo_etl_utils.config import configuration as Config
@@ -58,13 +60,10 @@ def copernicus_hourly_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def extract_data(**kwargs) -> pd.DataFrame:
-        data_to_download = {
-            "particulate_matter_10um": "/tmp/pm10_download.zip",
-            "particulate_matter_2.5um": "/tmp/pm25_download.zip",
-        }
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            for variable, destination in data_to_download.items():
-                SatelliteUtils.retrieve_cams_variable(variable, destination)
+        adapter = CAMSAdapter()
+        result = adapter.fetch()
+        if result.error:
+            raise RuntimeError(f"CAMS download failed: {result.error}")
 
     @task(
         provide_context=True,
@@ -73,8 +72,8 @@ def copernicus_hourly_measurements():
     )
     def clean_data(**kwargs) -> pd.DataFrame:
         data_to_read = {
-            "pm10": "/tmp/pm10_download.zip",
-            "pm2p5": "/tmp/pm25_download.zip",
+            short_name: meta["default_path"]
+            for short_name, meta in CAMS_VARIABLES.items()
         }
         files_to_delete = []
         dfs: list[pd.DataFrame] = []
@@ -121,21 +120,32 @@ def NOMADS_daily_measurements():
         retries=2,
         retry_delay=timedelta(minutes=5),
     )
-    def extract_data(**kwargs) -> None:
-        data_source = DataSourcesApis()
-        file = data_source.nomads()
+    def extract_data(**kwargs) -> str:
+        adapter = NomadsAdapter()
+        res = adapter.fetch()
+        file = None
+        if res and res.error is None:
+            file = res.data.get("meta", {}).get("file", {})
+            if file:
+                old_file = Variable.get("nomads_file_path", default_var=None)
+                if old_file and old_file == file:
+                    raise AirflowSkipException(
+                        f"File {file} has not changed. Skipping workflow."
+                    )
         Variable.set("nomads_file_path", file)
-        return
+
+        return file
 
     @task(
         provide_context=True,
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
-    def clean_data(**kwargs) -> pd.DataFrame:
-        file = Variable.get(
-            "nomads_file_path", default_var="/tmp/gdas.t00z.pgrb2.0p25.f000"
-        )
+    def clean_data(file, **kwargs) -> pd.DataFrame:
+        if not file or not Path(file).exists():
+            raise AirflowSkipException(
+                f"File {file} does not exist. Skipping workflow."
+            )
         clean_data = SatelliteUtils.process_nomads_data_files(file)
         if not clean_data.empty:
             delete_old_files([file])
@@ -153,8 +163,8 @@ def NOMADS_daily_measurements():
         big_query_api = BigQueryApi()
         big_query_api.load_data(formated_data, table=table)
 
-    extract_data()
-    cleaned = clean_data()
+    file = extract_data()
+    cleaned = clean_data(file)
     store_data(cleaned)
 
 
@@ -173,12 +183,11 @@ def satellite_data_location_approximations():
     def approximate_locations(**kwargs) -> pd.DataFrame:
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day: datetime = execution_date - timedelta(hours=1)
-        start_date_time = DateUtils.date_to_str(
-            hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
-        )
-        end_date_time = DateUtils.date_to_str(
-            hour_of_day, str_format="%Y-%m-%dT%H:59:59Z"
-        )
+        # TODO: Periodically review data sources for more accurate satellite data and or forecast data.
+        # Pass only dates since most satellite data only have date with times set to 00:00:00,
+        # so we approximate the satellite data locations for the whole day of the execution date, which is the previous day of the current date.
+        start_date_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%d")
+        end_date_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%d")
         return SatelliteUtils.approximate_satellite_data_locations_for_airquality_measurements(
             start_date=start_date_time, end_date=end_date_time
         )

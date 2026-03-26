@@ -140,6 +140,11 @@ const routes = [
   { path: "/kya", route: "@routes/v2/kya.routes", name: "kya" },
   { path: "/cohorts", route: "@routes/v2/cohorts.routes", name: "cohorts" },
   {
+    path: "/network-coverage",
+    route: "@routes/v2/network-coverage.routes",
+    name: "network-coverage",
+  },
+  {
     path: "/network-status",
     route: "@routes/v2/network-status.routes",
     name: "network-status",
