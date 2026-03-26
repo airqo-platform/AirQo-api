@@ -7,7 +7,9 @@ const moment = require("moment");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const validateDateRange = (date) => {
-  const now = moment();
+  // Allow a 5-minute buffer to absorb clock skew between the client and
+  // the API server — consistent with the store-readings-job tolerance.
+  const now = moment().add(5, "minutes");
   const oneMonthAgo = moment().subtract(1, "month");
   const inputDate = moment(date);
 
