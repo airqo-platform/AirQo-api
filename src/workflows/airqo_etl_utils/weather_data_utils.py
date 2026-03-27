@@ -1,9 +1,11 @@
 import concurrent.futures
 import time
 import ast
+import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any
 
+import numpy as np
 import pandas as pd
 
 from .data_api import DataApi
@@ -14,14 +16,22 @@ from .constants import (
     Frequency,
     DeviceCategory,
     DeviceNetwork,
+    SITE_DAILY_FORECAST_MET_COLUMNS,
 )
 from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
 from airqo_etl_utils.utils import Utils
 from airqo_etl_utils.sources import get_adapter
+from airqo_etl_utils.sources.http_client import HttpClient
+
+logger = logging.getLogger("airflow.task")
 
 
 class WeatherDataUtils:
+    MET_NO_HEADERS = {
+        "User-Agent": "AirQo-workflows/1.0 (data-engineering@airqo.net)"
+    }
+
     @staticmethod
     def extract_weather_data(
         data_type: DataType,
@@ -253,3 +263,186 @@ class WeatherDataUtils:
                 time.sleep(60)
 
         return pd.DataFrame(weather_data)
+
+    @staticmethod
+    def _extract_met_no_timeseries(payload: Any) -> List[Dict[str, Any]]:
+        """Return the timeseries list from supported MET.no response shapes."""
+        if isinstance(payload, list):
+            payload = payload[0] if payload else {}
+
+        if isinstance(payload, dict) and "features" in payload:
+            features = payload.get("features", [])
+            payload = features[0] if features else {}
+
+        if not isinstance(payload, dict):
+            return []
+
+        return payload.get("properties", {}).get("timeseries", [])
+
+    @staticmethod
+    def _parse_met_no_hourly_payload(
+        payload: Any, query_latitude: float, query_longitude: float
+    ) -> pd.DataFrame:
+        """Flatten hourly MET.no timeseries records for one rounded coordinate bucket."""
+        rows: List[Dict[str, Any]] = []
+
+        for entry in WeatherDataUtils._extract_met_no_timeseries(payload):
+            timestamp = pd.to_datetime(entry.get("time"), utc=True, errors="coerce")
+            if pd.isna(timestamp):
+                continue
+
+            data = entry.get("data", {})
+            instant = data.get("instant", {}).get("details", {})
+            next_1_hours = data.get("next_1_hours", {}).get("details", {})
+            next_6_hours = data.get("next_6_hours", {}).get("details", {})
+            precipitation_amount = next_1_hours.get("precipitation_amount")
+            if precipitation_amount is None:
+                precipitation_amount = next_6_hours.get("precipitation_amount")
+
+            rows.append(
+                {
+                    "date": timestamp.date(),
+                    "met_no_query_latitude": float(query_latitude),
+                    "met_no_query_longitude": float(query_longitude),
+                    "met_no_air_pressure_at_sea_level": instant.get(
+                        "air_pressure_at_sea_level"
+                    ),
+                    "met_no_air_temperature": instant.get("air_temperature"),
+                    "met_no_cloud_area_fraction": instant.get("cloud_area_fraction"),
+                    "met_no_relative_humidity": instant.get("relative_humidity"),
+                    "met_no_wind_from_direction": instant.get("wind_from_direction"),
+                    "met_no_wind_speed": instant.get("wind_speed"),
+                    "met_no_precipitation_amount": precipitation_amount,
+                }
+            )
+
+        return pd.DataFrame(rows)
+
+    @staticmethod
+    def _aggregate_met_no_daily(hourly_data: pd.DataFrame) -> pd.DataFrame:
+        """Aggregate hourly MET.no forecast data into daily summaries."""
+        if hourly_data.empty:
+            return pd.DataFrame()
+
+        keys = ["date", "met_no_query_latitude", "met_no_query_longitude"]
+        aggregated = (
+            hourly_data.groupby(keys, dropna=False)
+            .agg(
+                {
+                    "met_no_air_pressure_at_sea_level": "mean",
+                    "met_no_air_temperature": "mean",
+                    "met_no_cloud_area_fraction": "mean",
+                    "met_no_relative_humidity": "mean",
+                    "met_no_wind_speed": "mean",
+                    "met_no_precipitation_amount": "sum",
+                }
+            )
+            .reset_index()
+        )
+
+        wind_direction = pd.to_numeric(
+            hourly_data["met_no_wind_from_direction"], errors="coerce"
+        )
+        valid_wind = hourly_data.loc[wind_direction.notna(), keys].copy()
+        if valid_wind.empty:
+            aggregated["met_no_wind_from_direction"] = np.nan
+        else:
+            valid_wind["sin_component"] = np.sin(np.deg2rad(wind_direction.dropna()))
+            valid_wind["cos_component"] = np.cos(np.deg2rad(wind_direction.dropna()))
+            circular_mean = (
+                valid_wind.groupby(keys, dropna=False)[
+                    ["sin_component", "cos_component"]
+                ]
+                .mean()
+                .reset_index()
+            )
+            circular_mean["met_no_wind_from_direction"] = np.mod(
+                np.rad2deg(
+                    np.arctan2(
+                        circular_mean["sin_component"],
+                        circular_mean["cos_component"],
+                    )
+                ),
+                360.0,
+            )
+            aggregated = aggregated.merge(
+                circular_mean[keys + ["met_no_wind_from_direction"]],
+                on=keys,
+                how="left",
+            )
+
+        numeric_columns = list(SITE_DAILY_FORECAST_MET_COLUMNS)
+        aggregated[numeric_columns] = aggregated[numeric_columns].round(1)
+        return aggregated
+
+    @staticmethod
+    def fetch_met_no_daily_data_for_sites(sites: pd.DataFrame) -> pd.DataFrame:
+        """Fetch daily MET.no forecast summaries for rounded 2-decimal site buckets."""
+        if sites.empty or not Config.MET_NO_BASE_URL:
+            return pd.DataFrame()
+
+        required = {"site_latitude", "site_longitude"}
+        missing = required - set(sites.columns)
+        if missing:
+            raise ValueError(
+                f"Missing required columns for MET.no weather lookup: {sorted(missing)}"
+            )
+
+        coordinate_buckets = sites[["site_latitude", "site_longitude"]].copy()
+        coordinate_buckets["met_no_query_latitude"] = pd.to_numeric(
+            coordinate_buckets["site_latitude"], errors="coerce"
+        ).round(2)
+        coordinate_buckets["met_no_query_longitude"] = pd.to_numeric(
+            coordinate_buckets["site_longitude"], errors="coerce"
+        ).round(2)
+        coordinate_buckets = coordinate_buckets.dropna(
+            subset=["met_no_query_latitude", "met_no_query_longitude"]
+        )[
+            ["met_no_query_latitude", "met_no_query_longitude"]
+        ].drop_duplicates()
+
+        if coordinate_buckets.empty:
+            return pd.DataFrame()
+
+        client = HttpClient(timeout=20)
+
+        def fetch_bucket(row: pd.Series) -> pd.DataFrame:
+            try:
+                payload = client.get_json(
+                    Config.MET_NO_BASE_URL,
+                    params={
+                        "lat": row["met_no_query_latitude"],
+                        "lon": row["met_no_query_longitude"],
+                    },
+                    headers=WeatherDataUtils.MET_NO_HEADERS,
+                )
+                return WeatherDataUtils._parse_met_no_hourly_payload(
+                    payload,
+                    query_latitude=row["met_no_query_latitude"],
+                    query_longitude=row["met_no_query_longitude"],
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed MET.no lookup for rounded coordinates (%s, %s): %s",
+                    row["met_no_query_latitude"],
+                    row["met_no_query_longitude"],
+                    exc,
+                )
+                return pd.DataFrame()
+
+        hourly_frames: List[pd.DataFrame] = []
+        max_workers = min(16, max(1, len(coordinate_buckets)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for frame in executor.map(
+                fetch_bucket,
+                [row for _, row in coordinate_buckets.iterrows()],
+            ):
+                if not frame.empty:
+                    hourly_frames.append(frame)
+
+        if not hourly_frames:
+            return pd.DataFrame()
+
+        return WeatherDataUtils._aggregate_met_no_daily(
+            pd.concat(hourly_frames, ignore_index=True)
+        )

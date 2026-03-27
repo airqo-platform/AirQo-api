@@ -1,6 +1,16 @@
 import os
 from enum import Enum, unique, IntEnum
 
+SITE_DAILY_FORECAST_MET_COLUMNS = (
+    "met_no_air_pressure_at_sea_level",
+    "met_no_air_temperature",
+    "met_no_cloud_area_fraction",
+    "met_no_precipitation_amount",
+    "met_no_relative_humidity",
+    "met_no_wind_from_direction",
+    "met_no_wind_speed",
+)
+
 
 @unique
 class DeviceCategory(IntEnum):

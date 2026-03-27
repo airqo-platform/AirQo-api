@@ -148,6 +148,8 @@ class Config:
     OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
     OPENWEATHER_BASE_URL = os.getenv("OPENWEATHER_BASE_URL")
     OPENWEATHER_DATA_BATCH_SIZE = os.getenv("OPENWEATHER_DATA_BATCH_SIZE")
+    #MET Weather API
+    MET_NO_BASE_URL = os.getenv("MET_NO_BASE_URL")
     # Kafka
     BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhost:9092")
     TOPIC_PARTITIONS = os.getenv("TOPIC_PARTITIONS", "0,1,2").split(",")
@@ -237,6 +239,10 @@ class Config:
         "openweather": {
             "url": OPENWEATHER_BASE_URL,
             "auth": {"appid": OPENWEATHER_API_KEY},
+            "endpoints": {},
+        },
+        "met_no": {
+            "url": MET_NO_BASE_URL,
             "endpoints": {},
         },
         "airgradient": {

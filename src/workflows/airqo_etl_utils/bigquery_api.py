@@ -1363,6 +1363,8 @@ class BigQueryApi:
             DATE(t1.timestamp) AS day,
             t1.site_id,
             ANY_VALUE(COALESCE(t2.display_name, t2.name, t1.site_id)) AS site_name,
+            ANY_VALUE(COALESCE(t2.approximate_latitude, t2.latitude)) AS site_latitude,
+            ANY_VALUE(COALESCE(t2.approximate_longitude, t2.longitude)) AS site_longitude,
             AVG({pm25_expr}) AS pm25_mean,
             MIN({pm25_expr}) AS pm25_min,
             MAX({pm25_expr}) AS pm25_max,

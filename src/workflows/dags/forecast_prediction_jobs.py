@@ -1,6 +1,7 @@
 ## This module contains DAGS for prediction/inference jobs of AirQo.
 from airflow.decorators import dag, task
 from datetime import datetime, timedelta, timezone
+import logging
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration as Config
@@ -9,6 +10,13 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from airqo_etl_utils.constants import Frequency
 from airqo_etl_utils.date import DateUtils
+
+logger = logging.getLogger("airflow.task")
+
+
+def _log_context(**context):
+    parts = [f"{key}={value}" for key, value in context.items() if value is not None]
+    return f" ({', '.join(parts)})" if parts else ""
 
 
 @dag(
@@ -172,18 +180,58 @@ def make_site_daily_forecasts():
         end_date = execution_date - timedelta(days=1)
         lookback_days = int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE or 30)
         start_date = end_date - timedelta(days=lookback_days)
+        start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
+        end_date_str = DateUtils.date_to_str(end_date, str_format="%Y-%m-%d")
 
-        return BigQueryApi().fetch_raw_site_data_for_forecast_jobs(
-            start_date_time=DateUtils.date_to_str(start_date, str_format="%Y-%m-%d"),
-            end_date_time=DateUtils.date_to_str(end_date, str_format="%Y-%m-%d"),
-        )
+        try:
+            return BigQueryApi().fetch_raw_site_data_for_forecast_jobs(
+                start_date_time=start_date_str,
+                end_date_time=end_date_str,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to fetch site prediction data%s: %s",
+                _log_context(
+                    execution_date=execution_date,
+                    start_date=start_date_str,
+                    end_date=end_date_str,
+                    lookback_days=lookback_days,
+                ),
+                exc,
+            )
+            raise
 
     @task()
     def generate_site_forecasts(data):
-        return ForecastModelTrainer.generate_site_daily_forecasts(
-            data,
-            horizon=int(Config.DAILY_FORECAST_HORIZON or 7),
-        )
+        horizon = int(Config.DAILY_FORECAST_HORIZON or 7)
+        try:
+            return ForecastModelTrainer.generate_site_daily_forecasts(
+                data,
+                horizon=horizon,
+                include_met_no_weather=False,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to generate site daily forecasts%s: %s",
+                _log_context(horizon=horizon, input_rows=len(data) if data is not None else None),
+                exc,
+            )
+            raise
+
+    @task()
+    def enrich_site_forecasts_with_met(data):
+        try:
+            return ForecastModelTrainer._enrich_site_daily_forecasts_with_met_no_weather(
+                data
+            )
+        except Exception:
+            logger.exception(
+                "Optional MET enrichment failed for site daily forecasts. "
+                "Continuing with forecast-only output."
+            )
+            return ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
+                data
+            )
 
     @task()
     def save_site_forecasts_to_mongodb(data):
@@ -191,6 +239,11 @@ def make_site_daily_forecasts():
             details = ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
             return {"target": "mongodb", "success": True, "details": details}
         except Exception as exc:
+            logger.exception(
+                "Failed to save site forecasts to MongoDB%s: %s",
+                _log_context(rows=len(data) if data is not None else None),
+                exc,
+            )
             return {"target": "mongodb", "success": False, "error": str(exc)}
 
     @task()
@@ -199,6 +252,11 @@ def make_site_daily_forecasts():
             details = ForecastModelTrainer._save_site_daily_forecasts_to_aws(data)
             return {"target": "aws", "success": True, "details": details}
         except Exception as exc:
+            logger.exception(
+                "Failed to save site forecasts to AWS%s: %s",
+                _log_context(rows=len(data) if data is not None else None),
+                exc,
+            )
             return {"target": "aws", "success": False, "error": str(exc)}
 
     @task()
@@ -207,16 +265,37 @@ def make_site_daily_forecasts():
             details = ForecastModelTrainer._save_site_daily_forecasts_to_bigquery(data)
             return {"target": "bigquery", "success": True, "details": details}
         except Exception as exc:
+            logger.exception(
+                "Failed to save site forecasts to BigQuery%s: %s",
+                _log_context(rows=len(data) if data is not None else None),
+                exc,
+            )
             return {"target": "bigquery", "success": False, "error": str(exc)}
 
     @task()
     def validate_site_forecast_saves(mongodb_result, aws_result, bigquery_result):
         results = [mongodb_result, aws_result, bigquery_result]
         succeeded = [result["target"] for result in results if result.get("success")]
+        failed = [result for result in results if not result.get("success")]
+
+        for result in failed:
+            logger.error(
+                "Site forecast persistence target failed%s: %s",
+                _log_context(target=result.get("target")),
+                result.get("error"),
+            )
 
         if not succeeded:
+            logger.error("Failed to save site forecasts to every configured target: %s", results)
             raise RuntimeError(
                 f"Failed to save site forecasts to all targets: {results}"
+            )
+
+        if failed:
+            logger.warning(
+                "Site forecasts saved with partial success. Successful targets: %s. Failed targets: %s",
+                succeeded,
+                [result.get("target") for result in failed],
             )
 
         return {
@@ -226,9 +305,10 @@ def make_site_daily_forecasts():
 
     site_data = fetch_site_prediction_data()
     site_forecasts = generate_site_forecasts(site_data)
-    mongodb_result = save_site_forecasts_to_mongodb(site_forecasts)
-    aws_result = save_site_forecasts_to_aws(site_forecasts)
-    bigquery_result = save_site_forecasts_to_bigquery(site_forecasts)
+    site_forecasts_with_met = enrich_site_forecasts_with_met(site_forecasts)
+    mongodb_result = save_site_forecasts_to_mongodb(site_forecasts_with_met)
+    aws_result = save_site_forecasts_to_aws(site_forecasts_with_met)
+    bigquery_result = save_site_forecasts_to_bigquery(site_forecasts_with_met)
     validate_site_forecast_saves(mongodb_result, aws_result, bigquery_result)
 
 site_daily_forecast_prediction_dag = make_site_daily_forecasts()

@@ -44,6 +44,8 @@ def build_synthetic_site_forecast_history(
     for site_idx in range(num_sites):
         site_id = f"site_{site_idx + 1:02d}"
         site_name = f"Synthetic Site {site_idx + 1}"
+        site_latitude = 0.3123456 + (site_idx * 0.1010101)
+        site_longitude = 32.5123456 + (site_idx * 0.2020202)
         base_level = 18 + (site_idx * 4)
         amplitude = 5 + site_idx
         trend = np.linspace(0, 2.5, num_days)
@@ -72,6 +74,8 @@ def build_synthetic_site_forecast_history(
                     "day": day,
                     "site_id": site_id,
                     "site_name": site_name,
+                    "site_latitude": round(float(site_latitude), 7),
+                    "site_longitude": round(float(site_longitude), 7),
                     "pm25_mean": round(float(mean_val), 3),
                     "pm25_min": round(float(min_val), 3),
                     "pm25_max": round(float(max_val), 3),
@@ -166,9 +170,9 @@ def run_synthetic_7day_forecast(
     seed: int = 42,
     horizon: int = 7,
     use_dummy_models: bool = False,
-    save_to_database: bool = True,
+    save_to_database: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, Optional[Dict[str, object]]]:
-    """Generate synthetic history, forecast 7 days, print, and optionally save."""
+    """Generate synthetic history and forecast 7 days for local print-only testing."""
     history = build_synthetic_site_forecast_history(
         num_sites=num_sites,
         num_days=num_days,
@@ -185,13 +189,13 @@ def run_synthetic_7day_forecast(
             history, horizon=horizon
         )
 
-    save_result = None
     if save_to_database:
-        save_result = ForecastModelTrainer.save_site_daily_forecasts_best_effort(
-            forecasts
+        print(
+            "Database saving is disabled for this local test script. "
+            "Printing forecast output only."
         )
 
-    return history, forecasts, save_result
+    return history, forecasts, None
 
 
 def main() -> None:
@@ -226,7 +230,7 @@ def main() -> None:
     parser.add_argument(
         "--skip-save",
         action="store_true",
-        help="Generate and print forecasts without writing to any database target.",
+        help="Deprecated no-op. This script no longer writes forecasts to database targets.",
     )
     args = parser.parse_args()
 
@@ -236,7 +240,7 @@ def main() -> None:
         seed=args.seed,
         horizon=args.horizon,
         use_dummy_models=args.use_dummy_models,
-        save_to_database=not args.skip_save,
+        save_to_database=False,
     )
 
     if args.output:
@@ -264,9 +268,7 @@ def main() -> None:
         f"Forecast days per site: {forecasts.groupby('site_id')['date'].nunique().iloc[0]}"
     )
 
-    if save_result is not None:
-        print("\nDatabase save result:")
-        print(save_result)
+    print("\nDatabase save: skipped by design for this local test script.")
 
 
 if __name__ == "__main__":

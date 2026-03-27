@@ -10,6 +10,16 @@
     "mode": "REQUIRED"
   },
   {
+    "name": "site_latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "site_longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "date",
     "type": "DATE",
     "mode": "REQUIRED"
@@ -36,6 +46,46 @@
   },
   {
     "name": "pm2_5_high",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "forecast_confidence",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "met_no_air_pressure_at_sea_level",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "met_no_air_temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "met_no_cloud_area_fraction",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "met_no_precipitation_amount",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "met_no_relative_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "met_no_wind_from_direction",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "met_no_wind_speed",
     "type": "FLOAT",
     "mode": "NULLABLE"
   },
