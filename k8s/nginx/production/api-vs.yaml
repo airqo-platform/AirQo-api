@@ -12,44 +12,17 @@ spec:
     - name: device-registry
       service: airqo-device-registry-api-svc
       port: 3000
-    - name: data-mgt
-      service: airqo-data-mgt-api-svc
-      port: 3000
-    - name: data-proxy
-      service: airqo-data-proxy-api-svc
-      port: 3000
-    - name: locate
-      service: airqo-locate-api-svc
-      port: 4001
     - name: analytics
       service: airqo-analytics-api-svc
       port: 5000
     - name: predict
       service: airqo-prediction-api-svc
       port: 5000
-    - name: monitor
-      service: airqo-device-monitor-api-svc
-      port: 4001
     - name: calibrate
       service: airqo-calibrate-api-svc
       port: 4001
-    - name: incentives
-      service: airqo-incentives-api-svc
-      port: 3000
-    - name: meta-data
-      service: airqo-meta-data-api-svc
-      port: 4001
     - name: view
       service: airqo-view-api-svc
-      port: 8080
-    - name: network-uptime
-      service: airqo-network-uptime-api-svc
-      port: 8501
-    - name: fault-detection
-      service: prod-fault-detection-api-svc
-      port: 4001
-    - name: notifications
-      service: airqo-notification-api-svc
       port: 8080
     - name: spatial
       service: airqo-spatial-api-svc
@@ -74,30 +47,6 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/data
-      action:
-        proxy:
-          upstream: data-mgt
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/data-proxy
-      action:
-        proxy:
-          upstream: data-proxy
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/locate/map
-      action:
-        proxy:
-          upstream: locate
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
     - path: ~ /api\/v[1-2]\/analytics
       action:
         proxy:
@@ -118,14 +67,6 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/monitor
-      action:
-        proxy:
-          upstream: monitor
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
     - path: ~ /api\/v[1-2]\/calibrate
       action:
         proxy:
@@ -134,50 +75,10 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/incentives
-      action:
-        proxy:
-          upstream: incentives
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/meta-data
-      action:
-        proxy:
-          upstream: meta-data
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
     - path: ~ /api\/v[1-2]\/view
       action:
         proxy:
           upstream: view
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/network-uptime
-      action:
-        proxy:
-          upstream: network-uptime
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/predict-faults
-      action:
-        proxy:
-          upstream: fault-detection
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/notifications
-      action:
-        proxy:
-          upstream: notifications
           responseHeaders:
             add:
               - name: Content-Type
