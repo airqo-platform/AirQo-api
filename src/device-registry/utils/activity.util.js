@@ -2361,6 +2361,15 @@ const createActivity = {
           site_id: null,
           grid_id: null,
         },
+        $unset: {
+          mountType: "",
+          powerType: "",
+          height: "",
+          isPrimaryInLocation: "",
+          latitude: "",
+          longitude: "",
+          deployment_date: "",
+        },
       };
 
       const pushFields = {};
