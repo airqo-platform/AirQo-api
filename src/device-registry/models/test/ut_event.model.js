@@ -166,6 +166,79 @@ describe("Event Schema", () => {
     });
   });
 
+  describe("getAirQualityAverages()", () => {
+    let aggregateStub;
+
+    afterEach(() => {
+      if (aggregateStub) aggregateStub.restore();
+    });
+
+    function makeWeekResult(weekId, weeklyAverage, dayCount, days = []) {
+      return { _id: weekId, weeklyAverage, dayCount, days };
+    }
+
+    it("should return hasSufficientData=true when both weeks have >= 3 days", async () => {
+      aggregateStub = sinon.stub(Event, "aggregate").resolves([
+        makeWeekResult("2026-W13", 20, 5),
+        makeWeekResult("2026-W12", 15, 4),
+      ]);
+
+      const result = await Event.getAirQualityAverages("someSiteId");
+
+      expect(result.success).to.equal(true);
+      expect(result.data.hasSufficientData).to.equal(true);
+      expect(result.data.percentageDifference).to.be.a("number");
+    });
+
+    it("should return hasSufficientData=false when current week has < 3 days", async () => {
+      aggregateStub = sinon.stub(Event, "aggregate").resolves([
+        makeWeekResult("2026-W13", 20, 2),
+        makeWeekResult("2026-W12", 15, 5),
+      ]);
+
+      const result = await Event.getAirQualityAverages("someSiteId");
+
+      expect(result.success).to.equal(true);
+      expect(result.data.hasSufficientData).to.equal(false);
+    });
+
+    it("should return hasSufficientData=false when previous week has < 3 days", async () => {
+      aggregateStub = sinon.stub(Event, "aggregate").resolves([
+        makeWeekResult("2026-W13", 20, 5),
+        makeWeekResult("2026-W12", 15, 1),
+      ]);
+
+      const result = await Event.getAirQualityAverages("someSiteId");
+
+      expect(result.success).to.equal(true);
+      expect(result.data.hasSufficientData).to.equal(false);
+    });
+
+    it("should return dailyAverage of 0 (not null) when today's average is 0", async () => {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      aggregateStub = sinon.stub(Event, "aggregate").resolves([
+        makeWeekResult("2026-W13", 20, 4, [{ date: todayStr, average: 0 }]),
+        makeWeekResult("2026-W12", 15, 4),
+      ]);
+
+      const result = await Event.getAirQualityAverages("someSiteId");
+
+      expect(result.success).to.equal(true);
+      expect(result.data.dailyAverage).to.equal(0);
+    });
+
+    it("should return success=false when fewer than 2 weeks of data exist", async () => {
+      aggregateStub = sinon
+        .stub(Event, "aggregate")
+        .resolves([makeWeekResult("2026-W13", 20, 5)]);
+
+      const result = await Event.getAirQualityAverages("someSiteId");
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(HTTPStatus.NOT_FOUND);
+    });
+  });
+
   describe("view()", () => {
     it("should return a successful response with data", async () => {
       // Create a mock input

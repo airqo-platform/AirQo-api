@@ -2461,7 +2461,10 @@ eventSchema.statics.getAirQualityAverages = async function(
     return {
       success: true,
       data: {
-        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        dailyAverage:
+          todayAverage == null
+            ? null
+            : parseFloat(todayAverage.toFixed(2)),
         percentageDifference: parseFloat(percentageDifference.toFixed(2)),
         hasSufficientData,
         weeklyAverages: {
@@ -2843,7 +2846,10 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
     return {
       success: true,
       data: {
-        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        dailyAverage:
+          todayAverage == null
+            ? null
+            : parseFloat(todayAverage.toFixed(2)),
         percentageDifference:
           percentageDifference !== null
             ? parseFloat(percentageDifference.toFixed(2))
