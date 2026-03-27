@@ -215,7 +215,13 @@ describe("Event Schema", () => {
     });
 
     it("should return dailyAverage of 0 (not null) when today's average is 0", async () => {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      // Use local date parts to match the implementation's moment().tz(TIMEZONE) logic.
+      const now = new Date();
+      const todayStr = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+      ].join("-");
       aggregateStub = sinon.stub(Event, "aggregate").resolves([
         makeWeekResult("2026-W13", 20, 4, [{ date: todayStr, average: 0 }]),
         makeWeekResult("2026-W12", 15, 4),
@@ -236,6 +242,52 @@ describe("Event Schema", () => {
 
       expect(result.success).to.equal(false);
       expect(result.status).to.equal(HTTPStatus.NOT_FOUND);
+    });
+  });
+
+  describe("v3_getAirQualityAverages()", () => {
+    let aggregateStub;
+
+    afterEach(() => {
+      if (aggregateStub) aggregateStub.restore();
+    });
+
+    // v3 groups by week using weeklyReadingCount (not dayCount).
+    // MIN_READINGS_PER_WEEK = 7 * 12 = 84, so both weeks need >= 84 to pass
+    // the early-return guard and reach the dailyAverage computation.
+    function makeV3WeekResult(weekId, weeklyAverage, weeklyReadingCount, days = []) {
+      return { _id: weekId, weeklyAverage, weeklyReadingCount, days };
+    }
+
+    it("should return dailyAverage of 0 (not null) when today's v3 average is 0", async () => {
+      const now = new Date();
+      const todayStr = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+      ].join("-");
+
+      aggregateStub = sinon.stub(Event, "aggregate").resolves([
+        makeV3WeekResult(13, 20, 90, [{ date: todayStr, average: 0 }]),
+        makeV3WeekResult(12, 15, 90),
+      ]);
+
+      const result = await Event.v3_getAirQualityAverages("someSiteId");
+
+      expect(result.success).to.equal(true);
+      expect(result.data.dailyAverage).to.equal(0);
+    });
+
+    it("should compute percentageDifference correctly in v3 when previous week average > 0", async () => {
+      aggregateStub = sinon.stub(Event, "aggregate").resolves([
+        makeV3WeekResult(13, 30, 90),
+        makeV3WeekResult(12, 20, 90),
+      ]);
+
+      const result = await Event.v3_getAirQualityAverages("someSiteId");
+
+      expect(result.success).to.equal(true);
+      expect(result.data.percentageDifference).to.equal(50);
     });
   });
 
