@@ -236,6 +236,7 @@ const averagesSchema = new Schema(
   {
     dailyAverage: { type: Number },
     percentageDifference: { type: Number },
+    hasSufficientData: { type: Boolean },
     weeklyAverages: {
       currentWeek: { type: Number },
       previousWeek: { type: Number },

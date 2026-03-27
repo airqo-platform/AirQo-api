@@ -2360,6 +2360,17 @@ const createActivity = {
           recall_date: (date && new Date(date)) || new Date(),
           site_id: null,
           grid_id: null,
+          mobility: false,
+          deployment_type: "static",
+        },
+        $unset: {
+          mountType: "",
+          powerType: "",
+          height: "",
+          isPrimaryInLocation: "",
+          latitude: "",
+          longitude: "",
+          deployment_date: "",
         },
       };
 

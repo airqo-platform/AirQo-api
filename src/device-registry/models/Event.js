@@ -2414,6 +2414,7 @@ eventSchema.statics.getAirQualityAverages = async function(
         $group: {
           _id: "$yearWeek",
           weeklyAverage: { $avg: "$dailyAverage" },
+          dayCount: { $sum: 1 },
           days: {
             $push: {
               date: "$_id",
@@ -2448,11 +2449,24 @@ eventSchema.statics.getAirQualityAverages = async function(
           100
         : 0;
 
+    // Flag whether each week has enough days of data to make the percentage
+    // meaningful. Fewer than 3 days means the weekly average is based on sparse
+    // data (e.g. device downtime) and the percentage change may be misleading.
+    // This is a NEW additive field — existing consumers are unaffected.
+    const MIN_DAYS_FOR_COMPARISON = 3;
+    const hasSufficientData =
+      currentWeek.dayCount >= MIN_DAYS_FOR_COMPARISON &&
+      previousWeek.dayCount >= MIN_DAYS_FOR_COMPARISON;
+
     return {
       success: true,
       data: {
-        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        dailyAverage:
+          todayAverage == null
+            ? null
+            : parseFloat(todayAverage.toFixed(2)),
         percentageDifference: parseFloat(percentageDifference.toFixed(2)),
+        hasSufficientData,
         weeklyAverages: {
           currentWeek: parseFloat(currentWeek.weeklyAverage.toFixed(2)),
           previousWeek: parseFloat(previousWeek.weeklyAverage.toFixed(2)),
@@ -2832,7 +2846,10 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
     return {
       success: true,
       data: {
-        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        dailyAverage:
+          todayAverage == null
+            ? null
+            : parseFloat(todayAverage.toFixed(2)),
         percentageDifference:
           percentageDifference !== null
             ? parseFloat(percentageDifference.toFixed(2))
