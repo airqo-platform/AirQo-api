@@ -37,6 +37,7 @@ const cleanupUnknownIPs = async () => {
       const ids = batch.map((doc) => doc._id);
       const result = await UnknownIPModel(tenant).deleteMany({
         _id: { $in: ids },
+        updatedAt: { $lt: cutoff },
       });
 
       totalDeleted += result.deletedCount;
