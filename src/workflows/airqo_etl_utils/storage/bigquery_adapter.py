@@ -68,7 +68,7 @@ class BigQueryAdapter(StorageAdapter):
                 dataframe, table, job_config=bq_job_config
             )
             job.result()
-        except google_api_exceptions.GoogleAPICallError as e:
+        except google_api_exceptions.GoogleAPIError as e:
             logger.exception(f"BigQuery load job failed for {table}: {e}")
             raise
 
