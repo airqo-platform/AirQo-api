@@ -100,6 +100,11 @@ async function getIpLocation(ip) {
   }
 
   try {
+    const parsedBase = new URL(constants.IP_API_PRO_URL);
+    if (parsedBase.protocol !== "https:") {
+      logger.warn("getIpLocation: IP_API_PRO_URL must use https — skipping lookup");
+      return null;
+    }
     const url = constants.IP_API_PRO_URL.replace("<ip>", normalized);
     const { data } = await axios.get(url, { timeout: 3000 });
     if (data?.status === "success") {
