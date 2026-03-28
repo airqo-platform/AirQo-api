@@ -28,5 +28,7 @@ const numericals = {
   INACTIVE_THRESHOLD: 2592000000, //30 days ==> 30 (days) * 24 (hours per day) * 60 (minutes per hour) * 60 (seconds per minute) * 1000 (milliseconds per second)
   TOKEN_CLOCK_TOLERANCE: 30, // 30 seconds, Grace period for clock skew
   EMAIL_QUEUE_INTERVAL_MS: 3000, // 3 seconds
+  UNKNOWN_IP_RETENTION_DAYS: 90, // Documents not updated within this window are expired/deleted
+  UNKNOWN_IP_COUNTS_MAX_ENTRIES: 30, // Max daily ipCounts entries kept per document
 };
 module.exports = numericals;
