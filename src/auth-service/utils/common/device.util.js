@@ -31,14 +31,14 @@ function parseUserAgent(uaString) {
   else if (/Windows NT 6\.1/.test(uaString)) os = "Windows 7";
   else if (/Windows/.test(uaString)) os = "Windows";
   else if (/iPhone|iPad/.test(uaString)) {
-    const v = /OS (\d+[_\d]*)/.exec(uaString);
-    os = v ? `iOS ${v[1].replace(/_/g, ".")}` : "iOS";
+    const v = /OS (\d+)[_\d]*/.exec(uaString);
+    os = v ? `iOS ${v[1]}` : "iOS";
   } else if (/Android/.test(uaString)) {
-    const v = /Android ([\d.]+)/.exec(uaString);
+    const v = /Android (\d+)/.exec(uaString);
     os = v ? `Android ${v[1]}` : "Android";
   } else if (/Mac OS X/.test(uaString)) {
-    const v = /Mac OS X ([\d_]+)/.exec(uaString);
-    os = v ? `macOS ${v[1].replace(/_/g, ".")}` : "macOS";
+    const v = /Mac OS X (\d+)[_\d]*/.exec(uaString);
+    os = v ? `macOS ${v[1]}` : "macOS";
   } else if (/Linux/.test(uaString)) {
     os = "Linux";
   } else if (/CrOS/.test(uaString)) {
@@ -64,26 +64,31 @@ function parseUserAgent(uaString) {
 }
 
 /**
- * Compute a stable fingerprint for a device from its IP and user-agent.
- * Normalizes IPv4-mapped IPv6 addresses before hashing so ::ffff:x.x.x.x
- * and x.x.x.x produce the same fingerprint.
+ * Compute a stable fingerprint for a device from its user-agent string.
+ * Uses only parsed OS (major version), browser family, and device type so the
+ * fingerprint survives normal IP rotations and minor UA/version changes.
+ * The ip parameter is accepted for API compatibility but not included in the hash.
  * Returns a 32-character hex string.
  */
 function computeDeviceFingerprint(ip, userAgent) {
-  const normalizedIp = normalizeIp(ip);
+  const { os, browser, deviceType } = parseUserAgent(userAgent);
   return crypto
     .createHash("sha256")
-    .update(`${normalizedIp || "unknown"}:${userAgent || "unknown"}`)
+    .update(`${os}:${browser}:${deviceType}`)
     .digest("hex")
     .slice(0, 32);
 }
 
 /**
  * Resolve an approximate city/country string for a given IP address.
- * Uses the ip-api.com endpoint with a 3-second timeout.
- * Returns null on any error or for private/loopback addresses.
+ * Requires IP_API_PRO_URL to be set in the environment (an HTTPS-capable
+ * geolocation endpoint). Returns null when unconfigured or on any error.
  */
 async function getIpLocation(ip) {
+  if (!constants.IP_API_PRO_URL) {
+    return null;
+  }
+
   const normalized = normalizeIp(ip);
 
   if (
@@ -95,10 +100,8 @@ async function getIpLocation(ip) {
   }
 
   try {
-    const { data } = await axios.get(
-      `https://ip-api.com/json/${normalized}?fields=status,city,regionName,country`,
-      { timeout: 3000 }
-    );
+    const url = constants.IP_API_PRO_URL.replace("<ip>", normalized);
+    const { data } = await axios.get(url, { timeout: 3000 });
     if (data?.status === "success") {
       return [data.city, data.regionName, data.country]
         .filter(Boolean)
