@@ -15,6 +15,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { getDeviceCategoriesAddFieldsStage } = require("@utils/device.util.js");
+const { getAqiIndexMongoExpression } = require("@utils/aqi.util");
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`,
@@ -133,6 +134,9 @@ function generateAqiAddFields() {
       aqi_category: getAqiCategoryExpression(),
       aqi_color_name: getAqiColorNameExpression(),
       aqi_ranges: AQI_RANGES,
+      // Numeric AQI value (0–500) computed from PM2.5 using the EPA piecewise
+      // linear formula (EPA-454/B-24-002, 2024 revision).
+      aqi_index: getAqiIndexMongoExpression("$pm2_5.value"),
     },
   };
 }

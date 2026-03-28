@@ -105,6 +105,24 @@ const AQI_CONSTANTS = {
   CATEGORY_KEYS: AQI_CATEGORY_KEYS,
 };
 
+/**
+ * PM2.5 AQI numeric breakpoints (2024 EPA NAAQS revision).
+ * Maps PM2.5 concentration ranges (µg/m³) to AQI value ranges (0–500).
+ * Used for piecewise linear interpolation in calculatePm25Aqi() and the
+ * equivalent MongoDB aggregation expression in aqi.util.js.
+ *
+ * Formula: AQI = round( ((AQI_Hi - AQI_Lo) / (C_Hi - C_Lo)) * (C - C_Lo) + AQI_Lo )
+ * Reference: EPA-454/B-24-002 (2024)
+ */
+const PM25_AQI_BREAKPOINTS = [
+  { cLow: 0.0, cHigh: 9.0, aqiLow: 0, aqiHigh: 50 }, // Good
+  { cLow: 9.1, cHigh: 35.4, aqiLow: 51, aqiHigh: 100 }, // Moderate
+  { cLow: 35.5, cHigh: 55.4, aqiLow: 101, aqiHigh: 150 }, // Unhealthy for Sensitive Groups
+  { cLow: 55.5, cHigh: 125.4, aqiLow: 151, aqiHigh: 200 }, // Unhealthy
+  { cLow: 125.5, cHigh: 225.4, aqiLow: 201, aqiHigh: 300 }, // Very Unhealthy
+  { cLow: 225.5, cHigh: 325.4, aqiLow: 301, aqiHigh: 500 }, // Hazardous
+];
+
 // Export individual constants for backward compatibility
 module.exports = {
   // Individual exports (existing code compatibility)
@@ -114,6 +132,7 @@ module.exports = {
   AQI_COLORS,
   AQI_COLOR_NAMES,
   AQI_CATEGORY_KEYS,
+  PM25_AQI_BREAKPOINTS,
 
   // Namespaced export (recommended for new code)
   AQI_CONSTANTS,
