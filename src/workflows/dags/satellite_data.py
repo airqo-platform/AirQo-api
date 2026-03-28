@@ -112,7 +112,6 @@ def copernicus_hourly_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def NOMADS_daily_measurements():
-    import pandas as pd
     from airflow.models import Variable
 
     @task(
