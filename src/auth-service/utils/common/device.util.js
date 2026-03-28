@@ -72,7 +72,8 @@ function computeDeviceFingerprint(ip, userAgent) {
 async function getIpLocation(ip) {
   if (
     !ip ||
-    /^(127\.|::1$|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(ip)
+    /^(127\.|::1$|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::ffff:)/i.test(ip) ||
+    /^(fc[0-9a-f]{2}:|fd[0-9a-f]{2}:|fe80:)/i.test(ip)
   ) {
     return null;
   }
@@ -94,14 +95,11 @@ async function getIpLocation(ip) {
 }
 
 /**
- * Extract the real client IP from an Express request, accounting for
- * reverse proxies that set X-Forwarded-For.
+ * Extract the real client IP from an Express request.
+ * Relies on Express's request.ip which respects the app's `trust proxy`
+ * setting — that is the correct place to configure proxy trust, not here.
  */
 function extractIp(request) {
-  const forwarded = request.headers["x-forwarded-for"];
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
-  }
   return request.ip || request.connection?.remoteAddress || null;
 }
 

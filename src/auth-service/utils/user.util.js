@@ -6461,24 +6461,29 @@ const createUserModule = {
           const uaString = request.headers["user-agent"] || "";
           const fingerprint = computeDeviceFingerprint(ip, uaString);
 
-          const knownDevices = user.knownDevices || [];
-          const isKnown = knownDevices.some((d) => d.fingerprint === fingerprint);
+          // Atomic insert: only pushes the fingerprint if it is not already
+          // present, preventing duplicate entries and concurrent-login races.
+          const insertResult = await UserModel(dbTenant).updateOne(
+            { _id: user._id, "knownDevices.fingerprint": { $ne: fingerprint } },
+            {
+              $push: {
+                knownDevices: {
+                  $each: [{ fingerprint, lastSeenAt: new Date() }],
+                  $slice: -20,
+                },
+              },
+            },
+          );
 
-          if (!isKnown) {
+          if (insertResult.modifiedCount > 0) {
+            // Genuinely new device — resolve UA details and notify the user.
             const { os, browser, deviceType } = parseUserAgent(uaString);
             const location = await getIpLocation(ip);
 
-            // Persist the new device fingerprint (cap to 20 entries)
+            // Back-fill the UA fields now that we know it is a new device.
             await UserModel(dbTenant).updateOne(
-              { _id: user._id },
-              {
-                $push: {
-                  knownDevices: {
-                    $each: [{ fingerprint, os, browser, deviceType, lastSeenAt: new Date() }],
-                    $slice: -20,
-                  },
-                },
-              },
+              { _id: user._id, "knownDevices.fingerprint": fingerprint },
+              { $set: { "knownDevices.$.os": os, "knownDevices.$.browser": browser, "knownDevices.$.deviceType": deviceType } },
             );
 
             await mailer.newDeviceLogin({
@@ -6493,7 +6498,7 @@ const createUserModule = {
               loginTime: new Date(),
             });
           } else {
-            // Update lastSeenAt for the matched device
+            // Known device — just refresh the lastSeenAt timestamp.
             await UserModel(dbTenant).updateOne(
               { _id: user._id, "knownDevices.fingerprint": fingerprint },
               { $set: { "knownDevices.$.lastSeenAt": new Date() } },
