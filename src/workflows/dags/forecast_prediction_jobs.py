@@ -171,6 +171,7 @@ def make_forecasts():
     save_daily_forecasts_to_bigquery(daily_forecasts)
     save_daily_forecasts_to_mongo(daily_forecasts)
 make_forecasts()
+
 @dag(
     "AirQo-site-daily-forecasting-job_Q",
     schedule="0 3 * * *",
@@ -217,11 +218,34 @@ def make_site_daily_forecasts():
     def generate_site_forecasts(data):
         horizon = int(Config.DAILY_FORECAST_HORIZON or 7)
         try:
-            return ForecastModelTrainer.generate_site_daily_forecasts(
+            forecasts = ForecastModelTrainer.generate_site_daily_forecasts(
                 data,
                 horizon=horizon,
-                include_met_no_weather=False,
+                include_met_no_weather=True,
             )
+
+            if _has_site_forecast_met_data(forecasts):
+                logger.info(
+                    "Generated site daily forecasts with MET enrichment%s",
+                    _log_context(
+                        horizon=horizon,
+                        input_rows=len(data) if data is not None else None,
+                        output_rows=len(forecasts),
+                    ),
+                )
+            else:
+                logger.warning(
+                    "Generated site daily forecasts without MET data%s. "
+                    "The follow-up enrichment task will retry before persistence updates.",
+                    _log_context(
+                        horizon=horizon,
+                        input_rows=len(data) if data is not None else None,
+                        output_rows=len(forecasts),
+                        met_no_base_url=Config.MET_NO_BASE_URL,
+                    ),
+                )
+
+            return forecasts
         except Exception as exc:
             logger.exception(
                 "Failed to generate site daily forecasts%s: %s",
