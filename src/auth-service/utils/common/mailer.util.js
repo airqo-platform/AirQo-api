@@ -705,6 +705,7 @@ const getEmailSubject = (functionName, params) => {
     authenticateEmail: "Changes to your AirQo email",
     compromisedToken:
       "Urgent Security Alert - Potential Compromise of Your AIRQO API Token",
+    newDeviceLogin: "Security Alert: New Sign-In to Your AirQo Account",
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
     expiredToken: "Action Required: Your AirQo API Token is expired",
     expiringToken: "AirQo API Token Expiry: Create New Token Urgently",
@@ -815,6 +816,7 @@ const EMAIL_CATEGORIES = {
     "sendMobileAccountDeletionCode",
     "authenticateEmail",
     "compromisedToken",
+    "newDeviceLogin",
     "sendBotAlert",
     "sendCompromiseSummary",
     "expiredToken",
@@ -2301,6 +2303,21 @@ const mailer = {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,
     },
+  ),
+  newDeviceLogin: createSecurityEmailFunction(
+    "newDeviceLogin",
+    (params) =>
+      msgs.newDeviceLogin({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        os: params.os,
+        browser: params.browser,
+        deviceType: params.deviceType,
+        location: params.location,
+        loginTime: params.loginTime,
+      }),
+    { cooldownDays: 1, enableCooldown: false },
   ),
   updateProfileReminder: createMailerFunction(
     "updateProfileReminder", //
