@@ -46,6 +46,10 @@ class BigQueryAdapter(StorageAdapter):
         If required columns are missing they will be added with NaN values and a
         warning will be logged.
         """
+        print(type(dataframe))
+        if not isinstance(dataframe, pd.DataFrame):
+            raise ValueError(f"Expected a pandas DataFrame, got {type(dataframe)}")
+
         dataframe = dataframe.reset_index(drop=True)
 
         ok, missing = self.validate_schema(table, dataframe)
@@ -64,7 +68,7 @@ class BigQueryAdapter(StorageAdapter):
                 dataframe, table, job_config=bq_job_config
             )
             job.result()
-        except google_api_exceptions.GoogleCloudError as e:
+        except google_api_exceptions.GoogleAPICallError as e:
             logger.exception(f"BigQuery load job failed for {table}: {e}")
             raise
 
@@ -109,7 +113,7 @@ class BigQueryAdapter(StorageAdapter):
                 job_config.query_parameters = query_parameters
             df = self.client.query(query, job_config=job_config).result().to_dataframe()
             return Result(data=df)
-        except google_api_exceptions.GoogleAPICallError as e:
+        except google_api_exceptions.GoogleAPIError as e:
             logger.exception(f"BigQuery query execution failed: {e}")
             return Result(error=str(e))
         except Exception as e:
