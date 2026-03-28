@@ -2151,6 +2151,8 @@ class ForecastModelTrainer(BaseMlUtils):
     @staticmethod
     def _enrich_site_daily_forecasts_with_met_no_weather(
         data: pd.DataFrame,
+        *,
+        fail_on_error: bool = False,
     ) -> pd.DataFrame:
         """Attach daily MET.no weather summaries to site daily forecast rows."""
         if data.empty:
@@ -2187,6 +2189,8 @@ class ForecastModelTrainer(BaseMlUtils):
                 ].drop_duplicates()
             )
         except Exception as exc:
+            if fail_on_error:
+                raise
             logger.exception(
                 "MET.no enrichment failed for site daily forecasts. "
                 "Continuing with forecast-only output: %s",
@@ -2206,6 +2210,8 @@ class ForecastModelTrainer(BaseMlUtils):
                 how="left",
             )
         except Exception as exc:
+            if fail_on_error:
+                raise
             logger.exception(
                 "MET.no merge failed for site daily forecasts. "
                 "Continuing with forecast-only output: %s",
@@ -2284,6 +2290,48 @@ class ForecastModelTrainer(BaseMlUtils):
         )
 
     @staticmethod
+    def _replace_site_daily_forecasts(
+        existing: pd.DataFrame, updates: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Replace existing site/date rows with updated rows before retention is applied."""
+        existing_prepared = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
+            existing
+        )
+        updates_prepared = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
+            updates
+        )
+
+        if existing_prepared.empty:
+            return updates_prepared
+        if updates_prepared.empty:
+            return existing_prepared
+
+        for frame in (existing_prepared, updates_prepared):
+            frame["site_id"] = frame["site_id"].astype(str)
+            frame["date"] = pd.to_datetime(frame["date"], errors="coerce").dt.date
+
+        replacement_keys = (
+            updates_prepared[["site_id", "date"]]
+            .dropna()
+            .drop_duplicates()
+            .assign(_replace_existing=True)
+        )
+        remaining_existing = existing_prepared.merge(
+            replacement_keys,
+            on=["site_id", "date"],
+            how="left",
+        )
+        remaining_existing = remaining_existing[
+            remaining_existing["_replace_existing"].isna()
+        ].drop(columns=["_replace_existing"])
+
+        return pd.concat(
+            [remaining_existing, updates_prepared],
+            ignore_index=True,
+            sort=False,
+        )
+
+    @staticmethod
     def _save_site_daily_forecasts_to_bigquery(data: pd.DataFrame) -> Dict[str, Any]:
         """Persist site forecasts to BigQuery, creating the table on demand."""
         from .bigquery_api import BigQueryApi
@@ -2297,7 +2345,7 @@ class ForecastModelTrainer(BaseMlUtils):
         )
         existing = ForecastModelTrainer._read_site_forecasts_from_bigquery(table)
         retained = ForecastModelTrainer._retain_recent_site_forecasts(
-            pd.concat([existing, data], ignore_index=True, sort=False)
+            ForecastModelTrainer._replace_site_daily_forecasts(existing, data)
         )
 
         BigQueryApi().load_data(

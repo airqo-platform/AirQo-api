@@ -563,6 +563,38 @@ def test_retain_recent_site_forecasts_keeps_latest_per_date_and_max_14():
     )
 
 
+def test_replace_site_daily_forecasts_prefers_updated_site_date_rows():
+    created_at = pd.Timestamp("2026-03-27T00:00:00Z")
+    existing = pd.DataFrame(
+        [
+            {
+                "site_name": "Makerere",
+                "site_id": "site-1",
+                "site_latitude": 0.3333333,
+                "site_longitude": 32.5555555,
+                "date": pd.Timestamp("2026-03-28").date(),
+                "pm2_5_mean": 12.3,
+                "pm2_5_min": 10.1,
+                "pm2_5_max": 15.6,
+                "pm2_5_low": 9.8,
+                "pm2_5_high": 16.5,
+                "forecast_confidence": 87.6,
+                "created_at": created_at,
+            }
+        ]
+    )
+    updates = existing.copy()
+    updates["met_no_air_temperature"] = 25.4
+    updates["met_no_wind_speed"] = 4.8
+
+    replaced = ForecastModelTrainer._replace_site_daily_forecasts(existing, updates)
+
+    assert len(replaced) == 1
+    assert replaced.loc[0, "pm2_5_mean"] == 12.3
+    assert replaced.loc[0, "met_no_air_temperature"] == 25.4
+    assert replaced.loc[0, "met_no_wind_speed"] == 4.8
+
+
 def test_save_site_daily_forecasts_to_mongo_uses_bulk_write_and_cleans_old_rows(
     monkeypatch,
 ):
