@@ -96,11 +96,15 @@ async function getIpLocation(ip) {
 
 /**
  * Extract the real client IP from an Express request.
- * Relies on Express's request.ip which respects the app's `trust proxy`
- * setting — that is the correct place to configure proxy trust, not here.
+ * Uses the custom HAProxy headers (x-client-ip, x-client-original-ip) that
+ * the infra layer sets — consistent with token.util.js and rate-limit middleware.
  */
 function extractIp(request) {
-  return request.ip || request.connection?.remoteAddress || null;
+  return (
+    request.headers["x-client-ip"] ||
+    request.headers["x-client-original-ip"] ||
+    null
+  );
 }
 
 module.exports = {
