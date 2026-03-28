@@ -100,6 +100,31 @@ const AQI_BRANCHES = [
   },
 ];
 
+// Helper function to build MongoDB $switch expressions
+// from the shared AQI branches using a specific "then" property
+const buildSwitchExpression = (thenProperty) => ({
+  $switch: {
+    branches: AQI_BRANCHES.map((branch) => ({
+      case: branch.case,
+      then: branch[thenProperty],
+    })),
+    default: {
+      thenColor: AQI_COLORS.unknown,
+      thenCategory: AQI_CATEGORIES.unknown,
+      thenColorName: AQI_COLOR_NAMES.unknown,
+    }[thenProperty],
+  },
+});
+
+// MongoDB switch case expression for AQI color
+const getAqiColorExpression = () => buildSwitchExpression("thenColor");
+
+// MongoDB switch case expression for AQI category
+const getAqiCategoryExpression = () => buildSwitchExpression("thenCategory");
+
+// MongoDB switch case expression for AQI color name
+const getAqiColorNameExpression = () => buildSwitchExpression("thenColorName");
+
 // Function to generate the AQI addFields for MongoDB aggregation pipelines.
 //
 // NOTE: callers MUST push/apply a prior { $addFields: { aqi_ranges: AQI_RANGES } }
