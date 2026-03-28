@@ -24,6 +24,22 @@
 // Single source of truth for PM2.5 AQI breakpoints
 const { PM25_AQI_BREAKPOINTS } = require("@config/constants");
 
+// Fail fast at module load time if the breakpoint table is misconfigured.
+// This prevents Infinity/NaN slopes from silently propagating into the
+// MongoDB expression and the JS formula.
+PM25_AQI_BREAKPOINTS.forEach(({ cLow, cHigh, aqiLow, aqiHigh }, i) => {
+  if (cHigh <= cLow) {
+    throw new Error(
+      `PM25_AQI_BREAKPOINTS[${i}]: cHigh (${cHigh}) must be greater than cLow (${cLow})`
+    );
+  }
+  if (aqiHigh <= aqiLow) {
+    throw new Error(
+      `PM25_AQI_BREAKPOINTS[${i}]: aqiHigh (${aqiHigh}) must be greater than aqiLow (${aqiLow})`
+    );
+  }
+});
+
 const PM25_MAX_AQI = 500;
 // Concentrations above this threshold are capped at AQI 500 per EPA guidance
 const PM25_OVERFLOW_THRESHOLD =

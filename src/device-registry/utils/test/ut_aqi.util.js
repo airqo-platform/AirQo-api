@@ -35,15 +35,18 @@ describe("calculatePm25Aqi", function() {
   // ── Truncation (NOT rounding) ───────────────────────────────────────────
   describe("truncation behaviour", function() {
     it("truncates to 1 decimal place — does not round up", function() {
-      // 9.09 truncated → 9.0 (Good), NOT 9.1 (Moderate)
+      // 9.09 truncated → 9.0 (Good, AQI 50), NOT 9.1 (Moderate, AQI 51)
+      expect(calculatePm25Aqi(9.09)).to.equal(50);
       expect(calculatePm25Aqi(9.09)).to.equal(calculatePm25Aqi(9.0));
     });
 
     it("treats 9.14 the same as 9.1 after truncation", function() {
+      expect(calculatePm25Aqi(9.14)).to.equal(51);
       expect(calculatePm25Aqi(9.14)).to.equal(calculatePm25Aqi(9.1));
     });
 
     it("treats 35.49 the same as 35.4 after truncation", function() {
+      expect(calculatePm25Aqi(35.49)).to.equal(100);
       expect(calculatePm25Aqi(35.49)).to.equal(calculatePm25Aqi(35.4));
     });
   });
@@ -176,6 +179,18 @@ describe("PM25_AQI_BREAKPOINTS (config/global/aqi)", function() {
   it("each entry has cLow, cHigh, aqiLow, aqiHigh", function() {
     PM25_AQI_BREAKPOINTS.forEach((bp) => {
       expect(bp).to.have.all.keys("cLow", "cHigh", "aqiLow", "aqiHigh");
+    });
+  });
+
+  it("each entry has valid numeric values with cHigh > cLow and aqiHigh > aqiLow", function() {
+    PM25_AQI_BREAKPOINTS.forEach(({ cLow, cHigh, aqiLow, aqiHigh }, i) => {
+      const msg = `breakpoint[${i}]`;
+      expect(cLow,   `${msg} cLow`).to.be.a("number").and.be.at.least(0);
+      expect(cHigh,  `${msg} cHigh`).to.be.a("number").and.be.at.least(0);
+      expect(aqiLow, `${msg} aqiLow`).to.be.a("number").and.be.at.least(0);
+      expect(aqiHigh,`${msg} aqiHigh`).to.be.a("number").and.be.at.least(0);
+      expect(cHigh).to.be.above(cLow,   `${msg}: cHigh must be > cLow`);
+      expect(aqiHigh).to.be.above(aqiLow, `${msg}: aqiHigh must be > aqiLow`);
     });
   });
 
