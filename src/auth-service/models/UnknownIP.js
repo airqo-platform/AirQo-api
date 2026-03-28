@@ -79,6 +79,10 @@ UnknownIPSchema.pre("update", function (next) {
 
 UnknownIPSchema.index({ ip: 1, "ipCounts.day": 1 }, { unique: true });
 
+// Automatically expire documents that have not been updated in 90 days.
+// This is the primary defence against unbounded collection growth.
+UnknownIPSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
 UnknownIPSchema.statics = {
   async register(args, next) {
     try {

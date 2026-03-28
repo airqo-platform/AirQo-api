@@ -129,6 +129,14 @@ let unknownIPQueue = async.queue(async (task, callback) => {
           $inc: {
             "ipCounts.$[elem].count": 1,
           },
+          // Keep only the 30 most-recent daily entries to prevent the
+          // ipCounts array from growing without bound over months/years.
+          $push: {
+            ipCounts: {
+              $each: [],
+              $slice: -30,
+            },
+          },
         };
         const options = {
           arrayFilters: [{ "elem.day": day }],
