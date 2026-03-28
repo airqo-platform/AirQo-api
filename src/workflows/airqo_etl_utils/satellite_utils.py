@@ -444,9 +444,6 @@ class SatelliteUtils:
                 ["timestamp", "latitude", "longitude"], as_index=False
             ).mean()
 
-            # Drop all data where pm2_5 and or pm10 are NaN (indicating no valid data for that timestamp/location)
-            df.dropna(subset=["pm2_5", "pm10"], how="any", inplace=True)
-
             logger.info(
                 f"Processed {len(df)} records from GRIB2 file. Preview:\n{df.head()}"
             )

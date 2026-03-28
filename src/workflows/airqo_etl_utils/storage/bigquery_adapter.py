@@ -46,7 +46,6 @@ class BigQueryAdapter(StorageAdapter):
         If required columns are missing they will be added with NaN values and a
         warning will be logged.
         """
-        print(type(dataframe))
         if not isinstance(dataframe, pd.DataFrame):
             raise ValueError(f"Expected a pandas DataFrame, got {type(dataframe)}")
 
