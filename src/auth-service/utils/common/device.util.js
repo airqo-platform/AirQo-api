@@ -5,6 +5,17 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
 
 /**
+ * Normalize an IP string for consistent fingerprinting and private-range checks.
+ * Strips the ::ffff: prefix from IPv4-mapped IPv6 addresses so that
+ * ::ffff:1.2.3.4 and 1.2.3.4 are treated as the same host.
+ */
+function normalizeIp(ip) {
+  if (!ip) return ip;
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  return mapped ? mapped[1] : ip;
+}
+
+/**
  * Parse OS, browser, and device type from a raw user-agent string.
  * Intentionally avoids a third-party UA parser to keep dependencies lean.
  */
@@ -54,33 +65,38 @@ function parseUserAgent(uaString) {
 
 /**
  * Compute a stable fingerprint for a device from its IP and user-agent.
+ * Normalizes IPv4-mapped IPv6 addresses before hashing so ::ffff:x.x.x.x
+ * and x.x.x.x produce the same fingerprint.
  * Returns a 32-character hex string.
  */
 function computeDeviceFingerprint(ip, userAgent) {
+  const normalizedIp = normalizeIp(ip);
   return crypto
     .createHash("sha256")
-    .update(`${ip || "unknown"}:${userAgent || "unknown"}`)
+    .update(`${normalizedIp || "unknown"}:${userAgent || "unknown"}`)
     .digest("hex")
     .slice(0, 32);
 }
 
 /**
  * Resolve an approximate city/country string for a given IP address.
- * Uses the free ip-api.com endpoint with a 3-second timeout.
+ * Uses the ip-api.com endpoint with a 3-second timeout.
  * Returns null on any error or for private/loopback addresses.
  */
 async function getIpLocation(ip) {
+  const normalized = normalizeIp(ip);
+
   if (
-    !ip ||
-    /^(127\.|::1$|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::ffff:)/i.test(ip) ||
-    /^(fc[0-9a-f]{2}:|fd[0-9a-f]{2}:|fe80:)/i.test(ip)
+    !normalized ||
+    /^(127\.|::1$|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/i.test(normalized) ||
+    /^(fc[0-9a-f]{2}:|fd[0-9a-f]{2}:|fe80:)/i.test(normalized)
   ) {
     return null;
   }
 
   try {
     const { data } = await axios.get(
-      `http://ip-api.com/json/${ip}?fields=status,city,regionName,country`,
+      `https://ip-api.com/json/${normalized}?fields=status,city,regionName,country`,
       { timeout: 3000 }
     );
     if (data?.status === "success") {
@@ -89,7 +105,7 @@ async function getIpLocation(ip) {
         .join(", ") || null;
     }
   } catch (err) {
-    logger.debug(`getIpLocation: failed for ${ip} — ${err.message}`);
+    logger.debug(`getIpLocation: failed — ${err.message}`);
   }
   return null;
 }

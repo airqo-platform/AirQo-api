@@ -6477,26 +6477,40 @@ const createUserModule = {
 
           if (insertResult.modifiedCount > 0) {
             // Genuinely new device — resolve UA details and notify the user.
-            const { os, browser, deviceType } = parseUserAgent(uaString);
-            const location = await getIpLocation(ip);
+            // If the back-fill or email fails, roll back the inserted fingerprint
+            // so the next login still triggers a notification attempt.
+            try {
+              const { os, browser, deviceType } = parseUserAgent(uaString);
+              const location = await getIpLocation(ip);
 
-            // Back-fill the UA fields now that we know it is a new device.
-            await UserModel(dbTenant).updateOne(
-              { _id: user._id, "knownDevices.fingerprint": fingerprint },
-              { $set: { "knownDevices.$.os": os, "knownDevices.$.browser": browser, "knownDevices.$.deviceType": deviceType } },
-            );
+              // Back-fill the UA fields now that we know it is a new device.
+              await UserModel(dbTenant).updateOne(
+                { _id: user._id, "knownDevices.fingerprint": fingerprint },
+                { $set: { "knownDevices.$.os": os, "knownDevices.$.browser": browser, "knownDevices.$.deviceType": deviceType } },
+              );
 
-            await mailer.newDeviceLogin({
-              email: user.email,
-              tenant: dbTenant,
-              firstName: user.firstName || "",
-              lastName: user.lastName || "",
-              os,
-              browser,
-              deviceType,
-              location,
-              loginTime: new Date(),
-            });
+              const mailResult = await mailer.newDeviceLogin({
+                email: user.email,
+                tenant: dbTenant,
+                firstName: user.firstName || "",
+                lastName: user.lastName || "",
+                os,
+                browser,
+                deviceType,
+                location,
+                loginTime: new Date(),
+              });
+
+              if (!mailResult || mailResult.success === false) {
+                throw new Error(mailResult?.message || "newDeviceLogin email failed");
+              }
+            } catch (notifyError) {
+              logger.error(`New device notify failed, rolling back fingerprint: ${notifyError.message}`);
+              await UserModel(dbTenant).updateOne(
+                { _id: user._id },
+                { $pull: { knownDevices: { fingerprint } } },
+              );
+            }
           } else {
             // Known device — just refresh the lastSeenAt timestamp.
             await UserModel(dbTenant).updateOne(
