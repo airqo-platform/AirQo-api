@@ -47,6 +47,12 @@ const {
 
 const RBACService = require("@services/rbac.service");
 const { AbstractTokenFactory } = require("@services/atf.service");
+const {
+  parseUserAgent,
+  computeDeviceFingerprint,
+  getIpLocation,
+  extractIp,
+} = require("@utils/common/device.util");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -6416,7 +6422,7 @@ const createUserModule = {
         };
       }
 
-      // Update login statistics
+      // Update login statistics and check for new device
       (async () => {
         try {
           // Decide if auto-verification should happen.
@@ -6447,6 +6453,54 @@ const createUserModule = {
           logger.error(
             `Login stats/roles update error: ${updateError.message}`,
           );
+        }
+
+        // New device detection and email notification
+        try {
+          const ip = extractIp(request);
+          const uaString = request.headers["user-agent"] || "";
+          const fingerprint = computeDeviceFingerprint(ip, uaString);
+
+          const knownDevices = user.knownDevices || [];
+          const isKnown = knownDevices.some((d) => d.fingerprint === fingerprint);
+
+          if (!isKnown) {
+            const { os, browser, deviceType } = parseUserAgent(uaString);
+            const location = await getIpLocation(ip);
+
+            // Persist the new device fingerprint (cap to 20 entries)
+            await UserModel(dbTenant).updateOne(
+              { _id: user._id },
+              {
+                $push: {
+                  knownDevices: {
+                    $each: [{ fingerprint, os, browser, deviceType, lastSeenAt: new Date() }],
+                    $slice: -20,
+                  },
+                },
+              },
+            );
+
+            await mailer.newDeviceLogin({
+              email: user.email,
+              tenant: dbTenant,
+              firstName: user.firstName || "",
+              lastName: user.lastName || "",
+              os,
+              browser,
+              deviceType,
+              location,
+              loginTime: new Date(),
+            });
+          } else {
+            // Update lastSeenAt for the matched device
+            await UserModel(dbTenant).updateOne(
+              { _id: user._id, "knownDevices.fingerprint": fingerprint },
+              { $set: { "knownDevices.$.lastSeenAt": new Date() } },
+            );
+          }
+        } catch (deviceError) {
+          logger.error(`New device check error: ${deviceError.message}`);
         }
       })();
 

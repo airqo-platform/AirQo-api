@@ -312,6 +312,18 @@ const UserSchema = new Schema(
     lastLogin: {
       type: Date,
     },
+    knownDevices: {
+      type: [
+        {
+          fingerprint: { type: String },
+          os: { type: String },
+          browser: { type: String },
+          deviceType: { type: String },
+          lastSeenAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     // lastActiveAt tracks any authenticated API activity (preferences, etc.)
     // independently of explicit login events. Used by active-status-job to
     // more accurately reflect whether the user is still engaging with the platform.
