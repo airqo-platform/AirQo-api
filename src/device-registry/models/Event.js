@@ -100,32 +100,16 @@ const AQI_BRANCHES = [
   },
 ];
 
-// Helper function to build MongoDB $switch expressions
-// from the shared AQI branches using a specific "then" property
-const buildSwitchExpression = (thenProperty) => ({
-  $switch: {
-    branches: AQI_BRANCHES.map((branch) => ({
-      case: branch.case,
-      then: branch[thenProperty],
-    })),
-    default: {
-      thenColor: AQI_COLORS.unknown,
-      thenCategory: AQI_CATEGORIES.unknown,
-      thenColorName: AQI_COLOR_NAMES.unknown,
-    }[thenProperty],
-  },
-});
-
-// MongoDB switch case expression for AQI color
-const getAqiColorExpression = () => buildSwitchExpression("thenColor");
-
-// MongoDB switch case expression for AQI category
-const getAqiCategoryExpression = () => buildSwitchExpression("thenCategory");
-
-// MongoDB switch case expression for AQI color name
-const getAqiColorNameExpression = () => buildSwitchExpression("thenColorName");
-
-// Function to generate the AQI addFields for MongoDB aggregation pipelines
+// Function to generate the AQI addFields for MongoDB aggregation pipelines.
+//
+// NOTE: callers MUST push/apply a prior { $addFields: { aqi_ranges: AQI_RANGES } }
+// stage before this one, because the AQI_BRANCHES switch expressions reference
+// $aqi_ranges.good.min etc. via the document field.
+//
+// Existing behaviour of aqi_color / aqi_category / aqi_color_name is
+// intentionally preserved (raw pm2_5.value vs AQI_RANGES thresholds) to
+// maintain backward compatibility with deployed consumers.
+// aqi_index is a new additive field and does not affect any existing field.
 function generateAqiAddFields() {
   return {
     $addFields: {
@@ -134,8 +118,9 @@ function generateAqiAddFields() {
       aqi_category: getAqiCategoryExpression(),
       aqi_color_name: getAqiColorNameExpression(),
       aqi_ranges: AQI_RANGES,
-      // Numeric AQI value (0–500) computed from PM2.5 using the EPA piecewise
-      // linear formula (EPA-454/B-24-002, 2024 revision).
+      // NEW — numeric AQI value (0–500) computed from PM2.5 using the EPA
+      // piecewise linear formula (EPA-454/B-24-002, 2024 revision).
+      // This is purely additive and does not change any existing field value.
       aqi_index: getAqiIndexMongoExpression("$pm2_5.value"),
     },
   };

@@ -322,7 +322,16 @@ const SignalsSchema = new Schema(
     aqi_color_name: String,
     // Numeric AQI value (0–500) computed from PM2.5 using the EPA formula.
     // Populated by the store-signals-job via Event.generateAqiAddFields().
-    aqi_index: { type: Number, default: null },
+    aqi_index: {
+      type: Number,
+      default: null,
+      min: [0, "aqi_index must be >= 0"],
+      max: [500, "aqi_index must be <= 500"],
+      validate: {
+        validator: (v) => v === null || Number.isInteger(v),
+        message: "aqi_index must be an integer or null",
+      },
+    },
 
     // **PRE-COMPUTED HEALTH & ANALYTICS**
     latest_pm2_5: LatestPm2_5Schema, // Add this new top-level field

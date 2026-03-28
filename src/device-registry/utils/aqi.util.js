@@ -17,23 +17,17 @@
  *   AQI_Hi = AQI value corresponding to BP_Hi
  *
  * Breakpoints follow the 2024 EPA NAAQS PM2.5 annual standard revision (9 µg/m³).
+ * The canonical breakpoint table lives in @config/global/aqi — import from there;
+ * do NOT redefine it locally.
  */
 
-/**
- * PM2.5 24-hour AQI breakpoints (2024 EPA revision).
- * Each entry maps a concentration range [cLow, cHigh] to an AQI range [aqiLow, aqiHigh].
- */
-const PM25_AQI_BREAKPOINTS = [
-  { cLow: 0.0, cHigh: 9.0, aqiLow: 0, aqiHigh: 50 }, // Good
-  { cLow: 9.1, cHigh: 35.4, aqiLow: 51, aqiHigh: 100 }, // Moderate
-  { cLow: 35.5, cHigh: 55.4, aqiLow: 101, aqiHigh: 150 }, // Unhealthy for Sensitive Groups
-  { cLow: 55.5, cHigh: 125.4, aqiLow: 151, aqiHigh: 200 }, // Unhealthy
-  { cLow: 125.5, cHigh: 225.4, aqiLow: 201, aqiHigh: 300 }, // Very Unhealthy
-  { cLow: 225.5, cHigh: 325.4, aqiLow: 301, aqiHigh: 500 }, // Hazardous
-];
+// Single source of truth for PM2.5 AQI breakpoints
+const { PM25_AQI_BREAKPOINTS } = require("@config/constants");
 
 const PM25_MAX_AQI = 500;
-const PM25_OVERFLOW_THRESHOLD = 325.4; // concentrations above this are capped at AQI 500
+// Concentrations above this threshold are capped at AQI 500 per EPA guidance
+const PM25_OVERFLOW_THRESHOLD =
+  PM25_AQI_BREAKPOINTS[PM25_AQI_BREAKPOINTS.length - 1].cHigh;
 
 /**
  * Calculate the numeric AQI value from a PM2.5 concentration using the EPA formula.
@@ -76,11 +70,46 @@ function calculatePm25Aqi(concentration) {
  *
  * The expression implements the same EPA formula as calculatePm25Aqi() but
  * executes inside a MongoDB aggregation pipeline ($addFields stage).
+ * Branches are generated programmatically from PM25_AQI_BREAKPOINTS so that
+ * the JS and Mongo implementations share a single source of truth.
  *
  * @param {string} [fieldPath="$pm2_5.value"] - MongoDB field reference for PM2.5 concentration
  * @returns {Object} MongoDB expression object (suitable for use in $addFields)
  */
 function getAqiIndexMongoExpression(fieldPath = "$pm2_5.value") {
+  // Build the $switch branches at call-time from the canonical breakpoint table.
+  // Arithmetic (aqiHigh-aqiLow, cHigh-cLow) is evaluated in Node.js, not in Mongo,
+  // so the pipeline receives pre-computed constant ratios — no runtime overhead.
+  const switchBranches = PM25_AQI_BREAKPOINTS.map(
+    ({ cLow, cHigh, aqiLow, aqiHigh }) => ({
+      case: {
+        $and: [{ $gte: ["$$c", cLow] }, { $lte: ["$$c", cHigh] }],
+      },
+      then: {
+        $round: [
+          {
+            $add: [
+              aqiLow,
+              {
+                $multiply: [
+                  (aqiHigh - aqiLow) / (cHigh - cLow), // pre-computed slope constant
+                  { $subtract: ["$$c", cLow] },
+                ],
+              },
+            ],
+          },
+          0,
+        ],
+      },
+    })
+  );
+
+  // Append the overflow branch: values above the last breakpoint cap at AQI 500
+  switchBranches.push({
+    case: { $gt: ["$$c", PM25_OVERFLOW_THRESHOLD] },
+    then: PM25_MAX_AQI,
+  });
+
   // Guard: return null if value is missing, non-numeric, or negative
   return {
     $cond: {
@@ -92,173 +121,17 @@ function getAqiIndexMongoExpression(fieldPath = "$pm2_5.value") {
         ],
       },
       then: {
-        // Use $let to compute the truncated concentration once and reuse across all branches
+        // Use $let to compute the truncated concentration once and reuse
+        // across all branches: floor(C * 10) / 10
         $let: {
           vars: {
-            // Truncate to 1 decimal place: floor(c * 10) / 10
             c: {
               $divide: [{ $trunc: { $multiply: [fieldPath, 10] } }, 10],
             },
           },
           in: {
             $switch: {
-              branches: [
-                // Good: 0.0 – 9.0 → AQI 0–50
-                {
-                  case: {
-                    $and: [
-                      { $gte: ["$$c", 0.0] },
-                      { $lte: ["$$c", 9.0] },
-                    ],
-                  },
-                  then: {
-                    $round: [
-                      {
-                        $add: [
-                          0,
-                          {
-                            $multiply: [
-                              { $divide: [50, 9.0] },
-                              { $subtract: ["$$c", 0.0] },
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                },
-                // Moderate: 9.1 – 35.4 → AQI 51–100
-                {
-                  case: {
-                    $and: [
-                      { $gte: ["$$c", 9.1] },
-                      { $lte: ["$$c", 35.4] },
-                    ],
-                  },
-                  then: {
-                    $round: [
-                      {
-                        $add: [
-                          51,
-                          {
-                            $multiply: [
-                              { $divide: [49, 26.3] }, // (100-51)/(35.4-9.1)
-                              { $subtract: ["$$c", 9.1] },
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                },
-                // Unhealthy for Sensitive Groups: 35.5 – 55.4 → AQI 101–150
-                {
-                  case: {
-                    $and: [
-                      { $gte: ["$$c", 35.5] },
-                      { $lte: ["$$c", 55.4] },
-                    ],
-                  },
-                  then: {
-                    $round: [
-                      {
-                        $add: [
-                          101,
-                          {
-                            $multiply: [
-                              { $divide: [49, 19.9] }, // (150-101)/(55.4-35.5)
-                              { $subtract: ["$$c", 35.5] },
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                },
-                // Unhealthy: 55.5 – 125.4 → AQI 151–200
-                {
-                  case: {
-                    $and: [
-                      { $gte: ["$$c", 55.5] },
-                      { $lte: ["$$c", 125.4] },
-                    ],
-                  },
-                  then: {
-                    $round: [
-                      {
-                        $add: [
-                          151,
-                          {
-                            $multiply: [
-                              { $divide: [49, 69.9] }, // (200-151)/(125.4-55.5)
-                              { $subtract: ["$$c", 55.5] },
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                },
-                // Very Unhealthy: 125.5 – 225.4 → AQI 201–300
-                {
-                  case: {
-                    $and: [
-                      { $gte: ["$$c", 125.5] },
-                      { $lte: ["$$c", 225.4] },
-                    ],
-                  },
-                  then: {
-                    $round: [
-                      {
-                        $add: [
-                          201,
-                          {
-                            $multiply: [
-                              { $divide: [99, 99.9] }, // (300-201)/(225.4-125.5)
-                              { $subtract: ["$$c", 125.5] },
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                },
-                // Hazardous: 225.5 – 325.4 → AQI 301–500
-                {
-                  case: {
-                    $and: [
-                      { $gte: ["$$c", 225.5] },
-                      { $lte: ["$$c", 325.4] },
-                    ],
-                  },
-                  then: {
-                    $round: [
-                      {
-                        $add: [
-                          301,
-                          {
-                            $multiply: [
-                              { $divide: [199, 99.9] }, // (500-301)/(325.4-225.5)
-                              { $subtract: ["$$c", 225.5] },
-                            ],
-                          },
-                        ],
-                      },
-                      0,
-                    ],
-                  },
-                },
-                // Above 325.4: cap at 500
-                {
-                  case: { $gt: ["$$c", 325.4] },
-                  then: PM25_MAX_AQI,
-                },
-              ],
+              branches: switchBranches,
               default: null,
             },
           },
@@ -270,7 +143,6 @@ function getAqiIndexMongoExpression(fieldPath = "$pm2_5.value") {
 }
 
 module.exports = {
-  PM25_AQI_BREAKPOINTS,
   calculatePm25Aqi,
   getAqiIndexMongoExpression,
 };
