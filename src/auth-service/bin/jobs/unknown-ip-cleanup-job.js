@@ -14,6 +14,17 @@ const RETENTION_DAYS = constants.UNKNOWN_IP_RETENTION_DAYS;
 const BATCH_SIZE = 500;
 
 const cleanupUnknownIPs = async () => {
+  if (
+    !Number.isFinite(RETENTION_DAYS) ||
+    !Number.isInteger(RETENTION_DAYS) ||
+    RETENTION_DAYS <= 0
+  ) {
+    logger.warn(
+      `${JOB_NAME}: skipping — UNKNOWN_IP_RETENTION_DAYS is invalid (got: ${RETENTION_DAYS})`
+    );
+    return;
+  }
+
   const tenant = constants.DEFAULT_TENANT || "airqo";
 
   try {
@@ -55,7 +66,7 @@ const cleanupUnknownIPs = async () => {
       `${JOB_NAME}: completed — deleted ${totalDeleted} documents not updated since ${cutoff.toISOString()}`
     );
   } catch (error) {
-    logger.error(`${JOB_NAME}: error during cleanup — ${error.message}`);
+    logger.error(`${JOB_NAME}: error during cleanup — ${error.message}`, error.stack);
   }
 };
 
