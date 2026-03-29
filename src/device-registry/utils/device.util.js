@@ -1582,16 +1582,14 @@ const deviceUtil = {
         }
 
         // Step 1: extract api_code from description URL, validated against adapter
-        if (!body.api_code && body.description) {
+        // Require adapterConfig.api_base_url to be set before trusting any URL
+        // found in description — without a known base URL to validate against,
+        // any arbitrary outbound URL could be injected via this field.
+        if (!body.api_code && body.description && adapterConfig?.api_base_url) {
           const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
           if (urlMatch) {
             const extractedUrl = urlMatch[0].replace(/[.,;]+$/, "");
-            // Only accept the URL if it matches the adapter's expected base URL,
-            // preventing arbitrary URLs from being injected via description.
-            if (
-              !adapterConfig?.api_base_url ||
-              extractedUrl.startsWith(adapterConfig.api_base_url)
-            ) {
+            if (extractedUrl.startsWith(adapterConfig.api_base_url)) {
               body.api_code = extractedUrl;
               logText(
                 `createOnPlatform: extracted api_code from description for network "${body.network}"`

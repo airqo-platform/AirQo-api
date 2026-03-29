@@ -32,7 +32,6 @@ const {
   validateGetShippingBatchDetails,
   validateGetDeviceCountSummary,
   validateTransferDevice,
-  validateUserIdBody,
   validateRemoveDevicesFromBatch,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");

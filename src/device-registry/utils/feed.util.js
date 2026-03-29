@@ -288,42 +288,76 @@ const createFeed = {
    */
   resolveDevice: async (identifier, tenant = "airqo") => {
     try {
-      const isNumericChannel =
+      const isNumeric =
         typeof identifier === "number" ||
         (typeof identifier === "string" && /^\d+$/.test(identifier));
 
-      const query = { tenant };
-      if (isNumericChannel) {
-        query.device_number = parseInt(identifier, 10);
-      } else {
-        query.serial_number = String(identifier);
+      // Shared helper: runs one list query and returns a normalised result.
+      // Uses an internal `notFound` flag so callers can distinguish "zero
+      // results" (safe to retry with a different field) from real errors.
+      const lookup = async (query) => {
+        const response = await createDevice.list({ query }, (error) => {
+          throw error;
+        });
+        if (!response || !response.success) {
+          return {
+            success: false,
+            message:
+              response?.message ||
+              `Unable to look up device for identifier: ${identifier}`,
+            status: response?.status || httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+        if (!Array.isArray(response.data) || response.data.length === 0) {
+          return { success: false, notFound: true };
+        }
+        if (response.data.length > 1) {
+          return {
+            success: false,
+            message: `Multiple devices found for identifier: ${identifier}`,
+            status: httpStatus.CONFLICT,
+          };
+        }
+        return { success: true, data: response.data[0] };
+      };
+
+      if (isNumeric) {
+        // Try device_number first — AirQo/ThingSpeak channels are numeric.
+        // If nothing is found, fall back to serial_number: some external
+        // networks (e.g. AirGradient) use numeric location IDs as their
+        // serial_number, so a digit-only identifier can be either.
+        const byChannel = await lookup({
+          tenant,
+          device_number: parseInt(identifier, 10),
+        });
+        if (!byChannel.notFound) {
+          // Found, conflict, or a hard error — return without retrying.
+          return byChannel;
+        }
+        const bySerial = await lookup({
+          tenant,
+          serial_number: String(identifier),
+        });
+        if (bySerial.notFound) {
+          return {
+            success: false,
+            message: `No device found with channel or serial_number ${identifier}`,
+            status: httpStatus.NOT_FOUND,
+          };
+        }
+        return bySerial;
       }
 
-      const response = await createDevice.list({ query }, (error) => {
-        throw error;
-      });
-
-      if (!response || !response.success) {
+      // Non-numeric: serial_number lookup only.
+      const result = await lookup({ tenant, serial_number: String(identifier) });
+      if (result.notFound) {
         return {
           success: false,
-          message:
-            response?.message ||
-            `Unable to look up device for identifier: ${identifier}`,
-          status: response?.status || httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      }
-
-      if (!Array.isArray(response.data) || response.data.length === 0) {
-        return {
-          success: false,
-          message: isNumericChannel
-            ? `No device found with channel ${identifier}`
-            : `No device found with serial_number ${identifier}`,
+          message: `No device found with serial_number ${identifier}`,
           status: httpStatus.NOT_FOUND,
         };
       }
-
-      return { success: true, data: response.data[0] };
+      return result;
     } catch (error) {
       logger.error(`Error in resolveDevice: ${error.message}`);
       return {

@@ -43,6 +43,7 @@ const NETWORK_ADAPTERS = {
   // serial_number "174349" lives in the URL path.
   airgradient: {
     api_code_is_full_url: true,
+    api_base_url: "https://api.airgradient.com",
     auth_type: "none",
     auth_key_param: null,
     serial_number_regex: "/locations/([^/?#]+)/",
