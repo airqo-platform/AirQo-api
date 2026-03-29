@@ -443,6 +443,41 @@ const createFeed = {
         };
       }
 
+      // ── Validate URL scheme and host before making the request ────────────
+      // Guards against SSRF: only http/https to the adapter's expected host is
+      // allowed. When adapter.api_base_url is configured the constructed URL's
+      // hostname must match it; the same rule applies to full-URL api_code.
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return {
+          success: false,
+          message: `Invalid URL for network "${device.network}": failed to parse constructed URL`,
+          status: httpStatus.UNPROCESSABLE_ENTITY,
+        };
+      }
+      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+        return {
+          success: false,
+          message: `Refused request for network "${device.network}": unsupported scheme "${parsedUrl.protocol}"`,
+          status: httpStatus.UNPROCESSABLE_ENTITY,
+        };
+      }
+      if (adapter.api_base_url) {
+        let expectedHostname;
+        try { expectedHostname = new URL(adapter.api_base_url).hostname; } catch { /* skip host check */ }
+        if (expectedHostname && parsedUrl.hostname !== expectedHostname) {
+          return {
+            success: false,
+            message:
+              `Refused request for network "${device.network}": ` +
+              `URL hostname "${parsedUrl.hostname}" does not match expected "${expectedHostname}"`,
+            status: httpStatus.UNPROCESSABLE_ENTITY,
+          };
+        }
+      }
+
       // ── Attach optional date filters ───────────────────────────────────────
       // External APIs may not support start/end — include them only when the
       // adapter template already has a query string or when explicitly supported.
@@ -467,6 +502,15 @@ const createFeed = {
       if (device.authRequired && adapter.auth_type !== "none" && credential) {
         switch (adapter.auth_type) {
           case "query_param":
+            if (!adapter.auth_key_param) {
+              return {
+                success: false,
+                message:
+                  `Cannot configure auth for network "${device.network}": ` +
+                  `auth_type is "query_param" but auth_key_param is not set on the adapter`,
+                status: httpStatus.UNPROCESSABLE_ENTITY,
+              };
+            }
             axiosConfig.params = {
               ...axiosConfig.params,
               [adapter.auth_key_param]: credential,
