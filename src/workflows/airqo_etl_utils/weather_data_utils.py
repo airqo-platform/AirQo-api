@@ -423,9 +423,7 @@ class WeatherDataUtils:
                 )
             except Exception as exc:
                 logger.warning(
-                    "Failed MET.no lookup for rounded coordinates (%s, %s): %s",
-                    row["met_no_query_latitude"],
-                    row["met_no_query_longitude"],
+                    "Failed MET.no lookup for rounded coordinates: %s",
                     exc,
                 )
                 return pd.DataFrame()
