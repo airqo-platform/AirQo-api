@@ -437,9 +437,10 @@ const createFeed = {
    * @returns {{ success: boolean, data?: any, message?: string, status?: number }}
    */
   fetchExternalDeviceData: async ({ device, adapter, start, end }) => {
+    // Declared outside try so the catch block can include it in the error log.
+    let url;
     try {
       // ── Build the request URL ──────────────────────────────────────────────
-      let url;
 
       if (adapter.api_code_is_full_url && device.api_code) {
         url = device.api_code;
@@ -543,10 +544,10 @@ const createFeed = {
       // device.authRequired. The device flag controls ThingSpeak/AirQo
       // visibility; for external adapters the adapter is the authority.
       if (adapter.auth_type && adapter.auth_type !== "none" && !credential) {
-        logger.debug(
+        logger.warn(
           `fetchExternalDeviceData: auth expected but device.access_code is missing ` +
-            `for device "${device.serial_number || device._id}" on network "${device.network}" — ` +
-            `proceeding unauthenticated`
+            `for device "${device.serial_number || device.api_code || device._id}" ` +
+            `on network "${device.network}" — proceeding unauthenticated`
         );
       }
 
@@ -589,8 +590,11 @@ const createFeed = {
       return { success: true, data: response.data };
     } catch (error) {
       const status = error.response?.status || httpStatus.BAD_GATEWAY;
+      const deviceRef =
+        device.serial_number || device.api_code || String(device._id) || "unknown";
       logger.error(
-        `fetchExternalDeviceData failed for device ${device.serial_number}: ${error.message}`
+        `fetchExternalDeviceData failed for device "${deviceRef}" ` +
+          `(network: ${device.network}${url ? `, url: ${url}` : ""}): ${error.message}`
       );
       return {
         success: false,
