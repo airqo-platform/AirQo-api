@@ -431,6 +431,18 @@ const ReadingsSchema = new Schema(
     aqi_color: String,
     aqi_category: String,
     aqi_color_name: String,
+    // Numeric AQI value (0–500) computed from PM2.5 using the EPA formula.
+    // Populated by the store-readings-job via Event.generateAqiAddFields().
+    aqi_index: {
+      type: Number,
+      default: null,
+      min: [0, "aqi_index must be >= 0"],
+      max: [500, "aqi_index must be <= 500"],
+      validate: {
+        validator: (v) => v === null || Number.isInteger(v),
+        message: "aqi_index must be an integer or null",
+      },
+    },
 
     // **PRE-COMPUTED HEALTH & ANALYTICS**
     latest_pm2_5: LatestPm2_5Schema, // Add this new top-level field
@@ -660,6 +672,7 @@ ReadingsSchema.methods = {
       aqi_color: this.aqi_color,
       aqi_category: this.aqi_category,
       aqi_color_name: this.aqi_color_name,
+      aqi_index: this.aqi_index,
       averages: this.averages,
       device: this.device,
       device_id: this.device_id,
@@ -937,6 +950,7 @@ ReadingsSchema.statics.latestForMap = async function(
           aqi_color: 1,
           aqi_category: 1,
           aqi_color_name: 1,
+          aqi_index: 1,
           health_tips: 1,
           site_image: 1,
           timeDifferenceHours: 1,
@@ -1605,6 +1619,7 @@ ReadingsSchema.statics.listRecent = async function(
           aqi_category: 1,
           aqi_color_name: 1,
           aqi_ranges: 1,
+          aqi_index: 1,
           health_tips: 1,
           siteDetails: { $arrayElemAt: ["$siteDetails", 0] },
           deviceDetails: { $arrayElemAt: ["$deviceDetails", 0] },
@@ -1994,6 +2009,7 @@ ReadingsSchema.statics.listForMap = async function(
           aqi_color: 1,
           aqi_category: 1,
           aqi_color_name: 1,
+          aqi_index: 1,
           health_tips: 1,
           site_image: 1,
           device_categories: { $ifNull: ["$device_categories", null] },
