@@ -322,30 +322,47 @@ const createFeed = {
       };
 
       if (isNumeric) {
-        // Try device_number first — AirQo/ThingSpeak channels are numeric.
-        // If nothing is found, fall back to serial_number: some external
-        // networks (e.g. AirGradient) use numeric location IDs as their
-        // serial_number, so a digit-only identifier can be either.
-        const byChannel = await lookup({
-          tenant,
-          device_number: parseInt(identifier, 10),
-        });
-        if (!byChannel.notFound) {
-          // Found, conflict, or a hard error — return without retrying.
-          return byChannel;
-        }
-        const bySerial = await lookup({
-          tenant,
-          serial_number: String(identifier),
-        });
-        if (bySerial.notFound) {
+        // Run both lookups in parallel — a digit-only identifier could be either
+        // an AirQo/ThingSpeak device_number or an external serial_number (e.g.
+        // AirGradient numeric location IDs). Running both lets us detect the
+        // case where the same value matches different records on different fields.
+        const [byChannel, bySerial] = await Promise.all([
+          lookup({ tenant, device_number: parseInt(identifier, 10) }),
+          lookup({ tenant, serial_number: String(identifier) }),
+        ]);
+
+        const channelFound = byChannel.success;
+        const serialFound = bySerial.success;
+
+        if (channelFound && serialFound) {
+          // Both matched — if they are the same record it is unambiguous.
+          if (String(byChannel.data._id) === String(bySerial.data._id)) {
+            return byChannel;
+          }
+          // Different records: the identifier is ambiguous; surface this as a
+          // conflict so the caller can request clarification.
           return {
             success: false,
-            message: `No device found with channel or serial_number ${identifier}`,
-            status: httpStatus.NOT_FOUND,
+            message:
+              `Ambiguous identifier "${identifier}": matches both a device_number ` +
+              `and a serial_number on different devices`,
+            status: httpStatus.CONFLICT,
           };
         }
-        return bySerial;
+
+        if (channelFound) return byChannel;
+        if (serialFound) return bySerial;
+
+        // Neither succeeded — propagate any hard error (conflict within a single
+        // field, internal error) before falling through to NOT_FOUND.
+        if (!byChannel.notFound) return byChannel;
+        if (!bySerial.notFound) return bySerial;
+
+        return {
+          success: false,
+          message: `No device found with channel or serial_number ${identifier}`,
+          status: httpStatus.NOT_FOUND,
+        };
       }
 
       // Non-numeric: serial_number lookup only.
@@ -380,6 +397,7 @@ const createFeed = {
    * @returns {object|null} adapter config or null if unknown network
    */
   getNetworkAdapter: async (networkName, tenant = "airqo") => {
+    const staticAdapter = constants.NETWORK_ADAPTERS?.[networkName] || null;
     try {
       const record = await NetworkModel(tenant)
         .findOne({ name: networkName })
@@ -387,7 +405,11 @@ const createFeed = {
         .lean();
 
       if (record?.adapter && Object.keys(record.adapter).length > 0) {
-        return record.adapter;
+        // Merge DB adapter on top of static adapter: DB-set keys win, but fields
+        // absent from the DB record fall back to static defaults. This prevents
+        // a partial DB override (e.g. only field_map set) from silently dropping
+        // other required fields like api_base_url or serial_number_regex.
+        return { ...(staticAdapter || {}), ...record.adapter };
       }
     } catch (dbError) {
       logger.warn(
@@ -395,7 +417,7 @@ const createFeed = {
       );
     }
 
-    return constants.NETWORK_ADAPTERS?.[networkName] || null;
+    return staticAdapter;
   },
 
   /**
@@ -540,7 +562,10 @@ const createFeed = {
       const axiosConfig = { timeout: 15000, params };
       const credential = device.access_code || null;
 
-      if (device.authRequired && adapter.auth_type !== "none" && !credential) {
+      // Auth is driven by the adapter config (adapter.auth_type), not by
+      // device.authRequired. The device flag controls ThingSpeak/AirQo
+      // visibility; for external adapters the adapter is the authority.
+      if (adapter.auth_type && adapter.auth_type !== "none" && !credential) {
         logger.debug(
           `fetchExternalDeviceData: auth expected but device.access_code is missing ` +
             `for device "${device.serial_number || device._id}" on network "${device.network}" — ` +
@@ -548,7 +573,7 @@ const createFeed = {
         );
       }
 
-      if (device.authRequired && adapter.auth_type !== "none" && credential) {
+      if (adapter.auth_type && adapter.auth_type !== "none" && credential) {
         switch (adapter.auth_type) {
           case "query_param":
             if (!adapter.auth_key_param) {
