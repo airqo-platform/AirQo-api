@@ -132,7 +132,7 @@ const updateNetwork = async (request, next) => {
     if (!isEmpty(responseFromUpdateNetwork)) {
       return {
         success: true,
-        message: "successfuly updated the network",
+        message: "successfully updated the network",
         status: httpStatus.OK,
         data: responseFromUpdateNetwork,
       };
@@ -161,6 +161,15 @@ const deleteNetwork = async (request, next) => {
 
     const filter = generateFilter.networks(request, next);
 
+    if (isEmpty(filter)) {
+      return {
+        success: false,
+        message: "Unable to find filter value",
+        errors: { message: "Unable to find filter value" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+
     const network = await NetworkModel(tenant).findOne(filter).lean();
 
     logObject("network", network);
@@ -182,7 +191,7 @@ const deleteNetwork = async (request, next) => {
     if (!isEmpty(responseFromDeleteNetwork)) {
       return {
         success: true,
-        message: "successfuly deleted the network",
+        message: "successfully deleted the network",
         status: httpStatus.OK,
         data: responseFromDeleteNetwork,
       };
@@ -278,8 +287,9 @@ const createNetwork = async (request, next) => {
       );
     }
 
+    const { admin_secret: _removed, ...sanitizedBody } = body;
     const responseFromCreateNetwork = await NetworkModel(tenant).register(
-      body,
+      sanitizedBody,
       next
     );
     return responseFromCreateNetwork;
