@@ -458,8 +458,7 @@ const createFeed = {
 
       if (device.authRequired && adapter.auth_type !== "none" && !credential) {
         logger.debug(
-          `fetchExternalDeviceData: auth expected (type="${adapter.auth_type}", ` +
-            `param="${adapter.auth_key_param}") but device.access_code is missing ` +
+          `fetchExternalDeviceData: auth expected but device.access_code is missing ` +
             `for device "${device.serial_number || device._id}" on network "${device.network}" — ` +
             `proceeding unauthenticated`
         );
