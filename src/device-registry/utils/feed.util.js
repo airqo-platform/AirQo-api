@@ -498,6 +498,21 @@ const createFeed = {
           status: httpStatus.UNPROCESSABLE_ENTITY,
         };
       }
+      // Host validation is mandatory when the URL comes from device.api_code
+      // (adapter.api_code_is_full_url = true) — without a known expected host
+      // there is no basis for trusting the stored value.
+      // For template-constructed URLs the base URL is already from the vetted
+      // adapter config so the check is enforced but not strictly required.
+      if (!adapter.api_base_url && adapter.api_code_is_full_url) {
+        return {
+          success: false,
+          message:
+            `Refused request for network "${device.network}": ` +
+            `adapter uses full-URL api_code but api_base_url is not configured — ` +
+            `cannot verify the target host`,
+          status: httpStatus.UNPROCESSABLE_ENTITY,
+        };
+      }
       if (adapter.api_base_url) {
         let expectedHostname;
         try { expectedHostname = new URL(adapter.api_base_url).hostname; } catch { /* skip host check */ }
