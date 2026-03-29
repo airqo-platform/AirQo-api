@@ -9,7 +9,26 @@ const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-feed-util`);
 const createDevice = require("@utils/device.util");
-const NetworkModel = require("@models/Network");
+const { getNetworkAdapter } = require("@utils/network.util");
+
+/**
+ * Strip query strings and fragments from a URL to avoid leaking auth tokens
+ * in log output. Keeps origin + path; replaces query with "?[REDACTED]".
+ * Returns the raw value unchanged if it is not a valid URL.
+ */
+const redactUrl = (raw) => {
+  if (!raw) return raw;
+  try {
+    const u = new URL(raw);
+    if (u.search || u.hash) {
+      u.search = "?[REDACTED]";
+      u.hash = "";
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
+};
 
 const createFeed = {
   isGasDevice: (description) => {
@@ -387,40 +406,6 @@ const createFeed = {
   },
 
   /**
-   * Retrieve the adapter configuration for a given network name.
-   * Checks the Network collection in the DB first (so admins can override
-   * values without redeployment), then falls back to the static NETWORK_ADAPTERS
-   * constant bundled with the service.
-   *
-   * @param {string} networkName - value of device.network (e.g. "airgradient")
-   * @param {string} tenant
-   * @returns {object|null} adapter config or null if unknown network
-   */
-  getNetworkAdapter: async (networkName, tenant = "airqo") => {
-    const staticAdapter = constants.NETWORK_ADAPTERS?.[networkName] || null;
-    try {
-      const record = await NetworkModel(tenant)
-        .findOne({ name: networkName })
-        .select("adapter")
-        .lean();
-
-      if (record?.adapter && Object.keys(record.adapter).length > 0) {
-        // Merge DB adapter on top of static adapter: DB-set keys win, but fields
-        // absent from the DB record fall back to static defaults. This prevents
-        // a partial DB override (e.g. only field_map set) from silently dropping
-        // other required fields like api_base_url or serial_number_regex.
-        return { ...(staticAdapter || {}), ...record.adapter };
-      }
-    } catch (dbError) {
-      logger.warn(
-        `Could not load adapter from DB for network "${networkName}": ${dbError.message}`
-      );
-    }
-
-    return staticAdapter;
-  },
-
-  /**
    * Decrypt the ThingSpeak readKey for an already-resolved AirQo device doc.
    * Avoids a redundant DB round-trip when the caller already holds the device.
    *
@@ -471,9 +456,10 @@ const createFeed = {
    * @returns {{ success: boolean, data?: any, message?: string, status?: number }}
    */
   fetchExternalDeviceData: async ({ device, adapter, start, end }) => {
+    // Declared outside try so the catch block can include it in the error log.
+    let url;
     try {
       // ── Build the request URL ──────────────────────────────────────────────
-      let url;
 
       if (adapter.api_code_is_full_url && device.api_code) {
         url = device.api_code;
@@ -577,10 +563,10 @@ const createFeed = {
       // device.authRequired. The device flag controls ThingSpeak/AirQo
       // visibility; for external adapters the adapter is the authority.
       if (adapter.auth_type && adapter.auth_type !== "none" && !credential) {
-        logger.debug(
+        logger.warn(
           `fetchExternalDeviceData: auth expected but device.access_code is missing ` +
-            `for device "${device.serial_number || device._id}" on network "${device.network}" — ` +
-            `proceeding unauthenticated`
+            `for device "${device.serial_number || redactUrl(device.api_code) || device._id}" ` +
+            `on network "${device.network}" — proceeding unauthenticated`
         );
       }
 
@@ -623,8 +609,11 @@ const createFeed = {
       return { success: true, data: response.data };
     } catch (error) {
       const status = error.response?.status || httpStatus.BAD_GATEWAY;
+      const deviceRef =
+        device.serial_number || redactUrl(device.api_code) || String(device._id) || "unknown";
       logger.error(
-        `fetchExternalDeviceData failed for device ${device.serial_number}: ${error.message}`
+        `fetchExternalDeviceData failed for device "${deviceRef}" ` +
+          `(network: ${device.network}${url ? `, url: ${redactUrl(url)}` : ""}): ${error.message}`
       );
       return {
         success: false,
@@ -745,7 +734,7 @@ const createFeed = {
       }
 
       // ── 3. External device path ────────────────────────────────────────────
-      const adapter = await createFeed.getNetworkAdapter(device.network, tenant);
+      const adapter = await getNetworkAdapter(device.network, tenant);
 
       if (!adapter) {
         return {

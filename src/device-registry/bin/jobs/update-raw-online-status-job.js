@@ -7,6 +7,7 @@ const logger = log4js.getLogger(
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const createFeedUtil = require("@utils/feed.util");
+const { getNetworkAdapter } = require("@utils/network.util");
 const isEmpty = require("is-empty");
 const { logObject, logText } = require("@utils/shared");
 const cron = require("node-cron");
@@ -356,7 +357,7 @@ const processIndividualDevice = async (
     // operator-customised adapter config is honoured at runtime.
     const externalAdapter =
       device.api_code && device.network && device.network !== "airqo"
-        ? await createFeedUtil.getNetworkAdapter(device.network)
+        ? await getNetworkAdapter(device.network)
         : null;
 
     if (externalAdapter?.online_check_via_feed) {
