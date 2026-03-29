@@ -148,7 +148,7 @@ class Utils:
         data_source: DataSource,
         start_date_time,
         end_date_time,
-    ):
+    ) -> List[Tuple[str, str]]:
         """Generate date ranges based on the specified time period and frequency.
 
         Creates an array of date ranges starting from `start_date_time` to `end_date_time`,
@@ -310,10 +310,12 @@ class Utils:
                 return None
             try:
                 return simplejson.loads(content)
-            except simplejson.JSONDecodeError:
-                logger.exception("Response can't be parsed")
-            except UnicodeDecodeError:
-                logger.exception("Response can't be parsed. Might be a file")
+            except simplejson.JSONDecodeError as e:
+                logger.exception(f"Response can't be parsed: {e}")
+            except UnicodeDecodeError as e:
+                logger.exception(
+                    f"Response can't be parsed. Might be a file download: {e}"
+                )
                 try:
                     if file_name:
                         with open(f"/tmp/{file_name}", "wb") as f:

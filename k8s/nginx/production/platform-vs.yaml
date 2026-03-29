@@ -26,54 +26,17 @@ spec:
     - name: argocd
       service: argocd-server
       port: 443
+      tls:
+        enable: true
   subroutes:
-    - path: /argocd
+    - path: /argocd-aks/
       action:
         pass: argocd
-    - path: /argocd/(.*)
+    - path: /argocd-aks/(.*)
       action:
         proxy:
           upstream: argocd
           rewritePath: /$1
-
----
-apiVersion: k8s.nginx.org/v1
-kind: VirtualServerRoute
-metadata:
-  name: grafana
-  namespace: monitoring
-spec:
-  host: platform.airqo.net
-  upstreams:
-    - name: grafana
-      service: prometheus-grafana
-      port: 80
-  subroutes:
-    - path: /grafana
-      action:
-        pass: grafana
-    - path: /grafana/(.*)
-      action:
-        proxy:
-          upstream: grafana
-          rewritePath: /$1
-
----
-apiVersion: k8s.nginx.org/v1
-kind: VirtualServerRoute
-metadata:
-  name: inventory
-  namespace: production
-spec:
-  host: platform.airqo.net
-  upstreams:
-    - name: inventory
-      service: airqo-inventory-svc
-      port: 8000
-  subroutes:
-    - path: /inventory
-      action:
-        pass: inventory
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -128,44 +91,17 @@ spec:
     - name: device-registry
       service: airqo-device-registry-api-svc
       port: 3000
-    - name: data-mgt
-      service: airqo-data-mgt-api-svc
-      port: 3000
-    - name: data-proxy
-      service: airqo-data-proxy-api-svc
-      port: 3000
-    - name: locate
-      service: airqo-locate-api-svc
-      port: 4001
     - name: analytics-api
       service: airqo-analytics-api-svc
       port: 5000
     - name: predict
       service: airqo-prediction-api-svc
       port: 5000
-    - name: monitor
-      service: airqo-device-monitor-api-svc
-      port: 4001
     - name: calibrate
       service: airqo-calibrate-api-svc
       port: 4001
-    - name: incentives
-      service: airqo-incentives-api-svc
-      port: 3000
-    - name: meta-data
-      service: airqo-meta-data-api-svc
-      port: 4001
     - name: view
       service: airqo-view-api-svc
-      port: 8080
-    - name: network-uptime
-      service: airqo-network-uptime-api-svc
-      port: 8501
-    - name: fault-detection
-      service: prod-fault-detection-api-svc
-      port: 4001
-    - name: notifications
-      service: airqo-notification-api-svc
       port: 8080
     - name: spatial
       service: airqo-spatial-api-svc
@@ -176,12 +112,8 @@ spec:
   routes:
     - path: /workflows
       route: pipeline/workflows
-    - path: /argocd
+    - path: /argocd-aks/
       route: argocd/argocd
-    - path: /grafana
-      route: monitoring/grafana
-    - path: /inventory
-      route: production/inventory
     - path: /docs
       route: production/docs
     - path: /website
@@ -207,30 +139,6 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/data
-      action:
-        proxy:
-          upstream: data-mgt
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/proxy
-      action:
-        proxy:
-          upstream: data-proxy
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/locate/map
-      action:
-        proxy:
-          upstream: locate
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
     - path: ~ /api\/v[1-2]\/analytics
       action:
         proxy:
@@ -251,14 +159,6 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/monitor
-      action:
-        proxy:
-          upstream: monitor
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
     - path: ~ /api\/v[1-2]\/calibrate
       action:
         proxy:
@@ -267,50 +167,10 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/incentives
-      action:
-        proxy:
-          upstream: incentives
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/meta-data
-      action:
-        proxy:
-          upstream: meta-data
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
     - path: ~ /api\/v[1-2]\/view
       action:
         proxy:
           upstream: view
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/network-uptime
-      action:
-        proxy:
-          upstream: network-uptime
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/predict-faults
-      action:
-        proxy:
-          upstream: fault-detection
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/notifications
-      action:
-        proxy:
-          upstream: notifications
           responseHeaders:
             add:
               - name: Content-Type

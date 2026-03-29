@@ -9,7 +9,7 @@ data:
   client-max-body-size: "350m"
   proxy-protocol: "True"
   real-ip-header: "proxy_protocol"
-  set-real-ip-from: "10.240.0.103"
+  set-real-ip-from: "10.250.8.62"
   location-snippets: "  
     auth_request /auth;
     error_page 500 = @custom_internal_server_error;

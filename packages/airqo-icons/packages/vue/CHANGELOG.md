@@ -1,11 +1,16 @@
 # @airqo/icons-vue
 
+## 0.2.5
+
+### Patch Changes
+
+- Bumped the package version to move past the already-published 0.2.4 release.
+
 ## 0.2.3
 
 ### Patch Changes
 
 - 4d3ceea: feat: update SVG components and add new AirQo icon
-
   - Adjusted viewBox dimensions for AqAirQlouds and AqSites components.
   - Modified paths in AqAirQlouds and AqSites SVGs for improved design.
   - Added new AqAirQo component and corresponding SVG file.
@@ -18,19 +23,16 @@
 - 158e49b: ### 🛠️ Build & Workflow Improvements
 
   **@airqo/icons-vue**
-
   - Fixed out-of-memory build errors by optimizing Vite config and using cross-env for Node.js memory settings
   - Excluded test files from type declarations for a cleaner, smaller package
   - Improved build reliability and performance for large icon sets
   - Updated documentation and changelog for clarity
 
   **@airqo/icons-react**
-
   - Enhanced build and metadata generation for React icons
   - Improved changeset and documentation for better maintainability
 
   **General**
-
   - Improved CI workflow for Flutter and JS packages (dependency caching, robust install order)
   - Removed unnecessary example analysis step to prevent false CI failures
   - Codebase cleanup and dependency updates for a more reliable release process
@@ -40,7 +42,6 @@
 ### Patch Changes
 
 - 4e81bcc: ### 🛠️ Build Optimizations & Bug Fixes
-
   - **Fixed memory issues** during build process by implementing Node.js heap size optimization
   - **Added cross-env dependency** to ensure consistent build environment across platforms
   - **Excluded test files** from TypeScript declaration generation to reduce package size
@@ -56,7 +57,6 @@
 - 10da6ef: 🎉 **Initial Release**: Complete Vue 3 icon library
 
   **New Features:**
-
   - 1,383 Vue 3 components with full TypeScript support
   - Composition API with `<script setup>` syntax
   - 22 icon categories including 196 country flags
@@ -66,13 +66,11 @@
   - Professional documentation and examples
 
   **Bundle:**
-
   - ~6.4MB total, ~1.8MB gzipped
   - ESM and UMD formats
   - Zero dependencies (peer: Vue 3.3+)
 
   **Developer Experience:**
-
   - Full TypeScript IntelliSense
   - Consistent API: `size`, `color`, `class` props
   - Vite build system with hot reload
