@@ -16,6 +16,25 @@ npm install @airqo-packages/network-coverage
 
 ---
 
+## Authentication
+
+To call protected endpoints (registry write operations), you need an AirQo access token.
+
+1. Create an account at [analytics.airqo.net](https://analytics.airqo.net/user/login)
+2. Go to **Account Settings → API tab → Register a client**
+3. Generate an access token from the registered client
+4. Pass the token to the client constructor — it will be appended as `?token=` on every request automatically
+
+```ts
+const client = new NetworkCoverageClient({
+  token: "YOUR_ACCESS_TOKEN",
+});
+```
+
+> **Public endpoints** (`list`, `getMonitor`, `getCountryMonitors`, `exportCsv`) do not require a token. Only `upsertRegistry` and `deleteRegistry` require authentication.
+
+---
+
 ## Quick start
 
 ```ts
@@ -48,9 +67,12 @@ const client = new NetworkCoverageClient({
   /** Request timeout in ms (default: 30 000) */
   timeoutMs: 15_000,
 
-  /** Headers sent with every request — useful for auth tokens */
+  /** AirQo access token — appended as ?token= on every request */
+  token: "YOUR_ACCESS_TOKEN",
+
+  /** Additional headers sent with every request */
   headers: {
-    Authorization: "Bearer <token>",
+    "X-Custom-Header": "value",
   },
 });
 ```
@@ -88,12 +110,14 @@ const result = await client.list({
 
 ---
 
-### `client.getMonitor(monitorId, tenant?)`
+### `client.getMonitor(monitorId, options?)`
 
 Fetches a single monitor by its `_id`.
 
 ```ts
 const result = await client.getMonitor("64a1f2b3c4d5e6f7a8b9c0d1");
+// or with a tenant override (public endpoint — no token needed):
+const resultWithTenant = await client.getMonitor("64a1f2b3c4d5e6f7a8b9c0d1", { tenant: "airqo" });
 console.log(result.data); // MonitorListItem
 ```
 
@@ -168,12 +192,16 @@ await client.upsertRegistry({
 
 ---
 
-### `client.deleteRegistry(registryId, tenant?)`
+### `client.deleteRegistry(registryId, options?)`
 
-Removes a registry entry by document `_id`.
+Removes a registry entry by document `_id`. Requires a valid access token — ensure the client was constructed with one or pass it explicitly via `options.token`.
 
 ```ts
+// client must have been constructed with a token:
+// const client = new NetworkCoverageClient({ token: "YOUR_TOKEN" });
 await client.deleteRegistry("64a1f2b3c4d5e6f7a8b9c0d1");
+// or pass token explicitly per-call:
+await client.deleteRegistry("64a1f2b3c4d5e6f7a8b9c0d1", { token: "YOUR_TOKEN" });
 ```
 
 ---

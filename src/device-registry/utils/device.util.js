@@ -69,6 +69,27 @@ const kafka = new Kafka({
  *   $mobility_metadata Object  { route_id, coverage_area, operational_hours,
  *                                movement_pattern, max_speed, typical_locations }
  */
+const buildRecallUpdateOperation = (recallDate) => ({
+  $set: {
+    status: "recalled",
+    isActive: false,
+    recall_date: recallDate,
+    mobility: false,
+    deployment_type: "static",
+  },
+  $unset: {
+    height: "",
+    mountType: "",
+    powerType: "",
+    isPrimaryInLocation: "",
+    latitude: "",
+    longitude: "",
+    deployment_date: "",
+    site_id: null,
+    grid_id: null,
+  },
+});
+
 const getDeviceCategoriesAddFieldsStage = () => {
   return {
     $addFields: {
@@ -2246,21 +2267,7 @@ const deviceUtil = {
 
         const recallDate = new Date();
 
-        const updateOperation = {
-          $set: {
-            status: "recalled",
-            isActive: false,
-            recall_date: recallDate,
-          },
-          $unset: {
-            height: "",
-            mountType: "",
-            powerType: "",
-            isPrimaryInLocation: "",
-            site_id: null,
-            grid_id: null,
-          },
-        };
+        const updateOperation = buildRecallUpdateOperation(recallDate);
 
         if (device.site_id) {
           updateOperation.$addToSet = { previous_sites: device.site_id };
@@ -2517,21 +2524,7 @@ const deviceUtil = {
             );
             const recallDate = new Date();
 
-            const updateOperation = {
-              $set: {
-                status: "recalled",
-                isActive: false,
-                recall_date: recallDate,
-              },
-              $unset: {
-                height: "",
-                mountType: "",
-                powerType: "",
-                isPrimaryInLocation: "",
-                site_id: null,
-                grid_id: null,
-              },
-            };
+            const updateOperation = buildRecallUpdateOperation(recallDate);
 
             if (device.site_id) {
               updateOperation.$addToSet = { previous_sites: device.site_id };

@@ -31,7 +31,12 @@ router.get(
   networkCoverageController.exportCsv
 );
 
-router.get("/export.pdf", networkCoverageController.exportPdf);
+router.get(
+  "/export.pdf",
+  networkCoverageValidations.exportCsv,
+  validate,
+  networkCoverageController.exportPdf
+);
 
 // ---------------------------------------------------------------------------
 // Single monitor detail

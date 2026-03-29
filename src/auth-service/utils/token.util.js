@@ -139,7 +139,21 @@ let unknownIPQueue = async.queue(async (task, callback) => {
 
         await UnknownIPModel("airqo")
           .findOneAndUpdate({ ip }, update, options)
-          .then(() => {
+          .then(async () => {
+            // Trim ipCounts to the last N entries in a separate update.
+            // $push+$slice cannot be combined with $inc on the same array path
+            // in a single update document — MongoDB raises ConflictingUpdateOperators.
+            await UnknownIPModel("airqo").updateOne(
+              { ip },
+              {
+                $push: {
+                  ipCounts: {
+                    $each: [],
+                    $slice: -constants.UNKNOWN_IP_COUNTS_MAX_ENTRIES,
+                  },
+                },
+              }
+            );
             logText(`stored the unknown IP ${ip} which had a day field`);
             callback();
           });
