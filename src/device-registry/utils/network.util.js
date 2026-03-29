@@ -204,6 +204,47 @@ const deleteNetwork = async (request, next) => {
   }
 };
 
+const getNetwork = async (request, next) => {
+  try {
+    const { tenant } = request.query;
+    const filter = generateFilter.networks(request, next);
+
+    if (isEmpty(filter)) {
+      return {
+        success: false,
+        message: "Unable to find filter value",
+        errors: { message: "Unable to find filter value" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+
+    const network = await NetworkModel(tenant).findOne(filter).lean();
+
+    if (!network) {
+      return {
+        success: false,
+        message: "Network not found",
+        errors: { message: "Network not found" },
+        status: httpStatus.NOT_FOUND,
+      };
+    }
+
+    return {
+      success: true,
+      message: "Successfully retrieved network",
+      status: httpStatus.OK,
+      data: network,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 const createNetwork = async (request, next) => {
   try {
     const { query, body } = request;
@@ -255,6 +296,7 @@ const createNetwork = async (request, next) => {
 module.exports = {
   getNetworkAdapter,
   listNetworks,
+  getNetwork,
   updateNetwork,
   deleteNetwork,
   createNetwork,

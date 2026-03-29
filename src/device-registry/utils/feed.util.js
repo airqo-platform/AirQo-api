@@ -11,6 +11,25 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-feed-util`);
 const createDevice = require("@utils/device.util");
 const { getNetworkAdapter } = require("@utils/network.util");
 
+/**
+ * Strip query strings and fragments from a URL to avoid leaking auth tokens
+ * in log output. Keeps origin + path; replaces query with "?[REDACTED]".
+ * Returns the raw value unchanged if it is not a valid URL.
+ */
+const redactUrl = (raw) => {
+  if (!raw) return raw;
+  try {
+    const u = new URL(raw);
+    if (u.search || u.hash) {
+      u.search = "?[REDACTED]";
+      u.hash = "";
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
+};
+
 const createFeed = {
   isGasDevice: (description) => {
     return description.toLowerCase().includes("gas");
@@ -546,7 +565,7 @@ const createFeed = {
       if (adapter.auth_type && adapter.auth_type !== "none" && !credential) {
         logger.warn(
           `fetchExternalDeviceData: auth expected but device.access_code is missing ` +
-            `for device "${device.serial_number || device.api_code || device._id}" ` +
+            `for device "${device.serial_number || redactUrl(device.api_code) || device._id}" ` +
             `on network "${device.network}" — proceeding unauthenticated`
         );
       }
@@ -591,10 +610,10 @@ const createFeed = {
     } catch (error) {
       const status = error.response?.status || httpStatus.BAD_GATEWAY;
       const deviceRef =
-        device.serial_number || device.api_code || String(device._id) || "unknown";
+        device.serial_number || redactUrl(device.api_code) || String(device._id) || "unknown";
       logger.error(
         `fetchExternalDeviceData failed for device "${deviceRef}" ` +
-          `(network: ${device.network}${url ? `, url: ${url}` : ""}): ${error.message}`
+          `(network: ${device.network}${url ? `, url: ${redactUrl(url)}` : ""}): ${error.message}`
       );
       return {
         success: false,

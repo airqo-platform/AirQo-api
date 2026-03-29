@@ -19,10 +19,10 @@ const handleValidationErrors = (req, res, next) => {
 const tenant = [
   query("tenant")
     .optional()
+    .trim()
     .notEmpty()
     .withMessage("tenant cannot be empty if provided")
     .bail()
-    .trim()
     .toLowerCase()
     .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
@@ -56,40 +56,77 @@ const createNetwork = [
     .exists()
     .withMessage("the net_name is required")
     .bail()
+    .trim()
     .notEmpty()
-    .withMessage("the net_name must not be empty")
-    .trim(),
+    .withMessage("the net_name must not be empty"),
   body("net_email")
     .exists()
     .withMessage("the net_email is required")
     .bail()
+    .trim()
     .isEmail()
-    .withMessage("the net_email is not a valid email address")
-    .trim(),
+    .withMessage("the net_email is not a valid email address"),
   body("net_website")
     .optional()
+    .trim()
     .notEmpty()
     .withMessage("the net_website must not be empty if provided")
     .bail()
     .isURL()
-    .withMessage("the net_website is not a valid URL")
-    .trim(),
+    .withMessage("the net_website is not a valid URL"),
   body("net_category")
     .optional()
+    .trim()
     .notEmpty()
-    .withMessage("the net_category must not be empty if provided")
-    .trim(),
+    .withMessage("the net_category must not be empty if provided"),
   body("net_description")
     .optional()
+    .trim()
     .notEmpty()
-    .withMessage("the net_description must not be empty if provided")
-    .trim(),
+    .withMessage("the net_description must not be empty if provided"),
   handleValidationErrors,
 ];
+
+const UPDATABLE_NETWORK_FIELDS = new Set([
+  "net_name",
+  "net_acronym",
+  "net_status",
+  "net_email",
+  "net_website",
+  "net_category",
+  "net_description",
+  "net_profile_picture",
+  "net_manager",
+  "net_manager_username",
+  "net_manager_firstname",
+  "net_manager_lastname",
+  "net_data_source",
+  "net_api_key",
+  "adapter",
+]);
+
+const rejectUnknownBodyFields = (req, res, next) => {
+  const keys = Object.keys(req.body || {});
+  const unknown = keys.filter((k) => !UPDATABLE_NETWORK_FIELDS.has(k));
+  const dangerous = keys.filter((k) => k.startsWith("$") || k.includes("."));
+  const rejected = [...new Set([...unknown, ...dangerous])];
+  if (rejected.length > 0) {
+    return next(
+      new HttpError("Validation error", httpStatus.BAD_REQUEST, {
+        body: {
+          msg: `Unknown or disallowed fields: ${rejected.join(", ")}`,
+          value: rejected,
+        },
+      })
+    );
+  }
+  next();
+};
 
 const updateNetwork = [
   ...tenant,
   paramObjectId("net_id"),
+  rejectUnknownBodyFields,
   handleValidationErrors,
 ];
 

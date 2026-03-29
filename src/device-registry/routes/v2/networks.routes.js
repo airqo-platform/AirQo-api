@@ -27,8 +27,7 @@ router.get(
 router.get(
   "/:net_id",
   networkValidators.getNetwork,
-  pagination(),
-  networkController.listNetworks
+  networkController.getNetwork
 );
 
 // PUT    /networks/:net_id       — update a network

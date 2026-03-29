@@ -88,6 +88,18 @@ const listNetworks = async (req, res, next) => {
   }
 };
 
+const getNetwork = async (req, res, next) => {
+  try {
+    const request = handleRequest(req, next);
+    if (!request) return;
+
+    const result = await networkUtil.getNetwork(request, next);
+    handleResponse({ res, result, key: "network" });
+  } catch (error) {
+    handleError(error, next);
+  }
+};
+
 const updateNetwork = async (req, res, next) => {
   try {
     const request = handleRequest(req, next);
@@ -115,6 +127,7 @@ const deleteNetwork = async (req, res, next) => {
 module.exports = {
   createNetwork,
   listNetworks,
+  getNetwork,
   updateNetwork,
   deleteNetwork,
 };
