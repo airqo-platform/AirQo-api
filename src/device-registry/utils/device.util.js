@@ -1549,22 +1549,88 @@ const deviceUtil = {
       const { tenant } = request.query;
       const { body } = request;
 
-      // Validate user_id for ownership and personal cohort assignment
-      if (!body.user_id || !isValidObjectId(body.user_id)) {
-        throw new HttpError("Invalid user_id provided", httpStatus.BAD_REQUEST);
+      // ── Auto-populate api_code and serial_number for external devices ───────
+      // Runs only for non-AirQo networks. Three steps in priority order:
+      //   1. Extract api_code from a URL embedded in description (e.g. IQAir
+      //      devices where the connection URL is pasted into description).
+      //   2. Build api_code from adapter template + serial_number (e.g. IQAir
+      //      where only serial_number is known at registration time).
+      //   3. Derive serial_number from api_code via regex if still missing.
+      // All steps are non-fatal — failures are logged and device creation
+      // continues without the field rather than blocking the caller.
+      if (body.network && body.network !== "airqo") {
+        const adapterConfig = constants.NETWORK_ADAPTERS?.[body.network];
+
+        // Step 1: extract api_code from description URL
+        if (!body.api_code && body.description) {
+          const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
+          if (urlMatch) {
+            body.api_code = urlMatch[0].replace(/[.,;]+$/, "");
+            logText(
+              `createOnPlatform: extracted api_code="${body.api_code}" ` +
+                `from description for network "${body.network}"`
+            );
+          }
+        }
+
+        // Step 2: build api_code from adapter template + serial_number
+        if (
+          !body.api_code &&
+          body.serial_number &&
+          adapterConfig?.api_base_url &&
+          adapterConfig?.api_url_template
+        ) {
+          body.api_code =
+            adapterConfig.api_base_url +
+            adapterConfig.api_url_template.replace(
+              "{serial_number}",
+              body.serial_number
+            );
+          logText(
+            `createOnPlatform: built api_code="${body.api_code}" ` +
+              `from adapter template for network "${body.network}"`
+          );
+        }
+
+        // Step 3: derive serial_number from api_code via regex
+        if (body.api_code && !body.serial_number && adapterConfig?.serial_number_regex) {
+          try {
+            const match = body.api_code.match(
+              new RegExp(adapterConfig.serial_number_regex)
+            );
+            if (match && match[1]) {
+              body.serial_number = match[1];
+              logText(
+                `createOnPlatform: auto-populated serial_number="${body.serial_number}" ` +
+                  `from api_code for network "${body.network}"`
+              );
+            }
+          } catch (regexError) {
+            logger.warn(
+              `createOnPlatform: serial_number regex failed for network "${body.network}": ` +
+                regexError.message
+            );
+          }
+        }
       }
 
       // Initialize cohorts array if it doesn't exist to prevent runtime errors
       if (!body.cohorts) {
         body.cohorts = [];
       }
+
+      // user_id is optional — when provided it sets ownership and personal cohort
+      if (body.user_id && !isValidObjectId(body.user_id)) {
+        throw new HttpError("Invalid user_id provided", httpStatus.BAD_REQUEST);
+      }
+
       // Automatically assign the user who is importing the device as the owner
       if (body.user_id) {
         body.owner_id = body.user_id;
       }
 
       try {
-        // --- START: New logic for cohort assignment ---
+        // --- START: Cohort assignment ---
         const { user_id, cohort_id } = body;
         let targetCohort;
 
@@ -1574,14 +1640,16 @@ const deviceUtil = {
             .findById(cohort_id)
             .lean();
           if (!targetCohort) {
-            // If a specific cohort is requested but not found, it's an error.
             throw new HttpError(
               `Specified cohort with ID ${cohort_id} not found.`,
               httpStatus.NOT_FOUND,
             );
           }
-        } else {
-          // Case B: No cohort provided, use or create the user's personal cohort
+          if (targetCohort) {
+            body.cohorts.push(targetCohort._id);
+          }
+        } else if (user_id) {
+          // Case B: No cohort provided but user_id given — use/create personal cohort
           const personalCohortName = `coh_user_${user_id.toString()}`;
           targetCohort = await CohortModel(tenant).findOneAndUpdate(
             { name: personalCohortName },
@@ -1589,18 +1657,17 @@ const deviceUtil = {
               $setOnInsert: {
                 name: personalCohortName,
                 description: `Personal cohort for user ${user_id.toString()}`,
-                network: body.network || "airqo", // Use device network or default
+                network: body.network || "airqo",
               },
             },
             { upsert: true, new: true, setDefaultsOnInsert: true },
           );
+          if (targetCohort) {
+            body.cohorts.push(targetCohort._id);
+          }
         }
-
-        // Add the target cohort (personal or specified) to the device
-        if (targetCohort) {
-          body.cohorts.push(targetCohort._id);
-        }
-        // --- END: New logic for cohort assignment ---
+        // Case C: no user_id and no cohort_id — only default cohort assigned below
+        // --- END: Cohort assignment ---
 
         // Add device to the main default cohort as well
         const defaultCohort = await CohortModel(tenant)

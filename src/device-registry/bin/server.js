@@ -190,6 +190,13 @@ try {
 } catch (err) {
   global.dedupLogger.error(`sync-networks-job failed to start: ${err.message}`);
 }
+try {
+  require("@bin/jobs/backfill-api-code-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `backfill-api-code-job failed to start: ${err.message}`,
+  );
+}
 
 // Defensively load precompute activities job
 // Default behavior: ENABLED (runs unless explicitly disabled)

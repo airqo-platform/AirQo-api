@@ -74,6 +74,38 @@ const NetworkSchema = new Schema(
       type: ObjectId,
       index: true,
     },
+    // ---------------------------------------------------------------------------
+    // Network adapter configuration
+    //
+    // Describes how to fetch live measurements from this manufacturer's API.
+    // All fields are optional and default to null / false so existing records
+    // are unaffected.  Populated by admin update or the seed script; never
+    // touched by the sync job (sync only writes auth-service fields).
+    //
+    // Fields:
+    //   api_code_is_full_url  – device.api_code already is the complete fetch URL
+    //   api_base_url          – base URL when building URL from a template
+    //   api_url_template      – path template; {serial_number} is substituted
+    //   auth_type             – how to attach the credential to the request
+    //   auth_key_param        – query-param name or HTTP header name for the key
+    //   serial_number_regex   – regex (string) to extract serial_number from api_code
+    //   field_map             – maps manufacturer field names to AirQo field names
+    //   online_check_via_feed – true → "is online?" is inferred from feed freshness
+    // ---------------------------------------------------------------------------
+    adapter: {
+      api_code_is_full_url: { type: Boolean, default: false },
+      api_base_url: { type: String, trim: true },
+      api_url_template: { type: String, trim: true },
+      auth_type: {
+        type: String,
+        enum: ["none", "query_param", "header_bearer", "header_basic"],
+        default: "none",
+      },
+      auth_key_param: { type: String, trim: true },
+      serial_number_regex: { type: String, trim: true },
+      field_map: { type: Schema.Types.Mixed },
+      online_check_via_feed: { type: Boolean, default: false },
+    },
     // Old fields for backward compatibility
     name: {
       type: String,
@@ -153,6 +185,7 @@ NetworkSchema.methods.toJSON = function() {
     net_data_source,
     net_api_key,
     auth_service_id,
+    adapter,
   } = this.toObject();
 
   return {
@@ -173,6 +206,7 @@ NetworkSchema.methods.toJSON = function() {
     net_data_source,
     net_api_key,
     auth_service_id,
+    adapter,
     // Old fields
     name,
     description,

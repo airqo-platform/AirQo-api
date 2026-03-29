@@ -7,6 +7,7 @@ const logger = log4js.getLogger(
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const createFeedUtil = require("@utils/feed.util");
+const isEmpty = require("is-empty");
 const { logObject, logText } = require("@utils/shared");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
@@ -344,7 +345,111 @@ const processIndividualDevice = async (
   }
 
   if (!device.device_number) {
-    // For devices without device_number, check if existing data is stale
+    // ── External device path ────────────────────────────────────────────────
+    // If the device has an api_code and its network adapter declares
+    // online_check_via_feed, call the external API to determine live status.
+    // This resolves the historic "no_device_number" skip for non-AirQo devices.
+    //
+    // Devices that still lack api_code (not yet migrated / unknown network)
+    // fall through to the unchanged stale-data fallback below.
+    const externalAdapter =
+      device.api_code &&
+      device.network &&
+      device.network !== "airqo"
+        ? constants.NETWORK_ADAPTERS?.[device.network]
+        : null;
+
+    if (externalAdapter?.online_check_via_feed) {
+      try {
+        const externalResult = await Promise.race([
+          createFeedUtil.fetchExternalDeviceData({
+            device,
+            adapter: externalAdapter,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("External API timeout")),
+              20000,
+            ),
+          ),
+        ]);
+
+        let isRawOnline = false;
+        let lastFeedTime = null;
+
+        if (externalResult.success && !isEmpty(externalResult.data)) {
+          const data = externalResult.data;
+          // Attempt to find a timestamp in common field names.
+          // Falls back to treating any successful, non-empty response as online.
+          const tsValue =
+            data.timestamp ||
+            data.time ||
+            data.created_at ||
+            data.recordedAt ||
+            data.ts ||
+            null;
+
+          if (tsValue) {
+            lastFeedTime = tsValue;
+            isRawOnline = isDeviceRawActive(tsValue);
+          } else {
+            // No timestamp field — successful non-empty response means online
+            isRawOnline = true;
+            lastFeedTime = new Date().toISOString();
+          }
+        }
+
+        const updateFields = { rawOnlineStatus: isRawOnline };
+        if (lastFeedTime) {
+          updateFields.lastRawData = new Date(lastFeedTime);
+        }
+        if (
+          STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+          isDeviceActuallyMobile(device)
+        ) {
+          updateFields.isOnline = isRawOnline;
+          if (lastFeedTime) {
+            updateFields.lastActive = new Date(lastFeedTime);
+          }
+        }
+
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: device.rawOnlineStatus,
+          isNowOnline: isRawOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: isRawOnline
+            ? "online_external_api"
+            : "offline_external_api",
+        });
+
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+        const updateDoc = { $set: finalSetUpdate };
+        if (incUpdate) {
+          updateDoc.$inc = incUpdate;
+        }
+
+        return {
+          deviceUpdate: {
+            updateOne: {
+              filter: { _id: device._id },
+              update: updateDoc,
+            },
+          },
+        };
+      } catch (externalError) {
+        logger.error(
+          `External API check failed for device ${device.name} (network: ${device.network}): ${externalError.message}`,
+        );
+        return createFailureUpdate(
+          device,
+          "external_api_error",
+          shouldMarkOfflineFromStaleData,
+          hasExistingRawData,
+        );
+      }
+    }
+
+    // ── Fallback: no api_code or no adapter → stale-data logic (unchanged) ──
     const isCurrentlyRawOnline = device.rawOnlineStatus;
     const isNowRawOnline = hasExistingRawData
       ? !shouldMarkOfflineFromStaleData
@@ -742,7 +847,7 @@ const updateRawOnlineStatus = async () => {
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation",
+        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation network api_code access_code authRequired",
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor

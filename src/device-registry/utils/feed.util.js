@@ -9,6 +9,7 @@ const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-feed-util`);
 const createDevice = require("@utils/device.util");
+const NetworkModel = require("@models/Network");
 
 const createFeed = {
   isGasDevice: (description) => {
@@ -130,6 +131,7 @@ const createFeed = {
       data: { isCache: false, ...cleanedFinalTransformation },
     };
   },
+
   readRecentDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
       const { channel, api_key, start, end, path } = request;
@@ -151,6 +153,7 @@ const createFeed = {
       );
     }
   },
+
   clean: (obj) => {
     logObject("the obj", obj);
     let trimmedValues = Object.entries(obj).reduce((acc, [key, value]) => {
@@ -188,6 +191,12 @@ const createFeed = {
     }
     return trimmedValues;
   },
+
+  // ---------------------------------------------------------------------------
+  // Original getAPIKey — retained for backward compatibility with any code that
+  // still calls it directly with a numeric channel ID.
+  // New code should use resolveDevice() + getDeviceFeed() instead.
+  // ---------------------------------------------------------------------------
   getAPIKey: async (channel, next) => {
     try {
       const tenant = "airqo";
@@ -264,6 +273,393 @@ const createFeed = {
       };
     }
   },
+
+  // ---------------------------------------------------------------------------
+  // New unified API — network-aware feed retrieval
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Look up a device by either a numeric channel/device_number (AirQo) or a
+   * serial_number string (external devices).
+   *
+   * @param {string|number} identifier - numeric channel ID or serial_number string
+   * @param {string}        tenant
+   * @returns {{ success: boolean, data?: object, message?: string, status?: number }}
+   */
+  resolveDevice: async (identifier, tenant = "airqo") => {
+    try {
+      const isNumericChannel =
+        typeof identifier === "number" ||
+        (typeof identifier === "string" && /^\d+$/.test(identifier));
+
+      const query = { tenant };
+      if (isNumericChannel) {
+        query.device_number = parseInt(identifier, 10);
+      } else {
+        query.serial_number = String(identifier);
+      }
+
+      const response = await createDevice.list({ query }, () => {});
+
+      if (!response || !response.success) {
+        return {
+          success: false,
+          message:
+            response?.message ||
+            `Unable to look up device for identifier: ${identifier}`,
+          status: response?.status || httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      if (!Array.isArray(response.data) || response.data.length === 0) {
+        return {
+          success: false,
+          message: isNumericChannel
+            ? `No device found with channel ${identifier}`
+            : `No device found with serial_number ${identifier}`,
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      return { success: true, data: response.data[0] };
+    } catch (error) {
+      logger.error(`Error in resolveDevice: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Retrieve the adapter configuration for a given network name.
+   * Checks the Network collection in the DB first (so admins can override
+   * values without redeployment), then falls back to the static NETWORK_ADAPTERS
+   * constant bundled with the service.
+   *
+   * @param {string} networkName - value of device.network (e.g. "airgradient")
+   * @param {string} tenant
+   * @returns {object|null} adapter config or null if unknown network
+   */
+  getNetworkAdapter: async (networkName, tenant = "airqo") => {
+    try {
+      const record = await NetworkModel(tenant)
+        .findOne({ name: networkName })
+        .select("adapter")
+        .lean();
+
+      if (record?.adapter && Object.keys(record.adapter).length > 0) {
+        return record.adapter;
+      }
+    } catch (dbError) {
+      logger.warn(
+        `Could not load adapter from DB for network "${networkName}": ${dbError.message}`
+      );
+    }
+
+    return constants.NETWORK_ADAPTERS?.[networkName] || null;
+  },
+
+  /**
+   * Decrypt the ThingSpeak readKey for an already-resolved AirQo device doc.
+   * Avoids a redundant DB round-trip when the caller already holds the device.
+   *
+   * @param {object} device - full device document (must have readKey)
+   * @returns {{ success: boolean, data?: string, ... }}
+   */
+  getAPIKeyFromDevice: async (device) => {
+    if (isEmpty(device.readKey)) {
+      return {
+        success: false,
+        message: "ReadKey unavailable for this AirQo device",
+        status: httpStatus.NOT_FOUND,
+      };
+    }
+
+    const decryptResponse = await createDevice.decryptKey(device.readKey);
+    if (!decryptResponse.success) {
+      return {
+        success: false,
+        message: decryptResponse.message || "Error decrypting readKey",
+        errors: decryptResponse.errors || {
+          message: "Error decrypting key",
+        },
+        status: decryptResponse.status || httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+
+    return {
+      success: true,
+      data: decryptResponse.data,
+      message: "Read key retrieved",
+    };
+  },
+
+  /**
+   * Fetch the most recent measurements from an external (non-ThingSpeak) device.
+   *
+   * URL is constructed in priority order:
+   *   1. device.api_code when adapter.api_code_is_full_url is true
+   *   2. adapter.api_base_url + adapter.api_url_template with {serial_number} replaced
+   *
+   * Credentials (device.access_code) are attached according to adapter.auth_type.
+   * If the device has no access_code, the network-level net_api_key is NOT
+   * automatically fetched here (that would require an extra DB round-trip and
+   * decryption); callers that need network-level auth can extend this function.
+   *
+   * @param {{ device: object, adapter: object, start?: string, end?: string }}
+   * @returns {{ success: boolean, data?: any, message?: string, status?: number }}
+   */
+  fetchExternalDeviceData: async ({ device, adapter, start, end }) => {
+    try {
+      // ── Build the request URL ──────────────────────────────────────────────
+      let url;
+
+      if (adapter.api_code_is_full_url && device.api_code) {
+        url = device.api_code;
+      } else if (adapter.api_base_url && adapter.api_url_template) {
+        const path = adapter.api_url_template.replace(
+          "{serial_number}",
+          device.serial_number
+        );
+        url = adapter.api_base_url + path;
+      } else {
+        return {
+          success: false,
+          message: `Cannot construct request URL for network "${device.network}": ` +
+            "device.api_code is missing and no url template is configured",
+          status: httpStatus.UNPROCESSABLE_ENTITY,
+        };
+      }
+
+      // ── Attach optional date filters ───────────────────────────────────────
+      // External APIs may not support start/end — include them only when the
+      // adapter template already has a query string or when explicitly supported.
+      // For now we append them as generic query params; adapters that don't
+      // support them will simply ignore unknown params.
+      const params = {};
+      if (start) params.start = start;
+      if (end) params.end = end;
+
+      // ── Configure auth ─────────────────────────────────────────────────────
+      const axiosConfig = { timeout: 15000, params };
+      const credential = device.access_code || null;
+
+      if (device.authRequired && adapter.auth_type !== "none" && credential) {
+        switch (adapter.auth_type) {
+          case "query_param":
+            axiosConfig.params = {
+              ...axiosConfig.params,
+              [adapter.auth_key_param]: credential,
+            };
+            break;
+
+          case "header_bearer":
+            axiosConfig.headers = {
+              [adapter.auth_key_param || "Authorization"]: `Bearer ${credential}`,
+            };
+            break;
+
+          case "header_basic":
+            axiosConfig.headers = {
+              [adapter.auth_key_param || "Authorization"]: `Basic ${credential}`,
+            };
+            break;
+
+          default:
+            break;
+        }
+      }
+
+      const response = await axios.get(url, axiosConfig);
+      return { success: true, data: response.data };
+    } catch (error) {
+      const status = error.response?.status || httpStatus.BAD_GATEWAY;
+      logger.error(
+        `fetchExternalDeviceData failed for device ${device.serial_number}: ${error.message}`
+      );
+      return {
+        success: false,
+        message: `Upstream API error for network "${device.network}": ${error.message}`,
+        status,
+      };
+    }
+  },
+
+  /**
+   * Remap manufacturer field names to AirQo internal field names using the
+   * adapter's field_map.  Fields not present in field_map are passed through
+   * unchanged so no data is silently dropped.
+   *
+   * @param {object}      rawData  - response body from the external API
+   * @param {object|null} fieldMap - { manufacturerField: airqoField, ... }
+   * @returns {object} normalized data object
+   */
+  normalizeExternalData: (rawData, fieldMap) => {
+    if (!fieldMap || !rawData || typeof rawData !== "object") {
+      return rawData || {};
+    }
+
+    const normalized = {};
+
+    // Apply known mappings
+    for (const [srcField, dstField] of Object.entries(fieldMap)) {
+      if (rawData[srcField] !== undefined) {
+        normalized[dstField] = rawData[srcField];
+      }
+    }
+
+    // Pass through any fields not covered by the map
+    for (const [key, value] of Object.entries(rawData)) {
+      if (!fieldMap[key]) {
+        normalized[key] = value;
+      }
+    }
+
+    return normalized;
+  },
+
+  /**
+   * Unified feed handler.
+   *
+   * Resolves the device, detects its network, then routes to the appropriate
+   * backend:
+   *   • network === "airqo"  → ThingSpeak (existing behaviour, unchanged)
+   *   • any other network    → external API via adapter config
+   *
+   * @param {object}  params
+   * @param {string|number} params.identifier - numeric channel or serial_number string
+   * @param {string}        [params.tenant="airqo"]
+   * @param {string}        [params.start]
+   * @param {string}        [params.end]
+   * @param {boolean}       [params.transform=false]
+   *   When true and network is airqo, applies processDeviceMeasurements()
+   *   (field name translation, category detection, pressure conversion).
+   *   External networks always return named fields so transform is a no-op for them.
+   * @returns {{ status: number, data: object }}
+   */
+  getDeviceFeed: async (
+    { identifier, tenant = "airqo", start, end, transform = false },
+    next
+  ) => {
+    try {
+      // ── 1. Resolve the device ──────────────────────────────────────────────
+      const deviceResult = await createFeed.resolveDevice(identifier, tenant);
+      if (!deviceResult.success) {
+        return {
+          status: deviceResult.status || httpStatus.NOT_FOUND,
+          data: {
+            success: false,
+            message: deviceResult.message,
+            errors: deviceResult.errors,
+          },
+        };
+      }
+      const device = deviceResult.data;
+
+      // ── 2. AirQo → ThingSpeak path (existing behaviour) ───────────────────
+      if (device.network === "airqo") {
+        const apiKeyResponse = await createFeed.getAPIKeyFromDevice(device);
+        if (!apiKeyResponse.success) {
+          return {
+            status: apiKeyResponse.status,
+            data: {
+              success: false,
+              message: apiKeyResponse.message,
+              errors: apiKeyResponse.errors,
+            },
+          };
+        }
+
+        const channel = device.device_number;
+        const api_key = apiKeyResponse.data;
+        const thingspeakData = await createFeed.fetchThingspeakData({
+          channel,
+          api_key,
+          start,
+          end,
+        });
+
+        if (transform) {
+          const { status, data } = await createFeed.processDeviceMeasurements(
+            thingspeakData.feeds[0],
+            thingspeakData.channel
+          );
+          return { status, data };
+        }
+
+        return createFeed.handleThingspeakResponse(thingspeakData);
+      }
+
+      // ── 3. External device path ────────────────────────────────────────────
+      const adapter = await createFeed.getNetworkAdapter(device.network, tenant);
+
+      if (!adapter) {
+        return {
+          status: httpStatus.NOT_IMPLEMENTED,
+          data: {
+            success: false,
+            message:
+              `No adapter configured for network "${device.network}". ` +
+              "Add adapter config to the Network document or NETWORK_ADAPTERS constant.",
+          },
+        };
+      }
+
+      const externalResult = await createFeed.fetchExternalDeviceData({
+        device,
+        adapter,
+        start,
+        end,
+      });
+
+      if (!externalResult.success) {
+        return {
+          status: externalResult.status || httpStatus.BAD_GATEWAY,
+          data: {
+            success: false,
+            message: externalResult.message,
+          },
+        };
+      }
+
+      const normalized = createFeed.normalizeExternalData(
+        externalResult.data,
+        adapter.field_map
+      );
+
+      if (isEmpty(normalized)) {
+        return {
+          status: httpStatus.NOT_FOUND,
+          data: {
+            success: true,
+            message: "No recent measurements for this device",
+          },
+        };
+      }
+
+      return {
+        status: httpStatus.OK,
+        data: { isCache: false, ...normalized },
+      };
+    } catch (error) {
+      logger.error(`🐛 Error in getDeviceFeed: ${error.message}`);
+      return {
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        data: {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: error.message },
+        },
+      };
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Field-label helpers (unchanged)
+  // ---------------------------------------------------------------------------
 
   getFieldLabel: (field) => {
     try {
@@ -379,4 +775,5 @@ const createFeed = {
     }
   },
 };
+
 module.exports = createFeed;

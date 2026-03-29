@@ -228,7 +228,6 @@ router.post(
   "/soft",
   validateTenant,
   validateCreateDevice,
-  validateUserIdBody,
   validate,
   deviceController.createOnPlatform
 );
