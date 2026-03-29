@@ -36,8 +36,7 @@ const createFeed = {
       // digit-only serial numbers.
       try {
         const { status, data } = await createFeedUtil.getDeviceFeed(
-          { identifier: ch_id, start, end, transform: false },
-          next
+          { identifier: ch_id, start, end, transform: false }
         );
         return res.status(status).json(data);
       } catch (error) {
@@ -87,8 +86,7 @@ const createFeed = {
 
       try {
         const { status, data } = await createFeedUtil.getDeviceFeed(
-          { identifier, start, end, transform: true },
-          next
+          { identifier, start, end, transform: true }
         );
         return res.status(status).json(data);
       } catch (error) {

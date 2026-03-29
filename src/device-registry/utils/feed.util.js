@@ -558,8 +558,7 @@ const createFeed = {
    * @returns {{ status: number, data: object }}
    */
   getDeviceFeed: async (
-    { identifier, tenant = "airqo", start, end, transform = false },
-    next
+    { identifier, tenant = "airqo", start, end, transform = false }
   ) => {
     try {
       // ── 1. Resolve the device ──────────────────────────────────────────────

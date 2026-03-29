@@ -1581,15 +1581,27 @@ const deviceUtil = {
           adapterConfig = constants.NETWORK_ADAPTERS?.[body.network] || null;
         }
 
-        // Step 1: extract api_code from description URL
+        // Step 1: extract api_code from description URL, validated against adapter
         if (!body.api_code && body.description) {
           const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
           if (urlMatch) {
-            body.api_code = urlMatch[0].replace(/[.,;]+$/, "");
-            logText(
-              `createOnPlatform: extracted api_code="${body.api_code}" ` +
-                `from description for network "${body.network}"`
-            );
+            const extractedUrl = urlMatch[0].replace(/[.,;]+$/, "");
+            // Only accept the URL if it matches the adapter's expected base URL,
+            // preventing arbitrary URLs from being injected via description.
+            if (
+              !adapterConfig?.api_base_url ||
+              extractedUrl.startsWith(adapterConfig.api_base_url)
+            ) {
+              body.api_code = extractedUrl;
+              logText(
+                `createOnPlatform: extracted api_code from description for network "${body.network}"`
+              );
+            } else {
+              logger.warn(
+                `createOnPlatform: URL in description does not match expected base ` +
+                  `for network "${body.network}" — ignoring`
+              );
+            }
           }
         }
 
@@ -1607,8 +1619,7 @@ const deviceUtil = {
               body.serial_number
             );
           logText(
-            `createOnPlatform: built api_code="${body.api_code}" ` +
-              `from adapter template for network "${body.network}"`
+            `createOnPlatform: built api_code from adapter template for network "${body.network}"`
           );
         }
 
@@ -1621,8 +1632,7 @@ const deviceUtil = {
             if (match && match[1]) {
               body.serial_number = match[1];
               logText(
-                `createOnPlatform: auto-populated serial_number="${body.serial_number}" ` +
-                  `from api_code for network "${body.network}"`
+                `createOnPlatform: auto-populated serial_number from api_code for network "${body.network}"`
               );
             }
           } catch (regexError) {
@@ -1656,6 +1666,12 @@ const deviceUtil = {
 
         if (cohort_id) {
           // Case A: A specific cohort is provided during import
+          if (!isValidObjectId(cohort_id)) {
+            throw new HttpError(
+              `Invalid cohort_id: "${cohort_id}" is not a valid MongoDB ObjectId.`,
+              httpStatus.BAD_REQUEST,
+            );
+          }
           targetCohort = await CohortModel(tenant)
             .findById(cohort_id)
             .lean();
