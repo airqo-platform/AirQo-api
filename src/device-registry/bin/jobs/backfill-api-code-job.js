@@ -91,7 +91,7 @@ const performBackfill = async () => {
     // Process in batches using a cursor so memory footprint stays flat
     const cursor = DeviceModel("airqo")
       .find({
-        network: { $exists: true, $ne: "airqo", $ne: "" },
+        network: { $exists: true, $nin: ["airqo", ""] },
         $or: [{ api_code: null }, { api_code: { $exists: false } }, { api_code: "" }],
       })
       .select("_id name network serial_number description api_code")
@@ -202,8 +202,6 @@ const performBackfill = async () => {
 
     // Flush any remaining operations
     await flushBulk();
-
-    await cursor.close();
   } catch (err) {
     logger.error(`${JOB_NAME}: unexpected error — ${err.message}`);
   }
@@ -262,18 +260,17 @@ const startJob = () => {
   logText(`✅ ${JOB_NAME} registered (schedule: ${JOB_SCHEDULE})`);
 };
 
-// Graceful shutdown
-process.on("SIGINT", async () => {
+// Graceful shutdown — use process.once to prevent duplicate handler registration
+// when the module is reloaded (e.g. during tests).
+process.once("SIGINT", async () => {
   if (global.cronJobs?.[JOB_NAME]) {
     await global.cronJobs[JOB_NAME].stop();
   }
 });
-process.on("SIGTERM", async () => {
+process.once("SIGTERM", async () => {
   if (global.cronJobs?.[JOB_NAME]) {
     await global.cronJobs[JOB_NAME].stop();
   }
 });
 
-startJob();
-
-module.exports = { performBackfill, extractUrlFromText, extractSerialFromUrl };
+module.exports = { startJob, performBackfill, extractUrlFromText, extractSerialFromUrl };

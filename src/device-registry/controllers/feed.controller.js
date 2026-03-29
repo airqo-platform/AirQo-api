@@ -30,13 +30,13 @@ const createFeed = {
 
       const { start, end, ch_id } = { ...req.query, ...req.params };
 
-      // Treat purely-numeric ch_id as a ThingSpeak channel number; anything
-      // else is treated as a serial_number.
-      const identifier = /^\d+$/.test(ch_id) ? parseInt(ch_id, 10) : ch_id;
-
+      // Pass ch_id as-is — getDeviceFeed()/resolveDevice() handles type
+      // detection internally (numeric string → device_number, else serial_number).
+      // Coercing to an integer here would strip leading zeros and misclassify
+      // digit-only serial numbers.
       try {
         const { status, data } = await createFeedUtil.getDeviceFeed(
-          { identifier, start, end, transform: false },
+          { identifier: ch_id, start, end, transform: false },
           next
         );
         return res.status(status).json(data);

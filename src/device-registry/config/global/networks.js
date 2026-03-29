@@ -92,12 +92,15 @@ const NETWORK_ADAPTERS = {
   // ── Clarity ────────────────────────────────────────────────────────────────
   // Clarity (KCCA network) — connection details not yet confirmed for active
   // devices.  Placeholder entry; field_map to be filled when API access exists.
+  // Connection details not yet confirmed for active devices. online_check_via_feed
+  // is disabled until request handling is fully implemented so the raw-online
+  // status job skips these networks rather than probing incomplete adapters.
   clarity: {
     api_code_is_full_url: false,
     auth_type: "header_bearer",
     auth_key_param: "Authorization",
     serial_number_regex: null,
-    online_check_via_feed: true,
+    online_check_via_feed: false,
     field_map: null,
   },
 
@@ -109,7 +112,7 @@ const NETWORK_ADAPTERS = {
     auth_type: "header_basic",
     auth_key_param: "Authorization",
     serial_number_regex: null,
-    online_check_via_feed: true,
+    online_check_via_feed: false,
     field_map: null,
   },
 
@@ -119,7 +122,7 @@ const NETWORK_ADAPTERS = {
     auth_type: "none",
     auth_key_param: null,
     serial_number_regex: null,
-    online_check_via_feed: true,
+    online_check_via_feed: false,
     field_map: null,
   },
 
@@ -129,7 +132,7 @@ const NETWORK_ADAPTERS = {
     auth_type: "header_bearer",
     auth_key_param: "apikey",
     serial_number_regex: null,
-    online_check_via_feed: true,
+    online_check_via_feed: false,
     field_map: null,
   },
 
@@ -139,7 +142,7 @@ const NETWORK_ADAPTERS = {
     auth_type: "header_bearer",
     auth_key_param: "Authorization",
     serial_number_regex: null,
-    online_check_via_feed: true,
+    online_check_via_feed: false,
     field_map: null,
   },
 
@@ -149,7 +152,7 @@ const NETWORK_ADAPTERS = {
     auth_type: "query_param",
     auth_key_param: "api_key",
     serial_number_regex: null,
-    online_check_via_feed: true,
+    online_check_via_feed: false,
     field_map: null,
   },
 };

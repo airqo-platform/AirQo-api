@@ -2,6 +2,7 @@
 const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
+const NetworkModel = require("@models/Network");
 const ShippingBatchModel = require("@models/ShippingBatch");
 const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
@@ -1559,7 +1560,26 @@ const deviceUtil = {
       // All steps are non-fatal — failures are logged and device creation
       // continues without the field rather than blocking the caller.
       if (body.network && body.network !== "airqo") {
-        const adapterConfig = constants.NETWORK_ADAPTERS?.[body.network];
+        // DB-first adapter resolution: Network document's adapter field takes
+        // precedence over the static NETWORK_ADAPTERS constant so operator
+        // customisations are honoured at registration time.
+        let adapterConfig = null;
+        try {
+          const networkDoc = await NetworkModel(tenant)
+            .findOne({ name: body.network })
+            .select("adapter")
+            .lean();
+          if (networkDoc?.adapter && Object.keys(networkDoc.adapter).length > 0) {
+            adapterConfig = networkDoc.adapter;
+          }
+        } catch (dbErr) {
+          logger.warn(
+            `createOnPlatform: could not load adapter from DB for network "${body.network}": ${dbErr.message}`
+          );
+        }
+        if (!adapterConfig) {
+          adapterConfig = constants.NETWORK_ADAPTERS?.[body.network] || null;
+        }
 
         // Step 1: extract api_code from description URL
         if (!body.api_code && body.description) {
@@ -1683,10 +1703,15 @@ const deviceUtil = {
           );
         }
       } catch (cohortError) {
+        // Rethrow intentional errors (e.g. cohort not found) so the caller
+        // receives the correct status code instead of a generic 500.
+        if (cohortError instanceof HttpError) {
+          throw cohortError;
+        }
         logger.error(
-          `🪲🪲 Error finding default cohort: ${cohortError.message}. Continuing with device creation.`,
+          `🪲🪲 Error during cohort assignment: ${cohortError.message}. Continuing with device creation.`,
         );
-        // Don't fail device creation if cohort lookup fails
+        // Unexpected DB errors are non-fatal — device is still created.
       }
 
       // Ensure cohorts array has unique values before saving
@@ -1734,6 +1759,12 @@ const deviceUtil = {
         return responseFromRegisterDevice;
       }
     } catch (error) {
+      // Preserve intentional HttpErrors (e.g. 400 invalid user_id, 404 cohort
+      // not found) so they reach the client with the correct status code.
+      if (error instanceof HttpError) {
+        next(error);
+        return;
+      }
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(

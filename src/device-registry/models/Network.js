@@ -310,6 +310,8 @@ NetworkSchema.statics.modify = async function(
       new: true,
       useFindAndModify: false,
       projection: { shape: 0, __v: 0 },
+      runValidators: true,
+      context: "query",
     };
 
     const modifiedUpdateBody = { ...update };

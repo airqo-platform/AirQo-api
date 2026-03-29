@@ -191,7 +191,8 @@ try {
   global.dedupLogger.error(`sync-networks-job failed to start: ${err.message}`);
 }
 try {
-  require("@bin/jobs/backfill-api-code-job");
+  const backfillApiCodeJob = require("@bin/jobs/backfill-api-code-job");
+  backfillApiCodeJob.startJob();
 } catch (err) {
   global.dedupLogger.error(
     `backfill-api-code-job failed to start: ${err.message}`,

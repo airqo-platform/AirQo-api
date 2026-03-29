@@ -299,7 +299,9 @@ const createFeed = {
         query.serial_number = String(identifier);
       }
 
-      const response = await createDevice.list({ query }, () => {});
+      const response = await createDevice.list({ query }, (error) => {
+        throw error;
+      });
 
       if (!response || !response.success) {
         return {
@@ -420,6 +422,13 @@ const createFeed = {
       if (adapter.api_code_is_full_url && device.api_code) {
         url = device.api_code;
       } else if (adapter.api_base_url && adapter.api_url_template) {
+        if (!device.serial_number) {
+          return {
+            success: false,
+            message: `Cannot construct request URL for network "${device.network}": serial_number is missing`,
+            status: httpStatus.UNPROCESSABLE_ENTITY,
+          };
+        }
         const path = adapter.api_url_template.replace(
           "{serial_number}",
           device.serial_number
@@ -446,6 +455,15 @@ const createFeed = {
       // ── Configure auth ─────────────────────────────────────────────────────
       const axiosConfig = { timeout: 15000, params };
       const credential = device.access_code || null;
+
+      if (device.authRequired && adapter.auth_type !== "none" && !credential) {
+        logger.debug(
+          `fetchExternalDeviceData: auth expected (type="${adapter.auth_type}", ` +
+            `param="${adapter.auth_key_param}") but device.access_code is missing ` +
+            `for device "${device.serial_number || device._id}" on network "${device.network}" — ` +
+            `proceeding unauthenticated`
+        );
+      }
 
       if (device.authRequired && adapter.auth_type !== "none" && credential) {
         switch (adapter.auth_type) {

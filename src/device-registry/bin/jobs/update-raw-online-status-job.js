@@ -352,11 +352,11 @@ const processIndividualDevice = async (
     //
     // Devices that still lack api_code (not yet migrated / unknown network)
     // fall through to the unchanged stale-data fallback below.
+    // Resolve adapter: DB record takes precedence over static config so any
+    // operator-customised adapter config is honoured at runtime.
     const externalAdapter =
-      device.api_code &&
-      device.network &&
-      device.network !== "airqo"
-        ? constants.NETWORK_ADAPTERS?.[device.network]
+      device.api_code && device.network && device.network !== "airqo"
+        ? await createFeedUtil.getNetworkAdapter(device.network)
         : null;
 
     if (externalAdapter?.online_check_via_feed) {
