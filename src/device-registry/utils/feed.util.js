@@ -537,8 +537,19 @@ const createFeed = {
       }
       if (adapter.api_base_url) {
         let expectedHostname;
-        try { expectedHostname = new URL(adapter.api_base_url).hostname; } catch { /* skip host check */ }
-        if (expectedHostname && parsedUrl.hostname !== expectedHostname) {
+        try {
+          expectedHostname = new URL(adapter.api_base_url).hostname;
+        } catch {
+          // Malformed api_base_url — fail closed rather than skipping validation.
+          return {
+            success: false,
+            message:
+              `Refused request for network "${device.network}": ` +
+              `adapter.api_base_url "${adapter.api_base_url}" is not a valid URL`,
+            status: httpStatus.UNPROCESSABLE_ENTITY,
+          };
+        }
+        if (parsedUrl.hostname !== expectedHostname) {
           return {
             success: false,
             message:
@@ -633,6 +644,12 @@ const createFeed = {
    * @returns {object} normalized data object
    */
   normalizeExternalData: (rawData, fieldMap) => {
+    // Some external APIs wrap a single measurement in an array. Unwrap to the
+    // first element so the field-mapping logic always operates on a plain object.
+    if (Array.isArray(rawData)) {
+      rawData = rawData.length > 0 ? rawData[0] : {};
+    }
+
     if (!fieldMap || !rawData || typeof rawData !== "object") {
       return rawData || {};
     }
