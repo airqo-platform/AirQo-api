@@ -9,7 +9,7 @@ const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-feed-util`);
 const createDevice = require("@utils/device.util");
-const NetworkModel = require("@models/Network");
+const { getNetworkAdapter } = require("@utils/network.util");
 
 const createFeed = {
   isGasDevice: (description) => {
@@ -387,40 +387,6 @@ const createFeed = {
   },
 
   /**
-   * Retrieve the adapter configuration for a given network name.
-   * Checks the Network collection in the DB first (so admins can override
-   * values without redeployment), then falls back to the static NETWORK_ADAPTERS
-   * constant bundled with the service.
-   *
-   * @param {string} networkName - value of device.network (e.g. "airgradient")
-   * @param {string} tenant
-   * @returns {object|null} adapter config or null if unknown network
-   */
-  getNetworkAdapter: async (networkName, tenant = "airqo") => {
-    const staticAdapter = constants.NETWORK_ADAPTERS?.[networkName] || null;
-    try {
-      const record = await NetworkModel(tenant)
-        .findOne({ name: networkName })
-        .select("adapter")
-        .lean();
-
-      if (record?.adapter && Object.keys(record.adapter).length > 0) {
-        // Merge DB adapter on top of static adapter: DB-set keys win, but fields
-        // absent from the DB record fall back to static defaults. This prevents
-        // a partial DB override (e.g. only field_map set) from silently dropping
-        // other required fields like api_base_url or serial_number_regex.
-        return { ...(staticAdapter || {}), ...record.adapter };
-      }
-    } catch (dbError) {
-      logger.warn(
-        `Could not load adapter from DB for network "${networkName}": ${dbError.message}`
-      );
-    }
-
-    return staticAdapter;
-  },
-
-  /**
    * Decrypt the ThingSpeak readKey for an already-resolved AirQo device doc.
    * Avoids a redundant DB round-trip when the caller already holds the device.
    *
@@ -745,7 +711,7 @@ const createFeed = {
       }
 
       // ── 3. External device path ────────────────────────────────────────────
-      const adapter = await createFeed.getNetworkAdapter(device.network, tenant);
+      const adapter = await getNetworkAdapter(device.network, tenant);
 
       if (!adapter) {
         return {
