@@ -50,7 +50,8 @@ const getNetworkAdapter = async (networkName, tenant = "airqo") => {
     );
   }
 
-  return staticAdapter;
+  // Return a shallow copy so callers cannot mutate the global NETWORK_ADAPTERS constant.
+  return staticAdapter ? { ...staticAdapter } : null;
 };
 
 module.exports = { getNetworkAdapter };
