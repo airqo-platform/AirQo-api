@@ -2,12 +2,12 @@
 const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
-const NetworkModel = require("@models/Network");
 const ShippingBatchModel = require("@models/ShippingBatch");
 const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
+const { getNetworkAdapter } = require("@utils/network.util");
 const {
   generateFilter,
   claimTokenUtil,
@@ -1560,26 +1560,8 @@ const deviceUtil = {
       // All steps are non-fatal — failures are logged and device creation
       // continues without the field rather than blocking the caller.
       if (body.network && body.network !== "airqo") {
-        // DB-first adapter resolution: Network document's adapter field takes
-        // precedence over the static NETWORK_ADAPTERS constant so operator
-        // customisations are honoured at registration time.
-        let adapterConfig = null;
-        try {
-          const networkDoc = await NetworkModel(tenant)
-            .findOne({ name: body.network })
-            .select("adapter")
-            .lean();
-          if (networkDoc?.adapter && Object.keys(networkDoc.adapter).length > 0) {
-            adapterConfig = networkDoc.adapter;
-          }
-        } catch (dbErr) {
-          logger.warn(
-            `createOnPlatform: could not load adapter from DB for network "${body.network}": ${dbErr.message}`
-          );
-        }
-        if (!adapterConfig) {
-          adapterConfig = constants.NETWORK_ADAPTERS?.[body.network] || null;
-        }
+        // DB-first adapter resolution via shared helper (DB wins, static fills gaps).
+        const adapterConfig = await getNetworkAdapter(body.network, tenant);
 
         // Step 1: extract api_code from description URL, validated against adapter
         // Require adapterConfig.api_base_url to be set before trusting any URL
