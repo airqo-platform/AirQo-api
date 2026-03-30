@@ -165,18 +165,39 @@ class DateUtils:
     def str_to_date(
         st: str,
         date_format: Optional[str] = "%Y-%m-%dT%H:%M:%SZ",
-        set_utc: Optional[bool] = True,
+        set_utc: bool = True,
     ) -> datetime:
         """
-        Converts a string to datetime
+        Converts a string to a datetime object, attempting multiple ISO 8601 formats.
+
         Args:
-            st(str): Datetime string
-            set_utc(bool, optional): Whether to set the timezone to UTC. Defaults to True.
+            st (str): The datetime string to convert.
+            date_format (Optional[str]): The primary format to attempt.
+                Defaults to "%Y-%m-%dT%H:%M:%SZ".
+            set_utc (bool): Whether to set the timezone to UTC (offset-aware).
+                Defaults to True.
+
+        Returns:
+            datetime: The parsed datetime object.
+
+        Raises:
+            ValueError: If the string does not match any of the provided formats.
+            TypeError: If the input 'st' is not a string.
         """
-        try:
-            dt = datetime.strptime(st, date_format)
-        except ValueError:
-            dt = datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
+        formats = [date_format, "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"]
+
+        dt = None
+        for fmt in formats:
+            if fmt is None:
+                continue
+            try:
+                dt = datetime.strptime(st, fmt)
+                break  # Stop at the first successful match
+            except (ValueError, TypeError):
+                continue
+
+        if dt is None:
+            raise ValueError(f"Time data '{st}' does not match any expected formats.")
 
         if set_utc:
             dt = dt.replace(tzinfo=timezone.utc)
