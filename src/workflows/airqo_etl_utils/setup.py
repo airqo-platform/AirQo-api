@@ -26,7 +26,7 @@ setup(
         "firebase-admin==6.9.0",
         "lightgbm==4.1.0",
         "mlflow==3.2.0",
-        "gcsfs==2023.9.2",
+        "gcsfs==2023.10.0",
         "pymongo==4.5.0",
         "optuna==4.8.0",
         "tweepy==4.16.0",
