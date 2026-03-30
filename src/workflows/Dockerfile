@@ -24,7 +24,7 @@ USER airflow
 
 COPY --from=utils-package airqo_etl_utils/dist/airqo_etl_utils-1.0.0-py3-none-any.whl airqo_etl_utils-1.0.0-py3-none-any.whl
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+RUN pip install --no-cache-dir pip setuptools wheel && \
     pip install --no-cache-dir airqo_etl_utils-1.0.0-py3-none-any.whl
 
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
@@ -47,7 +47,7 @@ CMD ["airflow", "webserver"]
 
 
 # As of Airflow 2.7.0, you need to install the celery provider package to use this executor.
-# This can be done by installing apache-airflow-providers-celery>=3.3.0 or by installing 
+# This can be done by installing apache-airflow-providers-celery>=3.3.0 or by installing
 # Airflow with the celery extra: pip install 'apache-airflow[celery]'
 FROM base-builder as celery
 USER airflow

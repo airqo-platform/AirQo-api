@@ -21,6 +21,7 @@ import cdsapi
 
 from airqo_etl_utils.constants import DeviceNetwork
 from airqo_etl_utils.sources.adapter import DataSourceAdapter
+from ..date import DateUtils
 from airqo_etl_utils.utils import Result
 
 import logging
@@ -95,22 +96,29 @@ class CAMSAdapter(DataSourceAdapter):
             run_date, run_hour, leadtime_hour = self._latest_available_run()
 
             if dates:
-                # Allow callers to pin the date via the dates parameter.
                 start_iso = (
                     dates[0][0] if isinstance(dates[0], (tuple, list)) else dates[0]
                 )
                 try:
-                    run_date = datetime(start_iso.replace("Z", "+00:00")).strftime(
+                    run_date = DateUtils.str_to_date(start_iso, "%Y-%m-%d").strftime(
                         "%Y-%m-%d"
                     )
-                except (ValueError, AttributeError):
-                    pass  # keep auto-detected date
+                except (ValueError, AttributeError, TypeError) as ex:
+                    logger.warning(
+                        "CAMSAdapter.fetch: invalid or missing dates format in 'dates' parameter: %s, %s",
+                        dates,
+                        ex,
+                    )
+                    # Return latest available run date instead of failing, since the date override is optional.
 
             if resolution is not None:
                 try:
                     leadtime_hour = int(resolution)
                 except (ValueError, TypeError):
-                    pass
+                    logger.warning(
+                        "CAMSAdapter.fetch: invalid resolution format: %s", resolution
+                    )
+                    # Return auto-detected leadtime instead of failing, since the resolution override is optional.
 
             downloaded: Dict[str, str] = {}
             skipped: List[str] = []
