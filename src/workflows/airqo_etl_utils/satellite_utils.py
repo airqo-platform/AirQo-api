@@ -13,7 +13,7 @@ import xarray as xr
 from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import DeviceNetwork
+from airqo_etl_utils.constants import DataType, DeviceNetwork
 from airqo_etl_utils.sql import query_manager
 import logging
 
@@ -261,9 +261,9 @@ class SatelliteUtils:
                 # Further xarray transformations
                 # Resample time to daily maximum and remove singleton dimensions
                 ds = ds.resample(time="1D").max()
-                ds = ds.squeeze(
-                    drop=True
-                )  # Removes dimensions of size 1 (e.g., if height dim becomes 1)
+                # REVIEW: This might be too aggressive if there are multiple singleton dimensions; consider more targeted approaches if needed.
+                # `time` dimension should remain, but if there are any other singleton dimensions (e.g., height/level) they will be removed.`
+                # ds = ds.squeeze(drop=True)  # Removes dimensions of size 1 (e.g., if height dim becomes 1)
                 logger.info(f"Dataset after resampling and squeezing: {ds.dims}")
 
                 # Convert units from kg/m³ to µg/m³ (assuming this is always needed)
@@ -350,7 +350,6 @@ class SatelliteUtils:
                     raise KeyError(
                         f"Required variable '{var}' not found in NetCDF file."
                     )
-
             # Extract data
             longitude: np.ndarray = dataset.variables["longitude"][:]
             latitude: np.ndarray = dataset.variables["latitude"][:]
@@ -521,6 +520,6 @@ class SatelliteUtils:
                     "data_type",
                 ]
             )
-        data["data_type"] = "FORECAST"
+        data["data_type"] = DataType.FORECAST.str
         data["network"] = DeviceNetwork.COPERNICUS.str
         return data

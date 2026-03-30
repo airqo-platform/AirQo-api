@@ -139,6 +139,14 @@ const routes = [
   { path: "/tips", route: "@routes/v2/tips.routes", name: "tips" },
   { path: "/kya", route: "@routes/v2/kya.routes", name: "kya" },
   { path: "/cohorts", route: "@routes/v2/cohorts.routes", name: "cohorts" },
+  // Canonical Network CRUD endpoints — /api/v2/devices/networks/...
+  // The legacy /cohorts/networks/... paths remain fully operational.
+  { path: "/networks", route: "@routes/v2/networks.routes", name: "networks" },
+  {
+    path: "/network-coverage",
+    route: "@routes/v2/network-coverage.routes",
+    name: "network-coverage",
+  },
   {
     path: "/network-status",
     route: "@routes/v2/network-status.routes",

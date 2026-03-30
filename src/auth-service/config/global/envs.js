@@ -37,14 +37,6 @@ const envs = {
   JWT_SECRET: process.env.JWT_SECRET,
   EMAIL: process.env.MAIL_USER,
   SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
-  REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
-  COMMS_EMAILS: process.env.COMMS_EMAILS,
-  POLICY_EMAILS: process.env.POLICY_EMAILS,
-  CHAMPIONS_EMAILS: process.env.CHAMPIONS_EMAILS,
-  RESEARCHERS_EMAILS: process.env.RESEARCHERS_EMAILS,
-  ASSISTANCE_EMAILS: process.env.ASSISTANCE_EMAILS,
-  DEVELOPERS_EMAILS: process.env.DEVELOPERS_EMAILS,
-  PARTNERS_EMAILS: process.env.PARTNERS_EMAILS,
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
 
   // ✅ NUMERIC VALUES - Properly converted
@@ -52,11 +44,11 @@ const envs = {
   PORT: parseNumber(process.env.PORT, 3000),
   ONBOARDING_TOKEN_EXPIRY_DAYS: parseNumber(
     process.env.ONBOARDING_TOKEN_EXPIRY_DAYS,
-    7
+    7,
   ),
   MAX_ONBOARDING_TOKEN_EXPIRY_DAYS: parseNumber(
     process.env.MAX_ONBOARDING_TOKEN_EXPIRY_DAYS,
-    30
+    30,
   ),
 
   CLIENT_ORIGIN: process.env.AIRQO_WEBSITE,
@@ -101,8 +93,6 @@ const envs = {
   GMAIL_VERIFICATION_SUCCESS_REDIRECT:
     process.env.GMAIL_VERIFICATION_SUCCESS_REDIRECT,
   SESSION_SECRET: process.env.SESSION_SECRET,
-  HARDWARE_AND_DS_EMAILS: process.env.HARDWARE_AND_DS_EMAILS,
-  PLATFORM_AND_DS_EMAILS: process.env.PLATFORM_AND_DS_EMAILS,
   PADDLE_WEBHOOK_SECRET: process.env.PADDLE_WEBHOOK_SECRET,
   PADDLE_PRODUCT_ID: process.env.PADDLE_PRODUCT_ID,
   PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID:
@@ -111,11 +101,37 @@ const envs = {
     process.env.DEFAULT_ORGANISATION_PROFILE_PICTURE,
   DEFAULT_USE_ONBOARDING_FLOW: parseBoolean(
     process.env.DEFAULT_USE_ONBOARDING_FLOW,
-    false
+    false,
   ),
   ORGANISATIONS_LIMIT: parseNumber(process.env.ORGANISATIONS_LIMIT, 10),
   USE_REDIS_RATE_LIMIT: true,
   RATE_LIMIT_WHITELIST: process.env.RATE_LIMIT_WHITELIST,
+  // MongoDB connection pool size. Default 100 supports ~1000 concurrent
+  // logins across 3 replicas (each login uses ~3-5 pool slots).
+  // Tune via MONGODB_POOL_SIZE env var without a code change.
+  MONGODB_POOL_SIZE: parseNumber(process.env.MONGODB_POOL_SIZE, 100),
+
+  // ── Feedback domain constants ──────────────────────────────────────────────
+  // Single source of truth shared between the Feedback model and validators.
+  FEEDBACK_CATEGORIES: [
+    "general",
+    "bug",
+    "feature_request",
+    "performance",
+    "ux_design",
+    "other",
+  ],
+  FEEDBACK_STATUSES: ["pending", "reviewed", "resolved", "archived"],
+  FEEDBACK_PLATFORMS: ["web", "mobile", "api"],
+  // Conservative cap: reject metadata objects whose JSON serialisation exceeds
+  // this byte count. Keeps individual documents well under MongoDB's 16 MB
+  // document limit and avoids storage/query cost surprises.
+  FEEDBACK_METADATA_MAX_BYTES: 4096,
+  // Optional pro/HTTPS-capable IP geolocation endpoint. When set, device.util
+  // uses this URL for login location lookups; when absent, geolocation is
+  // skipped entirely (returns null) to avoid plaintext HTTP calls.
+  // Example: https://pro.ip-api.com/json/<ip>?fields=status,city,regionName,country&key=<API_KEY>
+  IP_API_PRO_URL: process.env.IP_API_PRO_URL || null,
 };
 
 module.exports = envs;

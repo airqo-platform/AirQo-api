@@ -705,6 +705,7 @@ const getEmailSubject = (functionName, params) => {
     authenticateEmail: "Changes to your AirQo email",
     compromisedToken:
       "Urgent Security Alert - Potential Compromise of Your AIRQO API Token",
+    newDeviceLogin: "Security Alert: New Sign-In to Your AirQo Account",
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
     expiredToken: "Action Required: Your AirQo API Token is expired",
     expiringToken: "AirQo API Token Expiry: Create New Token Urgently",
@@ -725,6 +726,9 @@ const getEmailSubject = (functionName, params) => {
     notifyOrgRequestApprovedWithOnboarding: `Welcome to AirQo: Complete Your Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
+    notifyGroupStatusChanged: `Organisation Status Update (${sanitizeEmailString(
+      params.new_status || "",
+    )}) - ${sanitizeEmailString(params.organization_name || "")}`,
     onboardingAccountSetup: `Complete Your AirQo Account Setup - ${sanitizeEmailString(
       params.organization_name || "",
     )}`,
@@ -812,11 +816,13 @@ const EMAIL_CATEGORIES = {
     "sendMobileAccountDeletionCode",
     "authenticateEmail",
     "compromisedToken",
+    "newDeviceLogin",
     "sendBotAlert",
     "sendCompromiseSummary",
     "expiredToken",
     "expiringToken",
     "onboardingAccountSetup",
+    "notifyGroupStatusChanged",
   ],
 
   ORG_MANAGEMENT: [
@@ -2298,6 +2304,21 @@ const mailer = {
       enableCooldown: true,
     },
   ),
+  newDeviceLogin: createSecurityEmailFunction(
+    "newDeviceLogin",
+    (params) =>
+      msgs.newDeviceLogin({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        os: params.os,
+        browser: params.browser,
+        deviceType: params.deviceType,
+        location: params.location,
+        loginTime: params.loginTime,
+      }),
+    { cooldownDays: 1, enableCooldown: false },
+  ),
   updateProfileReminder: createMailerFunction(
     "updateProfileReminder", //
     "OPTIONAL",
@@ -2477,6 +2498,22 @@ const mailer = {
         bcc: bccEmails || undefined,
       };
     },
+  ),
+  // Mandatory lifecycle notification — sent to the group manager and all members
+  // when an admin changes group status. Deactivation always triggers this;
+  // activation also notifies the manager. Bypasses unsubscribe checks (CORE_CRITICAL)
+  // because loss of access must reach affected users regardless of email preferences.
+  notifyGroupStatusChanged: createMailerFunction(
+    "notifyGroupStatusChanged",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.groupStatusChanged({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        new_status: params.new_status,
+        reason: params.reason,
+        email: params.email,
+      }),
   ),
 };
 

@@ -24,7 +24,7 @@ const prodConfig = {
   ENVIRONMENT: "PRODUCTION ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   GROUPS_TOPIC: process.env.GROUPS_TOPIC_PROD || "groups-topic",
@@ -35,9 +35,10 @@ const prodConfig = {
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
   REDIS_SERVER: process.env.PROD_REDIS_SERVER,
   REDIS_PORT: process.env.PROD_REDIS_PORT,
+  USE_REDIS_SESSIONS: process.env.PROD_USE_REDIS_SESSIONS === "true" || false,
   SELECTED_SITES: process.env.SELECTED_SITES_PRODUCTION
     ? process.env.SELECTED_SITES_PRODUCTION.split(",").filter(
-        (value) => value.trim() !== ""
+        (value) => value.trim() !== "",
       )
     : [],
   API_TOKEN: process.env.PROD_API_TOKEN,
@@ -55,5 +56,37 @@ const prodConfig = {
   POSTHOG_ENABLED: process.env.PROD_POSTHOG_ENABLED === "true" || false,
   POSTHOG_TRACK_API_REQUESTS:
     process.env.PROD_POSTHOG_TRACK_API_REQUESTS === "true" || false,
+  GITHUB_CLIENT_ID: process.env.PROD_GITHUB_CLIENT_ID,
+  GITHUB_CLIENT_SECRET: process.env.PROD_GITHUB_CLIENT_SECRET,
+  LINKEDIN_CLIENT_ID: process.env.PROD_LINKEDIN_CLIENT_ID,
+  LINKEDIN_CLIENT_SECRET: process.env.PROD_LINKEDIN_CLIENT_SECRET,
+  MICROSOFT_CLIENT_ID: process.env.PROD_MICROSOFT_CLIENT_ID,
+  MICROSOFT_CLIENT_SECRET: process.env.PROD_MICROSOFT_CLIENT_SECRET,
+  TWITTER_CONSUMER_KEY: process.env.PROD_TWITTER_CONSUMER_KEY,
+  TWITTER_CONSUMER_SECRET: process.env.PROD_TWITTER_CONSUMER_SECRET,
+  TWITTER_BEARER_TOKEN: process.env.PROD_TWITTER_BEARER_TOKEN,
+
+  REQUEST_ACCESS_EMAILS:
+    process.env.PROD_REQUEST_ACCESS_EMAILS || process.env.REQUEST_ACCESS_EMAILS,
+  COMMS_EMAILS: process.env.PROD_COMMS_EMAILS || process.env.COMMS_EMAILS,
+  POLICY_EMAILS: process.env.PROD_POLICY_EMAILS || process.env.POLICY_EMAILS,
+  CHAMPIONS_EMAILS:
+    process.env.PROD_CHAMPIONS_EMAILS || process.env.CHAMPIONS_EMAILS,
+  RESEARCHERS_EMAILS:
+    process.env.PROD_RESEARCHERS_EMAILS || process.env.RESEARCHERS_EMAILS,
+  ASSISTANCE_EMAILS:
+    process.env.PROD_ASSISTANCE_EMAILS || process.env.ASSISTANCE_EMAILS,
+  DEVELOPERS_EMAILS:
+    process.env.PROD_DEVELOPERS_EMAILS || process.env.DEVELOPERS_EMAILS,
+  PARTNERS_EMAILS:
+    process.env.PROD_PARTNERS_EMAILS || process.env.PARTNERS_EMAILS,
+  HARDWARE_AND_DS_EMAILS:
+    process.env.PROD_HARDWARE_AND_DS_EMAILS ||
+    process.env.HARDWARE_AND_DS_EMAILS,
+  PLATFORM_AND_DS_EMAILS:
+    process.env.PROD_PLATFORM_AND_DS_EMAILS ||
+    process.env.PLATFORM_AND_DS_EMAILS,
+  PLATFORM_EMAILS:
+    process.env.PROD_PLATFORM_EMAILS || process.env.PLATFORM_EMAILS,
 };
 module.exports = prodConfig;

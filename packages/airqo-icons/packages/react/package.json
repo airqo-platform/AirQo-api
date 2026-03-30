@@ -1,6 +1,6 @@
 {
   "name": "@airqo/icons-react",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Production-ready React icon library with 1,383+ TypeScript components and tree-shakable imports",
   "keywords": [
     "icons",
@@ -49,6 +49,7 @@
   ],
   "scripts": {
     "prebuild": "rimraf dist",
+    "prepack": "npm run build",
     "build:icons": "node ../../tools/generators/react-generator-enhanced.js && tsc --noEmit",
     "build:bundle": "tsup",
     "build": "npm run build:icons && npm run build:bundle",

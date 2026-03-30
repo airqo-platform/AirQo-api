@@ -1,5 +1,6 @@
 const httpStatus = require("http-status");
 const preferenceUtil = require("@utils/preference.util");
+const groupUtil = require("@utils/group.util");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
@@ -1075,8 +1076,19 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      // Set default group ID
-      request.params.group_id = constants.DEFAULT_GROUP;
+      // Resolve default group by grp_title — environment-independent,
+      // avoids relying on the DEFAULT_GROUP env var being set.
+      const defaultGroupId = await groupUtil.getDefaultAirqoGroupId(
+        request.query.tenant
+      );
+      if (!defaultGroupId) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "Default AirQo group not found",
+          })
+        );
+      }
+      request.params.group_id = defaultGroupId;
 
       const result = await preferenceUtil.getUserGroupTheme(request, next);
       if (isEmpty(result) || res.headersSent) return;
@@ -1115,8 +1127,19 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      // Set default group ID
-      request.params.group_id = constants.DEFAULT_GROUP;
+      // Resolve default group by grp_title — environment-independent,
+      // avoids relying on the DEFAULT_GROUP env var being set.
+      const defaultGroupId = await groupUtil.getDefaultAirqoGroupId(
+        request.query.tenant
+      );
+      if (!defaultGroupId) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "Default AirQo group not found",
+          })
+        );
+      }
+      request.params.group_id = defaultGroupId;
 
       const result = await preferenceUtil.updateUserGroupTheme(request, next);
       if (isEmpty(result) || res.headersSent) return;

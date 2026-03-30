@@ -159,11 +159,60 @@ const requireGroupPermissions = (
       );
 
       if (!hasPermission) {
-        const userPermissions = await rbacService.getUserPermissionsInContext(
-          user._id,
-          groupId,
-          "group"
+        // Fetch one RBAC snapshot and reuse it for all checks in the deny path,
+        // avoiding a second full DB round-trip via getUserPermissionsInContext.
+        const rbacContext = await rbacService.getUserPermissionsByContext(
+          user._id
         );
+
+        // groupId may be an ObjectId string OR an organisation slug (from
+        // req.params.groupSlug). Check both identifiers so slug-based routes
+        // also receive the descriptive deactivation message.
+        const groupIdStr = groupId.toString();
+        const deactivatedEntry = (
+          rbacContext.deactivatedGroupMemberships || []
+        ).find(
+          (m) =>
+            m.group.id === groupIdStr ||
+            m.group.organizationSlug === groupIdStr
+        );
+
+        if (deactivatedEntry) {
+          const statusLabel =
+            {
+              INACTIVE: "deactivated",
+              SUSPENDED: "suspended",
+              ARCHIVED: "archived",
+              MAINTENANCE: "under maintenance",
+            }[deactivatedEntry.group.status] ||
+            deactivatedEntry.group.status.toLowerCase();
+
+          const supportEmail =
+            constants.SUPPORT_EMAIL || "support@airqo.net";
+
+          logger.warn(
+            `Group access denied for user ${user.email} (ID: ${user._id}): group "${deactivatedEntry.group.title}" is ${deactivatedEntry.group.status}`
+          );
+
+          return next(
+            new HttpError(
+              "Organisation access denied",
+              httpStatus.FORBIDDEN,
+              {
+                message: `This organisation has been ${statusLabel}. Please contact ${supportEmail} for assistance.`,
+                groupId: groupId,
+                groupTitle: deactivatedEntry.group.title,
+                groupStatus: deactivatedEntry.group.status,
+              }
+            )
+          );
+        }
+
+        // Derive permissions from the already-fetched snapshot — no second DB call.
+        const userPermissions = [
+          ...(rbacContext.systemPermissions || []),
+          ...(rbacContext.groupPermissions[groupIdStr] || []),
+        ];
 
         logger.warn(
           `Group permission denied for user ${user.email} (ID: ${

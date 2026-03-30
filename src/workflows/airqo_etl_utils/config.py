@@ -38,6 +38,11 @@ class Config:
     CPU_COUNT = os.cpu_count() or 2
     MAX_WORKERS = min(20, CPU_COUNT * 10)
     SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
+    # In-memory cache settings (seconds)
+    CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
+    CACHE_CLEANUP_INTERVAL_SECONDS = int(
+        os.getenv("CACHE_CLEANUP_INTERVAL_SECONDS", "60")
+    )
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
@@ -583,6 +588,9 @@ class Config:
             },
             DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
             DeviceCategory.WEATHER: {Frequency.HOURLY: BIGQUERY_HOURLY_WEATHER_TABLE},
+            DeviceCategory.SATELLITE: {
+                Frequency.HOURLY: BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE,
+            },
         },
         DataType.CONSOLIDATED: {
             DeviceCategory.GENERAL: {

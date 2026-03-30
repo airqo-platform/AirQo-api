@@ -56,7 +56,9 @@ class DeviceNetwork(IntEnum):
     PURPLEAIR = 10
     AIRGRADIENT = 11
     COPERNICUS = 12
-    NONE = 13
+    OPENWEATHER = 13
+    NOMADS = 14
+    NONE = 15
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -86,6 +88,7 @@ class DataType(Enum):
     EXTRAS = "extras"
     METADATA = "metadata"
     COMPUTEDDATA = "computed"
+    FORECAST = "forecast"
 
     def __str__(self) -> str:
         return self.name.lower()

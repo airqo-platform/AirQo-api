@@ -611,6 +611,35 @@ module.exports = {
 
     return constants.EMAIL_BODY({ email, content, name });
   },
+  newDeviceLogin: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    os = "Unknown OS",
+    browser = "Unknown Browser",
+    deviceType = "Unknown",
+    location = null,
+    loginTime = new Date(),
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const timeStr = loginTime instanceof Date ? loginTime.toUTCString() : String(loginTime);
+    const locationLine = location
+      ? `<p><strong>Location:</strong> ${escapeHtml(location)}</p>`
+      : "";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We noticed a new sign-in to your AirQo account from a device we don't recognise.</p>
+        <p><strong>Device:</strong> ${escapeHtml(deviceType)} &mdash; ${escapeHtml(os)}, ${escapeHtml(browser)}</p>
+        ${locationLine}
+        <p><strong>Time:</strong> ${timeStr}</p>
+        <p>If this was you, you can safely ignore this email. If you don't recognise this activity, please change your password immediately and contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">click here</a> to review your account security settings.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
   tokenExpiringSoon: ({ firstName = "", lastName = "", email = "" }) => {
     const name = firstName + " " + lastName;
     let content = "";
@@ -1387,5 +1416,31 @@ module.exports = {
     </td>
   </tr>`;
     return constants.EMAIL_BODY({ email: userEmail, content, name: "Admin" });
+  },
+
+  // Sent to all group members and the manager when an admin changes group status.
+  // Deactivation (INACTIVE/SUSPENDED/ARCHIVED) always triggers this regardless
+  // of the notify_members flag. Activation also sends to the manager.
+  groupStatusChanged: ({ organization_name, contact_name, new_status, reason, email = "" }) => {
+    const statusLabel =
+      {
+        ACTIVE: "Active",
+        INACTIVE: "Inactive",
+        SUSPENDED: "Suspended",
+        ARCHIVED: "Archived",
+        MAINTENANCE: "Under Maintenance",
+      }[new_status] || new_status;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>The status of your organisation <strong>${escapeHtml(organization_name)}</strong> has been updated to <strong>${escapeHtml(statusLabel)}</strong>.</p>
+        ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
+        <p>If you have any questions, please contact our support team at support@airqo.net.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email, content, name: contact_name });
   },
 };
