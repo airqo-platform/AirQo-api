@@ -107,8 +107,8 @@ spec:
       service: airqo-spatial-api-svc
       port: 5000
     - name: beacon
-      service: airqo-beacon-api-svc 
-      port: 8000        
+      service: airqo-beacon-api-svc
+      port: 8000
   routes:
     - path: /workflows
       route: pipeline/workflows
@@ -139,7 +139,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/analytics
+    - path: ~ /api\/v[1-3]\/(?:public\/)?analytics
       action:
         proxy:
           upstream: analytics-api
