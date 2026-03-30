@@ -254,7 +254,6 @@ def test_fetch_dates_override_run_date(tmp_path):
         result = CAMSAdapter().fetch(
             dates=[("2024-01-15T00:00:00Z", "2024-01-15T23:59:59Z")]
         )
-
     assert result.data["meta"]["run_date"] == "2024-01-15"
 
 
