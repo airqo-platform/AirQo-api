@@ -47,6 +47,12 @@ const {
 
 const RBACService = require("@services/rbac.service");
 const { AbstractTokenFactory } = require("@services/atf.service");
+const {
+  parseUserAgent,
+  computeDeviceFingerprint,
+  getIpLocation,
+  extractIp,
+} = require("@utils/common/device.util");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -6416,7 +6422,7 @@ const createUserModule = {
         };
       }
 
-      // Update login statistics
+      // Update login statistics and check for new device
       (async () => {
         try {
           // Decide if auto-verification should happen.
@@ -6447,6 +6453,73 @@ const createUserModule = {
           logger.error(
             `Login stats/roles update error: ${updateError.message}`,
           );
+        }
+
+        // New device detection and email notification
+        try {
+          const ip = extractIp(request);
+          const uaString = request.headers["user-agent"] || "";
+          const fingerprint = computeDeviceFingerprint(ip, uaString);
+
+          // Atomic insert: only pushes the fingerprint if it is not already
+          // present, preventing duplicate entries and concurrent-login races.
+          const insertResult = await UserModel(dbTenant).updateOne(
+            { _id: user._id, "knownDevices.fingerprint": { $ne: fingerprint } },
+            {
+              $push: {
+                knownDevices: {
+                  $each: [{ fingerprint, lastSeenAt: new Date() }],
+                  $slice: -20,
+                },
+              },
+            },
+          );
+
+          if (insertResult.modifiedCount > 0) {
+            // Genuinely new device — resolve UA details and notify the user.
+            // If the back-fill or email fails, roll back the inserted fingerprint
+            // so the next login still triggers a notification attempt.
+            try {
+              const { os, browser, deviceType } = parseUserAgent(uaString);
+              const location = await getIpLocation(ip);
+
+              // Back-fill the UA fields now that we know it is a new device.
+              await UserModel(dbTenant).updateOne(
+                { _id: user._id, "knownDevices.fingerprint": fingerprint },
+                { $set: { "knownDevices.$.os": os, "knownDevices.$.browser": browser, "knownDevices.$.deviceType": deviceType } },
+              );
+
+              const mailResult = await mailer.newDeviceLogin({
+                email: user.email,
+                tenant: dbTenant,
+                firstName: user.firstName || "",
+                lastName: user.lastName || "",
+                os,
+                browser,
+                deviceType,
+                location,
+                loginTime: new Date(),
+              });
+
+              if (!mailResult || mailResult.success === false) {
+                throw new Error(mailResult?.message || "newDeviceLogin email failed");
+              }
+            } catch (notifyError) {
+              logger.error(`New device notify failed, rolling back fingerprint: ${notifyError.message}`);
+              await UserModel(dbTenant).updateOne(
+                { _id: user._id },
+                { $pull: { knownDevices: { fingerprint } } },
+              );
+            }
+          } else {
+            // Known device — just refresh the lastSeenAt timestamp.
+            await UserModel(dbTenant).updateOne(
+              { _id: user._id, "knownDevices.fingerprint": fingerprint },
+              { $set: { "knownDevices.$.lastSeenAt": new Date() } },
+            );
+          }
+        } catch (deviceError) {
+          logger.error(`New device check error: ${deviceError.message}`);
         }
       })();
 

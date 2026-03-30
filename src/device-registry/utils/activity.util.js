@@ -6,6 +6,7 @@ const createSiteUtil = require("@utils/site.util");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const GridModel = require("@models/Grid");
+const ReadingModel = require("@models/Reading");
 const constants = require("@config/constants");
 const moment = require("moment");
 
@@ -2359,6 +2360,17 @@ const createActivity = {
           recall_date: (date && new Date(date)) || new Date(),
           site_id: null,
           grid_id: null,
+          mobility: false,
+          deployment_type: "static",
+        },
+        $unset: {
+          mountType: "",
+          powerType: "",
+          height: "",
+          isPrimaryInLocation: "",
+          latitude: "",
+          longitude: "",
+          deployment_date: "",
         },
       };
 
@@ -2387,6 +2399,21 @@ const createActivity = {
           errors: { message: `Failed to update device ${deviceName}` },
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
+      }
+
+      // Mark readings for this device as inactive so map/recent-readings
+      // endpoints stop surfacing it immediately. Readings are preserved for
+      // historical access — only the embedded isActive flag is updated.
+      // Non-fatal: a failure here does not roll back the recall.
+      try {
+        await ReadingModel(tenant).updateMany(
+          { device_id: updatedDevice._id.toString() },
+          { $set: { "deviceDetails.isActive": false } }
+        );
+      } catch (readingUpdateError) {
+        logger.warn(
+          `⚠️ Recall: device ${deviceName} recalled but readings could not be marked inactive: ${readingUpdateError.message}`
+        );
       }
 
       const activityData = {

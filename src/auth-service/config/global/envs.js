@@ -127,6 +127,11 @@ const envs = {
   // this byte count. Keeps individual documents well under MongoDB's 16 MB
   // document limit and avoids storage/query cost surprises.
   FEEDBACK_METADATA_MAX_BYTES: 4096,
+  // Optional pro/HTTPS-capable IP geolocation endpoint. When set, device.util
+  // uses this URL for login location lookups; when absent, geolocation is
+  // skipped entirely (returns null) to avoid plaintext HTTP calls.
+  // Example: https://pro.ip-api.com/json/<ip>?fields=status,city,regionName,country&key=<API_KEY>
+  IP_API_PRO_URL: process.env.IP_API_PRO_URL || null,
 };
 
 module.exports = envs;
