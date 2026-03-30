@@ -34,6 +34,7 @@ setup(
         "great_expectations===0.18.18",
         "airflow-provider-great-expectations==0.2.8",
         "apache-airflow-providers-google==10.2.0",
+        "apache-airflow-providers-celery==3.17.2",
         "sqlalchemy-bigquery==1.11.0",
         "confluent-kafka==2.5.0",
         "lz4==4.3.3",

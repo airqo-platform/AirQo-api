@@ -44,3 +44,4 @@ cfgrib==0.9.15.1
 xarray==2025.6.0
 python-dateutil==2.8.2
 sqlfluff==4.1.0
+apache-airflow-providers-celery==3.17.2

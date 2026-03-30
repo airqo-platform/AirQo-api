@@ -88,6 +88,7 @@ class DataType(Enum):
     EXTRAS = "extras"
     METADATA = "metadata"
     COMPUTEDDATA = "computed"
+    FORECAST = "forecast"
 
     def __str__(self) -> str:
         return self.name.lower()

@@ -588,6 +588,9 @@ class Config:
             },
             DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
             DeviceCategory.WEATHER: {Frequency.HOURLY: BIGQUERY_HOURLY_WEATHER_TABLE},
+            DeviceCategory.SATELLITE: {
+                Frequency.HOURLY: BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE,
+            },
         },
         DataType.CONSOLIDATED: {
             DeviceCategory.GENERAL: {

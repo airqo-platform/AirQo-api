@@ -13,7 +13,7 @@ import xarray as xr
 from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import DeviceNetwork
+from airqo_etl_utils.constants import DataType, DeviceNetwork
 from airqo_etl_utils.sql import query_manager
 import logging
 
@@ -520,6 +520,6 @@ class SatelliteUtils:
                     "data_type",
                 ]
             )
-        data["data_type"] = "FORECAST"
+        data["data_type"] = DataType.FORECAST.str
         data["network"] = DeviceNetwork.COPERNICUS.str
         return data

@@ -51,7 +51,7 @@ class BigQueryAdapter(StorageAdapter):
 
         dataframe = dataframe.reset_index(drop=True)
 
-        ok, missing = self.validate_schema(table, dataframe)
+        _, missing = self.validate_schema(table, dataframe)
         if missing:
             logger.warning(
                 f"Table {table}: missing columns {missing}. Filling with NaN before load."
