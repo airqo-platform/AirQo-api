@@ -25,7 +25,6 @@ from airqo_etl_utils.storage import (
     get_configured_storage,
     GCSFileStorage,
     FileStorage,
-    AWSFileStorage,
 )
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.utils.machine_learning.mlflow_tracker import MlflowTracker
@@ -1891,6 +1890,31 @@ class ForecastModelTrainer(BaseMlUtils):
         return ForecastModelTrainer._build_site_id_mapping(history["site_id"])
 
     @staticmethod
+    def _resolve_site_forecast_metadata(history: pd.DataFrame) -> pd.DataFrame:
+        """Keep one metadata row per site, preferring the latest non-null coordinates."""
+
+        def _latest_non_null(series: pd.Series):
+            non_null = series.dropna()
+            if non_null.empty:
+                return np.nan
+            return non_null.iloc[-1]
+
+        metadata = history[
+            ["site_id", "site_name", "site_latitude", "site_longitude", "day"]
+        ].copy()
+        metadata = metadata.sort_values(["site_id", "day"])
+
+        return (
+            metadata.groupby("site_id", as_index=False)
+            .agg(
+                site_name=("site_name", "last"),
+                site_latitude=("site_latitude", _latest_non_null),
+                site_longitude=("site_longitude", _latest_non_null),
+            )
+            .drop(columns=["day"], errors="ignore")
+        )
+
+    @staticmethod
     def generate_site_daily_forecasts(
         raw_data: pd.DataFrame,
         *,
@@ -1946,9 +1970,7 @@ class ForecastModelTrainer(BaseMlUtils):
             run_timestamp = run_timestamp.tz_convert("UTC")
 
         recursive_history = history[["site_id", "site_name", "day", "pm25_mean"]].copy()
-        site_meta = history[
-            ["site_id", "site_name", "site_latitude", "site_longitude"]
-        ].drop_duplicates("site_id")
+        site_meta = ForecastModelTrainer._resolve_site_forecast_metadata(history)
         predictions: List[pd.DataFrame] = []
 
         for _ in range(horizon):
@@ -2084,6 +2106,32 @@ class ForecastModelTrainer(BaseMlUtils):
             )
 
         return forecast_df.sort_values(["site_id", "date"]).reset_index(drop=True)
+
+    @staticmethod
+    def fetch_site_prediction_data(
+        execution_date: datetime,
+        lookback_days: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """Fetch site-level daily aggregates used for site forecast prediction.
+
+        Prediction is intentionally more permissive than training so newly
+        deployed sites can still receive a forecast. In particular, the fetch:
+        - includes the execution day, allowing partial current-day data
+        - lowers the per-site/day hourly threshold to 1 row
+        """
+        from .bigquery_api import BigQueryApi
+
+        end_date = execution_date
+        lookback_window = int(
+            lookback_days or configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE or 30
+        )
+        start_date = end_date - timedelta(days=lookback_window)
+
+        return BigQueryApi().fetch_raw_site_data_for_forecast_jobs(
+            start_date_time=DateUtils.date_to_str(start_date, str_format="%Y-%m-%d"),
+            end_date_time=DateUtils.date_to_str(end_date, str_format="%Y-%m-%d"),
+            min_hours=1,
+        )
 
     @staticmethod
     def _build_bigquery_schema(schema_file: str) -> List[bigquery.SchemaField]:
@@ -2452,24 +2500,11 @@ class ForecastModelTrainer(BaseMlUtils):
         }
 
     @staticmethod
-    def _save_site_daily_forecasts_to_aws(data: pd.DataFrame) -> Dict[str, Any]:
-        """Upload the latest site forecast snapshot to S3 when AWS is configured."""
-        bucket_name = configuration.AWS_SITE_DAILY_FORECAST_BUCKET
-        if not bucket_name:
-            raise ValueError("Missing required config: AWS_SITE_DAILY_FORECAST_BUCKET.")
-
-        destination_key = configuration.AWS_SITE_DAILY_FORECAST_KEY
-        storage = AWSFileStorage()
-        prepared = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
-            data
-        )
-        storage.upload_dataframe(
-            bucket=bucket_name,
-            dataframe=prepared,
-            destination_file=destination_key,
-            format="csv",
-        )
-        return {"rows": int(len(prepared)), "bucket": bucket_name, "key": destination_key}
+    def save_site_daily_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
+        """Public wrapper for persisting site forecasts to MongoDB only."""
+        if data.empty:
+            raise ValueError("No site forecasts available to persist.")
+        return ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
 
     @staticmethod
     def save_site_daily_forecasts_best_effort(data: pd.DataFrame) -> Dict[str, Any]:
@@ -2483,7 +2518,6 @@ class ForecastModelTrainer(BaseMlUtils):
         writers = {
             "bigquery": ForecastModelTrainer._save_site_daily_forecasts_to_bigquery,
             "mongo": ForecastModelTrainer._save_site_daily_forecasts_to_mongo,
-            "aws": ForecastModelTrainer._save_site_daily_forecasts_to_aws,
         }
 
         for target, writer in writers.items():

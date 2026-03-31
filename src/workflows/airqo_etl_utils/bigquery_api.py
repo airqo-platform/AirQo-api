@@ -1329,11 +1329,41 @@ class BigQueryApi:
         end_date_time: str,
         min_hours: int = 16,
     ) -> pd.DataFrame:
-        """Fetch daily site aggregates from the raw events table for forecasting.
+        """Fetch daily site-level forecast input from the consolidated table.
 
-        The site-level quarterly models are trained on daily site aggregates, so
-        this helper rolls raw PM2.5 readings up to one row per site/day and
-        joins site metadata to recover human-readable site names.
+        Despite the legacy method name, this helper now reads from
+        ``BIGQUERY_ANALYTICS_TABLE`` instead of the raw device measurements
+        table. It aggregates hourly consolidated measurements into one row per
+        ``site_id`` and day for site-level forecasting.
+
+        Data selection rules:
+        - Reads from ``self.consolidated_data_table``.
+        - Filters to the inclusive date window ``[start_date_time, end_date_time]``.
+        - Keeps only rows with non-null ``site_id``.
+        - Keeps only rows with non-null ``pm2_5_calibrated_value``.
+        - Requires at least ``min_hours`` distinct hourly timestamps per site/day.
+        - Left-joins ``self.sites_table`` so missing site names or coordinates on
+          consolidated rows can be backfilled from site metadata.
+
+        Args:
+            start_date_time (str): Start date in a pandas-parseable format,
+                typically ``YYYY-MM-DD``.
+            end_date_time (str): End date in a pandas-parseable format,
+                typically ``YYYY-MM-DD``.
+            min_hours (int, optional): Minimum number of distinct hourly records
+                required for a site/day aggregate to be included. Defaults to 16.
+
+        Returns:
+            pd.DataFrame: Daily site aggregates with these columns:
+                ``day``, ``site_id``, ``site_name``, ``site_latitude``,
+                ``site_longitude``, ``pm25_mean``, ``pm25_min``, ``pm25_max``,
+                and ``n_hours``.
+
+        Raises:
+            ValueError: If ``min_hours`` is invalid, the dates cannot be parsed,
+                the date range is inverted, or required BigQuery table
+                configuration is missing.
+            RuntimeError: If the query execution fails.
         """
         if min_hours <= 0:
             raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
@@ -1351,30 +1381,33 @@ class BigQueryApi:
                 f"start_date_time must be <= end_date_time, got {start_date} > {end_date}"
             )
 
-        if not self.raw_measurements_table:
-            raise ValueError("Missing required config: BIGQUERY_RAW_EVENTS_TABLE.")
+        if not self.consolidated_data_table:
+            raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
 
         if not self.sites_table:
             raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
 
-        pm25_expr = "COALESCE(t1.pm2_5, t1.s1_pm2_5, t1.s2_pm2_5)"
         query = f"""
         SELECT
             DATE(t1.timestamp) AS day,
             t1.site_id,
-            ANY_VALUE(COALESCE(t2.display_name, t2.name, t1.site_id)) AS site_name,
-            ANY_VALUE(COALESCE(t2.approximate_latitude, t2.latitude)) AS site_latitude,
-            ANY_VALUE(COALESCE(t2.approximate_longitude, t2.longitude)) AS site_longitude,
-            AVG({pm25_expr}) AS pm25_mean,
-            MIN({pm25_expr}) AS pm25_min,
-            MAX({pm25_expr}) AS pm25_max,
+            ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
+            ANY_VALUE(
+                COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
+            ) AS site_latitude,
+            ANY_VALUE(
+                COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
+            ) AS site_longitude,
+            AVG(t1.pm2_5_calibrated_value) AS pm25_mean,
+            MIN(t1.pm2_5_calibrated_value) AS pm25_min,
+            MAX(t1.pm2_5_calibrated_value) AS pm25_max,
             COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS n_hours
-        FROM `{self.raw_measurements_table}` AS t1
+        FROM `{self.consolidated_data_table}` AS t1
         LEFT JOIN `{self.sites_table}` AS t2
             ON t1.site_id = t2.id
         WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
             AND t1.site_id IS NOT NULL
-            AND {pm25_expr} IS NOT NULL
+            AND t1.pm2_5_calibrated_value IS NOT NULL
         GROUP BY day, t1.site_id
         HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
         ORDER BY day, t1.site_id
@@ -1383,7 +1416,7 @@ class BigQueryApi:
         try:
             return self.execute_data_query(query=query)
         except Exception as e:
-            raise RuntimeError(f"Error fetching raw site forecast data: {e}")
+            raise RuntimeError(f"Error fetching consolidated site forecast data: {e}")
 
     def fetch_device_data_for_satellite_job(
         self,

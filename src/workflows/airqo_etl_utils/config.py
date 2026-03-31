@@ -893,6 +893,7 @@ class Config:
 
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
+    MONGO_BULK_WRITE_BATCH_SIZE = int(os.getenv("MONGO_BULK_WRITE_BATCH_SIZE", "500"))
     ENVIRONMENT = os.getenv("ENVIRONMENT")
     CALIBRATEBY = os.getenv("CALIBRATEBY", "country")
 

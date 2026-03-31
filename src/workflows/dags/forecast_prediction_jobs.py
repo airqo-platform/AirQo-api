@@ -16,12 +16,8 @@ from airqo_etl_utils.date import DateUtils
 logger = logging.getLogger("airflow.task")
 
 
-def _log_context(**context):
-    parts = [f"{key}={value}" for key, value in context.items() if value is not None]
-    return f" ({', '.join(parts)})" if parts else ""
-
-
 def _has_site_forecast_met_data(data) -> bool:
+    """Check if the enriched site forecast data contains any MET.no weather values."""
     if data is None or getattr(data, "empty", True):
         return False
 
@@ -38,6 +34,12 @@ def _has_site_forecast_met_data(data) -> bool:
     tags=["airqo", "hourly-forecast", "daily-forecast", "prediction-job"],
 )
 def make_forecasts():
+    """Run the hourly and daily PM2.5 forecast pipelines.
+    This DAG is the legacy device forecast flow. It fetches device-level
+    prediction history from BigQuery, engineers the full model feature set
+    explicitly in the DAG, then persists forecasts to both BigQuery and MongoDB.
+    
+    """
     bucket = Config.FORECAST_MODELS_BUCKET
     project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
@@ -187,284 +189,82 @@ make_forecasts()
     description="Daily site-level PM forecasting pipeline.",
 )
 def make_site_daily_forecasts():
+    """Run the site-level daily PM2.5 forecast pipeline.
+
+    Key characteristics:
+    - Uses site-level prediction data prepared inside ``ForecastModelTrainer``.
+    - Allows sparse recent data so newly deployed sites can still receive a
+      forecast.
+    - Saves the PM forecast to MongoDB first.
+    - Attempts MET.no enrichment afterwards and only applies the update when
+      weather fields are actually returned.
+    """    
     @task()
     def fetch_site_prediction_data(**kwargs):
+        """Fetch site-level prediction history for the configured lookback window."""
         execution_date = kwargs["dag_run"].execution_date
-        end_date = execution_date - timedelta(days=1)
         lookback_days = int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE or 30)
-        start_date = end_date - timedelta(days=lookback_days)
-        start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
-        end_date_str = DateUtils.date_to_str(end_date, str_format="%Y-%m-%d")
-
-        try:
-            return BigQueryApi().fetch_raw_site_data_for_forecast_jobs(
-                start_date_time=start_date_str,
-                end_date_time=end_date_str,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Failed to fetch site prediction data%s: %s",
-                _log_context(
-                    execution_date=execution_date,
-                    start_date=start_date_str,
-                    end_date=end_date_str,
-                    lookback_days=lookback_days,
-                ),
-                exc,
-            )
-            raise
+        return ForecastModelTrainer.fetch_site_prediction_data(
+            execution_date=execution_date,
+            lookback_days=lookback_days,
+        )
 
     @task()
     def generate_site_forecasts(data):
+        """Generate forward site-level daily forecasts without MET enrichment."""
         horizon = int(Config.DAILY_FORECAST_HORIZON or 7)
-        try:
-            forecasts = ForecastModelTrainer.generate_site_daily_forecasts(
-                data,
-                horizon=horizon,
-                include_met_no_weather=True,
-            )
+        return ForecastModelTrainer.generate_site_daily_forecasts(
+            data,
+            horizon=horizon,
+            include_met_no_weather=False,
+        )
 
-            if _has_site_forecast_met_data(forecasts):
-                logger.info(
-                    "Generated site daily forecasts with MET enrichment%s",
-                    _log_context(
-                        horizon=horizon,
-                        input_rows=len(data) if data is not None else None,
-                        output_rows=len(forecasts),
-                    ),
-                )
-            else:
-                logger.warning(
-                    "Generated site daily forecasts without MET data%s. "
-                    "The follow-up enrichment task will retry before persistence updates.",
-                    _log_context(
-                        horizon=horizon,
-                        input_rows=len(data) if data is not None else None,
-                        output_rows=len(forecasts),
-                        met_no_base_url=Config.MET_NO_BASE_URL,
-                    ),
-                )
-
-            return forecasts
-        except Exception as exc:
-            logger.exception(
-                "Failed to generate site daily forecasts%s: %s",
-                _log_context(horizon=horizon, input_rows=len(data) if data is not None else None),
-                exc,
-            )
-            raise
-
-    @task(
-        retries=3,
-        retry_delay=timedelta(minutes=10),
-        retry_exponential_backoff=True,
-        max_retry_delay=timedelta(minutes=60),
-    )
+    @task()
+    
     def enrich_site_forecasts_with_met(data):
-        try:
-            return ForecastModelTrainer._enrich_site_daily_forecasts_with_met_no_weather(
-                data,
-                fail_on_error=True,
-            )
-        except Exception as exc:
-            logger.exception(
-                "MET enrichment failed%s. Airflow will retry before fallback: %s",
-                _log_context(rows=len(data) if data is not None else None),
-                exc,
-            )
-            raise
+        """Enrich site-level daily forecasts with MET.no weather data."""
+        return ForecastModelTrainer._enrich_site_daily_forecasts_with_met_no_weather(
+            data,
+            fail_on_error=True,
+        )
+
+    @task()
+    def save_site_forecasts_to_mongodb(data):
+        """Save site-level daily forecasts to MongoDB."""
+        return ForecastModelTrainer.save_site_daily_forecasts_to_mongo(data)
 
     @task(trigger_rule=TriggerRule.ALL_DONE)
     def resolve_site_forecasts_for_met_updates(**kwargs):
+        """Resolve site-level daily forecasts for MET.no weather updates."""
         taskinstance = kwargs.get("ti") or kwargs.get("task_instance")
         enriched_data = taskinstance.xcom_pull(
             task_ids="enrich_site_forecasts_with_met"
         )
 
-        if enriched_data is not None:
+        if enriched_data is not None and _has_site_forecast_met_data(enriched_data):
             return enriched_data
 
         logger.warning(
-            "MET enrichment failed after retries. Skipping MET column updates."
+            "MET enrichment failed or returned no MET values. Keeping PM forecast already saved in MongoDB."
         )
         return None
 
     @task()
-    def save_site_forecasts_to_mongodb(data):
-        try:
-            details = ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
-            return {"target": "mongodb", "success": True, "details": details}
-        except Exception as exc:
-            logger.exception(
-                "Failed to save site forecasts to MongoDB%s: %s",
-                _log_context(rows=len(data) if data is not None else None),
-                exc,
-            )
-            return {"target": "mongodb", "success": False, "error": str(exc)}
+    def update_site_forecasts_met_in_mongodb(data):
+        """Update site-level daily forecasts in MongoDB with MET.no weather data."""
+        if data is None:
+            return {"updated": False, "reason": "met_unavailable"}
 
-    @task()
-    def save_site_forecasts_to_aws(data):
-        try:
-            details = ForecastModelTrainer._save_site_daily_forecasts_to_aws(data)
-            return {"target": "aws", "success": True, "details": details}
-        except Exception as exc:
-            logger.exception(
-                "Failed to save site forecasts to AWS%s: %s",
-                _log_context(rows=len(data) if data is not None else None),
-                exc,
-            )
-            return {"target": "aws", "success": False, "error": str(exc)}
-
-    @task()
-    def save_site_forecasts_to_bigquery(data):
-        try:
-            details = ForecastModelTrainer._save_site_daily_forecasts_to_bigquery(data)
-            return {"target": "bigquery", "success": True, "details": details}
-        except Exception as exc:
-            logger.exception(
-                "Failed to save site forecasts to BigQuery%s: %s",
-                _log_context(rows=len(data) if data is not None else None),
-                exc,
-            )
-            return {"target": "bigquery", "success": False, "error": str(exc)}
-
-    @task()
-    def validate_site_forecast_saves(mongodb_result, aws_result, bigquery_result):
-        results = [mongodb_result, aws_result, bigquery_result]
-        succeeded = [result["target"] for result in results if result.get("success")]
-        failed = [result for result in results if not result.get("success")]
-
-        for result in failed:
-            logger.error(
-                "Site forecast persistence target failed%s: %s",
-                _log_context(target=result.get("target")),
-                result.get("error"),
-            )
-
-        if not succeeded:
-            logger.error("Failed to save site forecasts to every configured target: %s", results)
-            raise RuntimeError(
-                f"Failed to save site forecasts to all targets: {results}"
-            )
-
-        if failed:
-            logger.warning(
-                "Site forecasts saved with partial success. Successful targets: %s. Failed targets: %s",
-                succeeded,
-                [result.get("target") for result in failed],
-            )
-
-        return {
-            "saved_to": succeeded,
-            "results": results,
-        }
-
-    @task()
-    def update_site_forecast_met_in_mongodb(data):
-        if not _has_site_forecast_met_data(data):
-            return {"target": "mongodb", "success": True, "skipped": True}
-
-        try:
-            details = ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
-            return {"target": "mongodb", "success": True, "details": details}
-        except Exception as exc:
-            logger.exception(
-                "Failed to update site forecast MET columns in MongoDB%s: %s",
-                _log_context(rows=len(data) if data is not None else None),
-                exc,
-            )
-            return {"target": "mongodb", "success": False, "error": str(exc)}
-
-    @task()
-    def update_site_forecast_met_in_aws(data):
-        if not _has_site_forecast_met_data(data):
-            return {"target": "aws", "success": True, "skipped": True}
-
-        try:
-            details = ForecastModelTrainer._save_site_daily_forecasts_to_aws(data)
-            return {"target": "aws", "success": True, "details": details}
-        except Exception as exc:
-            logger.exception(
-                "Failed to update site forecast MET columns in AWS%s: %s",
-                _log_context(rows=len(data) if data is not None else None),
-                exc,
-            )
-            return {"target": "aws", "success": False, "error": str(exc)}
-
-    @task()
-    def update_site_forecast_met_in_bigquery(data):
-        if not _has_site_forecast_met_data(data):
-            return {"target": "bigquery", "success": True, "skipped": True}
-
-        try:
-            details = ForecastModelTrainer._save_site_daily_forecasts_to_bigquery(data)
-            return {"target": "bigquery", "success": True, "details": details}
-        except Exception as exc:
-            logger.exception(
-                "Failed to update site forecast MET columns in BigQuery%s: %s",
-                _log_context(rows=len(data) if data is not None else None),
-                exc,
-            )
-            return {"target": "bigquery", "success": False, "error": str(exc)}
-
-    @task(trigger_rule=TriggerRule.ALL_DONE)
-    def summarize_site_forecast_met_updates(
-        mongodb_result, aws_result, bigquery_result
-    ):
-        results = [mongodb_result, aws_result, bigquery_result]
-        failed = [result for result in results if not result.get("success")]
-        updated = [
-            result["target"]
-            for result in results
-            if result.get("success") and not result.get("skipped")
-        ]
-        skipped = [
-            result["target"]
-            for result in results
-            if result.get("success") and result.get("skipped")
-        ]
-
-        for result in failed:
-            logger.error(
-                "Site forecast MET update target failed%s: %s",
-                _log_context(target=result.get("target")),
-                result.get("error"),
-            )
-
-        if updated:
-            logger.info("Updated MET columns for site forecasts in targets: %s", updated)
-
-        if skipped:
-            logger.info("Skipped MET column updates for targets: %s", skipped)
-
-        return {
-            "updated_targets": updated,
-            "skipped_targets": skipped,
-            "failed_targets": [result.get("target") for result in failed],
-        }
+        details = ForecastModelTrainer.save_site_daily_forecasts_to_mongo(data)
+        return {"updated": True, "details": details}
 
     site_data = fetch_site_prediction_data()
     site_forecasts = generate_site_forecasts(site_data)
-    mongodb_result = save_site_forecasts_to_mongodb(site_forecasts)
-    aws_result = save_site_forecasts_to_aws(site_forecasts)
-    bigquery_result = save_site_forecasts_to_bigquery(site_forecasts)
-    save_result = validate_site_forecast_saves(
-        mongodb_result, aws_result, bigquery_result
-    )
-
+    mongodb_save = save_site_forecasts_to_mongodb(site_forecasts)
     site_forecasts_with_met = enrich_site_forecasts_with_met(site_forecasts)
-    save_result >> site_forecasts_with_met
+    mongodb_save >> site_forecasts_with_met
     site_forecasts_for_met_updates = resolve_site_forecasts_for_met_updates()
     site_forecasts_with_met >> site_forecasts_for_met_updates
-    met_mongodb_result = update_site_forecast_met_in_mongodb(
-        site_forecasts_for_met_updates
-    )
-    met_aws_result = update_site_forecast_met_in_aws(site_forecasts_for_met_updates)
-    met_bigquery_result = update_site_forecast_met_in_bigquery(
-        site_forecasts_for_met_updates
-    )
-    summarize_site_forecast_met_updates(
-        met_mongodb_result, met_aws_result, met_bigquery_result
-    )
+    update_site_forecasts_met_in_mongodb(site_forecasts_for_met_updates)
 
 site_daily_forecast_prediction_dag = make_site_daily_forecasts()

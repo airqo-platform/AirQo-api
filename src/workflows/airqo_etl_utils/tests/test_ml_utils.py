@@ -1,7 +1,9 @@
+from datetime import datetime
 import pandas as pd
 import pytest
 from unittest.mock import MagicMock
 
+import airqo_etl_utils.bigquery_api as bigquery_api_module
 import airqo_etl_utils.ml_utils as ml_utils_module
 from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
@@ -343,6 +345,43 @@ def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
         assert forecasts[column].equals(rounded)
 
 
+def test_fetch_site_prediction_data_includes_execution_day_and_allows_sparse_rows(
+    monkeypatch,
+):
+    captured = {}
+
+    class DummyBigQueryApi:
+        def fetch_raw_site_data_for_forecast_jobs(self, **kwargs):
+            captured.update(kwargs)
+            return pd.DataFrame(
+                [
+                    {
+                        "day": pd.Timestamp("2026-03-31"),
+                        "site_id": "site-1",
+                        "site_name": "Makerere",
+                        "site_latitude": 0.333333,
+                        "site_longitude": 32.555555,
+                        "pm25_mean": 12.3,
+                        "pm25_min": 10.1,
+                        "pm25_max": 15.6,
+                        "n_hours": 3,
+                    }
+                ]
+            )
+
+    monkeypatch.setattr(bigquery_api_module, "BigQueryApi", DummyBigQueryApi)
+
+    result = ForecastModelTrainer.fetch_site_prediction_data(
+        execution_date=datetime(2026, 3, 31, 3, 0, 0),
+        lookback_days=30,
+    )
+
+    assert not result.empty
+    assert captured["start_date_time"] == "2026-03-01"
+    assert captured["end_date_time"] == "2026-03-31"
+    assert captured["min_hours"] == 1
+
+
 def test_generate_site_daily_forecasts_can_skip_met_enrichment(monkeypatch):
     synthetic_history = build_synthetic_site_forecast_history(
         num_sites=2,
@@ -667,6 +706,9 @@ def test_save_site_daily_forecasts_to_mongo_uses_bulk_write_and_cleans_old_rows(
     monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
     monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
     monkeypatch.setattr(
+        ml_utils_module.configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 500
+    )
+    monkeypatch.setattr(
         ml_utils_module.configuration,
         "MONGO_SITE_DAILY_FORECAST_COLLECTION",
         "site_daily_forecasts",
@@ -686,6 +728,82 @@ def test_save_site_daily_forecasts_to_mongo_uses_bulk_write_and_cleans_old_rows(
     assert mock_collection.delete_many.call_count == 1
     assert result["rows"] == 2
     assert result["deleted_rows"] == 3
+    assert result["bulk_batches"] == 1
+    assert result["bulk_batch_size"] == 500
+
+
+def test_save_site_daily_forecasts_to_mongo_batches_bulk_operations(monkeypatch):
+    forecasts = pd.DataFrame(
+        [
+            {
+                "site_name": "Makerere",
+                "site_id": "site-1",
+                "site_latitude": 0.3333333,
+                "site_longitude": 32.5555555,
+                "date": pd.Timestamp("2026-03-27").date(),
+                "pm2_5_mean": 12.3,
+                "pm2_5_min": 10.1,
+                "pm2_5_max": 15.6,
+                "pm2_5_low": 9.8,
+                "pm2_5_high": 16.5,
+                "forecast_confidence": 87.6,
+                "created_at": pd.Timestamp("2026-03-27T00:00:00Z"),
+            },
+            {
+                "site_name": "Makerere",
+                "site_id": "site-2",
+                "site_latitude": 0.4333333,
+                "site_longitude": 32.6555555,
+                "date": pd.Timestamp("2026-03-27").date(),
+                "pm2_5_mean": 13.3,
+                "pm2_5_min": 11.1,
+                "pm2_5_max": 16.6,
+                "pm2_5_low": 10.8,
+                "pm2_5_high": 17.5,
+                "forecast_confidence": 88.6,
+                "created_at": pd.Timestamp("2026-03-27T00:05:00Z"),
+            },
+        ]
+    )
+
+    mock_collection = MagicMock()
+    mock_collection.find.return_value = []
+
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+
+    mock_client_manager = MagicMock()
+    mock_client_manager.__enter__.return_value = mock_client
+    mock_client_manager.__exit__.return_value = None
+
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
+    monkeypatch.setattr(
+        ml_utils_module.configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 1
+    )
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "MONGO_SITE_DAILY_FORECAST_COLLECTION",
+        "site_daily_forecasts",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.pm,
+        "MongoClient",
+        lambda *args, **kwargs: mock_client_manager,
+    )
+
+    result = ForecastModelTrainer._save_site_daily_forecasts_to_mongo(forecasts)
+
+    assert mock_collection.bulk_write.call_count == 2
+    first_batch_operations = mock_collection.bulk_write.call_args_list[0].args[0]
+    second_batch_operations = mock_collection.bulk_write.call_args_list[1].args[0]
+    assert len(first_batch_operations) == 1
+    assert len(second_batch_operations) == 1
+    assert result["bulk_batches"] == 2
+    assert result["bulk_batch_size"] == 1
 
 
 def test_aggregate_met_no_hourly_payload_to_daily():

@@ -404,7 +404,13 @@ class WeatherDataUtils:
         if coordinate_buckets.empty:
             return pd.DataFrame()
 
-        client = HttpClient(timeout=20)
+        # Keep MET.no concurrency moderate and align the HTTP pool with the worker count.
+        max_workers = min(8, max(1, len(coordinate_buckets)))
+        client = HttpClient(
+            timeout=20,
+            pool_connections=max_workers,
+            pool_maxsize=max_workers,
+        )
 
         def fetch_bucket(row: pd.Series) -> pd.DataFrame:
             try:
@@ -429,7 +435,6 @@ class WeatherDataUtils:
                 return pd.DataFrame()
 
         hourly_frames: List[pd.DataFrame] = []
-        max_workers = min(16, max(1, len(coordinate_buckets)))
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             for frame in executor.map(
                 fetch_bucket,
