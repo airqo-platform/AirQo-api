@@ -30,8 +30,8 @@ spec:
   subroutes:
     - path: /website
       action:
-        pass: website        
-               
+        pass: website
+
 ---
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
@@ -47,7 +47,7 @@ spec:
   subroutes:
     - path: /docs
       action:
-        pass: docs      
+        pass: docs
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -81,10 +81,10 @@ spec:
       port: 8080
     - name: spatial
       service: airqo-stage-spatial-api-svc
-      port: 5000  
+      port: 5000
     - name: beacon
-      service: airqo-stage-beacon-api-svc 
-      port: 8000                 
+      service: airqo-stage-beacon-api-svc
+      port: 8000
   routes:
     - path: /
       action:
@@ -92,11 +92,11 @@ spec:
           url: https://staging-analytics.airqo.net
           code: 301
     - path: /workflows
-      route: pipeline/workflows 
+      route: pipeline/workflows
     - path: /docs
-      route: staging/docs  
+      route: staging/docs
     - path: /website
-      route: staging/website      
+      route: staging/website
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -113,7 +113,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/analytics
+    - path: ~ /api\/v[1-3]\/(?:public\/)?analytics
       action:
         proxy:
           upstream: analytics-api
@@ -162,4 +162,3 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-               
