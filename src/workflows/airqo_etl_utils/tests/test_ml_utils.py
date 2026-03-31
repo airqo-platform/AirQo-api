@@ -270,13 +270,13 @@ def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
                         "date": forecast_date,
                         "met_no_query_latitude": round(site_latitude, 2),
                         "met_no_query_longitude": round(site_longitude, 2),
-                        "met_no_air_pressure_at_sea_level": 1009.2,
-                        "met_no_air_temperature": 26.8,
-                        "met_no_cloud_area_fraction": 100.0,
-                        "met_no_precipitation_amount": 0.1,
-                        "met_no_relative_humidity": 84.0,
-                        "met_no_wind_from_direction": 210.4,
-                        "met_no_wind_speed": 4.9,
+                        "air_pressure_at_sea_level": 1009.2,
+                        "air_temperature": 26.8,
+                        "cloud_area_fraction": 100.0,
+                        "precipitation_amount": 0.1,
+                        "relative_humidity": 84.0,
+                        "wind_from_direction": 210.4,
+                        "wind_speed": 4.9,
                     }
                     for _, site in sites[
                         ["site_id", "site_latitude", "site_longitude"]
@@ -314,13 +314,13 @@ def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
         "pm2_5_low",
         "pm2_5_high",
         "forecast_confidence",
-        "met_no_air_pressure_at_sea_level",
-        "met_no_air_temperature",
-        "met_no_cloud_area_fraction",
-        "met_no_precipitation_amount",
-        "met_no_relative_humidity",
-        "met_no_wind_from_direction",
-        "met_no_wind_speed",
+        "air_pressure_at_sea_level",
+        "air_temperature",
+        "cloud_area_fraction",
+        "precipitation_amount",
+        "relative_humidity",
+        "wind_from_direction",
+        "wind_speed",
         "created_at",
     }.issubset(forecasts.columns)
     assert forecasts["forecast_confidence"].between(0, 100).all()
@@ -333,13 +333,13 @@ def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
         rounded = forecasts[column].round(6)
         assert forecasts[column].equals(rounded)
     for column in [
-        "met_no_air_pressure_at_sea_level",
-        "met_no_air_temperature",
-        "met_no_cloud_area_fraction",
-        "met_no_precipitation_amount",
-        "met_no_relative_humidity",
-        "met_no_wind_from_direction",
-        "met_no_wind_speed",
+        "air_pressure_at_sea_level",
+        "air_temperature",
+        "cloud_area_fraction",
+        "precipitation_amount",
+        "relative_humidity",
+        "wind_from_direction",
+        "wind_speed",
     ]:
         rounded = forecasts[column].round(1)
         assert forecasts[column].equals(rounded)
@@ -460,8 +460,8 @@ def test_generate_site_daily_forecasts_can_skip_met_enrichment(monkeypatch):
     assert len(forecasts) == 14
     assert forecasts["site_id"].nunique() == 2
     assert forecasts.groupby("site_id")["date"].nunique().eq(7).all()
-    assert "met_no_air_temperature" not in forecasts.columns
-    assert "met_no_wind_speed" not in forecasts.columns
+    assert "air_temperature" not in forecasts.columns
+    assert "wind_speed" not in forecasts.columns
 
 
 def test_enrich_site_daily_forecasts_with_met_falls_back_on_failure(monkeypatch):
@@ -500,13 +500,13 @@ def test_enrich_site_daily_forecasts_with_met_falls_back_on_failure(monkeypatch)
     assert list(enriched[expected_forecast_columns].columns) == expected_forecast_columns
     assert enriched[expected_forecast_columns].equals(forecasts)
     for column in [
-        "met_no_air_pressure_at_sea_level",
-        "met_no_air_temperature",
-        "met_no_cloud_area_fraction",
-        "met_no_precipitation_amount",
-        "met_no_relative_humidity",
-        "met_no_wind_from_direction",
-        "met_no_wind_speed",
+        "air_pressure_at_sea_level",
+        "air_temperature",
+        "cloud_area_fraction",
+        "precipitation_amount",
+        "relative_humidity",
+        "wind_from_direction",
+        "wind_speed",
     ]:
         assert column in enriched.columns
         assert enriched[column].isna().all()
@@ -623,15 +623,15 @@ def test_replace_site_daily_forecasts_prefers_updated_site_date_rows():
         ]
     )
     updates = existing.copy()
-    updates["met_no_air_temperature"] = 25.4
-    updates["met_no_wind_speed"] = 4.8
+    updates["air_temperature"] = 25.4
+    updates["wind_speed"] = 4.8
 
     replaced = ForecastModelTrainer._replace_site_daily_forecasts(existing, updates)
 
     assert len(replaced) == 1
     assert replaced.loc[0, "pm2_5_mean"] == 12.3
-    assert replaced.loc[0, "met_no_air_temperature"] == 25.4
-    assert replaced.loc[0, "met_no_wind_speed"] == 4.8
+    assert replaced.loc[0, "air_temperature"] == 25.4
+    assert replaced.loc[0, "wind_speed"] == 4.8
 
 
 def test_save_site_daily_forecasts_to_mongo_uses_bulk_write_and_cleans_old_rows(
@@ -861,5 +861,5 @@ def test_aggregate_met_no_hourly_payload_to_daily():
     assert daily.loc[0, "date"].isoformat() == "2026-03-23"
     assert daily.loc[0, "met_no_query_latitude"] == 6.62
     assert daily.loc[0, "met_no_query_longitude"] == 3.36
-    assert daily.loc[0, "met_no_air_temperature"] == 27.6
-    assert daily.loc[0, "met_no_precipitation_amount"] == 0.0
+    assert daily.loc[0, "air_temperature"] == 27.6
+    assert daily.loc[0, "precipitation_amount"] == 0.0

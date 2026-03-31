@@ -27,71 +27,85 @@
   {
     "name": "pm2_5_mean",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Predicted mean PM2.5 concentrations for the forecast date. Unit: µg/m³."
   },
   {
     "name": "pm2_5_min",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Predicted minimum PM2.5 concentrations for the forecast date. Unit: µg/m³."
   },
   {
     "name": "pm2_5_max",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Predicted maximum PM2.5 concentrations for the forecast date. Unit: µg/m³."
   },
   {
     "name": "pm2_5_low",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "q10 percentile lower bounds of the PM2.5 forecast confidence interval."
   },
   {
     "name": "pm2_5_high",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "q90 percentile upper bounds of the PM2.5 forecast confidence interval."
   },
   {
     "name": "forecast_confidence",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Confidence level of the PM2.5 forecast. Unit: %."
   },
   {
-    "name": "met_no_air_pressure_at_sea_level",
+    "name": "air_pressure_at_sea_level",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Mean daily air pressure reduced to sea level. Unit: hPa."
   },
   {
-    "name": "met_no_air_temperature",
+    "name": "air_temperature",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Mean daily near-surface air temperature. Unit: degrees Celsius."
   },
   {
-    "name": "met_no_cloud_area_fraction",
+    "name": "cloud_area_fraction",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Mean daily cloud cover fraction. Unit: %."
   },
   {
-    "name": "met_no_precipitation_amount",
+    "name": "precipitation_amount",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Total daily precipitation amount. Unit: mm."
   },
   {
-    "name": "met_no_relative_humidity",
+    "name": "relative_humidity",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Mean daily relative humidity. Unit: %."
   },
   {
-    "name": "met_no_wind_from_direction",
+    "name": "wind_from_direction",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Mean daily wind direction. Unit: degrees."
   },
   {
-    "name": "met_no_wind_speed",
+    "name": "wind_speed",
     "type": "FLOAT",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Mean daily wind speed. Unit: m/s."
   },
   {
     "name": "created_at",
     "type": "TIMESTAMP",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Timestamp when the forecast record was created."
   }
 ]

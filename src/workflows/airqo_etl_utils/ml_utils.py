@@ -2286,13 +2286,13 @@ class ForecastModelTrainer(BaseMlUtils):
                 "forecast_confidence": 1,
                 "site_latitude": 6,
                 "site_longitude": 6,
-                "met_no_air_pressure_at_sea_level": 1,
-                "met_no_air_temperature": 1,
-                "met_no_cloud_area_fraction": 1,
-                "met_no_precipitation_amount": 1,
-                "met_no_relative_humidity": 1,
-                "met_no_wind_from_direction": 1,
-                "met_no_wind_speed": 1,
+                "air_pressure_at_sea_level": 1,
+                "air_temperature": 1,
+                "cloud_area_fraction": 1,
+                "precipitation_amount": 1,
+                "relative_humidity": 1,
+                "wind_from_direction": 1,
+                "wind_speed": 1,
             },
         )
 
@@ -2430,7 +2430,7 @@ class ForecastModelTrainer(BaseMlUtils):
                             "date": str(row["date"]),
                         },
                         {
-                            "$set": {
+                        "$set": {
                                 "site_name": row.get("site_name"),
                                 "site_latitude": row.get("site_latitude"),
                                 "site_longitude": row.get("site_longitude"),
@@ -2440,25 +2440,21 @@ class ForecastModelTrainer(BaseMlUtils):
                                 "pm2_5_low": row.get("pm2_5_low"),
                                 "pm2_5_high": row.get("pm2_5_high"),
                                 "forecast_confidence": row.get("forecast_confidence"),
-                                "met_no_air_pressure_at_sea_level": row.get(
-                                    "met_no_air_pressure_at_sea_level"
+                                "air_pressure_at_sea_level": row.get(
+                                    "air_pressure_at_sea_level"
                                 ),
-                                "met_no_air_temperature": row.get(
-                                    "met_no_air_temperature"
+                                "air_temperature": row.get("air_temperature"),
+                                "cloud_area_fraction": row.get(
+                                    "cloud_area_fraction"
                                 ),
-                                "met_no_cloud_area_fraction": row.get(
-                                    "met_no_cloud_area_fraction"
+                                "precipitation_amount": row.get(
+                                    "precipitation_amount"
                                 ),
-                                "met_no_precipitation_amount": row.get(
-                                    "met_no_precipitation_amount"
+                                "relative_humidity": row.get("relative_humidity"),
+                                "wind_from_direction": row.get(
+                                    "wind_from_direction"
                                 ),
-                                "met_no_relative_humidity": row.get(
-                                    "met_no_relative_humidity"
-                                ),
-                                "met_no_wind_from_direction": row.get(
-                                    "met_no_wind_from_direction"
-                                ),
-                                "met_no_wind_speed": row.get("met_no_wind_speed"),
+                                "wind_speed": row.get("wind_speed"),
                                 "created_at": pd.Timestamp(
                                     row["created_at"]
                                 ).to_pydatetime(),

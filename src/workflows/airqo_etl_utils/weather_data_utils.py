@@ -304,15 +304,13 @@ class WeatherDataUtils:
                     "date": timestamp.date(),
                     "met_no_query_latitude": float(query_latitude),
                     "met_no_query_longitude": float(query_longitude),
-                    "met_no_air_pressure_at_sea_level": instant.get(
-                        "air_pressure_at_sea_level"
-                    ),
-                    "met_no_air_temperature": instant.get("air_temperature"),
-                    "met_no_cloud_area_fraction": instant.get("cloud_area_fraction"),
-                    "met_no_relative_humidity": instant.get("relative_humidity"),
-                    "met_no_wind_from_direction": instant.get("wind_from_direction"),
-                    "met_no_wind_speed": instant.get("wind_speed"),
-                    "met_no_precipitation_amount": precipitation_amount,
+                    "air_pressure_at_sea_level": instant.get("air_pressure_at_sea_level"),
+                    "air_temperature": instant.get("air_temperature"),
+                    "cloud_area_fraction": instant.get("cloud_area_fraction"),
+                    "relative_humidity": instant.get("relative_humidity"),
+                    "wind_from_direction": instant.get("wind_from_direction"),
+                    "wind_speed": instant.get("wind_speed"),
+                    "precipitation_amount": precipitation_amount,
                 }
             )
 
@@ -329,23 +327,23 @@ class WeatherDataUtils:
             hourly_data.groupby(keys, dropna=False)
             .agg(
                 {
-                    "met_no_air_pressure_at_sea_level": "mean",
-                    "met_no_air_temperature": "mean",
-                    "met_no_cloud_area_fraction": "mean",
-                    "met_no_relative_humidity": "mean",
-                    "met_no_wind_speed": "mean",
-                    "met_no_precipitation_amount": "sum",
+                    "air_pressure_at_sea_level": "mean",
+                    "air_temperature": "mean",
+                    "cloud_area_fraction": "mean",
+                    "relative_humidity": "mean",
+                    "wind_speed": "mean",
+                    "precipitation_amount": "sum",
                 }
             )
             .reset_index()
         )
 
         wind_direction = pd.to_numeric(
-            hourly_data["met_no_wind_from_direction"], errors="coerce"
+            hourly_data["wind_from_direction"], errors="coerce"
         )
         valid_wind = hourly_data.loc[wind_direction.notna(), keys].copy()
         if valid_wind.empty:
-            aggregated["met_no_wind_from_direction"] = np.nan
+            aggregated["wind_from_direction"] = np.nan
         else:
             valid_wind["sin_component"] = np.sin(np.deg2rad(wind_direction.dropna()))
             valid_wind["cos_component"] = np.cos(np.deg2rad(wind_direction.dropna()))
@@ -356,7 +354,7 @@ class WeatherDataUtils:
                 .mean()
                 .reset_index()
             )
-            circular_mean["met_no_wind_from_direction"] = np.mod(
+            circular_mean["wind_from_direction"] = np.mod(
                 np.rad2deg(
                     np.arctan2(
                         circular_mean["sin_component"],
@@ -366,7 +364,7 @@ class WeatherDataUtils:
                 360.0,
             )
             aggregated = aggregated.merge(
-                circular_mean[keys + ["met_no_wind_from_direction"]],
+                circular_mean[keys + ["wind_from_direction"]],
                 on=keys,
                 how="left",
             )
