@@ -863,11 +863,6 @@ class Config:
     MONGO_SITE_DAILY_FORECAST_COLLECTION = os.getenv(
         "MONGO_SITE_DAILY_FORECAST_COLLECTION", "site_7days_daily_forecasts"
     )
-    AWS_SITE_DAILY_FORECAST_BUCKET = os.getenv("AWS_SITE_DAILY_FORECAST_BUCKET")
-    AWS_SITE_DAILY_FORECAST_KEY = os.getenv(
-        "AWS_SITE_DAILY_FORECAST_KEY",
-        "site_daily_forecasts/site_daily_forecasts.csv",
-    )
     SATELLITE_TRAINING_SCOPE = os.getenv("SATELLITE_TRAINING_SCOPE")
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
