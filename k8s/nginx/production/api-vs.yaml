@@ -47,30 +47,6 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/data
-      action:
-        proxy:
-          upstream: data-mgt
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/data-proxy
-      action:
-        proxy:
-          upstream: data-proxy
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: ~ /api\/v[1-2]\/locate/map
-      action:
-        proxy:
-          upstream: locate
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
     - path: ~ /api\/v[1-3]\/(?:public\/)?analytics
       action:
         proxy:
