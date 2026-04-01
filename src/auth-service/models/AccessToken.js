@@ -162,24 +162,29 @@ AccessTokenSchema.statics = {
         );
       }
     } catch (err) {
-      logObject("the error", err); // Preserve custom logging
-      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-
-      // Handle specific duplicate key errors
+      // Duplicate key (E11000) means a token already exists for this client_id.
+      // This is an expected business case (retry, concurrent request, missing
+      // delete-before-create), not a code bug — log at warn so Slack is not
+      // flooded and return 409 so the caller can handle it.
       if (err.keyValue) {
-        let response = {};
+        const response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
+          response[key] = `the ${key} must be unique`;
         });
+        logger.warn(
+          `register access token conflict — duplicate key: ${JSON.stringify(err.keyValue)}`
+        );
         return {
           success: false,
-          message: "Internal Server Error",
+          message: "Access token already exists for this client",
           status: httpStatus.CONFLICT,
           errors: response,
         };
-      } else {
-        return createErrorResponse(err, "create", logger, "access token");
       }
+
+      logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+      return createErrorResponse(err, "create", logger, "access token");
     }
   },
 

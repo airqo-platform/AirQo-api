@@ -766,7 +766,6 @@ const dbProjections = {
     user_id: 1,
     token: 1,
     last_used_at: 1,
-    isActive: 1,
     expires: 1,
     expiredEmailSent: 1,
     name: 1,
@@ -774,6 +773,18 @@ const dbProjections = {
     scopes: 1,
     last_ip_address: 1,
     expires_in: 1,
+    // Computed token-level status derived from the expires date.
+    // "active"  — token exists and has not yet expired.
+    // "expired" — token's expiry date is in the past.
+    // This is distinct from client.isActive which reflects whether the
+    // OAuth client application itself has been activated by an admin.
+    token_status: {
+      $cond: {
+        if: { $lt: ["$expires", "$$NOW"] },
+        then: "expired",
+        else: "active",
+      },
+    },
     client: { $arrayElemAt: ["$client", 0] },
     user: { $arrayElemAt: ["$user", 0] },
   },
@@ -814,6 +825,11 @@ const dbProjections = {
       "client.client_secret": 0,
       "client.createdAt": 0,
       "client.updatedAt": 0,
+      // Exclude client.isActive from token responses. Token validity is expressed
+      // by the computed token_status field. client.isActive is the client
+      // application's admin-activation state — surfacing it alongside token data
+      // causes consumers to mistake it for the token's own active/expired status.
+      "client.isActive": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

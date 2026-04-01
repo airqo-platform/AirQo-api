@@ -869,6 +869,15 @@ const token = {
         )
         .toUpperCase();
 
+      // Remove any existing token for this client before creating a new one.
+      // The access_tokens collection enforces a unique index on client_id
+      // (one token per client). Without this, a second call for the same
+      // client hits E11000 from MongoDB. Deleting first makes the endpoint
+      // behave as a token refresh — the old token is immediately invalidated.
+      await AccessTokenModel(tenant.toLowerCase()).remove({
+        filter: { client_id: ObjectId(client_id) },
+      });
+
       let tokenCreationBody = Object.assign(
         { token, client_id: ObjectId(client_id) },
         request.body,
