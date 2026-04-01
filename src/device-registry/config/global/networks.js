@@ -38,14 +38,15 @@ const NETWORK_ADAPTERS = {
   },
 
   // ── AirGradient ────────────────────────────────────────────────────────────
-  // Public API — no auth required.
+  // API requires a "token" query parameter (device.access_code holds the token).
+  // Without it the API returns 422 {"errors":[{"param":"token","msg":"Invalid value"}]}.
   // api_code example: https://api.airgradient.com/public/api/v1/locations/174349/measures/current
   // serial_number "174349" lives in the URL path.
   airgradient: {
     api_code_is_full_url: true,
     api_base_url: "https://api.airgradient.com",
-    auth_type: "none",
-    auth_key_param: null,
+    auth_type: "query_param",
+    auth_key_param: "token",
     serial_number_regex: "/locations/([^/?#]+)/",
     online_check_via_feed: true,
     field_map: {
@@ -66,10 +67,14 @@ const NETWORK_ADAPTERS = {
   },
 
   // ── IQAir ──────────────────────────────────────────────────────────────────
-  // Authenticated API.  The device serial_number is the IQAir node ID which
-  // appears at the end of the device URL.
-  // URL example (from description field): https://device.iqair.com/v2/6796fa282f158127e2a1f9f3
-  // access_code on the device (or net_api_key on the Network doc) holds the key.
+  // Authenticated API (undocumented / reverse-engineered).
+  // The device serial_number is the hex node ID at the end of the device URL.
+  // URL example: https://device.iqair.com/v2/6796fa282f158127e2a1f9f3
+  // Auth: Bearer token in Authorization header, per-account, extracted from
+  // the IQAir Dashboard via browser DevTools. Stored in device.access_code.
+  // Response shape: { current: { p2, p1, co, tp, hm } } — no timestamp field.
+  // response_data_path instructs getDeviceFeed to drill into data.current
+  // before field-mapping.
   iqair: {
     api_code_is_full_url: true,
     api_base_url: "https://device.iqair.com",
@@ -78,15 +83,13 @@ const NETWORK_ADAPTERS = {
     auth_key_param: "Authorization",
     serial_number_regex: "/v2/([^/?#]+)$",
     online_check_via_feed: true,
+    response_data_path: "current",
     field_map: {
-      // IQAir field names will be confirmed once API access is established.
-      // Placeholder mappings based on known IQAir data schema:
-      "pm2.5": "pm2_5",
-      pm10: "pm10",
-      temperature: "temperature",
-      humidity: "humidity",
-      co2: "co2",
-      timestamp: "timestamp",
+      p2: "pm2_5",        // PM2.5 µg/m³
+      p1: "pm10",         // PM10 µg/m³
+      co: "co2",          // CO2 ppm  (NOT carbon monoxide — IQAir naming quirk)
+      tp: "temperature",  // Temperature °C
+      hm: "humidity",     // Relative humidity %
     },
   },
 
