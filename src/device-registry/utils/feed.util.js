@@ -470,7 +470,22 @@ const createFeed = {
         // "https://device.iqair.com/v2/") with no device ID appended. Sending
         // that directly would always 404; catch it early instead.
         if (adapter.serial_number_regex) {
-          const extracted = url.match(new RegExp(adapter.serial_number_regex));
+          let compiledRegex;
+          try {
+            compiledRegex = new RegExp(adapter.serial_number_regex);
+          } catch {
+            return {
+              success: false,
+              message:
+                `Adapter misconfiguration for network "${device.network}": ` +
+                `serial_number_regex "${adapter.serial_number_regex}" is not a valid regular expression`,
+              status: httpStatus.UNPROCESSABLE_ENTITY,
+            };
+          }
+          // Group 1 must exist in the regex — all adapter configs document this
+          // requirement (e.g. "/v2/([^/?#]+)$"). Guard against a misconfigured
+          // regex that has no capture group by checking explicitly.
+          const extracted = url.match(compiledRegex);
           if (!extracted || !extracted[1]) {
             // api_code is missing the device-specific segment. Try template fallback.
             if (adapter.api_base_url && adapter.api_url_template && device.serial_number) {
@@ -804,10 +819,23 @@ const createFeed = {
       // Some adapters (e.g. IQAir) nest measurements under a sub-key of the
       // response. response_data_path tells us which key to drill into before
       // applying the field map (e.g. "current" → response.current).
-      const rawPayload =
-        adapter.response_data_path && externalResult.data
-          ? externalResult.data[adapter.response_data_path]
-          : externalResult.data;
+      let rawPayload;
+      if (adapter.response_data_path) {
+        if (!externalResult.data || !(adapter.response_data_path in externalResult.data)) {
+          return {
+            status: httpStatus.BAD_GATEWAY,
+            data: {
+              success: false,
+              message:
+                `Upstream response for network "${device.network}" is missing expected key ` +
+                `"${adapter.response_data_path}" — check adapter configuration or vendor API changes`,
+            },
+          };
+        }
+        rawPayload = externalResult.data[adapter.response_data_path];
+      } else {
+        rawPayload = externalResult.data;
+      }
 
       const normalized = createFeed.normalizeExternalData(
         rawPayload,
