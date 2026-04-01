@@ -463,6 +463,35 @@ const createFeed = {
 
       if (adapter.api_code_is_full_url && device.api_code) {
         url = device.api_code;
+
+        // Guard: if the adapter provides a serial_number_regex, verify that the
+        // stored api_code actually contains a device-specific identifier. Some DB
+        // records have api_code set to the bare base/template path (e.g.
+        // "https://device.iqair.com/v2/") with no device ID appended. Sending
+        // that directly would always 404; catch it early instead.
+        if (adapter.serial_number_regex) {
+          const extracted = url.match(new RegExp(adapter.serial_number_regex));
+          if (!extracted || !extracted[1]) {
+            // api_code is missing the device-specific segment. Try template fallback.
+            if (adapter.api_base_url && adapter.api_url_template && device.serial_number) {
+              const path = adapter.api_url_template.replace(
+                "{serial_number}",
+                device.serial_number
+              );
+              url = adapter.api_base_url + path;
+            } else {
+              return {
+                success: false,
+                message:
+                  `Cannot construct request URL for network "${device.network}": ` +
+                  `api_code "${device.api_code}" does not contain a device-specific identifier ` +
+                  `(serial_number_regex "${adapter.serial_number_regex}" matched nothing) ` +
+                  `and no serial_number + template fallback is available`,
+                status: httpStatus.UNPROCESSABLE_ENTITY,
+              };
+            }
+          }
+        }
       } else if (adapter.api_base_url && adapter.api_url_template) {
         if (!device.serial_number) {
           return {
@@ -611,10 +640,17 @@ const createFeed = {
       const status = error.response?.status || httpStatus.BAD_GATEWAY;
       const deviceRef =
         device.serial_number || redactUrl(device.api_code) || String(device._id) || "unknown";
-      logger.error(
+      const logMsg =
         `fetchExternalDeviceData failed for device "${deviceRef}" ` +
-          `(network: ${device.network}${url ? `, url: ${redactUrl(url)}` : ""}): ${error.message}`
-      );
+        `(network: ${device.network}${url ? `, url: ${redactUrl(url)}` : ""}): ${error.message}`;
+      // 4xx responses are vendor-side issues (device not found, auth required, etc.)
+      // and map to "device is offline" — log at warn so Slack is not flooded.
+      // 5xx and network errors are infrastructure problems and stay at error.
+      if (status >= 400 && status < 500) {
+        logger.warn(logMsg);
+      } else {
+        logger.error(logMsg);
+      }
       return {
         success: false,
         message: `Upstream API error for network "${device.network}": ${error.message}`,
@@ -765,8 +801,16 @@ const createFeed = {
         };
       }
 
+      // Some adapters (e.g. IQAir) nest measurements under a sub-key of the
+      // response. response_data_path tells us which key to drill into before
+      // applying the field map (e.g. "current" → response.current).
+      const rawPayload =
+        adapter.response_data_path && externalResult.data
+          ? externalResult.data[adapter.response_data_path]
+          : externalResult.data;
+
       const normalized = createFeed.normalizeExternalData(
-        externalResult.data,
+        rawPayload,
         adapter.field_map
       );
 
