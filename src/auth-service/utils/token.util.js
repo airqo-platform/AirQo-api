@@ -874,8 +874,14 @@ const token = {
       // (one token per client). Without this, a second call for the same
       // client hits E11000 from MongoDB. Deleting first makes the endpoint
       // behave as a token refresh — the old token is immediately invalidated.
-      await AccessTokenModel(tenant.toLowerCase()).remove({
-        filter: { client_id: ObjectId(client_id) },
+      // Using deleteOne (Mongoose native) rather than the custom remove() static
+      // because remove() emits a logger.error when no document is found, which
+      // would fire on every first-time token creation (normal path).
+      // Note: delete-then-create is not fully atomic. In the unlikely event of
+      // two truly concurrent requests for the same client_id, one will win and
+      // the other will receive a 409 from the E11000 handler in register().
+      await AccessTokenModel(tenant.toLowerCase()).deleteOne({
+        client_id: ObjectId(client_id),
       });
 
       let tokenCreationBody = Object.assign(

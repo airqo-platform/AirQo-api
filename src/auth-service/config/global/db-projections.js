@@ -780,7 +780,7 @@ const dbProjections = {
     // OAuth client application itself has been activated by an admin.
     token_status: {
       $cond: {
-        if: { $lt: ["$expires", "$$NOW"] },
+        if: { $lte: ["$expires", "$$NOW"] },
         then: "expired",
         else: "active",
       },

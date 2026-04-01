@@ -162,21 +162,21 @@ AccessTokenSchema.statics = {
         );
       }
     } catch (err) {
-      // Duplicate key (E11000) means a token already exists for this client_id.
-      // This is an expected business case (retry, concurrent request, missing
-      // delete-before-create), not a code bug — log at warn so Slack is not
-      // flooded and return 409 so the caller can handle it.
-      if (err.keyValue) {
+      // Gate strictly on E11000 to avoid misclassifying other errors that may
+      // also carry keyValue. Log only field names — never values — to prevent
+      // token strings from leaking into logs or Slack.
+      if (err.code === 11000 && err.keyValue) {
+        const duplicateKeys = Object.keys(err.keyValue);
         const response = {};
-        Object.entries(err.keyValue).forEach(([key, value]) => {
+        duplicateKeys.forEach((key) => {
           response[key] = `the ${key} must be unique`;
         });
         logger.warn(
-          `register access token conflict — duplicate key: ${JSON.stringify(err.keyValue)}`
+          `register access token conflict — duplicate key(s): ${duplicateKeys.join(", ")}`
         );
         return {
           success: false,
-          message: "Access token already exists for this client",
+          message: "A token already exists for one of the provided unique fields",
           status: httpStatus.CONFLICT,
           errors: response,
         };
