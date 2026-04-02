@@ -193,14 +193,13 @@ def satellite_data_location_approximations():
 
     @task(provide_context=True, retries=1, retry_delay=timedelta(minutes=5))
     def load_to_bigquery(data):
-
-        storage_adapter = get_configured_storage()
-        if storage_adapter is None:
-            raise RuntimeError(
-                "No configured storage adapter available; set STORAGE_BACKEND or check configuration"
-            )
-        storage_adapter.load_dataframe(
-            dataframe=data, table=Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.SATELLITE, Frequency.HOURLY
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=data,
+            table=table,
         )
 
     data = approximate_locations()

@@ -2081,7 +2081,6 @@ class DataUtils:
         timestamp_columns = big_query_api.get_columns(
             table=table, column_type=[ColumnDataType.TIMESTAMP]
         )
-
         try:
             for col in timestamp_columns:
                 data[col] = pd.to_datetime(data[col], errors="coerce")

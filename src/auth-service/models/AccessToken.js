@@ -162,24 +162,29 @@ AccessTokenSchema.statics = {
         );
       }
     } catch (err) {
-      logObject("the error", err); // Preserve custom logging
-      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-
-      // Handle specific duplicate key errors
-      if (err.keyValue) {
-        let response = {};
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
+      // Gate strictly on E11000 to avoid misclassifying other errors that may
+      // also carry keyValue. Log only field names — never values — to prevent
+      // token strings from leaking into logs or Slack.
+      if (err.code === 11000 && err.keyValue) {
+        const duplicateKeys = Object.keys(err.keyValue);
+        const response = {};
+        duplicateKeys.forEach((key) => {
+          response[key] = `the ${key} must be unique`;
         });
+        logger.warn(
+          `register access token conflict — duplicate key(s): ${duplicateKeys.join(", ")}`
+        );
         return {
           success: false,
-          message: "Internal Server Error",
+          message: "A token already exists for one of the provided unique fields",
           status: httpStatus.CONFLICT,
           errors: response,
         };
-      } else {
-        return createErrorResponse(err, "create", logger, "access token");
       }
+
+      logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+      return createErrorResponse(err, "create", logger, "access token");
     }
   },
 
