@@ -2,7 +2,6 @@
 from airflow.decorators import dag, task
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta, timezone
-import logging
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration as Config
@@ -10,22 +9,7 @@ from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastModelTrainer, Forecast
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from airqo_etl_utils.constants import Frequency
-from airqo_etl_utils.constants import SITE_DAILY_FORECAST_MET_COLUMNS
 from airqo_etl_utils.date import DateUtils
-
-logger = logging.getLogger("airflow.task")
-
-
-def _has_site_forecast_met_data(data) -> bool:
-    """Check if the enriched site forecast data contains any MET.no weather values."""
-    if data is None or getattr(data, "empty", True):
-        return False
-
-    return any(
-        column in data.columns and data[column].notna().any()
-        for column in SITE_DAILY_FORECAST_MET_COLUMNS
-    )
-
 
 @dag(
     "AirQo-forecasting-job",
@@ -240,14 +224,9 @@ def make_site_daily_forecasts():
         enriched_data = taskinstance.xcom_pull(
             task_ids="enrich_site_forecasts_with_met"
         )
-
-        if enriched_data is not None and _has_site_forecast_met_data(enriched_data):
-            return enriched_data
-
-        logger.warning(
-            "MET enrichment failed or returned no MET values. Keeping PM forecast already saved in MongoDB."
+        return ForecastModelTrainer.resolve_site_forecasts_for_met_updates(
+            enriched_data
         )
-        return None
 
     @task()
     def update_site_forecasts_met_in_mongodb(data):

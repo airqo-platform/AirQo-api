@@ -514,6 +514,57 @@ def test_enrich_site_daily_forecasts_with_met_falls_back_on_failure(monkeypatch)
     assert "met_no_query_longitude" not in enriched.columns
 
 
+def test_resolve_site_forecasts_for_met_updates_returns_none_without_met_values():
+    forecasts = pd.DataFrame(
+        [
+            {
+                "site_id": "site-1",
+                "site_name": "Central",
+                "site_latitude": 0.3476,
+                "site_longitude": 32.5825,
+                "date": pd.Timestamp("2026-03-24").date(),
+                "pm2_5_mean": 18.4,
+                "pm2_5_min": 10.2,
+                "pm2_5_max": 24.1,
+                "pm2_5_low": 12.0,
+                "pm2_5_high": 22.8,
+                "forecast_confidence": 87.5,
+                "created_at": pd.Timestamp("2026-03-24T03:00:00Z"),
+            }
+        ]
+    )
+
+    resolved = ForecastModelTrainer.resolve_site_forecasts_for_met_updates(forecasts)
+
+    assert resolved is None
+
+
+def test_resolve_site_forecasts_for_met_updates_keeps_rows_with_met_values():
+    forecasts = pd.DataFrame(
+        [
+            {
+                "site_id": "site-1",
+                "site_name": "Central",
+                "site_latitude": 0.3476,
+                "site_longitude": 32.5825,
+                "date": pd.Timestamp("2026-03-24").date(),
+                "pm2_5_mean": 18.4,
+                "pm2_5_min": 10.2,
+                "pm2_5_max": 24.1,
+                "pm2_5_low": 12.0,
+                "pm2_5_high": 22.8,
+                "forecast_confidence": 87.5,
+                "air_temperature": 26.7,
+                "created_at": pd.Timestamp("2026-03-24T03:00:00Z"),
+            }
+        ]
+    )
+
+    resolved = ForecastModelTrainer.resolve_site_forecasts_for_met_updates(forecasts)
+
+    assert resolved is forecasts
+
+
 def test_prepare_site_daily_forecasts_for_persistence_adds_missing_met_columns():
     forecasts = pd.DataFrame(
         [
@@ -632,6 +683,132 @@ def test_replace_site_daily_forecasts_prefers_updated_site_date_rows():
     assert replaced.loc[0, "pm2_5_mean"] == 12.3
     assert replaced.loc[0, "air_temperature"] == 25.4
     assert replaced.loc[0, "wind_speed"] == 4.8
+
+
+def test_replace_site_daily_forecasts_preserves_existing_met_on_pm_only_updates():
+    existing = pd.DataFrame(
+        [
+            {
+                "site_name": "Makerere",
+                "site_id": "site-1",
+                "site_latitude": 0.3333333,
+                "site_longitude": 32.5555555,
+                "date": pd.Timestamp("2026-03-28").date(),
+                "pm2_5_mean": 12.3,
+                "pm2_5_min": 10.1,
+                "pm2_5_max": 15.6,
+                "pm2_5_low": 9.8,
+                "pm2_5_high": 16.5,
+                "forecast_confidence": 87.6,
+                "relative_humidity": 82.4,
+                "wind_speed": 4.8,
+                "created_at": pd.Timestamp("2026-03-27T00:00:00Z"),
+            }
+        ]
+    )
+    updates = pd.DataFrame(
+        [
+            {
+                "site_name": "Makerere",
+                "site_id": "site-1",
+                "site_latitude": 0.3333333,
+                "site_longitude": 32.5555555,
+                "date": pd.Timestamp("2026-03-28").date(),
+                "pm2_5_mean": 14.3,
+                "pm2_5_min": 11.1,
+                "pm2_5_max": 17.6,
+                "pm2_5_low": 10.8,
+                "pm2_5_high": 18.5,
+                "forecast_confidence": 89.6,
+                "created_at": pd.Timestamp("2026-03-27T06:00:00Z"),
+            }
+        ]
+    )
+
+    replaced = ForecastModelTrainer._replace_site_daily_forecasts(existing, updates)
+
+    assert len(replaced) == 1
+    assert replaced.loc[0, "pm2_5_mean"] == 14.3
+    assert replaced.loc[0, "relative_humidity"] == 82.4
+    assert replaced.loc[0, "wind_speed"] == 4.8
+
+
+def test_save_site_daily_forecasts_to_mongo_preserves_existing_met_on_pm_only_updates(
+    monkeypatch,
+):
+    forecasts = pd.DataFrame(
+        [
+            {
+                "site_name": "Makerere",
+                "site_id": "site-1",
+                "site_latitude": 0.3333333,
+                "site_longitude": 32.5555555,
+                "date": pd.Timestamp("2026-03-27").date(),
+                "pm2_5_mean": 12.3,
+                "pm2_5_min": 10.1,
+                "pm2_5_max": 15.6,
+                "pm2_5_low": 9.8,
+                "pm2_5_high": 16.5,
+                "forecast_confidence": 87.6,
+                "created_at": pd.Timestamp("2026-03-27T06:00:00Z"),
+            }
+        ]
+    )
+
+    existing_docs = [
+        {
+            "_id": 1,
+            "site_name": "Makerere",
+            "site_id": "site-1",
+            "site_latitude": 0.333333,
+            "site_longitude": 32.555555,
+            "date": "2026-03-27",
+            "pm2_5_mean": 11.3,
+            "pm2_5_min": 9.1,
+            "pm2_5_max": 14.6,
+            "pm2_5_low": 8.8,
+            "pm2_5_high": 15.5,
+            "forecast_confidence": 85.6,
+            "relative_humidity": 80.9,
+            "wind_speed": 4.6,
+            "created_at": pd.Timestamp("2026-03-27T00:00:00Z"),
+        }
+    ]
+
+    mock_collection = MagicMock()
+    mock_collection.find.side_effect = [existing_docs, existing_docs]
+
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+
+    mock_client_manager = MagicMock()
+    mock_client_manager.__enter__.return_value = mock_client
+    mock_client_manager.__exit__.return_value = None
+
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "MONGO_SITE_DAILY_FORECAST_COLLECTION",
+        "site_daily_forecasts",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.pm,
+        "MongoClient",
+        lambda *args, **kwargs: mock_client_manager,
+    )
+
+    ForecastModelTrainer._save_site_daily_forecasts_to_mongo(forecasts)
+
+    bulk_operations = mock_collection.bulk_write.call_args.args[0]
+    update_document = bulk_operations[0]._doc["$set"]
+
+    assert update_document["pm2_5_mean"] == 12.3
+    assert update_document["relative_humidity"] == 80.9
+    assert update_document["wind_speed"] == 4.6
 
 
 def test_save_site_daily_forecasts_to_mongo_uses_bulk_write_and_cleans_old_rows(

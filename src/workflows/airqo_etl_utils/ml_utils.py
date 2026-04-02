@@ -2270,6 +2270,33 @@ class ForecastModelTrainer(BaseMlUtils):
         return with_empty_met_columns(enriched)
 
     @staticmethod
+    def _has_site_forecast_met_data(data: pd.DataFrame) -> bool:
+        """Return True when site forecast output contains at least one MET value."""
+        if data is None or getattr(data, "empty", True):
+            return False
+
+        return any(
+            column in data.columns and data[column].notna().any()
+            for column in SITE_DAILY_FORECAST_MET_COLUMNS
+        )
+
+    @staticmethod
+    def resolve_site_forecasts_for_met_updates(
+        enriched_data: Optional[pd.DataFrame],
+    ) -> Optional[pd.DataFrame]:
+        """Keep enriched site forecasts only when MET fields were actually populated."""
+        if (
+            enriched_data is not None
+            and ForecastModelTrainer._has_site_forecast_met_data(enriched_data)
+        ):
+            return enriched_data
+
+        logger.warning(
+            "MET enrichment failed or returned no MET values. Keeping PM forecast already saved in MongoDB."
+        )
+        return None
+
+    @staticmethod
     def _prepare_site_daily_forecasts_for_persistence(
         data: pd.DataFrame,
     ) -> pd.DataFrame:
@@ -2306,6 +2333,69 @@ class ForecastModelTrainer(BaseMlUtils):
         return prepared
 
     @staticmethod
+    def _standardize_site_daily_forecasts_for_persistence(
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Normalize site forecast rows to one valid row per site/date key."""
+        standardized = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
+            data
+        )
+        if standardized.empty:
+            return standardized
+
+        standardized = standardized.dropna(subset=["site_id"]).copy()
+        standardized["site_id"] = standardized["site_id"].astype(str)
+        standardized["date"] = pd.to_datetime(
+            standardized["date"], errors="coerce"
+        ).dt.date
+        standardized["created_at"] = pd.to_datetime(
+            standardized["created_at"], utc=True, errors="coerce"
+        )
+        standardized = standardized.dropna(subset=["date", "created_at"])
+        standardized = standardized.sort_values(["site_id", "date", "created_at"])
+        standardized = standardized.drop_duplicates(
+            subset=["site_id", "date"], keep="last"
+        )
+        return standardized.reset_index(drop=True)
+
+    @staticmethod
+    def _merge_site_daily_forecast_updates(
+        existing: pd.DataFrame, updates: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Preserve stored MET values until an incoming update provides real ones."""
+        existing_standardized = (
+            ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
+                existing
+            )
+        )
+        updates_standardized = (
+            ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
+                updates
+            )
+        )
+
+        if updates_standardized.empty:
+            return updates_standardized
+        if existing_standardized.empty:
+            return updates_standardized
+
+        existing_indexed = existing_standardized.set_index(
+            ["site_id", "date"], drop=False
+        )
+        updates_indexed = updates_standardized.set_index(
+            ["site_id", "date"], drop=False
+        )
+        overlapping_existing = existing_indexed.reindex(updates_indexed.index)
+        merged_updates = updates_indexed.copy()
+
+        for column in SITE_DAILY_FORECAST_MET_COLUMNS:
+            merged_updates[column] = merged_updates[column].combine_first(
+                overlapping_existing[column]
+            )
+
+        return merged_updates.reset_index(drop=True)
+
+    @staticmethod
     def _retain_recent_site_forecasts(
         data: pd.DataFrame, max_rows_per_site: int = 14
     ) -> pd.DataFrame:
@@ -2315,18 +2405,8 @@ class ForecastModelTrainer(BaseMlUtils):
         if max_rows_per_site < 1:
             raise ValueError("max_rows_per_site must be greater than 0.")
 
-        retained = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
+        retained = ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
             data
-        )
-        retained = retained.dropna(subset=["site_id"]).copy()
-        retained["site_id"] = retained["site_id"].astype(str)
-        retained["date"] = pd.to_datetime(retained["date"], errors="coerce").dt.date
-        retained["created_at"] = pd.to_datetime(
-            retained["created_at"], utc=True, errors="coerce"
-        )
-        retained = retained.dropna(subset=["date", "created_at"])
-        retained = retained.sort_values(["site_id", "date", "created_at"]).drop_duplicates(
-            subset=["site_id", "date"], keep="last"
         )
         retained = retained.sort_values(
             ["site_id", "date", "created_at"],
@@ -2342,21 +2422,19 @@ class ForecastModelTrainer(BaseMlUtils):
         existing: pd.DataFrame, updates: pd.DataFrame
     ) -> pd.DataFrame:
         """Replace existing site/date rows with updated rows before retention is applied."""
-        existing_prepared = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
-            existing
+        existing_prepared = (
+            ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
+                existing
+            )
         )
-        updates_prepared = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
-            updates
+        updates_prepared = ForecastModelTrainer._merge_site_daily_forecast_updates(
+            existing, updates
         )
 
         if existing_prepared.empty:
             return updates_prepared
         if updates_prepared.empty:
             return existing_prepared
-
-        for frame in (existing_prepared, updates_prepared):
-            frame["site_id"] = frame["site_id"].astype(str)
-            frame["date"] = pd.to_datetime(frame["date"], errors="coerce").dt.date
 
         replacement_keys = (
             updates_prepared[["site_id", "date"]]
@@ -2410,9 +2488,7 @@ class ForecastModelTrainer(BaseMlUtils):
         if not configuration.MONGO_URI:
             raise ValueError("Missing required config: MONGO_URI.")
 
-        prepared = ForecastModelTrainer._retain_recent_site_forecasts(
-            data
-        )
+        prepared = ForecastModelTrainer._retain_recent_site_forecasts(data)
         collection_name = configuration.MONGO_SITE_DAILY_FORECAST_COLLECTION
 
         with pm.MongoClient(
@@ -2420,6 +2496,14 @@ class ForecastModelTrainer(BaseMlUtils):
         ) as client:
             mongo_db = client[configuration.MONGO_DATABASE_NAME]
             collection = mongo_db[collection_name]
+            site_ids = prepared["site_id"].dropna().astype(str).unique().tolist()
+
+            if site_ids:
+                existing_docs = list(collection.find({"site_id": {"$in": site_ids}}))
+                if existing_docs:
+                    prepared = ForecastModelTrainer._merge_site_daily_forecast_updates(
+                        pd.DataFrame(existing_docs), prepared
+                    )
 
             bulk_operations = []
             for row in prepared.to_dict(orient="records"):
@@ -2468,7 +2552,6 @@ class ForecastModelTrainer(BaseMlUtils):
                 collection.bulk_write(bulk_operations, ordered=False)
 
             deleted_rows = 0
-            site_ids = prepared["site_id"].dropna().astype(str).unique().tolist()
             if site_ids:
                 existing_docs = list(
                     collection.find(
