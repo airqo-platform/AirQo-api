@@ -716,7 +716,7 @@ const token = {
       } else {
         const client = await ClientModel("airqo")
           .findById(accessToken.client_id)
-          .select("isActive");
+          .select("isActive user_id");
 
         if (isEmpty(client) || (client && !client.isActive)) {
           logger.error(
@@ -732,6 +732,29 @@ const token = {
         if (isBlacklisted) {
           return createUnauthorizedResponse();
         } else {
+          // Fire-and-forget: record API token usage as user activity so that
+          // API-only users are not incorrectly flagged as inactive. Throttled
+          // to at most once per hour per user to avoid excessive writes.
+          if (client.user_id) {
+            const oneHourAgo = new Date(Date.now() - 3600000);
+            UserModel("airqo")
+              .updateOne(
+                {
+                  _id: client.user_id,
+                  verified: true,
+                  $or: [
+                    { lastActiveAt: { $exists: false } },
+                    { lastActiveAt: { $lt: oneHourAgo } },
+                  ],
+                },
+                { $set: { lastActiveAt: new Date(), isActive: true } },
+              )
+              .catch((err) =>
+                logger.error(
+                  `Non-critical: failed to touch user activity for client ${accessToken.client_id}: ${err.message}`,
+                ),
+              );
+          }
           winstonLogger.info("verify token", {
             token: token,
             service: "verify-token",
