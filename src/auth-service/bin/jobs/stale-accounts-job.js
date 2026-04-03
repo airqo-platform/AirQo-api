@@ -1,5 +1,7 @@
 const cron = require("node-cron");
 const UserModel = require("@models/User");
+const ClientModel = require("@models/Client");
+const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
 const { stringify } = require("@utils/common");
 const log4js = require("log4js");
@@ -99,7 +101,7 @@ const processStaleAccounts = async () => {
     }
 
     if (totalFlagged > 0) {
-      logger.error(
+      logger.warn(
         `🚨 STALE ACCOUNTS ALERT: ${totalFlagged} account(s) have been inactive for over ` +
           `${STALE_THRESHOLD_DAYS} days and are now scheduled for deletion on ` +
           `${gracePeriodEnd.toISOString().split("T")[0]}. ` +
@@ -111,6 +113,11 @@ const processStaleAccounts = async () => {
     // Pass 2 — Permanently delete accounts whose grace period has elapsed.
     // By this point they have been inactive for at least 1 year + 30 days and
     // showed no activity during the grace window.
+    //
+    // Neither ClientSchema nor AccessTokenSchema define pre-deleteMany hooks so
+    // Mongoose will not cascade deletions automatically. We perform explicit
+    // cascading: AccessTokens → Clients → Users, in that order, to avoid
+    // leaving orphaned documents behind.
     let totalDeleted = 0;
     while (true) {
       const toDelete = await UserModel(tenant)
@@ -121,20 +128,35 @@ const processStaleAccounts = async () => {
 
       if (toDelete.length === 0) break;
 
-      const ids = toDelete.map((u) => u._id);
+      const userIds = toDelete.map((u) => u._id);
       const emails = toDelete.map((u) => u.email).filter(Boolean);
-      await UserModel(tenant).deleteMany({ _id: { $in: ids } });
-      totalDeleted += ids.length;
+
+      // Resolve client IDs owned by these users so we can clean up tokens first.
+      const clients = await ClientModel(tenant)
+        .find({ user_id: { $in: userIds } })
+        .select("_id")
+        .lean();
+      const clientIds = clients.map((c) => c._id);
+
+      if (clientIds.length > 0) {
+        await AccessTokenModel(tenant).deleteMany({
+          client_id: { $in: clientIds },
+        });
+        await ClientModel(tenant).deleteMany({ _id: { $in: clientIds } });
+      }
+
+      await UserModel(tenant).deleteMany({ _id: { $in: userIds } });
+      totalDeleted += userIds.length;
 
       const preview = emails.slice(0, 5).join(", ");
       const overflow = emails.length > 5 ? ` and ${emails.length - 5} more` : "";
-      logger.error(
-        `🗑️ Deleted ${ids.length} stale account(s): ${preview}${overflow}`,
+      logger.warn(
+        `🗑️ Deleted ${userIds.length} stale account(s) and their associated clients/tokens: ${preview}${overflow}`,
       );
     }
 
     if (totalDeleted > 0) {
-      logger.error(
+      logger.warn(
         `🗑️ Stale-accounts-job: ${totalDeleted} account(s) permanently deleted this run.`,
       );
     }
