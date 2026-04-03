@@ -66,6 +66,10 @@ const processStaleAccounts = async () => {
       const staleUsers = await UserModel(tenant)
         .find({
           scheduled_for_deletion_at: { $exists: false },
+          // Only consider accounts older than the stale threshold. Without this
+          // guard, a newly-registered account with null lastLogin/lastActiveAt
+          // would match the activity conditions below and be incorrectly flagged.
+          createdAt: { $lt: staleThresholdDate },
           $and: [
             {
               $or: [
