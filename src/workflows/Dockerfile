@@ -35,7 +35,7 @@ RUN python -m pip uninstall -y \
         jupyter-client jupyter-lsp jupyter-core jupyter-events \
         ipykernel ipywidgets widgetsnbextension jupyterlab-widgets \
         nbconvert nbformat nbclient jupyterlab-pygments notebook-shim \
-        ipython debugpy nest-asyncio comm altair 2>/dev/null || true
+        debugpy nest-asyncio comm altair 2>/dev/null || true
 
 
 # Clean runtime base (NO build tools — only runtime libs)
