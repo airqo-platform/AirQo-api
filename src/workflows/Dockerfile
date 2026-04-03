@@ -33,9 +33,9 @@ RUN printf 'apache-airflow==2.6.3\n' > /home/airflow/pin.txt && \
 RUN python -m pip uninstall -y \
         notebook jupyterlab jupyterlab-server jupyter-server jupyter-server-terminals \
         jupyter-client jupyter-lsp jupyter-core jupyter-events \
-        ipykernel ipywidgets widgetsnbextension jupyterlab-widgets \
+        ipykernel widgetsnbextension jupyterlab-widgets \
         nbconvert nbformat nbclient jupyterlab-pygments notebook-shim \
-        debugpy nest-asyncio comm altair 2>/dev/null || true
+        debugpy nest-asyncio  2>/dev/null || true
 
 
 # Clean runtime base (NO build tools — only runtime libs)
