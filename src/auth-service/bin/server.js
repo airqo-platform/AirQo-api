@@ -98,6 +98,7 @@ const buildSessionStore = () => {
 const jobs = [
   "@bin/jobs/active-status-job",
   "@bin/jobs/inactive-users-job",
+  "@bin/jobs/stale-accounts-job",
   "@bin/jobs/token-expiration-job",
   "@bin/jobs/incomplete-profile-job",
   "@bin/jobs/preferences-log-job",

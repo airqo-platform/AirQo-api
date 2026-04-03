@@ -428,6 +428,16 @@ const UserSchema = new Schema(
     last_inactive_reminder_sent_at: {
       type: Date,
     },
+    // Set by stale-accounts-job when the account has been inactive for over a
+    // year. The account will be permanently deleted after this date unless
+    // activity is detected first (which unsets this field).
+    scheduled_for_deletion_at: {
+      type: Date,
+    },
+    // Timestamp of the last ops alert raised for this stale account.
+    stale_account_alert_sent_at: {
+      type: Date,
+    },
     cohorts: [
       {
         type: ObjectId,
@@ -644,6 +654,10 @@ UserSchema.index({ "group_roles.role": 1 });
 // sparse: true keeps existing users (lastActiveAt: null) out of the index so
 // active-status-job and inactive-users-job range queries stay efficient.
 UserSchema.index({ lastActiveAt: 1 }, { sparse: true });
+
+// Sparse index for stale-accounts-job deletion pass (only accounts that have
+// been flagged will appear in the index, keeping it small).
+UserSchema.index({ scheduled_for_deletion_at: 1 }, { sparse: true });
 
 UserSchema.index({ google_id: 1 }, { sparse: true });
 UserSchema.index({ github_id: 1 }, { sparse: true });
