@@ -17,7 +17,6 @@ const sdgCitySchema = new Schema(
     city_id: {
       type: String,
       required: [true, "city_id is required!"],
-      unique: true,
       trim: true,
     },
     name: {
@@ -65,6 +64,7 @@ const sdgCitySchema = new Schema(
   { timestamps: true }
 );
 
+sdgCitySchema.index({ city_id: 1, year: 1 }, { unique: true });
 sdgCitySchema.index({ country: 1, year: 1 });
 sdgCitySchema.index({ grid_id: 1 });
 
@@ -120,6 +120,17 @@ sdgCitySchema.statics.register = async function (args, next) {
       })
     );
   } catch (error) {
+    const isValidationError = error.name === "ValidationError";
+    const isDuplicateKeyError = error.code === 11000;
+
+    if (!isValidationError && !isDuplicateKeyError) {
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+
     logObject("error", error);
     let response = {
       message: "validation errors for some of the provided fields",

@@ -3,7 +3,7 @@ const constants = require("@config/constants");
 
 const tenantValidation = [
   query("tenant")
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .toLowerCase()
     .custom((value) => {
