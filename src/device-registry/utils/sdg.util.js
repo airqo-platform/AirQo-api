@@ -1,14 +1,14 @@
 const SdgCityModel = require("@models/SdgCity");
 const SdgPopulationWeightModel = require("@models/SdgPopulationWeight");
 const SiteModel = require("@models/Site");
-const { logObject, logText, HttpError } = require("@utils/shared");
+const GridModel = require("@models/Grid");
+const { HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- sdg-util`);
-const mongoose = require("mongoose");
-const XLSX = require("xlsx");
+const XLSX = require("@e965/xlsx");
 
 // ---------------------------------------------------------------------------
 // Expected flat template columns (case-insensitive header matching):
@@ -179,7 +179,7 @@ const sdg = {
       const { city_id } = request.params;
 
       // Look up the city to get its grid reference
-      const city = await SdgCityModel(tenant).findOne({ city_id });
+      const city = await SdgCityModel(tenant).findByCityId(city_id, next);
       if (!city) {
         next(
           new HttpError(
@@ -191,13 +191,32 @@ const sdg = {
         return;
       }
 
-      // Build the site filter using grid_id (MongoDB ref) or grids (name list)
-      let siteFilter = {};
+      // Build the site filter — Site.grids stores ObjectIds, so we always
+      // resolve to ObjectIds before querying.
+      let siteFilter = { status: "active" };
       if (city.grid_id) {
         siteFilter.grids = city.grid_id;
       } else if (!isEmpty(city.grids)) {
-        // Fall back to matching grids by name/code
-        siteFilter.grids = { $in: city.grids };
+        // city.grids is [String] (names/codes); resolve to ObjectIds via Grid
+        const gridDocs = await GridModel(tenant)
+          .find({
+            $or: [
+              { name: { $in: city.grids } },
+              { grid_codes: { $in: city.grids } },
+            ],
+          })
+          .select("_id")
+          .lean();
+        const gridIds = gridDocs.map((g) => g._id);
+        if (isEmpty(gridIds)) {
+          return {
+            success: true,
+            message: "No matching grids found for this city",
+            data: [],
+            status: httpStatus.OK,
+          };
+        }
+        siteFilter.grids = { $in: gridIds };
       } else {
         return {
           success: true,

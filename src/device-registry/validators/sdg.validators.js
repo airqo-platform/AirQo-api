@@ -74,6 +74,11 @@ const sdgValidations = {
       .optional()
       .isArray()
       .withMessage("grids must be an array of strings"),
+    body("grids.*")
+      .optional()
+      .isString()
+      .withMessage("each grid must be a string")
+      .trim(),
     body("monitoring_since")
       .optional()
       .isISO8601()

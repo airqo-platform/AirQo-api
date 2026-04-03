@@ -50,7 +50,7 @@ const sdgCitySchema = new Schema(
     },
     grid_id: {
       type: ObjectId,
-      ref: "grids",
+      ref: "grid",
       default: null,
     },
     monitoring_since: {
@@ -168,7 +168,7 @@ sdgCitySchema.statics.list = async function (
   }
 };
 
-sdgCitySchema.statics.findById = async function (city_id, next) {
+sdgCitySchema.statics.findByCityId = async function (city_id, next) {
   try {
     const city = await this.findOne({ city_id });
     return city;
