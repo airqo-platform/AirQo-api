@@ -82,7 +82,7 @@ const processStaleAccounts = async () => {
           ],
         })
         .limit(BATCH_SIZE)
-        .select("_id email")
+        .select("_id")
         .lean();
 
       if (staleUsers.length === 0) break;
@@ -123,13 +123,12 @@ const processStaleAccounts = async () => {
       const toDelete = await UserModel(tenant)
         .find({ scheduled_for_deletion_at: { $lte: now } })
         .limit(BATCH_SIZE)
-        .select("_id email")
+        .select("_id")
         .lean();
 
       if (toDelete.length === 0) break;
 
       const userIds = toDelete.map((u) => u._id);
-      const emails = toDelete.map((u) => u.email).filter(Boolean);
 
       // Resolve client IDs owned by these users so we can clean up tokens first.
       const clients = await ClientModel(tenant)
@@ -148,10 +147,8 @@ const processStaleAccounts = async () => {
       await UserModel(tenant).deleteMany({ _id: { $in: userIds } });
       totalDeleted += userIds.length;
 
-      const preview = emails.slice(0, 5).join(", ");
-      const overflow = emails.length > 5 ? ` and ${emails.length - 5} more` : "";
       logger.warn(
-        `🗑️ Deleted ${userIds.length} stale account(s) and their associated clients/tokens: ${preview}${overflow}`,
+        `🗑️ Deleted ${userIds.length} stale account(s) and ${clientIds.length} associated client(s)/token(s).`,
       );
     }
 
