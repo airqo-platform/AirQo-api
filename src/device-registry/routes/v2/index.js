@@ -158,6 +158,11 @@ const routes = [
   { path: "/transmit", route: "@routes/v2/transmit.routes", name: "transmit" },
 
   { path: "/health", route: "@routes/v2/health.routes", name: "health" },
+  {
+    path: "/sdg/pm-annual",
+    route: "@routes/v2/sdg.routes",
+    name: "sdg-pm-annual",
+  },
 ];
 
 logInfo(`Starting to load ${routes.length} routes...`);
