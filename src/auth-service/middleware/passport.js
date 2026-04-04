@@ -1446,7 +1446,7 @@ const enhancedJWTAuth = (req, res, next) => {
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
-              { message: callbackError.message },
+              { message: "Internal Server Error" },
             ),
           );
         }
