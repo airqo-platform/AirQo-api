@@ -1366,75 +1366,88 @@ const enhancedJWTAuth = (req, res, next) => {
       constants.JWT_SECRET,
       { ignoreExpiration: true },
       async (err, decoded) => {
-        if (err) {
-          return next(
-            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-              message: `Invalid token: ${err.message}`,
-            }),
-          );
-        }
-
-        const now = Math.floor(Date.now() / 1000);
-
-        if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
-          return next(
-            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-              message: "Your session has expired. Please log in again.",
-            }),
-          );
-        }
-
-        const tenantRaw =
-          req.query.tenant ||
-          req.body.tenant ||
-          constants.DEFAULT_TENANT ||
-          "airqo";
-        const tenant = String(tenantRaw).toLowerCase();
-
-        if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
-          try {
-            const userIdForRefresh = decoded.id || decoded._id;
-            const userForRefresh = await UserModel(tenant)
-              .findById(userIdForRefresh)
-              .lean();
-            if (userForRefresh) {
-              const tokenFactory = new AbstractTokenFactory(tenant);
-              const strategy =
-                userUtil._getEffectiveTokenStrategy(userForRefresh);
-              const newToken = await tokenFactory.createToken(
-                userForRefresh,
-                strategy,
-                { expiresIn: `${TOKEN_LIFE_SECONDS}s` },
-              );
-              res.set("X-Access-Token", `JWT ${newToken}`);
-              res.set("Access-Control-Expose-Headers", "X-Access-Token");
-            }
-          } catch (refreshError) {
-            logger.error(
-              `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
+        try {
+          if (err) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: `Invalid token: ${err.message}`,
+              }),
             );
           }
-        }
 
-        const userId = decoded.userId || decoded.id || decoded._id;
-        const user = await UserModel(tenant).findById(userId).lean();
+          const now = Math.floor(Date.now() / 1000);
 
-        const analyticsId =
-          typeof userId === "string" ? userId : userId?.toString?.();
-        if (analyticsId) {
-          req.analyticsUserId = analyticsId;
-        }
+          if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Your session has expired. Please log in again.",
+              }),
+            );
+          }
 
-        if (!user) {
-          return next(
-            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-              message: "User from token no longer exists",
-            }),
+          const tenantRaw =
+            req.query.tenant ||
+            req.body.tenant ||
+            constants.DEFAULT_TENANT ||
+            "airqo";
+          const tenant = String(tenantRaw).toLowerCase();
+
+          if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
+            try {
+              const userIdForRefresh = decoded.id || decoded._id;
+              const userForRefresh = await UserModel(tenant)
+                .findById(userIdForRefresh)
+                .lean();
+              if (userForRefresh) {
+                const tokenFactory = new AbstractTokenFactory(tenant);
+                const strategy =
+                  userUtil._getEffectiveTokenStrategy(userForRefresh);
+                const newToken = await tokenFactory.createToken(
+                  userForRefresh,
+                  strategy,
+                  { expiresIn: `${TOKEN_LIFE_SECONDS}s` },
+                );
+                res.set("X-Access-Token", `JWT ${newToken}`);
+                res.set("Access-Control-Expose-Headers", "X-Access-Token");
+              }
+            } catch (refreshError) {
+              logger.error(
+                `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
+              );
+            }
+          }
+
+          const userId = decoded.userId || decoded.id || decoded._id;
+          const user = await UserModel(tenant).findById(userId).lean();
+
+          const analyticsId =
+            typeof userId === "string" ? userId : userId?.toString?.();
+          if (analyticsId) {
+            req.analyticsUserId = analyticsId;
+          }
+
+          if (!user) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "User from token no longer exists",
+              }),
+            );
+          }
+
+          req.user = { ...decoded, ...user };
+          next();
+        } catch (callbackError) {
+          logger.error(
+            `🐛🐛 Enhanced JWT Auth callback Error: ${callbackError.message}`,
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: callbackError.message },
+            ),
           );
         }
-
-        req.user = { ...decoded, ...user };
-        next();
       },
     );
   } catch (error) {
