@@ -1207,6 +1207,60 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
+  accountScheduledForDeletion: ({ firstName, email, deletionDate }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We noticed that your AirQo account has been inactive for over a year.
+                                    <br /><br />
+                                    To keep our platform clean and secure, inactive accounts are periodically removed. Your account is scheduled for permanent deletion on <strong>${deletionDate}</strong>.
+                                    <br /><br />
+                                    <strong>If you'd like to keep your account, simply log in before that date — no other action is needed.</strong>
+                                    <br /><br />
+                                    <a href="${constants.LOGIN_PAGE}" target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Log In to Keep My Account
+                                            </div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    If you no longer need your account, you can safely ignore this email.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  accountDeletionFinalReminder: ({ firstName, email, deletionDate, reminderDays }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    <strong>This is a final reminder.</strong> Your AirQo account is scheduled for permanent deletion on <strong>${deletionDate}</strong> — that's in ${reminderDays} day${reminderDays === 1 ? "" : "s"}.
+                                    <br /><br />
+                                    Once deleted, your account and all associated data cannot be recovered.
+                                    <br /><br />
+                                    <strong>Log in now to cancel the deletion and keep your account active.</strong>
+                                    <br /><br />
+                                    <a href="${constants.LOGIN_PAGE}" target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #D92D20; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Log In to Cancel Deletion
+                                            </div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    If you no longer need your account, no action is required.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
   mobileAccountDeletionCode: ({ firstName, email, token }) => {
     const name = firstName;
     const content = ` <tr>
