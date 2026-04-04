@@ -198,7 +198,6 @@ const processStaleAccounts = async () => {
               email: user.email,
               deletionDate: deletionDateStr,
               reminderDays,
-              finalReminderDays: reminderDays,
               tenant,
             })
             .then(() => {
