@@ -248,7 +248,48 @@ const processStaleAccounts = async () => {
 
       if (toDelete.length === 0) break;
 
-      const userIds = toDelete.map((u) => u._id);
+      const candidateIds = toDelete.map((u) => u._id);
+
+      // Final safety re-check — Pass 0 ran at the top of this job execution.
+      // If any account showed activity between then and now (e.g. a login
+      // during the job's own run window), exclude it from deletion and clear
+      // its deletion markers so it is treated as a rescued account.
+      const lateActivity = await UserModel(tenant)
+        .find({
+          _id: { $in: candidateIds },
+          $or: [
+            { lastLogin: { $gte: staleThresholdDate } },
+            { lastActiveAt: { $gte: staleThresholdDate } },
+          ],
+        })
+        .select("_id")
+        .lean();
+
+      if (lateActivity.length > 0) {
+        const rescuedIds = lateActivity.map((u) => u._id);
+        await UserModel(tenant).updateMany(
+          { _id: { $in: rescuedIds } },
+          {
+            $unset: {
+              scheduled_for_deletion_at: "",
+              stale_account_alert_sent_at: "",
+              deletion_final_reminder_sent_at: "",
+            },
+          },
+        );
+        logger.info(
+          `Pass 2 late-rescue: spared ${rescuedIds.length} account(s) — activity detected after Pass 0.`,
+        );
+      }
+
+      const rescuedSet = new Set(
+        lateActivity.map((u) => u._id.toString()),
+      );
+      const userIds = candidateIds.filter(
+        (id) => !rescuedSet.has(id.toString()),
+      );
+
+      if (userIds.length === 0) continue;
 
       // Resolve client IDs owned by these users so we can clean up tokens first.
       const clients = await ClientModel(tenant)
