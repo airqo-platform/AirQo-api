@@ -1437,8 +1437,10 @@ const enhancedJWTAuth = (req, res, next) => {
           req.user = { ...decoded, ...user };
           next();
         } catch (callbackError) {
-          logger.error(
+          const authLogger = global.dedupLogger || logger;
+          authLogger.warn(
             `🐛🐛 Enhanced JWT Auth callback Error: ${callbackError.message}`,
+            callbackError.stack,
           );
           next(
             new HttpError(
