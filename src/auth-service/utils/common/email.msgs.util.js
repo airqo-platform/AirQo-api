@@ -1234,12 +1234,12 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
-  accountDeletionFinalReminder: ({ firstName, email, deletionDate }) => {
+  accountDeletionFinalReminder: ({ firstName, email, deletionDate, reminderDays }) => {
     const name = firstName;
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <strong>This is a final reminder.</strong> Your AirQo account is scheduled for permanent deletion on <strong>${deletionDate}</strong> — that's in 7 days.
+                                    <strong>This is a final reminder.</strong> Your AirQo account is scheduled for permanent deletion on <strong>${deletionDate}</strong> — that's in ${reminderDays} day${reminderDays === 1 ? "" : "s"}.
                                     <br /><br />
                                     Once deleted, your account and all associated data cannot be recovered.
                                     <br /><br />

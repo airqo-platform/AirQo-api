@@ -112,6 +112,7 @@ const processStaleAccounts = async () => {
               firstName: user.firstName,
               email: user.email,
               deletionDate: deletionDateStr,
+              tenant,
             })
             .catch((err) =>
               logger.warn(
@@ -178,19 +179,27 @@ const processStaleAccounts = async () => {
       const reminderPromises = [];
       const reminderIds = [];
       for (const user of nearingDeletion) {
-        const deletionDateStr = new Date(
-          user.scheduled_for_deletion_at,
-        ).toLocaleDateString("en-GB", {
+        const deletionDate = new Date(user.scheduled_for_deletion_at);
+        const deletionDateStr = deletionDate.toLocaleDateString("en-GB", {
           day: "numeric",
           month: "long",
           year: "numeric",
         });
+        // Compute actual days remaining so the email copy is accurate
+        // regardless of the job's cron cadence.
+        const reminderDays = Math.max(
+          1,
+          Math.ceil((deletionDate - now) / 86400000),
+        );
         reminderPromises.push(
           mailer
             .accountDeletionFinalReminder({
               firstName: user.firstName,
               email: user.email,
               deletionDate: deletionDateStr,
+              reminderDays,
+              finalReminderDays: reminderDays,
+              tenant,
             })
             .then(() => {
               reminderIds.push(user._id);

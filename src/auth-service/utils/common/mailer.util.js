@@ -788,7 +788,7 @@ const getEmailSubject = (functionName, params) => {
     sendPollutionAlert: params.subject || "AirQo Pollution Alert",
     inactiveAccount: "We've Missed You on AirQo!",
     accountScheduledForDeletion: "Your AirQo Account is Scheduled for Deletion",
-    accountDeletionFinalReminder: "Final Notice: Your AirQo Account Will Be Deleted in 7 Days",
+    accountDeletionFinalReminder: `Final Notice: Your AirQo Account Will Be Deleted in ${params.finalReminderDays || 7} Days`,
     sendAccountDeletionConfirmation: "Confirm Your AirQo Account Deletion",
     sendAccountDeletionSuccess: "Your AirQo Account Has Been Deleted",
     sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
