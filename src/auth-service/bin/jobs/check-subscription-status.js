@@ -82,4 +82,4 @@ global.cronJobs[jobName] = cron.schedule(schedule, checkSubscriptionStatuses, {
   timezone: "Africa/Nairobi",
 });
 
-module.exports = subscriptionUtils;
+module.exports = { checkSubscriptionStatuses };
