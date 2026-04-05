@@ -1,5 +1,5 @@
 // @utils/subscriptionRenewalUtils.js
-const paddleClient = require("@config/paddle");
+const { paddleClient, isPaddleConfigured } = require("@config/paddle");
 const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
 const constants = require("@config/constants");
@@ -18,6 +18,10 @@ const subscriptionRenewalUtils = {
    * Automatically renew subscriptions and process transactions
    */
   processAutomaticRenewal: async () => {
+    if (!isPaddleConfigured) {
+      logger.warn("Paddle not configured — skipping automatic renewal job");
+      return;
+    }
     try {
       const batchSize = 100;
       let skip = 0;

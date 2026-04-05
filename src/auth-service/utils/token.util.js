@@ -939,15 +939,20 @@ const token = {
             return createRateLimitResponse(tier);
           }
 
-          // Scope enforcement — evaluated against the original downstream URI
-          // Tokens with no scopes fall back to Free-tier defaults (backward compatible)
-          const effectiveScopes = resolveEffectiveScopes(accessToken.scopes, tier);
-          const scopeCheck = checkUriScope(endpoint, effectiveScopes);
-          if (scopeCheck.required && !scopeCheck.granted) {
-            logger.warn(
-              `Scope denied: client=${accessToken.client_id} tier=${tier} required=${scopeCheck.scope} uri=${endpoint}`
-            );
-            return createInsufficientScopeResponse(scopeCheck.scope, tier);
+          // Scope enforcement — only applied to tokens that have been explicitly
+          // assigned scopes (i.e. issued after the subscription system launched).
+          // Tokens with an empty scopes array are pre-subscription legacy tokens
+          // and must retain full access so existing API consumers are not broken.
+          const hasExplicitScopes =
+            Array.isArray(accessToken.scopes) && accessToken.scopes.length > 0;
+          if (hasExplicitScopes) {
+            const scopeCheck = checkUriScope(endpoint, accessToken.scopes);
+            if (scopeCheck.required && !scopeCheck.granted) {
+              logger.warn(
+                `Scope denied: client=${accessToken.client_id} tier=${tier} required=${scopeCheck.scope} uri=${endpoint}`
+              );
+              return createInsufficientScopeResponse(scopeCheck.scope, tier);
+            }
           }
 
           // Fire-and-forget: record API token usage as user activity so that
