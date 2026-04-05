@@ -49,6 +49,17 @@ const main = async () => {
     } else {
       console.log("🚫 Skipping Kafka in development mode");
     }
+
+    // Subscription background jobs — production only.
+    // Each job has an internal isPaddleConfigured guard so it stays dormant
+    // until valid Paddle credentials are supplied, giving a second kill switch
+    // for phased rollout on the existing user base.
+    if (isProduction()) {
+      require("@bin/jobs/check-subscription-status");
+      require("@bin/jobs/subscription-renewal-job");
+      logger.info("✅ Subscription background jobs registered");
+    }
+
     createServer();
   } catch (error) {
     logger.error(`🐛🐛 error in the main() -- ${stringify(error)}`);

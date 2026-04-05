@@ -221,6 +221,12 @@ const authRoutes = [
     description: "OAuth scope management",
   },
   {
+    path: "/scope-rules",
+    route: "@routes/v2/scope-rules.routes",
+    name: "scope-rules",
+    description: "URI-to-scope enforcement rules (managed via API)",
+  },
+  {
     path: "/departments",
     route: "@routes/v2/departments.routes",
     name: "departments",
@@ -305,16 +311,8 @@ const sortedRoutes = authRoutes.sort((a, b) => {
   return 0; // maintain original order for others
 });
 
-// Load all routes in the correct order
-sortedRoutes.forEach(({ path, route, name }) => {
-  if (safeMountRoute(path, route, name)) {
-    routeStatus.loaded.push({ name, path, route });
-  } else {
-    routeStatus.failed.push({ name, path, route });
-  }
-});
-
-// Auth service health check endpoint - mounted before catch-all
+// Auth service health check — registered before any sub-routers so the
+// users catch-all "/:user_id" cannot swallow /health or /routes requests.
 router.get("/health", (req, res) => {
   const totalRoutes = authRoutes.length;
   const loadedCount = routeStatus.loaded.length;
@@ -374,6 +372,16 @@ router.get("/routes", (req, res) => {
       };
     }),
   });
+});
+
+// Load all routes in the correct order — after /health and /routes are
+// registered so the users catch-all cannot swallow those paths.
+sortedRoutes.forEach(({ path, route, name }) => {
+  if (safeMountRoute(path, route, name)) {
+    routeStatus.loaded.push({ name, path, route });
+  } else {
+    routeStatus.failed.push({ name, path, route });
+  }
 });
 
 // Helper function to categorize routes
