@@ -449,6 +449,37 @@ const UserSchema = new Schema(
         ref: "cohort", // This ref is for documentation; not enforced across DBs
       },
     ],
+    grids: [
+      {
+        type: ObjectId,
+        ref: "grid",
+      },
+    ],
+    devices: [
+      {
+        type: ObjectId,
+        ref: "device",
+      },
+    ],
+    sites: [
+      {
+        type: ObjectId,
+        ref: "site",
+      },
+    ],
+    subscriptionTier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+      default: "Free",
+    },
+    apiRateLimits: {
+      hourlyLimit: { type: Number, default: 100 },
+      dailyLimit: { type: Number, default: 1000 },
+      monthlyLimit: { type: Number, default: 10000 },
+    },
+    lastRateLimitCheck: {
+      type: Date,
+    },
   },
   { timestamps: true },
 );
