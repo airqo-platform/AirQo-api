@@ -125,6 +125,94 @@ const checkTokenVerifyRateLimit = async (userId, tier) => {
   }
 };
 
+/**
+ * URI → required scope mapping.
+ * Rules are evaluated in order — first match wins.
+ * Patterns are matched against the Nginx x-original-uri header value.
+ *
+ * Backward compatibility: tokens with NO scopes are treated as Free tier
+ * (see resolveEffectiveScopes below), so existing users are unaffected.
+ *
+ * This table is the single source of truth for scope enforcement.
+ * Add new entries here when new protected resources are introduced.
+ */
+const URI_SCOPE_RULES = [
+  // Premium endpoints — check before broader patterns
+  { pattern: /\/devices\/forecasts/i,   scope: "read:forecasts" },
+  { pattern: /\/forecasts/i,            scope: "read:forecasts" },
+  { pattern: /\/insights/i,             scope: "read:insights" },
+
+  // Standard endpoints
+  { pattern: /\/devices\/measurements/i, scope: "read:historical_measurements" },
+
+  // Free endpoints
+  { pattern: /\/devices\/events/i,      scope: "read:recent_measurements" },
+  { pattern: /\/devices\/readings/i,    scope: "read:recent_measurements" },
+  { pattern: /\/devices\/feeds/i,       scope: "read:recent_measurements" },
+  { pattern: /\/devices\/sites/i,       scope: "read:sites" },
+  { pattern: /\/devices\/cohorts/i,     scope: "read:cohorts" },
+  { pattern: /\/devices\/grids/i,       scope: "read:grids" },
+  // /devices catch-all — must come after all sub-path rules above
+  { pattern: /\/devices/i,              scope: "read:devices" },
+];
+
+// Canonical tier → scope set (same as in transaction.util.js)
+const _TIER_SCOPE_MAP = {
+  Free:     ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids"],
+  Standard: ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids", "read:historical_measurements"],
+  Premium:  ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids", "read:historical_measurements", "read:forecasts", "read:insights"],
+};
+
+/**
+ * Resolve the effective scopes for a token.
+ * If the token has explicit scopes, use them.
+ * If empty (existing tokens pre-subscription-system), fall back to the
+ * tier's default scope set — this preserves backward compatibility for
+ * all currently active tokens.
+ */
+const resolveEffectiveScopes = (tokenScopes, tier) => {
+  if (Array.isArray(tokenScopes) && tokenScopes.length > 0) {
+    return tokenScopes;
+  }
+  return _TIER_SCOPE_MAP[tier] || _TIER_SCOPE_MAP.Free;
+};
+
+/**
+ * Check whether the given URI requires a scope and whether the token grants it.
+ * Returns { required: true/false, granted: true/false, scope: string|null }.
+ * Never throws.
+ */
+const checkUriScope = (uri, effectiveScopes) => {
+  if (!uri) return { required: false, granted: true, scope: null };
+  try {
+    for (const rule of URI_SCOPE_RULES) {
+      if (rule.pattern.test(uri)) {
+        return {
+          required: true,
+          granted: effectiveScopes.includes(rule.scope),
+          scope: rule.scope,
+        };
+      }
+    }
+  } catch (err) {
+    logger.error(`Non-critical: scope check failed for uri=${uri}: ${err.message}`);
+  }
+  // No matching rule — allow through (non-data endpoint)
+  return { required: false, granted: true, scope: null };
+};
+
+const createInsufficientScopeResponse = (requiredScope, tier) => ({
+  success: false,
+  message: "Insufficient scope for this resource",
+  status: httpStatus.FORBIDDEN,
+  errors: {
+    message:
+      tier === "Free"
+        ? `This resource requires the '${requiredScope}' scope. Upgrade your subscription to access it.`
+        : `Your subscription does not include the '${requiredScope}' scope.`,
+  },
+});
+
 const trampoline = (fn) => {
   while (typeof fn === "function") {
     fn = fn();
@@ -763,7 +851,7 @@ const token = {
       };
       const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
-        .select("client_id token tier");
+        .select("client_id token tier scopes");
 
       if (isEmpty(accessToken)) {
         return createUnauthorizedResponse();
@@ -803,6 +891,17 @@ const token = {
               `Rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
             );
             return createRateLimitResponse(tier);
+          }
+
+          // Scope enforcement — evaluated against the original downstream URI
+          // Tokens with no scopes fall back to Free-tier defaults (backward compatible)
+          const effectiveScopes = resolveEffectiveScopes(accessToken.scopes, tier);
+          const scopeCheck = checkUriScope(endpoint, effectiveScopes);
+          if (scopeCheck.required && !scopeCheck.granted) {
+            logger.warn(
+              `Scope denied: client=${accessToken.client_id} tier=${tier} required=${scopeCheck.scope} uri=${endpoint}`
+            );
+            return createInsufficientScopeResponse(scopeCheck.scope, tier);
           }
 
           // Fire-and-forget: record API token usage as user activity so that
