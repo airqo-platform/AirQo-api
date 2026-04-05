@@ -204,20 +204,6 @@ const _TIER_SCOPE_MAP = {
 };
 
 /**
- * Resolve the effective scopes for a token.
- * If the token has explicit scopes, use them.
- * If empty (existing tokens pre-subscription-system), fall back to the
- * tier's default scope set — this preserves backward compatibility for
- * all currently active tokens.
- */
-const resolveEffectiveScopes = (tokenScopes, tier) => {
-  if (Array.isArray(tokenScopes) && tokenScopes.length > 0) {
-    return tokenScopes;
-  }
-  return _TIER_SCOPE_MAP[tier] || _TIER_SCOPE_MAP.Free;
-};
-
-/**
  * Check whether the given URI requires a scope and whether the token grants it.
  * Returns { required: true/false, granted: true/false, scope: string|null }.
  * Never throws.
@@ -924,34 +910,52 @@ const token = {
         if (isBlacklisted) {
           return createUnauthorizedResponse();
         } else {
-          // Tier-based hourly rate limiting — enforced at the gateway level
-          // so all downstream microservices are covered automatically.
-          // Fails open if Redis and memory store both error.
           const tier = accessToken.tier || "Free";
-          const withinLimit = await checkTokenVerifyRateLimit(
-            client.user_id || accessToken.client_id,
-            tier
-          );
-          if (!withinLimit) {
-            logger.warn(
-              `Rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
-            );
-            return createRateLimitResponse(tier);
+
+          // Tier-based hourly rate limiting.
+          // Controlled by ENABLE_TOKEN_RATE_LIMITING (default: false).
+          // Set to true per-environment only when ready to enforce.
+          if (constants.ENABLE_TOKEN_RATE_LIMITING) {
+            try {
+              const withinLimit = await checkTokenVerifyRateLimit(
+                client.user_id || accessToken.client_id,
+                tier
+              );
+              if (!withinLimit) {
+                logger.warn(
+                  `Rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
+                );
+                return createRateLimitResponse(tier);
+              }
+            } catch (rateLimitErr) {
+              // Fail open — never block a request due to rate limiter error
+              logger.error(
+                `Non-critical: rate limit check failed, allowing through: ${rateLimitErr.message}`
+              );
+            }
           }
 
-          // Scope enforcement — only applied to tokens that have been explicitly
-          // assigned scopes (i.e. issued after the subscription system launched).
-          // Tokens with an empty scopes array are pre-subscription legacy tokens
-          // and must retain full access so existing API consumers are not broken.
-          const hasExplicitScopes =
-            Array.isArray(accessToken.scopes) && accessToken.scopes.length > 0;
-          if (hasExplicitScopes) {
-            const scopeCheck = checkUriScope(endpoint, accessToken.scopes);
-            if (scopeCheck.required && !scopeCheck.granted) {
-              logger.warn(
-                `Scope denied: client=${accessToken.client_id} tier=${tier} required=${scopeCheck.scope} uri=${endpoint}`
+          // Scope enforcement — only for tokens with explicit scopes AND only
+          // when ENABLE_SCOPE_ENFORCEMENT is true (default: false).
+          // Legacy tokens (empty scopes) are always allowed through regardless.
+          if (
+            constants.ENABLE_SCOPE_ENFORCEMENT &&
+            Array.isArray(accessToken.scopes) &&
+            accessToken.scopes.length > 0
+          ) {
+            try {
+              const scopeCheck = checkUriScope(endpoint, accessToken.scopes);
+              if (scopeCheck.required && !scopeCheck.granted) {
+                logger.warn(
+                  `Scope denied: client=${accessToken.client_id} tier=${tier} required=${scopeCheck.scope} uri=${endpoint}`
+                );
+                return createInsufficientScopeResponse(scopeCheck.scope, tier);
+              }
+            } catch (scopeErr) {
+              // Fail open — never block a request due to scope check error
+              logger.error(
+                `Non-critical: scope check failed, allowing through: ${scopeErr.message}`
               );
-              return createInsufficientScopeResponse(scopeCheck.scope, tier);
             }
           }
 
