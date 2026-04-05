@@ -55,12 +55,12 @@ const validateCreate = [
 ];
 
 const validateUpdate = [
-  (req, res, next) => {
+  body().custom((_, { req }) => {
     if (!Object.keys(req.body).length) {
-      return res.status(400).json({ errors: "request body is empty" });
+      throw new Error("request body is empty");
     }
-    next();
-  },
+    return true;
+  }),
   validateTenant,
   validateRuleId,
   [
@@ -76,6 +76,7 @@ const validateUpdate = [
 router.post(
   "/seed-defaults",
   validateTenant,
+  validate,
   enhancedJWTAuth,
   scopeRuleController.seedDefaults
 );
@@ -83,6 +84,7 @@ router.post(
 router.get(
   "/",
   validateTenant,
+  validate,
   enhancedJWTAuth,
   pagination(),
   scopeRuleController.list
