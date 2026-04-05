@@ -34,7 +34,7 @@ const HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify";
  *
  * Expects the token in `req.body.captchaToken`.
  * Returns 400 when the token is missing, 403 when verification fails.
- * Skips silently when HCAPTCHA_SECRET_KEY is not configured (dev / pre-launch).
+ * Skips verification and logs a warning when HCAPTCHA_SECRET_KEY is not configured (dev / pre-launch).
  */
 async function verifyCaptcha(req, res, next) {
   const secret = constants.HCAPTCHA_SECRET_KEY;
@@ -100,6 +100,10 @@ function verifyToken(secret, token, remoteip) {
           reject(new Error("Failed to parse hCaptcha response"));
         }
       });
+    });
+
+    req.setTimeout(5000, () => {
+      req.destroy(new Error("hCaptcha verification request timed out"));
     });
 
     req.on("error", reject);
