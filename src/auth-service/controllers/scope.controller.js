@@ -77,4 +77,9 @@ module.exports = {
   list: createScopeController(scopeUtil.listScope, "scopes"),
   delete: createScopeController(scopeUtil.deleteScope, "deleted_scope"),
   update: createScopeController(scopeUtil.updateScope, "updated_scope"),
+  bulkCreate: createScopeController(scopeUtil.bulkCreateScopes, "scopes"),
+  initializeDefaults: createScopeController(
+    scopeUtil.initializeDefaultScopes,
+    "scopes"
+  ),
 };

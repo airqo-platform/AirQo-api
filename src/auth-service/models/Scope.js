@@ -25,9 +25,34 @@ const ScopeSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
-      required: [true, "network ID is required"],
     },
     description: { type: String, required: [true, "description is required"] },
+    tier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+    },
+    resource_type: {
+      type: String,
+      enum: [
+        "measurements",
+        "devices",
+        "sites",
+        "cohorts",
+        "grids",
+        "forecasts",
+        "insights",
+      ],
+    },
+    access_type: {
+      type: String,
+      enum: ["read", "write"],
+      default: "read",
+    },
+    data_timeframe: {
+      type: String,
+      enum: ["recent", "historical", "all"],
+      default: "all",
+    },
   },
   { timestamps: true }
 );
@@ -151,6 +176,42 @@ ScopeSchema.statics = {
       }
     } catch (error) {
       return createErrorResponse(error, "update", logger, "scope");
+    }
+  },
+
+  async bulkInsert(scopesArray, next) {
+    try {
+      let created = 0;
+      let updated = 0;
+      const results = [];
+
+      for (const scopeData of scopesArray) {
+        const existing = await this.findOne({ scope: scopeData.scope });
+        if (existing) {
+          const updated_doc = await this.findOneAndUpdate(
+            { scope: scopeData.scope },
+            scopeData,
+            { new: true }
+          );
+          results.push(updated_doc);
+          updated++;
+        } else {
+          const created_doc = await this.create(scopeData);
+          results.push(created_doc);
+          created++;
+        }
+      }
+
+      return {
+        success: true,
+        data: results,
+        message: `Bulk operation complete. Created: ${created}, Updated: ${updated}`,
+        status: httpStatus.OK,
+        meta: { created, updated },
+      };
+    } catch (error) {
+      logger.error(`Scope Bulk Insert Error: ${error.message}`);
+      return createErrorResponse(error, "bulk insert", logger, "scope");
     }
   },
 

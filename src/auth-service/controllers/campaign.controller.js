@@ -187,7 +187,7 @@ const campaigns = {
         return;
       }
 
-      const result = await campaignsUtil.updateCampaign(req, next);
+      const result = await campaignsUtil.updateCampaign(req, req.body, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -270,7 +270,11 @@ const campaigns = {
         return;
       }
 
-      const result = await campaignsUtil.createUpdate(req, next);
+      const result = await campaignsUtil.createCampaignUpdate(
+        req,
+        { ...req.body, created_by: req.user._id },
+        next
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -354,7 +358,7 @@ const campaigns = {
         return;
       }
 
-      const result = await campaignsUtil.getStats(req, next);
+      const result = await campaignsUtil.getCampaignStats(req, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -396,7 +400,7 @@ const campaigns = {
         return;
       }
 
-      const result = await campaignsUtil.toggleStatus(req, next);
+      const result = await campaignsUtil.toggleCampaignStatus(req, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -480,7 +484,7 @@ const campaigns = {
         return;
       }
 
-      const result = await campaignsUtil.generateReport(req, next);
+      const result = await campaignsUtil.generateCampaignReport(req, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;

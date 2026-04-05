@@ -8,6 +8,22 @@ const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers); // Keep headers global
 
+// Bulk create scopes — before /:scope_id to avoid route collision
+router.post(
+  "/bulk",
+  scopeValidations.list, // tenant validation
+  enhancedJWTAuth,
+  createScopeController.bulkCreate
+);
+
+// Initialize default subscription-tier scopes
+router.post(
+  "/initialize",
+  scopeValidations.list, // tenant validation
+  enhancedJWTAuth,
+  createScopeController.initializeDefaults
+);
+
 router.get(
   "/",
   scopeValidations.list,

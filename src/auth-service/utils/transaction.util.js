@@ -182,7 +182,7 @@ const transactions = {
 
       return {
         success: true,
-        data: statsResponse[0] || {
+        data: statsResponse.data || {
           totalAmount: 0,
           totalTransactions: 0,
           uniqueUsers: [],
@@ -721,6 +721,206 @@ const transactions = {
       return {
         success: false,
         message: "Failed to cancel subscription",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Manually renew a user's subscription
+   * @param {Object} request - Express request object
+   * @param {Function} next - Error handling middleware
+   */
+  manualSubscriptionRenewal: async (request, next) => {
+    try {
+      const user = request.user;
+      const { tenant } = request.query;
+
+      if (!user.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found to renew",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "User has no subscription ID" },
+        };
+      }
+
+      // Create a new billing transaction via Paddle
+      const renewalTransaction = await paddleClient.subscriptions.get(
+        user.currentSubscriptionId
+      );
+
+      const newExpiryDate = new Date();
+      const billingCycle =
+        user.currentPlanDetails?.billingCycle || "monthly";
+      newExpiryDate.setDate(
+        newExpiryDate.getDate() + (billingCycle === "annual" ? 365 : 30)
+      );
+
+      await UserModel("airqo").findByIdAndUpdate(user._id, {
+        $set: {
+          subscriptionStatus: "active",
+          lastRenewalDate: new Date(),
+          nextBillingDate: newExpiryDate,
+          lastSubscriptionCheck: new Date(),
+        },
+      });
+
+      const transactionRecord = await TransactionModel(tenant).register({
+        paddle_transaction_id: `manual_renewal_${Date.now()}_${user._id}`,
+        paddle_event_type: "transaction.completed",
+        user_id: user._id,
+        paddle_customer_id: renewalTransaction.customerId || "unknown",
+        amount: renewalTransaction.items?.[0]?.price?.unitPrice?.amount || 0,
+        currency:
+          renewalTransaction.items?.[0]?.price?.unitPrice?.currencyCode ||
+          "USD",
+        status: "completed",
+        description: "Manual subscription renewal",
+        transaction_type: "subscription_renewal",
+      });
+
+      return {
+        success: true,
+        message: "Subscription renewed successfully",
+        data: {
+          newExpiryDate,
+          transactionId: transactionRecord.data
+            ? transactionRecord.data.paddle_transaction_id
+            : null,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Manual renewal error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to renew subscription",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Get detailed transaction history with date/status filtering
+   * @param {Object} request - Express request object
+   * @param {Function} next - Error handling middleware
+   */
+  getTransactionHistory: async (request, next) => {
+    try {
+      const {
+        query: { tenant, start_date, end_date, status, limit, skip },
+      } = request;
+
+      const filter = { user_id: request.user?._id };
+
+      if (start_date || end_date) {
+        filter.createdAt = {};
+        if (start_date) filter.createdAt.$gte = new Date(start_date);
+        if (end_date) filter.createdAt.$lte = new Date(end_date);
+      }
+
+      if (status) {
+        filter.status = status;
+      }
+
+      const listResponse = await TransactionModel(tenant).list(
+        {
+          filter,
+          limit: limit ? parseInt(limit) : 100,
+          skip: skip ? parseInt(skip) : 0,
+        },
+        next
+      );
+
+      if (!listResponse.success) {
+        return listResponse;
+      }
+
+      const transactions = listResponse.data || [];
+
+      const summary = transactions.reduce(
+        (acc, txn) => {
+          acc.total_amount += txn.amount || 0;
+          acc.transaction_count += 1;
+          return acc;
+        },
+        { total_amount: 0, transaction_count: 0 }
+      );
+
+      return {
+        success: true,
+        data: {
+          transactions,
+          summary,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Transaction history error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve transaction history",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Generate a financial report for a date range
+   * @param {Object} request - Express request object
+   * @param {Function} next - Error handling middleware
+   */
+  generateFinancialReport: async (request, next) => {
+    try {
+      const {
+        query: { tenant, start_date, end_date },
+      } = request;
+
+      const filter = {};
+      const period = { start: null, end: null };
+
+      if (start_date) {
+        filter.createdAt = filter.createdAt || {};
+        filter.createdAt.$gte = new Date(start_date);
+        period.start = new Date(start_date).toISOString();
+      }
+      if (end_date) {
+        filter.createdAt = filter.createdAt || {};
+        filter.createdAt.$lte = new Date(end_date);
+        period.end = new Date(end_date).toISOString();
+      }
+
+      if (!period.start) period.start = new Date(0).toISOString();
+      if (!period.end) period.end = new Date().toISOString();
+
+      const statsResponse = await TransactionModel(tenant).getStats(filter);
+      const stats = statsResponse.data || {
+        totalAmount: 0,
+        totalTransactions: 0,
+      };
+
+      return {
+        success: true,
+        data: {
+          total_revenue: stats.totalAmount,
+          transaction_count: stats.totalTransactions,
+          average_transaction_value:
+            stats.totalTransactions > 0
+              ? stats.totalAmount / stats.totalTransactions
+              : 0,
+          period,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Financial report generation error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to generate financial report",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };

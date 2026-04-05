@@ -44,6 +44,11 @@ const AccessTokenSchema = new mongoose.Schema(
     },
     last_used_at: { type: Date },
     last_ip_address: { type: String },
+    tier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+      default: "Free",
+    },
     expires_in: { type: Number },
     expires: {
       type: Date,

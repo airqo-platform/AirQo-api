@@ -496,7 +496,9 @@ const campaigns = {
         if (end_date) filter.createdAt.$lte = new Date(end_date);
       }
 
-      const campaignStats = await CampaignModel(tenant).getStats(filter);
+      const campaignStatsResponse = await CampaignModel(tenant).getStats(
+        filter
+      );
       const transactionStats = await TransactionModel(tenant).aggregate([
         {
           $match: {
@@ -518,7 +520,7 @@ const campaigns = {
         success: true,
         message: "Statistics retrieved successfully",
         data: {
-          campaigns: campaignStats[0] || {
+          campaigns: campaignStatsResponse.data || {
             totalCampaigns: 0,
             totalTargetAmount: 0,
             totalRaisedAmount: 0,

@@ -138,7 +138,7 @@ CampaignSchema.statics = {
         delete args._id;
       }
 
-      const data = await this.create(args);
+      const data = await new this(args).save();
 
       if (!isEmpty(data)) {
         return {
