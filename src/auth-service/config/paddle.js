@@ -21,15 +21,12 @@ if (!isPaddleConfigured) {
   );
   if (cleanKey.length > 0) {
     logger.warn(
-      `   Key present but invalid format (starts with "${cleanKey.substring(0, 8)}"). ` +
+      "   Key present but invalid format. " +
         "Paddle Billing keys must start with 'pdl_'."
     );
   }
 } else {
-  logger.info(
-    `✅ Paddle configured — environment: ${environ}, ` +
-      `key prefix: ${cleanKey.substring(0, 8)}`
-  );
+  logger.info(`✅ Paddle configured — environment: ${environ}`);
 }
 
 const paddleClient = isPaddleConfigured

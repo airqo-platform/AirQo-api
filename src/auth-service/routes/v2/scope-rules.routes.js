@@ -91,6 +91,7 @@ router.get(
 router.post(
   "/",
   validateCreate,
+  validate,
   enhancedJWTAuth,
   scopeRuleController.create
 );
@@ -98,6 +99,7 @@ router.post(
 router.put(
   "/:rule_id",
   validateUpdate,
+  validate,
   enhancedJWTAuth,
   scopeRuleController.update
 );
@@ -105,6 +107,7 @@ router.put(
 router.delete(
   "/:rule_id",
   [validateTenant, validateRuleId],
+  validate,
   enhancedJWTAuth,
   scopeRuleController.delete
 );

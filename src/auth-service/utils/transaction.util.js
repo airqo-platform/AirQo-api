@@ -1,5 +1,6 @@
 const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
+const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
 const { mailer, stringify, generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
@@ -76,9 +77,8 @@ const resolveTierFromEvent = (eventData) => {
   // 2. Match against known Paddle price IDs from env
   const priceId = eventData?.items?.[0]?.price?.id;
   if (priceId) {
-    const { PADDLE_STANDARD_PRICE_ID, PADDLE_PREMIUM_PRICE_ID } = require("@config/constants");
-    if (PADDLE_STANDARD_PRICE_ID && priceId === PADDLE_STANDARD_PRICE_ID) return "Standard";
-    if (PADDLE_PREMIUM_PRICE_ID && priceId === PADDLE_PREMIUM_PRICE_ID) return "Premium";
+    if (constants.PADDLE_STANDARD_PRICE_ID && priceId === constants.PADDLE_STANDARD_PRICE_ID) return "Standard";
+    if (constants.PADDLE_PREMIUM_PRICE_ID && priceId === constants.PADDLE_PREMIUM_PRICE_ID) return "Premium";
   }
 
   // 3. Amount-based fallback (amounts in smallest currency unit, e.g. cents)
@@ -460,12 +460,19 @@ const transactions = {
         { new: false } // We don't need the updated doc
       );
 
-      // 2. Update all active AccessTokens for this user:
-      //    set the tier field and replace scopes with the full tier scope set
-      await AccessTokenModel(defaultTenant).updateMany(
-        { client_id: user_id },
-        { $set: { tier, scopes: grantedScopes } }
-      );
+      // 2. Update all active AccessTokens for this user.
+      //    AccessToken.client_id references Client._id (not User._id), so we
+      //    must first resolve the user's client IDs before updating tokens.
+      const userClients = await ClientModel(defaultTenant)
+        .find({ user_id }, { _id: 1 })
+        .lean();
+      if (userClients.length > 0) {
+        const clientIds = userClients.map((c) => c._id);
+        await AccessTokenModel(defaultTenant).updateMany(
+          { client_id: { $in: clientIds } },
+          { $set: { tier, scopes: grantedScopes } }
+        );
+      }
 
       logger.info(
         `Subscription upgraded: user=${user_id} tier=${tier} scopes=${grantedScopes.length}`
@@ -860,12 +867,17 @@ const transactions = {
         user.currentSubscriptionId
       );
 
-      const newExpiryDate = new Date();
-      const billingCycle =
-        user.currentPlanDetails?.billingCycle || "monthly";
-      newExpiryDate.setDate(
-        newExpiryDate.getDate() + (billingCycle === "annual" ? 365 : 30)
-      );
+      // Prefer Paddle's authoritative period end date; fall back to a
+      // calendar offset from now if the subscription doesn't have one yet.
+      const paddleEndsAt = renewalTransaction?.currentBillingPeriod?.endsAt;
+      const newExpiryDate = paddleEndsAt
+        ? new Date(paddleEndsAt)
+        : (() => {
+            const d = new Date();
+            const billingCycle = user.currentPlanDetails?.billingCycle || "monthly";
+            d.setDate(d.getDate() + (billingCycle === "annual" ? 365 : 30));
+            return d;
+          })();
 
       const transactionRecord = await TransactionModel(tenant).register({
         paddle_transaction_id: `manual_renewal_${Date.now()}_${user._id}`,
@@ -967,6 +979,7 @@ const transactions = {
               errors: { message: `end_date '${end_date}' is not a valid date` },
             };
           }
+          ed.setHours(23, 59, 59, 999); // include the full end date
           filter.createdAt.$lte = ed;
         }
       }
@@ -1056,6 +1069,7 @@ const transactions = {
             errors: { message: `end_date '${end_date}' is not a valid date` },
           };
         }
+        ed.setHours(23, 59, 59, 999); // include the full end date
         filter.createdAt = filter.createdAt || {};
         filter.createdAt.$lte = ed;
         period.end = ed.toISOString();

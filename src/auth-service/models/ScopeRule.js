@@ -132,7 +132,7 @@ ScopeRuleSchema.statics = {
 
   async remove({ filter = {} } = {}, next) {
     try {
-      const removed = await this.findOneAndRemove(filter, {
+      const removed = await this.findOneAndDelete(filter, {
         projection: { pattern: 1, scope: 1 },
       }).exec();
       if (!isEmpty(removed)) {

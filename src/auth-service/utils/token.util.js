@@ -87,6 +87,15 @@ const TOKEN_VERIFY_TIER_LIMITS = { Free: 100, Standard: 500, Premium: 2000 };
 // { key: { count: number, expiry: number } }
 const _rlMemoryStore = new Map();
 
+// Prune expired entries once per hour so the Map doesn't grow indefinitely
+// in long-running processes where Redis stays unavailable.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of _rlMemoryStore) {
+    if (entry.expiry < now) _rlMemoryStore.delete(key);
+  }
+}, 3600000).unref();
+
 /**
  * Check and increment the hourly rate limit counter for a user.
  * Uses Redis when available, in-memory Map as fallback.
@@ -217,7 +226,11 @@ const checkUriScope = (uri, effectiveScopes) => {
       const matches =
         pattern instanceof RegExp
           ? pattern.test(uri)
-          : uri.toLowerCase().includes(pattern.toLowerCase());
+          : (() => {
+              const u = uri.toLowerCase();
+              const p = pattern.toLowerCase();
+              return u === p || u.startsWith(p + "/") || u.startsWith(p + "?");
+            })();
       if (matches) {
         return {
           required: true,
