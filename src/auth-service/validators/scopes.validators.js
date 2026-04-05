@@ -59,6 +59,26 @@ const create = [
       .withMessage("description is missing in your request")
       .bail()
       .trim(),
+    body("tier")
+      .optional()
+      .isIn(SCOPE_ENUMS.TIER)
+      .withMessage(`tier must be one of: ${SCOPE_ENUMS.TIER.join(", ")}`),
+    body("resource_type")
+      .optional()
+      .isIn(SCOPE_ENUMS.RESOURCE_TYPE)
+      .withMessage(
+        `resource_type must be one of: ${SCOPE_ENUMS.RESOURCE_TYPE.join(", ")}`
+      ),
+    body("access_type")
+      .optional()
+      .isIn(SCOPE_ENUMS.ACCESS_TYPE)
+      .withMessage(`access_type must be one of: ${SCOPE_ENUMS.ACCESS_TYPE.join(", ")}`),
+    body("data_timeframe")
+      .optional()
+      .isIn(SCOPE_ENUMS.DATA_TIMEFRAME)
+      .withMessage(
+        `data_timeframe must be one of: ${SCOPE_ENUMS.DATA_TIMEFRAME.join(", ")}`
+      ),
   ],
 ];
 
@@ -156,6 +176,7 @@ const bulkCreate = [
       .notEmpty()
       .withMessage("network_id should not be empty if provided")
       .bail()
+      .trim()
       .isMongoId()
       .withMessage("network_id must be a valid MongoDB ObjectId")
       .bail()

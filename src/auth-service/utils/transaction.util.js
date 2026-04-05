@@ -840,8 +840,30 @@ const transactions = {
 
       if (start_date || end_date) {
         filter.createdAt = {};
-        if (start_date) filter.createdAt.$gte = new Date(start_date);
-        if (end_date) filter.createdAt.$lte = new Date(end_date);
+        if (start_date) {
+          const sd = new Date(start_date);
+          if (isNaN(sd.getTime())) {
+            return {
+              success: false,
+              message: "Invalid start_date value",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: `start_date '${start_date}' is not a valid date` },
+            };
+          }
+          filter.createdAt.$gte = sd;
+        }
+        if (end_date) {
+          const ed = new Date(end_date);
+          if (isNaN(ed.getTime())) {
+            return {
+              success: false,
+              message: "Invalid end_date value",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: `end_date '${end_date}' is not a valid date` },
+            };
+          }
+          filter.createdAt.$lte = ed;
+        }
       }
 
       if (status) {
@@ -906,14 +928,32 @@ const transactions = {
       const period = { start: null, end: null };
 
       if (start_date) {
+        const sd = new Date(start_date);
+        if (isNaN(sd.getTime())) {
+          return {
+            success: false,
+            message: "Invalid start_date value",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `start_date '${start_date}' is not a valid date` },
+          };
+        }
         filter.createdAt = filter.createdAt || {};
-        filter.createdAt.$gte = new Date(start_date);
-        period.start = new Date(start_date).toISOString();
+        filter.createdAt.$gte = sd;
+        period.start = sd.toISOString();
       }
       if (end_date) {
+        const ed = new Date(end_date);
+        if (isNaN(ed.getTime())) {
+          return {
+            success: false,
+            message: "Invalid end_date value",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `end_date '${end_date}' is not a valid date` },
+          };
+        }
         filter.createdAt = filter.createdAt || {};
-        filter.createdAt.$lte = new Date(end_date);
-        period.end = new Date(end_date).toISOString();
+        filter.createdAt.$lte = ed;
+        period.end = ed.toISOString();
       }
 
       if (!period.start) period.start = new Date(0).toISOString();

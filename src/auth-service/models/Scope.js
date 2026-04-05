@@ -15,6 +15,21 @@ const {
   createEmptySuccessResponse,
 } = require("@utils/shared");
 
+const SCOPE_ENUMS = {
+  TIER: ["Free", "Standard", "Premium"],
+  RESOURCE_TYPE: [
+    "measurements",
+    "devices",
+    "sites",
+    "cohorts",
+    "grids",
+    "forecasts",
+    "insights",
+  ],
+  ACCESS_TYPE: ["read", "write"],
+  DATA_TIMEFRAME: ["recent", "historical", "all"],
+};
+
 const ScopeSchema = new mongoose.Schema(
   {
     scope: {
@@ -29,28 +44,20 @@ const ScopeSchema = new mongoose.Schema(
     description: { type: String, required: [true, "description is required"] },
     tier: {
       type: String,
-      enum: ["Free", "Standard", "Premium"],
+      enum: SCOPE_ENUMS.TIER,
     },
     resource_type: {
       type: String,
-      enum: [
-        "measurements",
-        "devices",
-        "sites",
-        "cohorts",
-        "grids",
-        "forecasts",
-        "insights",
-      ],
+      enum: SCOPE_ENUMS.RESOURCE_TYPE,
     },
     access_type: {
       type: String,
-      enum: ["read", "write"],
+      enum: SCOPE_ENUMS.ACCESS_TYPE,
       default: "read",
     },
     data_timeframe: {
       type: String,
-      enum: ["recent", "historical", "all"],
+      enum: SCOPE_ENUMS.DATA_TIMEFRAME,
       default: "all",
     },
   },
@@ -241,6 +248,10 @@ ScopeSchema.methods = {
       _id: this._id,
       scope: this.scope,
       description: this.description,
+      tier: this.tier,
+      resource_type: this.resource_type,
+      access_type: this.access_type,
+      data_timeframe: this.data_timeframe,
     };
   },
 };
@@ -255,21 +266,6 @@ const ScopeModel = (tenant) => {
     const scopes = getModelByTenant(dbTenant, "scope", ScopeSchema);
     return scopes;
   }
-};
-
-const SCOPE_ENUMS = {
-  TIER: ["Free", "Standard", "Premium"],
-  RESOURCE_TYPE: [
-    "measurements",
-    "devices",
-    "sites",
-    "cohorts",
-    "grids",
-    "forecasts",
-    "insights",
-  ],
-  ACCESS_TYPE: ["read", "write"],
-  DATA_TIMEFRAME: ["recent", "historical", "all"],
 };
 
 module.exports = ScopeModel;
