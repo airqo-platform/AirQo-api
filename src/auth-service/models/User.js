@@ -438,6 +438,11 @@ const UserSchema = new Schema(
     stale_account_alert_sent_at: {
       type: Date,
     },
+    // Set when the 7-day final deletion reminder email has been sent, to avoid
+    // re-sending it on subsequent job runs.
+    deletion_final_reminder_sent_at: {
+      type: Date,
+    },
     cohorts: [
       {
         type: ObjectId,

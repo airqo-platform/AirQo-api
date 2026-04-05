@@ -787,6 +787,8 @@ const getEmailSubject = (functionName, params) => {
       "Your AirQo Account: Update Your Name to Enhance Your Experience",
     sendPollutionAlert: params.subject || "AirQo Pollution Alert",
     inactiveAccount: "We've Missed You on AirQo!",
+    accountScheduledForDeletion: "Your AirQo Account is Scheduled for Deletion",
+    accountDeletionFinalReminder: `Final Notice: Your AirQo Account Will Be Deleted in ${params.reminderDays || 7} Days`,
     sendAccountDeletionConfirmation: "Confirm Your AirQo Account Deletion",
     sendAccountDeletionSuccess: "Your AirQo Account Has Been Deleted",
     sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
@@ -811,6 +813,8 @@ const EMAIL_CATEGORIES = {
     "signInWithEmailLink",
     "deleteMobileAccountEmail",
     "inactiveAccount",
+    "accountScheduledForDeletion",
+    "accountDeletionFinalReminder",
     "sendAccountDeletionConfirmation",
     "sendAccountDeletionSuccess",
     "sendMobileAccountDeletionCode",
@@ -2418,6 +2422,27 @@ const mailer = {
       msgs.inactiveAccount({
         firstName: params.firstName,
         email: params.email,
+      }),
+  ),
+  accountScheduledForDeletion: createMailerFunction(
+    "accountScheduledForDeletion",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.accountScheduledForDeletion({
+        firstName: params.firstName,
+        email: params.email,
+        deletionDate: params.deletionDate,
+      }),
+  ),
+  accountDeletionFinalReminder: createMailerFunction(
+    "accountDeletionFinalReminder",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.accountDeletionFinalReminder({
+        firstName: params.firstName,
+        email: params.email,
+        deletionDate: params.deletionDate,
+        reminderDays: params.reminderDays,
       }),
   ),
   sendAccountDeletionConfirmation: createMailerFunction(
