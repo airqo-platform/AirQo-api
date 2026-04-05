@@ -124,6 +124,10 @@ ScopeSchema.statics = {
           _id: 1,
           scope: 1,
           description: 1,
+          tier: 1,
+          resource_type: 1,
+          access_type: 1,
+          data_timeframe: 1,
           network: { $arrayElemAt: ["$network", 0] },
         })
         .project({
@@ -181,30 +185,22 @@ ScopeSchema.statics = {
 
   async bulkInsert(scopesArray, next) {
     try {
-      let created = 0;
-      let updated = 0;
-      const results = [];
+      const ops = scopesArray.map((scopeData) => ({
+        updateOne: {
+          filter: { scope: scopeData.scope },
+          update: { $set: scopeData },
+          upsert: true,
+        },
+      }));
 
-      for (const scopeData of scopesArray) {
-        const existing = await this.findOne({ scope: scopeData.scope });
-        if (existing) {
-          const updated_doc = await this.findOneAndUpdate(
-            { scope: scopeData.scope },
-            scopeData,
-            { new: true }
-          );
-          results.push(updated_doc);
-          updated++;
-        } else {
-          const created_doc = await this.create(scopeData);
-          results.push(created_doc);
-          created++;
-        }
-      }
+      const bulkResult = await this.bulkWrite(ops, { ordered: false });
+
+      const created = bulkResult.upsertedCount || 0;
+      const updated = bulkResult.modifiedCount || 0;
 
       return {
         success: true,
-        data: results,
+        data: { created, updated },
         message: `Bulk operation complete. Created: ${created}, Updated: ${updated}`,
         status: httpStatus.OK,
         meta: { created, updated },

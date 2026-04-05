@@ -180,6 +180,10 @@ const transactions = {
       // Retrieve transaction statistics
       const statsResponse = await TransactionModel(tenant).getStats(filter);
 
+      if (!statsResponse.success) {
+        return statsResponse;
+      }
+
       return {
         success: true,
         data: statsResponse.data || {
@@ -746,7 +750,7 @@ const transactions = {
         };
       }
 
-      // Create a new billing transaction via Paddle
+      // Fetch current subscription details from Paddle to populate the local renewal record
       const renewalTransaction = await paddleClient.subscriptions.get(
         user.currentSubscriptionId
       );
@@ -880,7 +884,7 @@ const transactions = {
         query: { tenant, start_date, end_date },
       } = request;
 
-      const filter = {};
+      const filter = { status: "completed" };
       const period = { start: null, end: null };
 
       if (start_date) {
@@ -898,6 +902,11 @@ const transactions = {
       if (!period.end) period.end = new Date().toISOString();
 
       const statsResponse = await TransactionModel(tenant).getStats(filter);
+
+      if (!statsResponse.success) {
+        return statsResponse;
+      }
+
       const stats = statsResponse.data || {
         totalAmount: 0,
         totalTransactions: 0,

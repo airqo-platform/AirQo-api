@@ -499,6 +499,18 @@ const campaigns = {
       const campaignStatsResponse = await CampaignModel(tenant).getStats(
         filter
       );
+
+      if (!campaignStatsResponse.success) {
+        return campaignStatsResponse;
+      }
+
+      const campaignData = campaignStatsResponse.data || {};
+      const normalizedCampaignData = {
+        totalCampaigns: campaignData.totalCampaigns ?? 0,
+        totalTargetAmount: campaignData.totalTargetAmount ?? 0,
+        totalRaisedAmount: campaignData.totalRaisedAmount ?? 0,
+      };
+
       const transactionStats = await TransactionModel(tenant).aggregate([
         {
           $match: {
@@ -520,11 +532,7 @@ const campaigns = {
         success: true,
         message: "Statistics retrieved successfully",
         data: {
-          campaigns: campaignStatsResponse.data || {
-            totalCampaigns: 0,
-            totalTargetAmount: 0,
-            totalRaisedAmount: 0,
-          },
+          campaigns: normalizedCampaignData,
           donations: {
             total_count: transactionStats.reduce(
               (acc, curr) => acc + curr.total_donations,

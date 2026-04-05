@@ -120,6 +120,25 @@ const scope = {
         };
       }
 
+      const itemErrors = [];
+      scopes.forEach((item, index) => {
+        if (!item.scope || typeof item.scope !== "string") {
+          itemErrors.push(`item[${index}]: scope is required and must be a string`);
+        }
+        if (!item.description || typeof item.description !== "string") {
+          itemErrors.push(`item[${index}]: description is required and must be a string`);
+        }
+      });
+
+      if (itemErrors.length > 0) {
+        return {
+          success: false,
+          message: "validation errors in scopes array",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: itemErrors.join("; ") },
+        };
+      }
+
       const response = await ScopeModel(tenant.toLowerCase()).bulkInsert(
         scopes,
         next

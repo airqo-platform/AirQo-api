@@ -42,8 +42,9 @@ const create = [
         return value.replace(/ /g, "_").toUpperCase();
       }),
     body("network_id")
-      .exists()
-      .withMessage("network_id should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("network_id should not be empty if provided")
       .bail()
       .trim()
       .isMongoId()
@@ -122,6 +123,69 @@ const getById = [
   ],
 ];
 
+const VALID_TIERS = ["Free", "Standard", "Premium"];
+const VALID_RESOURCE_TYPES = [
+  "measurements",
+  "devices",
+  "sites",
+  "cohorts",
+  "grids",
+  "forecasts",
+  "insights",
+];
+const VALID_ACCESS_TYPES = ["read", "write"];
+const VALID_DATA_TIMEFRAMES = ["recent", "historical", "all"];
+
+const bulkCreate = [
+  validateTenant,
+  [
+    body("scopes")
+      .exists()
+      .withMessage("scopes array is missing in your request")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("scopes must be a non-empty array"),
+    body("scopes.*.scope")
+      .exists()
+      .withMessage("each scope item must have a scope field")
+      .bail()
+      .notEmpty()
+      .withMessage("scope field must not be empty")
+      .bail()
+      .trim()
+      .escape()
+      .customSanitizer((value) => value.replace(/ /g, "_").toUpperCase()),
+    body("scopes.*.description")
+      .exists()
+      .withMessage("each scope item must have a description field")
+      .bail()
+      .notEmpty()
+      .withMessage("description field must not be empty")
+      .bail()
+      .trim(),
+    body("scopes.*.tier")
+      .optional()
+      .isIn(VALID_TIERS)
+      .withMessage(`tier must be one of: ${VALID_TIERS.join(", ")}`),
+    body("scopes.*.resource_type")
+      .optional()
+      .isIn(VALID_RESOURCE_TYPES)
+      .withMessage(
+        `resource_type must be one of: ${VALID_RESOURCE_TYPES.join(", ")}`
+      ),
+    body("scopes.*.access_type")
+      .optional()
+      .isIn(VALID_ACCESS_TYPES)
+      .withMessage(`access_type must be one of: ${VALID_ACCESS_TYPES.join(", ")}`),
+    body("scopes.*.data_timeframe")
+      .optional()
+      .isIn(VALID_DATA_TIMEFRAMES)
+      .withMessage(
+        `data_timeframe must be one of: ${VALID_DATA_TIMEFRAMES.join(", ")}`
+      ),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -130,4 +194,5 @@ module.exports = {
   update,
   deleteScope,
   getById,
+  bulkCreate,
 };

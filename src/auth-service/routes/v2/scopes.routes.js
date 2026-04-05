@@ -11,7 +11,7 @@ router.use(headers); // Keep headers global
 // Bulk create scopes — before /:scope_id to avoid route collision
 router.post(
   "/bulk",
-  scopeValidations.list, // tenant validation
+  scopeValidations.bulkCreate,
   enhancedJWTAuth,
   createScopeController.bulkCreate
 );
