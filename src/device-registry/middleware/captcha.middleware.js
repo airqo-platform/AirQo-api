@@ -4,8 +4,8 @@
 //
 // SETUP (before enabling):
 //   1. Sign up at https://www.hcaptcha.com and create a site.
-//   2. Add the secret key to your environment:
-//        HCAPTCHA_SECRET_KEY=<your-secret-key>
+//   2. Add the secret key to the environment (prefixed per env):
+//        DEV_HCAPTCHA_SECRET_KEY / STAGE_HCAPTCHA_SECRET_KEY / PROD_HCAPTCHA_SECRET_KEY
 //   3. Add the site key to the frontend (.env):
 //        NEXT_PUBLIC_HCAPTCHA_SITE_KEY=<your-site-key>
 //   4. In the frontend form, install and render the hCaptcha widget:
@@ -37,7 +37,7 @@ const HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify";
  * Skips silently when HCAPTCHA_SECRET_KEY is not configured (dev / pre-launch).
  */
 async function verifyCaptcha(req, res, next) {
-  const secret = process.env.HCAPTCHA_SECRET_KEY;
+  const secret = constants.HCAPTCHA_SECRET_KEY;
 
   // No-op when secret is not configured — remove this guard to enforce CAPTCHA.
   if (!secret) {
