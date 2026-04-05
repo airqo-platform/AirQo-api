@@ -364,6 +364,65 @@ const createCustomRateLimiter = ({ windowMs, max, message }) => {
   });
 };
 
+/**
+ * Key generator that uses authenticated user ID instead of IP.
+ * Falls back to IP if user is not authenticated.
+ */
+const userKeyGenerator = (req) => {
+  if (req.user && req.user._id) {
+    return `tier_rl:${req.user._id}`;
+  }
+  return `tier_rl:${extractIp(req)}`;
+};
+
+// Pre-built per-tier limiters (hourly window, keyed by user ID)
+const freeTierLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKeyGenerator,
+  message: "Hourly request limit reached for Free tier. Upgrade to Standard or Premium for higher limits.",
+});
+
+const standardTierLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKeyGenerator,
+  message: "Hourly request limit reached for Standard tier. Upgrade to Premium for higher limits.",
+});
+
+const premiumTierLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKeyGenerator,
+  message: "Hourly request limit reached for Premium tier.",
+});
+
+/**
+ * Subscription tier-aware rate limiter.
+ * Reads req.user.subscriptionTier (set by JWT auth middleware) and applies
+ * the matching pre-built limiter. Falls back to Free tier limits if the user
+ * is unauthenticated or has no subscriptionTier set.
+ *
+ * Usage: apply AFTER enhancedJWTAuth so req.user is populated.
+ */
+const tierBasedRateLimiter = (req, res, next) => {
+  try {
+    const tier = req.user?.subscriptionTier || "Free";
+    if (tier === "Premium") return premiumTierLimiter(req, res, next);
+    if (tier === "Standard") return standardTierLimiter(req, res, next);
+    return freeTierLimiter(req, res, next);
+  } catch (error) {
+    logger.error(`tierBasedRateLimiter error: ${error.message}`);
+    next(); // Fail open — never block a request due to rate-limiter error
+  }
+};
+
 // ============================================
 // HEALTH CHECK & MONITORING
 // ============================================
@@ -424,6 +483,9 @@ module.exports = {
   authRateLimiter,
   writeRateLimiter,
   readRateLimiter,
+
+  // Subscription tier-aware limiter (apply after JWT auth)
+  tierBasedRateLimiter,
 
   // Factory function
   createCustomRateLimiter,

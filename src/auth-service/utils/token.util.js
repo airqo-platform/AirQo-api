@@ -66,6 +66,64 @@ const createValidTokenResponse = () => {
     status: httpStatus.OK,
   };
 };
+const createRateLimitResponse = (tier) => {
+  return {
+    success: false,
+    message: `Hourly request limit reached for ${tier} tier`,
+    status: httpStatus.TOO_MANY_REQUESTS,
+    errors: {
+      message:
+        tier === "Free"
+          ? "Upgrade to Standard or Premium for higher API limits"
+          : "You have exceeded your hourly request limit",
+    },
+  };
+};
+
+// Hourly limits per subscription tier
+const TOKEN_VERIFY_TIER_LIMITS = { Free: 100, Standard: 500, Premium: 2000 };
+
+// In-memory fallback store when Redis is unavailable
+// { key: { count: number, expiry: number } }
+const _rlMemoryStore = new Map();
+
+/**
+ * Check and increment the hourly rate limit counter for a user.
+ * Uses Redis when available, in-memory Map as fallback.
+ * Never throws — fails open to avoid blocking legitimate requests.
+ * @returns {Promise<boolean>} true = within limit, false = limit exceeded
+ */
+const checkTokenVerifyRateLimit = async (userId, tier) => {
+  try {
+    const limit = TOKEN_VERIFY_TIER_LIMITS[tier] || TOKEN_VERIFY_TIER_LIMITS.Free;
+    const hourSlot = Math.floor(Date.now() / 3600000);
+    const key = `rl:tv:${userId}:${hourSlot}`;
+
+    try {
+      // Attempt Redis path (non-atomic GET+SET is acceptable for rate limiting)
+      const stored = await redisGetAsync(key);
+      const count = stored ? parseInt(stored, 10) : 0;
+      if (count >= limit) return false;
+      await redisSetAsync(key, count + 1, 3601); // TTL slightly over 1 hour
+      return true;
+    } catch (redisErr) {
+      // Redis unavailable — fall through to memory store
+    }
+
+    // Memory fallback
+    const now = Date.now();
+    const entry = _rlMemoryStore.get(key);
+    if (!entry || entry.expiry < now) {
+      _rlMemoryStore.set(key, { count: 1, expiry: now + 3600000 });
+      return true;
+    }
+    entry.count++;
+    return entry.count <= limit;
+  } catch (err) {
+    logger.error(`Non-critical: rate limit check failed for ${userId}: ${err.message}`);
+    return true; // Fail open — never block due to rate-limiter error
+  }
+};
 
 const trampoline = (fn) => {
   while (typeof fn === "function") {
@@ -705,7 +763,7 @@ const token = {
       };
       const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
-        .select("client_id token");
+        .select("client_id token tier");
 
       if (isEmpty(accessToken)) {
         return createUnauthorizedResponse();
@@ -732,6 +790,21 @@ const token = {
         if (isBlacklisted) {
           return createUnauthorizedResponse();
         } else {
+          // Tier-based hourly rate limiting — enforced at the gateway level
+          // so all downstream microservices are covered automatically.
+          // Fails open if Redis and memory store both error.
+          const tier = accessToken.tier || "Free";
+          const withinLimit = await checkTokenVerifyRateLimit(
+            client.user_id || accessToken.client_id,
+            tier
+          );
+          if (!withinLimit) {
+            logger.warn(
+              `Rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
+            );
+            return createRateLimitResponse(tier);
+          }
+
           // Fire-and-forget: record API token usage as user activity so that
           // API-only users are not incorrectly flagged as inactive. Throttled
           // to at most once per hour per user to avoid excessive writes.

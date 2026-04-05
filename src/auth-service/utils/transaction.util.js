@@ -1,5 +1,6 @@
 const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
+const AccessTokenModel = require("@models/AccessToken");
 const { mailer, stringify, generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -10,6 +11,67 @@ const logger = log4js.getLogger(
 );
 const { logObject, logText, HttpError } = require("@utils/shared");
 const paddleClient = require("@config/paddle");
+
+// Canonical mapping of subscription tier → granted scopes (cumulative)
+const TIER_SCOPE_MAP = {
+  Free: [
+    "read:recent_measurements",
+    "read:devices",
+    "read:sites",
+    "read:cohorts",
+    "read:grids",
+  ],
+  Standard: [
+    "read:recent_measurements",
+    "read:devices",
+    "read:sites",
+    "read:cohorts",
+    "read:grids",
+    "read:historical_measurements",
+  ],
+  Premium: [
+    "read:recent_measurements",
+    "read:devices",
+    "read:sites",
+    "read:cohorts",
+    "read:grids",
+    "read:historical_measurements",
+    "read:forecasts",
+    "read:insights",
+  ],
+};
+
+// Rate limits per tier (stored on User.apiRateLimits)
+const TIER_RATE_LIMITS = {
+  Free:     { hourlyLimit: 100,  dailyLimit: 1000,  monthlyLimit: 10000 },
+  Standard: { hourlyLimit: 500,  dailyLimit: 5000,  monthlyLimit: 50000 },
+  Premium:  { hourlyLimit: 2000, dailyLimit: 20000, monthlyLimit: 200000 },
+};
+
+/**
+ * Determine subscription tier from a completed Paddle transaction.
+ * Priority: customData.tier (set at checkout) > Paddle price ID > amount fallback.
+ */
+const resolveTierFromEvent = (eventData) => {
+  // 1. Dashboard sets customData.tier at checkout time — most reliable
+  const customTier = eventData?.customData?.tier;
+  if (customTier && TIER_SCOPE_MAP[customTier]) return customTier;
+
+  // 2. Match against known Paddle price IDs from env
+  const priceId = eventData?.items?.[0]?.price?.id;
+  if (priceId) {
+    const { PADDLE_STANDARD_PRICE_ID, PADDLE_PREMIUM_PRICE_ID } = require("@config/constants");
+    if (PADDLE_STANDARD_PRICE_ID && priceId === PADDLE_STANDARD_PRICE_ID) return "Standard";
+    if (PADDLE_PREMIUM_PRICE_ID && priceId === PADDLE_PREMIUM_PRICE_ID) return "Premium";
+  }
+
+  // 3. Amount-based fallback (amounts in smallest currency unit, e.g. cents)
+  const amount = eventData?.details?.totals?.total || eventData?.total || 0;
+  const numericAmount = parseFloat(amount);
+  if (numericAmount >= 15000) return "Premium";  // $150.00
+  if (numericAmount >= 5000)  return "Standard";  // $50.00
+  return "Free";
+};
 
 const transactions = {
   /**
@@ -357,21 +419,42 @@ const transactions = {
 
   performAdditionalBusinessLogic: async (transactionMetadata) => {
     try {
-      // Example: Update user account, grant access, etc.
-      if (transactionMetadata.is_new_user) {
-        // Perform actions for new user
-        await UserModel.findByIdAndUpdate(transactionMetadata.user_id, {
-          first_transaction_completed_at: new Date(),
-        });
-      }
+      const { user_id, full_event_data, is_new_user } = transactionMetadata;
+      if (!user_id) return;
 
-      // Example: Credit system or apply transaction-specific logic
-      if (transactionMetadata.amount >= 100) {
-        // Special handling for significant transactions
-        await grantPremiumFeatures(transactionMetadata.user_id);
-      }
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+
+      // Determine which tier this payment corresponds to
+      const tier = resolveTierFromEvent(full_event_data);
+      const grantedScopes = TIER_SCOPE_MAP[tier] || TIER_SCOPE_MAP.Free;
+      const rateLimits = TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free;
+
+      // 1. Update User subscription tier and rate limits
+      await UserModel(defaultTenant).findByIdAndUpdate(
+        user_id,
+        {
+          $set: {
+            subscriptionTier: tier,
+            apiRateLimits: rateLimits,
+            ...(is_new_user && { first_transaction_completed_at: new Date() }),
+          },
+        },
+        { new: false } // We don't need the updated doc
+      );
+
+      // 2. Update all active AccessTokens for this user:
+      //    set the tier field and replace scopes with the full tier scope set
+      await AccessTokenModel(defaultTenant).updateMany(
+        { client_id: user_id },
+        { $set: { tier, scopes: grantedScopes } }
+      );
+
+      logger.info(
+        `Subscription upgraded: user=${user_id} tier=${tier} scopes=${grantedScopes.length}`
+      );
     } catch (error) {
-      logger.error("Additional business logic failed", error);
+      logger.error(`performAdditionalBusinessLogic failed: ${error.message}`);
+      // Non-fatal — transaction is already recorded; log and continue
     }
   },
 
