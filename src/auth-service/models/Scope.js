@@ -257,4 +257,20 @@ const ScopeModel = (tenant) => {
   }
 };
 
+const SCOPE_ENUMS = {
+  TIER: ["Free", "Standard", "Premium"],
+  RESOURCE_TYPE: [
+    "measurements",
+    "devices",
+    "sites",
+    "cohorts",
+    "grids",
+    "forecasts",
+    "insights",
+  ],
+  ACCESS_TYPE: ["read", "write"],
+  DATA_TIMEFRAME: ["recent", "historical", "all"],
+};
+
 module.exports = ScopeModel;
+module.exports.SCOPE_ENUMS = SCOPE_ENUMS;

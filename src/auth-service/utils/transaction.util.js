@@ -762,15 +762,6 @@ const transactions = {
         newExpiryDate.getDate() + (billingCycle === "annual" ? 365 : 30)
       );
 
-      await UserModel("airqo").findByIdAndUpdate(user._id, {
-        $set: {
-          subscriptionStatus: "active",
-          lastRenewalDate: new Date(),
-          nextBillingDate: newExpiryDate,
-          lastSubscriptionCheck: new Date(),
-        },
-      });
-
       const transactionRecord = await TransactionModel(tenant).register({
         paddle_transaction_id: `manual_renewal_${Date.now()}_${user._id}`,
         paddle_event_type: "transaction.completed",
@@ -785,14 +776,32 @@ const transactions = {
         transaction_type: "subscription_renewal",
       });
 
+      if (!transactionRecord.success || !transactionRecord.data) {
+        return {
+          success: false,
+          message: "Failed to record renewal transaction",
+          errors: transactionRecord.errors || {
+            message: "Transaction registration returned no data",
+          },
+          status: transactionRecord.status || httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      await UserModel("airqo").findByIdAndUpdate(user._id, {
+        $set: {
+          subscriptionStatus: "active",
+          lastRenewalDate: new Date(),
+          nextBillingDate: newExpiryDate,
+          lastSubscriptionCheck: new Date(),
+        },
+      });
+
       return {
         success: true,
         message: "Subscription renewed successfully",
         data: {
           newExpiryDate,
-          transactionId: transactionRecord.data
-            ? transactionRecord.data.paddle_transaction_id
-            : null,
+          transactionId: transactionRecord.data.paddle_transaction_id,
         },
         status: httpStatus.OK,
       };
@@ -818,7 +827,16 @@ const transactions = {
         query: { tenant, start_date, end_date, status, limit, skip },
       } = request;
 
-      const filter = { user_id: request.user?._id };
+      if (!request.user || !request.user._id) {
+        return {
+          success: false,
+          message: "Unauthorized",
+          status: httpStatus.UNAUTHORIZED,
+          errors: { message: "Valid user session is required" },
+        };
+      }
+
+      const filter = { user_id: request.user._id };
 
       if (start_date || end_date) {
         filter.createdAt = {};
@@ -917,10 +935,7 @@ const transactions = {
         data: {
           total_revenue: stats.totalAmount,
           transaction_count: stats.totalTransactions,
-          average_transaction_value:
-            stats.totalTransactions > 0
-              ? stats.totalAmount / stats.totalTransactions
-              : 0,
+          average_transaction_value: stats.averageTransactionAmount || 0,
           period,
         },
         status: httpStatus.OK,

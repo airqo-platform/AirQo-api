@@ -3,6 +3,7 @@ const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const constants = require("@config/constants");
+const { SCOPE_ENUMS } = require("@models/Scope");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -123,19 +124,6 @@ const getById = [
   ],
 ];
 
-const VALID_TIERS = ["Free", "Standard", "Premium"];
-const VALID_RESOURCE_TYPES = [
-  "measurements",
-  "devices",
-  "sites",
-  "cohorts",
-  "grids",
-  "forecasts",
-  "insights",
-];
-const VALID_ACCESS_TYPES = ["read", "write"];
-const VALID_DATA_TIMEFRAMES = ["recent", "historical", "all"];
-
 const bulkCreate = [
   validateTenant,
   [
@@ -163,25 +151,34 @@ const bulkCreate = [
       .withMessage("description field must not be empty")
       .bail()
       .trim(),
+    body("scopes.*.network_id")
+      .optional()
+      .notEmpty()
+      .withMessage("network_id should not be empty if provided")
+      .bail()
+      .isMongoId()
+      .withMessage("network_id must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => ObjectId(value)),
     body("scopes.*.tier")
       .optional()
-      .isIn(VALID_TIERS)
-      .withMessage(`tier must be one of: ${VALID_TIERS.join(", ")}`),
+      .isIn(SCOPE_ENUMS.TIER)
+      .withMessage(`tier must be one of: ${SCOPE_ENUMS.TIER.join(", ")}`),
     body("scopes.*.resource_type")
       .optional()
-      .isIn(VALID_RESOURCE_TYPES)
+      .isIn(SCOPE_ENUMS.RESOURCE_TYPE)
       .withMessage(
-        `resource_type must be one of: ${VALID_RESOURCE_TYPES.join(", ")}`
+        `resource_type must be one of: ${SCOPE_ENUMS.RESOURCE_TYPE.join(", ")}`
       ),
     body("scopes.*.access_type")
       .optional()
-      .isIn(VALID_ACCESS_TYPES)
-      .withMessage(`access_type must be one of: ${VALID_ACCESS_TYPES.join(", ")}`),
+      .isIn(SCOPE_ENUMS.ACCESS_TYPE)
+      .withMessage(`access_type must be one of: ${SCOPE_ENUMS.ACCESS_TYPE.join(", ")}`),
     body("scopes.*.data_timeframe")
       .optional()
-      .isIn(VALID_DATA_TIMEFRAMES)
+      .isIn(SCOPE_ENUMS.DATA_TIMEFRAME)
       .withMessage(
-        `data_timeframe must be one of: ${VALID_DATA_TIMEFRAMES.join(", ")}`
+        `data_timeframe must be one of: ${SCOPE_ENUMS.DATA_TIMEFRAME.join(", ")}`
       ),
   ],
 ];
