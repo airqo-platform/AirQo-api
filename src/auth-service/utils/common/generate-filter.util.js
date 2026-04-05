@@ -227,6 +227,7 @@ const filter = {
         description,
         metadata,
         donation_campaign_id,
+        transaction_type,
       } = { ...req.query, ...req.params };
 
       let filter = {};
@@ -273,6 +274,10 @@ const filter = {
 
       if (donation_campaign_id) {
         filter["donation_campaign_id"] = ObjectId(donation_campaign_id);
+      }
+
+      if (transaction_type) {
+        filter["transaction_type"] = transaction_type;
       }
 
       return filter;
@@ -333,11 +338,17 @@ const filter = {
       }
 
       if (start_date) {
-        filter.start_date = { $gte: new Date(start_date) }; // Greater than or equal
+        const sd = new Date(start_date);
+        if (!isNaN(sd.getTime())) {
+          filter.start_date = { $gte: sd };
+        }
       }
 
       if (end_date) {
-        filter.end_date = { $lte: new Date(end_date) }; // Less than or equal
+        const ed = new Date(end_date);
+        if (!isNaN(ed.getTime())) {
+          filter.end_date = { $lte: ed };
+        }
       }
 
       if (status) {
@@ -951,7 +962,7 @@ const filter = {
   },
   scopes: (req, next) => {
     try {
-      const { id, scope, scope_id, network_id } = {
+      const { id, scope, scope_id, network_id, tier, resource_type, access_type, data_timeframe } = {
         ...req.query,
         ...req.params,
       };
@@ -971,6 +982,23 @@ const filter = {
       if (network_id) {
         filter["network_id"] = ObjectId(network_id);
       }
+
+      if (tier) {
+        filter["tier"] = tier;
+      }
+
+      if (resource_type) {
+        filter["resource_type"] = resource_type;
+      }
+
+      if (access_type) {
+        filter["access_type"] = access_type;
+      }
+
+      if (data_timeframe) {
+        filter["data_timeframe"] = data_timeframe;
+      }
+
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

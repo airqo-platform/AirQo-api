@@ -432,6 +432,7 @@ AccessTokenSchema.methods = {
       last_used_at: this.last_used_at,
       last_ip_address: this.last_ip_address,
       expires: this.expires,
+      tier: this.tier,
     };
   },
 };
