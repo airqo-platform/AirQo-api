@@ -10,7 +10,23 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transactions-util`
 );
 const { logObject, logText, HttpError } = require("@utils/shared");
-const paddleClient = require("@config/paddle");
+const {
+  paddleClient,
+  isPaddleConfigured,
+} = require("@config/paddle");
+
+// Standard response returned by any function that calls Paddle when credentials
+// are not configured. Lets the service start and all non-Paddle endpoints work.
+const PADDLE_NOT_CONFIGURED = {
+  success: false,
+  message: "Payment provider not configured",
+  errors: {
+    message:
+      "Paddle credentials have not been set up on this environment. " +
+      "Contact the system administrator.",
+  },
+  status: httpStatus.SERVICE_UNAVAILABLE,
+};
 
 // Canonical mapping of subscription tier → granted scopes (cumulative)
 const TIER_SCOPE_MAP = {
@@ -331,6 +347,7 @@ const transactions = {
    * @returns {Promise<Object>} Checkout session result
    */
   createCheckoutSession: async (request, sessionData) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const user = request.user;
       const customerIdentification = sessionData.customer_id;
@@ -404,6 +421,7 @@ const transactions = {
    * @returns {Promise<string>} Price ID
    */
   getDynamicPriceId: async (amount, currency) => {
+    if (!isPaddleConfigured) throw new Error("Payment provider not configured");
     try {
       const price = await paddleClient.prices.create({
         product_id: constants.PADDLE_PRODUCT_ID,
@@ -545,6 +563,7 @@ const transactions = {
    * @returns {Promise<Object>} Webhook processing result
    */
   processWebhook: async (request, next) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const signature = request.headers["paddle-signature"];
       const { body, query } = request;
@@ -634,6 +653,7 @@ const transactions = {
    * @param {Object} subscriptionData - Subscription details
    */
   createSubscriptionTransaction: async (request, subscriptionData) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const user = request.user;
 
@@ -783,6 +803,7 @@ const transactions = {
    * @param {Object} user - User object
    */
   cancelSubscription: async (subscriptionId, user) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       // Cancel subscription in Paddle
       const cancellationResult = await paddleClient.subscriptions.cancel(
@@ -820,6 +841,7 @@ const transactions = {
    * @param {Function} next - Error handling middleware
    */
   manualSubscriptionRenewal: async (request, next) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const user = request.user;
       const { tenant } = request.query;

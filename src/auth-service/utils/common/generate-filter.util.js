@@ -1014,6 +1014,26 @@ const filter = {
     }
   },
 
+  scope_rules: (req, next) => {
+    try {
+      const { scope, active, rule_id } = { ...req.query, ...req.params };
+      const filter = {};
+
+      if (rule_id) filter["_id"] = ObjectId(rule_id);
+      if (scope) filter["scope"] = scope;
+      if (active !== undefined) filter["active"] = active === "true" || active === true;
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
   departments: (req, next) => {
     try {
       const {

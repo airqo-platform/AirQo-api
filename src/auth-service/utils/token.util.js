@@ -125,36 +125,76 @@ const checkTokenVerifyRateLimit = async (userId, tier) => {
   }
 };
 
+const ScopeRuleModel = require("@models/ScopeRule");
+
 /**
- * URI → required scope mapping.
- * Rules are evaluated in order — first match wins.
- * Patterns are matched against the Nginx x-original-uri header value.
- *
- * Backward compatibility: tokens with NO scopes are treated as Free tier
- * (see resolveEffectiveScopes below), so existing users are unaffected.
- *
- * This table is the single source of truth for scope enforcement.
- * Add new entries here when new protected resources are introduced.
+ * Hardcoded fallback rules — used ONLY when the DB is unreachable
+ * or has no active rules yet (first boot / before seed-defaults is called).
+ * These mirror the defaults seeded by ScopeRuleModel.seedDefaults().
  */
-const URI_SCOPE_RULES = [
-  // Premium endpoints — check before broader patterns
-  { pattern: /\/devices\/forecasts/i,   scope: "read:forecasts" },
-  { pattern: /\/forecasts/i,            scope: "read:forecasts" },
-  { pattern: /\/insights/i,             scope: "read:insights" },
-
-  // Standard endpoints
-  { pattern: /\/devices\/measurements/i, scope: "read:historical_measurements" },
-
-  // Free endpoints
-  { pattern: /\/devices\/events/i,      scope: "read:recent_measurements" },
-  { pattern: /\/devices\/readings/i,    scope: "read:recent_measurements" },
-  { pattern: /\/devices\/feeds/i,       scope: "read:recent_measurements" },
-  { pattern: /\/devices\/sites/i,       scope: "read:sites" },
-  { pattern: /\/devices\/cohorts/i,     scope: "read:cohorts" },
-  { pattern: /\/devices\/grids/i,       scope: "read:grids" },
-  // /devices catch-all — must come after all sub-path rules above
-  { pattern: /\/devices/i,              scope: "read:devices" },
+const _FALLBACK_SCOPE_RULES = [
+  { pattern: "/devices/forecasts",    scope: "read:forecasts",               priority: 10 },
+  { pattern: "/forecasts",            scope: "read:forecasts",               priority: 11 },
+  { pattern: "/insights",             scope: "read:insights",                priority: 12 },
+  { pattern: "/devices/measurements", scope: "read:historical_measurements", priority: 20 },
+  { pattern: "/devices/events",       scope: "read:recent_measurements",     priority: 30 },
+  { pattern: "/devices/readings",     scope: "read:recent_measurements",     priority: 31 },
+  { pattern: "/devices/feeds",        scope: "read:recent_measurements",     priority: 32 },
+  { pattern: "/devices/sites",        scope: "read:sites",                   priority: 40 },
+  { pattern: "/devices/cohorts",      scope: "read:cohorts",                 priority: 41 },
+  { pattern: "/devices/grids",        scope: "read:grids",                   priority: 42 },
+  { pattern: "/devices",              scope: "read:devices",                 priority: 50 },
 ];
+
+/**
+ * In-memory rule cache — refreshed from DB every SCOPE_RULE_CACHE_TTL_MS.
+ * This means rule changes made via the API take effect within one cache cycle
+ * without any code deployment or restart.
+ */
+const SCOPE_RULE_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+let _scopeRuleCache = null;     // { rules: Array, loadedAt: number }
+let _scopeRuleFetchPending = false;
+
+/**
+ * Load active scope rules from DB (Redis-cached at the app level).
+ * Falls back to hardcoded defaults if DB is unreachable.
+ * Never throws.
+ */
+const _loadScopeRules = async () => {
+  if (_scopeRuleFetchPending) return; // avoid concurrent fetches
+  _scopeRuleFetchPending = true;
+  try {
+    const tenant = constants.DEFAULT_TENANT || "airqo";
+    const response = await ScopeRuleModel(tenant).loadActive();
+    if (response.success && response.data && response.data.length > 0) {
+      _scopeRuleCache = { rules: response.data, loadedAt: Date.now() };
+    } else {
+      // DB returned empty — keep existing cache or fall back to hardcoded
+      if (!_scopeRuleCache) {
+        _scopeRuleCache = { rules: _FALLBACK_SCOPE_RULES, loadedAt: Date.now() };
+      }
+    }
+  } catch (err) {
+    logger.error(`Non-critical: failed to load scope rules from DB: ${err.message}`);
+    if (!_scopeRuleCache) {
+      _scopeRuleCache = { rules: _FALLBACK_SCOPE_RULES, loadedAt: Date.now() };
+    }
+  } finally {
+    _scopeRuleFetchPending = false;
+  }
+};
+
+/**
+ * Get active scope rules, refreshing the cache if stale.
+ * Returns synchronously from cache; triggers async refresh in background.
+ */
+const _getScopeRules = () => {
+  const now = Date.now();
+  if (!_scopeRuleCache || (now - _scopeRuleCache.loadedAt) > SCOPE_RULE_CACHE_TTL_MS) {
+    _loadScopeRules(); // fire-and-forget refresh
+  }
+  return _scopeRuleCache ? _scopeRuleCache.rules : _FALLBACK_SCOPE_RULES;
+};
 
 // Canonical tier → scope set (same as in transaction.util.js)
 const _TIER_SCOPE_MAP = {
@@ -185,8 +225,14 @@ const resolveEffectiveScopes = (tokenScopes, tier) => {
 const checkUriScope = (uri, effectiveScopes) => {
   if (!uri) return { required: false, granted: true, scope: null };
   try {
-    for (const rule of URI_SCOPE_RULES) {
-      if (rule.pattern.test(uri)) {
+    const rules = _getScopeRules();
+    for (const rule of rules) {
+      const pattern = rule.pattern;
+      const matches =
+        pattern instanceof RegExp
+          ? pattern.test(uri)
+          : uri.toLowerCase().includes(pattern.toLowerCase());
+      if (matches) {
         return {
           required: true,
           granted: effectiveScopes.includes(rule.scope),

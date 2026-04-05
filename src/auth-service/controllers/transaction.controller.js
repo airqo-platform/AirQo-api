@@ -396,7 +396,7 @@ const transactions = {
 
       const result = await transactionsUtil.createSubscriptionTransaction(
         request,
-        request.validatedSubscription
+        request.validatedSubscription || req.body
       );
 
       if (isEmpty(result) || res.headersSent) {

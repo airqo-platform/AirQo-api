@@ -277,12 +277,12 @@ const createSafeRateLimiter = (config) => {
       skip: skipFunction,
       handler: rateLimitHandler,
       keyGenerator,
-      // CRITICAL: Skip failed requests to avoid breaking the app
+      // Suppress the trust-proxy validation error — we use custom x-client-ip
+      // headers via keyGenerator so req.ip trustworthiness is irrelevant here.
+      validate: { trustProxy: false },
       skipFailedRequests: false,
       skipSuccessfulRequests: false,
-      // Add error handler
       requestWasSuccessful: (req, res) => res.statusCode < 400,
-      // If store throws error, handle it gracefully
     });
   } catch (error) {
     logger.error(`Failed to create rate limiter: ${error.message}`);

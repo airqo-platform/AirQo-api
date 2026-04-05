@@ -1,29 +1,42 @@
 const constants = require("@config/constants");
 const { Paddle, Environment } = require("@paddle/paddle-node-sdk");
-const { logObject } = require("@utils/shared");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- paddle.config`
+);
 
-// logObject("API Key Configuration", {
-//   length: constants.PADDLE_API_KEY?.length || 0,
-//   hasWhitespace: constants.PADDLE_API_KEY
-//     ? /\s/.test(constants.PADDLE_API_KEY)
-//     : false,
-//   startsWith: constants.PADDLE_API_KEY?.substring(0, 8),
-//   environment: constants.PADDLE_ENVIRONMENT || "sandbox",
-// });
-
+const rawKey = constants.PADDLE_API_KEY || "";
+const cleanKey = rawKey.replace(/\s/g, "");
 const environ = constants.PADDLE_ENVIRONMENT || "sandbox";
-const paddleClient = new Paddle(constants.PADDLE_API_KEY.trim(), {
-  environment: Environment[environ],
-  logLevel: "verbose",
-});
 
-// logObject("constants.PADDLE_ENVIRONMENT", constants.PADDLE_ENVIRONMENT);
-// logObject("paddleClient.client", paddleClient.client);
+// A valid Paddle Billing key always starts with "pdl_"
+const isPaddleConfigured =
+  cleanKey.length > 0 && cleanKey.startsWith("pdl_");
 
-// logObject("Paddle Client Configuration", {
-//   environment: constants.PADDLE_ENVIRONMENT,
-//   keyLength: constants.PADDLE_API_KEY?.length || 0,
-//   hasClient: !!paddleClient.client,
-// });
+if (!isPaddleConfigured) {
+  logger.warn(
+    "⚠️  Paddle is not configured — payment endpoints (checkout, webhook, " +
+      "subscription management) will return 503 until valid credentials are " +
+      "supplied via PADDLE_API_KEY / PADDLE_ENVIRONMENT."
+  );
+  if (cleanKey.length > 0) {
+    logger.warn(
+      `   Key present but invalid format (starts with "${cleanKey.substring(0, 8)}"). ` +
+        "Paddle Billing keys must start with 'pdl_'."
+    );
+  }
+} else {
+  logger.info(
+    `✅ Paddle configured — environment: ${environ}, ` +
+      `key prefix: ${cleanKey.substring(0, 8)}`
+  );
+}
 
-module.exports = paddleClient;
+const paddleClient = isPaddleConfigured
+  ? new Paddle(cleanKey, {
+      environment: Environment[environ],
+      logLevel: "verbose",
+    })
+  : null;
+
+module.exports = { paddleClient, isPaddleConfigured };
