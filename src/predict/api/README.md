@@ -5,7 +5,7 @@
 Route:
 `GET /api/v2/predict/daily-forecasting`
 
-Optional query parameter:
+Optional query parameter: 
 `site_id`
 
 Behavior:
