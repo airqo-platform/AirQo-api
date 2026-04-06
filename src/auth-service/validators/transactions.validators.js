@@ -49,12 +49,19 @@ const commonValidations = {
 };
 
 const transactionValidations = {
+  // Tier-based checkout (frontend flow): requires `tier` in body.
+  // Legacy amount-based checkout: requires `amount` + `currency`.
   checkout: oneOf([
     ...commonValidations.tenant,
+    body("tier")
+      .optional()
+      .isString()
+      .withMessage("tier must be a string")
+      .isIn(["Standard", "Premium"])
+      .withMessage("tier must be Standard or Premium"),
     ...commonValidations.currency,
     body("amount")
-      .exists()
-      .withMessage("amount is missing in request")
+      .optional()
       .isNumeric()
       .withMessage("amount must be a number")
       .isFloat({ min: 0.01 })

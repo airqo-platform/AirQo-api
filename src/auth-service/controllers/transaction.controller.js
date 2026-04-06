@@ -31,21 +31,52 @@ const transactions = {
         ? defaultTenant
         : req.query.tenant;
 
-      const { amount, currency, customerId, items } = request.body;
+      const { amount, currency, customerId, items, tier } = request.body;
+
+      // Resolve items: tier-based flow (frontend) takes priority over
+      // legacy amount/currency flow, then explicit items.
+      let resolvedItems = items;
+      if (!resolvedItems) {
+        if (tier) {
+          // Map subscription tier to the corresponding Paddle price ID
+          const TIER_PRICE_MAP = {
+            Standard: constants.PADDLE_STANDARD_PRICE_ID,
+            Premium: constants.PADDLE_PREMIUM_PRICE_ID,
+          };
+          const priceId =
+            TIER_PRICE_MAP[tier] ||
+            constants.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID;
+          if (!priceId) {
+            next(
+              new HttpError("bad request errors", httpStatus.BAD_REQUEST, {
+                message: `No Paddle price ID configured for tier: ${tier}`,
+              })
+            );
+            return;
+          }
+          resolvedItems = [{ price: priceId, quantity: 1 }];
+        } else {
+          resolvedItems = [
+            {
+              price: await transactionsUtil.getDynamicPriceId(
+                amount,
+                currency
+              ),
+              quantity: 1,
+            },
+          ];
+        }
+      }
 
       const result = await transactionsUtil.createCheckoutSession(request, {
-        items: items || [
-          {
-            price: await transactionsUtil.getDynamicPriceId(amount, currency),
-            quantity: 1,
-          },
-        ],
+        items: resolvedItems,
         customer: {
           id: customerId,
         },
         custom_data: {
           source: "api_subscription_payment",
-          initial_amount: amount,
+          ...(tier && { subscription_tier: tier }),
+          ...(amount && { initial_amount: amount }),
         },
         settings: {
           mode: "transaction",
@@ -63,7 +94,10 @@ const transactions = {
         return res.status(status).json({
           success: true,
           message: "Checkout session created successfully",
+          // session_url kept for backward compatibility; checkoutUrl is the
+          // canonical field the frontend redirect flow consumes.
           session_url: result.data.url,
+          checkoutUrl: result.data.url,
           session_id: result.data.id,
         });
       } else if (result.success === false) {
@@ -94,12 +128,42 @@ const transactions = {
 
   optInForAutomaticRenewal: async (req, res, next) => {
     try {
+      // Use the price ID already stored on the user's current plan details.
+      // Fall back to the default subscription price ID if not set.
+      const user = req.user;
+      const priceId =
+        user?.currentPlanDetails?.priceId ||
+        constants.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID;
+
       const result = await transactionsUtil.optInForAutomaticRenewal(req, {
-        billingCycle: "monthly",
-        priceId: "custom_price_id",
+        billingCycle: user?.currentPlanDetails?.billingCycle || "monthly",
+        priceId,
       });
       res.status(result.status).json(result);
-    } catch (error) {}
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  disableAutoRenewal: async (req, res, next) => {
+    try {
+      const result = await transactionsUtil.disableAutoRenewal(req);
+      res.status(result.status).json(result);
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
   },
 
   handleWebhook: async (req, res, next) => {

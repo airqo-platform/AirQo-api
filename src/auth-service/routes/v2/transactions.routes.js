@@ -65,6 +65,14 @@ router.post(
   TransactionController.optInForAutomaticRenewal
 );
 
+// Disable Auto-Renewal
+router.post(
+  "/:id/disable-auto-renew",
+  transactionValidations.idOperation,
+  enhancedJWTAuth,
+  TransactionController.disableAutoRenewal
+);
+
 // Create Subscription Transaction
 router.post(
   "/create-subscription",
