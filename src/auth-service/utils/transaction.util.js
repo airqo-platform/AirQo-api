@@ -1215,6 +1215,48 @@ const transactions = {
       };
     }
   },
+
+  /**
+   * Disable automatic renewal for a user's subscription.
+   * Updates the user record only — no Paddle subscription update is required
+   * because we simply stop scheduling renewals rather than cancelling the plan.
+   * @param {Object} request - Express request object (user populated by auth middleware)
+   * @returns {Promise<Object>}
+   */
+  disableAutoRenewal: async (request) => {
+    try {
+      const user = request.user;
+
+      if (!user.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedUser = await UserModel("airqo").findByIdAndUpdate(
+        user._id,
+        { $set: { automaticRenewal: false } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Automatic renewal disabled successfully",
+        data: { automaticRenewal: updatedUser.automaticRenewal },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error("Disable automatic renewal failed", error);
+      return {
+        success: false,
+        message: "Failed to disable automatic renewal",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = transactions;
