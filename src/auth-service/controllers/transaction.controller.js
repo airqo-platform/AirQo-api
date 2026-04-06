@@ -40,13 +40,14 @@ const transactions = {
       let resolvedItems = items;
       if (!resolvedItems) {
         if (tier) {
-          // Map subscription tier to the corresponding Paddle price ID
+          // Normalise to lowercase so "Standard", "standard", "STANDARD"
+          // all resolve correctly regardless of what the caller sends.
           const TIER_PRICE_MAP = {
-            Standard: constants.PADDLE_STANDARD_PRICE_ID,
-            Premium: constants.PADDLE_PREMIUM_PRICE_ID,
+            standard: constants.PADDLE_STANDARD_PRICE_ID,
+            premium: constants.PADDLE_PREMIUM_PRICE_ID,
           };
           const priceId =
-            TIER_PRICE_MAP[tier] ||
+            TIER_PRICE_MAP[tier.toLowerCase()] ||
             constants.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID;
           if (!priceId) {
             next(
