@@ -2,7 +2,7 @@ const express = require("express");
 const TransactionController = require("@controllers/transaction.controller");
 const transactionValidations = require("@validators/transactions.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
-const { validate, headers, pagination } = require("@validators/common");
+const { headers, pagination } = require("@validators/common");
 
 const router = express.Router();
 
@@ -57,18 +57,18 @@ router.delete(
   TransactionController.deleteTransaction
 );
 
-// Enable Auto-Renewal
+// Enable Auto-Renewal (user-scoped, no transaction ID needed)
 router.post(
-  "/:id/enable-auto-renew",
-  transactionValidations.idOperation,
+  "/enable-auto-renew",
+  transactionValidations.tenantOperation,
   enhancedJWTAuth,
   TransactionController.optInForAutomaticRenewal
 );
 
-// Disable Auto-Renewal
+// Disable Auto-Renewal (user-scoped, no transaction ID needed)
 router.post(
-  "/:id/disable-auto-renew",
-  transactionValidations.idOperation,
+  "/disable-auto-renew",
+  transactionValidations.tenantOperation,
   enhancedJWTAuth,
   TransactionController.disableAutoRenewal
 );
@@ -81,10 +81,10 @@ router.post(
   TransactionController.createSubscriptionTransaction
 );
 
-// Cancel Subscription
+// Cancel Subscription (user-scoped, no transaction ID needed)
 router.post(
-  "/:id/cancel-subscription",
-  transactionValidations.idOperation,
+  "/cancel-subscription",
+  transactionValidations.tenantOperation,
   enhancedJWTAuth,
   TransactionController.cancelSubscription
 );
@@ -97,18 +97,18 @@ router.post(
   TransactionController.generateDynamicPrice
 );
 
-// Get Subscription Status
+// Get Subscription Status (user-scoped, no transaction ID needed)
 router.get(
-  "/:id/subscription-status",
-  transactionValidations.idOperation,
+  "/subscription-status",
+  transactionValidations.tenantOperation,
   enhancedJWTAuth,
   TransactionController.getSubscriptionStatus
 );
 
-// Manual Subscription Renewal
+// Manual Subscription Renewal (user-scoped, no transaction ID needed)
 router.post(
-  "/:id/renew-subscription",
-  transactionValidations.idOperation,
+  "/renew-subscription",
+  transactionValidations.tenantOperation,
   enhancedJWTAuth,
   TransactionController.manualSubscriptionRenewal
 );

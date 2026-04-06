@@ -13,6 +13,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transaction-controller`
 );
 const transactionsUtil = require("@utils/transaction.util");
+const { paddleClient, isPaddleConfigured } = require("@config/paddle");
+const UserModel = require("@models/User");
 
 const transactions = {
   createCheckoutSession: async (req, res, next) => {
@@ -33,8 +35,8 @@ const transactions = {
 
       const { amount, currency, customerId, items, tier } = request.body;
 
-      // Resolve items: tier-based flow (frontend) takes priority over
-      // legacy amount/currency flow, then explicit items.
+      // Resolve items: explicit items take priority; otherwise use the
+      // tier-based flow (frontend), then fall back to legacy amount/currency.
       let resolvedItems = items;
       if (!resolvedItems) {
         if (tier) {
@@ -56,6 +58,15 @@ const transactions = {
           }
           resolvedItems = [{ price: priceId, quantity: 1 }];
         } else {
+          if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+            next(
+              new HttpError("bad request errors", httpStatus.BAD_REQUEST, {
+                message:
+                  "Either 'tier' or a valid 'amount' (with 'currency') is required for checkout",
+              })
+            );
+            return;
+          }
           resolvedItems = [
             {
               price: await transactionsUtil.getDynamicPriceId(
@@ -134,6 +145,20 @@ const transactions = {
       const priceId =
         user?.currentPlanDetails?.priceId ||
         constants.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID;
+
+      if (!priceId) {
+        next(
+          new HttpError(
+            "Service misconfiguration",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "No subscription price ID available. Ensure PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID is configured.",
+            }
+          )
+        );
+        return;
+      }
 
       const result = await transactionsUtil.optInForAutomaticRenewal(req, {
         billingCycle: user?.currentPlanDetails?.billingCycle || "monthly",
@@ -511,7 +536,14 @@ const transactions = {
         return;
       }
 
-      const { subscriptionId } = req.params;
+      const subscriptionId = req.user?.currentSubscriptionId;
+      if (!subscriptionId) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "No active subscription found",
+          errors: { message: "User has no subscription ID" },
+        });
+      }
       const result = await transactionsUtil.cancelSubscription(
         subscriptionId,
         req.user
@@ -597,6 +629,14 @@ const transactions = {
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
         return;
+      }
+
+      if (!isPaddleConfigured) {
+        return res.status(httpStatus.SERVICE_UNAVAILABLE).json({
+          success: false,
+          message:
+            "Payment service is not configured. Please try again later.",
+        });
       }
 
       if (!req.user || !req.user.currentSubscriptionId) {
