@@ -13,12 +13,35 @@ from fastapi.responses import JSONResponse
 import traceback
 
 # Configure logging
+log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+log_format = "LOG: [%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s"
+
+# Setup root logger with dual handlers (Terminal + File)
+# We use force=True to ensure we override any uvicorn defaults in the worker
 logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
-    format="%(levelname)s:     %(name)s: %(message)s",
+    level=log_level,
+    format=log_format,
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("log.txt")
+    ],
+    force=True
 )
+
+root_logger = logging.getLogger()
+
+# Specific logger configurations
 logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(log_level)
+
+# Force Uvicorn loggers to use our root logger configuration
+for logger_name in ["uvicorn", "uvicorn.error", "uvicorn.access", "sqlalchemy"]:
+    uv_logger = logging.getLogger(logger_name)
+    uv_logger.handlers = []
+    uv_logger.propagate = True
+
 logger = logging.getLogger(__name__)
+logger.info("Main module imported - Logging system initialized")
 
 # Create database tables
 # Base.metadata.create_all(bind=engine)
@@ -27,18 +50,39 @@ app = FastAPI(
     title=settings.APP_NAME,
     debug=settings.DEBUG,
     version="1.0.0",
-    redirect_slashes=False,
 )
 
 
 @app.on_event("startup")
 def on_startup():
+    logger.info("Application starting up...")
     start_scheduler()
+    logger.info("Application startup complete and ready to serve requests.")
 
 
 @app.on_event("shutdown")
 def on_shutdown():
     stop_scheduler()
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    import time
+    start_time = time.time()
+    
+    # Process the request
+    response = await call_next(request)
+    
+    # Calculate duration
+    duration = time.time() - start_time
+    
+    # Log details
+    logger.info(
+        f"{request.method} {request.url.path} - "
+        f"{response.status_code} "
+        f"({duration:.2f}s)"
+    )
+    
+    return response
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

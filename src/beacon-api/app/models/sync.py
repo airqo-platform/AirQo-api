@@ -59,12 +59,18 @@ class SyncDevice(Base):
     __tablename__ = "sync_device"
 
     device_id = Column(String(100), primary_key=True, nullable=False)
+    device_name = Column(String(100), index=True)
     network_id = Column(String(100))
+    site_id = Column(String(100), index=True)
+    category = Column(String(100))
     current_firmware = Column(String(100))
     previous_firmware = Column(String(100))
     target_firmware = Column(String(100))
     file_upload_state = Column(Boolean, server_default="false")
     firmware_download_state = Column(String(100))
+    device_number = Column(Integer)
+    writeKey = Column(String(100))
+    readKey = Column(String(100))
 
 class SyncConfigValues(Base):
     __tablename__ = "sync_config_values"
