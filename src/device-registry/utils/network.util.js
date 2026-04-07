@@ -150,9 +150,21 @@ const updateNetwork = async (request, next) => {
     }
 
     const networkId = network._id;
+
+    // findByIdAndUpdate bypasses pre("save") hooks, so net_api_key would be
+    // written as plaintext if passed through directly. Encrypt it here to match
+    // what the pre("save") hook does on document.save().
+    const updateBody = { ...body };
+    if (updateBody.net_api_key) {
+      updateBody.net_api_key = cryptoJS.AES.encrypt(
+        updateBody.net_api_key,
+        constants.KEY_ENCRYPTION_KEY
+      ).toString();
+    }
+
     const responseFromUpdateNetwork = await NetworkModel(tenant).findByIdAndUpdate(
       ObjectId(networkId),
-      body,
+      updateBody,
       { new: true }
     );
 
