@@ -22,6 +22,7 @@
  */
 
 const crypto = require("crypto");
+const cryptoJS = require("crypto-js");
 const constants = require("@config/constants");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
@@ -50,7 +51,7 @@ const getNetworkAdapter = async (networkName, tenant = "airqo") => {
   try {
     const record = await NetworkModel(tenant)
       .findOne({ name: networkName })
-      .select("adapter net_api_key")
+      .select("adapter +net_api_key")
       .lean();
 
     // Decrypt the network-level API key when present. This is the per-account
