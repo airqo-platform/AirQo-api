@@ -1,0 +1,69 @@
+site_name: The airqoair book
+site_description: Documentation for the airqoair Python library
+site_url: https://airqoair-project.github.io/book
+repo_url: https://github.com/airqo-platform/AirQo-api
+repo_name: airqo-platform/AirQo-api
+edit_uri: edit/main/packages/airqoair/docs/
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: material
+  language: en
+  logo: assets/images/airqoair-hero.svg
+  favicon: assets/images/airqoair-hero.svg
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+nav:
+  - Preface:
+      - Welcome: index.md
+  - Chapter 1. Introduction:
+      - Why airqoair: introduction.md
+      - Installation: getting-started/installation.md
+      - Input data: getting-started/input-data.md
+      - Matplotlib access: getting-started/matplotlib-access.md
+  - Chapter 2. Directional Analysis:
+      - Wind and pollution roses: directional/wind-and-pollution-roses.md
+      - Polar plots and annulus: directional/polar-plots.md
+  - Chapter 3. Time Series and Trends:
+      - Temporal variation: trends/temporal-variation.md
+      - Calendar plots: trends/calendar-plots.md
+      - Time proportion plots: trends/time-proportion-plots.md
+      - Trend level: trends/trend-level.md
+      - Run regression: trends/run-regression.md
+      - Smooth trends: trends/smooth-trends.md
+      - Theil-Sen trends: trends/theil-sen-trends.md
+  - Chapter 4. Interactive Maps:
+      - Mapping and networks: maps/interactive-maps.md
+  - Chapter 5. Model Evaluation:
+      - Evaluation and diagnostics: evaluation/model-evaluation.md
+  - Appendix:
+      - API reference: api-reference.md
+      - Example assets: assets/images/examples/README.md

@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django_quill.fields import QuillField
 from utils.models import BaseModel, SlugBaseModel
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
+from utils.cloudinary import safe_destroy
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -145,23 +145,8 @@ class Event(SlugBaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Event: ID={self.pk}, Title={self.title}")
-        # Attempt to delete images from Cloudinary
-        if self.event_image:
-            try:
-                destroy(self.event_image.public_id)
-                logger.info(
-                    f"Deleted event_image from Cloudinary: {self.event_image.public_id}")
-            except Exception as e:
-                logger.error(
-                    f"Error deleting event_image from Cloudinary: {e}")
-        if self.background_image:
-            try:
-                destroy(self.background_image.public_id)
-                logger.info(
-                    f"Deleted background_image from Cloudinary: {self.background_image.public_id}")
-            except Exception as e:
-                logger.error(
-                    f"Error deleting background_image from Cloudinary: {e}")
+        safe_destroy(self.event_image, invalidate=True)
+        safe_destroy(self.background_image, invalidate=True)
 
         result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Event: ID={self.pk}, Title={self.title}")
@@ -318,14 +303,7 @@ class PartnerLogo(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete PartnerLogo: ID={self.pk}, Name={self.name}")
-        if self.partner_logo:
-            try:
-                destroy(self.partner_logo.public_id)
-                logger.info(
-                    f"Deleted partner_logo from Cloudinary: {self.partner_logo.public_id}")
-            except Exception as e:
-                logger.error(
-                    f"Error deleting partner_logo from Cloudinary: {e}")
+        safe_destroy(self.partner_logo, invalidate=True)
         result = super().delete(*args, **kwargs)
         logger.info(f"Deleted PartnerLogo: ID={self.pk}, Name={self.name}")
         return result
@@ -371,13 +349,7 @@ class Resource(BaseModel):
     def delete(self, *args, **kwargs):
         logger.debug(
             f"Attempting to delete Resource: ID={self.pk}, Title={self.title}")
-        if self.resource:
-            try:
-                destroy(self.resource.public_id)
-                logger.info(
-                    f"Deleted resource from Cloudinary: {self.resource.public_id}")
-            except Exception as e:
-                logger.error(f"Error deleting resource from Cloudinary: {e}")
+        safe_destroy(self.resource, invalidate=True, resource_type="raw")
         result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Resource: ID={self.pk}, Title={self.title}")
         return result

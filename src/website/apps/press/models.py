@@ -1,7 +1,7 @@
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
 from django.db import models
 from utils.models import BaseModel, SlugBaseModel
+from utils.cloudinary import safe_destroy
 
 
 class Press(SlugBaseModel):
@@ -63,7 +63,6 @@ class Press(SlugBaseModel):
         """
         Override the delete method to remove the associated Cloudinary file before deleting the instance.
         """
-        if self.publisher_logo:
-            destroy(self.publisher_logo.public_id, invalidate=True)
+        safe_destroy(self.publisher_logo, invalidate=True)
         result = super().delete(*args, **kwargs)
         return result

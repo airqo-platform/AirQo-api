@@ -350,3 +350,46 @@ Destinations:
 - Maintains data consistency across platforms
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+satellite_data_location_approximations_doc = """
+### Satellite Data Location Approximations ETL
+#### Purpose
+Approximates satellite data locations for air quality measurements.
+#### Workflow Steps
+1. **Approximate Locations** (`approximate_locations`)
+   - Calculates the previous hour's time range.
+   - Calls `approximate_satellite_data_locations_for_airquality_measurements` to get approximation data.
+2. **Load to BigQuery** (`load_to_bigquery`)
+   - Uses a configured storage adapter to load the approximated data into BigQuery.
+#### Schedule
+Runs every hour at the 20th minute (20 * * * *) to allow for data availability and processing time.
+Depending on when the data is available, the flow keeps checking the source until it finds the file, and if it doesn't find it, it skips the workflow run.
+#### Notes
+Data sources:
+- Satellite Data (internal processing)
+Data Destinations:
+- BigQuery: `Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE`
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+
+NOTE: Currently only using copernicus satellite data in production. The copernicus data is prefered because it has both pm2.5 and pm10 always present.
+The nomads satellite data is not prefered because sometimes either pm2.5 or pm10 is missing, and pm2.5 is the main pollutant of interest for air quality monitoring.
+Although it has extra wind data which can be useful for some analysis, the missing pm2.5 data makes it less ideal for our use case.
+"""
+
+calibration_model_training_doc = """
+    ## Calibration model training
+
+    Trains one `RandomForestRegressor` calibration model per country defined in
+    `CALIBRATION_COLLOCATED_DEVICES`.  A model is only written to GCS when it
+    strictly improves on R², MAE, **and** RMSE of the previously deployed artifact.
+
+    MLflow tracking is enabled when `MLFLOW_TRACKING_URI` is set.
+
+    ### Configuration env vars
+    | Variable | Description |
+    |---|---|
+    | `CALIBRATION_COLLOCATED_DEVICES` | JSON map of country → LCS/BAM device IDs |
+    | `CALIBRATION_MODELS_BUCKET` | GCS bucket for model artifacts |
+    | `CALIBRATION_TRAINING_MONTHS` | Look-back window in months (default 3) |
+    | `MLFLOW_CALIBRATION_MLFLOW_EXPERIMENT` | MLflow experiment name |
+"""

@@ -2,7 +2,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/health-tip-checker-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/health-tip-checker-job -- ops-alerts`,
 );
 const HealthTipModel = require("@models/HealthTips");
 const cron = require("node-cron");
@@ -96,13 +96,13 @@ async function checkSingleRangeForTips(range, healthTipModel, tenant) {
 async function findCategoriesWithoutTips(
   healthTipModel,
   validAqiRanges,
-  tenant
+  tenant,
 ) {
   const categoriesWithoutTips = [];
 
   // Check each range in parallel for better performance
   const checkPromises = validAqiRanges.map((range) =>
-    checkSingleRangeForTips(range, healthTipModel, tenant)
+    checkSingleRangeForTips(range, healthTipModel, tenant),
   );
 
   const results = await Promise.all(checkPromises);
@@ -194,7 +194,7 @@ const checkHealthTipsCoverage = async () => {
     const validation = validateConfiguration();
     if (!validation.success) {
       const errorMsg = `🐛🐛 Configuration validation failed: ${validation.errors.join(
-        ", "
+        ", ",
       )}`;
       logText(errorMsg);
       logger.error(errorMsg);
@@ -207,7 +207,7 @@ const checkHealthTipsCoverage = async () => {
     const categoriesWithoutTips = await findCategoriesWithoutTips(
       HealthTipModel,
       validation.validRanges,
-      tenant
+      tenant,
     );
 
     // Log results using extracted logging function
@@ -282,7 +282,7 @@ const startJob = () => {
         }
       } catch (e) {
         logger.error(
-          `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${e.message}`
+          `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${e.message}`,
         );
       } finally {
         if (typeof cronJobInstance.destroy === "function")

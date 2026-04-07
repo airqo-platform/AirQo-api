@@ -12,7 +12,11 @@ const validate = (req, res, next) => {
   errors.array().map((err) => extractedErrors.push({ [err.param]: err.msg }));
 
   return next(
-    new HttpError("bad request errors", httpStatus.BAD_REQUEST, extractedErrors)
+    new HttpError(
+      "bad request errors",
+      httpStatus.BAD_REQUEST,
+      extractedErrors,
+    ),
   );
 };
 
@@ -25,7 +29,7 @@ const healthValidators = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
     validate,
   ],
@@ -37,7 +41,7 @@ const healthValidators = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
     validate,
   ],

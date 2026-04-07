@@ -3,6 +3,7 @@ const { body, oneOf, query, param } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const isEmpty = require("is-empty");
 const { isMongoId } = require("validator");
+const constants = require("@config/constants");
 
 const themeValidations = {
   theme: [
@@ -22,11 +23,11 @@ const themeValidations = {
           "contentLayout",
         ];
         const hasValidProperty = validProperties.some((prop) =>
-          Object.hasOwn(value, prop)
+          Object.hasOwn(value, prop),
         );
         if (!hasValidProperty) {
           throw new Error(
-            "Theme must contain at least one valid property: primaryColor, mode, interfaceStyle, or contentLayout"
+            "Theme must contain at least one valid property: primaryColor, mode, interfaceStyle, or contentLayout",
           );
         }
         return true;
@@ -42,7 +43,7 @@ const themeValidations = {
           /^(red|blue|green|yellow|purple|orange|pink|cyan|magenta|black|white|gray|grey|brown)$/i;
         if (!hexColorRegex.test(value) && !cssColorRegex.test(value)) {
           throw new Error(
-            "Invalid color format. Use hex (#RRGGBB) or CSS color names"
+            "Invalid color format. Use hex (#RRGGBB) or CSS color names",
           );
         }
         return true;
@@ -159,7 +160,7 @@ const createNestedValidations = (prefix) => {
         "Pie",
       ])
       .withMessage(
-        "Chart type must be one of: Column, Line, Bar, Spline, Step, Area, Scatter, Bubble, Heatmap, Pie"
+        "Chart type must be one of: Column, Line, Bar, Spline, Step, Area, Scatter, Bubble, Heatmap, Pie",
       ),
     body(`${prefix}.days`)
       .optional()
@@ -253,7 +254,7 @@ const createNestedValidations = (prefix) => {
       .optional()
       .isIn(["solid", "dashed", "dotted"])
       .withMessage(
-        "Reference line style must be one of: solid, dashed, dotted"
+        "Reference line style must be one of: solid, dashed, dotted",
       ),
 
     body(`${prefix}.annotations`)
@@ -302,7 +303,7 @@ const createNestedValidations = (prefix) => {
       .optional()
       .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
       .withMessage(
-        "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
+        "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear",
       ),
 
     body(`${prefix}.additionalSeries`)
@@ -313,7 +314,7 @@ const createNestedValidations = (prefix) => {
       .optional()
       .isInt({ min: 1, max: 8 })
       .withMessage(
-        "Additional series fieldId must be an integer between 1 and 8"
+        "Additional series fieldId must be an integer between 1 and 8",
       ),
     body(`${prefix}.additionalSeries.*.label`)
       .optional()
@@ -340,13 +341,13 @@ const validateArrayOfObjects = (fieldName, requiredFields = []) => [
       value.forEach((item, index) => {
         if (typeof item === "string") {
           throw new Error(
-            `${fieldName}[${index}] must be an object with properties, not a string. Expected format: {_id: "...", name: "...", search_name: "..."}`
+            `${fieldName}[${index}] must be an object with properties, not a string. Expected format: {_id: "...", name: "...", search_name: "..."}`,
           );
         }
 
         if (typeof item !== "object" || item === null || Array.isArray(item)) {
           throw new Error(
-            `${fieldName}[${index}] must be an object, received ${typeof item}`
+            `${fieldName}[${index}] must be an object, received ${typeof item}`,
           );
         }
 
@@ -354,7 +355,7 @@ const validateArrayOfObjects = (fieldName, requiredFields = []) => [
         requiredFields.forEach((field) => {
           if (!Object.prototype.hasOwnProperty.call(item, field)) {
             throw new Error(
-              `${fieldName}[${index}] is missing required field: ${field}`
+              `${fieldName}[${index}] is missing required field: ${field}`,
             );
           }
         });
@@ -363,7 +364,7 @@ const validateArrayOfObjects = (fieldName, requiredFields = []) => [
       return true;
     })
     .withMessage(
-      `${fieldName} must be an array of objects with required fields`
+      `${fieldName} must be an array of objects with required fields`,
     ),
 ];
 
@@ -381,13 +382,13 @@ const validateArrayOfObjectIds = (fieldName) => [
       value.forEach((item, index) => {
         if (typeof item === "object") {
           throw new Error(
-            `${fieldName}[${index}] must be an ObjectId string, not an object`
+            `${fieldName}[${index}] must be an ObjectId string, not an object`,
           );
         }
 
         if (typeof item !== "string" || !isMongoId(item)) {
           throw new Error(
-            `${fieldName}[${index}] must be a valid MongoDB ObjectId string`
+            `${fieldName}[${index}] must be a valid MongoDB ObjectId string`,
           );
         }
       });
@@ -405,7 +406,7 @@ const commonValidations = {
       .withMessage("tenant should not be empty if provided")
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "airqount"])
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   userId: [
@@ -413,7 +414,7 @@ const commonValidations = {
       param("user_id")
         .exists()
         .withMessage(
-          "the record's identifier is missing in request, consider using the user_id"
+          "the record's identifier is missing in request, consider using the user_id",
         )
         .bail()
         .trim()
@@ -479,9 +480,8 @@ const commonValidations = {
       if (Array.isArray(selectedSites)) {
         const stringItems = selectedSites.filter((item, index) => {
           if (typeof item === "string") {
-            errors[
-              `selected_sites[${index}]`
-            ] = `Must be an object with properties like {_id, name, search_name}, not a string: "${item}"`;
+            errors[`selected_sites[${index}]`] =
+              `Must be an object with properties like {_id, name, search_name}, not a string: "${item}"`;
             return true;
           }
           return false;
@@ -561,7 +561,7 @@ const commonValidations = {
             approxLongValue > 180
           ) {
             siteErrors.push(
-              "approximate_longitude must be between -180 and 180"
+              "approximate_longitude must be between -180 and 180",
             );
           }
         }
@@ -635,7 +635,7 @@ const commonValidations = {
                 errors[`selected_sites[${idx}]`] =
                   errors[`selected_sites[${idx}]`] || [];
                 errors[`selected_sites[${idx}]`].push(
-                  `Duplicate site_id: ${item.site_id}`
+                  `Duplicate site_id: ${item.site_id}`,
                 );
               } else {
                 uniqueSiteIds.add(item.site_id);
@@ -648,7 +648,7 @@ const commonValidations = {
                 errors[`selected_sites[${idx}]`] =
                   errors[`selected_sites[${idx}]`] || [];
                 errors[`selected_sites[${idx}]`].push(
-                  `Duplicate search_name: ${item.search_name}`
+                  `Duplicate search_name: ${item.search_name}`,
                 );
               } else {
                 uniqueSearchNames.add(item.search_name);
@@ -661,7 +661,7 @@ const commonValidations = {
                 errors[`selected_sites[${idx}]`] =
                   errors[`selected_sites[${idx}]`] || [];
                 errors[`selected_sites[${idx}]`].push(
-                  `Duplicate name: ${item.name}`
+                  `Duplicate name: ${item.name}`,
                 );
               } else {
                 uniqueNames.add(item.name);
@@ -711,7 +711,7 @@ const commonValidations = {
           .trim()
           .isIn(["no2", "pm2_5", "pm10", "pm1"])
           .withMessage(
-            "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
+            "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1",
           ),
         body("frequency")
           .optional()
@@ -722,7 +722,7 @@ const commonValidations = {
           .toLowerCase()
           .isIn(["daily", "hourly", "monthly"])
           .withMessage(
-            "the frequency value is not among the expected ones which include: daily, hourly and monthly"
+            "the frequency value is not among the expected ones which include: daily, hourly and monthly",
           ),
         body("chartType")
           .optional()
@@ -733,7 +733,7 @@ const commonValidations = {
           .toLowerCase()
           .isIn(["bar", "line", "pie"])
           .withMessage(
-            "the chartType value is not among the expected ones which include: bar, line and pie"
+            "the chartType value is not among the expected ones which include: bar, line and pie",
           ),
         body("startDate")
           .optional()
@@ -755,7 +755,7 @@ const commonValidations = {
           .optional()
           .notEmpty()
           .withMessage(
-            "the provided airqloud_id should not be empty IF provided"
+            "the provided airqloud_id should not be empty IF provided",
           )
           .bail()
           .trim()
@@ -787,7 +787,7 @@ const commonValidations = {
           .optional()
           .notEmpty()
           .withMessage(
-            "the provided chartTitle should not be empty IF provided"
+            "the provided chartTitle should not be empty IF provided",
           )
           .bail()
           .trim(),
@@ -802,7 +802,7 @@ const commonValidations = {
           .optional()
           .notEmpty()
           .withMessage(
-            "the provided chartSubTitle should not be empty IF provided"
+            "the provided chartSubTitle should not be empty IF provided",
           )
           .bail()
           .trim(),
@@ -825,7 +825,7 @@ const commonValidations = {
           .optional()
           .notEmpty()
           .withMessage(
-            "the provided device_ids should not be empty IF provided"
+            "the provided device_ids should not be empty IF provided",
           )
           .bail()
           .custom((value) => Array.isArray(value))
@@ -866,7 +866,7 @@ const commonValidations = {
           .optional()
           .notEmpty()
           .withMessage(
-            "the provided airqloud_id should not be empty IF provided"
+            "the provided airqloud_id should not be empty IF provided",
           )
           .bail()
           .trim()
@@ -1088,7 +1088,7 @@ const chartConfigValidation = [
     .optional()
     .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
     .withMessage(
-      "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
+      "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear",
     ),
 
   body("additionalSeries")
@@ -1099,7 +1099,7 @@ const chartConfigValidation = [
     .optional()
     .isInt({ min: 1, max: 8 })
     .withMessage(
-      "Additional series fieldId must be an integer between 1 and 8"
+      "Additional series fieldId must be an integer between 1 and 8",
     ),
   body("additionalSeries.*.label")
     .optional()
@@ -1134,7 +1134,7 @@ const preferenceValidations = {
     param("user_id")
       .exists()
       .withMessage(
-        "the record's identifier is missing in request, consider using the user_id"
+        "the record's identifier is missing in request, consider using the user_id",
       )
       .bail()
       .trim()

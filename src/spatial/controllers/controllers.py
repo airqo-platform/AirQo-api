@@ -11,10 +11,10 @@ from views.derived_pm2_5 import (
 )
 from views.satellite_predictions import SatellitePredictionView
 from views.site_category_view import SiteCategorizationView
-from views.site_selection_views import SiteSelectionView
-from views.report_view import ReportView 
+from views.site_selection_views import SiteSelectionView 
 from views.PolygonSensorOptimizerViews import SensorOptimizationAPI
 from views.heatmapViews import AQIImageGenerator
+from views.source_metadata_view import SourceMetadataView
 
 
 
@@ -71,17 +71,7 @@ def site_selection():
 def get_satellite_prediction():
     return SatellitePredictionView.make_predictions()
 
-@controller_bp.route("/air_quality_report", methods=["POST"])
-def fetch_air_quality():
-    return ReportView.generate_air_quality_report_with_gemini()
-
-@controller_bp.route("/rulebase_air_quality_report", methods=["POST"])
-def fetch_air_quality_without_llm():
-    return ReportView.generate_air_quality_report_without_llm()
-
-@controller_bp.route("/air_quality_report_with_customised_prompt", methods=["POST"])
-def fetch_air_quality_with_customised_prompt():
-    return ReportView.generate_air_quality_report_with_customised_prompt_gemini()
+ 
 
 @controller_bp.route("/polygon_site_location", methods=["POST"])
 def polygon_site_selection():
@@ -94,3 +84,13 @@ def get_heatmaps():
 @controller_bp.route("/heatmaps/<id>", methods=["GET"])
 def get_heatmap_by_id(id):
     return AQIImageGenerator.generate_aqi_image_for_city(id)
+
+
+@controller_bp.route("/source_metadata", methods=["GET"])
+def get_source_metadata():
+    return SourceMetadataView.get_source_metadata()
+
+
+@controller_bp.route("/source_metadata/batch", methods=["POST"])
+def get_source_metadata_batch():
+    return SourceMetadataView.get_source_metadata_batch()

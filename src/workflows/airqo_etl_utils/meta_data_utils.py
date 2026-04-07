@@ -296,6 +296,7 @@ class MetaDataUtils:
 
         # TODO: Come up with a structure for pollutants for multi-sensor devices. Currently, only one pollutant is considered.
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = []
             futures = [
                 executor.submit(
                     MetaDataUtils.compute_baseline_per_entity,
@@ -307,7 +308,6 @@ class MetaDataUtils:
                 )
                 for _, device_data in device_metadata.iterrows()
             ]
-            results = []
             for future in as_completed(futures):
                 try:
                     result = future.result()

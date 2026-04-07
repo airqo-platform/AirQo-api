@@ -22,7 +22,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
 
@@ -85,7 +85,7 @@ const commonValidations = {
     body("site_id")
       .exists()
       .withMessage(
-        "a key photo identifier is missing in the request, consider adding a site_id"
+        "a key photo identifier is missing in the request, consider adding a site_id",
       )
       .bail()
       .trim()
@@ -98,7 +98,7 @@ const commonValidations = {
     body("device_id")
       .exists()
       .withMessage(
-        "a key photo identifier is missing in the request, consider adding a device_id"
+        "a key photo identifier is missing in the request, consider adding a device_id",
       )
       .bail()
       .trim()
@@ -111,7 +111,7 @@ const commonValidations = {
     body("airqloud_id")
       .exists()
       .withMessage(
-        "a key photo identifier is missing in the request, consider adding a airqloud_id"
+        "a key photo identifier is missing in the request, consider adding a airqloud_id",
       )
       .bail()
       .trim()
@@ -261,8 +261,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -281,8 +281,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -302,8 +302,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -329,8 +329,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -346,7 +346,7 @@ const photoValidations = {
       body("device_name")
         .exists()
         .withMessage(
-          "a key photo identifier is missing in the request, consider adding either  device_name (preferred) or airqloud_id or device_id or site_id"
+          "a key photo identifier is missing in the request, consider adding either  device_name (preferred) or airqloud_id or device_id or site_id",
         )
         .bail()
         .trim()
@@ -418,8 +418,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -557,8 +557,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -575,8 +575,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -603,8 +603,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -632,7 +632,7 @@ const photoValidations = {
     query("device_name")
       .exists()
       .withMessage(
-        "the device_name query parameter must be provided for this operation"
+        "the device_name query parameter must be provided for this operation",
       )
       .trim(),
     (req, res, next) => {
@@ -642,8 +642,8 @@ const photoValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();

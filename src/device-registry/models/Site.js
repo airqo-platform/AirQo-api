@@ -40,7 +40,7 @@ const categorySchema = new Schema(
   },
   {
     _id: false,
-  }
+  },
 );
 
 const siteSchema = new Schema(
@@ -449,18 +449,18 @@ const siteSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
-    (value, index, self) => self.indexOf(value) !== index
+    (value, index, self) => self.indexOf(value) !== index,
   );
 
   if (duplicateValues.length > 0) {
     return new HttpError(
       `Duplicate values found in ${fieldName} array.`,
-      httpStatus.BAD_REQUEST
+      httpStatus.BAD_REQUEST,
     );
   }
   return null;
@@ -472,31 +472,6 @@ siteSchema.pre(
     if (this.getUpdate) {
       const updates = this.getUpdate();
       if (updates) {
-        // Handle data_provider update based on groups
-        const hasExplicitDataProvider =
-          updates.data_provider || (updates.$set && updates.$set.data_provider);
-
-        // Check for groups in different possible update operations
-        const groupsUpdate =
-          updates.groups ||
-          (updates.$set && updates.$set.groups) ||
-          (updates.$addToSet &&
-            updates.$addToSet.groups &&
-            updates.$addToSet.groups.$each) ||
-          (updates.$push && updates.$push.groups && updates.$push.groups.$each);
-
-        // Update data_provider if groups are being updated and no explicit data_provider is provided
-        if (groupsUpdate && !hasExplicitDataProvider) {
-          const groupsArray = Array.isArray(groupsUpdate)
-            ? groupsUpdate
-            : groupsUpdate.$each
-            ? groupsUpdate.$each
-            : [groupsUpdate];
-
-          if (groupsArray.length > 0) {
-            updates.data_provider = groupsArray[0]; // Direct assignment instead of using $set
-          }
-        }
         // Prevent modification of restricted fields
         const restrictedFields = [
           "latitude",
@@ -519,8 +494,8 @@ siteSchema.pre(
                   {
                     message:
                       "Cannot modify latitude or longitude after creation",
-                  }
-                )
+                  },
+                ),
               );
             }
             delete updates.$set[field];
@@ -584,7 +559,7 @@ siteSchema.pre(
     }
 
     next();
-  }
+  },
 );
 
 siteSchema.index({ lat_long: 1 }, { unique: true });
@@ -718,8 +693,8 @@ siteSchema.statics = {
             httpStatus.INTERNAL_SERVER_ERROR,
             {
               message: "site not created despite successful operation",
-            }
-          )
+            },
+          ),
         );
       }
     } catch (error) {
@@ -742,7 +717,7 @@ siteSchema.statics = {
     try {
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
-        filter.path ? filter.path : "none"
+        filter.path ? filter.path : "none",
       );
 
       if (!isEmpty(filter.path)) {
@@ -905,7 +880,7 @@ siteSchema.statics = {
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
-          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
+          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
         )
         .allowDiskUse(true);
 
@@ -966,7 +941,7 @@ siteSchema.statics = {
                 (activity) =>
                   activity.device === device.name ||
                   (activity.device_id &&
-                    activity.device_id.toString() === device._id.toString())
+                    activity.device_id.toString() === device._id.toString()),
               );
               return {
                 device_id: device._id,
@@ -1008,8 +983,8 @@ siteSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1018,7 +993,7 @@ siteSchema.statics = {
     try {
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
-        filter.path ? filter.path : "none"
+        filter.path ? filter.path : "none",
       );
 
       if (!isEmpty(filter.path)) {
@@ -1112,7 +1087,7 @@ siteSchema.statics = {
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
-          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
+          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
         )
         .allowDiskUse(true);
 
@@ -1182,8 +1157,8 @@ siteSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1195,7 +1170,7 @@ siteSchema.statics = {
       let updatedSite = await this.findOneAndUpdate(
         filter,
         update,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedSite)) {
@@ -1209,7 +1184,7 @@ siteSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "site does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1219,8 +1194,8 @@ siteSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1278,8 +1253,8 @@ siteSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1307,7 +1282,7 @@ siteSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "site does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1317,8 +1292,8 @@ siteSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

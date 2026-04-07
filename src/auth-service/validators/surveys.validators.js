@@ -4,17 +4,21 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const constants = require("@config/constants");
 
-const validateTenant = oneOf([
-  query("tenant")
-    .optional()
-    .notEmpty()
-    .withMessage("tenant should not be empty if provided")
-    .trim()
-    .toLowerCase()
-    .bail()
-    .isIn(["kcca", "airqo", "airqount"])
-    .withMessage("the tenant value is not among the expected ones"),
-]);
+const validateTenant = query("tenant")
+  .optional()
+  .trim()
+  .toLowerCase()
+  .custom((value) => {
+    if (constants.TENANTS.length === 0) {
+      throw new Error("Server configuration error: TENANTS are not set.");
+    }
+    if (!constants.TENANTS.includes(value)) {
+      throw new Error(
+        `Invalid tenant. Must be one of: ${constants.TENANTS.join(", ")}`,
+      );
+    }
+    return true;
+  });
 
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
@@ -98,7 +102,7 @@ const validateTriggerSchema = (trigger) => {
 
   if (!validTriggerTypes.includes(trigger.type)) {
     throw new Error(
-      `Trigger type must be one of: ${validTriggerTypes.join(", ")}`
+      `Trigger type must be one of: ${validTriggerTypes.join(", ")}`,
     );
   }
 
@@ -115,7 +119,7 @@ const validateTriggerSchema = (trigger) => {
       radius === undefined
     ) {
       throw new Error(
-        "Location-based triggers require latitude, longitude, and radius"
+        "Location-based triggers require latitude, longitude, and radius",
       );
     }
   }
@@ -124,7 +128,7 @@ const validateTriggerSchema = (trigger) => {
     const { threshold } = trigger.conditions;
     if (threshold === undefined || threshold < 0) {
       throw new Error(
-        "Air quality threshold triggers require a valid threshold value"
+        "Air quality threshold triggers require a valid threshold value",
       );
     }
   }
@@ -304,12 +308,22 @@ const createResponse = [
       .withMessage("userId is required")
       .bail()
       .trim()
-      .isMongoId()
-      .withMessage("userId must be a valid ObjectId")
-      .bail()
+      .custom((value) => {
+        if (value === "guest") return true;
+        if (mongoose.Types.ObjectId.isValid(value)) return true;
+        throw new Error("userId must be a valid ObjectId or 'guest'");
+      })
       .customSanitizer((value) => {
-        return ObjectId(value);
+        return value === "guest" ? value : ObjectId(value);
       }),
+
+    body("deviceId")
+      .optional({ checkFalsy: true }) // ✅ FIXED
+      .isString()
+      .withMessage("deviceId must be a string")
+      .trim()
+      .isLength({ min: 10, max: 100 })
+      .withMessage("deviceId must be between 10 and 100 characters"),
 
     body("answers")
       .exists()
@@ -392,6 +406,11 @@ const listResponses = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    query("status")
+      .optional()
+      .trim()
+      .isIn(["completed", "skipped", "partial"])
+      .withMessage("status must be one of: completed, skipped, partial"),
   ],
 ];
 

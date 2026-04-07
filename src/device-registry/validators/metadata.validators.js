@@ -14,7 +14,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -63,8 +63,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -81,8 +81,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -98,8 +98,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -116,8 +116,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -132,8 +132,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -151,8 +151,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -167,8 +167,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -186,8 +186,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -203,8 +203,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -221,8 +221,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -262,8 +262,8 @@ const metadataValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();

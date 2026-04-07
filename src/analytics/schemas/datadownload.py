@@ -127,7 +127,7 @@ class RawDataSchema(Schema):
     metaDataFields = ma_fields.List(
         ma_fields.String(),
         validate=validate.ContainsOnly(
-            ["latitude", "longitude"], error="Invalid metadata fields."
+            ["latitude", "longitude", "battery"], error="Invalid metadata fields."
         ),
     )
     weatherFields = ma_fields.List(
@@ -418,3 +418,71 @@ class DataExportSchema(Schema):
             ValidationError: If 'endDateTime' is earlier than 'startDateTime'.
         """
         validate_dates(data)
+
+
+class ForecastDataSchema(Schema):
+    startDateTime = ma_fields.DateTime(required=True)
+    endDateTime = ma_fields.DateTime(required=True)
+    country = ma_fields.String()
+    city = ma_fields.String()
+    pollutants = ma_fields.List(
+        ma_fields.String(),
+        required=True,
+        validate=validate.ContainsOnly(["pm2_5", "pm10"], error="Invalid pollutant."),
+    )
+    metaDataFields = ma_fields.List(
+        ma_fields.String(),
+        validate=validate.ContainsOnly(
+            ["latitude", "longitude"], error="Invalid metadata fields."
+        ),
+    )
+    weatherFields = ma_fields.List(
+        ma_fields.String(),
+        validate=validate.ContainsOnly(
+            ["wind_speed", "wind_direction"], error="Invalid weather fields."
+        ),
+    )
+    # latitude = ma_fields.Float()
+    # longitude = ma_fields.Float()
+
+    @validates_schema
+    def validate_filter_fields(self, data: Dict[str, Any], **kwargs) -> None:
+        """
+        Ensures that exactly one of the following is provided:
+          - country
+          - city
+          - both latitude and longitude together
+
+        Raises ValidationError when the condition is not met.
+        """
+        has_country = bool(data.get("country"))
+        has_city = bool(data.get("city"))
+        # has_lat = "latitude" in data and data.get("latitude") is not None
+        # has_lon = "longitude" in data and data.get("longitude") is not None
+
+        provided = 0
+        if has_country:
+            provided += 1
+        if has_city:
+            provided += 1
+        # if has_lat or has_lon:
+        #     provided += 1
+
+        if provided == 0:
+            raise ValidationError(
+                "Provide one of: 'country' or 'city'",
+                field_name=["country", "city"],
+            )
+
+        if provided > 1:
+            raise ValidationError(
+                "Provide only one of: 'country', 'city'.",
+                field_name=["country", "city"],
+            )
+
+        # if has_lat or has_lon:
+        #     if not (has_lat and has_lon):
+        #         raise ValidationError(
+        #             "Both 'latitude' and 'longitude' must be provided together.",
+        #             field_name=["latitude", "longitude"],
+        #         )

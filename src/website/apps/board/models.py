@@ -1,10 +1,7 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
 from utils.models import BaseModel
-import logging
-
-logger = logging.getLogger(__name__)
+from utils.cloudinary import safe_destroy
 
 
 class BoardMember(BaseModel):
@@ -37,13 +34,7 @@ class BoardMember(BaseModel):
         """
         Remove associated Cloudinary image before DB deletion; fail-open on errors.
         """
-        pic_id = getattr(self.picture, "public_id", None)
-        if pic_id:
-            try:
-                destroy(pic_id, invalidate=True)
-            except Exception:
-                logger.warning(
-                    "Cloudinary destroy failed for BoardMember %s (public_id=%s)", self.pk, pic_id)
+        safe_destroy(self.picture, invalidate=True)
         return super().delete(*args, **kwargs)
 
 

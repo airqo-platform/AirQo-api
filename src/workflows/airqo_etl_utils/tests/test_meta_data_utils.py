@@ -278,7 +278,7 @@ class TestMetaDataUtils:
     @patch(
         "airqo_etl_utils.meta_data_utils.DataUtils.extract_most_recent_metadata_record"
     )
-    @patch("airqo_etl_utils.meta_data_utils.frequency_to_dates")
+    @patch("airqo_etl_utils.meta_data_utils.DateUtils.frequency_to_dates")
     def test_compute_device_site_baseline(
         self,
         mock_frequency_to_dates,
@@ -300,6 +300,8 @@ class TestMetaDataUtils:
                 "minimum": [10.0],
                 "maximum": [50.0],
                 "average": [30.0],
+                "next_offset_date": [pd.to_datetime(end_date)],
+                "run_id": ["run_1"],
             }
         )
         mock_extract_metadata.return_value = mock_metadata
@@ -333,10 +335,16 @@ class TestMetaDataUtils:
         mock_compute_baseline.return_value = mock_baseline_result
 
         def submit_side_effect(*args, **kwargs):
-            # This simulates calling AirQoDataDriftCompute.compute_baseline with the args
-            result = mock_compute_baseline(*args[1:])
+            # Execute the submitted function so internal calls like
+            # DataUtils.extract_data_from_bigquery occur and can be asserted.
+            fn = args[0]
+            fn_args = args[1:]
             mock_future = MagicMock()
-            mock_future.result.return_value = result
+            try:
+                result = fn(*fn_args, **kwargs)
+                mock_future.result.return_value = result
+            except Exception as e:
+                mock_future.result.side_effect = e
             return mock_future
 
         with patch(

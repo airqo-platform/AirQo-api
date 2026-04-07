@@ -15,8 +15,6 @@ else:
         NestedModelAdmin = admin.ModelAdmin  # type: ignore
 import logging
 
-from django.core.exceptions import ValidationError
-from django.db import IntegrityError
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 
 # Configure logger
@@ -225,17 +223,5 @@ class EventAdmin(NestedModelAdmin):
         )
 
     def save_model(self, request, obj, form, change):
-        """Override save_model to handle image uploads and database errors gracefully."""
-        try:
-            super().save_model(request, obj, form, change)
-        except IntegrityError as ie:
-            logger.error(
-                f"Database integrity error saving Event '{obj.title}': {ie}")
-            raise ValidationError(
-                "A database error occurred. Please ensure all required fields are filled correctly."
-            )
-        except Exception as e:
-            logger.error(f"Error saving Event '{obj.title}': {e}")
-            raise ValidationError(
-                "There was an error uploading the image. Please check that the file is a valid image and try again."
-            )
+        """Use default admin save behavior; upload failures are handled by middleware."""
+        super().save_model(request, obj, form, change)

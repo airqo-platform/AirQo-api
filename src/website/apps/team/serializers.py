@@ -21,6 +21,7 @@ class TeamMemberSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "title",
+            "category",
             "about",
             "picture_url",
             "twitter",

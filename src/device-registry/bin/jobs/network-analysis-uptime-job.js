@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/network-uptime-analysis-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/network-uptime-analysis-job -- ops-alerts`,
 );
 const cron = require("node-cron");
 const moment = require("moment-timezone");
@@ -59,15 +59,15 @@ class NetworkUptimeAnalysis {
   calculateDeviceUptime(expectedTotalRecords, actualValidRecords) {
     const deviceUptimePercentage = Math.min(
       Math.round((actualValidRecords / expectedTotalRecords) * 100 * 100) / 100,
-      100
+      100,
     );
     const deviceDowntimePercentage = Math.max(
       Math.round(
         ((expectedTotalRecords - actualValidRecords) / expectedTotalRecords) *
           100 *
-          100
+          100,
       ) / 100,
-      0
+      0,
     );
 
     return [deviceUptimePercentage, deviceDowntimePercentage];
@@ -82,16 +82,16 @@ class NetworkUptimeAnalysis {
     try {
       const rawData = await this.getRawChannelData(
         device.channelID,
-        adjustedHours
+        adjustedHours,
       );
       const validRecords = rawData.filter(
-        (row) => row.s1_pm2_5 > 0 && row.s1_pm2_5 <= 500.4
+        (row) => row.s1_pm2_5 > 0 && row.s1_pm2_5 <= 500.4,
       );
       const validRecordsCount = validRecords.length;
 
       const [uptimePercentage, downtimePercentage] = this.calculateDeviceUptime(
         adjustedHours,
-        validRecordsCount
+        validRecordsCount,
       );
 
       // Calculate average PM2.5 readings
@@ -129,8 +129,8 @@ class NetworkUptimeAnalysis {
     const devices = await this.getAllActiveDevices();
     const uptimeResults = await Promise.all(
       devices.map((device) =>
-        this.processDeviceData(device, timePeriod.specifiedHours)
-      )
+        this.processDeviceData(device, timePeriod.specifiedHours),
+      ),
     );
 
     // Filter out null results and calculate average
@@ -139,7 +139,7 @@ class NetworkUptimeAnalysis {
       validUptimes.length > 0
         ? Math.round(
             (validUptimes.reduce((a, b) => a + b, 0) / validUptimes.length) *
-              100
+              100,
           ) / 100
         : 0;
 
@@ -166,7 +166,7 @@ class NetworkUptimeAnalysis {
       for (const period of timePeriods) {
         const averageUptime = await this.computeNetworkUptime(period);
         logObject(`Network uptime for ${period.label}`, averageUptime);
-        logger.info(`Average uptime for ${period.label}: ${averageUptime}%`);
+        logger.warn(`Average uptime for ${period.label}: ${averageUptime}%`);
       }
 
       logText("Network uptime analysis completed successfully");
@@ -189,7 +189,7 @@ const startJob = () => {
     {
       scheduled: true,
       timezone: TIMEZONE,
-    }
+    },
   );
 
   // Initialize global registry

@@ -8,7 +8,7 @@ from django.dispatch import receiver
 from enum import Enum
 from django.utils.text import slugify
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
+from utils.cloudinary import safe_destroy
 from django.db.models.signals import post_save
 from multiselectfield import MultiSelectField
 
@@ -57,8 +57,7 @@ class CleanAirResource(BaseModel):
         """
         Override the delete method to remove associated Cloudinary files before deletion.
         """
-        if self.resource_file:
-            destroy(self.resource_file.public_id, invalidate=True)
+        safe_destroy(self.resource_file, invalidate=True, resource_type="raw")
         result = super().delete(*args, **kwargs)
         return result
 
@@ -150,8 +149,7 @@ class ForumEvent(BaseModel):
         """
         Override the delete method to remove the associated Cloudinary image before deletion.
         """
-        if self.background_image:
-            destroy(self.background_image.public_id, invalidate=True)
+        safe_destroy(self.background_image, invalidate=True)
         result = super().delete(*args, **kwargs)
         return result
 
@@ -324,8 +322,7 @@ class Partner(BaseModel):
         """
         Override the delete method to remove the associated Cloudinary image before deletion.
         """
-        if self.partner_logo:
-            destroy(self.partner_logo.public_id, invalidate=True)
+        safe_destroy(self.partner_logo, invalidate=True)
         result = super().delete(*args, **kwargs)
         return result
 
@@ -494,8 +491,7 @@ class ResourceFile(BaseModel):
         """
         Override the delete method to remove the associated Cloudinary file before deletion.
         """
-        if self.file:
-            destroy(self.file.public_id, invalidate=True)
+        safe_destroy(self.file, invalidate=True, resource_type="raw")
         result = super().delete(*args, **kwargs)
         return result
 

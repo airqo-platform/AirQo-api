@@ -12,7 +12,7 @@ const PermissionModel = require("@models/Permission");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- user-model`
+  `${constants.ENVIRONMENT} -- user-model`,
 );
 const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
@@ -46,7 +46,7 @@ function validateProfilePicture(profilePicture) {
   if (profilePicture.length > maxLengthOfProfilePictures) {
     logText(`longer than ${maxLengthOfProfilePictures} chars`);
     logger.error(
-      `🙅🙅 Bad Request Error -- profile picture URL exceeds ${maxLengthOfProfilePictures} characters`
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds ${maxLengthOfProfilePictures} characters`,
     );
     return false;
   }
@@ -312,6 +312,24 @@ const UserSchema = new Schema(
     lastLogin: {
       type: Date,
     },
+    knownDevices: {
+      type: [
+        {
+          fingerprint: { type: String },
+          os: { type: String },
+          browser: { type: String },
+          deviceType: { type: String },
+          lastSeenAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    // lastActiveAt tracks any authenticated API activity (preferences, etc.)
+    // independently of explicit login events. Used by active-status-job to
+    // more accurately reflect whether the user is still engaging with the platform.
+    lastActiveAt: {
+      type: Date,
+    },
     category: {
       type: String,
     },
@@ -331,7 +349,15 @@ const UserSchema = new Schema(
         message: `Profile picture URL must be a valid URL & must not exceed ${maxLengthOfProfilePictures} characters.`,
       },
     },
+    // ── OAuth provider IDs ────────────────────────────────────────────────────
     google_id: { type: String, trim: true },
+    github_id: { type: String, trim: true },
+    linkedin_id: { type: String, trim: true },
+    microsoft_id: { type: String, trim: true },
+    twitter_id: { type: String, trim: true },
+    facebook_id: { type: String, trim: true },
+    apple_id: { type: String, trim: true },
+    // ── OAuth provider IDs end ────────────────────────────────────────────────────
     timezone: { type: String, trim: true },
     preferredTokenStrategy: {
       type: String,
@@ -402,14 +428,60 @@ const UserSchema = new Schema(
     last_inactive_reminder_sent_at: {
       type: Date,
     },
+    // Set by stale-accounts-job when the account has been inactive for over a
+    // year. The account will be permanently deleted after this date unless
+    // activity is detected first (which unsets this field).
+    scheduled_for_deletion_at: {
+      type: Date,
+    },
+    // Timestamp of the last ops alert raised for this stale account.
+    stale_account_alert_sent_at: {
+      type: Date,
+    },
+    // Set when the 7-day final deletion reminder email has been sent, to avoid
+    // re-sending it on subsequent job runs.
+    deletion_final_reminder_sent_at: {
+      type: Date,
+    },
     cohorts: [
       {
         type: ObjectId,
         ref: "cohort", // This ref is for documentation; not enforced across DBs
       },
     ],
+    grids: [
+      {
+        type: ObjectId,
+        ref: "grid",
+      },
+    ],
+    devices: [
+      {
+        type: ObjectId,
+        ref: "device",
+      },
+    ],
+    sites: [
+      {
+        type: ObjectId,
+        ref: "site",
+      },
+    ],
+    subscriptionTier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+      default: "Free",
+    },
+    apiRateLimits: {
+      hourlyLimit: { type: Number, default: 100 },
+      dailyLimit: { type: Number, default: 1000 },
+      monthlyLimit: { type: Number, default: 10000 },
+    },
+    lastRateLimitCheck: {
+      type: Date,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 UserSchema.pre("save", async function (next) {
@@ -441,14 +513,14 @@ UserSchema.pre("save", async function (next) {
         if (this.profilePicture.length > maxLengthOfProfilePictures) {
           this.profilePicture = this.profilePicture.substring(
             0,
-            maxLengthOfProfilePictures
+            maxLengthOfProfilePictures,
           );
         }
         if (!validateProfilePicture(this.profilePicture)) {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid profile picture URL",
-            })
+            }),
           );
         }
       }
@@ -463,7 +535,7 @@ UserSchema.pre("save", async function (next) {
         return next(
           new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
             message: "Tenant Settings not found, please contact support",
-          })
+          }),
         );
       }
 
@@ -514,7 +586,7 @@ UserSchema.pre("save", async function (next) {
       if (defaultPermissions.length > 0) {
         const permissionIds = defaultPermissions.map((p) => p._id);
         const existingPermissionIds = new Set(
-          (this.permissions || []).map((p) => p.toString())
+          (this.permissions || []).map((p) => p.toString()),
         );
 
         permissionIds.forEach((id) => {
@@ -605,6 +677,32 @@ UserSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
 
+// Multikey indexes for Role.list() $lookup sub-pipeline.
+// MongoDB automatically creates a multikey index when the indexed field is an
+// array of subdocuments; "network_roles.role" and "group_roles.role" are the
+// nested ObjectId fields that the $match uses in its $in expression.
+UserSchema.index({ "network_roles.role": 1 });
+UserSchema.index({ "group_roles.role": 1 });
+
+// Sparse indexes for OAuth provider ID fields.
+// sparse: true means the index only includes documents where the field exists,
+// keeping index size small since most users will only have one provider linked.
+// sparse: true keeps existing users (lastActiveAt: null) out of the index so
+// active-status-job and inactive-users-job range queries stay efficient.
+UserSchema.index({ lastActiveAt: 1 }, { sparse: true });
+
+// Sparse index for stale-accounts-job deletion pass (only accounts that have
+// been flagged will appear in the index, keeping it small).
+UserSchema.index({ scheduled_for_deletion_at: 1 }, { sparse: true });
+
+UserSchema.index({ google_id: 1 }, { sparse: true });
+UserSchema.index({ github_id: 1 }, { sparse: true });
+UserSchema.index({ linkedin_id: 1 }, { sparse: true });
+UserSchema.index({ microsoft_id: 1 }, { sparse: true });
+UserSchema.index({ twitter_id: 1 }, { sparse: true });
+UserSchema.index({ facebook_id: 1 }, { sparse: true });
+UserSchema.index({ apple_id: 1 }, { sparse: true });
+
 UserSchema.statics = {
   async register(args, next, options = {}) {
     const { sendDuplicateEmail = false } = options;
@@ -647,11 +745,11 @@ UserSchema.statics = {
             const lastName = args.lastName;
             const emailResponse = await mailer.existingUserRegistrationRequest(
               { email, firstName, lastName },
-              next
+              next,
             );
             if (emailResponse && emailResponse.success === false) {
               logger.error(
-                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`,
               );
             }
           } catch (error) {
@@ -780,8 +878,8 @@ UserSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -790,7 +888,7 @@ UserSchema.statics = {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.category ? filter.category : "none",
       );
 
       if (!isEmpty(filter.category)) {
@@ -1029,8 +1127,8 @@ UserSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -1054,7 +1152,7 @@ UserSchema.statics = {
       const updatedUser = await this.findOneAndUpdate(
         filter,
         updateDoc,
-        options
+        options,
       );
 
       if (!isEmpty(updatedUser)) {
@@ -1131,7 +1229,7 @@ UserSchema.statics = {
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        { message: error.message },
       );
     }
   },
@@ -1140,7 +1238,7 @@ UserSchema.statics = {
 // Enhanced user details with role clarity
 UserSchema.statics.getEnhancedUserDetails = async function (
   { filter = {}, includeDeprecated = false } = {},
-  next
+  next,
 ) {
   try {
     const users = await this.aggregate()
@@ -1329,7 +1427,7 @@ UserSchema.statics.getEnhancedUserDetails = async function (
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -1398,7 +1496,7 @@ UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
                   ((usersWithDeprecatedFields[0]
                     ?.total_users_with_deprecated_fields || 0) /
                     totalUsers) *
-                    100
+                    100,
                 )
               : 0,
           safe_to_migrate:
@@ -1416,7 +1514,7 @@ UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -1426,7 +1524,7 @@ UserSchema.statics.assignUserToGroup = async function (
   userId,
   groupId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   try {
     // Atomically remove any existing role for this group to ensure idempotency
@@ -1447,7 +1545,7 @@ UserSchema.statics.assignUserToGroup = async function (
           },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedUser) {
@@ -1473,7 +1571,7 @@ UserSchema.statics.assignUserToNetwork = async function (
   userId,
   networkId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   try {
     // Atomically remove any existing role for this network to ensure idempotency
@@ -1494,7 +1592,7 @@ UserSchema.statics.assignUserToNetwork = async function (
           },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedUser) {
@@ -1522,7 +1620,7 @@ UserSchema.methods = {
   },
   newToken() {
     const token = accessCodeGenerator.generate(
-      constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      constants.RANDOM_PASSWORD_CONFIGURATION(10),
     );
     const hashedToken = bcrypt.hashSync(token, saltRounds);
     return {
@@ -1579,7 +1677,7 @@ UserSchema.methods = {
 UserSchema.methods.createToken = async function (
   // Use the new default strategy. Can be overridden by passing a different strategy.
   strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
-  options = {}
+  options = {},
 ) {
   try {
     // Lazy require to prevent circular dependency issues at startup
@@ -1595,7 +1693,7 @@ UserSchema.methods.createToken = async function (
 UserSchema.methods.addGroupRole = function (
   groupId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   // Use the model to perform an atomic update on the current document instance
   return this.constructor
@@ -1617,7 +1715,7 @@ UserSchema.methods.addGroupRole = function (
             },
           },
         },
-        { new: true }
+        { new: true },
       );
     });
 };
@@ -1625,7 +1723,7 @@ UserSchema.methods.addGroupRole = function (
 UserSchema.methods.addNetworkRole = function (
   networkId,
   roleId,
-  userType = "user"
+  userType = "user",
 ) {
   // Use the model to perform an atomic update on the current document instance
   return this.constructor
@@ -1645,7 +1743,7 @@ UserSchema.methods.addNetworkRole = function (
             },
           },
         },
-        { new: true }
+        { new: true },
       );
     });
 };

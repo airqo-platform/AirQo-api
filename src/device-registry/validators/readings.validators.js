@@ -19,14 +19,14 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   // Optional ObjectId validator - validates ObjectId format when provided, allows empty/undefined
   objectId: (
     field,
     location = query,
-    errorMessage = "Invalid ObjectId format"
+    errorMessage = "Invalid ObjectId format",
   ) => {
     return location(field)
       .optional()
@@ -66,7 +66,7 @@ const commonValidations = {
   requiredObjectId: (
     field,
     location = query,
-    errorMessage = "Invalid ObjectId format"
+    errorMessage = "Invalid ObjectId format",
   ) => {
     return location(field)
       .exists()
@@ -119,6 +119,18 @@ const commonValidations = {
       next();
     };
   },
+  errorHandler: (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.mapped(),
+      });
+    }
+    next();
+  },
+
   timeRange: [
     query("startTime")
       .optional()
@@ -147,7 +159,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["hourly", "daily", "raw", "minute"])
       .withMessage(
-        "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
+        "the frequency value is not among the expected ones which include: hourly, daily, minute and raw",
       ),
   ],
   format: [
@@ -160,7 +172,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["json", "csv"])
       .withMessage(
-        "the format value is not among the expected ones which include: csv and json"
+        "the format value is not among the expected ones which include: csv and json",
       ),
   ],
   external: [
@@ -173,7 +185,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["yes", "no"])
       .withMessage(
-        "the external value is not among the expected ones which include: no and yes"
+        "the external value is not among the expected ones which include: no and yes",
       ),
   ],
   recent: [
@@ -186,7 +198,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(["yes", "no"])
       .withMessage(
-        "the recent value is not among the expected ones which include: no and yes"
+        "the recent value is not among the expected ones which include: no and yes",
       ),
   ],
   device: [
@@ -366,7 +378,7 @@ const commonValidations = {
   checkConflictingParams: (
     param1,
     param2,
-    errorMessage = `You cannot provide both ${param1} and ${param2}`
+    errorMessage = `You cannot provide both ${param1} and ${param2}`,
   ) => [
     query().custom((value, { req }) => {
       if (req.query[param1] && req.query[param2]) {
@@ -441,7 +453,7 @@ function decimalPlaces(num) {
   }
   return Math.max(
     0,
-    (match[1] ? match[1].length : 0) - (match[2] ? +match[2] : 0)
+    (match[1] ? match[1].length : 0) - (match[2] ? +match[2] : 0),
   );
 }
 
@@ -608,7 +620,7 @@ const readingsValidations = {
     const validationRules = [
       ...commonValidations.atLeastOneRequired(
         ["cohort_id", "device_id"],
-        "At least one of cohort_id or device_id is required."
+        "At least one of cohort_id or device_id is required.",
       ),
       commonValidations.objectId("cohort_id"),
       commonValidations.objectId("device_id"),
@@ -624,7 +636,7 @@ const readingsValidations = {
     const validationRules = [
       ...commonValidations.atLeastOneRequired(
         ["grid_id", "site_id"],
-        "At least one of grid_id or site_id is required."
+        "At least one of grid_id or site_id is required.",
       ),
       commonValidations.objectId("grid_id"),
       commonValidations.objectId("site_id"),
@@ -637,8 +649,22 @@ const readingsValidations = {
   },
 };
 
+const validateGetRepresentativeAQForGrid = [
+  ...commonValidations.tenant,
+  commonValidations.requiredObjectId("grid_id", param),
+  commonValidations.errorHandler,
+];
+
+const validateGetRepresentativeAQForCohort = [
+  ...commonValidations.tenant,
+  commonValidations.requiredObjectId("cohort_id", param),
+  commonValidations.errorHandler,
+];
+
 module.exports = {
   ...readingsValidations,
   pagination: commonValidations.pagination,
   validateOptionalObjectId: commonValidations.optionalObjectId,
+  validateGetRepresentativeAQForGrid,
+  validateGetRepresentativeAQForCohort,
 };

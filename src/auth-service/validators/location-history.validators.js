@@ -12,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -32,7 +32,7 @@ const listByUserId = [
     param("firebase_user_id")
       .exists()
       .withMessage(
-        "the firebase_user_id param is missing in request path, consider using firebase_user_id"
+        "the firebase_user_id param is missing in request path, consider using firebase_user_id",
       )
       .bail()
       .notEmpty()
@@ -135,7 +135,7 @@ const syncLocationHistory = [
         return Array.isArray(value);
       })
       .withMessage(
-        "Invalid request body format. The location_histories should be an array"
+        "Invalid request body format. The location_histories should be an array",
       ),
     body("location_histories.*")
       .optional()
@@ -180,7 +180,7 @@ const syncLocationHistory = [
     body("location_histories.*.firebase_user_id")
       .exists()
       .withMessage(
-        "the firebase_user_id is missing in the location history object"
+        "the firebase_user_id is missing in the location history object",
       )
       .bail()
       .notEmpty()
@@ -219,7 +219,7 @@ const update = [
     param("location_history_id")
       .exists()
       .withMessage(
-        "the location_history_id param is missing in request path, consider using location_history_id"
+        "the location_history_id param is missing in request path, consider using location_history_id",
       )
       .bail()
       .trim()
@@ -306,7 +306,7 @@ const deleteLocationHistory = [
     param("location_history_id")
       .exists()
       .withMessage(
-        "the location_history_id param is missing in request path, consider using location_history_id"
+        "the location_history_id param is missing in request path, consider using location_history_id",
       )
       .bail()
       .trim()
@@ -325,7 +325,7 @@ const getById = [
     param("location_history_id")
       .exists()
       .withMessage(
-        "the location_history_id param is missing in request path, consider using location_history_id"
+        "the location_history_id param is missing in request path, consider using location_history_id",
       )
       .bail()
       .trim()

@@ -15,6 +15,7 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
+const { mailer } = require("@utils/common");
 require("@config/firebase-admin");
 
 const morgan = require("morgan");
@@ -31,18 +32,83 @@ const {
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const rateLimit = require("express-rate-limit");
-const options = { mongooseConnection: mongoose.connection };
+
+// ── Session store ─────────────────────────────────────────────────────────
+//
+// Priority:
+//   1. Redis (connect-redis) — when USE_REDIS_SESSIONS !== false and the
+//      Redis client is available. Redis sessions are ~10× faster than MongoDB
+//      and free all pool connections that previously handled session I/O.
+//   2. MongoDB (connect-mongo) — automatic fallback when Redis is unavailable
+//      at startup (e.g. Redis not yet healthy in K8s) or when the feature
+//      flag is disabled.
+//
+// touchAfter reduces MongoDB session writes: the store only re-persists a
+// session if its data actually changed, or at most once per 10 minutes.
+// autoRemove:"native" uses a MongoDB TTL index instead of a polling job.
+
+const mongoStoreOptions = {
+  mongooseConnection: mongoose.connection,
+  ttl: 24 * 60 * 60,       // 1 day in seconds
+  touchAfter: 10 * 60,      // only write if data changed, or once per 10 min
+  autoRemove: "native",     // MongoDB TTL index handles expiry (no polling)
+};
+
+const buildSessionStore = () => {
+  // Allow opting out via USE_REDIS_SESSIONS=false env var.
+  if (constants.USE_REDIS_SESSIONS === false) {
+    logger.info("[session] Redis sessions disabled by config — using MongoStore");
+    return new MongoStore(mongoStoreOptions);
+  }
+
+  try {
+    const { RedisStore } = require("connect-redis");
+    // Use the raw redis client (not the wrapper) as connect-redis requires
+    // the native client interface.
+    const { redis: redisClient } = require("@config/redis");
+
+    // Only use Redis if the connection is fully established. isOpen means the
+    // socket is connected; isReady means the server has accepted the connection
+    // and is ready to receive commands. Without this check the store can be
+    // created successfully but then fail on the first session read/write.
+    if (!redisClient.isOpen || !redisClient.isReady) {
+      logger.warn(
+        "[session] Redis client not ready at startup — falling back to MongoStore"
+      );
+      return new MongoStore(mongoStoreOptions);
+    }
+
+    const store = new RedisStore({
+      client: redisClient,
+      prefix: "airqo:sess:",
+      ttl: 24 * 60 * 60, // 1 day in seconds
+    });
+
+    logger.info("[session] using Redis session store");
+    return store;
+  } catch (err) {
+    logger.warn(
+      `[session] Redis store unavailable, falling back to MongoStore: ${err.message}`
+    );
+    return new MongoStore(mongoStoreOptions);
+  }
+};
 
 // Initialize background jobs
-require("@bin/jobs/active-status-job");
-require("@bin/jobs/inactive-users-job");
-require("@bin/jobs/token-expiration-job");
-require("@bin/jobs/incomplete-profile-job");
-require("@bin/jobs/preferences-log-job");
-require("@bin/jobs/dashboard-analytics-job");
-require("@bin/jobs/preferences-update-job");
-require("@bin/jobs/profile-picture-update-job");
-require("@bin/jobs/role-cleanup-job");
+const jobs = [
+  "@bin/jobs/active-status-job",
+  "@bin/jobs/inactive-users-job",
+  "@bin/jobs/stale-accounts-job",
+  "@bin/jobs/token-expiration-job",
+  "@bin/jobs/incomplete-profile-job",
+  "@bin/jobs/preferences-log-job",
+  "@bin/jobs/dashboard-analytics-job",
+  "@bin/jobs/preferences-update-job",
+  "@bin/jobs/profile-picture-update-job",
+  "@bin/jobs/role-cleanup-job",
+  "@bin/jobs/daily-compromise-summary-job",
+  "@bin/jobs/unknown-ip-cleanup-job",
+];
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
@@ -99,10 +165,10 @@ app.set("trust proxy", true);
 app.use(
   session({
     secret: constants.SESSION_SECRET,
-    store: new MongoStore(options),
+    store: buildSessionStore(),
     resave: false,
     saveUninitialized: false,
-  })
+  }),
 ); // session setup
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
@@ -117,6 +183,18 @@ if (isDev) {
 }
 
 app.use(passport.initialize());
+
+// ── OAuth strategy one-time startup registration ───────────────────────────
+// Must be called here, after passport.initialize() and before any routes
+// are registered, so strategies are available when the first OAuth request
+// arrives. Calling configureStrategies per-request (inside setGoogleAuth /
+// setOAuthProvider) caused ERR_HTTP_HEADERS_SENT because Passport was
+// interrupted mid-authentication by a strategy re-registration.
+// configureStrategies is idempotent — subsequent calls from per-request
+// middleware are safe no-ops.
+const { configureStrategies } = require("@config/passport-strategies");
+configureStrategies(passport, constants.DEFAULT_TENANT || "airqo");
+// ── End OAuth startup registration ────────────────────────────────────────
 
 app.use(cookieParser());
 
@@ -133,7 +211,7 @@ app.use(
     extended: true,
     limit: "50mb",
     parameterLimit: 50000,
-  })
+  }),
 );
 // app.use(attachUserId); // Attach user ID to all requests
 // app.use(trackAPIRequest); // Track all API requests
@@ -163,7 +241,7 @@ app.use(
     tempFileDir: "/tmp/",
     debug: isDev,
     abortOnLimit: true,
-  })
+  }),
 );
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
@@ -284,7 +362,7 @@ app.use(function (err, req, res, next) {
     }
   } else {
     logger.error(
-      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`
+      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`,
     );
   }
 });
@@ -345,6 +423,32 @@ const createServer = () => {
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+
+    // Delay email queue start to allow the connection pool to stabilise.
+    setTimeout(() => {
+      mailer.startEmailQueue();
+    }, 5000);
+
+    // Jobs are staggered with a fixed delay to prevent connection pool exhaustion
+    // at startup (thundering herd). Timer handles are intentionally not retained:
+    // by the time SIGTERM arrives in production the timers will have fired and each
+    // job will be registered in global.cronJobs, which gracefulShutdown iterates.
+    // Jobs whose timers haven't fired yet have not registered any cron tasks, so
+    // no orphaned work starts during shutdown.
+    jobs.forEach((jobPath, index) => {
+      setTimeout(
+        () => {
+          try {
+            require(jobPath);
+          } catch (err) {
+            logger.error(
+              `Failed to load background job '${jobPath}': ${err.message}`,
+            );
+          }
+        },
+        10000 + index * 2000,
+      );
+    });
   });
 
   // Graceful shutdown handler
@@ -358,10 +462,18 @@ const createServer = () => {
     server.close(async () => {
       console.log("HTTP server closed");
 
+      // Stop the email queue processor
+      try {
+        mailer.stopEmailQueue();
+        console.log("✅ Email queue processor stopped.");
+      } catch (error) {
+        console.error("❌ Error stopping email queue:", error.message);
+      }
+
       // Enhanced cron job shutdown handling
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
         console.log(
-          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`,
         );
 
         // Stop each job individually with error handling
@@ -390,40 +502,40 @@ const createServer = () => {
                 console.log(`💥 Destroyed job: ${jobName}`);
               } else {
                 console.log(
-                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
+                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`,
                 );
                 logger.warn(
-                  `Job ${jobName} doesn't have destroy method (older node-cron version)`
+                  `Job ${jobName} doesn't have destroy method (older node-cron version)`,
                 );
               }
 
               // Remove from registry
               delete global.cronJobs[jobName];
               console.log(
-                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
+                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`,
               );
             }
             // Simple job pattern (current auth service pattern)
             else if (typeof jobObj.stop === "function") {
               jobObj.stop();
               console.log(
-                `✅ Successfully stopped cron job: ${jobName} (simple mode)`
+                `✅ Successfully stopped cron job: ${jobName} (simple mode)`,
               );
             }
             // Unknown pattern
             else {
               console.warn(
-                `⚠️  Job ${jobName} has unknown structure, skipping`
+                `⚠️  Job ${jobName} has unknown structure, skipping`,
               );
               logger.warn(`Job ${jobName} has unknown structure, skipping`);
             }
           } catch (error) {
             console.error(
               `❌ Error stopping cron job ${jobName}:`,
-              error.message
+              error.message,
             );
             logger.error(
-              `❌ Error stopping cron job ${jobName}: ${error.message}`
+              `❌ Error stopping cron job ${jobName}: ${error.message}`,
             );
 
             // Try emergency cleanup
@@ -436,10 +548,10 @@ const createServer = () => {
             } catch (emergencyError) {
               console.error(
                 `💥 Emergency cleanup failed for ${jobName}:`,
-                emergencyError.message
+                emergencyError.message,
               );
               logger.error(
-                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
+                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`,
               );
             }
           }
@@ -450,30 +562,14 @@ const createServer = () => {
         console.log("No cron jobs to stop");
       }
 
-      // Close any Redis connections if they exist
-      if (global.redisClient) {
-        console.log("Closing Redis connection...");
-
-        try {
-          // Prefer quit() for a graceful shutdown, but fallback to disconnect()
-          if (
-            global.redisClient &&
-            typeof global.redisClient.quit === "function"
-          ) {
-            await global.redisClient.quit();
-            console.log("✅ Redis connection closed");
-          } else if (
-            global.redisClient &&
-            typeof global.redisClient.disconnect === "function"
-          ) {
-            // disconnect() is less graceful but better than nothing
-            await global.redisClient.disconnect();
-            console.log("✅ Redis connection disconnected");
-          }
-        } catch (error) {
-          console.error("❌ Error closing Redis connection:", error.message);
-          logger.error(`❌ Error closing Redis connection: ${error.message}`);
-        }
+      // Close the module-level Redis client (config/redis.js)
+      try {
+        const { disconnectRedis } = require("@config/redis");
+        await disconnectRedis("gracefulShutdown");
+        console.log("✅ Redis connection closed");
+      } catch (error) {
+        console.error("❌ Error closing Redis connection:", error.message);
+        logger.error(`❌ Error closing Redis connection: ${error.message}`);
       }
 
       // Close Firebase connections if they exist
@@ -485,10 +581,10 @@ const createServer = () => {
         } catch (error) {
           console.error(
             "❌ Error closing Firebase connections:",
-            error.message
+            error.message,
           );
           logger.error(
-            `❌ Error closing Firebase connections: ${error.message}`
+            `❌ Error closing Firebase connections: ${error.message}`,
           );
         }
       }
@@ -540,10 +636,10 @@ const createServer = () => {
     // Force exit after timeout if graceful shutdown fails (increased from 10s to 15s)
     setTimeout(() => {
       console.error(
-        "Could not close connections in time, forcefully shutting down"
+        "Could not close connections in time, forcefully shutting down",
       );
       logger.error(
-        "Could not close connections in time, forcefully shutting down"
+        "Could not close connections in time, forcefully shutting down",
       );
       process.exit(1);
     }, 15000); // timeout to 15 seconds

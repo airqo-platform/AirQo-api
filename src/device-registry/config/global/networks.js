@@ -1,0 +1,164 @@
+/**
+ * Static network adapter configurations.
+ *
+ * Each entry describes how to communicate with a specific device manufacturer's
+ * API.  These values are the canonical fallback used by feed.util.js when a
+ * network's adapter config has not yet been persisted to the Network model in
+ * the database.  Once an admin saves adapter fields on a Network document, the
+ * DB record takes precedence over these static entries.
+ *
+ * Fields mirror the `adapter` sub-document added to the Network schema:
+ *   api_code_is_full_url  – device.api_code already is the full fetch URL
+ *   api_base_url          – base URL when constructing from a template
+ *   api_url_template      – path template; {serial_number} is substituted
+ *   auth_type             – "none" | "query_param" | "header_bearer" | "header_basic"
+ *   auth_key_param        – query-param name or HTTP header name for the credential
+ *   serial_number_regex   – regex string to extract serial_number from api_code
+ *   field_map             – maps manufacturer field names → AirQo internal field names
+ *   online_check_via_feed – infer online status from feed freshness (not device_number)
+ *
+ * Adding a new manufacturer:
+ *   1. Add an entry here keyed by network name (lowercase, matches device.network).
+ *   2. Optionally persist it to the DB via a migration / admin update so the
+ *      config survives even if this file is not redeployed.
+ */
+
+const NETWORK_ADAPTERS = {
+  // ── AirQo ──────────────────────────────────────────────────────────────────
+  // AirQo devices use ThingSpeak.  The feed path is handled separately in
+  // feed.util.js; this entry exists purely for completeness and reference.
+  airqo: {
+    api_code_is_full_url: false,
+    auth_type: "query_param",
+    auth_key_param: "api_key",
+    uses_thingspeak: true,          // sentinel: feed.util routes to ThingSpeak path
+    online_check_via_feed: false,   // online status is driven by events pipeline
+    field_map: null,
+    serial_number_regex: null,
+  },
+
+  // ── AirGradient ────────────────────────────────────────────────────────────
+  // API requires a "token" query parameter (device.access_code holds the token).
+  // Without it the API returns 422 {"errors":[{"param":"token","msg":"Invalid value"}]}.
+  // api_code example: https://api.airgradient.com/public/api/v1/locations/174349/measures/current
+  // serial_number "174349" lives in the URL path.
+  airgradient: {
+    api_code_is_full_url: true,
+    api_base_url: "https://api.airgradient.com",
+    auth_type: "query_param",
+    auth_key_param: "token",
+    serial_number_regex: "/locations/([^/?#]+)/",
+    online_check_via_feed: true,
+    field_map: {
+      // AirGradient field name  →  AirQo internal field name
+      pm01: "pm1",
+      pm02: "pm2_5",
+      pm10: "pm10",
+      rco2: "co2",
+      tvoc: "tvoc",
+      nox: "nox",
+      atmp: "temperature",
+      rhum: "humidity",
+      wifi: "wifi_rssi",
+      boot: "boot_count",
+      // Timestamp fields — kept as-is
+      timestamp: "timestamp",
+    },
+  },
+
+  // ── IQAir ──────────────────────────────────────────────────────────────────
+  // Authenticated API (undocumented / reverse-engineered).
+  // The device serial_number is the hex node ID at the end of the device URL.
+  // URL example: https://device.iqair.com/v2/6796fa282f158127e2a1f9f3
+  // Auth: Bearer token in Authorization header, per-account, extracted from
+  // the IQAir Dashboard via browser DevTools. Stored in device.access_code.
+  // Response shape: { current: { p2, p1, co, tp, hm } } — no timestamp field.
+  // response_data_path instructs getDeviceFeed to drill into data.current
+  // before field-mapping.
+  iqair: {
+    api_code_is_full_url: true,
+    api_base_url: "https://device.iqair.com",
+    api_url_template: "/v2/{serial_number}",
+    auth_type: "header_bearer",
+    auth_key_param: "Authorization",
+    serial_number_regex: "/v2/([^/?#]+)$",
+    online_check_via_feed: true,
+    response_data_path: "current",
+    field_map: {
+      p2: "pm2_5",        // PM2.5 µg/m³
+      p1: "pm10",         // PM10 µg/m³
+      co: "co2",          // CO2 ppm  (NOT carbon monoxide — IQAir naming quirk)
+      tp: "temperature",  // Temperature °C
+      hm: "humidity",     // Relative humidity %
+    },
+  },
+
+  // ── Clarity ────────────────────────────────────────────────────────────────
+  // Clarity (KCCA network) — connection details not yet confirmed for active
+  // devices.  Placeholder entry; field_map to be filled when API access exists.
+  // Connection details not yet confirmed for active devices. online_check_via_feed
+  // is disabled until request handling is fully implemented so the raw-online
+  // status job skips these networks rather than probing incomplete adapters.
+  clarity: {
+    api_code_is_full_url: false,
+    auth_type: "header_bearer",
+    auth_key_param: "Authorization",
+    serial_number_regex: null,
+    online_check_via_feed: false,
+    field_map: null,
+  },
+
+  // ── MetOne ─────────────────────────────────────────────────────────────────
+  // Reference-grade BAM devices operated by US Embassy programme.
+  // Connection details not yet confirmed.  Placeholder only.
+  metone: {
+    api_code_is_full_url: false,
+    auth_type: "header_basic",
+    auth_key_param: "Authorization",
+    serial_number_regex: null,
+    online_check_via_feed: false,
+    field_map: null,
+  },
+
+  // ── AirBeam ────────────────────────────────────────────────────────────────
+  airbeam: {
+    api_code_is_full_url: false,
+    auth_type: "none",
+    auth_key_param: null,
+    serial_number_regex: null,
+    online_check_via_feed: false,
+    field_map: null,
+  },
+
+  // ── Airly ──────────────────────────────────────────────────────────────────
+  airly: {
+    api_code_is_full_url: false,
+    auth_type: "header_bearer",
+    auth_key_param: "apikey",
+    serial_number_regex: null,
+    online_check_via_feed: false,
+    field_map: null,
+  },
+
+  // ── PlumeLabsEco ───────────────────────────────────────────────────────────
+  plumelabs: {
+    api_code_is_full_url: false,
+    auth_type: "header_bearer",
+    auth_key_param: "Authorization",
+    serial_number_regex: null,
+    online_check_via_feed: false,
+    field_map: null,
+  },
+
+  // ── QuantAQ ────────────────────────────────────────────────────────────────
+  "quant-aq": {
+    api_code_is_full_url: false,
+    auth_type: "query_param",
+    auth_key_param: "api_key",
+    serial_number_regex: null,
+    online_check_via_feed: false,
+    field_map: null,
+  },
+};
+
+module.exports = { NETWORK_ADAPTERS };

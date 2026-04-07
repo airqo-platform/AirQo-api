@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 import asyncio
 import logging
@@ -854,11 +855,15 @@ async def get_device_performance(db: Session, device_names: List[str], startDate
                 "raw_data": []
             })
 
-    return {
+    result = {
         "success": True,
         "message": "Performance data fetched successfully",
-        "data": data_list
+        "data": data_list,
     }
+    if pagination_incomplete:
+        result["partial"] = True
+        result["message"] = "Performance data fetched with incomplete pagination (some pages failed)"
+    return result
 
 async def get_device_files(device_id: str) -> Dict[str, Any]:
     # Blank list for now as requested

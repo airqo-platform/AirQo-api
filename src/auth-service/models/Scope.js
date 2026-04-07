@@ -15,6 +15,21 @@ const {
   createEmptySuccessResponse,
 } = require("@utils/shared");
 
+const SCOPE_ENUMS = {
+  TIER: ["Free", "Standard", "Premium"],
+  RESOURCE_TYPE: [
+    "measurements",
+    "devices",
+    "sites",
+    "cohorts",
+    "grids",
+    "forecasts",
+    "insights",
+  ],
+  ACCESS_TYPE: ["read", "write"],
+  DATA_TIMEFRAME: ["recent", "historical", "all"],
+};
+
 const ScopeSchema = new mongoose.Schema(
   {
     scope: {
@@ -25,9 +40,26 @@ const ScopeSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
-      required: [true, "network ID is required"],
     },
     description: { type: String, required: [true, "description is required"] },
+    tier: {
+      type: String,
+      enum: SCOPE_ENUMS.TIER,
+    },
+    resource_type: {
+      type: String,
+      enum: SCOPE_ENUMS.RESOURCE_TYPE,
+    },
+    access_type: {
+      type: String,
+      enum: SCOPE_ENUMS.ACCESS_TYPE,
+      default: "read",
+    },
+    data_timeframe: {
+      type: String,
+      enum: SCOPE_ENUMS.DATA_TIMEFRAME,
+      default: "all",
+    },
   },
   { timestamps: true }
 );
@@ -99,6 +131,10 @@ ScopeSchema.statics = {
           _id: 1,
           scope: 1,
           description: 1,
+          tier: 1,
+          resource_type: 1,
+          access_type: 1,
+          data_timeframe: 1,
           network: { $arrayElemAt: ["$network", 0] },
         })
         .project({
@@ -154,6 +190,34 @@ ScopeSchema.statics = {
     }
   },
 
+  async bulkInsert(scopesArray, next) {
+    try {
+      const ops = scopesArray.map((scopeData) => ({
+        updateOne: {
+          filter: { scope: scopeData.scope },
+          update: { $set: scopeData },
+          upsert: true,
+        },
+      }));
+
+      const bulkResult = await this.bulkWrite(ops, { ordered: false });
+
+      const created = bulkResult.upsertedCount || 0;
+      const updated = bulkResult.modifiedCount || 0;
+
+      return {
+        success: true,
+        data: { created, updated },
+        message: `Bulk operation complete. Created: ${created}, Updated: ${updated}`,
+        status: httpStatus.OK,
+        meta: { created, updated },
+      };
+    } catch (error) {
+      logger.error(`Scope Bulk Insert Error: ${error.message}`);
+      return createErrorResponse(error, "bulk insert", logger, "scope");
+    }
+  },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -184,6 +248,10 @@ ScopeSchema.methods = {
       _id: this._id,
       scope: this.scope,
       description: this.description,
+      tier: this.tier,
+      resource_type: this.resource_type,
+      access_type: this.access_type,
+      data_timeframe: this.data_timeframe,
     };
   },
 };
@@ -201,3 +269,4 @@ const ScopeModel = (tenant) => {
 };
 
 module.exports = ScopeModel;
+module.exports.SCOPE_ENUMS = SCOPE_ENUMS;

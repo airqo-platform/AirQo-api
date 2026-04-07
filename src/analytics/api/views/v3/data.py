@@ -3,11 +3,16 @@ from flask import request, jsonify
 from flask_restx import Resource
 
 from api.utils.utils import limiter, ratelimit_response
-from api.models.datadownload.datadownload import data_download_model, raw_data_model
-from schemas.datadownload import DataDownloadSchema, RawDataSchema
+from api.models.datadownload.datadownload import (
+    data_download_model,
+    raw_data_model,
+    forecast_data_model,
+)
+from schemas.datadownload import DataDownloadSchema, RawDataSchema, ForecastDataSchema
 from marshmallow import ValidationError
 from api.utils.data_formatters import (
     get_validated_filter,
+    get_validated_forecast_filter,
 )
 from api.utils.datautils import DataUtils
 from api.views.common.responses import ResponseBuilder
@@ -113,6 +118,53 @@ class RawDataExportResource(Resource):
             logger.exception(
                 f"Unexpected error occurred during custom data download: {e}"
             )
+            return ResponseBuilder.error(
+                "An error occurred while processing your request. Please contact support.",
+                AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@rest_api_v3.route("/forecast-data")
+class ForecastDataExportResource(Resource):
+    """Endpoint for downloading forecast data filtered by country or city.
+
+    Accepts JSON body with at least one of: `country` or `city`.
+    Also requires `startDateTime` and `endDateTime` as ISO datetimes.
+    """
+
+    @rest_api_v3.expect(forecast_data_model)
+    def post(self):
+        try:
+            json_data = ForecastDataSchema().load(request.json)
+        except ValidationError as err:
+            return ResponseBuilder.error(err.messages, 400)
+
+        try:
+            filter_type, filter_value, error_message = get_validated_forecast_filter(
+                json_data
+            )
+            if error_message:
+                return ResponseBuilder.error(error_message, 400)
+
+            json_data.update(
+                {
+                    "datatype": "raw",
+                    "frequency": "hourly",
+                    "device_category": "satellite",
+                }
+            )
+
+            data_frame, metadata = DownloadService.fetch_data(
+                json_data, filter_type, filter_value
+            )
+
+            if data_frame.empty:
+                return ResponseBuilder.error("No data found", 400)
+
+            return DownloadService.format_and_respond(json_data, data_frame, metadata)
+
+        except Exception as e:
+            logger.exception("Unexpected error occurred during forecast data download.")
             return ResponseBuilder.error(
                 "An error occurred while processing your request. Please contact support.",
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,

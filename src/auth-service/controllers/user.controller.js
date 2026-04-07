@@ -41,7 +41,7 @@ const handleError = (error, next) => {
   next(
     new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
       message: expose ? error.message : "An unexpected error occurred",
-    })
+    }),
   );
 };
 
@@ -152,61 +152,203 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors)
         return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // --- FIX: Perform role cleanup and other updates on login ---
+      // Guard: req.user must be set by Passport before this controller runs.
+      // If it is missing, Passport failed silently or the middleware chain
+      // was misconfigured. Redirect to failure rather than throwing.
+      if (!req.user) {
+        logger.error(
+          "googleCallback: req.user is not set after passport auth — " +
+            "redirecting to failure URL",
+        );
+        if (!res.headersSent) {
+          return res.redirect(
+            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+          );
+        }
+        return;
+      }
+
       await userUtil.ensureDefaultAirqoRole(req.user, request.query.tenant);
 
-      // --- FIX: Re-fetch the user to get the cleaned-up data before generating the token ---
       const freshUser = await UserModel(request.query.tenant).findById(
-        req.user._id
+        req.user._id,
       );
+
+      // Guard: if the user document cannot be found after OAuth (e.g. deleted
+      // between callback and here, or DB hiccup), redirect to failure rather
+      // than throwing on freshUser.toAuthJSON() which would cause a secondary
+      // ERR_HTTP_HEADERS_SENT. Also check res.headersSent before redirecting
+      // in case Passport already sent a response before reaching this point.
+      if (!freshUser) {
+        logger.error(
+          `googleCallback: user ${req.user._id} not found after OAuth — ` +
+            `redirecting to failure URL`,
+        );
+        if (!res.headersSent) {
+          return res.redirect(
+            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+          );
+        }
+        return;
+      }
 
       const userDetails = await freshUser.toAuthJSON();
       const token = userDetails.token;
       logger.info("Google login succeeded for user", { userId: req.user._id });
 
-      // Fire-and-forget: Update user stats without blocking the login response.
+      // Fire-and-forget stats update.
+      // Single $set object prevents lastLogin/isActive being silently
+      // dropped by a second $set key overwriting the first.
       (async () => {
         try {
           const currentDate = new Date();
+          const setFields = {
+            lastLogin: currentDate,
+            isActive: true,
+            ...(req.user.analyticsVersion !== 3 && req.user.verified === false
+              ? { verified: true }
+              : {}),
+          };
           await UserModel(request.query.tenant).findByIdAndUpdate(
             req.user._id,
             {
-              $set: { lastLogin: currentDate, isActive: true },
+              $set: setFields,
               $inc: { loginCount: 1 },
-              ...(req.user.analyticsVersion !== 3 && req.user.verified === false
-                ? { $set: { verified: true } }
-                : {}),
             },
-            { new: true, upsert: false, runValidators: true }
+            { new: true, upsert: false, runValidators: true },
           );
         } catch (error) {
           logger.error(
-            `🐛🐛 Google login stats update error -- ${stringify(error)}`
+            `🐛🐛 Google login stats update error -- ${stringify(error)}`,
           );
         }
       })();
 
-      // Set the token as an HTTP-only cookie
       res.cookie("access_token", token, {
         httpOnly: true,
-        secure: true, // Enable if using HTTPS
+        secure: true,
       });
 
       if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        // Create a temporary, non-httpOnly cookie for debugging:
         res.cookie("temp_access_token", token, {
-          httpOnly: false, // Set to false for debugging
-          secure: true, // But keep secure: true (if using HTTPS)
+          httpOnly: false,
+          secure: true,
         });
       }
 
       res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=google`
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=google`,
+      );
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  /**
+   * Generic OAuth callback controller.
+   * Works for any provider (google, linkedin, twitter, …).
+   * Generates a JWT, sets the access_token cookie, and redirects.
+   */
+  oauthCallback: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors)
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      if (!req.user) {
+        logger.error("oauthCallback: req.user is not set after passport auth");
+        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+      }
+
+      const { tenant } = request.query;
+
+      // Sanitize provider name before logging — only allow known values to
+      // prevent tainted req.oauthProvider content appearing in log files.
+      const sanitizeProviderForLogging = (raw) => {
+        const allowed = [
+          "google",
+          "github",
+          "linkedin",
+          "microsoft",
+          "twitter",
+        ];
+        if (typeof raw !== "string") return "unknown";
+        const normalized = raw.toLowerCase();
+        return allowed.includes(normalized) ? normalized : "unknown";
+      };
+
+      const providerForLog = sanitizeProviderForLogging(
+        req.params.provider || req.oauthProvider || "google",
+      );
+
+      await userUtil.ensureDefaultAirqoRole(req.user, tenant);
+      const freshUser = await UserModel(tenant).findById(req.user._id);
+
+      if (!freshUser) {
+        logger.error(
+          `oauthCallback: user ${req.user._id} not found after refresh`,
+        );
+        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+      }
+
+      const userDetails = await freshUser.toAuthJSON();
+      const token = userDetails.token;
+
+      logger.info("OAuth login succeeded", {
+        userId: req.user._id,
+        provider: providerForLog,
+      });
+
+      // Fire-and-forget stats update.
+      // Build a single $set object so lastLogin/isActive are never silently
+      // dropped by a second $set key overwriting the first in the update doc.
+      (async () => {
+        try {
+          const currentDate = new Date();
+          const setFields = {
+            lastLogin: currentDate,
+            isActive: true,
+            ...(req.user.analyticsVersion !== 3 && req.user.verified === false
+              ? { verified: true }
+              : {}),
+          };
+
+          await UserModel(tenant).findByIdAndUpdate(
+            req.user._id,
+            {
+              $set: setFields,
+              $inc: { loginCount: 1 },
+            },
+            { new: true, upsert: false, runValidators: true },
+          );
+        } catch (error) {
+          logger.error(`oauthCallback stats update error: ${stringify(error)}`);
+        }
+      })();
+
+      res.cookie("access_token", token, {
+        httpOnly: true,
+        secure: true,
+      });
+
+      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+        res.cookie("temp_access_token", token, {
+          httpOnly: false,
+          secure: true,
+        });
+      }
+
+      return res.redirect(
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home` +
+          `?success=${providerForLog}`,
       );
     } catch (error) {
       handleError(error, next);
@@ -252,7 +394,7 @@ const userController = {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Please attach a PDF or CSV file.",
-          })
+          }),
         );
       }
 
@@ -264,7 +406,7 @@ const userController = {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid PDF file",
-            })
+            }),
           );
         }
       }
@@ -275,7 +417,7 @@ const userController = {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid CSV file",
-            })
+            }),
           );
         }
       }
@@ -283,7 +425,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
       }
 
@@ -302,7 +444,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors)
         return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
       const request = handleRequest(req, next);
       if (!request) return;
@@ -417,7 +559,7 @@ const userController = {
         // Centralize login logic by using the enhanced utility
         const enhancedLoginResult = await userUtil.loginWithEnhancedTokens(
           request,
-          next
+          next,
         );
 
         if (enhancedLoginResult.success) {
@@ -463,7 +605,7 @@ const userController = {
         // Centralize login logic by using the enhanced utility
         const enhancedLoginResult = await userUtil.loginWithEnhancedTokens(
           request,
-          next
+          next,
         );
 
         if (enhancedLoginResult.success) {
@@ -498,34 +640,12 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // PostHog Analytics: Track logout event
-      // TEMPORARILY DISABLED FOR STABILITY: PostHog Analytics: Track logout event
-      // try {
-      //   analyticsService.track(req.analyticsUserId, "user_logged_out");
-      // } catch (analyticsError) {
-      //   logger.error(`PostHog logout track error: ${analyticsError.message}`);
-      // }
-
+      // Logout is not yet implemented. The dead code block that previously
+      // appeared below the NOT_IMPLEMENTED response has been removed to
+      // prevent confusion when this endpoint is eventually built out.
       return res
         .status(httpStatus.NOT_IMPLEMENTED)
         .json({ success: false, message: "not yet implemented" });
-
-      req.logout((err) => {
-        if (err) {
-          logger.error(`Error during logout: ${JSON.stringify(err)}`);
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: err.message }
-            )
-          );
-        }
-        return res
-          .status(httpStatus.OK)
-          .json({ message: "logout successful", success: true });
-        // res.redirect("https://analytics.airqo.net/account/login");
-      });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       handleError(error, next);
@@ -647,7 +767,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -661,7 +781,7 @@ const userController = {
 
       const result = await userUtil.resetPassword(
         { token, password, tenant },
-        next
+        next,
       );
       if (result) {
         res
@@ -679,7 +799,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -715,7 +835,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -747,7 +867,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -793,7 +913,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -839,7 +959,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -886,7 +1006,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -929,7 +1049,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -972,7 +1092,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1015,7 +1135,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1059,7 +1179,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1103,7 +1223,7 @@ const userController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -1246,7 +1366,7 @@ const userController = {
         return next(
           new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
             userId: "User ID must be provided in URL params",
-          })
+          }),
         );
       }
 
@@ -1284,7 +1404,7 @@ const userController = {
         return next(
           new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
             userId: "User ID must be provided",
-          })
+          }),
         );
       }
 
@@ -1323,7 +1443,7 @@ const userController = {
         return next(
           new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
             userId: "User ID must be provided",
-          })
+          }),
         );
       }
 
@@ -1331,7 +1451,7 @@ const userController = {
         return next(
           new HttpError("Strategy is required", httpStatus.BAD_REQUEST, {
             strategy: "Token strategy must be provided",
-          })
+          }),
         );
       }
 
@@ -1346,7 +1466,7 @@ const userController = {
       return sendResponse(res, result);
     } catch (error) {
       logger.error(
-        `🐛 Token strategy update controller error: ${error.message}`
+        `🐛 Token strategy update controller error: ${error.message}`,
       );
       handleError(error, next);
     }
@@ -1373,7 +1493,7 @@ const userController = {
         return next(
           new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
             auth: "User must be authenticated to access profile",
-          })
+          }),
         );
       }
 
@@ -1383,7 +1503,7 @@ const userController = {
 
       const result = await userUtil._getEnhancedProfile(
         { userId, tenant },
-        next
+        next,
       );
 
       return sendResponse(res, result);
@@ -1405,7 +1525,7 @@ const userController = {
         return next(
           new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
             message: "Please provide a user_id in the URL path.",
-          })
+          }),
         );
       }
 
@@ -1413,13 +1533,13 @@ const userController = {
 
       const result = await userUtil._getEnhancedProfile(
         { userId: user_id, tenant },
-        next
+        next,
       );
 
       return sendResponse(res, result);
     } catch (error) {
       logger.error(
-        `🐛 Enhanced profile for user controller error: ${error.message}`
+        `🐛 Enhanced profile for user controller error: ${error.message}`,
       );
       handleError(error, next);
     }
@@ -1431,7 +1551,7 @@ const userController = {
       if (!request) return;
       const result = await userUtil.getDashboardAnalyticsFromCache(
         request,
-        next
+        next,
       );
       sendResponse(res, result);
     } catch (error) {
@@ -1478,7 +1598,7 @@ const userController = {
       if (!request) return;
       const result = await userUtil.initiateMobileAccountDeletion(
         request,
-        next
+        next,
       );
       sendResponse(res, result);
     } catch (error) {
@@ -1585,6 +1705,67 @@ const userController = {
       return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Legacy login controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
+  // ── FEEDBACK (persistent) ───────────────────────────────────────────────────
+
+  submitFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.submitFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listFeedbackSubmissions: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listFeedbackSubmissions(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          feedbacks: result.data,
+          meta: result.meta,
+        });
+      }
+      return res
+        .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "Internal Server Error" },
+        });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  getFeedbackSubmission: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getFeedbackSubmission(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateFeedbackStatus: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateFeedbackStatus(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
       handleError(error, next);
     }
   },

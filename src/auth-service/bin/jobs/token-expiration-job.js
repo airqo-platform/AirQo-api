@@ -1,11 +1,11 @@
 const AccessTokenModel = require("@models/AccessToken");
 const cron = require("node-cron");
 const constants = require("@config/constants");
-const { logObject } = require("@utils/shared");
+const { logObject, logText } = require("@utils/shared");
 const { mailer, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/jobs/token-expiration-job`
+  `${constants.ENVIRONMENT} -- bin/jobs/token-expiration-job -- ops-alerts`,
 );
 
 async function sendEmailsInBatches(tokens, batchSize = 100) {
@@ -23,7 +23,7 @@ async function sendEmailsInBatches(tokens, batchSize = 100) {
         .then((response) => {
           if (response && response.success === false) {
             logger.error(
-              `🐛🐛 Error sending email to ${email}: ${stringify(response)}`
+              `🐛🐛 Error sending email to ${email}: ${stringify(response)}`,
             );
           }
         });
@@ -60,7 +60,7 @@ const sendAlertsForExpiringTokens = async () => {
     if (tokens.length > 0) {
       await sendEmailsInBatches(tokens);
     } else {
-      logger.info("No expiring tokens found for this month.");
+      logText("No expiring tokens found for this month.");
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
@@ -75,5 +75,5 @@ global.cronJobs[jobName] = cron.schedule(
   {
     scheduled: true,
     timezone: "Africa/Nairobi",
-  }
+  },
 );

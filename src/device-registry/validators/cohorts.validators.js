@@ -18,7 +18,11 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return next(
-      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+      new HttpError(
+        "Validation error",
+        httpStatus.BAD_REQUEST,
+        errors.mapped(),
+      ),
     );
   }
   next();
@@ -31,7 +35,7 @@ const validateTenant = query("tenant")
   .trim()
   .toLowerCase()
   .bail()
-  .isIn(constants.NETWORKS)
+  .isIn(constants.TENANTS)
   .withMessage("the tenant value is not among the expected ones");
 
 const createFromCohorts = [
@@ -45,7 +49,7 @@ const createFromCohorts = [
     .trim()
     .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      "the name can only contain letters, numbers, spaces, hyphens and underscores",
     ),
   body("description")
     .optional()
@@ -72,7 +76,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -106,19 +110,7 @@ const commonValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
-      ),
-  ],
-  nameOptional: [
-    body("name")
-      .optional()
-      .notEmpty()
-      .withMessage("the name should not be empty if provided")
-      .bail()
-      .trim()
-      .matches(/^[a-zA-Z0-9\s\-_]+$/)
-      .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
   ],
   description: [
@@ -136,6 +128,19 @@ const commonValidations = {
       .trim()
       .isBoolean()
       .withMessage("visibility must be Boolean"),
+  ],
+  cohort_tags: [
+    body("cohort_tags")
+      .optional({ nullable: true })
+      .if(body("cohort_tags").exists({ checkNull: false }))
+      .isArray({ min: 1 })
+      .withMessage(
+        "cohort_tags must be a non-empty array of strings if provided",
+      ),
+    body("cohort_tags.*")
+      .isString()
+      .withMessage("Each tag must be a string")
+      .trim(),
   ],
 
   groups: [
@@ -205,7 +210,7 @@ const commonValidations = {
       body("devices")
         .exists()
         .withMessage(
-          "device identifiers are missing in the request, consider using devices"
+          "device identifiers are missing in the request, consider using devices",
         )
         .bail()
         .custom((value) => Array.isArray(value))
@@ -221,7 +226,7 @@ const commonValidations = {
       body("device_ids")
         .exists()
         .withMessage(
-          "device identifiers are missing in the request, consider using device_ids"
+          "device identifiers are missing in the request, consider using device_ids",
         )
         .bail()
         .custom((value) => Array.isArray(value))
@@ -237,7 +242,7 @@ const commonValidations = {
       body("device_names")
         .exists()
         .withMessage(
-          "device identifiers are missing in the request, consider using device_names"
+          "device identifiers are missing in the request, consider using device_names",
         )
         .bail()
         .custom((value) => Array.isArray(value))
@@ -267,7 +272,7 @@ const cohortValidations = {
       .trim()
       .matches(/^[a-zA-Z0-9\s\-_]+$/)
       .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+        "the name can only contain letters, numbers, spaces, hyphens and underscores",
       ),
     body("confirm_update")
       .exists()
@@ -278,7 +283,7 @@ const cohortValidations = {
       .bail()
       .equals("true")
       .withMessage(
-        "confirm_update must be set to true to proceed with name update"
+        "confirm_update must be set to true to proceed with name update",
       ),
     body("update_reason")
       .exists()
@@ -300,9 +305,15 @@ const cohortValidations = {
   updateCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-    ...commonValidations.nameOptional,
+    body("name")
+      .not()
+      .exists()
+      .withMessage(
+        "name cannot be updated via this endpoint; use PUT /cohorts/:cohort_id/name instead",
+      ),
     ...commonValidations.description,
     ...commonValidations.visibility,
+    ...commonValidations.cohort_tags,
     ...commonValidations.groups,
     ...commonValidations.networkOptional,
     handleValidationErrors,
@@ -312,8 +323,14 @@ const cohortValidations = {
     ...commonValidations.tenant,
     ...commonValidations.name,
     ...commonValidations.description,
+    ...commonValidations.cohort_tags,
     ...commonValidations.groups,
     ...commonValidations.networkOptional,
+    handleValidationErrors,
+  ],
+  findOriginal: [
+    ...commonValidations.tenant,
+    commonValidations.paramObjectId("cohort_id"),
     handleValidationErrors,
   ],
   listCohorts: [
@@ -330,9 +347,58 @@ const cohortValidations = {
       .toLowerCase()
       .isIn(["asc", "desc"])
       .withMessage("the order value is not among the expected ones"),
+    query("tags")
+      .optional()
+      .notEmpty()
+      .withMessage("tags must not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("tags must be a comma-separated string of tags")
+      .bail()
+      .custom((value) => {
+        const tags = String(value)
+          .split(",")
+          .map((part) => part.trim());
+        if (tags.some((part) => part.length === 0)) {
+          throw new Error(
+            "tags cannot contain empty values. Check for extra commas.",
+          );
+        }
+        if (tags.every((part) => part.length === 0)) {
+          throw new Error("tags must contain at least one non-empty tag.");
+        }
+        return true;
+      }),
     handleValidationErrors,
   ],
 
+  listUserCohorts: [
+    ...commonValidations.tenant,
+    // This endpoint is for listing all user cohorts and does not support filtering by id or name.
+    // The underlying utility overrides any name filter with a regex to find user-specific cohorts.
+    query("id")
+      .not()
+      .exists()
+      .withMessage(
+        "filtering by id is not supported on this endpoint; use the general /cohorts endpoint instead",
+      ),
+    query("name")
+      .not()
+      .exists()
+      .withMessage("filtering by name is not supported on this endpoint"),
+    query("sortBy")
+      .optional()
+      .notEmpty()
+      .trim(),
+    query("order")
+      .optional()
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["asc", "desc"])
+      .withMessage("the order value is not among the expected ones"),
+    handleValidationErrors,
+  ],
   listCohortsSummary: [
     ...commonValidations.tenant,
     oneOf([
@@ -431,7 +497,7 @@ const cohortValidations = {
       const presentFields = fields.filter((field) => value[field]);
       if (presentFields.length > 1 || presentFields.length === 0) {
         throw new Error(
-          "Only one of devices, device_ids, or device_names should be provided"
+          "Only one of devices, device_ids, or device_names should be provided",
         );
       }
       return true;
@@ -451,8 +517,38 @@ const cohortValidations = {
       .bail()
       .notEmpty()
       .withMessage("the admin secret should not be empty"),
-    ...commonValidations.name,
-    ...commonValidations.description,
+    body("net_name")
+      .exists()
+      .withMessage("the net_name is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the net_name must not be empty")
+      .trim(),
+    body("net_email")
+      .exists()
+      .withMessage("the net_email is required")
+      .bail()
+      .isEmail()
+      .withMessage("the net_email is not a valid email address")
+      .trim(),
+    body("net_website")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_website must not be empty if provided")
+      .bail()
+      .isURL()
+      .withMessage("the net_website is not a valid URL")
+      .trim(),
+    body("net_category")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_category must not be empty if provided")
+      .trim(),
+    body("net_description")
+      .optional()
+      .notEmpty()
+      .withMessage("the net_description must not be empty if provided")
+      .trim(),
     handleValidationErrors,
   ],
   updateNetwork: [
@@ -513,7 +609,7 @@ const cohortValidations = {
       .toLowerCase()
       .isIn(constants.DEVICE_FILTER_TYPES)
       .withMessage(
-        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`,
       ),
     check("device_category")
       .optional()
@@ -596,7 +692,7 @@ const cohortValidations = {
       .toLowerCase()
       .isIn(constants.DEVICE_FILTER_TYPES)
       .withMessage(
-        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`
+        `category must be one of: ${constants.DEVICE_FILTER_TYPES.join(", ")}`,
       ),
     check("lat_long")
       .optional()

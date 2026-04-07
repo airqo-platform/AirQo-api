@@ -137,16 +137,28 @@ const mappings = {
   SITE_MAPPINGS: {},
   PHOTO_MAPPINGS: {},
   DATA_PROVIDER_MAPPINGS: (network) => {
-    switch (network) {
-      case "airqo":
-        return "AirQo";
-        break;
-      case "usembassy":
-        return "US Embassy";
-        break;
-      default:
-        return "AirQo";
+    if (!network || typeof network !== "string") return null;
+
+    const normalised = network.trim().toLowerCase();
+
+    // Override map for known ids where the generic replace-and-uppercase
+    // would produce an unreadable label (no underscore/hyphen separator).
+    const knownCollapsedMap = {
+      usembassy: "US EMBASSY",
+      urbanbetter: "URBAN BETTER",
+      airbeam: "AIRBEAM",
+      metone: "METONE",
+      kcca: "KCCA",
+      clarity: "CLARITY",
+      airqo: "AIRQO",
+    };
+
+    if (knownCollapsedMap[normalised] !== undefined) {
+      return knownCollapsedMap[normalised];
     }
+
+    // Generic fallback: replace underscores/hyphens with spaces, uppercase.
+    return normalised.replace(/[_-]/g, " ").toUpperCase();
   },
   EVENT_MAPPINGS: {
     item: {

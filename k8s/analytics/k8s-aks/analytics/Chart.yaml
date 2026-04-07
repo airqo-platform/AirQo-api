@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: "2.0.0"
+description: AirQo Analytics Helm Chart
+name: airqo-analytics
+home: https://airqo.net
+version: 1.0.0
+maintainers:
+  - name: AirQo
+    email: support@airqo.net
+    url: https://airqo.net
+

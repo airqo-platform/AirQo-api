@@ -1,6 +1,7 @@
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
 
 const commonValidations = {
   tenant: [
@@ -10,7 +11,7 @@ const commonValidations = {
       .withMessage("tenant should not be empty if provided")
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "airqount"])
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   transactionId: [
@@ -48,16 +49,31 @@ const commonValidations = {
 };
 
 const transactionValidations = {
+  // Tier-based checkout (frontend flow): body must contain a valid `tier`.
+  // Legacy amount-based checkout: body must contain `amount` + `currency`.
+  // Each branch is a complete validation chain; at least one must pass.
   checkout: oneOf([
-    ...commonValidations.tenant,
-    ...commonValidations.currency,
-    body("amount")
-      .exists()
-      .withMessage("amount is missing in request")
-      .isNumeric()
-      .withMessage("amount must be a number")
-      .isFloat({ min: 0.01 })
-      .withMessage("amount must be greater than 0"),
+    [
+      ...commonValidations.tenant,
+      body("tier")
+        .exists()
+        .withMessage("tier is required for tier-based checkout")
+        .isString()
+        .withMessage("tier must be a string")
+        .isIn(["Standard", "Premium"])
+        .withMessage("tier must be Standard or Premium"),
+    ],
+    [
+      ...commonValidations.tenant,
+      ...commonValidations.currency,
+      body("amount")
+        .exists()
+        .withMessage("amount is required for amount-based checkout")
+        .isNumeric()
+        .withMessage("amount must be a number")
+        .isFloat({ min: 0.01 })
+        .withMessage("amount must be greater than 0"),
+    ],
   ]),
 
   subscription: oneOf([
@@ -110,10 +126,10 @@ const transactionValidations = {
       .withMessage("invalid status value"),
   ]),
 
-  idOperation: oneOf([
+  idOperation: [
     ...commonValidations.tenant,
     ...commonValidations.transactionId,
-  ]),
+  ],
   tenantOperation: oneOf([...commonValidations.tenant]),
 };
 

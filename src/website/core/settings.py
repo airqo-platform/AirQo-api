@@ -37,6 +37,19 @@ def get_env_bool(env_var: str, default: bool = False) -> bool:
     return os.getenv(env_var, str(default)).lower() in ['true', '1', 't', 'yes']
 
 
+def get_env_int(env_var: str, default: int) -> int:
+    """
+    Convert an environment variable to integer with safe fallback.
+    """
+    raw_value = os.getenv(env_var)
+    if raw_value is None or raw_value == "":
+        return default
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
+
 def require_env_var(env_var: str) -> str:
     """
     Ensure an environment variable is set. Raise ValueError if not.
@@ -71,7 +84,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'cloudinary',
     'cloudinary_storage',
-    'django_cleanup.apps.CleanupConfig',
     'rest_framework',
     'django_extensions',
     'nested_admin',
@@ -103,11 +115,13 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'core.middleware.DatabaseConnectionRecoveryMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'core.middleware.AdminUploadExceptionMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -157,6 +171,13 @@ TEMPLATES = [
 # Database Configuration
 # ---------------------------------------------------------
 DATABASE_URL = os.getenv('DATABASE_URL')
+DB_CONN_MAX_AGE = get_env_int('DB_CONN_MAX_AGE', default=300)
+DB_CONNECT_TIMEOUT = get_env_int('DB_CONNECT_TIMEOUT', default=10)
+DB_KEEPALIVES_IDLE = get_env_int('DB_KEEPALIVES_IDLE', default=30)
+DB_KEEPALIVES_INTERVAL = get_env_int('DB_KEEPALIVES_INTERVAL', default=10)
+DB_KEEPALIVES_COUNT = get_env_int('DB_KEEPALIVES_COUNT', default=5)
+DB_TCP_KEEPALIVES = get_env_bool('DB_TCP_KEEPALIVES', default=True)
+DB_CONN_HEALTH_CHECKS = get_env_bool('DB_CONN_HEALTH_CHECKS', default=True)
 
 if DATABASE_URL:
     # if DEBUG is True, disable SSL; otherwise require SSL
@@ -165,10 +186,11 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
-            conn_max_age=600,
+            conn_max_age=DB_CONN_MAX_AGE,
             ssl_require=ssl_is_required
         )
     }
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = DB_CONN_HEALTH_CHECKS
 
     # PostgreSQL-specific connection options: set sslmode to match behavior
     # Use the detected ENGINE from dj_database_url.parse to decide
@@ -177,6 +199,12 @@ if DATABASE_URL:
         # Use a local variable and cast to avoid TypedDict access errors by static checkers
         options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
         options['sslmode'] = 'require' if ssl_is_required else 'disable'
+        options.setdefault('connect_timeout', DB_CONNECT_TIMEOUT)
+        if DB_TCP_KEEPALIVES:
+            options.setdefault('keepalives', 1)
+            options.setdefault('keepalives_idle', DB_KEEPALIVES_IDLE)
+            options.setdefault('keepalives_interval', DB_KEEPALIVES_INTERVAL)
+            options.setdefault('keepalives_count', DB_KEEPALIVES_COUNT)
     elif 'mysql' in DATABASE_URL:
         options = cast(dict, DATABASES['default'].setdefault('OPTIONS', {}))
         options.update({
@@ -193,6 +221,7 @@ else:
             'OPTIONS': {'timeout': 600},
         }
     }
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = DB_CONN_HEALTH_CHECKS
 
 # ---------------------------------------------------------
 # Cache Configuration
@@ -242,11 +271,18 @@ USE_TZ = True
 STATIC_URL = '/website/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Cloudinary Configuration - Moved to File Upload Settings section above
-# This configuration supports large file uploads up to 30MB
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+if DEBUG or any(cmd in sys.argv for cmd in ('test', 'check')):
+    STORAGES['staticfiles']['BACKEND'] = 'whitenoise.storage.CompressedStaticFilesStorage'
+else:
+    WHITENOISE_MANIFEST_STRICT = False
 
 # ---------------------------------------------------------
 # Default Primary Key Field Type
@@ -346,9 +382,14 @@ QUILL_CONFIGS = {
 # ---------------------------------------------------------
 # File Upload Settings
 # ---------------------------------------------------------
-# Support up to 30MB uploads for images and files
-FILE_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB (30 * 1024 * 1024)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30 MB
+# Unified max upload size for all website file/image uploads (10MB).
+UPLOAD_MAX_FILE_SIZE = 10 * 1024 * 1024
+
+# Keep in-memory upload buffering low; larger files stream to temp files.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+
+# Allow multipart request parsing for uploads up to policy size plus form overhead.
+DATA_UPLOAD_MAX_MEMORY_SIZE = UPLOAD_MAX_FILE_SIZE + (2 * 1024 * 1024)
 FILE_UPLOAD_TEMP_DIR = None  # Use system default temp directory
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
@@ -377,133 +418,167 @@ USE_X_FORWARDED_HOST = True
 # ---------------------------------------------------------
 # Logging Configuration
 # ---------------------------------------------------------
-LOG_DIR = BASE_DIR / 'logs'
-LOG_DIR.mkdir(exist_ok=True)  # Ensure log directory exists
+IS_TEST_RUN = any(cmd in sys.argv for cmd in ('test', 'pytest'))
+LOG_DIR = (BASE_DIR / '.tmp_logs') if IS_TEST_RUN else (BASE_DIR / 'logs')
+try:
+    LOG_DIR.mkdir(exist_ok=True, parents=True)  # Ensure log directory exists
+except PermissionError:
+    LOG_DIR = Path(os.getenv('TEMP', str(BASE_DIR))) / 'airqo-website-logs'
+    LOG_DIR.mkdir(exist_ok=True, parents=True)
+
+SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL', '').strip()
+SLACK_DEV_NOTIFS = get_env_bool('SLACK_DEV_NOTIFS', default=False)
+SLACK_CHANNEL = os.getenv('SLACK_CHANNEL', '').strip()
+ENABLE_SLACK_LOGGING = bool(SLACK_WEBHOOK_URL) and (SLACK_DEV_NOTIFS or not DEBUG)
+if IS_TEST_RUN:
+    ENABLE_SLACK_LOGGING = False
+
+DEFAULT_APP_HANDLERS = ['console', 'app_file', 'error_file']
+ALERT_HANDLERS = ['console', 'error_file']
+if ENABLE_SLACK_LOGGING:
+    DEFAULT_APP_HANDLERS.append('slack_errors')
+    ALERT_HANDLERS.append('slack_errors')
+
+APP_LOGGER_NAMES = [
+    'apps.event',
+    'apps.cleanair',
+    'apps.africancities',
+    'apps.publications',
+    'apps.press',
+    'apps.impact',
+    'apps.faqs',
+    'apps.highlights',
+    'apps.career',
+    'apps.partners',
+    'apps.board',
+    'apps.team',
+    'apps.externalteams',
+]
+
+LOGGING_HANDLERS = {
+    'console': {
+        'class': 'logging.StreamHandler',
+        'formatter': 'verbose',
+        'level': 'DEBUG' if DEBUG else 'INFO',
+    },
+    'app_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'application.log',
+        'formatter': 'verbose',
+        'level': 'INFO',
+        'maxBytes': 20 * 1024 * 1024,  # 20 MB
+        'backupCount': 5,
+    },
+    'error_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'errors.log',
+        'formatter': 'verbose',
+        'level': 'ERROR',
+        'maxBytes': 20 * 1024 * 1024,  # 20 MB
+        'backupCount': 10,
+    },
+    'security_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'security.log',
+        'formatter': 'verbose',
+        'level': 'WARNING',
+        'maxBytes': 10 * 1024 * 1024,  # 10 MB
+        'backupCount': 10,
+    },
+    'database_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'database.log',
+        'formatter': 'verbose',
+        'level': 'WARNING' if DEBUG else 'ERROR',
+        'maxBytes': 10 * 1024 * 1024,  # 10 MB
+        'backupCount': 5,
+    },
+    'upload_file': {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'uploads.log',
+        'formatter': 'verbose',
+        'level': 'INFO',
+        'maxBytes': 10 * 1024 * 1024,  # 10 MB
+        'backupCount': 5,
+    },
+}
+
+if ENABLE_SLACK_LOGGING:
+    LOGGING_HANDLERS['slack_errors'] = {
+        'class': 'core.logging_handlers.SlackWebhookHandler',
+        'level': 'ERROR',
+        'formatter': 'slack',
+        'webhook_url': SLACK_WEBHOOK_URL,
+        'channel': SLACK_CHANNEL,
+        'environment': 'development' if DEBUG else 'production',
+        'timeout': 3.0,
+        'dedupe_window_seconds': 120,
+    }
+
+LOGGING_LOGGERS = {
+    'django': {
+        'handlers': DEFAULT_APP_HANDLERS,
+        'level': 'INFO',
+        'propagate': True,
+    },
+    'django.request': {
+        'handlers': ALERT_HANDLERS,
+        'level': 'ERROR',
+        'propagate': False,
+    },
+    'django.security': {
+        'handlers': ALERT_HANDLERS + ['security_file'],
+        'level': 'WARNING',
+        'propagate': False,
+    },
+    'django.db.backends': {
+        'handlers': ['database_file'],
+        'level': 'WARNING' if DEBUG else 'ERROR',
+        'propagate': False,
+    },
+    'cloudinary': {
+        'handlers': DEFAULT_APP_HANDLERS + ['upload_file'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    'core.middleware': {
+        'handlers': DEFAULT_APP_HANDLERS + ['upload_file'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+}
+
+for app_logger in APP_LOGGER_NAMES:
+    LOGGING_LOGGERS[app_logger] = {
+        'handlers': DEFAULT_APP_HANDLERS + ['upload_file'],
+        'level': 'DEBUG' if DEBUG else 'INFO',
+        'propagate': False,
+    }
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    # Formatters
     'formatters': {
         'verbose': {
             'format': '[%(asctime)s] %(levelname)s %(name)s [%(filename)s:%(lineno)d] %(message)s',
-            'datefmt': '%Y-%m-%d %H:%M:%S'
+            'datefmt': '%Y-%m-%d %H:%M:%S',
         },
         'simple': {
-            'format': '%(levelname)s %(message)s'
+            'format': '%(levelname)s %(message)s',
+        },
+        'slack': {
+            'format': (
+                '*%(levelname)s* | `%(name)s`\n'
+                '%(message)s\n'
+                '_%(asctime)s_'
+            ),
+            'datefmt': '%Y-%m-%d %H:%M:%S',
         },
     },
-    # Handlers
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-            'level': 'DEBUG' if DEBUG else 'INFO',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': LOG_DIR / 'django.log',
-            'formatter': 'verbose',
-            'level': 'INFO',
-        },
-        'error_file': {
-            'class': 'logging.FileHandler',
-            'filename': LOG_DIR / 'django_errors.log',
-            'formatter': 'verbose',
-            'level': 'ERROR',
-        },
+    'handlers': LOGGING_HANDLERS,
+    'loggers': LOGGING_LOGGERS,
+    'root': {
+        'handlers': ['console', 'app_file'],
+        'level': 'INFO',
     },
-    # Loggers
-    'loggers': {
-        # Django Logs
-        'django': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        # Cloudinary Logs
-        'cloudinary': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        # Event App Logs
-        'apps.event': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # CleanAir App Logs
-        'apps.cleanair': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # AfricanCities App Logs
-        'apps.africancities': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Publications App Logs
-        'apps.publications': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Press App Logs
-        'apps.press': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Impact App Logs
-        'apps.impact': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # FAQs App Logs
-        'apps.faqs': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Highlights App Logs
-        'apps.highlights': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Career App Logs
-        'apps.career': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Partners App Logs
-        'apps.partners': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Board App Logs
-        'apps.board': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # Team App Logs
-        'apps.team': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-        # ExternalTeams App Logs
-        'apps.externalteams': {
-            'handlers': ['console', 'file', 'error_file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
-    }
 }

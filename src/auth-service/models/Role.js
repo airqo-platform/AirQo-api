@@ -5,7 +5,7 @@ const ObjectId = mongoose.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- role-model`
+  `${constants.ENVIRONMENT} -- role-model`,
 );
 const { logObject, logText, HttpError } = require("@utils/shared");
 
@@ -54,7 +54,7 @@ const RoleSchema = new mongoose.Schema(
       immutable: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 RoleSchema.pre("save", async function (next) {
@@ -94,7 +94,7 @@ RoleSchema.pre(
       return next(
         new HttpError("Forbidden", httpStatus.FORBIDDEN, {
           message: "Cannot delete default/system roles",
-        })
+        }),
       );
     }
 
@@ -110,12 +110,12 @@ RoleSchema.pre(
       return next(
         new HttpError("Forbidden", httpStatus.FORBIDDEN, {
           message: "Cannot delete configured default roles",
-        })
+        }),
       );
     }
 
     next();
-  }
+  },
 );
 
 // Uniqueness when network scoped
@@ -124,14 +124,14 @@ RoleSchema.index(
   {
     unique: true,
     partialFilterExpression: { network_id: { $exists: true, $ne: null } },
-  }
+  },
 );
 RoleSchema.index(
   { role_code: 1, network_id: 1 },
   {
     unique: true,
     partialFilterExpression: { network_id: { $exists: true, $ne: null } },
-  }
+  },
 );
 // Uniqueness when group scoped
 RoleSchema.index(
@@ -139,14 +139,14 @@ RoleSchema.index(
   {
     unique: true,
     partialFilterExpression: { group_id: { $exists: true, $ne: null } },
-  }
+  },
 );
 RoleSchema.index(
   { role_code: 1, group_id: 1 },
   {
     unique: true,
     partialFilterExpression: { group_id: { $exists: true, $ne: null } },
-  }
+  },
 );
 
 RoleSchema.statics = {
@@ -164,7 +164,7 @@ RoleSchema.statics = {
       } else {
         return createEmptySuccessResponse(
           "role",
-          "operation successful but Role NOT successfully created"
+          "operation successful but Role NOT successfully created",
         );
       }
     } catch (err) {
@@ -206,7 +206,7 @@ RoleSchema.statics = {
     try {
       const inclusionProjection = constants.ROLES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.ROLES_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : ""
+        filter.category ? filter.category : "",
       );
       logObject("inclusionProjection", inclusionProjection);
       logObject("exclusionProjection", exclusionProjection);
@@ -237,17 +237,51 @@ RoleSchema.statics = {
           path: "$group",
           preserveNullAndEmptyArrays: true,
         })
+        // Trim group to only the fields the frontend needs
+        .addFields({
+          group: {
+            $cond: {
+              if: { $ifNull: ["$group", false] },
+              then: {
+                _id: "$group._id",
+                grp_title: "$group.grp_title",
+                grp_description: "$group.grp_description",
+              },
+              else: "$$REMOVE",
+            },
+          },
+        })
         .lookup({
           from: "permissions",
           localField: "role_permissions",
           foreignField: "_id",
           as: "role_permissions",
         })
+        // Count users assigned to this role via network_roles OR group_roles
         .lookup({
           from: "users",
-          localField: "_id",
-          foreignField: "network_roles.role",
-          as: "role_users",
+          let: { roleId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    {
+                      $in: [
+                        "$$roleId",
+                        { $ifNull: ["$network_roles.role", []] },
+                      ],
+                    },
+                    {
+                      $in: ["$$roleId", { $ifNull: ["$group_roles.role", []] }],
+                    },
+                  ],
+                },
+              },
+            },
+            { $count: "count" },
+          ],
+          as: "_role_users_count",
         })
         .addFields({
           createdAt: {
@@ -256,7 +290,12 @@ RoleSchema.statics = {
               date: "$_id",
             },
           },
+          user_count: {
+            $ifNull: [{ $arrayElemAt: ["$_role_users_count.count", 0] }, 0],
+          },
         })
+        // Remove the temporary count array from the output
+        .project({ _role_users_count: 0 })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
@@ -317,7 +356,7 @@ RoleSchema.statics = {
       const updatedRole = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedRole)) {
@@ -326,7 +365,7 @@ RoleSchema.statics = {
         return createNotFoundResponse(
           "role",
           "update",
-          "role not found, please crosscheck"
+          "role not found, please crosscheck",
         );
       }
     } catch (error) {
@@ -349,7 +388,7 @@ RoleSchema.statics = {
         return createNotFoundResponse(
           "role",
           "delete",
-          "Role does not exist, please crosscheck"
+          "Role does not exist, please crosscheck",
         );
       }
     } catch (error) {

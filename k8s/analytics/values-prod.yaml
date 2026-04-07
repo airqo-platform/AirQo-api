@@ -9,7 +9,7 @@ images:
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
-  tag: prod-5d7f8460-1765523559
+  tag: prod-9a4385dc-1771443288
 api:
   name: airqo-analytics-api
   label: analytics-api
@@ -48,7 +48,10 @@ jobs:
   resources:
     limits:
       cpu: 1000m
-      memory: 4000Mi
+      memory: 3000Mi
+    requests:
+      cpu: 100m
+      memory: 500Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

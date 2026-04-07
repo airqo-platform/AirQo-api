@@ -85,50 +85,72 @@ function getDeploymentDescription(deploymentType) {
  * @returns {Object} categories
  */
 function computeDeviceCategories(deviceDoc) {
-  // Handle both Mongoose documents and plain objects
   const doc = deviceDoc.toObject ? deviceDoc.toObject() : deviceDoc;
 
+  const isMobile = doc.mobility === true || doc.deployment_type === "mobile";
+
+  // ownership_category — returns raw network value for frontend display
+  // null when network is missing or empty string
+  let ownership_category = null;
+  if (doc.network && doc.network.trim() !== "") {
+    ownership_category = doc.network;
+  }
+
+  // mobile_category — only meaningful for mobile devices, null for static
+  // priority: movement_pattern (most descriptive) → route_id → coverage_area → "mobile"
+  let mobile_category = null;
+  if (isMobile) {
+    const mm = doc.mobility_metadata || {};
+    if (mm.movement_pattern) {
+      mobile_category = mm.movement_pattern;
+    } else if (mm.route_id) {
+      mobile_category = "fixed-route";
+    } else if (mm.coverage_area) {
+      mobile_category = "area-coverage";
+    } else {
+      mobile_category = "mobile";
+    }
+  }
+
+  const primary_category = doc.category || "lowcost";
+  const deployment_category = doc.deployment_type || "static";
+
+  // Use a Set to guarantee no duplicates in all_categories
+  const categorySet = new Set([primary_category, deployment_category]);
+  if (ownership_category) categorySet.add(ownership_category);
+  if (mobile_category) categorySet.add(mobile_category);
+  const all_categories = [...categorySet];
+
   const categories = {
-    // Primary equipment category
-    primary_category: doc.category || "lowcost",
-    // Deployment category
-    deployment_category: doc.deployment_type || "static",
-    // Boolean flags for easy frontend checking
-    is_mobile: doc.mobility === true || doc.deployment_type === "mobile",
-    is_static: doc.mobility === false || doc.deployment_type === "static",
-    is_lowcost: doc.category === "lowcost",
-    is_bam: doc.category === "bam",
-    is_gas: doc.category === "gas",
-    // All applicable categories (handles subcategories)
-    all_categories: [],
-    // Descriptive information
-    category_hierarchy: [],
-  };
-
-  // Build all_categories array
-  categories.all_categories.push(categories.primary_category);
-  categories.all_categories.push(categories.deployment_category);
-
-  // Build hierarchy showing relationships
-  categories.category_hierarchy.push({
-    level: "equipment",
-    category: categories.primary_category,
-    description: getCategoryDescription(categories.primary_category),
-  });
-
-  categories.category_hierarchy.push({
-    level: "deployment",
-    category: categories.deployment_category,
-    description: getDeploymentDescription(categories.deployment_category),
-  });
-
-  // Add metadata about category relationships
-  categories.category_relationships = {
-    note:
-      "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
-    mobile_is_subcategory_of: categories.is_mobile
-      ? categories.primary_category
-      : null,
+    primary_category,
+    deployment_category,
+    ownership_category,
+    mobile_category,
+    is_mobile: isMobile,
+    is_static: !isMobile,
+    // Use primary_category (resolved) not doc.category (raw) so flags are
+    // consistent when category is missing and defaults to "lowcost"
+    is_lowcost: primary_category === "lowcost",
+    is_bam: primary_category === "bam",
+    is_gas: primary_category === "gas",
+    all_categories,
+    category_hierarchy: [
+      {
+        level: "equipment",
+        category: primary_category,
+        description: getCategoryDescription(primary_category),
+      },
+      {
+        level: "deployment",
+        category: deployment_category,
+        description: getDeploymentDescription(deployment_category),
+      },
+    ],
+    category_relationships: {
+      note:
+        "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+      mobile_is_subcategory_of: isMobile ? primary_category : null,
+    },
   };
 
   return categories;
@@ -165,6 +187,7 @@ const deviceSchema = new mongoose.Schema(
     network: {
       type: String,
       trim: true,
+      lowercase: true,
       required: [true, "the network is required!"],
     },
     groups: {
@@ -260,7 +283,9 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     tags: {
-      type: Array,
+      type: [String],
+      default: [],
+      index: true,
     },
     description: {
       type: String,
@@ -361,6 +386,21 @@ const deviceSchema = new mongoose.Schema(
       default: false,
     },
     pictures: [{ type: String }],
+    collocation: {
+      status: {
+        type: String,
+        enum: ["active", "inactive"],
+        default: "inactive",
+      },
+      batch_id: {
+        type: ObjectId,
+        ref: "collocation_batch",
+        default: null,
+      },
+      start_date: { type: Date, default: null },
+      end_date: { type: Date, default: null },
+      updated_at: { type: Date, default: Date.now },
+    },
     owner_id: {
       type: ObjectId,
       ref: "user",
@@ -476,7 +516,7 @@ const deviceSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 deviceSchema.plugin(uniqueValidator, {
@@ -493,13 +533,13 @@ deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
-    (value, index, self) => self.indexOf(value) !== index
+    (value, index, self) => self.indexOf(value) !== index,
   );
 
   if (duplicateValues.length > 0) {
     return new HttpError(
       `Duplicate values found in ${fieldName} array.`,
-      httpStatus.BAD_REQUEST
+      httpStatus.BAD_REQUEST,
     );
   }
   return null;
@@ -515,6 +555,19 @@ deviceSchema.pre(
       const doc = isQuery ? update.$set || update : this;
       if (isQuery) {
         this.setOptions({ runValidators: true, context: "query" });
+      }
+
+      // Automatically update collocation.updated_at on modification
+      if (isQuery && update) {
+        const isCollocationModified = Object.keys(update.$set || {}).some(
+          (key) => key.startsWith("collocation."),
+        );
+        if (isCollocationModified) {
+          update.$set["collocation.updated_at"] = new Date();
+        }
+      } else if (!isQuery && this.isModified("collocation")) {
+        // Handle direct save operations
+        this.collocation.updated_at = new Date();
       }
 
       if (!doc) return next();
@@ -585,22 +638,22 @@ deviceSchema.pre(
           if (isNew) doc.mountType = "vehicle";
           else
             return next(
-              new Error("Mobile devices must include mountType 'vehicle'")
+              new Error("Mobile devices must include mountType 'vehicle'"),
             );
         } else if (doc.mountType !== "vehicle") {
           return next(
-            new Error("Mobile devices must have mountType 'vehicle'")
+            new Error("Mobile devices must have mountType 'vehicle'"),
           );
         }
         if (!doc.powerType) {
           if (isNew) doc.powerType = "alternator";
           else
             return next(
-              new Error("Mobile devices must include powerType 'alternator'")
+              new Error("Mobile devices must include powerType 'alternator'"),
             );
         } else if (doc.powerType !== "alternator") {
           return next(
-            new Error("Mobile devices must have powerType 'alternator'")
+            new Error("Mobile devices must have powerType 'alternator'"),
           );
         }
       }
@@ -615,10 +668,10 @@ deviceSchema.pre(
           return next(
             new HttpError(
               `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
-                ", "
+                ", ",
               )}`,
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
         }
       }
@@ -634,8 +687,8 @@ deviceSchema.pre(
           return next(
             new HttpError(
               "Devices not part of the AirQo network must include a serial_number as a string.",
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
         }
 
@@ -647,8 +700,8 @@ deviceSchema.pre(
           return next(
             new HttpError(
               "Either name or long_name is required.",
-              httpStatus.BAD_REQUEST
-            )
+              httpStatus.BAD_REQUEST,
+            ),
           );
         }
 
@@ -697,6 +750,28 @@ deviceSchema.pre(
         }
       }
 
+      // Normalize and deduplicate tags only when necessary to avoid unnecessary writes.
+      // For document middleware (.save()), check if it's a new document or if 'tags' was modified.
+      // For query middleware (.findOneAndUpdate(), etc.), check if 'tags' is in the update payload.
+      const shouldProcessTags = !isQuery
+        ? isNew || this.isModified("tags")
+        : doc.tags && Array.isArray(doc.tags);
+
+      if (shouldProcessTags) {
+        if (doc.tags && Array.isArray(doc.tags)) {
+          const processedTags = [
+            ...new Set(
+              doc.tags.map((tag) =>
+                String(tag)
+                  .trim()
+                  .toLowerCase(),
+              ),
+            ),
+          ].filter(Boolean); // filter(Boolean) removes any empty strings
+          doc.tags = processedTags;
+        }
+      }
+
       if (isQuery && update) {
         if (doc.network === "airqo") {
           if (doc.device_number) doc.serial_number = String(doc.device_number);
@@ -714,8 +789,8 @@ deviceSchema.pre(
             return next(
               new HttpError(
                 "Devices not part of the AirQo network must include a serial_number as a string.",
-                httpStatus.BAD_REQUEST
-              )
+                httpStatus.BAD_REQUEST,
+              ),
             );
           }
         }
@@ -747,14 +822,14 @@ deviceSchema.pre(
     } catch (error) {
       return next(error);
     }
-  }
+  },
 );
 
 deviceSchema.methods = {
   _encryptKey(key) {
     let encryptedKey = cryptoJS.AES.encrypt(
       key,
-      constants.KEY_ENCRYPTION_KEY
+      constants.KEY_ENCRYPTION_KEY,
     ).toString();
     return encryptedKey;
   },
@@ -783,6 +858,7 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
+      collocation: this.collocation,
       maintenance_date: this.maintenance_date,
       recall_date: this.recall_date,
       device_number: this.device_number,
@@ -849,8 +925,8 @@ deviceSchema.statics = {
         return next(
           new HttpError(
             "Either name or long_name is required.",
-            httpStatus.BAD_REQUEST
-          )
+            httpStatus.BAD_REQUEST,
+          ),
         );
       }
 
@@ -873,8 +949,8 @@ deviceSchema.statics = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "operation successful but device not created" }
-          )
+            { message: "operation successful but device not created" },
+          ),
         );
       }
 
@@ -895,7 +971,7 @@ deviceSchema.statics = {
       if (error instanceof HttpError) {
         // Log the HTTP error details
         logger.error(
-          `HTTP Error: ${error.message}, Status: ${error.statusCode}`
+          `HTTP Error: ${error.message}, Status: ${error.statusCode}`,
         );
         response.message = error.message; // Use the message from HttpError
         response.details = error.details || {}; // Capture additional details if available
@@ -916,19 +992,12 @@ deviceSchema.statics = {
     try {
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
-        filter.path ? filter.path : "none"
+        filter.path ? filter.path : "none",
       );
 
-      if (!isEmpty(filter.path)) {
-        delete filter.path;
-      }
-
-      if (!isEmpty(filter.dashboard)) {
-        delete filter.dashboard;
-      }
-      if (!isEmpty(filter.summary)) {
-        delete filter.summary;
-      }
+      if (!isEmpty(filter.path)) delete filter.path;
+      if (!isEmpty(filter.dashboard)) delete filter.dashboard;
+      if (!isEmpty(filter.summary)) delete filter.summary;
 
       let maxActivities = 500;
       if (!isEmpty(filter.maxActivities)) {
@@ -1093,27 +1162,288 @@ deviceSchema.statics = {
           device_categories: {
             primary_category: { $ifNull: ["$category", "lowcost"] },
             deployment_category: { $ifNull: ["$deployment_type", "static"] },
+
+            // Returns the raw network value so the frontend can display it directly.
+            // null when network is missing or empty string.
+            // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+            ownership_category: {
+              $cond: {
+                if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+                then: "$network",
+                else: null,
+              },
+            },
+
+            // Only meaningful for mobile devices — null for static.
+            // Priority: movement_pattern → route_id → coverage_area → "mobile"
+            // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+            mobile_category: {
+              $cond: {
+                if: {
+                  $or: [
+                    { $eq: ["$mobility", true] },
+                    { $eq: ["$deployment_type", "mobile"] },
+                  ],
+                },
+                then: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gt: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.movement_pattern",
+                                    null,
+                                  ],
+                                },
+                                null,
+                              ],
+                            },
+                            {
+                              $ne: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.movement_pattern",
+                                    "",
+                                  ],
+                                },
+                                "",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "$mobility_metadata.movement_pattern",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gt: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.route_id",
+                                    null,
+                                  ],
+                                },
+                                null,
+                              ],
+                            },
+                            {
+                              $ne: [
+                                {
+                                  $ifNull: ["$mobility_metadata.route_id", ""],
+                                },
+                                "",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "fixed-route",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gt: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.coverage_area",
+                                    null,
+                                  ],
+                                },
+                                null,
+                              ],
+                            },
+                            {
+                              $ne: [
+                                {
+                                  $ifNull: [
+                                    "$mobility_metadata.coverage_area",
+                                    "",
+                                  ],
+                                },
+                                "",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "area-coverage",
+                      },
+                    ],
+                    default: "mobile",
+                  },
+                },
+                else: null,
+              },
+            },
+
             is_mobile: {
               $or: [
                 { $eq: ["$mobility", true] },
                 { $eq: ["$deployment_type", "mobile"] },
               ],
             },
+            // Strict negation of is_mobile — $not requires array form in aggregation expressions
             is_static: {
-              $or: [
-                { $eq: ["$mobility", false] },
-                { $eq: ["$deployment_type", "static"] },
+              $not: [
+                {
+                  $or: [
+                    { $eq: ["$mobility", true] },
+                    { $eq: ["$deployment_type", "mobile"] },
+                  ],
+                },
               ],
             },
-            is_lowcost: { $eq: ["$category", "lowcost"] },
-            is_bam: { $eq: ["$category", "bam"] },
-            is_gas: { $eq: ["$category", "gas"] },
+            // Compare against resolved primary_category (via $ifNull) not raw $category,
+            // so a device with no category correctly gets is_lowcost: true
+            is_lowcost: {
+              $eq: [{ $ifNull: ["$category", "lowcost"] }, "lowcost"],
+            },
+            is_bam: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "bam"] },
+            is_gas: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "gas"] },
+
+            // $setUnion guarantees uniqueness — prevents duplicates when
+            // deployment_category and mobile_category resolve to the same value (e.g. "mobile")
             all_categories: {
-              $concatArrays: [
-                [{ $ifNull: ["$category", "lowcost"] }],
-                [{ $ifNull: ["$deployment_type", "static"] }],
+              $setUnion: [
+                [],
+                {
+                  $filter: {
+                    input: {
+                      $concatArrays: [
+                        [{ $ifNull: ["$category", "lowcost"] }],
+                        [{ $ifNull: ["$deployment_type", "static"] }],
+                        // Include network value when present
+                        {
+                          $cond: {
+                            if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+                            then: ["$network"],
+                            else: [],
+                          },
+                        },
+                        // Include mobile_category when device is mobile
+                        {
+                          $cond: {
+                            if: {
+                              $or: [
+                                { $eq: ["$mobility", true] },
+                                { $eq: ["$deployment_type", "mobile"] },
+                              ],
+                            },
+                            then: [
+                              {
+                                $switch: {
+                                  branches: [
+                                    {
+                                      case: {
+                                        $and: [
+                                          {
+                                            $gt: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.movement_pattern",
+                                                  null,
+                                                ],
+                                              },
+                                              null,
+                                            ],
+                                          },
+                                          {
+                                            $ne: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.movement_pattern",
+                                                  "",
+                                                ],
+                                              },
+                                              "",
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                      then:
+                                        "$mobility_metadata.movement_pattern",
+                                    },
+                                    {
+                                      case: {
+                                        $and: [
+                                          {
+                                            $gt: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.route_id",
+                                                  null,
+                                                ],
+                                              },
+                                              null,
+                                            ],
+                                          },
+                                          {
+                                            $ne: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.route_id",
+                                                  "",
+                                                ],
+                                              },
+                                              "",
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                      then: "fixed-route",
+                                    },
+                                    {
+                                      case: {
+                                        $and: [
+                                          {
+                                            $gt: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.coverage_area",
+                                                  null,
+                                                ],
+                                              },
+                                              null,
+                                            ],
+                                          },
+                                          {
+                                            $ne: [
+                                              {
+                                                $ifNull: [
+                                                  "$mobility_metadata.coverage_area",
+                                                  "",
+                                                ],
+                                              },
+                                              "",
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                      then: "area-coverage",
+                                    },
+                                  ],
+                                  default: "mobile",
+                                },
+                              },
+                            ],
+                            else: [],
+                          },
+                        },
+                      ],
+                    },
+                    as: "cat",
+                    cond: {
+                      $and: [{ $gt: ["$$cat", null] }, { $ne: ["$$cat", ""] }],
+                    },
+                  },
+                },
               ],
             },
+
             category_hierarchy: [
               {
                 level: "equipment",
@@ -1158,6 +1488,7 @@ deviceSchema.statics = {
                 },
               },
             ],
+
             category_relationships: {
               note:
                 "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
@@ -1175,6 +1506,7 @@ deviceSchema.statics = {
               },
             },
           },
+
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
@@ -1191,31 +1523,24 @@ deviceSchema.statics = {
       if (!isEmpty(response)) {
         response.forEach((device) => {
           device.latest_deployment_activity =
-            device.latest_deployment_activity &&
-            device.latest_deployment_activity.length > 0
+            device.latest_deployment_activity?.length > 0
               ? device.latest_deployment_activity[0]
               : null;
-
           device.latest_maintenance_activity =
-            device.latest_maintenance_activity &&
-            device.latest_maintenance_activity.length > 0
+            device.latest_maintenance_activity?.length > 0
               ? device.latest_maintenance_activity[0]
               : null;
-
           device.latest_recall_activity =
-            device.latest_recall_activity &&
-            device.latest_recall_activity.length > 0
+            device.latest_recall_activity?.length > 0
               ? device.latest_recall_activity[0]
               : null;
 
           if (device.activities && device.activities.length > 0) {
             const activitiesByType = {};
             const latestActivitiesByType = {};
-
             device.activities.forEach((activity) => {
               const type = activity.activityType || "unknown";
               activitiesByType[type] = (activitiesByType[type] || 0) + 1;
-
               if (
                 !latestActivitiesByType[type] ||
                 new Date(activity.createdAt) >
@@ -1224,7 +1549,6 @@ deviceSchema.statics = {
                 latestActivitiesByType[type] = activity;
               }
             });
-
             device.activities_by_type = activitiesByType;
             device.latest_activities_by_type = latestActivitiesByType;
           } else {
@@ -1266,11 +1590,14 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          {
+            message: error.message,
+          },
+        ),
       );
     }
   },
+
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");
@@ -1290,7 +1617,7 @@ deviceSchema.statics = {
       const updatedDevice = await this.findOneAndUpdate(
         filter,
         sanitizedUpdate,
-        options
+        options,
       );
 
       if (updatedDevice) {
@@ -1306,7 +1633,7 @@ deviceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Device does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1318,8 +1645,8 @@ deviceSchema.statics = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -1383,8 +1710,8 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1395,7 +1722,7 @@ deviceSchema.statics = {
       let modifiedUpdate = update;
       validKeys = ["writeKey", "readKey"];
       Object.keys(modifiedUpdate).forEach(
-        (key) => validKeys.includes(key) || delete modifiedUpdate[key]
+        (key) => validKeys.includes(key) || delete modifiedUpdate[key],
       );
 
       logObject("modifiedUpdate", modifiedUpdate);
@@ -1403,20 +1730,20 @@ deviceSchema.statics = {
         let key = update.writeKey;
         modifiedUpdate.writeKey = cryptoJS.AES.encrypt(
           key,
-          constants.KEY_ENCRYPTION_KEY
+          constants.KEY_ENCRYPTION_KEY,
         ).toString();
       }
       if (update.readKey) {
         let key = update.readKey;
         modifiedUpdate.readKey = cryptoJS.AES.encrypt(
           key,
-          constants.KEY_ENCRYPTION_KEY
+          constants.KEY_ENCRYPTION_KEY,
         ).toString();
       }
       const updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
-        options
+        options,
       ).exec();
 
       if (!isEmpty(updatedDevice)) {
@@ -1430,7 +1757,7 @@ deviceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "device does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1440,8 +1767,8 @@ deviceSchema.statics = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1471,7 +1798,7 @@ deviceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "device does not exist, please crosscheck",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -1482,8 +1809,8 @@ deviceSchema.statics = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },

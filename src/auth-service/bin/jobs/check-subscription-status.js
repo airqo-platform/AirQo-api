@@ -1,5 +1,5 @@
 // @utils/subscriptionUtils.js
-const paddleClient = require("@config/paddle");
+const { paddleClient, isPaddleConfigured } = require("@config/paddle");
 const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
 const constants = require("@config/constants");
@@ -9,10 +9,14 @@ const httpStatus = require("http-status");
 const cron = require("node-cron");
 
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- subscription-utils`
+  `${constants.ENVIRONMENT} -- bin/jobs/check-subscription-status -- ops-alerts`,
 );
 
 const checkSubscriptionStatuses = async () => {
+  if (!isPaddleConfigured) {
+    logger.warn("Paddle not configured — skipping subscription status check job");
+    return;
+  }
   try {
     const batchSize = 100;
     let skip = 0;
@@ -35,7 +39,7 @@ const checkSubscriptionStatuses = async () => {
         try {
           // Fetch subscription status from Paddle
           const subscriptionStatus = await paddleClient.subscriptions.get(
-            user.currentSubscriptionId
+            user.currentSubscriptionId,
           );
 
           // Update local user record based on Paddle subscription status
@@ -58,7 +62,7 @@ const checkSubscriptionStatuses = async () => {
           logger.error(
             `Failed to check subscription for user ${
               user.email
-            } --- ${stringify(error)}`
+            } --- ${stringify(error)}`,
           );
         }
       }
@@ -78,4 +82,4 @@ global.cronJobs[jobName] = cron.schedule(schedule, checkSubscriptionStatuses, {
   timezone: "Africa/Nairobi",
 });
 
-module.exports = subscriptionUtils;
+module.exports = { checkSubscriptionStatuses };

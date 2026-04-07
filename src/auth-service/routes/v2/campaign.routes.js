@@ -24,6 +24,22 @@ router.get(
   CampaignController.listCampaigns
 );
 
+// Get Campaign Statistics — must be before /:id to avoid being swallowed
+router.get(
+  "/stats",
+  campaignValidations.tenantOperation,
+  enhancedJWTAuth,
+  CampaignController.getCampaignStats
+);
+
+// Generate Campaign Report — must be before /:id
+router.get(
+  "/reports/campaign-report",
+  campaignValidations.tenantOperation,
+  enhancedJWTAuth,
+  CampaignController.generateCampaignReport
+);
+
 // Get Single Campaign
 router.get(
   "/:id",
@@ -65,15 +81,6 @@ router.get(
   CampaignController.getCampaignUpdates
 );
 
-// Get Campaign Statistics
-router.get(
-  "/stats",
-  campaignValidations.tenantOperation,
-  enhancedJWTAuth,
-  // No pagination for stats, usually aggregated
-  CampaignController.getCampaignStats
-);
-
 // Toggle Campaign Status
 router.patch(
   "/:id/toggle-status",
@@ -89,14 +96,6 @@ router.get(
   enhancedJWTAuth,
   pagination(), // Apply pagination here
   CampaignController.getCampaignDonations
-);
-
-// Generate Campaign Report
-router.get(
-  "/reports/campaign-report",
-  campaignValidations.tenantOperation,
-  enhancedJWTAuth,
-  CampaignController.generateCampaignReport
 );
 
 module.exports = router;

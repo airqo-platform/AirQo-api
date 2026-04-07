@@ -54,6 +54,7 @@
     "@migrations": "migrations"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
     "@google-cloud/bigquery": "^5.5.0",
     "@google-cloud/iot": "^1.5.0",
     "@google-cloud/translate": "^8.0.1",

@@ -1,10 +1,11 @@
+import os
 import uvicorn
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
-from app.db.session import engine, Base
+from app.db.session import Base
 from app.models import sync  # Import models to register them with Base
 from app.models import device_performance  # noqa: F401 — register with Alembic
 from app.services.scheduler_service import start_scheduler, stop_scheduler
@@ -115,5 +116,10 @@ app.include_router(api_router, prefix="")
 def root():
     return {"message": f"Welcome to {settings.APP_NAME}"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

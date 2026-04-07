@@ -35,7 +35,7 @@ const client = {
         delete update.isActive;
       }
       const responseFromUpdateClient = await ClientModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify({ filter, update }, next);
       if (responseFromUpdateClient.success === true) {
         const ip = update.ip_address || "";
@@ -47,7 +47,7 @@ const client = {
               { ip },
               {
                 upsert: true,
-              }
+              },
             );
             if (res.ok === 1) {
               logText(`Whitelisting CLIENT IP ${ip} successful`);
@@ -57,11 +57,11 @@ const client = {
           } catch (error) {
             if (error.name === "MongoError" && error.code !== 11000) {
               logger.error(
-                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`
+                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`,
               );
             } else if (error.code === 11000) {
               logger.error(
-                `Duplicate key error for IP ${ip} when updating a CLIENT`
+                `Duplicate key error for IP ${ip} when updating a CLIENT`,
               );
             }
           }
@@ -75,7 +75,7 @@ const client = {
                   { ip },
                   {
                     upsert: true,
-                  }
+                  },
                 );
 
                 return {
@@ -90,12 +90,12 @@ const client = {
                 if (error.name === "MongoError" && error.code !== 11000) {
                   logger.error(
                     `🐛🐛 MongoError -- whitelisting IP ${ip} -- ${stringify(
-                      error
-                    )}`
+                      error,
+                    )}`,
                   );
                 } else if (error.code === 11000) {
                   logger.error(
-                    `Duplicate key error for IP ${ip} when creating a new CLIENT`
+                    `Duplicate key error for IP ${ip} when creating a new CLIENT`,
                   );
                 }
                 return {
@@ -104,7 +104,7 @@ const client = {
                   message: `Error whitelisting IP ${ip}: ${error.message}`,
                 };
               }
-            })
+            }),
           );
 
           const successfulResponses = responses
@@ -152,8 +152,8 @@ const client = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -170,7 +170,7 @@ const client = {
         isActive: isActive,
       };
       const responseFromUpdateClient = await ClientModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).modify({ filter, update }, next);
       if (
         isEmpty(responseFromUpdateClient.data) ||
@@ -196,18 +196,20 @@ const client = {
           userDetails.firstName === "Unknown"
             ? "User"
             : userDetails.lastName === "Unknown"
-            ? "User"
-            : userDetails.firstName || userDetails.lastName;
+              ? "User"
+              : userDetails.firstName || userDetails.lastName;
 
         const email = userDetails.email;
+        const clientName = responseFromUpdateClient.data.name || "";
         const responseFromSendEmail = await mailer.afterClientActivation(
           {
             name,
             client_id,
+            clientName,
             email,
             action: isActive ? "activate" : "deactivate",
           },
-          next
+          next,
         );
         const responseMessage = isActive
           ? "AirQo API client activated successfully"
@@ -235,8 +237,8 @@ const client = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -252,20 +254,53 @@ const client = {
       const filter = generateFilter.clients(request, next);
       const clientDetailsResponse = await ClientModel(tenant).list(
         { filter },
-        next
+        next,
       );
       logObject("clientDetailsResponse", clientDetailsResponse);
       const { firstName, lastName, email } = clientDetailsResponse.data[0].user;
       const name = firstName || lastName || "";
+      const clientName = clientDetailsResponse.data[0].name || "";
+
+      // Send confirmation email to the user
       const responseFromSendEmail = await mailer.clientActivationRequest(
         {
           name,
           email,
           tenant,
           client_id,
+          clientName,
         },
-        next
+        next,
       );
+
+      // Send admin notification email (BCC to REQUEST_ACCESS_EMAILS)
+      // Fire-and-forget; don't block on admin email result
+      const hasAdminRecipients =
+        constants.REQUEST_ACCESS_EMAILS || constants.SUPPORT_EMAIL;
+
+      if (hasAdminRecipients) {
+        mailer
+          .clientActivationRequestAdmin(
+            {
+              name,
+              userEmail: email,
+              email: constants.SUPPORT_EMAIL || null,
+              tenant,
+              client_id,
+              clientName,
+            },
+            next,
+          )
+          .catch((err) => {
+            logger.error(
+              `Failed to send admin client activation notification: ${err.message}`,
+            );
+          });
+      } else {
+        logger.warn(
+          `No admin recipients configured for client activation request notification — client_id: ${client_id}`,
+        );
+      }
 
       if (responseFromSendEmail.success === true) {
         return {
@@ -283,8 +318,8 @@ const client = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -294,7 +329,7 @@ const client = {
       const { tenant } = query;
       const filter = generateFilter.clients(request, next);
       const responseFromDeleteClient = await ClientModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).remove({ filter }, next);
       return responseFromDeleteClient;
     } catch (error) {
@@ -303,8 +338,8 @@ const client = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -313,7 +348,7 @@ const client = {
       const { tenant, limit, skip } = { ...request.query };
       const filter = generateFilter.clients(request, next);
       const responseFromListClient = await ClientModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list({ skip, limit, filter }, next);
       return responseFromListClient;
     } catch (error) {
@@ -322,8 +357,8 @@ const client = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -355,7 +390,7 @@ const client = {
 
       const filter = { _id: validObjectId };
       const responseFromListClient = await ClientModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).list({ skip: 0, limit: 1, filter }, next);
 
       if (responseFromListClient.success === true) {
@@ -383,14 +418,14 @@ const client = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in getClientById: ${error.message}`
+        `🐛🐛 Internal Server Error in getClientById: ${error.message}`,
       );
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -406,14 +441,14 @@ const client = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} does not exist`,
-          })
+          }),
         );
       }
       let modifiedBody = Object.assign({}, body);
       modifiedBody.client_secret = client_secret;
 
       const responseFromCreateClient = await ClientModel(
-        tenant.toLowerCase()
+        tenant.toLowerCase(),
       ).register(modifiedBody, next);
 
       if (responseFromCreateClient.success === true) {
@@ -427,7 +462,7 @@ const client = {
               { ip },
               {
                 upsert: true,
-              }
+              },
             );
 
             if (res.ok === 1) {
@@ -438,11 +473,11 @@ const client = {
           } catch (error) {
             if (error.name === "MongoError" && error.code !== 11000) {
               logger.error(
-                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`
+                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`,
               );
             } else if (error.code === 11000) {
               logger.error(
-                `Duplicate key error for IP ${ip} when creating a new CLIENT`
+                `Duplicate key error for IP ${ip} when creating a new CLIENT`,
               );
             }
           }
@@ -456,7 +491,7 @@ const client = {
                   { ip },
                   {
                     upsert: true,
-                  }
+                  },
                 );
 
                 return {
@@ -471,12 +506,12 @@ const client = {
                 if (error.name === "MongoError" && error.code !== 11000) {
                   logger.error(
                     `🐛🐛 MongoError -- whitelisting IP ${ip} -- ${stringify(
-                      error
-                    )}`
+                      error,
+                    )}`,
                   );
                 } else if (error.code === 11000) {
                   logger.error(
-                    `Duplicate key error for IP ${ip} when creating a new CLIENT`
+                    `Duplicate key error for IP ${ip} when creating a new CLIENT`,
                   );
                 }
                 return {
@@ -485,7 +520,7 @@ const client = {
                   message: `Error whitelisting IP ${ip}: ${error.message}`,
                 };
               }
-            })
+            }),
           );
 
           const successfulResponses = responses
@@ -535,8 +570,8 @@ const client = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -550,7 +585,7 @@ const client = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Client with ID ${client_id} not found`,
-          })
+          }),
         );
       }
 
@@ -564,8 +599,8 @@ const client = {
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "unable to complete operation" }
-          )
+            { message: "unable to complete operation" },
+          ),
         );
       } else {
         return {
@@ -582,8 +617,8 @@ const client = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

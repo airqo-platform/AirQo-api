@@ -1,4 +1,4 @@
-# Beacon Service
+# Beacon Service.
 
 > High-performance device management and performance analytics microservice for AirQo's air quality monitoring network.
 

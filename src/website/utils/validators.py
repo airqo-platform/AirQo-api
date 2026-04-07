@@ -1,7 +1,27 @@
-# backend/utils/validators.py
-
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
+
+
+DEFAULT_MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def _max_upload_file_size() -> int:
+    value = getattr(settings, "UPLOAD_MAX_FILE_SIZE", DEFAULT_MAX_UPLOAD_FILE_SIZE)
+    return int(value) if value is not None else DEFAULT_MAX_UPLOAD_FILE_SIZE
+
+
+def _safe_file_size(file):
+    if not hasattr(file, "size"):
+        return None
+    try:
+        size = file.size
+    except Exception:
+        return None
+    try:
+        return int(size)
+    except (TypeError, ValueError):
+        return None
 
 
 def validate_image(file):
@@ -15,7 +35,7 @@ def validate_image(file):
     if '.' not in file.name:
         return
 
-    allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp']
+    allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff']
     extension_validator = FileExtensionValidator(allowed_extensions)
 
     try:
@@ -25,10 +45,11 @@ def validate_image(file):
             f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}."
         )
 
-    max_size = 25 * 1024 * 1024  # 25 MB
-    if file.size > max_size:
+    size = _safe_file_size(file)
+    max_size = _max_upload_file_size()
+    if size is not None and size > max_size:
         raise ValidationError(
-            f"Image size must not exceed {max_size / (1024 * 1024)} MB."
+            f"Image size must not exceed {max_size / (1024 * 1024):.0f} MB."
         )
 
 
@@ -54,8 +75,9 @@ def validate_file(file):
             f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}."
         )
 
-    max_size = 25 * 1024 * 1024  # 25 MB
-    if file.size > max_size:
+    size = _safe_file_size(file)
+    max_size = _max_upload_file_size()
+    if size is not None and size > max_size:
         raise ValidationError(
-            f"File size must not exceed {max_size / (1024 * 1024)} MB."
+            f"File size must not exceed {max_size / (1024 * 1024):.0f} MB."
         )
