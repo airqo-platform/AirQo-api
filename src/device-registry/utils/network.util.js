@@ -50,12 +50,40 @@ const getNetworkAdapter = async (networkName, tenant = "airqo") => {
   try {
     const record = await NetworkModel(tenant)
       .findOne({ name: networkName })
-      .select("adapter")
+      .select("adapter net_api_key")
       .lean();
+
+    // Decrypt the network-level API key when present. This is the per-account
+    // credential (e.g. AirGradient token, IQAir Bearer token) that applies to
+    // all devices on the network. Stored encrypted at rest; decrypted here so
+    // fetchExternalDeviceData can use it as a fallback when device.access_code
+    // is not set.
+    let net_api_key = null;
+    if (record?.net_api_key) {
+      try {
+        const bytes = cryptoJS.AES.decrypt(
+          record.net_api_key,
+          constants.KEY_ENCRYPTION_KEY
+        );
+        net_api_key = bytes.toString(cryptoJS.enc.Utf8) || null;
+      } catch (decryptError) {
+        logger.warn(
+          `getNetworkAdapter: failed to decrypt net_api_key for network ` +
+            `"${networkName}": ${decryptError.message}`
+        );
+      }
+    }
 
     if (record?.adapter && Object.keys(record.adapter).length > 0) {
       // DB values win; static fills any gaps the DB record does not override.
-      return { ...(staticAdapter || {}), ...record.adapter };
+      // net_api_key is attached separately — it is not part of the adapter
+      // config shape and must not be persisted back to the adapter subdocument.
+      return { ...(staticAdapter || {}), ...record.adapter, net_api_key };
+    }
+
+    // No adapter config in DB but we may still have a net_api_key to return.
+    if (staticAdapter) {
+      return { ...staticAdapter, net_api_key };
     }
   } catch (dbError) {
     logger.warn(
@@ -65,7 +93,7 @@ const getNetworkAdapter = async (networkName, tenant = "airqo") => {
   }
 
   // Return a shallow copy so callers cannot mutate the global NETWORK_ADAPTERS constant.
-  return staticAdapter ? { ...staticAdapter } : null;
+  return staticAdapter ? { ...staticAdapter, net_api_key: null } : null;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
