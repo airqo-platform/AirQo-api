@@ -1522,6 +1522,7 @@ class DataUtils:
                 (
                     average_pollutants,
                     calibrated_pollutants,
+                    uncalibrated_pollutants,
                 ) = DataUtils.__averaged_calibrated_data_structure(row)
 
                 device_details = devices.loc[device_id]
@@ -1538,6 +1539,7 @@ class DataUtils:
                     "time": row["timestamp"],
                     **average_pollutants,  # Can be empty
                     **calibrated_pollutants,  # Can be empty
+                    **uncalibrated_pollutants,  # Can be empty
                     # extra sensor metadata
                     **{
                         key: {"value": row.get(key, None)}
@@ -1585,7 +1587,10 @@ class DataUtils:
                         "calibratedValue": <calibrated_value>
                     }
                 - calibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` in the same structure.
+                - uncalibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` containing only the raw values if calibrated values are not present.
         """
+        uncalibrated_pollutants: Dict[str, Any] = {}
+
         pollutants = ["pm2_5", "pm10"]
 
         average_pollutants = {
@@ -1606,7 +1611,12 @@ class DataUtils:
             if key in row and f"{key}_calibrated_value" in row
         }
 
-        return average_pollutants, calibrated_pollutants
+        if not average_pollutants and not calibrated_pollutants:
+            uncalibrated_pollutants = {
+                key: {"value": row[key]} for key in pollutants if key in row
+            }
+
+        return average_pollutants, calibrated_pollutants, uncalibrated_pollutants
 
     @staticmethod
     def map_and_extract_data(
