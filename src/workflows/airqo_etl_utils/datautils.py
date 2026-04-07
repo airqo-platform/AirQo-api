@@ -1522,6 +1522,7 @@ class DataUtils:
                 (
                     average_pollutants,
                     calibrated_pollutants,
+                    uncalibrated_pollutants,
                 ) = DataUtils.__averaged_calibrated_data_structure(row)
 
                 device_details = devices.loc[device_id]
@@ -1538,6 +1539,7 @@ class DataUtils:
                     "time": row["timestamp"],
                     **average_pollutants,  # Can be empty
                     **calibrated_pollutants,  # Can be empty
+                    **uncalibrated_pollutants,  # Can be empty
                     # extra sensor metadata
                     **{
                         key: {"value": row.get(key, None)}
@@ -1585,7 +1587,10 @@ class DataUtils:
                         "calibratedValue": <calibrated_value>
                     }
                 - calibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` in the same structure.
+                - uncalibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` containing only the raw values if calibrated values are not present.
         """
+        uncalibrated_pollutants: Dict[str, Any] = {}
+
         pollutants = ["pm2_5", "pm10"]
 
         average_pollutants = {
@@ -1606,7 +1611,12 @@ class DataUtils:
             if key in row and f"{key}_calibrated_value" in row
         }
 
-        return average_pollutants, calibrated_pollutants
+        if not average_pollutants and not calibrated_pollutants:
+            uncalibrated_pollutants = {
+                key: {"value": row[key]} for key in pollutants if key in row
+            }
+
+        return average_pollutants, calibrated_pollutants, uncalibrated_pollutants
 
     @staticmethod
     def map_and_extract_data(
@@ -1857,6 +1867,11 @@ class DataUtils:
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
+        data.dropna(
+            subset=["pm2_5", "pm10", "s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"],
+            how="all",
+            inplace=True,
+        )
         return data
 
     # ----------------------------------------------------------------------------------
@@ -1885,7 +1900,6 @@ class DataUtils:
             remove_outliers = False
         else:
             data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
-
         data = DataValidationUtils.remove_outliers_fix_types(
             data, remove_outliers=remove_outliers
         )
@@ -1900,6 +1914,9 @@ class DataUtils:
         data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
         data = data[required_cols]
 
+        if datatype == DataType.AVERAGED:
+            # This is so that averaged data is always cleaned of reference monitor device codes which are sometimes transmitted in the raw data but should not be included in the averaged data.
+            data.dropna(subset=["pm2_5", "pm10"], how="all", inplace=True)
         return drop_rows_with_bad_data("number", data, exclude=["device_number"])
 
     @staticmethod
