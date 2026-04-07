@@ -1867,11 +1867,20 @@ class DataUtils:
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
+        # columns to drop rows from if all are NaN
+        lc_raw_cols = ["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10", "pm2_5", "pm10"]
+        unique_networks = set(data.network.unique())
+        if unique_networks == {"airqo"}:  # Cleaner way to check "only airqo exists"
+            to_remove = {"pm2_5", "pm10"}
+            lc_raw_cols = [col for col in lc_raw_cols if col not in to_remove]
+
+        # If only airqo data is present, drop rows where all raw columns are NaN
         data.dropna(
-            subset=["pm2_5", "pm10", "s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"],
+            subset=lc_raw_cols,
             how="all",
             inplace=True,
         )
+
         return data
 
     # ----------------------------------------------------------------------------------
