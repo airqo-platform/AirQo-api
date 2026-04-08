@@ -108,6 +108,14 @@ const routes = [
     name: "lookups",
   },
   { path: "/sites", route: "@routes/v2/sites.routes", name: "sites" },
+  // bulk-update-jobs MUST be before the "/" devices route — the devices router
+  // is mounted at "/" which matches all paths, so more specific paths must be
+  // registered first.
+  {
+    path: "/bulk-update-jobs",
+    route: "@routes/v2/device-bulk-update-jobs.routes",
+    name: "device-bulk-update-jobs",
+  },
   // MAIN DEVICES ROUTE - mounted at root "/" since we're already at /api/v2/devices
   { path: "/", route: "@routes/v2/devices.routes", name: "devices" },
   { path: "/events", route: "@routes/v2/events.routes", name: "events" },
