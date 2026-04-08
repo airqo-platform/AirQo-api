@@ -110,10 +110,11 @@ async def get_collocation_sites(token: str, db: Session, params: Dict[str, Any] 
                 client, "GET", url, headers=headers, params=params
             )
         except Exception as e:
+            # Log detailed error server-side but return a generic message to the client
             logger.error(f"Failed to connect to Platform API after retries: {e}")
             return {
                 "success": False,
-                "message": f"Connection error to Platform API: {e}",
+                "message": "Connection error to Platform API",
                 "status_code": 502,
                 "sites": []
             }
