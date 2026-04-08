@@ -662,10 +662,14 @@ const createFeed = {
       const logMsg =
         `fetchExternalDeviceData failed for device "${deviceRef}" ` +
         `(network: ${device.network}${url ? `, url: ${redactUrl(url)}` : ""}): ${error.message}`;
-      // 4xx responses are vendor-side issues (device not found, auth required, etc.)
-      // and map to "device is offline" — log at warn so Slack is not flooded.
-      // 5xx and network errors are infrastructure problems and stay at error.
-      if (status >= 400 && status < 500) {
+      // HTTP responses (4xx and 5xx) are vendor-side issues — the device is
+      // unreachable or the upstream API is temporarily down. These are outside
+      // our control and map to "device is offline"; log at warn so Slack is
+      // not flooded with transient vendor errors.
+      // Reserve logger.error for cases where no HTTP response arrived at all
+      // (network-level failures: ECONNREFUSED, ETIMEDOUT, DNS errors, etc.)
+      // since those may indicate problems on our side or with our infra.
+      if (error.response) {
         logger.warn(logMsg);
       } else {
         logger.error(logMsg);
