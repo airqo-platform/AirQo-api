@@ -229,18 +229,6 @@ const userController = {
         }
       })();
 
-      res.cookie("access_token", token, {
-        httpOnly: true,
-        secure: true,
-      });
-
-      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        res.cookie("temp_access_token", token, {
-          httpOnly: false,
-          secure: true,
-        });
-      }
-
       res.redirect(
         `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google&token=${token}`,
       );
@@ -333,18 +321,6 @@ const userController = {
           logger.error(`oauthCallback stats update error: ${stringify(error)}`);
         }
       })();
-
-      res.cookie("access_token", token, {
-        httpOnly: true,
-        secure: true,
-      });
-
-      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        res.cookie("temp_access_token", token, {
-          httpOnly: false,
-          secure: true,
-        });
-      }
 
       return res.redirect(
         `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=${providerForLog}&token=${token}`,
