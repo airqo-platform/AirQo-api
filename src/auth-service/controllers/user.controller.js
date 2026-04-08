@@ -229,20 +229,8 @@ const userController = {
         }
       })();
 
-      res.cookie("access_token", token, {
-        httpOnly: true,
-        secure: true,
-      });
-
-      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        res.cookie("temp_access_token", token, {
-          httpOnly: false,
-          secure: true,
-        });
-      }
-
       res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google`,
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);
@@ -334,20 +322,8 @@ const userController = {
         }
       })();
 
-      res.cookie("access_token", token, {
-        httpOnly: true,
-        secure: true,
-      });
-
-      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        res.cookie("temp_access_token", token, {
-          httpOnly: false,
-          secure: true,
-        });
-      }
-
       return res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=${providerForLog}`,
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);
