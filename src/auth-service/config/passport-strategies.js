@@ -223,8 +223,7 @@ function configureStrategies(passport, tenant) {
       logger.info("✅ LinkedIn OAuth strategy configured");
     } catch (e) {
       logger.warn(
-        "⚠️  LinkedIn OAuth strategy skipped: passport-linkedin-oauth2 " +
-          "not installed. Run: npm install passport-linkedin-oauth2",
+        `⚠️  LinkedIn OAuth strategy skipped: failed to load passport-linkedin-oauth2 — ${e.message}`,
       );
     }
   } else {
@@ -260,8 +259,7 @@ function configureStrategies(passport, tenant) {
       logger.info("✅ Microsoft OAuth strategy configured");
     } catch (e) {
       logger.warn(
-        "⚠️  Microsoft OAuth strategy skipped: passport-microsoft not " +
-          "installed. Run: npm install passport-microsoft",
+        `⚠️  Microsoft OAuth strategy skipped: failed to load passport-microsoft — ${e.message}`,
       );
     }
   } else {
@@ -272,8 +270,9 @@ function configureStrategies(passport, tenant) {
   }
 
   // ── Twitter / X ──────────────────────────────────────────────────────────
-  // NOTE: passport-twitter pulls in xmldom@0.1.31 (CVE-2021-21366).
-  // Only enable once the transitive dependency risk has been assessed.
+  // CVE-2021-21366 (xmldom): mitigated via the "overrides.xmldom" entry in
+  // package.json which forces xmldom >= 0.5.0 across the entire dependency
+  // tree, including passport-twitter → xtraverse → xmldom.
   if (constants.TWITTER_CONSUMER_KEY && constants.TWITTER_CONSUMER_SECRET) {
     try {
       const TwitterStrategy = require("passport-twitter").Strategy;
@@ -299,8 +298,7 @@ function configureStrategies(passport, tenant) {
       logger.info("✅ Twitter OAuth strategy configured");
     } catch (e) {
       logger.warn(
-        "⚠️  Twitter OAuth strategy skipped: passport-twitter not installed. " +
-          "Run: npm install passport-twitter",
+        `⚠️  Twitter OAuth strategy skipped: failed to load passport-twitter — ${e.message}`,
       );
     }
   } else {
