@@ -8,7 +8,8 @@ from app.core.config import settings
 from app.db.session import Base
 from app.models import sync  # Import models to register them with Base
 from app.models import device_performance  # noqa: F401 — register with Alembic
-from app.services.scheduler_service import start_scheduler, stop_scheduler
+from app.services.scheduler_service import start_scheduler, stop_scheduler, run_startup_sync_tasks
+import asyncio
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import traceback
@@ -23,8 +24,7 @@ logging.basicConfig(
     level=log_level,
     format=log_format,
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("log.txt")
+        logging.StreamHandler()
     ],
     force=True
 )
@@ -58,6 +58,7 @@ app = FastAPI(
 def on_startup():
     logger.info("Application starting up...")
     start_scheduler()
+    asyncio.create_task(run_startup_sync_tasks())
     logger.info("Application startup complete and ready to serve requests.")
 
 

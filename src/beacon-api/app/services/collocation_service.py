@@ -10,6 +10,46 @@ from app.services import cohort_service
 
 logger = logging.getLogger(__name__)
 
+async def _make_request_with_retry(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    max_retries: int = 3,
+    **kwargs
+) -> Optional[httpx.Response]:
+    """Helper to make HTTP requests to Platform API with retries for transient errors."""
+    last_exception = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            if method.upper() == "GET":
+                response = await client.get(url, **kwargs)
+            elif method.upper() == "POST":
+                response = await client.post(url, **kwargs)
+            else:
+                return None
+            
+            if response.status_code == 200:
+                return response
+            
+            if response.status_code >= 500 and attempt < max_retries:
+                delay = 2 ** attempt
+                logger.warning(f"Platform API {method} {url} returned {response.status_code} (attempt {attempt}/{max_retries}). Retrying in {delay}s...")
+                await asyncio.sleep(delay)
+                continue
+            return response
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout, httpx.RemoteProtocolError) as e:
+            last_exception = e
+            if attempt < max_retries:
+                delay = 2 ** attempt
+                logger.warning(f"Platform API {method} {url} connection error {e} (attempt {attempt}/{max_retries}). Retrying in {delay}s...")
+                await asyncio.sleep(delay)
+                continue
+            break
+    
+    if last_exception:
+        raise last_exception
+    return None
+
 def _ensure_timezone(dt_str: Optional[str]) -> Optional[str]:
     """Ensures that the date string is timezone-aware as required by Platform API."""
     if not dt_str:
@@ -33,11 +73,19 @@ async def get_collocation_sites(token: str, db: Session, params: Dict[str, Any] 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         # Based on issue description: /api/v2/devices?category=bam&status=deployed
         url = f"{settings.PLATFORM_BASE_URL}/devices"
-        response = await client.get(
-            url,
-            headers=headers,
-            params=params
-        )
+        
+        try:
+            response = await _make_request_with_retry(
+                client, "GET", url, headers=headers, params=params
+            )
+        except Exception as e:
+            logger.error(f"Failed to connect to Platform API after retries: {e}")
+            return {
+                "success": False,
+                "message": f"Connection error to Platform API: {e}",
+                "status_code": 502,
+                "sites": []
+            }
 
         if response.status_code != 200:
             logger.error(f"Platform API returned error status for devices: {response.status_code}")
@@ -412,7 +460,10 @@ async def get_sites_performance(
             has_more = True
             while has_more:
                 try:
-                    response = await client.post(url, json=payload)
+                    response = await _make_request_with_retry(
+                        client, "POST", url, json=payload
+                    )
+                    
                     if response.status_code != 200:
                         logger.error(f"Platform API error for category {cat}: {response.status_code}")
                         has_more = False
@@ -749,8 +800,10 @@ async def get_collocation_site_details(
         try:
             url = f"{settings.PLATFORM_BASE_URL}/devices"
             params = {"site_id": site_id, "tenant": "airqo"}
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code == 200:
+            resp = await _make_request_with_retry(
+                client, "GET", url, headers=headers, params=params
+            )
+            if resp and resp.status_code == 200:
                 platform_devices = resp.json().get("devices", [])
                 for d in platform_devices:
                     name = d.get("name")
@@ -775,6 +828,14 @@ async def get_collocation_site_details(
         }
 
     all_device_data_map = {}
+    for cat, names in category_to_devices.items():
+        for name in names:
+            if name not in all_device_data_map:
+                all_device_data_map[name] = {
+                    "device_name": name,
+                    "category": cat,
+                    "data": []
+                }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         # Use PLATFORM_API_TOKEN for analytics raw-data
@@ -801,7 +862,10 @@ async def get_collocation_site_details(
             has_more = True
             while has_more:
                 try:
-                    response = await client.post(url, json=payload)
+                    response = await _make_request_with_retry(
+                        client, "POST", url, json=payload
+                    )
+                    
                     if response.status_code != 200:
                         logger.error(f"Platform API error for category {cat}: {response.status_code}")
                         has_more = False

@@ -980,19 +980,22 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
             data = response.json()
             all_devices.extend(data.get("devices", []))
             
-            total_pages = data.get("meta", {}).get("totalPages", 1)
+            meta = data.get("meta", {})
+            total_items = meta.get("total", 0)
+            actual_limit = meta.get("limit", 100)
             
-            # Fetch remaining pages in parallel
-            if total_pages > 1:
+            # Fetch remaining pages based on actual limit and total items
+            if total_items > actual_limit:
                 fetch_tasks = []
-                for p in range(2, total_pages + 1):
-                    params = {"limit": 100, "skip": (p - 1) * 100}
+                for skip in range(actual_limit, total_items, actual_limit):
+                    params = {"limit": 100, "skip": skip}
                     fetch_tasks.append(client.get(url, headers=headers, params=params))
                 
-                paged_responses = await asyncio.gather(*fetch_tasks)
-                for resp in paged_responses:
-                    if resp.status_code == 200:
-                        all_devices.extend(resp.json().get("devices", []))
+                if fetch_tasks:
+                    paged_responses = await asyncio.gather(*fetch_tasks)
+                    for resp in paged_responses:
+                        if resp.status_code == 200:
+                            all_devices.extend(resp.json().get("devices", []))
         except Exception as e:
             logger.exception(f"Unexpected error fetching devices for sync: {e}")
             return {"success": False, "message": f"Network or Parsing error: {str(e)}", "status_code": 500}
@@ -1071,7 +1074,8 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
                 db.commit()
                 
         except Exception as e:
-            logger.error(f"Error syncing device {dev.get('_id')}: {e}")
+            # logger.error(f"Error syncing device {dev.get('_id')}: {e}")
+            logger.error(f"Error syncing device {e}")
             db.rollback()
 
     db.commit()
