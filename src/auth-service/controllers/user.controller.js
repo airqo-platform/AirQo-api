@@ -242,7 +242,7 @@ const userController = {
       }
 
       res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=google`,
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google`,
       );
     } catch (error) {
       handleError(error, next);
@@ -347,8 +347,7 @@ const userController = {
       }
 
       return res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home` +
-          `?success=${providerForLog}`,
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=${providerForLog}`,
       );
     } catch (error) {
       handleError(error, next);

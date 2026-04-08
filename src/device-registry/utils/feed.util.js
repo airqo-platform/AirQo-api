@@ -601,15 +601,19 @@ const createFeed = {
 
       // ── Configure auth ─────────────────────────────────────────────────────
       const axiosConfig = { timeout: 15000, params };
-      const credential = device.access_code || null;
+      // Credential resolution: device-level access_code takes precedence (per-device
+      // override), falling back to the network-level net_api_key (per-account token
+      // e.g. AirGradient, IQAir). getNetworkAdapter already decrypts net_api_key.
+      const credential = device.access_code || adapter.net_api_key || null;
 
       // Auth is driven by the adapter config (adapter.auth_type), not by
       // device.authRequired. The device flag controls ThingSpeak/AirQo
       // visibility; for external adapters the adapter is the authority.
       if (adapter.auth_type && adapter.auth_type !== "none" && !credential) {
         logger.warn(
-          `fetchExternalDeviceData: auth expected but device.access_code is missing ` +
-            `for device "${device.serial_number || redactUrl(device.api_code) || device._id}" ` +
+          `fetchExternalDeviceData: auth expected but neither device.access_code nor ` +
+            `network.net_api_key is set for device ` +
+            `"${device.serial_number || redactUrl(device.api_code) || device._id}" ` +
             `on network "${device.network}" — proceeding unauthenticated`
         );
       }
